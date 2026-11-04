@@ -355,7 +355,7 @@ public sealed class BrowsePage : Page
             _items.Clear(); _items.AddRange(result.Items); _total = result.TotalRecordCount;
             var offset = _scroll.Offset;
             _grid.Children.Clear();
-            foreach (var item in result.Items) _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu));
+            foreach (var item in result.Items) _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
             if (keep) _scroll.Offset = offset; else _scroll.Offset = default;
             Count();
             if (_items.Count == 0 && _found.Count + _foundStudios.Count + _foundEpisodes.Count + _foundSagas.Count == 0)
@@ -377,7 +377,7 @@ public sealed class BrowsePage : Page
             await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)));
             if (version != _version) return;
             foreach (var item in result.Items.Where(x => _items.All(old => old.Id != x.Id)))
-            { _items.Add(item); _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu)); }
+            { _items.Add(item); _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels)); }
             _total = result.Items.Count == 0 ? _items.Count : result.TotalRecordCount;
             Count();
         }

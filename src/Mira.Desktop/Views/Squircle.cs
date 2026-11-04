@@ -6,8 +6,8 @@ namespace Mira.Desktop.Views;
 
 /// <summary>
 /// Mira's shape: a rounded rectangle whose corners ease into the sides (a squircle, as Apple draws them) instead of
-/// a circle's arc meeting them at a crease, with a light from above that gives a filled shape some depth (a sheen
-/// down its face, a bright top edge). Used where a Border would be: buttons, tiles, cards, fields.
+/// a circle's arc meeting them at a crease. Flat: one plain fill and, when given, an even edge, as Mira web draws its
+/// buttons (no light from above, no gradient: ogsas, 2026-11-04). Used where a Border would be: buttons, tiles, cards, fields.
 /// </summary>
 public sealed class Squircle : Decorator
 {
@@ -16,8 +16,6 @@ public sealed class Squircle : Decorator
     public static readonly DependencyProperty BorderThicknessProperty = DependencyProperty.Register(nameof(BorderThickness), typeof(Thickness), typeof(Squircle), new FrameworkPropertyMetadata(new Thickness(), FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty CornerRadiusProperty = DependencyProperty.Register(nameof(CornerRadius), typeof(CornerRadius), typeof(Squircle), new FrameworkPropertyMetadata(new CornerRadius(), FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.AffectsArrange));
     public static readonly DependencyProperty PaddingProperty = DependencyProperty.Register(nameof(Padding), typeof(Thickness), typeof(Squircle), new FrameworkPropertyMetadata(new Thickness(), FrameworkPropertyMetadataOptions.AffectsMeasure));
-    /// <summary>The light from above: 0 flat, 1 Mira's usual sheen on a filled shape (nothing is drawn on a see-through one).</summary>
-    public static readonly DependencyProperty DepthProperty = DependencyProperty.Register(nameof(Depth), typeof(double), typeof(Squircle), new FrameworkPropertyMetadata(1d, FrameworkPropertyMetadataOptions.AffectsRender));
     /// <summary>The content cut to the shape (a picture filling a card); off by default, so focus rings and shadows inside stay whole.</summary>
     public static readonly DependencyProperty ClipContentProperty = DependencyProperty.Register(nameof(ClipContent), typeof(bool), typeof(Squircle), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsArrange));
     public Brush? Background { get => (Brush?)GetValue(BackgroundProperty); set => SetValue(BackgroundProperty, value); }
@@ -25,13 +23,7 @@ public sealed class Squircle : Decorator
     public Thickness BorderThickness { get => (Thickness)GetValue(BorderThicknessProperty); set => SetValue(BorderThicknessProperty, value); }
     public CornerRadius CornerRadius { get => (CornerRadius)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
     public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
-    public double Depth { get => (double)GetValue(DepthProperty); set => SetValue(DepthProperty, value); }
     public bool ClipContent { get => (bool)GetValue(ClipContentProperty); set => SetValue(ClipContentProperty, value); }
-
-    private static readonly Brush Sheen = Frozen(new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(22, 255, 255, 255), 0), new(Color.FromArgb(0, 255, 255, 255), .55), new(Color.FromArgb(18, 0, 0, 0), 1) }, 90));
-    private static readonly Brush Rim = Frozen(new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(46, 255, 255, 255), 0), new(Color.FromArgb(0, 255, 255, 255), .45) }, 90));
-    private const double SheenHeight = 56;
-    private static T Frozen<T>(T value) where T : Freezable { value.Freeze(); return value; }
 
     private Geometry? _shape; private Size _shapeSize; private double _shapeRadius = -1;
     private Geometry Shape(Size size, double radius)
@@ -61,15 +53,6 @@ public sealed class Squircle : Decorator
         var stroke = BorderThickness.Top;
         if (BorderBrush is { } line && stroke > 0 && !Transparent(line))
             dc.DrawGeometry(null, new Pen(line, stroke), Geometry(new Rect(size).Inset(stroke / 2), Math.Max(0, radius - stroke / 2)));
-        if (Depth > 0 && Background is { } filled and not ImageBrush && !Transparent(filled))
-        {
-            dc.PushOpacity(Math.Min(1, Depth));
-            // The sheen only on a small shape (a button, a pill): down a tall card, its dark gradient moves one grey
-            // level every few pixels and shows as steps (banding, plain on an OLED screen); the bright top edge stays.
-            if (size.Height <= SheenHeight) dc.DrawGeometry(Sheen, null, shape);
-            dc.DrawGeometry(null, new Pen(Rim, 1), Geometry(new Rect(size).Inset(.5), Math.Max(0, radius - .5)));
-            dc.Pop();
-        }
     }
     private static bool Transparent(Brush brush) => brush.Opacity <= 0 || brush is SolidColorBrush { Color.A: 0 };
 

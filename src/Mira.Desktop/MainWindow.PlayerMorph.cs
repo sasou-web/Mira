@@ -4,17 +4,18 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Mira.Desktop.Playback;
 using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
 /// <summary>
-/// The player going from one place to another (reduced to the mini-player, expanded from it, closed): the picture as
-/// mpv shows it now moves and resizes between the two places, rounded on the way. The video is a native window that
-/// WPF can neither move smoothly nor fade (airspace): it waits hidden, already at its new size, while a still of it
-/// moves, and comes back where the still lands. The page under it is laid out before the movement starts, so that the
-/// interface's thread has nothing heavy to do while it runs.
+/// The player going from one place to another. Reduced or expanded, the video's own window moves and resizes between the
+/// two places, rounded on the way, and keeps playing: nothing to prepare, so the movement starts with the click, WPF has
+/// nothing to draw while it runs, and mpv is never held up (a still of the picture, as the 0.9.2 moved, stops mpv's main
+/// thread for as long as it takes: a blink at each end, and the sound starved). Closed: a still of the picture, which
+/// can fade, over the page it goes back to.
 /// </summary>
 public partial class MainWindow
 {
@@ -35,22 +36,40 @@ public partial class MainWindow
         }
         FrameProbe.Begin(mini ? "reduce" : "expand");
         var version = ++_morphVersion; _morphing = true;
-        var from = VideoRect(); var fromRadius = _miniPlayer ? MiniRadius : 0d;
-        if (!await CoverVideoAsync(from, fromRadius) || version != _morphVersion) return;
+        var host = _videoHost!; var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var fromRadius = _miniPlayer ? MiniRadius * dpi : 0d; var from = host.BeginMove();
         using (FrameProbe.Time("SetMiniPlayer")) SetMiniPlayer(mini);
-        // Expanding: the page stays under the growing picture until the picture covers it.
+        // Expanding: the page stays under the growing video until the video covers it.
         if (!mini) LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Visible;
         PlayerShell.Opacity = 0; PlayerShell.IsHitTestVisible = false; MiniFrame.Opacity = 0;
         ClosePlayerPopups();
-        // The new page laid out, and what that queued done, under the still rather than during the movement.
         using (FrameProbe.Time("layout")) UpdateLayout();
-        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+        await MoveVideoAsync(host, from, host.LaidOut ?? from, fromRadius, mini ? MiniRadius * dpi : 0, MorphMs);
         if (version != _morphVersion) return;
-        await MoveMorphAsync(from, VideoRect(), fromRadius, mini ? MiniRadius : 0, MorphMs);
-        if (version != _morphVersion) return;
-        if (!_miniPlayer) LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Collapsed;
+        if (_playing && !_miniPlayer) { LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Collapsed; LeavePagesForPlayer(); }
         EndMorph();
         if (_playing) { if (_miniPlayer) Motion.Fade(MiniFrame, 1, 140, 0); ShowPlayerControls(); }
+    }
+    /// <summary>
+    /// Moves the video's own window from one place to the other, timed by the clock rather than counted in frames: a late
+    /// frame shows it further on, never a slower movement. WPF has nothing to draw meanwhile, and mpv goes on playing.
+    /// </summary>
+    private Task MoveVideoAsync(VideoHost host, Rect from, Rect to, double fromRadius, double toRadius, int ms)
+    {
+        var done = new TaskCompletionSource();
+        var version = _morphVersion; var clock = Stopwatch.StartNew();
+        void Frame(object? sender, EventArgs e)
+        {
+            if (version != _morphVersion) { CompositionTarget.Rendering -= Frame; done.TrySetResult(); return; }
+            var t = Math.Min(1, clock.Elapsed.TotalMilliseconds / ms);
+            // A quick start and a long, soft landing.
+            var k = 1 - Math.Pow(1 - t, 3);
+            static double Mix(double a, double b, double k) => a + (b - a) * k;
+            host.Move(new Rect(Mix(from.X, to.X, k), Mix(from.Y, to.Y, k), Mix(from.Width, to.Width, k), Mix(from.Height, to.Height, k)), Mix(fromRadius, toRadius, k));
+            if (t >= 1) { CompositionTarget.Rendering -= Frame; done.TrySetResult(); }
+        }
+        CompositionTarget.Rendering += Frame;
+        return done.Task;
     }
     /// <summary>
     /// Closing the player (Stop, ✕ of the mini-player): the still of the picture shrinks a little and fades over the page
@@ -111,7 +130,7 @@ public partial class MainWindow
     /// <summary>Puts everything back as the player shows it, the still gone.</summary>
     private void EndMorph()
     {
-        _morphing = false;
+        _morphing = false; _videoHost?.EndMove();
         if (_morphLayer is not null) { _morphLayer.Visibility = Visibility.Collapsed; _morphPicture!.Background = null; }
         MiniFrame.BeginAnimation(OpacityProperty, null); MiniFrame.Opacity = 1;
         PlayerShell.BeginAnimation(OpacityProperty, null); PlayerShell.Opacity = 1; PlayerShell.IsHitTestVisible = true;

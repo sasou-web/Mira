@@ -263,6 +263,8 @@ public sealed class PlayerSettings
     /// 2: and hardware decoding; 3: drawn without OpenGL). Kept for the next playbacks until « Image » is chosen again.
     /// </summary>
     public int VideoRepair { get; set; }
+    /// <summary>Mira for Mac: the size of the grids' posters, pinched on the trackpad or ⌘+ / ⌘− (<see cref="Trackpad.Zoom"/>), 1 as made.</summary>
+    public double GridZoom { get; set; } = 1;
     /// <summary>« Sortie audio » of Mira for Windows (<see cref="AudioOutput"/>): mpv's device name, « auto » for Windows' default.</summary>
     public string AudioDevice { get; set; } = AudioOutput.Default;
     /// <summary>The device's name as Windows gave it, shown while it is unplugged.</summary>

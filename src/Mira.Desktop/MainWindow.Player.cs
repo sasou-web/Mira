@@ -421,9 +421,11 @@ public partial class MainWindow
         if (reveal) Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
     }
     private MediaItem? _returnToDetail;
-    /// <summary>Playback started from a title page comes back to that page, with progress and watched marks refreshed.</summary>
+    private bool _returnToSettings;
+    /// <summary>Playback started from a title page comes back to that page, with progress and watched marks refreshed; Réglages too, left for the player.</summary>
     private void RestoreDetailPage(bool refresh = true)
     {
+        if (_returnToSettings) { _returnToSettings = false; if (SettingsOverlay.Visibility != Visibility.Visible) Motion.Reveal(SettingsOverlay, 260, 10); }
         if (_returnToDetail is not { } page || _detail?.Id != page.Id) { _returnToDetail = null; return; }
         if (DetailOverlay.Visibility != Visibility.Visible) Motion.Reveal(DetailOverlay, 260, 10);
         if (refresh) _ = RefreshDetailAsync();

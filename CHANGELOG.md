@@ -2,6 +2,12 @@
 
 ## Non publié
 
+- **Mini-lecteur fluide (Windows)** : réduire et agrandir le lecteur déplacent maintenant la vraie fenêtre de la vidéo, qui continue de jouer pendant le mouvement, au lieu d’une image figée. Mesuré image par image sur un écran 4K à 240 Hz : départ en moins de 10 ms au lieu de 60 à 100, plus d’image noire au départ ni à l’arrivée, de 100 à 240 images par seconde.
+- **La page reste où elle était (Windows)** : une fiche ou Réglages ouverts avec le mini-lecteur revenaient à la page d’en dessous (l’Accueil, souvent) quand on agrandissait puis réduisait le lecteur ; ils reviennent maintenant. La page reste aussi sous la vidéo pendant qu’elle grandit.
+- **Boutons plats (Windows)** : les boutons (Lecture, « Regarder ensemble », Favori, Vu… de la fiche, « Plus d’infos » de l’Accueil), les listes déroulantes et les cartes n’ont plus de reflet clair en haut ni de bord éclairé : un fond uni, comme Mira web. Survol et appui éclaircissent toujours le fond, l’anneau du clavier reste ; une liste déroulante s’éclaircit aussi au survol et une fois ouverte.
+- **Plus de flash blanc en lançant une vidéo (Windows)** : la fenêtre de la vidéo était celle, gris clair, d’un contrôle Windows, jusqu’à ce que mpv dessine dedans : mesuré sur un écran 4K, 37 % de l’écran en blanc pendant 120 ms à chaque lancement. Elle est noire maintenant.
+- **Gestes du trackpad sur Mac** : deux doigts vers la droite ou la gauche font Retour et Avant (flèche ronde sur le côté pendant le geste, rangées d’affiches qui défilent d’abord), trois doigts aussi si le Mac balaie ainsi ; pincer change la taille des affiches des grilles (⌘+ / ⌘− / ⌘0 au clavier, ⌘] pour Avant) ; un clic forcé (Force Touch) sur une affiche ouvre son menu. Dans le lecteur : glisser sur l’image avance ou recule, haut et bas règlent le volume, écarter passe en plein écran, rapprocher en sort puis réduit le lecteur. Sens naturel et « Balayer entre les pages » du Mac respectés. Contrôlé sous Linux (self-check) ; jamais essayé sur un vrai Mac.
+
 ## 0.9.2 — 2026-11-02
 
 Correctifs : qBittorrent 5 accepté, boutons de la fiche sous Windows, image grise sur Mac.
