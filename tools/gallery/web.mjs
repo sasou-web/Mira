@@ -58,7 +58,13 @@ try {
   await page.locator('.tabbar a[data-tab="films"]').click(); await wait(2500);
   await shot('web-films');
   if (film) { await page.goto(`${base}#/titre/${film.Id}`); await wait(2500); await shot('web-film'); }
-  if (series) { await page.goto(`${base}#/titre/${series.Id}`); await wait(2500); await shot('web-series'); }
+  if (series) {
+    // From the Shows tab, so that it is the one lit; the page scrolled to its episodes, which the README's caption shows.
+    await page.locator('.tabbar a[data-tab="series"]').click(); await wait(1500);
+    await page.goto(`${base}#/titre/${series.Id}`); await wait(2500);
+    await page.evaluate(() => { document.querySelector('.episodes')?.scrollIntoView({ block: 'start' }); scrollBy(0, -110); });
+    await shot('web-series');
+  }
   // The featured film's backdrop, as Jellyfin serves it (anonymous, a download rather than a page): the still of the
   // showcase site, in PNG like the captures.
   if (film) {
