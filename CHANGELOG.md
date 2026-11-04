@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Le son ne saute plus au passage en mini-lecteur, et la vidéo démarre deux fois plus vite (Windows)** : mpv recompilait ses shaders à chaque lecture et à chaque nouvelle taille, jusqu’à une demi-seconde pendant laquelle il ne nourrissait plus le son (« Audio device underrun » dans son journal). Ils sont gardés d’une lecture à l’autre : première image en 0,46 s au lieu de 0,97 s sur un film 4K en « Maximale ».
 - **Mini-lecteur fluide (Windows)** : réduire et agrandir le lecteur déplacent maintenant la vraie fenêtre de la vidéo, qui continue de jouer pendant le mouvement, au lieu d’une image figée. Mesuré image par image sur un écran 4K à 240 Hz : départ en moins de 10 ms au lieu de 60 à 100, plus d’image noire au départ ni à l’arrivée, de 100 à 240 images par seconde.
 - **La page reste où elle était (Windows)** : une fiche ou Réglages ouverts avec le mini-lecteur revenaient à la page d’en dessous (l’Accueil, souvent) quand on agrandissait puis réduisait le lecteur ; ils reviennent maintenant. La page reste aussi sous la vidéo pendant qu’elle grandit.
 - **Boutons plats (Windows)** : les boutons (Lecture, « Regarder ensemble », Favori, Vu… de la fiche, « Plus d’infos » de l’Accueil), les listes déroulantes et les cartes n’ont plus de reflet clair en haut ni de bord éclairé : un fond uni, comme Mira web. Survol et appui éclaircissent toujours le fond, l’anneau du clavier reste ; une liste déroulante s’éclaircit aussi au survol et une fois ouverte.

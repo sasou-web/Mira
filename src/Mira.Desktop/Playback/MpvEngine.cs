@@ -46,10 +46,24 @@ public sealed class MpvEngine : MpvClient
             Option("hwdec", use == Use.Video && settings.HardwareDecoding ? "auto" : "no");
             PlayerOptions(settings);
             if (use == Use.Video) PictureOptions(picture);
+            if (use == Use.Video && ShaderFolder() is { } shaders) TryOption("gpu-shader-cache-dir", shaders);
+            // Extra mpv options for a diagnosis, MIRA_MPV_OPTIONS="name=value;name=value" (as on the Mac).
+            foreach (var pair in (Environment.GetEnvironmentVariable("MIRA_MPV_OPTIONS") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
+                if (pair.Split('=', 2) is [var name, var value]) Option(name.Trim(), value.Trim());
             Initialize(L("Échec de l’initialisation du rendu mpv.", "mpv’s video rendering couldn’t start."));
             if (use != Use.Headless) AudioMissing = !Audio(settings);
         }
         catch { Dispose(); throw; }
+    }
+    /// <summary>
+    /// mpv's compiled shaders, kept from one playback to the next: without a folder it compiles them all again each time
+    /// (the file's start, then the first time at each size), up to half a second on « Maximale » during which mpv cannot
+    /// feed the sound. Null when the folder cannot be made: mpv compiles, as before.
+    /// </summary>
+    public static string? ShaderFolder()
+    {
+        try { return Directory.CreateDirectory(Path.Combine(Services.AppFiles.ProfileDirectory, "mpv-shaders")).FullName; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
     /// <summary>The device of « Sortie audio » is unplugged: the sound goes to Windows' default.</summary>
     public bool AudioMissing { get; private set; }

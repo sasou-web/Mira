@@ -135,6 +135,8 @@ public partial class MainWindow
             }
             await StopPlaybackAsync(); ReturnToLibrary();
             Require(!_playing && _mpv is null && LibraryShell.IsVisible && !PlayerOverlayLayer.IsOpen, "stop releases mpv and closes player overlays");
+            await _engineReleased;
+            Require(Playback.MpvEngine.ShaderFolder() is { } shaders && Directory.EnumerateFiles(shaders).Any(), "mpv keeps its compiled shaders for the next playback");
             await RunCompletionChecksAsync(Require);
             await File.WriteAllLinesAsync(Path.Combine(output, "result.txt"), checks);
         }
