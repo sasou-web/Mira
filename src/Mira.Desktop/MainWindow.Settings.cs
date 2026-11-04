@@ -88,9 +88,15 @@ public partial class MainWindow
         || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true) || _settings.EpisodeNotices != (EpisodeNoticesCheck.IsChecked == true)
         || AudioSettingsChanged() || Choice(MiraLanguageChoice) is { Length: > 0 } language && language != ShownLanguage;
     private bool _settingsBusy;
+    /// <summary>The gear of the rail: Réglages, or, already shown, its tab back to the top, nothing filled or animated again.</summary>
+    private void SettingsNav_Click(object sender, RoutedEventArgs e)
+    {
+        if (SettingsOverlay.Visibility == Visibility.Visible && SettingsOverlay.IsHitTestVisible) SmoothScroll.ToTop(SettingsScroll);
+        else Settings_Click(sender, e);
+    }
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
-        // The gear clicked again while the page is open refills it from the saved settings: what was changed is kept first.
+        // Opened again from a notice while the page is open, it refills from the saved settings: what was changed is kept first.
         AutoSaveSettings();
         RememberFocus(ref _settingsOrigin, SettingsOverlay);
         ClosePreview(); ++_detailVersion; _returnToDetail = null;

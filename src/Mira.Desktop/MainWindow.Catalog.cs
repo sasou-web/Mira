@@ -81,7 +81,7 @@ public partial class MainWindow
         var title = _personFrom; var search = _personSearch; var view = _personReturnView;
         ResetFilters(); _catalog.View = view;
         // The list the title was found in, scrolled where it was.
-        var recalled = _pages.Recall(PageMemory.KeyOf(_catalog), again: false);
+        var recalled = _pages.Recall(PageMemory.KeyOf(_catalog));
         if (recalled is not null) Restore(recalled);
         if (search is not null) { _filterBusy = true; SearchBox.Text = search; _filterBusy = false; }
         await NavigateLibraryAsync(recalled);

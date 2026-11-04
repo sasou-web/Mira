@@ -28,16 +28,16 @@ public sealed class PageMemory
         _pages[key] = state with { Items = [.. state.Items] };
     }
 
+    /// <summary>The page as it was left.</summary>
+    public State? Recall(string? key) => key is not null && _pages.TryGetValue(key, out var state) ? state : null;
+
     /// <summary>
-    /// The page as it was left. Its own rail button clicked again while it is on screen (no Réglages, Guide or title page
-    /// over it) starts it afresh, at the top: the way back up a long list.
+    /// Whether the catalogue already shows the rail page <paramref name="view"/> (one library for « library », with
+    /// <paramref name="parentId"/>): its button clicked again, or its Ctrl+1 to 5, reloads nothing and replays no
+    /// arrival; the list only glides back to the top. A person's, a studio's or a collection's titles are another page.
     /// </summary>
-    public State? Recall(string? key, bool again)
-    {
-        if (key is null) return null;
-        if (again) { _pages.Remove(key); return null; }
-        return _pages.TryGetValue(key, out var state) ? state : null;
-    }
+    public static bool Shows(Catalog catalog, string view, string? parentId) =>
+        catalog.Person is null && catalog.Studio is null && catalog.Saga is null && catalog.View == view && (view != "library" || catalog.ParentId == parentId);
 
     public void Clear() => _pages.Clear();
 }

@@ -536,7 +536,7 @@ public partial class MainWindow
         if (PlayerErrorShown) return;
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && (!_playing || _miniPlayer) && RailShortcut(e.Key)) { e.Handled = true; return; }
-        if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { OpenGuide(); e.Handled = true; return; }
+        if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { Guide_Click(this, new()); e.Handled = true; return; }
         if (e.OriginalSource is TextBox or System.Windows.Controls.PasswordBox || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.
         if (e.Key == Key.I && !e.IsRepeat) { if (_pip is not null) ReturnFromPip(); else SetMiniPlayerSmoothly(!_miniPlayer); e.Handled = true; }
