@@ -138,6 +138,11 @@ jobs:
           }
           if ($failed) { exit 1 }
           Write-Output "PowerShell $($PSVersionTable.PSVersion): every script reads."
+      # tools/release.ps1 against a stand-in GitHub, in the Windows PowerShell of the publishing PC: ci.yml still running,
+      # failed workflows re-run on their own, a launch stopped then picked up, a wrong file on the draft attached again.
+      - name: Release script against a stand-in GitHub
+        shell: powershell
+        run: ./tools/release-check.ps1
       # Built-in Tailscale's node (src/Mira.Tailscale), as packages carry it: Mira.Desktop.csproj puts it beside Mira.exe
       # with its SHA-256. The runner's Go fetches the version go.mod asks for; modules and builds are kept between runs.
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
