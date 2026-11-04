@@ -20,7 +20,7 @@ public sealed class TailnetSection
     private readonly TextBlock _state = new() { FontSize = 15, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _way = Note("");
     private readonly TextBlock _said = Note("");
-    private readonly TextBlock _outage = new() { Text = TailnetText.Outage, FontSize = 13, Foreground = Ui.Brush("#D5B787"), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _outage = Note(TailnetText.Outage);
     private readonly Button _signIn, _signOut, _console, _copy;
     private readonly WrapPanel _outageButtons;
 
@@ -37,10 +37,18 @@ public sealed class TailnetSection
         Avalonia.Automation.AutomationProperties.SetLiveSetting(_said, Avalonia.Automation.AutomationLiveSetting.Polite);
         var buttons = new WrapPanel { Children = { _signIn, _signOut, _console, _copy } };
         foreach (var button in buttons.Children) button.Margin = new Thickness(0, 4, 10, 4);
-        // On a tailnet that doesn't let it start during an outage of Tailscale: the setting, gone once the policy has it.
+        // On a tailnet that doesn't let it start during an outage of Tailscale: the optional setting, gone once the policy
+        // has it or once hidden.
         var copyOutage = Ui.Action(TailnetText.CopyOutage, "link", "", () => _ = CopyAsync(shell, TailnetText.OutageSetting, TailnetText.OutageCopied));
         var policy = Ui.Action(TailnetText.OpenPolicy, "globe", "", () => Updates.Open(new Uri(Mira.Core.TailscaleNode.Policy)));
-        _outageButtons = new WrapPanel { Children = { copyOutage, policy } };
+        var hide = Ui.Action(TailnetText.HideOutage, null, "", () =>
+        {
+            _settings.TailnetOutageHidden = true;
+            try { shell.Profile.SaveSettings(_settings); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            Render();
+        });
+        _outageButtons = new WrapPanel { Children = { copyOutage, policy, hide } };
         foreach (var button in _outageButtons.Children) button.Margin = new Thickness(0, 4, 10, 4);
         Section = section(TailnetText.Name, [Ui.Column(10, _state, _way, Note(TailnetText.Purpose + " " + TailnetText.Privacy), _outage, _outageButtons, buttons, _said)]);
         Section.IsVisible = _tailscale.Offered;
@@ -78,7 +86,7 @@ public sealed class TailnetSection
         _console.IsVisible = signedIn || state == TailnetStates.MachineAuth;
         // Held by Gatekeeper: its command, to paste in Terminal (TailnetExecutable.Blocked says it in the line above).
         _copy.IsVisible = helper == TailnetHelper.Failed && TailnetExecutable.Blocked() is not null;
-        _outage.IsVisible = _outageButtons.IsVisible = tailnet?.AsksOutageCache == true;
+        _outage.IsVisible = _outageButtons.IsVisible = tailnet?.AsksOutageCache == true && !_settings.TailnetOutageHidden;
     }
 
     /// <summary>What the section shows (the checks): its line, the way to Jellyfin, and which of its buttons.</summary>

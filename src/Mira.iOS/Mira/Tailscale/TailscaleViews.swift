@@ -136,17 +136,23 @@ struct TailnetRows: View {
 }
 
 /// On a network whose policy doesn't let Built-in Tailscale start during an outage of Tailscale: the one setting, for its
-/// administrator (the same as Windows and Mac, `TailnetText.OutageSetting` of Core), gone by itself once the policy has it;
-/// rare, the node asking Tailscale for it (capability version 149, tools/tailscale/backport.mjs).
+/// administrator (the same as Windows and Mac, `TailnetText.OutageSetting` of Core), gone by itself once the policy has it.
+/// Optional, and the usual case while Tailscale's caching is in trial (opt-in by the policy only, even at capability
+/// version 149); « Hide » puts it away for good (`mira.tailnet.outageHidden`, as `PlayerSettings.TailnetOutageHidden`).
 struct OutageRows: View {
     @State private var copied = false
+    @AppStorage("mira.tailnet.outageHidden") private var hidden = false
 
     /// One entry of the policy's « nodeAttrs »: a second whole « nodeAttrs » beside Funnel's is refused by Tailscale.
     static let setting = #"{ "target": ["autogroup:member", "autogroup:tagged"], "attr": ["cache-network-maps"] },"#
 
     var body: some View {
-        Text("Tailscale usually lets Built-in Tailscale work during its outages by itself. If this note stays, your network’s administrator can allow it, once: copy the line, open the network’s policy, find “\"nodeAttrs\": [” and paste the line just below it, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. Mira notices by itself.")
-            .font(MiraFont.footnote).foregroundStyle(Palette.warning).fixedSize(horizontal: false, vertical: true)
+        if !hidden { rows }
+    }
+
+    @ViewBuilder private var rows: some View {
+        Text("Optional: Built-in Tailscale can also start while Tailscale’s servers are down, from the list of devices it saw last. Tailscale is still trying this out, so it waits for your network’s administrator to allow it, once: copy the line, open the network’s policy, paste the line just below “\"nodeAttrs\": [”, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. This note then goes away by itself, or hide it.")
+            .font(MiraFont.footnote).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("tailscale.outage")
         Button {
             UIPasteboard.general.string = Self.setting
@@ -161,6 +167,7 @@ struct OutageRows: View {
         Link(destination: URL(string: "https://login.tailscale.com/admin/acls/file")!) {
             Label("Open the network’s policy", systemImage: "arrow.up.forward.app").font(MiraFont.body)
         }
+        Button("Hide") { hidden = true }.font(MiraFont.body).accessibilityIdentifier("tailscale.outage.hide")
     }
 }
 

@@ -301,6 +301,8 @@ public sealed class PlayerSettings
     /// until the person signs in, and again once they sign out: before that, nothing goes to Tailscale.
     /// </summary>
     public bool Tailnet { get; set; }
+    /// <summary>The optional outage setting of « Tailscale intégré » (TailnetText.Outage) hidden by the person: never shown again.</summary>
+    public bool TailnetOutageHidden { get; set; }
     /// <summary>TorLink folder; empty: found through its shortcuts.</summary>
     public string TorLinkPath { get; set; } = "";
     public bool TorLinkAutoImport { get; set; } = true;

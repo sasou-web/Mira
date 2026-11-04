@@ -65,6 +65,7 @@ final class AppModel {
             HomeCache.clearAll()
             Tailnet.reset()
             Way.forgetAll()
+            defaults.removeObject(forKey: "mira.tailnet.outageHidden")
         }
         // Once the UI tests' reset is done: it reads whether it is on.
         tailnet = Tailnet()

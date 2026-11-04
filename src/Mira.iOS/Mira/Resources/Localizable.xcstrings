@@ -3810,12 +3810,22 @@
         }
       }
     },
-    "Tailscale usually lets Built-in Tailscale work during its outages by itself. If this note stays, your network’s administrator can allow it, once: copy the line, open the network’s policy, find “\"nodeAttrs\": [” and paste the line just below it, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. Mira notices by itself.": {
+    "Optional: Built-in Tailscale can also start while Tailscale’s servers are down, from the list of devices it saw last. Tailscale is still trying this out, so it waits for your network’s administrator to allow it, once: copy the line, open the network’s policy, paste the line just below “\"nodeAttrs\": [”, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. This note then goes away by itself, or hide it.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "D’habitude, Tailscale laisse de lui-même Tailscale intégré marcher pendant ses pannes. Si cet avis reste, l’administrateur de ton réseau peut l’autoriser, une fois : copie la ligne, ouvre la politique du réseau, cherche « \"nodeAttrs\": [ » et colle la ligne juste dessous, puis Save. Pas de « nodeAttrs » ? Écris « \"nodeAttrs\": [ ], » juste après la première « { » et colle la ligne entre les crochets. Mira le voit toute seule."
+            "value": "Facultatif : Tailscale intégré peut aussi démarrer quand les serveurs de Tailscale sont en panne, depuis la liste d’appareils qu’il a vue en dernier. Tailscale essaie encore cette fonction : il attend que l’administrateur de ton réseau l’autorise, une fois : copie la ligne, ouvre la politique du réseau, colle la ligne juste sous « \"nodeAttrs\": [ », puis Save. Pas de « nodeAttrs » ? Écris « \"nodeAttrs\": [ ], » juste après la première « { » et colle la ligne entre les crochets. Cet avis disparaît alors tout seul, ou masque-le."
+          }
+        }
+      }
+    },
+    "Hide": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquer"
           }
         }
       }

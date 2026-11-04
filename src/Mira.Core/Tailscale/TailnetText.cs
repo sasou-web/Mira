@@ -31,12 +31,15 @@ public static class TailnetText
     /// <summary>
     /// Running on a tailnet whose policy does not grant « cache-network-maps » (<see cref="TailnetStatus.OutageCache"/>):
     /// the one setting that lets the node start while Tailscale's coordination server is down, for its administrator.
-    /// Rare: the node says capability version 149, which asks Tailscale for it (tools/tailscale/backport.mjs). Gone by
-    /// itself once granted.
+    /// Optional, and the usual case while Tailscale's caching is in trial: its servers grant it only through the policy
+    /// (docs: « During the trial phase, client-side netmap caching is opt-in »), even to a node that says capability
+    /// version 149 (tools/tailscale/backport.mjs: by default only once the trial ends). Gone by itself once granted, or
+    /// hidden for good by <see cref="HideOutage"/> (PlayerSettings.TailnetOutageHidden).
     /// </summary>
-    public static string Outage => L("D’habitude, Tailscale laisse de lui-même Tailscale intégré marcher pendant ses pannes. Si cet avis reste, l’administrateur de ton réseau peut l’autoriser, une fois : copie la ligne, ouvre la politique du réseau, cherche « \"nodeAttrs\": [ » et colle la ligne juste dessous, puis Save. Pas de « nodeAttrs » ? Écris « \"nodeAttrs\": [ ], » juste après la première « { » et colle la ligne entre les crochets. Mira le voit toute seule.",
-        "Tailscale usually lets Built-in Tailscale work during its outages by itself. If this note stays, your network’s administrator can allow it, once: copy the line, open the network’s policy, find “\"nodeAttrs\": [” and paste the line just below it, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. Mira notices by itself.");
+    public static string Outage => L("Facultatif : Tailscale intégré peut aussi démarrer quand les serveurs de Tailscale sont en panne, depuis la liste d’appareils qu’il a vue en dernier. Tailscale essaie encore cette fonction : il attend que l’administrateur de ton réseau l’autorise, une fois : copie la ligne, ouvre la politique du réseau, colle la ligne juste sous « \"nodeAttrs\": [ », puis Save. Pas de « nodeAttrs » ? Écris « \"nodeAttrs\": [ ], » juste après la première « { » et colle la ligne entre les crochets. Cet avis disparaît alors tout seul, ou masque-le.",
+        "Optional: Built-in Tailscale can also start while Tailscale’s servers are down, from the list of devices it saw last. Tailscale is still trying this out, so it waits for your network’s administrator to allow it, once: copy the line, open the network’s policy, paste the line just below “\"nodeAttrs\": [”, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. This note then goes away by itself, or hide it.");
     public static string CopyOutage => L("Copier la ligne", "Copy the line");
+    public static string HideOutage => L("Masquer", "Hide");
     public static string OpenPolicy => L("Ouvrir la politique du réseau", "Open the network’s policy");
     public static string OutageCopied => L("Ligne copiée : colle-la sous « \"nodeAttrs\": [ » dans la politique du réseau, puis Save.", "Line copied: paste it below “\"nodeAttrs\": [” in the network’s policy, then Save.");
     /// <summary>
