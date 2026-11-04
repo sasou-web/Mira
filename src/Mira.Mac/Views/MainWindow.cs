@@ -102,6 +102,8 @@ public sealed partial class MainWindow : Window
             ExtendClientAreaTitleBarHeightHint = 30;
             TitleBarInset = 30;
         }
+        // The banners' captures (--gallery), drawn on Linux: the room the traffic lights take on a Mac, for the frame to draw them.
+        else if (args.Contains("--gallery")) TitleBarInset = 30;
         _root.ColumnDefinitions = new ColumnDefinitions("Auto,*");
         // The pages take the whole width, under the rail (Page): a picture runs to the window's edge, as on Windows.
         Grid.SetColumnSpan(_host, 2); _root.Children.Add(_host);
