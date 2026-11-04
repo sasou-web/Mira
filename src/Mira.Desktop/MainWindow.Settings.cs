@@ -294,7 +294,7 @@ public partial class MainWindow
         if (automaticAgain) _torlinkImporter?.RestartBaseline();
         if (_torlinkEnabled) ApplyTorLinkLibraries();
         if (remoteChanged) VisitRelaySoon();
-        _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.StyleSubtitles(_settings);
+        _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.StyleSubtitles(_settings); LiftPipSubtitles(again: true);
         RenderLibrary(); UpdateHeroClock(); SettingsSaveStatus.Text = saved ? L("Enregistré.", "Saved.") : SettingsNotSaved;
         return saved;
     }

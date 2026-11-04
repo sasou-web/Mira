@@ -297,8 +297,14 @@ internal static class PlayerTests
                 Assert(Math.Abs(fit.Inset - PictureInPicture.Controls.Margin - (fit.Corner - fit.CornerGlyph) / 2) < .01 && fit.Lift > corners - (fit.Corner - fit.CornerGlyph) / 2, $"{width} × {height}: insets and the subtitles' lift");
             }
             Assert(large.Inset == 16 && smallest.Inset == 14 && large.Lift == 41 && smallest.Lift == 37, "Insets and lifts");
-            Assert(PictureInPicture.SubtitleMargin(41, 270, 22) == 109 && PictureInPicture.SubtitleMargin(37, 144, 22) == 185, "mpv's margin, counted for a window 720 high");
-            Assert(PictureInPicture.SubtitleMargin(41, 2000, 22) == 22 && PictureInPicture.SubtitleMargin(500, 270, 22) == 360 && PictureInPicture.SubtitleMargin(41, 0, 30) == 30, "Never below mpv's own, at most halfway, mpv's own when nothing is known");
+            Assert(PictureInPicture.SubtitleLift(41, 270, 100) == 84 && PictureInPicture.SubtitleLift(37, 144, 100) == 74 && PictureInPicture.SubtitleLift(27, 270, 100) == 90, "mpv's sub-pos, a share of the window");
+            foreach (var (lift, height) in new[] { (41d, 270d), (37d, 144d), (41d, 1000d), (37d, 200d) })
+            {
+                var raised = height * (100 - PictureInPicture.SubtitleLift(lift, height, 100)!.Value) / 100;
+                Assert(raised >= lift && raised < lift + height / 100, $"{height} high: the subtitles' bottom {lift} above the window's ({raised:0.0})");
+            }
+            Assert(PictureInPicture.SubtitleLift(41, 270, 82) is null && PictureInPicture.SubtitleLift(41, 270, 84) is null && PictureInPicture.SubtitleLift(37, 144, 82) == 74, "Their own height kept when it is already above the controls");
+            Assert(PictureInPicture.SubtitleLift(500, 270, 100) == 50 && PictureInPicture.SubtitleLift(41, 0, 100) is null && PictureInPicture.SubtitleLift(double.NaN, 270, 100) is null, "Never above the middle, nothing when nothing is known");
             // The « 10 » centred on the arcs' centre: as far from both ends of each arc as their radius (8.5).
             foreach (var (kind, ends) in new[] { ("rewind", new[] { (4d, 8d), (3.5, 14d) }), ("forward", new[] { (20d, 8d), (20.5, 14d) }) })
             {

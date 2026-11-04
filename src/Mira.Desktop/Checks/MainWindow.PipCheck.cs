@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using Mira.Core;
+using Mira.Desktop.Playback;
 using Mira.Desktop.Services;
 using Drawing = System.Drawing;
 
@@ -50,18 +51,22 @@ public partial class MainWindow
         // There, lighter controls, every row in it, and the subtitles above them while they show.
         pip.ShowControls(); await Task.Delay(400);
         using (var shown = CaptureWindow(small)) shown.Save(Path.Combine(output, "pip-window-small.png"), Drawing.Imaging.ImageFormat.Png);
-        var usual = _pipMargin; double Margin() => engine.Number("sub-margin-y", -1);
-        var lifted = PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, usual);
-        require(pip.Fit is { Small: true, Jumps: true } && lifted > usual && Math.Abs(Margin() - lifted) < .5, $"picture in picture: in the smallest window, lighter controls and the subtitles above them ({pip.Fit.Play} px play button, sub-margin-y {Margin()} for {lifted})");
+        var usual = _pipMargin; var own = SubtitleStyle.Height(_settings.SubtitleHeight);
+        double Margin() => engine.Number("sub-margin-y", -1); double Position() => engine.Number("sub-pos", -1);
+        var lifted = PictureInPicture.SubtitleLift(pip.Fit.Lift, pip.VideoHeight, own);
+        require(pip.Fit is { Small: true, Jumps: true } && lifted is { } at && Math.Abs(Position() - at) < .5 && Margin() == 0,
+            $"picture in picture: in the smallest window, lighter controls and the subtitles above them ({pip.Fit.Play} px play button, sub-pos {Position()} for {lifted}, sub-margin-y {Margin()})");
+        await RequireSubtitlesAbove(pip, small, engine, require, checks);
         pip.Place(bounds, direct: true); await Task.Delay(500);
 
         // As a capture sees it: the controls over the video, and the subtitles in the picture.
         pip.ShowControls(); await Task.Delay(400);
         using (var shown = CaptureWindow(small)) shown.Save(Path.Combine(output, "pip-window.png"), Drawing.Imaging.ImageFormat.Png);
-        lifted = PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, usual);
-        require(!pip.Fit.Small && Math.Abs(Margin() - lifted) < .5, $"picture in picture: while its controls show, the subtitles go above them (sub-margin-y {Margin()} for {lifted})");
+        lifted = PictureInPicture.SubtitleLift(pip.Fit.Lift, pip.VideoHeight, own);
+        require(!pip.Fit.Small && lifted is { } there && Math.Abs(Position() - there) < .5 && Margin() == 0, $"picture in picture: while its controls show, the subtitles go above them (sub-pos {Position()} for {lifted}, sub-margin-y {Margin()})");
+        await RequireSubtitlesAbove(pip, small, engine, require, checks);
         pip.HideControlsNow(); await Task.Delay(500);
-        require(Math.Abs(Margin() - usual) < .5, $"picture in picture: the controls gone, the subtitles back at their place (sub-margin-y {Margin()})");
+        require(Math.Abs(Margin() - usual) < .5 && Math.Abs(Position() - own) < .5, $"picture in picture: the controls gone, the subtitles back at their place (sub-margin-y {Margin()}, sub-pos {Position()})");
         using var withText = CaptureWindow(small);
         engine.Set("sub-visibility", "no"); await Task.Delay(500);
         using var without = CaptureWindow(small);
@@ -106,7 +111,7 @@ public partial class MainWindow
         // Back to Mira: the whole player, the same engine, mpv's own subtitle size.
         ReturnFromPip(); await Task.Delay(400);
         require(_pip is null && !pip.IsVisible && !_miniPlayer && PlayerShell.IsVisible && GetParent(video.Handle) == main && ReferenceEquals(engine, _mpv) && Math.Abs(engine.Number("sub-scale") - 1) < .001
-            && Math.Abs(engine.Number("sub-margin-y") - usual) < .5, "picture in picture: back in Mira, the whole player with the same engine, subtitles at their own size and place");
+            && Math.Abs(engine.Number("sub-margin-y") - usual) < .5 && Math.Abs(engine.Number("sub-pos") - own) < .5, "picture in picture: back in Mira, the whole player with the same engine, subtitles at their own size and place");
 
         // From the whole player, then « Fermer »: playback stopped, the video back in Mira's window, no window left.
         EnterPip(); await Task.Delay(500);
@@ -114,6 +119,41 @@ public partial class MainWindow
         var last = _pip!;
         StopFromPip(); await until(() => !_playing && _pip is null);
         require(!_playing && _mpv is null && !last.IsVisible && GetParent(video.Handle) == main && LibraryShell.IsVisible, "picture in picture: « Fermer » stops the playback and leaves no window behind");
+    }
+    /// <summary>
+    /// The subtitles as drawn, not only as set: with the controls showing (and the video paused), the window captured with
+    /// and without them; their lowest row lies above the time and the subtitles' button, and not much higher (a recent
+    /// mpv grows sub-margin-y with sub-scale: the small window's subtitles once went halfway up, over the play button).
+    /// </summary>
+    private async Task RequireSubtitlesAbove(PipWindow pip, IntPtr window, MpvEngine engine, Action<bool, string> require, List<string> checks)
+    {
+        pip.ShowControls(); await Task.Delay(300);
+        using var with = CaptureWindow(window);
+        engine.Set("sub-visibility", "no"); await Task.Delay(400);
+        using var without = CaptureWindow(window);
+        engine.Set("sub-visibility", "yes"); await Task.Delay(300);
+        // The runner may not hand mpv's picture to a capture: then the subtitles cannot be seen there either.
+        if (Colourful(without, new Drawing.Rectangle(without.Width / 4, without.Height / 4, without.Width / 2, without.Height / 4)) < .2)
+        { checks.Add("INFO picture in picture: the subtitles' place not measured (no video in the capture)"); return; }
+        var area = new Drawing.Rectangle(with.Width / 8, 0, with.Width * 3 / 4, with.Height);
+        var a = Argb(without, area); var b = Argb(with, area);
+        int top = -1, bottom = -1;
+        for (var row = 0; row < area.Height && a.Length == b.Length; row++)
+        {
+            var changed = 0;
+            for (var i = row * area.Width; i < (row + 1) * area.Width; i++)
+                if (Math.Max(Math.Abs((a[i] >> 16 & 255) - (b[i] >> 16 & 255)), Math.Max(Math.Abs((a[i] >> 8 & 255) - (b[i] >> 8 & 255)), Math.Abs((a[i] & 255) - (b[i] & 255)))) > 24) changed++;
+            if (changed < 2) continue;
+            if (top < 0) top = row;
+            bottom = row;
+        }
+        // From the window's bottom edge, in device-independent pixels; the controls' glyphs reach Lift - 8 from it.
+        var scale = with.Height / pip.ActualHeight;
+        var lowest = (with.Height - 1 - bottom) / scale; var highest = (with.Height - top) / scale;
+        var fit = pip.Fit;
+        checks.Add($"INFO picture in picture {with.Width}x{with.Height}: subtitles drawn {lowest:0} to {highest:0} px above the bottom, controls up to {fit.Lift - 8:0}");
+        require(top >= 0 && lowest >= fit.Lift - 8 && lowest <= fit.Lift + 14,
+            $"picture in picture: the subtitles drawn just above its controls ({(top < 0 ? "none seen" : $"{lowest:0} px above the bottom")}, wanted {fit.Lift - 8:0} to {fit.Lift + 14:0})");
     }
     /// <summary>A left click where the pointer is, as the mouse sends it.</summary>
     private static void ClickPointer()

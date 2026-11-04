@@ -174,14 +174,17 @@ public static class PictureInPicture
     }
 
     /// <summary>
-    /// mpv's sub-margin-y that keeps the subtitles <paramref name="lift"/> above the bottom of a window
-    /// <paramref name="height"/> high (device-independent pixels): mpv counts it for a window 720 high. Never below its
-    /// own margin (<paramref name="usual"/>), at most halfway up.
+    /// Where the subtitles go while the controls show: mpv's sub-pos that keeps them <paramref name="lift"/> above the
+    /// bottom of a window <paramref name="height"/> high (device-independent pixels), sub-margin-y at 0 meanwhile. A share
+    /// of the window, whatever the subtitles' size: a recent mpv grows sub-margin-y with sub-scale (the small window's
+    /// larger subtitles went halfway up, over the play button), an older one does not. Null: their own height
+    /// (<paramref name="own"/>, from Réglages) is already above the controls, nothing changes. Never above the middle.
     /// </summary>
-    public static int SubtitleMargin(double lift, double height, int usual)
+    public static int? SubtitleLift(double lift, double height, int own)
     {
-        if (!(lift > 0) || !(height > 0) || !double.IsFinite(lift / height)) return usual;
-        return (int)Math.Clamp(Math.Round(lift * 720 / height), usual, 360);
+        if (!(lift > 0) || !(height > 0) || !double.IsFinite(lift / height)) return null;
+        var position = (int)Math.Clamp(Math.Floor(100 - lift * 100 / height + 1e-9), 50, 100);
+        return own <= position ? null : position;
     }
 
     private static List<ScreenFit.Screen> Usable(IReadOnlyList<ScreenFit.Screen> screens) =>
