@@ -30,7 +30,9 @@ public partial class MainWindow
         require(_miniPlayer && LibraryShell.IsVisible && !PlayerShell.IsVisible && !MiniFrame.IsVisible && !PlayerOverlayLayer.IsOpen, "picture in picture: Mira's window shows the library, the mini-player's place left empty");
         var controls = pip!.Controls.Handle; var above = false;
         for (var next = GetWindow(controls, 2); next != IntPtr.Zero; next = GetWindow(next, 2)) if (next == video.Handle) { above = true; break; }
-        require(controls != IntPtr.Zero && GetParent(controls) == small && (GetWindowLong(controls, -20) & 0x80000) != 0 && above, "picture in picture: its controls are a layered child window above the video");
+        var layered = (GetWindowLong(controls, -20) & 0x80000) != 0; var parent = GetParent(controls);
+        require(controls != IntPtr.Zero && parent == small && layered && above,
+            $"picture in picture: its controls are a layered child window above the video (window {controls != IntPtr.Zero}, in the small window {parent == small}, layered {layered}, above {above})");
         var bounds = pip.Bounds();
         require(Math.Abs(bounds.Width / bounds.Height - 16d / 9) < .02, $"picture in picture: the video's shape ({bounds.Width} × {bounds.Height} px)");
 
