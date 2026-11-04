@@ -17,7 +17,7 @@ namespace Mira.Desktop;
 /// </summary>
 public partial class MainWindow
 {
-    private const int MorphMs = 340, DarkenMs = 180, LiftMs = 320, DismissMs = 200, SpinnerAfterMs = 1200;
+    private const int MorphMs = 380, DarkenMs = 180, LiftMs = 320, DismissMs = 200, SpinnerAfterMs = 1200;
     private bool _morphing;
     private int _morphVersion;
 
@@ -50,7 +50,11 @@ public partial class MainWindow
         PlayerShell.Opacity = 0; PlayerShell.IsHitTestVisible = false; MiniFrame.Opacity = 0;
         ClosePlayerPopups();
         using (FrameProbe.Time("layout")) UpdateLayout();
-        await MoveVideoAsync(host, from, host.LaidOut ?? from, fromRadius, mini ? MiniRadius * dpi : 0, MorphMs);
+        var to = host.LaidOut ?? from;
+        // Growing, mpv draws at the final size at once: the picture stays sharp, scaled down by Windows. Shrinking, it
+        // goes on at the size it has, and learns the new one on landing (EndMove).
+        if (to.Width > from.Width) host.DrawAt(to.Size);
+        await MoveVideoAsync(host, from, to, fromRadius, mini ? MiniRadius * dpi : 0, MorphMs);
         if (version != _morphVersion) return;
         if (_playing && !_miniPlayer) { LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Collapsed; LeavePagesForPlayer(); }
         EndMorph();
@@ -69,14 +73,24 @@ public partial class MainWindow
         {
             if (version != _morphVersion) { CompositionTarget.Rendering -= Frame; done.TrySetResult(); return; }
             var t = Math.Min(1, clock.Elapsed.TotalMilliseconds / ms);
-            // A quick start and a long, soft landing.
-            var k = leaving ? t * t : 1 - Math.Pow(1 - t, 3);
+            var k = leaving ? t * t : Glide(t);
             static double Mix(double a, double b, double k) => a + (b - a) * k;
             host.Move(new Rect(Mix(from.X, to.X, k), Mix(from.Y, to.Y, k), Mix(from.Width, to.Width, k), Mix(from.Height, to.Height, k)), Mix(fromRadius, toRadius, k));
             if (t >= 1) { CompositionTarget.Rendering -= Frame; done.TrySetResult(); }
         }
         CompositionTarget.Rendering += Frame;
         return done.Task;
+    }
+    /// <summary>
+    /// A cubic Bézier (.3, 0, .1, 1): it gathers speed over the first frames, then a long soft landing. An ease-out from
+    /// the first frame covered more than half the way in 80 ms: a jump, then a crawl.
+    /// </summary>
+    private static double Glide(double t)
+    {
+        static double Bezier(double a, double b, double s) => 3 * (1 - s) * (1 - s) * s * a + 3 * (1 - s) * s * s * b + s * s * s;
+        double low = 0, high = 1;
+        for (var i = 0; i < 14; i++) { var s = (low + high) / 2; if (Bezier(.3, .1, s) < t) low = s; else high = s; }
+        return Bezier(0, 1, (low + high) / 2);
     }
     /// <summary>
     /// Closing the player. The whole player darkens to black, the page comes under the sheet with the progress just made,
