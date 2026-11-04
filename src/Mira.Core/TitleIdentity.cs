@@ -27,7 +27,14 @@ public static partial class TitleIdentity
     public const string Fields = "ProviderIds,Overview,ProductionYear";
 
     /// <summary>Whether Jellyfin matched the title to anything: one id of a metadata source, whichever.</summary>
-    public static bool Identified(MediaItem item) => item.ProviderIds?.Values.Any(x => !string.IsNullOrWhiteSpace(x)) == true;
+    public static bool Identified(MediaItem item) => Ids(item).Any();
+
+    /// <summary>
+    /// The ids that name this very title. Jellyfin also keeps the id of the saga a film belongs to (« TmdbCollection »):
+    /// Sonic 1, 2 and 3 share it, and are three films, so ids of a collection never count.
+    /// </summary>
+    private static IEnumerable<KeyValuePair<string, string>> Ids(MediaItem item) => (item.ProviderIds ?? [])
+        .Where(x => !string.IsNullOrWhiteSpace(x.Value) && !x.Key.Contains("Collection", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// The films and series that need a look, those Jellyfin did not recognize first, then the duplicates, then the rest;
@@ -58,8 +65,8 @@ public static partial class TitleIdentity
     private static bool Same(MediaItem a, MediaItem b)
     {
         if (a.Type != b.Type) return false;
-        if (a.ProviderIds is { } ids && b.ProviderIds is { } others
-            && ids.Any(x => !string.IsNullOrWhiteSpace(x.Value) && others.Any(y => string.Equals(x.Key, y.Key, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Value.Trim(), y.Value?.Trim(), StringComparison.OrdinalIgnoreCase))))
+        var others = Ids(b).ToList();
+        if (Ids(a).Any(x => others.Any(y => string.Equals(x.Key, y.Key, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Value.Trim(), y.Value.Trim(), StringComparison.OrdinalIgnoreCase))))
             return true;
         return NameKey(a.Name) is { Length: > 0 } key && key == NameKey(b.Name) && (a.ProductionYear ?? FolderYear(a.Name)) == (b.ProductionYear ?? FolderYear(b.Name));
     }
@@ -78,6 +85,28 @@ public static partial class TitleIdentity
         Problem.NoYear => L("Sans année", "No year"),
         _ => L("Sans résumé", "No summary"),
     };
+    /// <summary>
+    /// What the words of the list mean, under it: one line for each kind of problem it shows (never « Non reconnu »
+    /// explained under a list of duplicates), then what « Identifier » does.
+    /// </summary>
+    public static IReadOnlyList<string> Note(IEnumerable<Entry> entries)
+    {
+        var shown = entries.SelectMany(x => x.Problems).ToHashSet();
+        var lines = new List<string>();
+        if (shown.Count == 0) return lines;
+        if (shown.Contains(Problem.Unidentified))
+            lines.Add(L("« Non reconnu » : Jellyfin n’a trouvé ce titre sur aucune de ses sources (TMDb…), souvent à cause d’un nom de dossier abîmé ou d’un titre romaji.",
+                "“Not recognized”: Jellyfin found this title in none of its sources (TMDb…), often because of a mangled folder name or a romaji title."));
+        if (shown.Contains(Problem.Duplicate))
+            lines.Add(L("« En double » : deux titres renvoient à la même fiche (TMDb, IMDb…) ou portent le même nom et la même année : le même titre est rangé deux fois, ou l’un des deux a été mal reconnu.",
+                "“Duplicate”: two titles point to the same entry (TMDb, IMDb…) or share a name and a year: the same title is filed twice, or one of them was matched wrongly."));
+        if (shown.Overlaps([Problem.NoPoster, Problem.NoYear, Problem.NoOverview]))
+            lines.Add(L("« Sans affiche », « Sans année », « Sans résumé » : la fiche trouvée par Jellyfin est incomplète.",
+                "“No poster”, “No year”, “No summary”: the entry Jellyfin found is incomplete."));
+        lines.Add(L("« Identifier » te laisse choisir la bonne fiche.", "“Identify” lets you choose the right one."));
+        return lines;
+    }
+
     /// <summary>« Non reconnu · Sans affiche ».</summary>
     public static string Text(Entry entry) => string.Join(" · ", entry.Problems.Select(x => Text(x, entry.Twin)));
     /// <summary>« Dune (2021) », the year added unless the name already ends with it.</summary>

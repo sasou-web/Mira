@@ -7,7 +7,7 @@ import { errorState, spinner, titleHref } from '../components.js';
 import { goBack } from '../app.js';
 import { tr, trn } from '../i18n.js';
 import { artFor, picture } from '../images.js';
-import { checkTitles, entryText, named } from '../identify.js';
+import { checkTitles, entryText, fixNote, named } from '../identify.js';
 import { identifySheet } from '../identify-sheet.js';
 
 export function create() {
@@ -49,7 +49,7 @@ export function create() {
           class: 'btn small', 'aria-label': tr('Identifier « {name} »', { name: named(entry.item) }),
           on: { click: () => identifySheet(entry.item, () => load()) },
         }, tr('Identifier'))))),
-      h('p', { class: 'group-note' }, tr('« Non reconnu » : Jellyfin n’a trouvé ce titre sur aucune de ses sources (TMDb…). Souvent un nom de dossier abîmé, ou un titre romaji. « Identifier » te laisse choisir le bon ; un titre en double est peut-être rangé deux fois.')));
+      ...fixNote(entries).map((line) => h('p', { class: 'group-note' }, line)));
   }
 
   load();

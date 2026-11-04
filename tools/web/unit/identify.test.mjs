@@ -3,7 +3,7 @@ import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { checkTitles, entryText, searchQuery, prefill, matchLine, imagePath } from '../../../src/Mira.Web/js/identify.js';
+import { checkTitles, entryText, fixNote, searchQuery, prefill, matchLine, imagePath } from '../../../src/Mira.Web/js/identify.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/identify.json', import.meta.url), 'utf8'));
 const titles = fixture.titles.map(([Type, Id, Name, ProductionYear, ProviderIds, poster, Overview]) => ({
@@ -12,6 +12,10 @@ const titles = fixture.titles.map(([Type, Id, Name, ProductionYear, ProviderIds,
 
 test('the titles to fix, in order, and what is said of each (tests/fixtures/identify.json)', () => {
   assert.deepEqual(checkTitles(titles).map((x) => [x.item.Id, entryText(x)]), fixture.problems);
+});
+
+test('what is said under the list: only the problems it shows', () => {
+  for (const [problems, lines] of fixture.notes) assert.deepEqual(fixNote(problems.map((p) => ({ problems: [p] }))), lines, problems.join());
 });
 
 test('what « Chercher » sends: a name and a year, or the id of a pasted link', () => {

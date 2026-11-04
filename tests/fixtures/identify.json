@@ -1,5 +1,5 @@
 {
-  "about": "Titles recognized badly (« Titres à corriger », « Identifier… »). Read by tools/web/unit (js/identify.js) and tests/Mira.Core.Tests (TitleIdentity). titles: [type, id, name, year, provider ids, poster, overview]; problems: the entries of the list in order, [id, text in French]; queries: [typed text, year box, name sent, year sent, provider ids sent]; prefill: [title name, title year, name, year].",
+  "about": "Titles recognized badly (« Titres à corriger », « Identifier… »). Read by tools/web/unit (js/identify.js) and tests/Mira.Core.Tests (TitleIdentity). titles: [type, id, name, year, provider ids, poster, overview]; problems: the entries of the list in order, [id, text in French] (a collection id shared by the films of a saga, « TmdbCollection », makes no duplicate and no recognized title); notes: [problems of the list, lines said under it in French]; queries: [typed text, year box, name sent, year sent, provider ids sent]; prefill: [title name, title year, name, year].",
   "titles": [
     ["Movie", "m1", "Aube Test (2021)", 2021, {}, true, ""],
     ["Movie", "m2", "Dune", 2021, { "Tmdb": "438631", "Imdb": "tt1160419" }, true, "Paul Atréides…"],
@@ -13,18 +13,28 @@
     ["Movie", "m7", "Le château", 2001, { "Tmdb": "2" }, true, "y"],
     ["Movie", "m8", "Le Château", 2002, { "Tmdb": "3" }, true, "z"],
     ["Series", "s4", "Steel Ball Run", 2026, { "AniList": "171018" }, true, "Gyro…"],
+    ["Movie", "m9", "Sonic, le film", 2020, { "Tmdb": "454626", "Imdb": "tt3794354", "TmdbCollection": "720879" }, true, "Sonic…"],
+    ["Movie", "m10", "Sonic 2, le film", 2022, { "Tmdb": "675353", "Imdb": "tt12412888", "TmdbCollection": "720879" }, true, "Sonic…"],
+    ["Movie", "m11", "Sonic 3, le film", 2024, { "Tmdb": "939243", "TmdbCollection": "720879" }, true, "Sonic…"],
+    ["Movie", "m12", "Saga seule", 2019, { "TmdbCollection": "1" }, true, "x"],
     ["Episode", "e1", "Pilote", null, {}, false, ""]
   ],
   "problems": [
     ["m1", "Non reconnu"],
     ["s3", "Non reconnu · Sans affiche · Sans année"],
     ["m4", "Non reconnu"],
+    ["m12", "Non reconnu"],
     ["m2", "En double avec « Dune (2021) »"],
     ["m3", "En double avec « Dune (2021) »"],
     ["s1", "En double avec « Sousou no Frieren » · Sans affiche"],
     ["m6", "En double avec « Le château (2001) »"],
     ["m7", "En double avec « Le Château (2001) »"],
     ["s2", "En double avec « Frieren (2023) » · Sans année · Sans résumé"]
+  ],
+  "notes": [
+    [[], []],
+    [["Duplicate"], ["« En double » : deux titres renvoient à la même fiche (TMDb, IMDb…) ou portent le même nom et la même année : le même titre est rangé deux fois, ou l’un des deux a été mal reconnu.", "« Identifier » te laisse choisir la bonne fiche."]],
+    [["Unidentified", "NoPoster"], ["« Non reconnu » : Jellyfin n’a trouvé ce titre sur aucune de ses sources (TMDb…), souvent à cause d’un nom de dossier abîmé ou d’un titre romaji.", "« Sans affiche », « Sans année », « Sans résumé » : la fiche trouvée par Jellyfin est incomplète.", "« Identifier » te laisse choisir la bonne fiche."]]
   ],
   "queries": [
     ["Dune", "2021", "Dune", 2021, {}],
