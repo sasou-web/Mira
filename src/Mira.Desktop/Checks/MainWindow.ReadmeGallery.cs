@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Mira.Core;
@@ -29,15 +30,18 @@ public partial class MainWindow
             _profile.SaveConnection(connection);
             await ActivateConnectionAsync(connection);
             WhatsNewOverlay.Visibility = WelcomeOverlay.Visibility = GuideOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
-            async Task Shot(string name) { await ArtworkAsync(); await CaptureAsync(output, name, 2); }
+            async Task Shot(string name) { Keyboard.ClearFocus(); await ArtworkAsync(); await CaptureAsync(output, name, 2); }
 
             await Shot("windows-home");
             var film = _catalog.Resume.FirstOrDefault(x => x.Type == "Movie") ?? throw new InvalidOperationException("No film in « Continuer à regarder ».");
             await ShowDetailsAsync(film); await Shot("windows-film");
             DetailOverlay.Visibility = Visibility.Collapsed;
             ResetFilters(); _catalog.View = "Series"; await NavigateLibraryAsync();
-            var series = _catalog.Items.FirstOrDefault(x => x.Type == "Series") ?? throw new InvalidOperationException("No series in the library.");
-            await ShowDetailsAsync(series); await Shot("windows-series");
+            var series = _catalog.Items.FirstOrDefault(x => x.Type == "Series" && x.Name == "Arcane") ?? _catalog.Items.FirstOrDefault(x => x.Type == "Series") ?? throw new InvalidOperationException("No series in the library.");
+            await ShowDetailsAsync(series);
+            // Scrolled to its episodes, which the README's caption shows.
+            DetailScroll.UpdateLayout(); SmoothScroll.Jump(DetailScroll, Math.Max(0, EpisodesHead.TranslatePoint(new Point(0, 0), DetailScroll).Y + DetailScroll.VerticalOffset - 90));
+            await Shot("windows-series");
             DetailOverlay.Visibility = Visibility.Collapsed;
             ResetFilters(); _catalog.View = "Movie"; await NavigateLibraryAsync(); SmoothScroll.Jump(LibraryScroll);
             await Shot("windows-films");
