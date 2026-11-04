@@ -384,7 +384,8 @@ public partial class MainWindow
         PauseButton.Width = PauseButton.Height = mini ? 34 : 40; Motion.SetRadius(PauseButton, new CornerRadius(mini ? 17 : 20));
         PauseIcon.Width = PauseIcon.Height = mini ? 19 : 24;
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls(); UpdateSkip();
-        if (mini) { Motion.Reveal(LibraryScroll, 220, 5); if (!wasMini) RestoreDetailPage(refresh: false); UpdateNavigation(); ShowPendingUpdateNotice(); }
+        // Under the video that shrinks, the page is simply there: a fade would show the library, or black, behind it first.
+        if (mini) { if (!_morphing) Motion.Reveal(LibraryScroll, 220, 5); if (!wasMini) RestoreDetailPage(refresh: false, at: _morphing); UpdateNavigation(); ShowPendingUpdateNotice(); }
         if (mini && !wasMini && _loaded) _ = RefreshMiniResumeAsync();
     }
     /// <summary>The player takes the whole window: the page open over the library goes, and comes back with the mini-player or when playback stops.</summary>
