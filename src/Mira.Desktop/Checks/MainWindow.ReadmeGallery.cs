@@ -11,7 +11,7 @@ public partial class MainWindow
 {
     /// <summary>
     /// The README's captures (--readme-gallery): the real window signed in to a real Jellyfin, the one of
-    /// tools/gallery/setup.mjs (free films and their TMDb artwork), named by MIRA_GALLERY_SERVER, _USER and _PASSWORD.
+    /// tools/gallery/setup.mjs (the demonstration library of tools/banner/media.sh and its TMDb artwork), named by MIRA_GALLERY_SERVER, _USER and _PASSWORD.
     /// Drawn at twice the window's size, artwork decoded for it, for screens of any density.
     /// </summary>
     private async Task RunReadmeGalleryAsync()

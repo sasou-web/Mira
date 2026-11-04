@@ -1,10 +1,11 @@
 // A fresh Jellyfin ready for the README's captures, through its own API: first-run wizard in French, an account, the
-// Films and Séries libraries of tools/gallery/media.sh scanned with their TMDb artwork, then a viewer's traces (titles
+// Films and Séries libraries of tools/banner/media.sh scanned with their TMDb artwork, then a viewer's traces (titles
 // started, seen, favourites) for « Continuer à regarder », and Mira web installed from a repository when one is given.
 //   node tools/gallery/setup.mjs <server> <media folder as the server sees it> <user> <password> [repository url]
 // MIRA_GALLERY_ARTWORK=0: no wait for TMDb's artwork (a machine without the Internet). MIRA_GALLERY_TRACES: a JSON file
-// of the traces of another library (tools/banner/traces.json), in place of those below.
+// of traces other than tools/banner/traces.json's.
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 const [server, media, user, password, repository] = process.argv.slice(2);
 if (!password) { console.error('usage: setup.mjs <server> <media> <user> <password> [repository]'); process.exit(2); }
 // The captures' language: GALLERY_LANGUAGE=en for English (metadata, library names), French otherwise.
@@ -59,8 +60,8 @@ for (const [name, type, folder] of [['Films', 'movies', 'Films'], [english ? 'Se
   await call('POST', `Library/VirtualFolders?name=${encodeURIComponent(name)}&collectionType=${type}&paths=${encodeURIComponent(path)}&refreshLibrary=true`,
     { token, body: { LibraryOptions: { AutomaticallyAddToCollection: type === 'movies', PreferredMetadataLanguage: english ? 'en' : 'fr', MetadataCountryCode: english ? 'US' : 'FR' } } });
 }
-// Every film, episode and series of media.sh; fewer when a caller keeps only some (MIRA_GALLERY_TITLES).
-const titleCount = Number(process.env.MIRA_GALLERY_TITLES ?? 32);
+// Every film, episode and series of tools/banner/media.sh; fewer when a caller keeps only some (MIRA_GALLERY_TITLES).
+const titleCount = Number(process.env.MIRA_GALLERY_TITLES ?? 52);
 const query = `Items?userId=${userId}&recursive=true&includeItemTypes=Movie,Series,Episode`;
 let scans = 0;
 await until('the library scan', async () => {
@@ -89,17 +90,7 @@ const byFile = (name) => items.find((x) => x.Path?.replace(/\\/g, '/').split('/'
 const series = items.find((x) => x.Type === 'Series');
 const ticks = (item, share) => Math.round((item.RunTimeTicks ?? 0) * share);
 const hour = 3_600_000;
-const traces = process.env.MIRA_GALLERY_TRACES ? JSON.parse(readFileSync(process.env.MIRA_GALLERY_TRACES, 'utf8')) : [
-  ['Spring (2019)', { share: 0.42, favorite: true, ago: 1 }],
-  ['Metropolis (1927)', { share: 0.61, ago: 26 }],
-  ['Tears of Steel (2012)', { share: 0.18, ago: 50 }],
-  ['Big Buck Bunny (2008)', { played: true, ago: 80 }],
-  ['Sintel (2010)', { played: true, ago: 100 }],
-  ['Nosferatu (1922)', { played: true, ago: 140 }],
-  ['Charade (1963)', { favorite: true }],
-  ['Sprite Fright (2021)', { favorite: true }],
-  ['The General (1926)', { favorite: true }],
-];
+const traces = JSON.parse(readFileSync(process.env.MIRA_GALLERY_TRACES ?? fileURLToPath(new URL('../banner/traces.json', import.meta.url)), 'utf8'));
 for (const [name, trace] of traces) {
   const item = byFile(name);
   if (!item) { console.log(`::warning::No item for ${name}`); continue; }
