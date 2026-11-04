@@ -10,13 +10,37 @@ public sealed class VideoHost : HwndHost
     private double _radius;
     private Size _pixels;
     private bool _clipped;
+    /// <summary>
+    /// A window class of Mira's, black behind mpv: a STATIC window paints itself in the system's light grey, and that was
+    /// a flash of light on every start, from the moment the player shows until mpv's own window is there. The mouse goes
+    /// through it to Mira, as through a STATIC (WM_NCHITTEST in <see cref="WndProc"/>).
+    /// </summary>
+    private const string ClassName = "MiraVideo";
+    private static readonly bool Registered = Register();
+    private static bool Register()
+    {
+        var module = GetModuleHandle(null);
+        var window = new WindowClass
+        {
+            Size = Marshal.SizeOf<WindowClass>(), Instance = module, Name = ClassName, Background = GetStockObject(BlackBrush),
+            Procedure = GetProcAddress(GetModuleHandle("user32"), "DefWindowProcW")
+        };
+        return RegisterClassEx(ref window) != 0;
+    }
     protected override HandleRef BuildWindowCore(HandleRef parent)
     {
-        var hwnd = CreateWindowEx(0, "STATIC", "Mira video", 0x40000000 | 0x10000000 | 0x02000000 | 0x04000000,
-            0, 0, 1, 1, parent.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        var hwnd = CreateWindowEx(0, Registered ? ClassName : "STATIC", "Mira video", 0x40000000 | 0x10000000 | 0x02000000 | 0x04000000,
+            0, 0, 1, 1, parent.Handle, IntPtr.Zero, GetModuleHandle(null), IntPtr.Zero);
         Dispatcher.BeginInvoke(() => Ready?.Invoke(hwnd));
         return new HandleRef(this, hwnd);
     }
+    protected override IntPtr WndProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (message != HitTest) return base.WndProc(hwnd, message, wParam, lParam, ref handled);
+        handled = true; return Transparent;
+    }
+    private const int BlackBrush = 4, HitTest = 0x0084;
+    private static readonly IntPtr Transparent = new(-1);
     /// <summary>Rounds the native video corners (WPF clipping cannot reach a child HWND). Radius in device pixels; 0 removes it.</summary>
     public void SetCornerRadius(double devicePixels) { _radius = Math.Max(0, devicePixels); ApplyRegion(); }
     protected override void OnWindowPositionChanged(Rect rcBoundingBox)
@@ -39,6 +63,16 @@ public sealed class VideoHost : HwndHost
         if (SetWindowRgn(Handle, region, true) == 0) DeleteObject(region); else _clipped = true;
     }
     protected override void DestroyWindowCore(HandleRef hwnd) => DestroyWindow(hwnd.Handle);
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WindowClass
+    {
+        public int Size, Style; public IntPtr Procedure; public int ClassExtra, WindowExtra; public IntPtr Instance, Icon, Cursor, Background;
+        public string? Menu, Name; public IntPtr SmallIcon;
+    }
+    [DllImport("user32", CharSet = CharSet.Unicode)] private static extern ushort RegisterClassEx(ref WindowClass window);
+    [DllImport("kernel32", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string? name);
+    [DllImport("kernel32", CharSet = CharSet.Ansi)] private static extern IntPtr GetProcAddress(IntPtr module, string name);
+    [DllImport("gdi32")] private static extern IntPtr GetStockObject(int kind);
     [DllImport("user32", CharSet = CharSet.Unicode)] private static extern IntPtr CreateWindowEx(int extended, string cls, string title, int style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr param);
     [DllImport("user32")] private static extern bool DestroyWindow(IntPtr hwnd);
     [DllImport("user32")] private static extern int SetWindowRgn(IntPtr hwnd, IntPtr region, bool redraw);

@@ -38,5 +38,6 @@ public partial class MainWindow
     }
     [StructLayout(LayoutKind.Sequential)] private struct CursorInfo { public int Size, Flags; public IntPtr Handle; public int X, Y; }
     [DllImport("user32")] private static extern bool GetCursorInfo(ref CursorInfo info);
+    [DllImport("user32", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder name, int size);
     [DllImport("user32")] private static extern IntPtr GetForegroundWindow();
 }
