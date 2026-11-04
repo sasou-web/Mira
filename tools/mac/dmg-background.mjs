@@ -19,8 +19,8 @@ const site = pathToFileURL(resolve('site')).href;
 // The arrow runs between the two icons, a little apart from each.
 const from = appX + iconSize / 2 + 30, to = appsX - iconSize / 2 - 30;
 const html = `<!doctype html><html><head><style>
-  @font-face { font-family: N; font-weight: 600; src: url('${site}/fonts/nunito-sans-600.woff2'); }
-  @font-face { font-family: N; font-weight: 700; src: url('${site}/fonts/nunito-sans-700.woff2'); }
+  @font-face { font-family: N; font-weight: 600; src: url('${site}/fonts/nunito-600.woff2'); }
+  @font-face { font-family: N; font-weight: 700; src: url('${site}/fonts/nunito-700.woff2'); }
   html, body { margin: 0; }
   body { width: ${width}px; height: ${height}px; overflow: hidden; position: relative; font-family: N; color: #a2a2a6;
     background: #070708; -webkit-font-smoothing: antialiased; }

@@ -19,6 +19,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 desktop = root / 'src/Mira.Desktop/Assets/Fonts'
 ios = root / 'src/Mira.iOS/Mira/Resources/Fonts'
 web = root / 'src/Mira.Web/fonts'
+site = root / 'site/fonts'  # the showcase site, the same files as Mira web
 
 def fetch(name):
     with urllib.request.urlopen(f'{BASE}/{name}') as answer: return answer.read()
@@ -30,7 +31,7 @@ source = root / '.artifacts/fonts/Nunito[wght].ttf'
 source.parent.mkdir(parents=True, exist_ok=True)
 source.write_bytes(variable)
 
-for folder in (desktop, ios, web):
+for folder in (desktop, ios, web, site):
     for old in folder.glob('NunitoSans-*.ttf'): old.unlink()
     for old in folder.glob('nunito-sans-*.woff2'): old.unlink()
     (folder / 'OFL.txt').write_bytes(license)
@@ -49,7 +50,8 @@ for weight, style in WEIGHTS.items():
     latin.save(ios / static.name)
     latin.flavor = 'woff2'
     latin.save(web / f'nunito-{weight}.woff2')
+    latin.save(site / f'nunito-{weight}.woff2')
 
 (desktop / 'SOURCE.txt').write_text(f'Nunito\nhttps://github.com/google/fonts/tree/{REVISION}/ofl/nunito\n'
     'Static instances (400, 600, 700, 800) of the official variable font, cut by tools/fonts.py. SIL Open Font License 1.1.\n')
-print('Nunito written for Windows, Mac, iPhone and Mira web.')
+print('Nunito written for Windows, Mac, iPhone, Mira web and the site.')
