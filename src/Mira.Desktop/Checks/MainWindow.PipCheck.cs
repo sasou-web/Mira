@@ -50,7 +50,7 @@ public partial class MainWindow
         // There, lighter controls, every row in it, and the subtitles above them while they show.
         pip.ShowControls(); await Task.Delay(400);
         using (var shown = CaptureWindow(small)) shown.Save(Path.Combine(output, "pip-window-small.png"), Drawing.Imaging.ImageFormat.Png);
-        var usual = 22; double Margin() => engine.Number("sub-margin-y", -1);
+        var usual = _pipMargin; double Margin() => engine.Number("sub-margin-y", -1);
         var lifted = PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, usual);
         require(pip.Fit is { Small: true, Jumps: true } && lifted > usual && Math.Abs(Margin() - lifted) < .5, $"picture in picture: in the smallest window, lighter controls and the subtitles above them ({pip.Fit.Play} px play button, sub-margin-y {Margin()} for {lifted})");
         pip.Place(bounds, direct: true); await Task.Delay(500);
