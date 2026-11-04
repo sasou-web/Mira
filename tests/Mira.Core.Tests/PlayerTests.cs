@@ -282,6 +282,33 @@ internal static class PlayerTests
             Assert(PictureInPicture.SubtitleScale(0, 270) == 1 && PictureInPicture.SubtitleScale(40, double.NaN) == 1 && PictureInPicture.SubtitleScale(40, 0) == 1, "Nothing known: mpv's own size");
             return Task.CompletedTask;
         });
+        await Test("Image dans l’image : commandes à la taille de la petite fenêtre, sous-titres au-dessus d’elles, « 10 » au milieu de son cercle (Windows et Mac)", () =>
+        {
+            var large = PictureInPicture.ControlsFor(480, 270); var smallest = PictureInPicture.ControlsFor(256, 144); var narrow = PictureInPicture.ControlsFor(144, 256);
+            Assert(large is { Small: false, Title: true, Jumps: true } && PictureInPicture.ControlsFor(340, 200) == large, "From 340 × 200: the player's own sizes");
+            Assert(smallest is { Small: true, Title: false, Jumps: true } && PictureInPicture.ControlsFor(320, 180) is { Small: true, Title: true }, "Smaller: lighter, the title from 300 wide");
+            Assert(narrow is { Small: true, Title: false, Jumps: false } && PictureInPicture.ControlsFor(double.NaN, 270).Small, "A narrow window keeps play alone; nothing known is small");
+            // Every row fits the smallest window, clear of the band along the edges that resizes it.
+            foreach (var (fit, width, height) in new[] { (large, 480d, 270d), (smallest, 256d, 144d), (narrow, 144d, 256d) })
+            {
+                var corners = PictureInPicture.Controls.Margin + fit.Corner;
+                var middle = (fit.Jumps ? 2 * (fit.Jump + fit.Spacing) : 0) + fit.Play;
+                Assert(PictureInPicture.Controls.Margin > PictureInPicture.Grip && height - 2 * corners - fit.Play >= 24 && width - middle >= 24 && fit.Bar > corners, $"{width} × {height}: rows and spaces");
+                Assert(Math.Abs(fit.Inset - PictureInPicture.Controls.Margin - (fit.Corner - fit.CornerGlyph) / 2) < .01 && fit.Lift > corners - (fit.Corner - fit.CornerGlyph) / 2, $"{width} × {height}: insets and the subtitles' lift");
+            }
+            Assert(large.Inset == 16 && smallest.Inset == 14 && large.Lift == 41 && smallest.Lift == 37, "Insets and lifts");
+            Assert(PictureInPicture.SubtitleMargin(41, 270, 22) == 109 && PictureInPicture.SubtitleMargin(37, 144, 22) == 185, "mpv's margin, counted for a window 720 high");
+            Assert(PictureInPicture.SubtitleMargin(41, 2000, 22) == 22 && PictureInPicture.SubtitleMargin(500, 270, 22) == 360 && PictureInPicture.SubtitleMargin(41, 0, 30) == 30, "Never below mpv's own, at most halfway, mpv's own when nothing is known");
+            // The « 10 » centred on the arcs' centre: as far from both ends of each arc as their radius (8.5).
+            foreach (var (kind, ends) in new[] { ("rewind", new[] { (4d, 8d), (3.5, 14d) }), ("forward", new[] { (20d, 8d), (20.5, 14d) }) })
+            {
+                var (x, y) = IconPaths.TenCentre(kind)!.Value;
+                Assert(IconPaths.Strokes[kind].StartsWith(FormattableString.Invariant($"M{ends[0].Item1} {ends[0].Item2}A8.5 8.5"), StringComparison.Ordinal), kind + ": " + IconPaths.Strokes[kind]);
+                Assert(ends.All(e => Math.Abs(Math.Sqrt(Math.Pow(e.Item1 - x, 2) + Math.Pow(e.Item2 - y, 2)) - 8.5) < .01), $"{kind}: centre ({x}, {y})");
+            }
+            Assert(IconPaths.TenCentre("play") is null, "Only the jumps carry it");
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres gardés sur Jellyfin : langues, résultats, messages et nouvelle piste, comme Mira web (tests/fixtures/subtitles.json)", () =>
         {
             var repository = TestSupport.Repository() ?? throw new Exception("Repository not found");

@@ -22,6 +22,8 @@ public sealed partial class PlayerPage
     /// <summary>The engine whose subtitles were sized for the small window: a new title brings a new engine, sized again.</summary>
     private MpvPlayer? _pipEngine;
     private double _pipSubtitleScale = 1;
+    /// <summary>That engine's own sub-margin-y, put back when the controls go and when the video leaves; the one set now.</summary>
+    private int _pipMargin = 22, _pipMarginNow = 22;
     private long _pipTracksAt;
     private bool? _pipSubtitles;
     /// <summary>The subtitles shown before C or the small window's button hid them, shown again by the next press.</summary>
@@ -59,6 +61,7 @@ public sealed partial class PlayerPage
         pip.KeyPressed += PipKey;
         pip.Placed += () => RememberPip(pip);
         pip.VideoResized += SizePipSubtitles;
+        pip.ControlsChanged += LiftPipSubtitles;
         _pip = pip; _pipEngine = null; _pipSubtitles = null; _pipTracksAt = 0;
         _pipMoving = true;
         bool moved;
@@ -107,7 +110,11 @@ public sealed partial class PlayerPage
         RememberPip(pip);
         // Closing the window with mpv's view inside would take OpenGL from under mpv.
         if (_surface is { } surface && surface.View.Parent == pip.VideoHost) { pip.VideoHost.Children.Remove(surface.View); surface.Release(); _surface = null; }
-        if (_mpv is { } mpv && ReferenceEquals(mpv, _pipEngine) && _pipSubtitleScale != 1) mpv.Set("sub-scale", "1");
+        if (_mpv is { } mpv && ReferenceEquals(mpv, _pipEngine))
+        {
+            if (_pipSubtitleScale != 1) mpv.Set("sub-scale", "1");
+            if (_pipMarginNow != _pipMargin) mpv.Set("sub-margin-y", _pipMargin.ToString(CultureInfo.InvariantCulture));
+        }
         _pipEngine = null; _pipSubtitleScale = 1;
         pip.Dismiss();
         IsVisible = true;
@@ -180,7 +187,12 @@ public sealed partial class PlayerPage
         pip.SetPaused(_session.Paused);
         pip.SetTime($"{Timeline.Clock(_session.Position)} / {Timeline.Clock(_session.Duration)}", _session.Duration > 0 ? _session.Position / _session.Duration : 0);
         if (_loaded && VideoAspect(mpv) is { } aspect && Math.Abs(aspect - pip.Aspect) > .01) pip.Refit(aspect);
-        if (!ReferenceEquals(mpv, _pipEngine)) { _pipEngine = mpv; _pipSubtitleScale = 1; _pipTracksAt = 0; SizePipSubtitles(); }
+        if (!ReferenceEquals(mpv, _pipEngine))
+        {
+            _pipEngine = mpv; _pipSubtitleScale = 1; _pipTracksAt = 0;
+            _pipMargin = _pipMarginNow = mpv.Number("sub-margin-y", 22) is var margin and >= 0 and <= 600 ? (int)margin : 22;
+            SizePipSubtitles();
+        }
         UpdatePipSubtitles();
     }
     /// <summary>
@@ -191,8 +203,18 @@ public sealed partial class PlayerPage
     {
         if (_pip is not { } pip || _mpv is not { } mpv || !ReferenceEquals(mpv, _pipEngine)) return;
         var scale = PictureInPicture.SubtitleScale(_shell.Settings.SubtitleSize, pip.VideoHeight);
-        if (scale == _pipSubtitleScale) return;
-        if (mpv.Set("sub-scale", scale.ToString(CultureInfo.InvariantCulture))) _pipSubtitleScale = scale;
+        if (scale != _pipSubtitleScale && mpv.Set("sub-scale", scale.ToString(CultureInfo.InvariantCulture))) _pipSubtitleScale = scale;
+        LiftPipSubtitles();
+    }
+    /// <summary>
+    /// While the controls show, the subtitles go above the time and the subtitles' button, as on video sites
+    /// (<see cref="PictureInPicture.SubtitleMargin"/>); back to their place once the controls go.
+    /// </summary>
+    private void LiftPipSubtitles()
+    {
+        if (_pip is not { } pip || _mpv is not { } mpv || !ReferenceEquals(mpv, _pipEngine) || _pipMoving) return;
+        var margin = pip.ControlsShown ? PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, _pipMargin) : _pipMargin;
+        if (margin != _pipMarginNow && mpv.Set("sub-margin-y", margin.ToString(CultureInfo.InvariantCulture))) _pipMarginNow = margin;
     }
     /// <summary>The subtitles' button: shown with a track to show, lit while one shows. The track list is read at most once a second.</summary>
     private void UpdatePipSubtitles()

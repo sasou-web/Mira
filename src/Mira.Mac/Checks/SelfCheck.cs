@@ -479,14 +479,35 @@ public static class SelfCheck
         check(expected > 1 && Math.Abs(engine.Number("sub-scale") - expected) < .01 && engine.Get("sub-visibility") == "yes" && !ConvertedTracks.Off(engine.Get("sid")),
             $"image dans l’image : sous-titres agrandis pour sa taille ({renderer})", $"{pip.VideoHeight:0} de haut, sub-scale {engine.Get("sub-scale")}");
         pip.ShowControls(); await Task.Delay(300);
-        ScreenColour(Path.Combine(output, $"08f-pip-{(renderer == "OpenGL" ? "opengl" : "software")}.png"));
+        var name = renderer == "OpenGL" ? "opengl" : "software";
+        ScreenColour(Path.Combine(output, $"08f-pip-{name}.png"));
         var unnamed = Unnamed(pip);
         check(unnamed.Count == 0, $"VoiceOver : tout est nommé (image dans l’image, {renderer})", string.Join(", ", unnamed.Take(8)));
+        // While the controls show, the subtitles above the time and the subtitles' button; at their place once they go.
+        var usual = 22;
+        double Margin() => engine.Number("sub-margin-y", -1);
+        var lifted = PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, usual);
+        check(lifted > usual && Math.Abs(Margin() - lifted) < .5, $"image dans l’image : sous-titres au-dessus des commandes tant qu’elles se voient ({renderer})", $"sub-margin-y {Margin()}, attendu {lifted}");
+        // The smallest window: lighter controls, each row in it, the subtitles still above them.
+        if (pip.Placement() is { } placed && PipWindow.ScreensOf(pip) is { Count: > 0 } screens && PictureInPicture.ScreenOf(placed, screens) is { } screen)
+        {
+            var narrowest = PictureInPicture.Widths(screen, pip.Aspect).Minimum;
+            pip.Place(placed with { Width = narrowest, Height = Math.Round(narrowest / pip.Aspect) }, screen);
+            await Until(() => pip.Fit.Small, 3); pip.ShowControls(); await Task.Delay(400);
+            ScreenColour(Path.Combine(output, $"08g-pip-small-{name}.png"));
+            var small = PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, usual);
+            check(pip.Fit is { Small: true, Jumps: true } && Math.Abs(Margin() - small) < .5, $"image dans l’image : commandes allégées dans la plus petite fenêtre, sous-titres au-dessus ({renderer})",
+                $"{pip.Bounds.Width:0} × {pip.Bounds.Height:0}, {pip.Fit}, sub-margin-y {Margin()}, attendu {small}");
+            pip.Place(placed, screen);
+            await Until(() => !pip.Fit.Small, 3);
+        }
+        pip.HideControlsNow(); await Task.Delay(200);
+        check(Math.Abs(Margin() - usual) < .5, $"image dans l’image : sous-titres à leur place une fois les commandes parties ({renderer})", $"sub-margin-y {Margin()}");
 
         await player.ReturnFromPipAsync();
         frames = player.Surface?.Frames ?? 0;
         check(player.Pip is null && !pip.IsVisible && player.IsVisible && !player.IsMini && player.Surface?.View.Parent is { } host && host != pip.VideoHost && ReferenceEquals(player.Engine, engine)
-            && Math.Abs(engine.Number("sub-scale") - 1) < .001 && await Until(() => player.Surface?.Frames > frames + 12, 10),
+            && Math.Abs(engine.Number("sub-scale") - 1) < .001 && Math.Abs(engine.Number("sub-margin-y") - 22) < .5 && await Until(() => player.Surface?.Frames > frames + 12, 10),
             $"image dans l’image : de retour dans Mira, le lecteur entier ({renderer})", $"{player.Surface?.GetType().Name}, sub-scale {engine.Get("sub-scale")}");
         engine.Set("sid", "no");
 

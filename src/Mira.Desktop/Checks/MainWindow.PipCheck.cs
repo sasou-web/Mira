@@ -47,12 +47,21 @@ public partial class MainWindow
         pip.Place(smallest, direct: true); await Task.Delay(500);
         expected = PictureInPicture.SubtitleScale(_settings.SubtitleSize, pip.VideoHeight);
         require(expected > 1.5 && Math.Abs(engine.Number("sub-scale") - expected) < .01, $"picture in picture: made smaller ({pip.Bounds().Width} × {pip.Bounds().Height} px), the subtitles grow to stay readable (sub-scale {engine.Get("sub-scale")})");
+        // There, lighter controls, every row in it, and the subtitles above them while they show.
+        pip.ShowControls(); await Task.Delay(400);
+        using (var shown = CaptureWindow(small)) shown.Save(Path.Combine(output, "pip-window-small.png"), Drawing.Imaging.ImageFormat.Png);
+        var usual = 22; double Margin() => engine.Number("sub-margin-y", -1);
+        var lifted = PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, usual);
+        require(pip.Fit is { Small: true, Jumps: true } && lifted > usual && Math.Abs(Margin() - lifted) < .5, $"picture in picture: in the smallest window, lighter controls and the subtitles above them ({pip.Fit.Play} px play button, sub-margin-y {Margin()} for {lifted})");
         pip.Place(bounds, direct: true); await Task.Delay(500);
 
         // As a capture sees it: the controls over the video, and the subtitles in the picture.
         pip.ShowControls(); await Task.Delay(400);
         using (var shown = CaptureWindow(small)) shown.Save(Path.Combine(output, "pip-window.png"), Drawing.Imaging.ImageFormat.Png);
+        lifted = PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, usual);
+        require(!pip.Fit.Small && Math.Abs(Margin() - lifted) < .5, $"picture in picture: while its controls show, the subtitles go above them (sub-margin-y {Margin()} for {lifted})");
         pip.HideControlsNow(); await Task.Delay(500);
+        require(Math.Abs(Margin() - usual) < .5, $"picture in picture: the controls gone, the subtitles back at their place (sub-margin-y {Margin()})");
         using var withText = CaptureWindow(small);
         engine.Set("sub-visibility", "no"); await Task.Delay(500);
         using var without = CaptureWindow(small);
@@ -96,8 +105,8 @@ public partial class MainWindow
 
         // Back to Mira: the whole player, the same engine, mpv's own subtitle size.
         ReturnFromPip(); await Task.Delay(400);
-        require(_pip is null && !pip.IsVisible && !_miniPlayer && PlayerShell.IsVisible && GetParent(video.Handle) == main && ReferenceEquals(engine, _mpv) && Math.Abs(engine.Number("sub-scale") - 1) < .001,
-            "picture in picture: back in Mira, the whole player with the same engine, subtitles at their own size");
+        require(_pip is null && !pip.IsVisible && !_miniPlayer && PlayerShell.IsVisible && GetParent(video.Handle) == main && ReferenceEquals(engine, _mpv) && Math.Abs(engine.Number("sub-scale") - 1) < .001
+            && Math.Abs(engine.Number("sub-margin-y") - usual) < .5, "picture in picture: back in Mira, the whole player with the same engine, subtitles at their own size and place");
 
         // From the whole player, then « Fermer »: playback stopped, the video back in Mira's window, no window left.
         EnterPip(); await Task.Delay(500);

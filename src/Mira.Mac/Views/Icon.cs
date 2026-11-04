@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -58,7 +59,22 @@ public sealed class Icon : Control
             if (geometry is null) return;
             var filled = Kind is "play" or "pause";
             context.DrawGeometry(filled ? ink : null, filled ? null : Round(ink, Kind is "next-episode" or "previous-episode" ? 2.3 : 1.85), geometry);
+            if (Ten(Kind) is { } ten) context.DrawGeometry(ink, null, ten);
         }
+    }
+    private static readonly Dictionary<string, Geometry?> Tens = [];
+    /// <summary>The « 10 » of "rewind" and "forward" as a shape in Mira's font, its ink centred in their circle (<see cref="IconPaths.TenCentre"/>).</summary>
+    private static Geometry? Ten(string kind)
+    {
+        if (Tens.TryGetValue(kind, out var made)) return made;
+        if (IconPaths.TenCentre(kind) is not var (x, y)) return null;
+        var text = new FormattedText(IconPaths.Ten, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            new Typeface(new FontFamily("avares://Mira/Assets/Fonts#Nunito"), FontStyle.Normal, FontWeight.Bold), IconPaths.TenSize, Brushes.White);
+        var geometry = text.BuildGeometry(new Point());
+        if (geometry is not null && geometry.Bounds is { Width: > 0 } ink)
+            geometry.Transform = new TranslateTransform(x - ink.X - ink.Width / 2, y - ink.Y - ink.Height / 2);
+        else geometry = null;
+        return Tens[kind] = geometry;
     }
     private static Pen Round(IBrush brush, double width) => new(brush, width, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
 }
