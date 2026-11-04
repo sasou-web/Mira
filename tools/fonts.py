@@ -1,7 +1,9 @@
 """Mira's typeface, Nunito, for every app: python3 -I tools/fonts.py (needs fonttools 4.x and brotli).
 
 Google Fonts only publishes Nunito as a variable font: the four weights Mira uses (400, 600, 700, 800) are cut from it
-as static fonts (WPF and Avalonia read statics best), then the iPhone and Mira web get the Latin subset of each.
+as static fonts (WPF and Avalonia read statics best), then the iPhone and Mira web get the Latin subset of each. The
+showcase site's pages read the Latin subset of the variable font itself (site/fonts/nunito.woff2: its light titles and
+every other weight in one file); its four statics stay for the tools that draw with them (share cards, the .dmg window).
 """
 import hashlib, pathlib, sys, urllib.request
 from fontTools.ttLib import TTFont
@@ -51,6 +53,15 @@ for weight, style in WEIGHTS.items():
     latin.flavor = 'woff2'
     latin.save(web / f'nunito-{weight}.woff2')
     latin.save(site / f'nunito-{weight}.woff2')
+
+# The site's pages: the variable font, every weight, Latin only.
+options = subset.Options(); options.layout_features = ['*']; options.name_IDs = ['*']
+variable_latin = TTFont(source, recalcTimestamp=False)
+cutter = subset.Subsetter(options)
+cutter.populate(unicodes=subset.parse_unicodes(LATIN))
+cutter.subset(variable_latin)
+variable_latin.flavor = 'woff2'
+variable_latin.save(site / 'nunito.woff2')
 
 (desktop / 'SOURCE.txt').write_text(f'Nunito\nhttps://github.com/google/fonts/tree/{REVISION}/ofl/nunito\n'
     'Static instances (400, 600, 700, 800) of the official variable font, cut by tools/fonts.py. SIL Open Font License 1.1.\n')

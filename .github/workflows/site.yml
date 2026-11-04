@@ -57,7 +57,7 @@ jobs:
       # Nothing a page loads may come from another host (each page's policy says so too): links only.
       - name: No third-party request
         run: |
-          if grep -rnIE '(src|srcset)="(https?:)?//|url\((https?:)?//' dist/site; then exit 1; fi
+          if grep -rnIE '(src|srcset|poster)="(https?:)?//|url\((https?:)?//' dist/site; then exit 1; fi
           if grep -rnIE '<link [^>]*href="(https?:)?//' dist/site | grep -vE 'rel="(canonical|alternate)"'; then exit 1; fi
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
