@@ -127,11 +127,14 @@ public partial class MainWindow
     /// </summary>
     private async Task RequireSubtitlesAbove(PipWindow pip, IntPtr window, MpvEngine engine, Action<bool, string> require, List<string> checks)
     {
-        pip.ShowControls(); await Task.Delay(300);
+        // The controls kept on all along: without the pointer over the window they go after 0.6 s, the subtitles with them.
+        async Task Hold() { for (var i = 0; i < 5; i++) { pip.ShowControls(); await Task.Delay(100); } pip.ShowControls(); }
+        await Hold();
         using var with = CaptureWindow(window);
-        engine.Set("sub-visibility", "no"); await Task.Delay(400);
+        engine.Set("sub-visibility", "no"); await Hold();
         using var without = CaptureWindow(window);
-        engine.Set("sub-visibility", "yes"); await Task.Delay(300);
+        engine.Set("sub-visibility", "yes"); await Hold();
+        if (!pip.ControlsShown) { require(false, "picture in picture: its controls stayed on while the subtitles were measured"); return; }
         // The runner may not hand mpv's picture to a capture: then the subtitles cannot be seen there either.
         if (Colourful(without, new Drawing.Rectangle(without.Width / 4, without.Height / 4, without.Width / 2, without.Height / 4)) < .2)
         { checks.Add("INFO picture in picture: the subtitles' place not measured (no video in the capture)"); return; }
