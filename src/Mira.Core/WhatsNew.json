@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.9.3",
+    "summary": "Image dans l’image, lecteur plus doux sous Windows, Réglages plus simples, gestes du trackpad.",
+    "en": { "summary": "Picture in picture, a smoother player on Windows, simpler Settings, trackpad gestures." },
+    "items": [
+      { "icon": "pip", "title": "Image dans l’image", "text": "Sous Windows et Mac, la vidéo passe dans sa petite fenêtre, au-dessus des autres, sous-titres compris.",
+        "en": { "title": "Picture in picture", "text": "On Windows and Mac, the video moves to its own small window above the others, subtitles included." } },
+      { "icon": "play", "title": "Un lecteur plus doux sous Windows", "text": "Il s’ouvre et se ferme en fondu, se réduit sans saccade, et le son ne saute plus.",
+        "en": { "title": "A smoother player on Windows", "text": "It fades in and out, shrinks without stutter, and the sound no longer skips." } },
+      { "icon": "settings", "title": "Réglages plus simples sous Windows", "text": "Les sections sont rangées par priorité, le reste passe sous « Réglages avancés ». Rien n’est retiré.",
+        "en": { "title": "Simpler Settings on Windows", "text": "Sections are ordered by priority and the rest sits under “Advanced settings”. Nothing is removed." } },
+      { "icon": "sliders", "title": "Gestes du trackpad sur Mac", "text": "Retour et Avant à deux doigts, pincer pour les affiches, glisser dans le lecteur.",
+        "en": { "title": "Trackpad gestures on Mac", "text": "Back and Forward with two fingers, pinch the posters, swipe in the player." } }
+    ]
+  },
+  {
     "version": "0.9.2",
     "summary": "Correctifs : qBittorrent 5, boutons de la fiche sous Windows, image grise sur Mac.",
     "en": { "summary": "Fixes: qBittorrent 5, the title page buttons on Windows, the grey picture on Mac." },

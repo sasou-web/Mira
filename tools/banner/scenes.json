@@ -1,4 +1,13 @@
 {
+  "0.9.3": {
+    "backdrop": "klaus",
+    "items": [
+      { "platform": "windows" },
+      { "platform": "windows" },
+      { "platform": "windows" },
+      { "platform": "mac" }
+    ]
+  },
   "0.9.2": {
     "backdrop": "coco",
     "items": [
