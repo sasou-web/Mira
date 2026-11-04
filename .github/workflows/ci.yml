@@ -20,7 +20,7 @@ jobs:
   # tied to Windows is seen to run elsewhere too, in a minute.
   portable:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -32,6 +32,12 @@ jobs:
         run: dotnet restore tests/Mira.Core.Tests/Mira.Core.Tests.csproj --configfile NuGet.Config
       - name: Build
         run: dotnet build tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore
+      # Mira for Mac compiles here too (Avalonia builds on Linux): a pull request that changes only Mira.Core no longer
+      # starts mac.yml, so a change that breaks the Mac app's build is seen here, on the pull request, in a minute.
+      - name: Mira for Mac compiles
+        run: |
+          dotnet restore src/Mira.Mac/Mira.Mac.csproj --configfile NuGet.Config
+          dotnet build src/Mira.Mac/Mira.Mac.csproj -c Release --no-restore
       # The real qBittorrent for its Web API under Mira's profile, settings and password: Ubuntu's qbittorrent-nox (4.6),
       # then a 5.3.0 like the one Mira installs on Windows, which answers sign-in otherwise (204, not « Ok. »: Mira's
       # 0.9.1 knew only 4.6 and took 5.3's answer for a refused password). Neither Ubuntu nor the qBittorrent team's PPA

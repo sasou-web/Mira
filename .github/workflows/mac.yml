@@ -5,8 +5,10 @@ on:
   push:
     branches: [main]
     paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
+  # A pull request that changes only Mira.Core waits for main: ci.yml compiles Mira.Mac against it on Linux in a minute,
+  # and every push to main builds and checks the whole Mac app as before (as does each release, from tools/release.ps1).
   pull_request:
-    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
+    paths: ["src/Mira.Mac/**", "src/Mira.Core/Tailscale/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
   # No "release: published": GitHub runs nothing for a draft, and an immutable release takes no file once published.
   workflow_dispatch:
     inputs:
@@ -20,14 +22,42 @@ on:
         type: string
 permissions:
   contents: read
+# A new push to a pull request stops its previous Mac run, queued or running: macOS runners are few, and a stale run
+# holds one. main and releases each keep their own group (run_id): never cancelled.
+concurrency:
+  group: mac-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   AVALONIA_TELEMETRY_OPTOUT: "1"
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
 jobs:
+  icon:
+    # Is Assets.car already made for this icon? Its sources rarely change: a hit spares a macOS 26 runner (and its queue)
+    # for icon-car and, on a pull request, for icon-check. Never for a release, which makes its icon afresh. The cache's
+    # path is the same relative one in the three jobs: an absolute one (runner.temp) differs between Linux and macOS, and
+    # the path is part of what a cache entry must match.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      hit: ${{ steps.cache.outputs.cache-hit }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: inputs.release == ''
+        with:
+          persist-credentials: false
+      - id: cache
+        if: inputs.release == ''
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .artifacts/assets-car/Assets.car
+          key: mac-assets-car-${{ hashFiles('src/Mira.Mac/Icon/Mira.icon/**', 'tools/mac/icon-car.sh') }}
+          lookup-only: true
   icon-car:
     # Mira's icon for macOS 26 (tools/mac/icon-car.sh): Xcode 26's actool only works on macOS 26.
+    needs: icon
+    if: needs.icon.outputs.hit != 'true'
     runs-on: macos-26
     timeout-minutes: 15
     steps:
@@ -38,18 +68,26 @@ jobs:
       - name: Assets.car
         run: |
           sw_vers; xcodebuild -version
-          tools/mac/icon-car.sh "$RUNNER_TEMP/icon"
-          assetutil --info "$RUNNER_TEMP/icon/Assets.car" | grep -E '"(AssetType|Name|Idiom)"' | sort | uniq -c
+          tools/mac/icon-car.sh .artifacts/assets-car
+          assetutil --info .artifacts/assets-car/Assets.car | grep -E '"(AssetType|Name|Idiom)"' | sort | uniq -c
+      # Kept for the next runs (the same key as the job « icon » looks up); main's is the one pull requests read.
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: inputs.release == ''
+        with:
+          path: .artifacts/assets-car/Assets.car
+          key: mac-assets-car-${{ hashFiles('src/Mira.Mac/Icon/Mira.icon/**', 'tools/mac/icon-car.sh') }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-mac-icon
           # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
           overwrite: true
-          path: ${{ runner.temp }}/icon/Assets.car
+          path: .artifacts/assets-car/Assets.car
           if-no-files-found: error
           retention-days: 1
   build:
-    needs: icon-car
+    needs: [icon, icon-car]
+    # icon-car skipped (Assets.car found by « icon ») is not a failure: the build reads the cached one instead.
+    if: ${{ !cancelled() && needs.icon.result == 'success' && (needs.icon-car.result == 'success' || needs.icon-car.result == 'skipped') }}
     # Apple Silicon. The libraries come from Homebrew, built for this macOS: Mira needs it or later (tools/mac/package.sh
     # checks it against the minimum it declares).
     runs-on: macos-15
@@ -69,6 +107,19 @@ jobs:
           # The draft's commit for a release; otherwise the event's own.
           ref: ${{ inputs.commit }}
           persist-credentials: false
+      # On a pull request, the Built-in Tailscale steps (about 3.5 minutes) run only when it touches what they check: the
+      # node, its build, Mira's Tailnet code, the profile and keychain that keep its key, the packaging. main and every
+      # release run them always.
+      - name: What this pull request changes
+        id: changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE"
+          git diff --name-only "$BASE" HEAD | tee "$RUNNER_TEMP/changed.txt"
+          if grep -q -i -E 'tail|keychain|profile|tools/mac/|mac\.yml' "$RUNNER_TEMP/changed.txt"; then tailnet=true; else tailnet=false; fi
+          echo "tailnet=$tailnet" >> "$GITHUB_OUTPUT"; echo "Built-in Tailscale steps: $tailnet"
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 10.0.x
@@ -92,13 +143,20 @@ jobs:
           else version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Mac/Mira.Mac.csproj); fi
           echo "version=$version" >> "$GITHUB_OUTPUT"; echo "Mira $version"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.icon-car.result == 'success'
         with:
           name: Mira-mac-icon
-          path: ${{ runner.temp }}/icon
+          path: .artifacts/assets-car
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: needs.icon-car.result == 'skipped'
+        with:
+          path: .artifacts/assets-car/Assets.car
+          key: mac-assets-car-${{ hashFiles('src/Mira.Mac/Icon/Mira.icon/**', 'tools/mac/icon-car.sh') }}
+          fail-on-cache-miss: true
       - name: Package Mira.app and the disk image
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          MIRA_ASSETS_CAR: ${{ runner.temp }}/icon/Assets.car
+          MIRA_ASSETS_CAR: ${{ github.workspace }}/.artifacts/assets-car/Assets.car
         run: tools/mac/package.sh "$VERSION"
       # Mira's icon as this macOS (15) shows it, for its preview below; the job « icon-check » does the same on macOS 26.
       - name: Icon on macOS 15
@@ -170,6 +228,7 @@ jobs:
         # Repeats a check pull requests already passed: in a release, a failure here (a hosted runner's hiccup) is a
         # warning tools/release.ps1 shows, not a stop.
         continue-on-error: ${{ inputs.release != '' }}
+        if: steps.changes.outputs.tailnet != 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -192,6 +251,7 @@ jobs:
       # node starts with Mira, then « Se déconnecter de Tailscale » erases it.
       - name: Built-in Tailscale in Mira (sign-in, playback, PC off, started again, signed out)
         continue-on-error: ${{ inputs.release != '' }}
+        if: steps.changes.outputs.tailnet != 'false'
         run: |
           port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
           "$RUNNER_TEMP/mira-testnet" -addr 127.0.0.1:0 -forward "8096=127.0.0.1:$port" -info "$RUNNER_TEMP/testnet.json" > .artifacts/testnet.log 2>&1 &
@@ -258,7 +318,10 @@ jobs:
   icon-check:
     # Mira's icon as macOS 26 shows it, from the disk image built above: drawn by macOS from Mira.icon (Assets.car), never
     # on the grey tile macOS 26 gives an icon it does not recognise. Lines read: MIRA-PREVIEW <name> <part>/<parts> <base64>.
-    needs: build
+    # On a pull request, only when the icon changed (no Assets.car cached for it): otherwise main's run shows it.
+    needs: [icon, build]
+    # Explicit: icon-car skipped upstream would otherwise skip this job too.
+    if: ${{ !cancelled() && needs.build.result == 'success' && (github.event_name != 'pull_request' || needs.icon.outputs.hit != 'true') }}
     runs-on: macos-26
     timeout-minutes: 15
     steps:
@@ -281,7 +344,7 @@ jobs:
           for ((i = 0; i < parts; i++)); do echo "MIRA-PREVIEW icon-macos26 $((i + 1))/$parts ${data:$((i * 4000)):4000}"; done
   release:
     # The draft tools/release.ps1 made gets its Mac disk image here, built from the draft's commit and checked above.
-    if: inputs.release != ''
+    if: ${{ !cancelled() && inputs.release != '' && needs.build.result == 'success' }}
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
