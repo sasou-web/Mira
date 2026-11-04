@@ -94,6 +94,8 @@ jobs:
         id: app
         with:
           name: Mira-win-x64-to-sign
+          # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
+          overwrite: true
           path: .artifacts/to-sign
           retention-days: 1
       # Signing request 1, artifact configuration "app" (installer/signpath/app.xml): approved by the maintainer in
@@ -154,6 +156,8 @@ jobs:
         id: setup
         with:
           name: Mira-win-x64-setup-to-sign
+          # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
+          overwrite: true
           path: .artifacts/setup
           retention-days: 1
       # Signing request 2, artifact configuration "installer", approved by the maintainer too.
@@ -198,6 +202,8 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-win-x64-release
+          # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
+          overwrite: true
           path: .artifacts/packages/*
           retention-days: 7
   release:
@@ -209,6 +215,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      # The script that attaches the files, from the draft's commit.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+          sparse-checkout: tools/attach-to-draft.sh
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: Mira-win-x64-release
@@ -226,8 +239,5 @@ jobs:
           [ "$(ls | wc -l)" -eq 6 ] || { echo "6 files expected, found: $(ls | tr '\n' ' ')" >&2; exit 1; }
           for file in "Mira-$version-win-x64-setup.exe" "Mira-$version-win-x64-portable.exe" "Mira-$version-win-x64.zip"; do sha256sum --strict -c -- "$file.sha256"; done
           cd ..
-          # Only the draft made for this very commit: never a published release, nor a draft made since for another.
-          state=$(gh release view "$RELEASE" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish --jq '[(.isDraft | tostring), .targetCommitish] | join(" ")')
-          [ "$state" = "true $COMMIT" ] || { echo "$RELEASE is not a draft for $COMMIT (found: $state)" >&2; exit 1; }
-          # Never --clobber: a fresh draft holds none of these files, and one already there must stop the upload.
-          gh release upload "$RELEASE" windows/* --repo "$GITHUB_REPOSITORY"
+          # Only the draft made for this very commit; again safe on a re-run (tools/attach-to-draft.sh).
+          tools/attach-to-draft.sh "$RELEASE" "$COMMIT" windows/*

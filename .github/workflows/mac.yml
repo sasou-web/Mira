@@ -43,6 +43,8 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-mac-icon
+          # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
+          overwrite: true
           path: ${{ runner.temp }}/icon/Assets.car
           if-no-files-found: error
           retention-days: 1
@@ -70,8 +72,9 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 10.0.x
+      # Tried three times: Homebrew's downloads sometimes stall.
       - name: mpv and dylibbundler
-        run: brew install mpv dylibbundler
+        run: for attempt in 1 2 3; do brew install mpv dylibbundler && break; [ "$attempt" = 3 ] && exit 1; sleep 30; done
       # Go for Built-in Tailscale's node (tools/tailscale/build.mjs, run by tools/mac/package.sh), at the version go.mod
       # names. Its modules and builds are kept between runs, never for a release: it fetches them afresh, checked against
       # Go's checksum database.
@@ -99,6 +102,7 @@ jobs:
         run: tools/mac/package.sh "$VERSION"
       # Mira's icon as this macOS (15) shows it, for its preview below; the job « icon-check » does the same on macOS 26.
       - name: Icon on macOS 15
+        continue-on-error: ${{ inputs.release != '' }}
         run: |
           mkdir -p .artifacts/icon
           swift tools/mac/icon-shown.swift dist/mac/Mira.app .artifacts/icon/icon-macos15.png
@@ -106,6 +110,7 @@ jobs:
       # The disk image's window as Finder opens it, in dark then light appearance, for its previews below: the picture,
       # the icons' places and the labels Finder writes over the picture (their colour follows the appearance).
       - name: Disk image window
+        continue-on-error: ${{ inputs.release != '' }}
         run: |
           mkdir -p .artifacts/dmg
           dmg=$(ls dist/mac/*.dmg)
@@ -162,6 +167,9 @@ jobs:
       # network and reaches its Jellyfin, as on Linux in ci.yml (tests/Mira.Core.Tests): sign-in through the login page,
       # requests, WebSocket and mpv (Homebrew's libmpv) through the node, then the PC off and the node's key expired.
       - name: Built-in Tailscale (the node of Mira.app on a test network)
+        # Repeats a check pull requests already passed: in a release, a failure here (a hosted runner's hiccup) is a
+        # warning tools/release.ps1 shows, not a stop.
+        continue-on-error: ${{ inputs.release != '' }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -183,6 +191,7 @@ jobs:
       # Jellyfin PC forwards; Home and a film through the node, the PC off then on. Started again on the same profile, the
       # node starts with Mira, then « Se déconnecter de Tailscale » erases it.
       - name: Built-in Tailscale in Mira (sign-in, playback, PC off, started again, signed out)
+        continue-on-error: ${{ inputs.release != '' }}
         run: |
           port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
           "$RUNNER_TEMP/mira-testnet" -addr 127.0.0.1:0 -forward "8096=127.0.0.1:$port" -info "$RUNNER_TEMP/testnet.json" > .artifacts/testnet.log 2>&1 &
@@ -226,6 +235,8 @@ jobs:
         if: always()
         with:
           name: Mira-mac-check
+          # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
+          overwrite: true
           path: |
             .artifacts/check
             .artifacts/check.log
@@ -238,6 +249,8 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-mac-arm64
+          # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
+          overwrite: true
           path: |
             dist/mac/*.dmg
             dist/mac/*.dmg.sha256
@@ -275,6 +288,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      # The script that attaches the files, from the draft's commit.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+          sparse-checkout: tools/attach-to-draft.sh
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: Mira-mac-arm64
@@ -289,8 +309,5 @@ jobs:
           dmg="Mira-${RELEASE#v}-mac-arm64.dmg"
           # The disk image and its SHA-256, checked against each other once more before they go out together.
           (cd mac && sha256sum --strict -c -- "$dmg.sha256")
-          # Only the draft made for this very commit: never a published release, nor a draft made since for another.
-          state=$(gh release view "$RELEASE" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish --jq '[(.isDraft | tostring), .targetCommitish] | join(" ")')
-          [ "$state" = "true $COMMIT" ] || { echo "$RELEASE is not a draft for $COMMIT (found: $state)" >&2; exit 1; }
-          # Never --clobber: a fresh draft holds none of these files, and one already there must stop the upload.
-          gh release upload "$RELEASE" "mac/$dmg" "mac/$dmg.sha256" --repo "$GITHUB_REPOSITORY"
+          # Only the draft made for this very commit; again safe on a re-run (tools/attach-to-draft.sh).
+          tools/attach-to-draft.sh "$RELEASE" "$COMMIT" "mac/$dmg" "mac/$dmg.sha256"
