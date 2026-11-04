@@ -24,6 +24,8 @@ dist/
 # The 10 s clip the stand-in Jellyfin of the iPhone tests plays (37 KB); the film and trickplay pictures ios.yml
 # fetches and makes for the player's captures stay out.
 !tools/ios/media/clip.mp4
+# The showcase site's tour (tools/site/tour.py, 15 MB): the site serves it itself, nothing is loaded from elsewhere.
+!site/video/tour.mp4
 tools/ios/media/trickplay/
 *.mkv
 *.zip

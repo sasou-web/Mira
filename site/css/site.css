@@ -1,26 +1,30 @@
-/* miracinema.app, « L'affiche » : each part of the page is a poster tinted by its own screen, as Mira's Home tints
-   itself with the featured film, and the controls are the glass of Mira for iPhone. Nunito, the font of every Mira
-   app; nothing is loaded from anywhere else. */
+/* miracinema.app, « Grand écran »: the page is a cinema. Pure black, Mira's real screens edge to edge, light Nunito for
+   the big lines. Its signature is the masking: cinema-wide bands (2.39:1), and the opening's band widens to the film's
+   own size when the tour plays, while the rest of the page goes dark. Nunito, the font of every Mira app, and
+   everything else come from this site: nothing is loaded from anywhere else. */
 
-@font-face { font-family: 'Nunito'; font-weight: 400; font-display: swap; src: url('../fonts/nunito-400.woff2') format('woff2'); }
-@font-face { font-family: 'Nunito'; font-weight: 600; font-display: swap; src: url('../fonts/nunito-600.woff2') format('woff2'); }
-@font-face { font-family: 'Nunito'; font-weight: 700; font-display: swap; src: url('../fonts/nunito-700.woff2') format('woff2'); }
-@font-face { font-family: 'Nunito'; font-weight: 800; font-display: swap; src: url('../fonts/nunito-800.woff2') format('woff2'); }
+@font-face {
+  font-family: 'Nunito';
+  font-weight: 200 1000;
+  font-display: swap;
+  src: url('../fonts/nunito.woff2') format('woff2');
+}
 
 :root {
   color-scheme: dark;
-  --bg: #0a0807;
-  --ink: #fbf8f6;
-  --soft: rgba(251, 248, 246, 0.84);
-  --muted: rgba(251, 248, 246, 0.68);
-  --glass: rgba(255, 255, 255, 0.09);
-  --glass-strong: rgba(255, 255, 255, 0.14);
-  --glass-line: rgba(255, 255, 255, 0.18);
-  --button: #fbf8f6;
-  --on-button: #120d0b;
+  --bg: #000000;
+  --ink: #f4f4f4;
+  --ink-2: #a9a9a9;
+  --ink-3: #868686;
+  --line: #222222;
+  --raise: #111111;
+  --raise-2: #1e1e1e;
   --gutter: clamp(20px, 5vw, 72px);
   --wide: 1296px;
-  --top-h: 56px;
+  /* The width of a screen edge to edge, for heights (widths take 100% of the page, which a scrollbar narrows). */
+  --screen: min(100vw, 1680px);
+  --space: clamp(96px, 11vw, 176px);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -28,86 +32,92 @@
 html {
   background: var(--bg);
   color: var(--ink);
-  font: 400 17px/1.55 'Nunito', -apple-system, system-ui, sans-serif;
+  font: 500 18px/1.5 'Nunito', -apple-system, system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
-  scroll-padding-top: calc(var(--top-h) + 32px);
+  -moz-osx-font-smoothing: grayscale;
 }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body { margin: 0; background: var(--bg); overflow-x: clip; }
-img { display: block; max-width: 100%; height: auto; }
+img, video, svg { display: block; max-width: 100%; }
+img { height: auto; }
 a { color: inherit; text-decoration: none; }
 h1, h2, h3, p, ol, ul, figure { margin: 0; }
 ul, ol { padding: 0; list-style: none; }
-h1, h2, h3 { font-weight: 800; letter-spacing: -0.035em; text-wrap: balance; }
-code { font: 600 0.82em/1.5 ui-monospace, 'Cascadia Code', Menlo, monospace; background: rgba(0, 0, 0, 0.32); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
-.icon { width: 19px; height: 19px; flex: none; fill: currentColor; }
-.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+h1, h2 { font-weight: 300; letter-spacing: -0.045em; text-wrap: balance; }
+p { text-wrap: pretty; }
+h3 { font-weight: 800; text-wrap: balance; }
+code { font: 600 0.86em/1.5 ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.icon { width: 20px; height: 20px; flex: none; fill: currentColor; }
+.num { font-variant-numeric: tabular-nums; }
+.nowrap { white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
 
-.skip { position: fixed; z-index: 20; left: 16px; top: -60px; padding: 10px 16px; border-radius: 999px; background: var(--button); color: var(--on-button); font-weight: 800; }
-.skip:focus { top: 16px; }
-
-/* Glass, as Mira for iPhone draws its bars: a blur of what is behind, a fine light edge. */
-.glass-panel {
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
-  backdrop-filter: blur(24px) saturate(1.6);
-  box-shadow: inset 0 0 0 1px var(--glass-line), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 24px; border-radius: 999px; font-weight: 800; font-size: 16px; white-space: nowrap; transition: background-color 160ms, transform 160ms; }
-.button.primary { background: var(--button); color: var(--on-button); }
-.button.primary:hover { background: #fff; }
-.button.glass-panel { color: var(--ink); }
-.button.glass-panel:hover { background: var(--glass-strong); }
-.button:active { transform: scale(0.98); }
-
-/* The bar: floating glass, the mark, three parts of the page and the download. */
-.top { position: fixed; z-index: 10; top: 16px; left: max(var(--gutter), calc((100% - var(--wide)) / 2)); right: max(var(--gutter), calc((100% - var(--wide)) / 2)); display: flex; align-items: center; gap: 4px; height: var(--top-h); padding: 0 8px 0 18px; border-radius: 999px; background: rgba(24, 18, 16, 0.5); }
-.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
-.brand img { width: 26px; height: 26px; }
-.top nav { display: flex; }
-.top nav a { padding: 8px 14px; border-radius: 999px; font-size: 15px; font-weight: 700; color: var(--soft); }
-.top nav a:hover { color: var(--ink); background: var(--glass); }
-.top .button { min-height: 40px; padding: 0 18px; font-size: 14.5px; margin-left: 6px; }
+.skip { position: fixed; z-index: 50; left: 16px; top: -64px; padding: 12px 18px; border-radius: 12px; background: var(--ink); color: var(--bg); font-weight: 800; }
+.skip:focus-visible { top: 16px; }
 
 .wrap { width: min(var(--wide), 100% - 2 * var(--gutter)); margin-inline: auto; }
 
-/* Opening: the featured film's still, the sentence, then Mira on a computer and two phones. */
-.hero { position: relative; isolation: isolate; overflow: clip; padding: calc(var(--top-h) + 96px) 0 96px; }
-.hero > .still { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 60% 40%; }
-.hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(20, 12, 10, 0.92), rgba(20, 12, 10, 0.55) 40%, rgba(20, 12, 10, 0.18) 75%), linear-gradient(0deg, var(--bg), rgba(10, 8, 7, 0) 32%); }
-.hero .opening { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: center; min-height: 660px; }
-.version { display: inline-flex; align-items: center; height: 34px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 700; color: var(--soft); }
-.hero h1 { margin-top: 24px; font-size: clamp(46px, 5.3vw, 80px); line-height: 0.96; letter-spacing: -0.05em; text-wrap: pretty; }
-/* French takes longer words: « Ta bibliothèque, » holds on its line. */
-.hero h1:lang(fr) { font-size: clamp(42px, 4.6vw, 68px); }
-.hero .lede { margin-top: 22px; max-width: 480px; font-size: clamp(17px, 1.4vw, 19px); color: var(--soft); }
-.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
-.free { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 22px; font-size: 14.5px; font-weight: 700; color: var(--muted); }
-.free li { display: flex; align-items: center; gap: 6px; }
-.free .icon { width: 16px; height: 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 0 22px; border-radius: 14px; font-size: 16px; font-weight: 800; white-space: nowrap; transition: background-color 160ms var(--ease), transform 160ms var(--ease); }
+.btn.primary { background: var(--ink); color: var(--bg); }
+.btn.primary:hover { background: #ffffff; }
+.btn.quiet { background: var(--raise-2); color: var(--ink); }
+.btn.quiet:hover { background: #2a2a2a; }
+.btn:active { transform: scale(0.98); }
 
-.devices { position: relative; margin: 24px 0 80px; }
-.devices .window { width: 100%; border-radius: 12px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 60px 120px rgba(0, 0, 0, 0.7); }
-.devices .phone { position: absolute; width: 27%; }
-.devices .phone.one { left: -9%; bottom: -24%; transform: rotate(-7deg); }
-.devices .phone.two { left: 14%; bottom: -30%; transform: rotate(3deg); z-index: 1; }
+/* The bar: the name, the parts of the page, the other language. */
+.bar { display: flex; align-items: center; gap: 8px; height: 72px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; margin-right: auto; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.bar nav { display: flex; gap: 4px; }
+.bar nav a, .lang { padding: 8px 14px; border-radius: 10px; font-size: 16px; font-weight: 700; color: var(--ink-2); transition: color 160ms var(--ease), background-color 160ms var(--ease); }
+.bar nav a:hover, .lang:hover { color: var(--ink); background: var(--raise-2); }
+.lang { margin-left: 8px; box-shadow: inset 0 0 0 1px var(--line); }
 
-/* An iPhone drawn around a full-screen capture: frame, side buttons, status bar, Dynamic Island, home indicator.
-   Sizes in cqw, a hundredth of the phone's width. */
-.phone {
-  position: relative; container-type: inline-size;
-  border-radius: 17.6% / 8.39%;
-  background: linear-gradient(145deg, #75777d, #2e2f33 16%, #1c1d20 50%, #2e2f33 84%, #66686e);
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.35), 0 0 0 0.5px #000, 0 40px 80px rgba(0, 0, 0, 0.6);
-}
-.phone::before, .phone::after { content: ''; position: absolute; width: 0.8%; border-radius: 1px; }
-.phone::before { left: -0.6%; top: 19%; height: 23.5%; background: linear-gradient(#45464b 0 19%, transparent 19% 34%, #45464b 34% 62%, transparent 62% 72%, #45464b 72%); }
-.phone::after { right: -0.6%; top: 29%; height: 32%; background: linear-gradient(#45464b 0 30%, transparent 30% 81%, #2a2b30 81%); }
-.phone .screen { position: relative; margin: 1.2cqw; border: 2cqw solid #000; border-radius: 16.4cqw; overflow: hidden; background: #000; }
+/* The masking: a cinema-wide band. */
+.scope { position: relative; width: min(100%, 1680px); aspect-ratio: 2.39 / 1; margin-inline: auto; overflow: hidden; background: #000000; }
+.scope > img { width: 100%; height: 100%; object-fit: cover; }
+
+/* The tour: its still and a play button until it is asked for, then the film itself with the browser's controls.
+   Its band opens from 2.39:1 to 16:9 as it starts; while it plays the rest of the page goes dark ("lights down"). */
+.tour { position: relative; isolation: isolate; width: min(100%, 1680px); height: clamp(300px, 100svh - 330px, var(--screen) / 2.39); margin-inline: auto; overflow: hidden; background: #000000; transition: height 700ms var(--ease); }
+.tour video, .tour .poster { width: 100%; height: 100%; object-fit: cover; object-position: 50% 60%; }
+.tour .poster { position: absolute; inset: 0; z-index: 1; }
+/* At the film's size, never taller than the window under the bar: the browser's controls stay on screen. */
+.tour.playing { height: min(var(--screen) * 9 / 16, 100svh - 72px); }
+.tour.playing video { object-fit: contain; }
+.tour.playing .poster, .tour.playing .play { display: none; }
+.tour .play { position: absolute; z-index: 2; right: max(var(--gutter), (100% - var(--wide)) / 2); bottom: clamp(18px, 3vw, 40px); display: inline-flex; align-items: center; gap: 14px; min-height: 60px; padding: 0 22px 0 8px; border-radius: 18px; background: var(--ink); color: var(--bg); font-size: 18px; font-weight: 800; transition: background-color 160ms var(--ease), transform 160ms var(--ease); }
+.tour .play:hover { background: #ffffff; }
+.tour .play:active { transform: scale(0.98); }
+.tour .disc { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--bg); color: var(--ink); }
+.tour .len { color: #5c5c5c; font-weight: 700; }
+.tour-failed { margin-top: 14px; font-size: 16px; color: var(--ink-2); }
+.tour-failed a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.lights { position: fixed; inset: 0; z-index: 40; background: #000000; opacity: 0; pointer-events: none; transition: opacity 600ms var(--ease); }
+html.lights-down .lights { opacity: 0.92; pointer-events: auto; cursor: pointer; }
+html.lights-down .tour { z-index: 41; }
+@media (prefers-reduced-motion: reduce) { .tour, .lights { transition: none; } }
+
+/* The title card under the screen. */
+.title-card { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: end; gap: 28px 64px; padding-top: clamp(36px, 4.4vw, 64px); }
+.title-card h1 { font-size: clamp(48px, 6vw, 92px); line-height: 0.96; }
+.lede { max-width: 30ch; font-size: clamp(18px, 1.45vw, 21px); line-height: 1.4; color: var(--ink-2); }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+/* Scenes: a title card, then the screen edge to edge. */
+.scene { padding-top: var(--space); }
+.card { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: end; gap: 16px 64px; margin-bottom: clamp(32px, 4vw, 60px); }
+.card h2 { font-size: clamp(38px, 4.8vw, 76px); line-height: 1; }
+.card p { max-width: 40ch; font-size: clamp(17px, 1.35vw, 20px); line-height: 1.45; color: var(--ink-2); }
+.bleed { width: min(100%, 1680px); margin-inline: auto; }
+.bleed img { width: 100%; }
+
+/* An iPhone 17 Pro around a full-screen capture of Mira web: a flat frame, the status bar, the Dynamic Island and the
+   home indicator. Sizes in cqw, a hundredth of the phone's width. */
+.phone { position: relative; display: flow-root; container-type: inline-size; border-radius: 15.6% / 7.38%; background: #050505; box-shadow: inset 0 0 0 1.5px #3b3b3e, inset 0 0 0 3px #0c0c0d, 0 0 0 1px rgba(0, 0, 0, 0.9), 0 24px 64px rgba(0, 0, 0, 0.5); }
+.phone .screen { position: relative; margin: 2.6cqw; border-radius: 13cqw; overflow: hidden; background: #000000; }
+.phone .screen img { width: 100%; }
 .phone .screen::before, .phone .screen::after { content: ''; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
 .phone .screen::before {
   top: 0; aspect-ratio: 402 / 54;
@@ -115,118 +125,101 @@ code { font: 600 0.82em/1.5 ui-monospace, 'Cascadia Code', Menlo, monospace; bac
 }
 .phone .screen::after {
   top: 0; bottom: 0;
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 402 21'%3E%3Crect x='134' y='8' width='134' height='5' rx='2.5' fill='%23fff' fill-opacity='.9'/%3E%3C/svg%3E") bottom / 100% auto no-repeat,
-    linear-gradient(115deg, rgba(255, 255, 255, 0.07), transparent 32%);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 402 21'%3E%3Crect x='134' y='8' width='134' height='5' rx='2.5' fill='%23fff' fill-opacity='.9'/%3E%3C/svg%3E") bottom / 100% auto no-repeat;
 }
+/* What to tap, circled on a capture. */
+.ring { position: absolute; z-index: 2; box-shadow: 0 0 0 2px #ffffff, 0 0 0 5px rgba(0, 0, 0, 0.45); pointer-events: none; }
+.ring-web-together { left: 4.1%; top: 80.5%; width: 91.8%; height: 6.1%; border-radius: 2.6cqw; }
 
-/* What Mira is, in four cards. */
-.lines { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 40px; }
-.lines li { padding: 22px; border-radius: 26px; }
-.lines h2 { font-size: 19px; letter-spacing: -0.02em; }
+/* The phone strip: four phones in a row, a swipe on a phone. */
+.strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(20px, 3vw, 48px); width: min(1180px, 100% - 2 * var(--gutter)); margin-inline: auto; }
 
-/* Posters: a part of the page over a backdrop drawn from its own screen, faded into the next one. */
-.poster { position: relative; isolation: isolate; overflow: clip; padding: clamp(96px, 10vw, 150px) 0; }
-.poster > .backdrop { position: absolute; inset: -10%; z-index: -2; width: 120%; max-width: none; height: 120%; object-fit: cover; filter: blur(80px) saturate(1.7) brightness(0.62); }
-.poster::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, var(--bg), transparent 22%, transparent 78%, var(--bg)); }
-.plain { padding: clamp(72px, 8vw, 120px) 0; }
+/* What the player does: eight lines under the screen. */
+.index { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 32px; margin-top: clamp(36px, 4vw, 56px); }
+.index li { display: flex; flex-direction: column; gap: 14px; padding: 22px 0 26px; border-top: 1px solid var(--line); font-size: 19px; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+.index .icon { width: 26px; height: 26px; color: var(--ink-2); }
 
-.head { max-width: 900px; }
-.kicker { font-size: 15px; font-weight: 800; color: var(--muted); }
-.head h2, .party h2 { margin-top: 10px; font-size: clamp(38px, 5.4vw, 80px); line-height: 0.98; letter-spacing: -0.05em; }
+/* Together: the phones come out of the screen. */
+.together-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); align-items: end; gap: 40px 64px; }
+.together .card { display: block; margin: 0 0 8px; padding-top: 32px; }
+.together .card p { margin-top: 18px; }
+.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: calc(var(--screen) / 2.39 * -0.56); }
 
-.frame { margin-top: clamp(40px, 5vw, 64px); border-radius: 14px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 50px 110px rgba(0, 0, 0, 0.55); }
-.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
-.cards.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.cards li, .cards article { padding: 22px 24px; border-radius: 24px; color: var(--soft); font-size: 15.5px; }
-.cards li { display: flex; align-items: center; gap: 16px; }
-.cards h3 { color: var(--ink); font-size: 18px; letter-spacing: -0.02em; }
-.cards .tag { font-size: 13.5px; font-weight: 800; color: var(--muted); margin-bottom: 6px; }
-.cards.two h3 { font-size: 24px; }
-.cards .icon { flex: none; width: 24px; height: 24px; color: var(--ink); }
-.head + .cards { margin-top: clamp(40px, 5vw, 64px); }
+/* Away, setup, privacy: three lines, read like the end of a trailer. */
+.promises { padding-top: var(--space); }
+.promises article { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: baseline; gap: 8px 64px; padding-block: 30px 34px; border-top: 1px solid var(--line); }
+.promises article:last-child { border-bottom: 1px solid var(--line); }
+.promises h3 { font-size: clamp(28px, 3.2vw, 48px); font-weight: 300; line-height: 1.08; letter-spacing: -0.035em; }
+.promises p { max-width: 40ch; font-size: 18px; color: var(--ink-2); }
 
-.fan { position: relative; display: flex; justify-content: center; height: clamp(380px, 42vw, 580px); margin-top: clamp(40px, 5vw, 64px); }
-.fan .phone { position: absolute; top: 20px; width: clamp(160px, 18vw, 250px); }
-.fan .phone:nth-child(1) { transform: translateX(-78%) rotate(-8deg) scale(0.92); }
-.fan .phone:nth-child(2) { z-index: 1; top: 0; }
-.fan .phone:nth-child(3) { transform: translateX(78%) rotate(8deg) scale(0.92); }
+.downloads { padding-block: var(--space) clamp(64px, 7vw, 104px); }
+.downloads h2 { font-size: clamp(38px, 4.8vw, 76px); line-height: 1; }
+.doors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 40px; }
+.doors article { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 28px; border-radius: 20px; background: var(--raise); }
+.doors article.yours { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.doors h3 { font-size: 26px; letter-spacing: -0.02em; }
+.doors .needs { font-size: 16px; color: var(--ink-2); margin-bottom: 18px; }
+.doors .more { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-top: 14px; font-size: 16px; font-weight: 700; color: var(--ink-2); }
+.doors .more a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.doors code { padding: 6px 10px; border-radius: 8px; background: #000000; color: var(--ink); font-size: 14px; }
+.doors code span { white-space: nowrap; }
+.note { margin-top: 20px; font-size: 15px; color: var(--ink-3); }
+.note a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+.note a:hover { color: var(--ink); }
 
-/* Your party: the card a friend sees where the link is shared. */
-.party { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(32px, 6vw, 96px); align-items: center; }
-.invite { justify-self: end; width: 100%; max-width: 480px; padding: 16px; border-radius: 28px; }
-.invite > img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 16px; }
-.invite .who { display: flex; align-items: center; gap: 12px; padding: 16px 6px 6px; }
-.invite .who .mark { width: 44px; height: 44px; }
-.invite .title { font-size: 19px; font-weight: 800; }
-.invite .what { font-size: 14.5px; color: var(--muted); }
-.invite .join { display: flex; gap: 8px; margin-top: 12px; }
-.invite .join span { flex: 1; padding: 13px; border-radius: 999px; text-align: center; font-size: 15px; font-weight: 800; background: rgba(255, 255, 255, 0.12); }
-.invite .join span:first-child { background: var(--button); color: var(--on-button); }
+.foot { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px 48px; padding-block: 40px 56px; border-top: 1px solid var(--line); font-size: 15px; color: var(--ink-3); }
+.foot .brand { color: var(--ink); font-size: 18px; }
+.foot .sign p { margin-top: 10px; }
+.foot nav { display: flex; flex-wrap: wrap; gap: 8px 22px; font-weight: 700; color: var(--ink-2); }
+.foot nav a:hover { color: var(--ink); }
+.credits { grid-column: 1 / -1; font-size: 14px; }
 
-/* Download: one door per screen, this device's first. */
-.doors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: clamp(40px, 5vw, 56px); }
-.door { display: flex; flex-direction: column; gap: 8px; padding: 30px; border-radius: 30px; }
-.door.yours { box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1); }
-.door .needs { display: flex; justify-content: space-between; gap: 12px; font-size: 14.5px; font-weight: 700; color: var(--muted); }
-.door .needs b { color: var(--ink); }
-.door h3 { font-size: 30px; }
-.door > p { color: var(--soft); flex: 1; }
-.door .button { align-self: flex-start; margin-top: 14px; }
-.door .more { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 14.5px; font-weight: 700; color: var(--muted); }
-.door .more a:hover, .note a:hover, footer a:hover { color: var(--ink); text-decoration: underline; }
-.note { max-width: 760px; margin-top: 28px; font-size: 14.5px; color: var(--muted); }
-.note a { text-decoration: underline; }
-
-footer { padding: 56px 0 64px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 14.5px; color: var(--muted); }
-footer .wrap { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 32px; }
-footer .brand { color: var(--ink); }
-footer .about p { margin-top: 14px; max-width: 360px; }
-footer nav { display: flex; flex-wrap: wrap; gap: 8px 22px; align-content: start; justify-content: flex-end; font-weight: 700; color: var(--soft); }
-footer .credits { margin: 0; grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 24px; padding-top: 28px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 13.5px; }
-footer .credits dt { font-weight: 800; color: var(--soft); }
-footer .credits dd { margin: 2px 0 0; }
-
-/* Not found. */
-.lost { min-height: 100svh; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center; }
-.lost .code { font-size: 15px; font-weight: 800; color: var(--muted); }
-.lost h1 { font-size: clamp(34px, 5vw, 56px); }
+/* 404: a reel that is not there. */
+.lost { min-height: 100svh; display: grid; place-content: center; justify-items: center; gap: 18px; padding: 24px; text-align: center; }
+.lost .code { font-size: 15px; font-weight: 800; color: var(--ink-3); }
+.lost h1 { font-size: clamp(40px, 6vw, 72px); line-height: 1; }
+.lost p { color: var(--ink-2); }
 .lost .actions { justify-content: center; margin-top: 12px; }
 
-@media (max-width: 1080px) {
-  .top nav { display: none; }
-  .lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  footer .credits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1000px) {
+  .index { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .together-body { grid-template-columns: minmax(0, 1fr) minmax(0, 400px); }
 }
-@media (max-width: 860px) {
-  :root { --top-h: 52px; }
-  .top { top: 12px; left: 12px; right: 12px; }
-  .hero { padding: calc(var(--top-h) + 150px) 0 40px; }
-  .hero > .still { object-position: 70% 30%; height: 70%; }
-  .hero::before { background: linear-gradient(0deg, var(--bg) 30%, rgba(20, 12, 10, 0.6) 60%, rgba(20, 12, 10, 0.2) 80%); }
-  .hero .opening { grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 8px; }
-  .hero h1 { font-size: clamp(42px, 12vw, 56px); }
-  .devices { margin: 32px 0 90px; }
-  .devices .window { border-radius: 8px; }
-  .devices .phone { width: 34%; }
-  .devices .phone.one { left: auto; right: 30%; bottom: -40%; }
-  .devices .phone.two { left: auto; right: -2%; bottom: -46%; }
-  .lines li { padding: 16px; border-radius: 20px; }
-  .lines h2 { font-size: 16px; }
-  .poster, .plain { padding: 88px 0; }
-  .party, .cards, .cards.two, .doors, footer .wrap { grid-template-columns: minmax(0, 1fr); }
-  .invite { justify-self: stretch; }
-  .cards li { padding: 18px 20px; }
-  footer nav { justify-content: flex-start; }
+/* Tablet: the three doors become rows, the download beside what it needs. */
+@media (min-width: 761px) and (max-width: 1000px) {
+  .doors { grid-template-columns: 1fr; gap: 12px; }
+  .doors article { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 32px; row-gap: 4px; }
+  .doors article > * { grid-column: 1; }
+  .doors article > .btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  .doors .needs { margin-bottom: 0; }
 }
-@media (max-width: 420px) {
-  .actions .button { flex: 1 1 100%; }
-  footer .credits { grid-template-columns: minmax(0, 1fr); }
+
+/* Phone: the opening at 16:9, the strip swipes, everything in one column. */
+@media (max-width: 760px) {
+  html { font-size: 17px; }
+  .bar { height: 60px; }
+  .bar nav { display: none; }
+  .tour, .tour.playing { height: calc(100vw * 9 / 16); }
+  .tour video, .tour .poster { object-position: 30% 50%; }
+  .tour .play { right: var(--gutter); bottom: 14px; min-height: 52px; padding-right: 16px; font-size: 16px; }
+  .tour .disc { width: 38px; height: 38px; }
+  .tour-failed { padding-inline: var(--gutter); }
+  .title-card, .card, .promises article { grid-template-columns: 1fr; }
+  .title-card h1 { font-size: clamp(44px, 11.6vw, 60px); }
+  .strip { display: flex; width: auto; gap: 16px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; padding: 4px var(--gutter) 12px; scrollbar-width: none; }
+  .strip::-webkit-scrollbar { display: none; }
+  .strip li { flex: 0 0 62vw; scroll-snap-align: center; }
+  .index { grid-template-columns: 1fr; }
+  .index li { flex-direction: row; align-items: center; padding-block: 18px; }
+  .together-body { grid-template-columns: 1fr; }
+  .together .card { padding-top: 0; }
+  .duo { order: -1; width: min(100%, 420px); margin-inline: auto; margin-top: -24vw; gap: 16px; }
+  .doors { grid-template-columns: 1fr; }
+  .foot { grid-template-columns: 1fr; }
 }
-/* Thèmes contrastés de Windows: the glass has no colour of its own, its edge must stay. */
+
+/* Windows' contrast themes: what only a background drew gets an edge. */
 @media (forced-colors: active) {
-  .glass-panel, .button, .frame, .devices .window { border: 1px solid CanvasText; }
-}
-@media (prefers-contrast: more) {
-  :root { --soft: rgba(251, 248, 246, 0.94); --muted: rgba(251, 248, 246, 0.86); --glass-line: rgba(255, 255, 255, 0.45); }
+  .btn, .tour .play, .doors article, .lang { border: 1px solid ButtonText; }
+  .ring { outline: 2px solid Highlight; }
 }
