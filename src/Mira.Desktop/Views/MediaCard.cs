@@ -91,7 +91,7 @@ public sealed class MediaCard : Button
             _hover.Children.Add(new Border { Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(90, 0, 0, 0), 90) });
             _hover.Children.Add(new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), Background = Palette.Get("Accent"), Child = new Icon { Kind = "play", Width = 19, Height = 19, Foreground = Brushes.Black } });
         }
-        _hover.Children.Add(new Squircle { BorderBrush = new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(PosterRadius), Depth = 0 });
+        _hover.Children.Add(new Squircle { BorderBrush = new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(PosterRadius) });
         _visual.Children.Add(_hover);
         FocusVisualStyle = null; Accessible.SetOwnFocusRing(this, true); // the ring above is the focus indicator
         MouseEnter += (_, _) => HoverEntered?.Invoke(this);
