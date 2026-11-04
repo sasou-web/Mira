@@ -66,6 +66,8 @@ public sealed class VideoHost : HwndHost
         GetWindowRect(Handle, out var box); var corner = new Dot { X = box.Left, Y = box.Top }; ScreenToClient(GetParent(Handle), ref corner);
         return new Rect(corner.X, corner.Y, box.Right - box.Left, box.Bottom - box.Top);
     }
+    /// <summary>Until Windows has composed the screen's next frame.</summary>
+    public static void AwaitScreen() => DwmFlush();
     /// <summary>Where layout wants the window, in the parent window's pixels: known once layout has run.</summary>
     public Rect? LaidOut => _laidOut;
     /// <summary>mpv draws at this size from now on, whatever the window's size on the way: its picture is scaled by Windows, sharp when it grows.</summary>
@@ -92,12 +94,14 @@ public sealed class VideoHost : HwndHost
     /// <param name="radius">Its corners, in pixels.</param>
     public void Move(Rect pixels, double radius)
     {
-        var width = Math.Max(1, (int)Math.Round(pixels.Width)); var height = Math.Max(1, (int)Math.Round(pixels.Height));
+        // Each edge on its pixel: a width rounded apart from its position makes the right edge shake on the way.
+        var left = (int)Math.Round(pixels.Left); var top = (int)Math.Round(pixels.Top);
+        var width = Math.Max(1, (int)Math.Round(pixels.Right) - left); var height = Math.Max(1, (int)Math.Round(pixels.Bottom) - top);
         // mpv's own window at the same moment (it would follow a frame later, showing black at the edges). Its thread
         // takes this when it can: SWP_ASYNCWINDOWPOS | SWP_NOMOVE, as mpv itself does.
         if (_mpvWindow != IntPtr.Zero) SetWindowPos(_mpvWindow, IntPtr.Zero, 0, 0, width, height, 0x4000 | 0x0002 | 0x0004 | 0x0010 | 0x0100 | 0x0200);
         // SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_NOOWNERZORDER
-        SetWindowPos(Handle, IntPtr.Zero, (int)Math.Round(pixels.X), (int)Math.Round(pixels.Y), width, height, 0x0004 | 0x0010 | 0x0100 | 0x0200);
+        SetWindowPos(Handle, IntPtr.Zero, left, top, width, height, 0x0004 | 0x0010 | 0x0100 | 0x0200);
         var diameter = (int)Math.Round(radius * 2);
         if (diameter <= 0) { if (_clipped) { SetWindowRgn(Handle, IntPtr.Zero, false); _clipped = false; } return; }
         var region = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
@@ -159,6 +163,7 @@ public sealed class VideoHost : HwndHost
     [DllImport("user32")] private static extern bool ScreenToClient(IntPtr hwnd, ref Dot point);
     [DllImport("user32")] private static extern IntPtr GetParent(IntPtr hwnd);
     [DllImport("user32")] private static extern IntPtr GetWindow(IntPtr hwnd, int relation);
+    [DllImport("dwmapi")] private static extern int DwmFlush();
     [DllImport("user32", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int slot, IntPtr value);
     [DllImport("user32", EntryPoint = "CallWindowProcW")] private static extern IntPtr CallWindowProc(IntPtr procedure, IntPtr hwnd, uint message, nint wParam, nint lParam);
     [DllImport("user32", EntryPoint = "PostMessageW")] private static extern bool PostMessage(IntPtr hwnd, uint message, nint wParam, nint lParam);
