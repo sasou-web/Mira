@@ -12,10 +12,19 @@ on:
         default: en
         type: choice
         options: [en, fr]
+  # A release's banner (banner.yml) takes Mira for Windows' captures from here: the Windows job only, nothing committed.
+  workflow_call:
+    inputs:
+      language:
+        type: string
+        default: en
+      windows_only:
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: gallery-${{ github.ref }}
+  group: gallery-${{ github.ref }}-${{ inputs.windows_only && 'banner' || 'readme' }}
   cancel-in-progress: true
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
@@ -92,6 +101,7 @@ jobs:
           retention-days: 7
 
   web:
+    if: ${{ !inputs.windows_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -132,7 +142,7 @@ jobs:
 
   commit:
     # Only on another branch than main: main takes them through a pull request.
-    if: github.ref_name != 'main'
+    if: github.ref_name != 'main' && !inputs.windows_only
     needs: [windows, web]
     runs-on: ubuntu-latest
     timeout-minutes: 10

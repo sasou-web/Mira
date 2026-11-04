@@ -1,19 +1,17 @@
 name: Release banner
-# The banner at the head of a release's page (tools/banner/): Mira web captured in Chromium, signed in to a real
-# Jellyfin 12.1 whose library is the README's (tools/banner/media.sh) with its TMDb artwork, on the screens that
-# tools/banner/scenes.json lists for the version; then the banner drawn around them. Run on request (Run workflow)
-# from the release's preparation branch: docs/releases/<version>.jpg is committed to it, to reach main and the
-# release's tag through its pull request; from main, only kept as an artifact.
+# The banner at the head of a release's page (tools/banner/): drawn from real captures of this version in English, on
+# the README's library (tools/banner/media.sh, a real Jellyfin 12.1 with its TMDb artwork): Mira for Windows (the
+# README's Windows job, gallery.yml), Mira for Mac (Mira --gallery under a virtual display, at ×2), Mira web (the
+# README's screens and the scenes of tools/banner/capture.mjs). What it shows comes from tools/banner/scenes.json and
+# the version's entry of WhatsNew.json (tools/banner/plan.mjs): a card per point for a patch, Mira on every screen
+# for x.y.0. Run on request (Run workflow) from the release's preparation branch: docs/releases/<version>.jpg is
+# committed to it, to reach main and the release's tag through its pull request; from main, only kept as an artifact.
 on:
   workflow_dispatch:
     inputs:
       version:
         description: Version (x.y.z) whose banner to draw
         required: true
-      sources:
-        description: Also commit the raw captures (Mira web, Mira for Mac) to the branch, for new banner designs
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
@@ -24,22 +22,44 @@ env:
   JELLYFIN_IMAGE: jellyfin/jellyfin:12.1.20260915-010956
   GALLERY_USER: Camille
   GALLERY_PASSWORD: mira-gallery
+  GALLERY_LANGUAGE: en
+  VERSION: ${{ inputs.version }}
 jobs:
-  banner:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: write
+    timeout-minutes: 5
+    outputs:
+      windows: ${{ steps.plan.outputs.windows }}
+      mac: ${{ steps.plan.outputs.mac }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Version
-        env:
-          VERSION: ${{ inputs.version }}
+      - name: What the banner shows
+        id: plan
         run: |
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Not a version: $VERSION"; exit 1; }
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          node tools/banner/plan.mjs "$VERSION" | tee -a "$GITHUB_OUTPUT"
+
+  windows:
+    needs: plan
+    if: needs.plan.outputs.windows == 'true'
+    # gallery.yml's commit job asks for it, even skipped.
+    permissions:
+      contents: write
+    uses: ./.github/workflows/gallery.yml
+    with:
+      language: en
+      windows_only: true
+
+  linux:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 10.0.x
@@ -61,40 +81,66 @@ jobs:
           mkdir -p .artifacts/jf-config .artifacts/jf-cache
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
           node tools/gallery/setup.mjs http://127.0.0.1:8096 /media "$GALLERY_USER" "$GALLERY_PASSWORD" http://127.0.0.1:8765/jellyfin-manifest.json
-      - name: Capture the scenes, draw the banner
+      - name: Mira web, the scenes and the films' backdrops
         run: |
           npm install --silent --no-audit --no-fund --prefix .artifacts/pw playwright@1.56.1
           npx --prefix .artifacts/pw playwright install --with-deps chromium >/dev/null
           export PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs"
-          node tools/banner/capture.mjs "$VERSION" http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/banner
-          mkdir -p docs/releases
-          node tools/banner/banner.mjs "$VERSION" .artifacts/banner "docs/releases/$VERSION.jpg"
-          ls -la docs/releases
-      - name: Mira for Mac, its screens (Linux, virtual display, at ×2)
-        if: inputs.sources
+          node tools/banner/capture.mjs "$VERSION" http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/captures/scenes
+          node tools/gallery/web.mjs http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/captures/web
+      - name: Mira for Mac (Linux, virtual display, at ×2; no picture in the player)
+        if: needs.plan.outputs.mac == 'true'
         run: |
           sudo apt-get install -y -q xvfb libgl1-mesa-dri >/dev/null
           dotnet build src/Mira.Mac/Mira.Mac.csproj -c Release -nologo -v q
           dll=$(find src/Mira.Mac/bin/Release -name Mira.dll | head -1)
           export MIRA_GALLERY_SERVER=http://127.0.0.1:8096 MIRA_GALLERY_USER="$GALLERY_USER" MIRA_GALLERY_PASSWORD="$GALLERY_PASSWORD" AVALONIA_GLOBAL_SCALE_FACTOR=2 LANG=en_US.UTF-8
-          timeout 300 xvfb-run -a -s "-screen 0 3200x2000x24" dotnet "$dll" --data .artifacts/mac-profile --gallery .artifacts/sources/mac || true
-          cat .artifacts/sources/mac/gallery-result.txt || true
-          GALLERY_LANGUAGE=en PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs" node tools/gallery/web.mjs http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/sources/web || true
-          cp -r .artifacts/banner .artifacts/sources/scenes
-          mkdir -p docs/releases/sources && for f in $(find .artifacts/sources -name '*.png' -o -name '*.jpg' -o -name '*.txt'); do
-            n=$(basename "$(dirname "$f")")-$(basename "$f"); case "$f" in *.png) ffmpeg -loglevel error -y -i "$f" -q:v 2 "docs/releases/sources/${n%.png}.jpg" ;; *) cp "$f" "docs/releases/sources/$n" ;; esac
-          done
-          ls -la docs/releases/sources
+          timeout 300 xvfb-run -a -s "-screen 0 3200x2000x24" dotnet "$dll" --data .artifacts/mac-profile --gallery .artifacts/captures/mac || true
+          result=$(cat .artifacts/captures/mac/gallery-result.txt 2>/dev/null || echo 'FAIL: no result')
+          echo "$result"
+          [[ "$result" == PASS* ]] || { echo "::error::Mira for Mac's captures failed"; exit 1; }
       - name: Jellyfin log
         if: failure()
         run: docker logs jellyfin 2>&1 | tail -80
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        with:
+          name: banner-captures
+          path: .artifacts/captures
+          retention-days: 7
+
+  draw:
+    needs: [plan, windows, linux]
+    # The Windows job is skipped when no point shows on Mira for Windows.
+    if: always() && needs.plan.result == 'success' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: banner-captures
+          path: .artifacts/captures
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.windows.result == 'success'
+        with:
+          name: gallery-windows
+          path: .artifacts/captures/windows
+      - name: Draw the banner
+        run: |
+          find .artifacts/captures -type f | sort
+          npm install --silent --no-audit --no-fund --prefix .artifacts/pw playwright@1.56.1
+          npx --prefix .artifacts/pw playwright install --with-deps chromium >/dev/null
+          mkdir -p docs/releases
+          PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs" node tools/banner/banner.mjs "$VERSION" .artifacts/captures "docs/releases/$VERSION.jpg"
+          ls -la docs/releases
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: banner
-          path: |
-            .artifacts/banner
-            docs/releases/*.jpg
+          path: docs/releases/${{ inputs.version }}.jpg
           retention-days: 7
       - name: Commit
         # Only on another branch than main: main takes it through a pull request.
@@ -104,7 +150,6 @@ jobs:
           TOKEN: ${{ github.token }}
         run: |
           git add "docs/releases/$VERSION.jpg"
-          if [ -d docs/releases/sources ]; then git add docs/releases/sources; fi
           if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Draw the banner of Mira $VERSION"
           git push "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:$BRANCH"
