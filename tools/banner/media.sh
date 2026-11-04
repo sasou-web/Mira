@@ -12,7 +12,10 @@ q -f lavfi -i color=c=black:s=1920x1080:r=1 -f lavfi -i anullsrc=r=48000:cl=ster
   -c:v libx264 -preset ultrafast -tune stillimage -crf 51 -g 600 -pix_fmt yuv420p -c:a aac -b:a 32k "$work/master.mkv"
 video() { # <file> <minutes>
   mkdir -p "$(dirname "$1")"
-  q -stream_loop -1 -i "$work/master.mkv" -t $(($2 * 60)) -c copy -metadata:s:a:0 language=eng "$1"
+  # Written beside the master, then moved: a native ffmpeg.exe (Git Bash on Windows) cannot open a path with an apostrophe
+  # (Howl's Moving Castle) once Git Bash has rewritten it.
+  q -stream_loop -1 -i "$work/master.mkv" -t $(($2 * 60)) -c copy -metadata:s:a:0 language=eng "$work/out.mkv"
+  mv "$work/out.mkv" "$1"
 }
 film() { video "$ROOT/Films/$1/$1.mkv" "$2"; } # <name as Jellyfin reads it> <minutes>
 series() { # <name> <season> <episodes> <minutes>
