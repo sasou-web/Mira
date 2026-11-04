@@ -25,6 +25,8 @@ public partial class MainWindow
     private async void SetMiniPlayerSmoothly(bool mini)
     {
         if (!_playing || _morphing || mini == _miniPlayer) return;
+        // From « Image dans l’image », the video comes back in a window of its own: nothing to move between two places.
+        if (_pip is not null) { ReturnFromPip(); return; }
         // Out of full screen the window itself changes: it does so under the black sheet.
         if (_fullscreen && Shade is { } shade && !PlayerErrorShown && !_morphing)
         {

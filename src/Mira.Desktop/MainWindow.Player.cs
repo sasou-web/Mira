@@ -102,8 +102,10 @@ public partial class MainWindow
             ShowPlayingLinks(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
             AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
-            HidePlayerError(); LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
-            NavigationRail.Visibility = Visibility.Collapsed;
+            HidePlayerError();
+            // Another title chosen in the library while one plays in « Image dans l’image »: it opens in the player.
+            if (!keepMini) EndPip(show: false);
+            if (_pip is null) { LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible; NavigationRail.Visibility = Visibility.Collapsed; }
             // The player's keys must reach Mira, not the TorLink terminal left open underneath.
             if (TorLinkOverlay.IsKeyboardFocusWithin) Focus();
             NextButton.IsEnabled = !_demo && item.Type == "Episode";
@@ -255,7 +257,7 @@ public partial class MainWindow
             WatchGroupStall(); WatchPicture(paused);
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
             UpdateSkip(); CheckSleepTimer();
-            UpdateWindowsPlayback();
+            UpdateWindowsPlayback(); UpdatePip();
             var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
             _recovery.Played(_session.Position);
@@ -305,6 +307,7 @@ public partial class MainWindow
     /// </summary>
     private void PlaybackFailed(string message, MediaItem? item, bool mini, string action, Func<Task>? onAction)
     {
+        EndPip(show: false);
         if (mini) { ReturnToLibrary(); SetNotice(message, onAction is null ? null : action, onAction is null ? null : () => _ = onAction(), sticky: true); return; }
         if (_fullscreen) ToggleFullscreen();
         ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); ClosePreview();
@@ -427,6 +430,7 @@ public partial class MainWindow
     }
     private void ReturnToLibrary(bool reveal = true)
     {
+        EndPip(show: false);
         if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); _sleep.Clear();
         // The group plays on without this PC.
         SetGroupAway(true);
@@ -535,7 +539,7 @@ public partial class MainWindow
         if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { OpenGuide(); e.Handled = true; return; }
         if (e.OriginalSource is TextBox or System.Windows.Controls.PasswordBox || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.
-        if (e.Key == Key.I && !e.IsRepeat) { SetMiniPlayerSmoothly(!_miniPlayer); e.Handled = true; }
+        if (e.Key == Key.I && !e.IsRepeat) { if (_pip is not null) ReturnFromPip(); else SetMiniPlayerSmoothly(!_miniPlayer); e.Handled = true; }
     }
     /// <summary>Alt+← or the "back" key. WPF reports Alt+← as Key.System; keys forwarded by WebView2 carry the arrow itself.</summary>
     private static bool IsBackKey(KeyEventArgs e) => e.Key == Key.BrowserBack || Keyboard.Modifiers == ModifierKeys.Alt && (e.SystemKey == Key.Left || e.Key == Key.Left);
@@ -579,6 +583,8 @@ public partial class MainWindow
             // Before the first await: when Windows shuts down or Setup closes Mira, WPF closes the window without
             // waiting for the rest (see SessionEnding).
             KeepForNextStart();
+            // The video back in this window before anything closes: closing the small one would destroy it under mpv.
+            Attempt(() => EndPip(show: false));
             Attempt(() => SystemEvents.PowerModeChanged -= PowerModeChanged);
             Attempt(() => { _windows?.Dispose(); _windows = null; });
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });

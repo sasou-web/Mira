@@ -219,6 +219,69 @@ internal static class PlayerTests
             Assert(SubtitleStyle.Color("White") == "#FFFFFF" && SubtitleStyle.Color("Rouge") == "#FFFFFF", "Colour");
             return Task.CompletedTask;
         });
+        await Test("Image dans l’image : ouverte en bas à droite de l’écran de Mira ou là où elle était, à la forme de la vidéo, à l’échelle de son écran (Windows et Mac)", () =>
+        {
+            ScreenFit.Screen Screen(double left, double top, double width, double height, double scale = 1) => new(new(left, top, width, height), scale);
+            // A 1080p screen at 100 % (taskbar below), a smaller one on its right, and one at 150 % further right.
+            var primary = Screen(0, 0, 1920, 1032); var small = Screen(1920, 0, 1366, 728); var scaled = Screen(3286, 0, 2560, 1392, 1.5);
+            const double Wide = 16d / 9;
+            Assert(PictureInPicture.Open([primary], null, (960, 500), Wide) is { Left: 1416, Top: 738, Width: 480, Height: 270 }, "First time: 480 × 270 at the bottom right, 24 px from the edges");
+            Assert(PictureInPicture.Open([primary, small], null, (2500, 300), Wide) is { Left: 2782, Top: 434, Width: 480, Height: 270 }, "On the screen showing Mira's middle");
+            Assert(PictureInPicture.Open([primary, small, scaled], null, (4000, 500), Wide) is { Left: 5090, Top: 951, Width: 720, Height: 405 }, "At 150 %: 480 device-independent pixels, 720 device pixels");
+            Assert(PictureInPicture.Open([primary, small], null, (-5000, 0), Wide) is { Left: 1416, Top: 738 }, "Mira's middle on no screen: the first one");
+            // Where it was left: kept while most of it is on a screen present, moved inside it; otherwise the first time's place.
+            Assert(PictureInPicture.Open([primary], new(100, 100, 640), (960, 500), Wide) is { Left: 100, Top: 100, Width: 640, Height: 360 }, "Back where it was, as wide");
+            Assert(PictureInPicture.Open([primary, small, scaled], new(3400, 100, 320), null, Wide) is { Left: 3400, Top: 100, Width: 480, Height: 270 }, "Its width at the scale of the screen it is on");
+            Assert(PictureInPicture.Open([primary, small, scaled], new(5600, 100, 320), null, Wide) is { Left: 5366, Top: 100 }, "Mostly on its screen: moved inside it");
+            Assert(PictureInPicture.Open([primary], new(-2000, 100, 480), null, Wide) is { Left: 1416, Top: 738 }, "Its screen unplugged: at the bottom right of one present");
+            Assert(PictureInPicture.Open([primary], new(double.NaN, 100, 480), null, Wide) is { Left: 1416 } && PictureInPicture.Open([primary], new(100, 100, 0), null, Wide) is { Left: 1416 }, "A broken saved place is ignored");
+            Assert(PictureInPicture.Open([], null, null, Wide) is null && PictureInPicture.Open([Screen(0, 0, 0, 0), Screen(0, 0, 1920, 1032, double.NaN)], null, null, Wide) is null, "No usable screen");
+            // A tall video stays within 60 % of the screen's height; the narrowest keeps 144 on its shorter side.
+            Assert(PictureInPicture.Open([primary], null, null, 9d / 16) is { Width: 348, Height: 619 }, "A portrait video, narrower");
+            Assert(PictureInPicture.Widths(primary, Wide) is (256, > 1100 and < 1101) && PictureInPicture.Widths(primary, .5) is (144, > 309 and < 310), "Narrowest and widest");
+            Assert(PictureInPicture.Aspect(0, 0) == Wide && PictureInPicture.Aspect(1920, 800) == 2.4 && PictureInPicture.Aspect(4000, 1000) == 2.4 && PictureInPicture.Aspect(100, 1000) == .5
+                && PictureInPicture.Aspect(double.NaN, 5) == Wide && PictureInPicture.Aspect(720, 576) == 1.25, "The video's shape, 16:9 while unknown");
+            // Where it was left, for the next time: its corner in device pixels, its width in device-independent pixels.
+            Assert(PictureInPicture.Remember(new(5090, 951, 720, 405), scaled) == new PictureInPicture.Spot(5090, 951, 480), "Remembered at 150 %");
+            return Task.CompletedTask;
+        });
+        await Test("Image dans l’image : agrandie ou réduite par un bord ou un coin à la forme de la vidéo, entre ses limites, et toujours sur un écran", () =>
+        {
+            var primary = new ScreenFit.Screen(new(0, 0, 1920, 1032), 1); var small = new ScreenFit.Screen(new(1920, 0, 1366, 728), 1);
+            const double Wide = 16d / 9;
+            var start = new ScreenFit.Pixels(1416, 738, 480, 270);
+            ScreenFit.Pixels Pull(PictureInPicture.Edge edge, double dx, double dy) => PictureInPicture.Resize(start, edge, dx, dy, Wide, primary);
+            Assert(Pull(PictureInPicture.Edge.Right, 160, 40) == new ScreenFit.Pixels(1416, 738, 640, 360), "The right edge: wider, the top left corner kept");
+            Assert(Pull(PictureInPicture.Edge.Left, -160, 0) == new ScreenFit.Pixels(1256, 738, 640, 360), "The left edge: its right side kept");
+            Assert(Pull(PictureInPicture.Edge.Top, 0, -90) == new ScreenFit.Pixels(1416, 648, 640, 360), "The top edge: its bottom kept");
+            Assert(Pull(PictureInPicture.Edge.Bottom, 0, 90) == new ScreenFit.Pixels(1416, 738, 640, 360), "The bottom edge: its top kept");
+            Assert(Pull(PictureInPicture.Edge.TopLeft, -160, -10) == new ScreenFit.Pixels(1256, 648, 640, 360), "A corner follows the way it was pulled the most, the opposite corner kept");
+            Assert(Pull(PictureInPicture.Edge.BottomRight, -1000, -1000) == new ScreenFit.Pixels(1416, 738, 256, 144), "Never below 144 on its shorter side");
+            Assert(Pull(PictureInPicture.Edge.Right, 5000, 0) is { Width: 1101, Height: 619 }, "Never above 60 % of the screen");
+            // The edges and corners under the pointer, the corners reaching twice as far along the edges.
+            Assert(PictureInPicture.EdgeAt(2, 100, 480, 270) == PictureInPicture.Edge.Left && PictureInPicture.EdgeAt(478, 100, 480, 270) == PictureInPicture.Edge.Right
+                && PictureInPicture.EdgeAt(100, 2, 480, 270) == PictureInPicture.Edge.Top && PictureInPicture.EdgeAt(100, 268, 480, 270) == PictureInPicture.Edge.Bottom, "Sides");
+            Assert(PictureInPicture.EdgeAt(2, 2, 480, 270) == PictureInPicture.Edge.TopLeft && PictureInPicture.EdgeAt(5, 12, 480, 270) == PictureInPicture.Edge.TopLeft && PictureInPicture.EdgeAt(470, 3, 480, 270) == PictureInPicture.Edge.TopRight
+                && PictureInPicture.EdgeAt(3, 262, 480, 270) == PictureInPicture.Edge.BottomLeft && PictureInPicture.EdgeAt(478, 268, 480, 270) == PictureInPicture.Edge.BottomRight, "Corners");
+            Assert(PictureInPicture.EdgeAt(5, 20, 480, 270) == PictureInPicture.Edge.Left && PictureInPicture.EdgeAt(240, 135, 480, 270) is null && PictureInPicture.EdgeAt(-1, 5, 480, 270) is null && PictureInPicture.EdgeAt(5, 5, 0, 0) is null, "Inside, outside");
+            // Another shape (the next title): as wide, held by its side nearest the screen's edge.
+            Assert(PictureInPicture.Refit(start, 4d / 3, primary) == new ScreenFit.Pixels(1416, 648, 480, 360), "At the bottom right: its bottom right corner kept");
+            Assert(PictureInPicture.Refit(new(100, 100, 480, 270), 4d / 3, primary) == new ScreenFit.Pixels(100, 100, 480, 360), "At the top left: its top left corner kept");
+            // Let go partly off the screens: inside the one showing most of it, or the nearest.
+            Assert(PictureInPicture.Settle(new(1800, 900, 480, 270), [primary, small]) == new ScreenFit.Pixels(1440, 762, 480, 270), "Back inside its screen, above the taskbar");
+            Assert(PictureInPicture.Settle(new(1700, 100, 480, 270), [primary, small]) == new ScreenFit.Pixels(1920, 100, 480, 270), "Across two screens: the one showing most of it");
+            Assert(PictureInPicture.Settle(new(5000, 5000, 480, 270), [primary, small]) == new ScreenFit.Pixels(2806, 458, 480, 270), "Off every screen: the nearest");
+            Assert(PictureInPicture.Settle(start, []) == start && PictureInPicture.ScreenOf(start, []) is null, "No screen: left as it is");
+            return Task.CompletedTask;
+        });
+        await Test("Image dans l’image : sous-titres agrandis pour rester lisibles dans la petite fenêtre, jamais réduits", () =>
+        {
+            Assert(PictureInPicture.SubtitleScale(40, 270) == 1.33, $"480 × 270, size 40: {PictureInPicture.SubtitleScale(40, 270)}");
+            Assert(PictureInPicture.SubtitleScale(40, 144) == 2, "The smallest window: at most doubled");
+            Assert(PictureInPicture.SubtitleScale(40, 720) == 1 && PictureInPicture.SubtitleScale(60, 270) == 1, "Already large enough: mpv's own size");
+            Assert(PictureInPicture.SubtitleScale(0, 270) == 1 && PictureInPicture.SubtitleScale(40, double.NaN) == 1 && PictureInPicture.SubtitleScale(40, 0) == 1, "Nothing known: mpv's own size");
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres gardés sur Jellyfin : langues, résultats, messages et nouvelle piste, comme Mira web (tests/fixtures/subtitles.json)", () =>
         {
             var repository = TestSupport.Repository() ?? throw new Exception("Repository not found");

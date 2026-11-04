@@ -145,6 +145,7 @@ public partial class MainWindow
                 await StopPlaybackAsync(); ReturnToLibrary();
                 await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded); _mpv!.Set("pause", "yes"); SetMiniPlayer(true);
             }
+            await RunPipChecksAsync(output, checks, Require, Until);
             await StopPlaybackAsync(); ReturnToLibrary();
             Require(!_playing && _mpv is null && LibraryShell.IsVisible && !PlayerOverlayLayer.IsOpen, "stop releases mpv and closes player overlays");
             await _engineReleased;

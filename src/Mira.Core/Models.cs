@@ -359,6 +359,11 @@ public sealed class PlayerSettings
     /// virtual screen; null before 0.7.5 or when it was never saved. Checked against the screens present at startup.</summary>
     public double? WindowX { get; set; }
     public double? WindowY { get; set; }
+    /// <summary>« Image dans l’image » (<see cref="PictureInPicture"/>): where its window was left, its top-left corner in
+    /// device pixels (Windows; points on the Mac) and its width in device-independent pixels; null and 0: never moved.</summary>
+    public double? PipX { get; set; }
+    public double? PipY { get; set; }
+    public double PipWidth { get; set; }
     /// <summary>The guide opened once already: it is not offered again after a connection.</summary>
     public bool GuideSeen { get; set; }
     /// <summary>Windows: a notice when an episode of a series this account follows arrives on Jellyfin (<see cref="NewEpisodes"/>).</summary>
