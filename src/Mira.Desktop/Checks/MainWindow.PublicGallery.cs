@@ -69,6 +69,9 @@ public partial class MainWindow
             SelectSettingsTab("subtitles"); await CaptureAsync(output, "08-subtitles-settings");
             SelectSettingsTab("appearance"); await CaptureAsync(output, "09-appearance-settings");
             SelectSettingsTab("server"); await CaptureAsync(output, "10-server-settings");
+            SelectSettingsTab("updates"); await CaptureAsync(output, "10b-this-pc-settings");
+            // What a beginner needs first, the rest behind « Réglages avancés »: opened, it shows the picture and the decoding.
+            SelectSettingsTab("playback"); PlaybackAdvanced.IsExpanded = true; await CaptureAsync(output, "10c-playback-advanced"); PlaybackAdvanced.IsExpanded = false;
             await Page("library", "11-hover");
             CardHoverEntered((MediaCard)PosterCards.Children[0]);
             await CaptureAsync(output, "11-hover"); ClosePreview();

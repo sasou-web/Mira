@@ -136,7 +136,7 @@ public static class OfflineCopies
             var total = response.Content.Headers.ContentRange?.Length ?? (response.Content.Headers.ContentLength is { } length ? length + done : copy.Size);
             if (total > 0 && total != copy.Size) { copy = copy with { Size = total }; Save(copy); }
             if (FreeSpace(copy.Folder) is { } free && total - done > free - Reserve)
-                throw new IOException(L($"Pas assez de place sur le disque pour garder « {copy.Item.DisplayTitle} » : il faut {SizeText(total - done)}, il reste {SizeText(Math.Max(0, free))}. Libère de la place ou choisis un autre dossier dans Réglages → Lecture.", $"Not enough disk space to keep “{copy.Item.DisplayTitle}”: it needs {SizeText(total - done)}, {SizeText(Math.Max(0, free))} is left. Free up some space or choose another folder in Settings → Playback."));
+                throw new IOException(L($"Pas assez de place sur le disque pour garder « {copy.Item.DisplayTitle} » : il faut {SizeText(total - done)}, il reste {SizeText(Math.Max(0, free))}. Libère de la place ou choisis un autre dossier dans les Réglages.", $"Not enough disk space to keep “{copy.Item.DisplayTitle}”: it needs {SizeText(total - done)}, {SizeText(Math.Max(0, free))} is left. Free up some space or choose another folder in Settings."));
             progress?.Report((done, total));
             await using (var output = new FileStream(copy.PartPath, done > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16, useAsync: true))
             await using (var input = await response.Content.ReadAsStreamAsync(ct))
