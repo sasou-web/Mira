@@ -219,6 +219,8 @@ internal sealed class PipWindow : Window
     }
     /// <summary>For the player check: the controls gone at once, as once the pointer left.</summary>
     internal void HideControlsNow() { _lastMotion = 0; HideWhenIdle(); }
+    /// <summary>For the player check: the middle of the play button on the screen, in device pixels.</summary>
+    internal Point? PlayButtonCenter() => PresentationSource.FromVisual(_play) is null ? null : _play.PointToScreen(new Point(_play.ActualWidth / 2, _play.ActualHeight / 2));
     /// <summary>Gone 2.5 s after the pointer last moved over it, at once once it left; kept while a key works them or a press lasts.</summary>
     private void HideWhenIdle()
     {
