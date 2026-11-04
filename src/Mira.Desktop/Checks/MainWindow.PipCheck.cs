@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using Mira.Core;
@@ -63,6 +64,29 @@ public partial class MainWindow
         // The runner may not hand mpv's picture to a capture: then the subtitles cannot be seen there either.
         if (seen > .2) require(text > .005, $"picture in picture: the subtitles are drawn in the small window ({text:P1} of their band)");
 
+        // A real click, through Windows' own input as a mouse gives it, while the small window is not the active one: the
+        // pointer over it shows its controls, and the click lands on the play button, in the controls' window above the
+        // video's (never in mpv's own). It moves the real pointer: only on a CI runner, never on someone's PC.
+        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
+        {
+            pip.HideControlsNow(); await Task.Delay(500);
+            var button = pip.PlayButtonCenter();
+            require(button is not null, "picture in picture: its play button is on the screen");
+            var (x, y) = ((int)Math.Round(button!.Value.X), (int)Math.Round(button.Value.Y));
+            var under = WindowFromPoint(new PointerSpot { X = x, Y = y });
+            var paused = engine.Flag("pause"); var active = GetForegroundWindow() == small;
+            SetCursorPos(x - 40, y); await Task.Delay(80); SetCursorPos(x, y); await Task.Delay(500);
+            require(pip.ControlsShown, "picture in picture: the real pointer over it shows its controls");
+            ClickPointer(); await Task.Delay(700);
+            var after = engine.Flag("pause");
+            require(after != paused, $"picture in picture: a real click on its play button reaches it (paused {paused} then {after}; active before {active}; window under the pointer: {(under == controls ? "the controls'" : under == video.Handle ? "the video's" : $"0x{under:X}")})");
+            ClickPointer(); await Task.Delay(700);
+            require(engine.Flag("pause") == paused, "picture in picture: a second real click on it plays or pauses again");
+            // The pointer away from it: the controls go as they would.
+            SetCursorPos((int)bounds.Left - 60, (int)bounds.Top - 60); await Task.Delay(300);
+        }
+        else checks.Add("INFO picture in picture: real click not tried here (it moves the pointer: only on a CI runner)");
+
         // The next title plays in the small window, with a new engine sized again.
         await PlayAsync(DemoLibrary.Items()[1], keepMini: true); await until(() => _loaded);
         _mpv!.Set("pause", "yes"); await Task.Delay(300);
@@ -82,4 +106,17 @@ public partial class MainWindow
         StopFromPip(); await until(() => !_playing && _pip is null);
         require(!_playing && _mpv is null && !last.IsVisible && GetParent(video.Handle) == main && LibraryShell.IsVisible, "picture in picture: « Fermer » stops the playback and leaves no window behind");
     }
+    /// <summary>A left click where the pointer is, as the mouse sends it.</summary>
+    private static void ClickPointer()
+    {
+        // MOUSEEVENTF_LEFTDOWN, then MOUSEEVENTF_LEFTUP.
+        var inputs = new[] { new PointerInput { Type = 0, Mouse = new PointerEvent { Flags = 0x0002 } }, new PointerInput { Type = 0, Mouse = new PointerEvent { Flags = 0x0004 } } };
+        if (SendPointer((uint)inputs.Length, inputs, Marshal.SizeOf<PointerInput>()) != inputs.Length) throw new InvalidOperationException("Windows refused the click.");
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct PointerSpot { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] private struct PointerEvent { public int X, Y; public uint Data, Flags, Time; public IntPtr Extra; }
+    [StructLayout(LayoutKind.Explicit, Size = 40)] private struct PointerInput { [FieldOffset(0)] public uint Type; [FieldOffset(8)] public PointerEvent Mouse; }
+    [DllImport("user32", EntryPoint = "SendInput", SetLastError = true)] private static extern uint SendPointer(uint count, PointerInput[] inputs, int size);
+    [DllImport("user32")] private static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32")] private static extern IntPtr WindowFromPoint(PointerSpot point);
 }
