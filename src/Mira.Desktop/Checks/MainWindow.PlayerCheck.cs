@@ -123,11 +123,14 @@ public partial class MainWindow
                 SetMiniPlayer(false); _mpv!.Set("pause", "no"); await Task.Delay(1500);
                 SetMiniPlayerSmoothly(true); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
                 Require(_miniPlayer && !_morphing && VideoContainer.IsVisible && PlayerShell.Opacity == 1, "reduced smoothly: the video in the mini-player");
+                var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+                Require(Math.Abs(_mpv!.Number("osd-width") - MiniWidth * scale) < 3, $"mpv told the size it lands at, once ({_mpv.Get("osd-width")} px)");
                 await ShowDetailsAsync(DemoLibrary.Items()[0]); await Task.Delay(300);
                 SetMiniPlayerSmoothly(false); await Task.Delay(120);
                 Require(_morphing && DetailOverlay.IsVisible, "expanding: the page stays under the growing video");
                 await Task.Delay(2600); checks.Add("INFO transition " + FrameProbe.Last);
                 Require(!_miniPlayer && !_morphing && VideoContainer.IsVisible && !LibraryShell.IsVisible && !DetailOverlay.IsVisible && PlayerShell.ActualWidth > 900, "expanded smoothly: the whole player back, the page under it hidden");
+                Require(Math.Abs(_mpv!.Number("osd-width") - VideoContainer.ActualWidth * scale) < 3, $"mpv draws at the whole player's size ({_mpv.Get("osd-width")} px)");
                 SetMiniPlayerSmoothly(true); await Task.Delay(800);
                 Require(_miniPlayer && DetailOverlay.IsVisible, "reduced again: the title page opened in the mini-player is back, not the library under it");
                 await CloseDetailsAsync(); SetMiniPlayerSmoothly(false); await Task.Delay(800);
