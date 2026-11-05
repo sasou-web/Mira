@@ -206,6 +206,15 @@ public static class SelfCheck
             Check(await Until(() => window.Current is BrowsePage { Empty.IsVisible: true, Items.Count: 0 } nothing && nothing.Empty.Title.Contains("zqxwv"), 15), "recherche sans résultat : l’état vide le dit",
                 $"{(window.Current as BrowsePage)?.Empty.Title} · {(window.Current as BrowsePage)?.Empty.ActionLabel}");
             await Task.Delay(500); Capture(window, output, "04-search-empty");
+            // Édition of the menu bar presses the field's own keys again: select all, cut, then undo, as the keys do.
+            var box = ((BrowsePage)window.Current!).SearchBox;
+            box.Focus(); await Task.Delay(200);
+            window.ChooseInMenu(Lang.L("Tout sélectionner", "Select All"));
+            var all = box.SelectionStart == 0 && box.SelectionEnd == (box.Text?.Length ?? -1);
+            window.ChooseInMenu(Lang.L("Couper", "Cut"));
+            var cut = await Until(() => string.IsNullOrEmpty(box.Text), 3);
+            window.ChooseInMenu(Lang.L("Annuler", "Undo"));
+            Check(all && cut && await Until(() => box.Text == "zqxwv", 3), "barre des menus : Tout sélectionner, Couper et Annuler dans un champ", $"sélection {all}, coupé {cut}, « {box.Text} »");
             if (mock is not null)
             {
                 ((BrowsePage)window.Current!).Search("Jeanne");
@@ -228,6 +237,25 @@ public static class SelfCheck
                 Check(film.CastShown == 2, "fiche d’un film : distribution en photos", $"{film.CastShown} personnes");
                 film.ShowCastForCheck(); await Task.Delay(800); Capture(window, output, "05b-film-cast");
             }
+            // —— The menu bar, as a Mac app's (MainWindow.Menu.cs): its items, their keys, and each one doing what its keys do ——
+            var bar = window.MenuBar();
+            var command = window.PlatformSettings?.HotkeyConfiguration.CommandModifiers ?? KeyModifiers.Meta;
+            KeyGesture? KeysOf(string name) => bar.FirstOrDefault(x => x.Item == name).Keys;
+            Check(bar.Select(x => x.Menu).Distinct().SequenceEqual([Lang.L("Édition", "Edit"), Lang.L("Présentation", "View"), Lang.L("Aller", "Go"), Lang.L("Fenêtre", "Window")])
+                && Equals(KeysOf(Lang.L("Passer en mode plein écran", "Enter Full Screen")), new KeyGesture(Avalonia.Input.Key.F, KeyModifiers.Control | KeyModifiers.Meta)) && Equals(KeysOf(Lang.L("Placer dans le Dock", "Minimize")), new KeyGesture(Avalonia.Input.Key.M, command))
+                && Equals(KeysOf(Lang.L("Fermer la fenêtre", "Close Window")), new KeyGesture(Avalonia.Input.Key.W, command)) && Equals(KeysOf(Lang.L("Précédent", "Back")), new KeyGesture(Avalonia.Input.Key.OemOpenBrackets, command))
+                && KeysOf(Lang.L("Copier", "Copy")) is not null && KeysOf(Lang.L("Coller", "Paste")) is not null,
+                "barre des menus : Édition, Présentation, Aller, Fenêtre et leurs raccourcis", string.Join(", ", bar.Select(x => x.Keys is { } k ? $"{x.Item} {k}" : x.Item)));
+            window.ChooseInMenu(Lang.L("Précédent", "Back"));
+            var backed = await Until(() => window.Current is not DetailPage, 3);
+            window.ChooseInMenu(Lang.L("Suivant", "Forward"));
+            Check(backed && await Until(() => window.Current is DetailPage, 3), "barre des menus : Précédent et Suivant comme ⌘[ et ⌘]");
+            window.ChooseInMenu(Lang.L("Passer en mode plein écran", "Enter Full Screen"));
+            var full = await Until(() => window.WindowState == WindowState.FullScreen, 3);
+            await Task.Delay(1000);
+            full = full && window.ChooseInMenu(Lang.L("Quitter le mode plein écran", "Exit Full Screen"));
+            Check(full && await Until(() => window.WindowState != WindowState.FullScreen, 3), "barre des menus : plein écran (⌃⌘F) et retour", window.WindowState.ToString());
+            await Task.Delay(800);
             // A favourite: « Favori » outlined, its words kept beside its icon.
             if (mock is not null)
             {
