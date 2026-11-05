@@ -557,7 +557,8 @@ public sealed partial class PlayerPage : UserControl
         _volumeText.Foreground = boosted ? Brushes.White : Ui.TextTertiary;
         _volumeText.FontWeight = boosted ? FontWeight.SemiBold : FontWeight.Normal;
     }
-    private void ToggleFullscreen()
+    /// <summary>F, ⌘F, ⌃⌘F and the menu bar's « Plein écran ».</summary>
+    public void ToggleFullscreen()
     {
         _shell.WindowState = _shell.WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
         _fullscreenIcon.Kind = _shell.WindowState == WindowState.FullScreen ? "collapse" : "fullscreen";

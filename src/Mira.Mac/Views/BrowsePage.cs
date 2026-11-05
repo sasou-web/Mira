@@ -81,6 +81,8 @@ public sealed class BrowsePage : Page
     public void Search(string text) => _search.Text = text;
     /// <summary>⌘A in the field (the self-check's capture of a selection).</summary>
     public void SelectSearch() { _search.Focus(); _search.SelectAll(); }
+    /// <summary>The field itself: the self-check types in it from the menu bar (Édition).</summary>
+    public TextBox SearchBox => _search;
 
     public BrowsePage(MainWindow shell, BrowseKind kind, PersonInfo? person = null, bool? director = false, MediaItem? saga = null, StudioInfo? studio = null, string? genre = null) : base(shell)
     {

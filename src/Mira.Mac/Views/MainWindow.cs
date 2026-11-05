@@ -133,6 +133,7 @@ public sealed partial class MainWindow : Window
         }
         Content = _root;
         ListenToTrackpad();
+        BuildMenuBar();
         _toastTimer.Tick += (_, _) => NoticeTick();
         _serverChanged.Tick += (_, _) => { _serverChanged.Stop(); _ = RefreshPagesAsync(fromServer: true); };
         _choicesSoon.Tick += async (_, _) => { _choicesSoon.Stop(); await SyncChoicesAsync(); };
