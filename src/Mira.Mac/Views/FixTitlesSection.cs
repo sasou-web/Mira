@@ -83,9 +83,9 @@ public sealed class FixTitlesSection
     private async Task IdentifyAsync(MediaItem item)
     {
         if (_shell.Session is not { } session) return;
-        var window = new IdentifyWindow(session, item);
-        await window.ShowDialog(_shell);
-        if (window.Said is { } said) _shell.Notice(said);
-        if (window.Applied) await LoadAsync();
+        var sheet = new IdentifySheet(session, item);
+        await sheet.ShowAsync(_shell);
+        if (sheet.Said is { } said) _shell.Notice(said);
+        if (sheet.Applied) await LoadAsync();
     }
 }

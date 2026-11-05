@@ -12,56 +12,68 @@ namespace Mira.Mac.Views;
 
 /// <summary>
 /// « Identifier… » (the page of a film or series, for an administrator), as Windows and Mira web do it
-/// (<see cref="TitleIdentity"/>): Jellyfin searches its metadata sources (it speaks to TMDb, this Mac never does), the
-/// posters of its proposals come through Mira's extension, and the one chosen, asked once more, is given to the title.
+/// (<see cref="TitleIdentity"/>), in a sheet over the window: Jellyfin searches its metadata sources (it speaks to TMDb,
+/// this Mac never does), the posters of its proposals come through Mira's extension, and the one chosen, asked once
+/// more, is given to the title.
 /// </summary>
-public sealed class IdentifyWindow : Window
+public sealed class IdentifySheet
 {
     private readonly Session _session;
     private readonly MediaItem _item;
+    private readonly Sheet _sheet;
     private readonly TextBox _name = new() { Watermark = L("Titre, ou lien TMDb ou IMDb", "Title, or a TMDb or IMDb link") };
-    private readonly TextBox _year = new() { Width = 80, MaxLength = 4, Watermark = L("Année", "Year") };
-    private readonly TextBlock _status = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBox _year = new() { Width = 76, MaxLength = 4, Watermark = L("Année", "Year") };
+    private readonly TextBlock _status = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) };
     private readonly StackPanel _results = new() { Spacing = 4 };
     private readonly ScrollViewer _scroll;
-    private readonly StackPanel _confirm = new() { Spacing = 12, IsVisible = false };
+    private readonly StackPanel _confirm = new() { Spacing = 12, IsVisible = false, Margin = new Thickness(0, 12, 0, 0) };
+    private MainWindow? _shell;
     private int _version;
     private bool _applying;
 
     /// <summary>True once Jellyfin gave the title the proposal chosen (its page is drawn again).</summary>
     public bool Applied { get; private set; }
-    /// <summary>What to say once the window closes.</summary>
+    /// <summary>What to say once the sheet closes.</summary>
     public string? Said { get; private set; }
 
-    public IdentifyWindow(Session session, MediaItem item)
+    public IdentifySheet(Session session, MediaItem item)
     {
         _session = session; _item = item;
-        Title = L($"Identifier « {TitleIdentity.Named(item)} »", $"Identify “{TitleIdentity.Named(item)}”"); Width = 620; Height = 660; CanResize = false;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        _sheet = new Sheet(L("IDENTIFIER", "IDENTIFY"), "search", TitleIdentity.Named(item),
+            L("C’est Jellyfin qui cherche, auprès de ses sources (TMDb…) : ce Mac ne leur parle pas. Un lien vers la page TMDb ou IMDb du titre tombe juste.", "Jellyfin does the searching, with its sources (TMDb…): this Mac never talks to them. A link to the title’s TMDb or IMDb page finds exactly that one."),
+            width: 660, titleSize: 28);
         var (name, year) = TitleIdentity.Prefill(item);
         _name.Text = name; _year.Text = year?.ToString(Culture) ?? "";
         Avalonia.Automation.AutomationProperties.SetName(_name, L("Titre à chercher, ou lien TMDb ou IMDb", "Title to search for, or a TMDb or IMDb link"));
         Avalonia.Automation.AutomationProperties.SetName(_year, L("Année", "Year"));
         Avalonia.Automation.AutomationProperties.SetLiveSetting(_status, Avalonia.Automation.AutomationLiveSetting.Polite);
         var search = Ui.Action(L("Chercher", "Search"), "search", "primary", () => _ = SearchAsync());
-        var line = new DockPanel();
+        var line = new DockPanel { Margin = new Thickness(0, 18, 0, 0) };
         DockPanel.SetDock(search, Dock.Right); DockPanel.SetDock(_year, Dock.Right);
         _year.Margin = new Thickness(10, 0); line.Children.Add(search); line.Children.Add(_year); line.Children.Add(_name);
-        _scroll = new ScrollViewer { Content = _results, MaxHeight = 400 };
-        var close = Ui.Action(L("Fermer", "Close"), null, "quiet", Close);
-        close.HorizontalAlignment = HorizontalAlignment.Left;
-        Content = new Border
-        {
-            Padding = new Thickness(32, 28),
-            Child = Ui.Column(14,
-                Ui.Text(TitleIdentity.Named(item), 24, FontWeight.Bold),
-                new TextBlock { Text = L("C’est Jellyfin qui cherche, auprès de ses sources (TMDb…) : ce Mac ne leur parle pas. Un lien vers la page TMDb ou IMDb du titre tombe juste.", "Jellyfin does the searching, with its sources (TMDb…): this Mac never talks to them. A link to the title’s TMDb or IMDb page finds exactly that one."), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
-                line, _status, _scroll, _confirm, close),
-        };
+        _scroll = new ScrollViewer { Content = _results, MaxHeight = 400, Margin = new Thickness(0, 8, 0, 0) };
+        _sheet.Body.Children.Add(line); _sheet.Body.Children.Add(_status); _sheet.Body.Children.Add(_scroll); _sheet.Body.Children.Add(_confirm);
+        _sheet.CloseButton(Close);
         foreach (var box in new[] { _name, _year }) box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; _ = SearchAsync(); } };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape && !_applying) { Close(); e.Handled = true; } };
-        Opened += (_, _) => { _name.Focus(); _name.SelectAll(); _ = SearchAsync(); };
+        _sheet.FirstFocus = _name;
+        _sheet.Shown += () => _name.SelectAll();
     }
+
+    /// <summary>Over <paramref name="shell"/>, Jellyfin asked at once with the title's name and year; done once it closes.</summary>
+    public Task ShowAsync(MainWindow shell)
+    {
+        _shell = shell;
+        var done = new TaskCompletionSource();
+        _sheet.Closed += () => done.TrySetResult();
+        shell.ShowSheet(_sheet);
+        _ = SearchAsync();
+        return done.Task;
+    }
+    /// <summary>« Fermer »: not while Jellyfin takes the proposal chosen (Escape neither, <see cref="Sheet.Busy"/>).</summary>
+    private void Close() { if (!_applying) _shell?.CloseSheet(_sheet); }
+    /// <summary>The sheet and its proposals: for the self-check.</summary>
+    public Sheet View => _sheet;
+    public int Proposals => _results.Children.Count;
 
     private async Task SearchAsync()
     {
@@ -131,7 +143,7 @@ public sealed class IdentifyWindow : Window
     private async Task ApplyAsync(RemoteMatch match, Button apply)
     {
         if (_applying) return;
-        _applying = true; apply.IsEnabled = false;
+        _applying = _sheet.Busy = true; apply.IsEnabled = false;
         _status.Text = L($"Jellyfin prend les informations de « {Chosen(match)} »…", $"Jellyfin is taking the details of “{Chosen(match)}”…");
         try
         {
@@ -139,10 +151,10 @@ public sealed class IdentifyWindow : Window
             Applied = true;
             Said = done ? L($"« {Chosen(match)} » : Jellyfin a mis à jour sa fiche.", $"“{Chosen(match)}”: Jellyfin updated its page.")
                 : L($"Jellyfin prend « {Chosen(match)} » : il lui faut un peu plus de temps, la fiche se met à jour dans un moment.", $"Jellyfin is taking “{Chosen(match)}”: it needs a little longer, the page updates in a moment.");
-            _applying = false;
+            _applying = _sheet.Busy = false;
             Close();
         }
-        catch (OperationCanceledException) when (_session.Lifetime.IsCancellationRequested) { _applying = false; Close(); }
-        catch (Exception ex) when (Errors.Expected(ex)) { _status.Text = Errors.Friendly(ex); apply.IsEnabled = true; _applying = false; }
+        catch (OperationCanceledException) when (_session.Lifetime.IsCancellationRequested) { _applying = _sheet.Busy = false; Close(); }
+        catch (Exception ex) when (Errors.Expected(ex)) { _status.Text = Errors.Friendly(ex); apply.IsEnabled = true; _applying = _sheet.Busy = false; }
     }
 }
