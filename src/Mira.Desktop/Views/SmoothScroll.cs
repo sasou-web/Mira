@@ -59,6 +59,8 @@ public static class SmoothScroll
         private readonly ScrollMotion _motion = new();
         private bool _running, _horizontal;
         private long _last;
+        /// <summary>The refresh of the screen the last step was drawn for (<see cref="RenderingEventArgs.RenderingTime"/>); null before the first.</summary>
+        private TimeSpan? _lastFrame;
         public Driver(ScrollViewer viewer)
         {
             _viewer = viewer;
@@ -70,14 +72,27 @@ public static class SmoothScroll
             _motion.Add(pixels, Maximum);
             if (Motion.Reduced) { Apply(_motion.Step(10, Maximum)); return; }
             if (_running || !_motion.Moving) return;
-            _running = true; _last = Stopwatch.GetTimestamp(); CompositionTarget.Rendering += Frame;
+            _running = true; _last = Stopwatch.GetTimestamp(); _lastFrame = null; CompositionTarget.Rendering += Frame;
         }
         private double Maximum => _horizontal ? _viewer.ScrollableWidth : _viewer.ScrollableHeight;
         private void Apply(double value) { if (_horizontal) _viewer.ScrollToHorizontalOffset(value); else _viewer.ScrollToVerticalOffset(value); }
+        /// <summary>
+        /// One step per frame, as far as the time between the refreshes of the screen the frames are drawn for: the page
+        /// then moves evenly on the screen, whenever the step itself ran (a step timed by the clock when it runs moves
+        /// unevenly, late steps being longer). Raised more than once for a frame: one step only.
+        /// </summary>
         private void Frame(object? sender, EventArgs e)
         {
-            var now = Stopwatch.GetTimestamp(); var delta = (now - _last) / (double)Stopwatch.Frequency; _last = now;
-            Apply(_motion.Step(Math.Min(.1, delta), Maximum));
+            double delta;
+            if (e is RenderingEventArgs { RenderingTime: var at })
+            {
+                if (at == _lastFrame) return;
+                // The first step: the time since the wheel turned (a frame's time has nothing before it to count from).
+                delta = _lastFrame is { } previous ? (at - previous).TotalSeconds : (Stopwatch.GetTimestamp() - _last) / (double)Stopwatch.Frequency;
+                _lastFrame = at;
+            }
+            else { var now = Stopwatch.GetTimestamp(); delta = (now - _last) / (double)Stopwatch.Frequency; _last = now; }
+            Apply(_motion.Step(Math.Clamp(delta, 0, .1), Maximum));
             if (!_motion.Moving || !_viewer.IsVisible) Stop();
         }
         public void Stop() { if (_running) CompositionTarget.Rendering -= Frame; _running = false; }

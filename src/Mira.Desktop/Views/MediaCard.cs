@@ -33,17 +33,51 @@ public sealed class MediaCard : Button
     internal double HighlightOpacity => _hover.Opacity;
     public bool HoverVisible { get; private set; }
     private readonly Grid _visual;
+    /// <summary>
+    /// The artwork as one picture (<see cref="RenderCache"/>): a poster going by under the wheel is drawn as a picture,
+    /// not as its rounded corners, its badge's shadow and its layers again at each frame. Around <see cref="_visual"/>,
+    /// not on it: WPF lays a picture's own clip again at every frame, a parent's is in the picture.
+    /// </summary>
+    private readonly Decorator _artwork;
+    /// <summary>
+    /// The cards in the window, for <c>MainWindow.UpdateCardPictures</c>: each keeps its picture near the screen and lets
+    /// it go far from it (a picture takes memory, 0.7 MB for a poster at 175 %; WPF makes one only for a card drawn).
+    /// </summary>
+    internal static readonly HashSet<MediaCard> Live = [];
+    /// <summary>Its artwork kept as a picture (near the screen), or not (far from it, or its page put away).</summary>
+    internal bool Pictured
+    {
+        get => _artwork.CacheMode is not null;
+        set { var picture = value ? RenderCache.Picture : null; if (!ReferenceEquals(_artwork.CacheMode, picture)) _artwork.CacheMode = picture; }
+    }
+    /// <summary>
+    /// Its template: the content alone. The default button's rounded background, invisible on a card, was still a shape
+    /// drawn at each frame for every card in view.
+    /// </summary>
+    private static readonly ControlTemplate Plain = MakePlain();
+    private static ControlTemplate MakePlain()
+    {
+        var template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
+        template.Seal(); return template;
+    }
     private readonly bool _wide;
+    /// <summary>A landscape card (Continuer à regarder, episodes) rather than a poster.</summary>
+    internal bool Wide => _wide;
+    /// <summary>Made for the results of a search: its click opens the episode's series or the saga's titles.</summary>
+    internal bool Found { get; init; }
+    /// <summary>Counts the times the card was put away: an image that arrives for an earlier time is not kept.</summary>
+    private int _shelved;
     private readonly Border? _progress;
     public MediaCard(MediaItem item, bool wide, int index, PlayerSettings settings, bool demo)
     {
         Item = item; _wide = wide; RenderKey = Key(item, settings);
-        Style = (Style)Application.Current.FindResource("Quiet");
+        Style = (Style)Application.Current.FindResource("Quiet"); Template = Plain;
         Background = Brushes.Transparent; Padding = new Thickness(0);
         BorderThickness = new Thickness(0); HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Top; Margin = new Thickness(0, 0, 22, wide ? 5 : 30);
         System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Progress > 0 && !item.UserData.Played ? L("Reprendre ", "Resume ") : L("Regarder ", "Watch ") : L("Ouvrir ", "Open ")) + item.DisplayTitle + (item.UserData.Played ? L(", vu", ", watched") : item.EpisodesToWatchText is { } toWatch ? ", " + toWatch : ""));
-        var root = new StackPanel();
+        // Transparent, not empty: the whole card answers the pointer, as the template's background did.
+        var root = new StackPanel { Background = Brushes.Transparent };
         _visual = new Grid { Background = Palette.Get("Raised"), ClipToBounds = true };
         var placeholder = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20) };
         placeholder.Children.Add(new Icon { Kind = wide ? "play" : "film", Width = 30, Height = 30, Foreground = new SolidColorBrush(Color.FromRgb(78, 78, 87)), Margin = new Thickness(0, 0, 0, 15) });
@@ -105,7 +139,9 @@ public sealed class MediaCard : Button
             _visual.Children.Add(new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)) });
             _progress = new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Accent") }; _visual.Children.Add(_progress);
         }
-        root.Children.Add(_visual);
+        _artwork = new Decorator { Child = _visual, CacheMode = RenderCache.Picture };
+        root.Children.Add(_artwork);
+        Loaded += (_, _) => Live.Add(this); Unloaded += (_, _) => Live.Remove(this);
         root.Children.Add(TruncationTip.Attach(new TextBlock { Text = item.DisplayTitle, FontSize = 15, FontWeight = FontWeights.ExtraBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 21, Height = wide ? 23 : 42, Margin = new Thickness(0, 12, 3, 0), Foreground = Brushes.White }));
         // Resume cards say how much is left, which is what matters when picking something to finish.
         var remaining = wide && item.Progress > 0 && !item.UserData.Played && item.RunTimeTicks is > 0
@@ -150,10 +186,23 @@ public sealed class MediaCard : Button
     private async Task LoadArtworkAsync(ImageCache images, bool wide)
     {
         // Decoded at the size shown (on the sharpest screen), never larger.
-        var width = images.Pixels(Width);
+        var width = images.Pixels(Width); var shelved = _shelved;
         var request = wide ? images.LandscapeAsync(Item, width) : images.GetAsync(Item, false, width); var cached = request.IsCompletedSuccessfully;
         var bitmap = await request;
-        if (bitmap is not null) { var initial = _image.Source is null; _image.Source = bitmap; if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft); }
+        if (bitmap is not null && shelved == _shelved) { var initial = _image.Source is null; _image.Source = bitmap; if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft); }
+    }
+    /// <summary>
+    /// Put away by the window, to come back with its page (Films, then Séries, then Films again): made anew, the posters
+    /// of a page held the window's thread for some 60 ms. It lets go of its highlight and of its artwork, which the image
+    /// cache keeps within its budget: a card put away must not keep it beyond. Asked for again when the card comes back.
+    /// </summary>
+    internal void Shelve()
+    {
+        _shelved++;
+        if (HoverVisible) { HoverVisible = false; BeginAnimation(HoverAmountProperty, null); SetValue(HoverAmountProperty, 0d); }
+        if (!ImageRequested) return;
+        _image.BeginAnimation(OpacityProperty, null); _image.ClearValue(OpacityProperty); _image.Source = null;
+        ImageRequested = false; ImageReady = Task.CompletedTask;
     }
     /// <summary>Decoded placeholders, kept by hash: the same poster comes back on every page, and each takes a few kilobytes.</summary>
     private static readonly Dictionary<string, BitmapSource> Blurs = [];

@@ -4,7 +4,7 @@
  <Grid>
   <Grid.RowDefinitions><RowDefinition Height="34"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <Grid x:Name="LibraryShell" Grid.RowSpan="2" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
-   <ScrollViewer Style="{StaticResource {x:Type ScrollViewer}}" v:SmoothScroll.Enabled="True" x:Name="LibraryScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="Library_Scrolled">
+   <ScrollViewer Style="{StaticResource {x:Type ScrollViewer}}" v:SmoothScroll.Enabled="True" x:Name="LibraryScroll" Background="{StaticResource Bg}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="Library_Scrolled">
     <StackPanel>
      <Grid x:Name="Hero" Height="610" ClipToBounds="True" Visibility="Collapsed">
       <!-- The picture stops above the bottom edge, where the gradient is already opaque: while a page slides in, that edge falls between two pixels, and a picture cut on the same row as the gradient would show through it as a bright line. -->

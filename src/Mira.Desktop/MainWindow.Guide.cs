@@ -138,7 +138,7 @@ public partial class MainWindow
         DrawGuideShortcuts();
         DescribeServerForGuide();
         SmoothScroll.Jump(GuideScroll);
-        Motion.Reveal(GuideOverlay, 260, 0); Motion.Reveal(GuideContent, 300, 10);
+        Motion.Reveal(GuideOverlay, 280, 10);
         UpdateNavigation(); UpdateHeroClock();
         _ = Dispatcher.BeginInvoke(() => GuideClose.Focus(), DispatcherPriority.Input);
         var version = ++_guideVersion;

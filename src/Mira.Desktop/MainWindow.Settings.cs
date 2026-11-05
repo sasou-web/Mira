@@ -124,9 +124,9 @@ public partial class MainWindow
         _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync();
         DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _ = ShowPhotoAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowOfflineSettings();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
-        Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
+        Motion.Reveal(SettingsOverlay, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
-        SelectSettingsTab("playback"); UpdateNavigation();
+        SelectSettingsTab("playback", animate: false); UpdateNavigation();
         SettingsSaveStatus.Text = SettingsApplyAtOnce;
         _ = Dispatcher.BeginInvoke(() => PlaybackSettingsNav.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
@@ -177,7 +177,8 @@ public partial class MainWindow
             button.Content = row; System.Windows.Automation.AutomationProperties.SetName(button, label);
         }
     }
-    private void SelectSettingsTab(string tab)
+    /// <param name="animate">False as Réglages opens: the page comes as one, its section with it.</param>
+    private void SelectSettingsTab(string tab, bool animate = true)
     {
         DrawSettingsNavigation();
         PlaybackSettings.Visibility = tab == "playback" ? Visibility.Visible : Visibility.Collapsed;
@@ -205,7 +206,7 @@ public partial class MainWindow
         foreach (var button in SettingsNavigation.Children.OfType<Button>()) { var active = button.Tag?.ToString() == tab; button.Background = active ? Palette.Get("Text") : Brushes.Transparent; button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextBody"); }
         SettingsScroll.ScrollToTop();
         var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "sharing" => SharingSettings, "care" => CareSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "report" => ReportSettings, _ => PlaybackSettings };
-        SmoothScroll.Jump(SettingsScroll); Motion.Reveal(body, 230, 7);
+        SmoothScroll.Jump(SettingsScroll); if (animate) Motion.Reveal(body, 230, 7);
         WatchViewers(tab == "server");
         if (tab == "server") _ = ReadTailscaleAppAsync();
         if (tab == "care") { _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }

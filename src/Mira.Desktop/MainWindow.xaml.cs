@@ -45,7 +45,7 @@ public partial class MainWindow : Window
     private string? _testMedia;
     private readonly string[] _args;
     /// <summary>The Jellyfin answered inside Mira of --smooth-check (<c>StandInJellyfin</c>); null otherwise: the network.</summary>
-    private System.Net.Http.HttpMessageHandler? _serverHandler;
+    private System.Net.Http.HttpMessageHandler? ServerHandler { get; set; }
     private static Brush Brush(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
 
     public MainWindow(string[] args)
@@ -74,6 +74,7 @@ public partial class MainWindow : Window
         InitializePower();
         InitializeHeroClock();
         InitializeSnapLayouts();
+        InitializeSmoothness();
         // Windows' text size is read again each time Mira comes back to the front: changed in Settings meanwhile.
         Activated += (_, _) => { UpdateHeroClock(); _textScale = TextScale(); if (UpdateZoom()) FitPages(); }; Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); Accessible.SetFocusRingShown(this, false); };
         // Windows' animation effects turned on or off: the banner's rotation follows at once.
@@ -275,7 +276,7 @@ public partial class MainWindow : Window
     {
         await DisconnectServicesAsync();
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
-        var client = _client = new JellyfinClient(connection, _serverHandler);
+        var client = _client = new JellyfinClient(connection, ServerHandler);
         // Another server, or the same from elsewhere: its connection is measured again (« Automatique »).
         _speed.Forget();
         LibraryStore store; SyncService sync;
@@ -299,7 +300,7 @@ public partial class MainWindow : Window
         _catalog.Clear(); _pages.Clear(); _episodes = []; _detail = null; _detailTrail.Clear(); _hero = null; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
         // Never leave the previous account's posters on screen while this one loads.
-        _catalog.Loading = true; RenderLibrary();
+        _catalog.Loading = true; RenderLibrary(); ForgetKeptCards();
         _images = new ImageCache(_client, _profile.DirectoryPath); FitArtwork(_images); _sync = sync;
         _metadata = new MetadataCache(_client); ++_heroVersion;
         _sync.Changed += SyncChanged;
