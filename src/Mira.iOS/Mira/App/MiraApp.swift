@@ -180,6 +180,8 @@ enum Messages {
                 return String(localized: "Can’t reach Jellyfin. At home, check the Wi-Fi; away from home, turn on Tailscale.")
             case let .tailscale(code):
                 return tailscale(code)
+            case let .refused(words):
+                return words
             }
         default:
             if let hint = Way.hint.withLock({ $0 }) { return text(hint) }

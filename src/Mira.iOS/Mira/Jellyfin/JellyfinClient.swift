@@ -24,6 +24,8 @@ enum JellyfinError: Error, Sendable, Equatable {
     /// Built-in Tailscale's relay could not reach the server, and why (its X-Mira-Tailscale: needs-login, offline,
     /// unreachable…).
     case tailscale(String)
+    /// 400 from Mira's extension, with its words for why (the relay of « Télécharger sur le PC serveur »).
+    case refused(String)
 }
 
 /// Mira's way to Jellyfin's API: one server, one account. Every request carries Jellyfin's authorization header with
@@ -104,12 +106,22 @@ struct JellyfinClient: Sendable {
             case 200..<300: return data
             case 401: throw JellyfinError.unauthorized
             case 403: throw JellyfinError.forbidden
+            case 400:
+                if let words = Self.refusal(data) { throw JellyfinError.refused(words) }
+                throw JellyfinError.http(400)
             default: throw JellyfinError.http(http.statusCode)
             }
         }
     }
 
-    /// An error of the way to the server, not of Jellyfin.
+    /// The « error » of a refusal of Mira's extension ({ "error": "…" }, already in the language asked for).
+    static func refusal(_ data: Data) -> String? {
+        guard let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let words = body["error"] as? String else { return nil }
+        let text = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
+        /// An error of the way to the server, not of Jellyfin.
     static func cut(_ error: Error) -> Bool {
         (error as? JellyfinError).map { $0 == .unreachable || $0 == .timeout } ?? false
     }
