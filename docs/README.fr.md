@@ -2,7 +2,7 @@
   <img src="../src/Mira.Desktop/Assets/mira.png" width="80" alt="Logo Mira" />
   <h1>Mira</h1>
   <p><strong>Ta bibliothèque Jellyfin, comme au cinéma.</strong></p>
-  <p>Une app pour Windows et Mac qui lit tout elle-même, et Mira web pour ton iPhone ou ton Android.<br />Gratuite, sans compte ni abonnement, et rien ne quitte ton serveur.</p>
+  <p>Des apps pour Windows, Mac et iPhone qui lisent tout elles-mêmes.<br />Gratuite, sans compte ni abonnement, et rien ne quitte ton serveur.</p>
   <p>
     <a href="https://github.com/sasou-web/Mira/releases/tag/v0.9.2"><img src="https://img.shields.io/badge/version-0.9.2_préversion-e8e8ed?style=flat-square" alt="Version 0.9.2, préversion" /></a>
     <a href="../LICENSE"><img src="https://img.shields.io/badge/licence-MIT-e8e8ed?style=flat-square" alt="Licence MIT" /></a>
@@ -12,7 +12,7 @@
   <p>
     <a href="https://github.com/sasou-web/Mira/releases/tag/v0.9.2"><strong>Télécharger pour Windows</strong></a> ·
     <a href="INSTALLATION-MAC.md">Mac</a> ·
-    <a href="INSTALLATION-WEB.md">iPhone et Android</a> ·
+    <a href="INSTALLATION-IOS.md">iPhone</a> ·
     <a href="https://discord.gg/Bh3F6PDUvB">Discord</a> ·
     <a href="../README.md">English</a>
   </p>
@@ -28,27 +28,14 @@
 - **Tu reprends où tu en étais.** Sur le PC, le Mac ou le téléphone, « Continuer à regarder » te ramène à la bonne minute, et l’épisode suivant s’enchaîne seul.
 - **La lecture se fait dans Mira.** Le moteur mpv lit presque tous les fichiers tels quels : sous-titres, pistes audio, chapitres, intros passées d’un geste.
 - **Regarder ensemble.** Un lien suffit pour lancer le même film chez un ami, en même temps, chacun chez soi.
-- **Aucune installation compliquée.** Pas encore de Jellyfin ? Mira l’installe et le prépare pour toi. Le téléphone se connecte en scannant un QR code.
+- **Aucune installation compliquée.** Pas encore de Jellyfin ? Mira l’installe et le prépare pour toi, pare-feu et Tailscale compris.
 - **Ta vie privée reste chez toi.** Pas de compte Mira, pas de publicité, rien de collecté ; seule la recherche de mises à jour contacte GitHub, et Tailscale seulement si tu y connectes Mira.
 
-## Sur ton téléphone aussi
+## Sur ton iPhone aussi
 
-Mira web est servie par ton propre serveur Jellyfin : rien à télécharger sur l’App Store, ni compte Apple. Sur iPhone, **Partager → Sur l’écran d’accueil**, et elle s’ouvre comme une app, à la maison comme ailleurs avec Tailscale.
+Mira pour iPhone est une app native, avec son propre lecteur (image dans l’image, AirPlay), Regarder ensemble et, loin de chez toi, Tailscale intégré, sans l’app Tailscale à installer. Elle s’installe avec AltStore et ton identifiant Apple gratuit, et le PC serveur la rafraîchit chaque semaine ([guide](INSTALLATION-IOS.md)). Mira web, que Jellyfin servait aux téléphones jusqu’à la 0.9.3, est terminée : sur Android, pas de Mira pour l’instant.
 
-<table>
-  <tr>
-    <td width="33%"><img src="screenshots/readme/web-home.jpg" alt="Mira web sur iPhone : l’accueil" /></td>
-    <td width="33%"><img src="screenshots/readme/web-film.jpg" alt="Mira web sur iPhone : la fiche d’un film" /></td>
-    <td width="33%"><img src="screenshots/readme/web-series.jpg" alt="Mira web sur iPhone : une série et ses épisodes" /></td>
-  </tr>
-  <tr>
-    <td align="center">Accueil</td>
-    <td align="center">Un film</td>
-    <td align="center">Une série</td>
-  </tr>
-</table>
-
-**Regarder avec quelqu’un qui n’a pas de compte.** Un lien d’invité, créé dans les réglages, ouvre Mira chez ton ami, sans compte ni Tailscale, directement dans ton groupe « Regarder ensemble ». Il ne sert qu’à un appareil, et quand tu le retires, ton ami est dehors aussitôt. Il passe par Tailscale Funnel, qui n’ouvre que Mira à Internet, jamais le reste de Jellyfin (détails dans [SECURITY.md](../SECURITY.md#liens-dinvités-inviter-par-lien)).
+**Regarder avec quelqu’un qui n’a pas de compte.** Ton lien de party, toujours le même, ouvre Mira chez ton ami sur Windows, Mac ou iPhone, sans compte ni Tailscale, directement dans ton groupe « Regarder ensemble ». Chaque invité a son appareil, et quand tu en retires un, il est dehors aussitôt. Il passe par Tailscale Funnel, qui n’ouvre que Mira à Internet, jamais le reste de Jellyfin (détails dans [SECURITY.md](../SECURITY.md#liens-dinvités-inviter-par-lien)).
 
 ## Sur ton ordinateur
 
@@ -74,9 +61,8 @@ Mira web est servie par ton propre serveur Jellyfin : rien à télécharger sur 
 | **Windows** 10 ou 11 (x64) | `Mira-0.9.2-win-x64-setup.exe` | Lance l’installateur, connecte ton serveur Jellyfin, ou laisse Mira l’installer. [Guide](INSTALLATION.md) |
 | **Mac** à puce Apple, macOS 15 ou plus | `Mira-0.9.2-mac-arm64.dmg` | Glisse Mira dans Applications, autorise-la une fois (elle n’est pas signée par Apple). Ou avec [Homebrew](https://github.com/sasou-web/homebrew-mira) : `brew install --cask sasou-web/mira/mira`. [Guide](INSTALLATION-MAC.md) |
 | **iPhone, iPad** (essai) | AltStore Classic, iOS 26 | L’app native : bibliothèque, recherche, son propre lecteur (Image dans l’image, AirPlay), Minuterie, Regarder ensemble et, loin de la maison, Tailscale intégré. Installée avec ton identifiant Apple gratuit, rafraîchie chaque semaine par le PC serveur. [Guide](INSTALLATION-IOS.md) |
-| **iPhone, iPad, Android** | Rien à télécharger | Dans Mira pour Windows : **Guide → Mira sur ton téléphone → Tout préparer**, puis scanne le QR code. [Guide](INSTALLATION-WEB.md) |
 
-Tous les fichiers sont dans la [release 0.9.2](https://github.com/sasou-web/Mira/releases/tag/v0.9.2). Il te faut un serveur Jellyfin 10.9 ou plus récent (Mira web est essayé à chaque modification sur 10.9, 10.10, 12.1 et 12.4 ; sur 10.9 et 10.10, la fiche d’un film n’a pas la rangée de sa saga et un sous-titre ASS garde ses balises de style). Tant que les fichiers Windows ne sont pas signés, SmartScreen peut afficher un avertissement : **Informations complémentaires → Exécuter quand même**. Mira se met ensuite à jour toute seule.
+Tous les fichiers sont dans la [release 0.9.2](https://github.com/sasou-web/Mira/releases/tag/v0.9.2). Il te faut un serveur Jellyfin 10.9 ou plus récent (l’extension de Mira pour Jellyfin est essayée à chaque modification sur 10.9, 10.10, 12.1 et 12.4). Tant que les fichiers Windows ne sont pas signés, SmartScreen peut afficher un avertissement : **Informations complémentaires → Exécuter quand même**. Mira se met ensuite à jour toute seule.
 
 <details>
 <summary>Les autres fichiers pour Windows</summary>
@@ -102,7 +88,7 @@ Mira **0.9.2** est une préversion : elle sert tous les jours, mais certaines ch
 
 - **Ce qui est signé.** Les fichiers Windows de chaque release : l’installateur `Mira-X.Y.Z-win-x64-setup.exe`, l’exécutable portable `Mira-X.Y.Z-win-x64-portable.exe` et, dans `Mira-X.Y.Z-win-x64.zip`, `Mira.exe`, `Mira.dll` et `Mira.Core.dll`. GitHub Actions ([`windows.yml`](../.github/workflows/windows.yml)) les construit depuis le commit de `main` que la release publie, jamais sur un PC ; SignPath Foundation les signe après l’approbation du mainteneur ; ils sont publiés d’un coup, avec leurs empreintes SHA-256, dans une release immuable. Avant de signer, SignPath vérifie que chaque fichier porte le nom de produit « Mira » et la version de la release (configurations d’artefact dans [`installer/signpath/`](../installer/signpath)). Le désinstallateur créé par Inno Setup, le runtime .NET et les bibliothèques tierces du dossier gardent leur signature d’origine ou n’en ont pas. Mira pour Mac est signée ad hoc, sans compte Apple ; Mira web (l’extension Jellyfin) n’est pas un exécutable Windows.
 - **Rôles.** [sasou-web](https://github.com/sasou-web) (ogsas) est le mainteneur : son compte GitHub est le seul à écrire sur `main`, lui seul lance une release (`tools/release.ps1`) et approuve chaque demande de signature dans SignPath, avec l’authentification à deux facteurs sur GitHub et sur SignPath. Les modifications sont écrites et testées par l’assistant IA Claude (Anthropic), sur ses demandes, sous son compte et sa responsabilité ; rien n’entre dans une release sans la réussite des contrôles de GitHub Actions (compilation, tests, Mira web contre un vrai Jellyfin).
-- **Vie privée.** Mira ne transmet aucune information à d’autres systèmes que ton serveur Jellyfin, sauf à ta demande (installer le moteur mpv, Jellyfin, Node.js ou TorLink, ouvrir un lien, connecter Tailscale intégré), à une exception près : la recherche de mises à jour sur GitHub (l’API des releases de ce dépôt), à l’ouverture puis toutes les 6 h sous Windows, à chaque ouverture sur Mac. Elle n’envoie que la requête elle-même (adresse IP, version de Mira) et ne rapporte rien ; sous Windows, **Réglages → Mises à jour** l’arrête. Rien n’est collecté, ni sur toi ni sur ta bibliothèque. Les services contactés ont leurs propres politiques de confidentialité : [GitHub](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) (mises à jour, Mira web), [npm](https://docs.npmjs.com/policies/privacy) (TorLink), la [fondation OpenJS](https://privacy-policy.openjsf.org/) (Node.js, depuis nodejs.org), SourceForge (le moteur mpv), Jellyfin (son installateur) et [Tailscale](https://tailscale.com/privacy-policy) (Tailscale intégré : une fois connecté, ses serveurs voient le nom de l’appareil, son système et ses adresses IP ; les vidéos restent chiffrées de bout en bout) ; une fois lancé, TorLink est un client BitTorrent (pairs, trackers, routeur), et son terminal repose sur [WebView2](https://learn.microsoft.com/microsoft-edge/webview2/concepts/data-privacy), composant de Windows qui suit les réglages de diagnostic de Windows. Mira pour iPhone ne parle qu’à ton serveur Jellyfin, et à Tailscale si tu actives Tailscale intégré, et ne cherche pas de mises à jour : c’est AltStore qui lit sa source sur `miracinema.app` et télécharge l’app sur GitHub, et AltServer qui envoie ton identifiant Apple à Apple pour la signer. Le détail : [SECURITY.md](../SECURITY.md).
+- **Vie privée.** Mira ne transmet aucune information à d’autres systèmes que ton serveur Jellyfin, sauf à ta demande (installer le moteur mpv, Jellyfin, Node.js ou TorLink, ouvrir un lien, connecter Tailscale intégré), à une exception près : la recherche de mises à jour sur GitHub (l’API des releases de ce dépôt), à l’ouverture puis toutes les 6 h sous Windows, à chaque ouverture sur Mac. Elle n’envoie que la requête elle-même (adresse IP, version de Mira) et ne rapporte rien ; sous Windows, **Réglages → Mises à jour** l’arrête. Rien n’est collecté, ni sur toi ni sur ta bibliothèque. Les services contactés ont leurs propres politiques de confidentialité : [GitHub](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) (mises à jour, extension Jellyfin), [npm](https://docs.npmjs.com/policies/privacy) (TorLink), la [fondation OpenJS](https://privacy-policy.openjsf.org/) (Node.js, depuis nodejs.org), SourceForge (le moteur mpv), Jellyfin (son installateur) et [Tailscale](https://tailscale.com/privacy-policy) (Tailscale intégré : une fois connecté, ses serveurs voient le nom de l’appareil, son système et ses adresses IP ; les vidéos restent chiffrées de bout en bout) ; une fois lancé, TorLink est un client BitTorrent (pairs, trackers, routeur), et son terminal repose sur [WebView2](https://learn.microsoft.com/microsoft-edge/webview2/concepts/data-privacy), composant de Windows qui suit les réglages de diagnostic de Windows. Mira pour iPhone ne parle qu’à ton serveur Jellyfin, et à Tailscale si tu actives Tailscale intégré, et ne cherche pas de mises à jour : c’est AltStore qui lit sa source sur `miracinema.app` et télécharge l’app sur GitHub, et AltServer qui envoie ton identifiant Apple à Apple pour la signer. Le détail : [SECURITY.md](../SECURITY.md).
 - **Où en est la signature.** Tout est prêt, mais la demande d’adhésion à SignPath Foundation n’est pas encore déposée : jusqu’à la 0.9.2, les fichiers Windows ne sont pas signés, et SmartScreen demande confirmation.
 
 ## Développer
@@ -118,13 +104,12 @@ cd Mira
 dotnet restore Mira.sln --configfile NuGet.Config
 dotnet build Mira.sln -c Release --no-restore
 dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build
-node --test tools/web/unit/*.test.mjs    # décisions du lecteur de Mira web, Node.js 22
 dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .artifacts/dev-profile
 ```
 
 ```powershell
 ./tools/package.ps1          # Archive, exécutable portable, installateur (Inno Setup 6) et leurs empreintes, pour un essai local
-./tools/release.ps1          # La release GitHub vX.Y.Z : Windows (signé par SignPath Foundation), Mac et Mira web par GitHub Actions, manifeste signé, notes (gh)
+./tools/release.ps1          # La release GitHub vX.Y.Z : Windows (signé par SignPath Foundation), Mac, iPhone et l’extension Jellyfin par GitHub Actions, manifeste signé, notes (gh)
 ./tools/capture-gallery.ps1  # Captures avec un profil fictif isolé
 ./tools/torlink-check.ps1    # TorLink réel dans Mira, état et bibliothèque isolés
 ./tools/update-check.ps1     # Mises à jour de bout en bout : archive, portable et installateur, flux local et clé d’essai
@@ -138,13 +123,13 @@ Les captures de cette page sont refaites par le workflow [`gallery.yml`](../.git
 | `src/Mira.Mac` | Mira pour Mac (Avalonia), même moteur mpv |
 | `src/Mira.Core` | API Jellyfin, cache SQLite, synchronisation, règles de lecture et rangement des téléchargements |
 | `src/Mira.iOS` | Mira pour iPhone et iPad (SwiftUI, iOS 26), projet XcodeGen construit par [`ios.yml`](../.github/workflows/ios.yml) |
-| `src/Mira.Web` et `src/Mira.Jellyfin` | Mira web et l’extension Jellyfin qui la sert |
+| `src/Mira.Jellyfin` | L’extension Jellyfin : lien de party, invités, Télécharger sur le PC serveur, sous-titres automatiques, pages `/Mira` |
 | `tests/Mira.Core.Tests` | Tests sans WPF (comportement, persistance, mises à jour), lancés aussi sous Linux |
 | `tests/Mira.Tests` | Les mêmes, puis ceux de l’app Windows |
-| `tools` | Publication, captures, contrôles, serveur fictif et import des ressources ; `tools/web/unit` : tests Node de Mira web |
+| `tools` | Publication, captures, contrôles, serveur fictif et import des ressources  |
 | `docs` | Guides, architecture, galerie et validation |
 
-La compilation et les tests de base tournent sur Windows dans GitHub Actions, les tests sans WPF aussi sous Linux ; Mira web est contrôlée dans Chromium et Safari contre un vrai Jellyfin. Tout est décrit dans [docs/TESTS.md](TESTS.md), [docs/ARCHITECTURE.md](ARCHITECTURE.md) et [CONTRIBUTING.md](../CONTRIBUTING.md).
+La compilation et les tests de base tournent sur Windows dans GitHub Actions, les tests sans WPF aussi sous Linux ; l’extension est contrôlée par son API contre un vrai Jellyfin. Tout est décrit dans [docs/TESTS.md](TESTS.md), [docs/ARCHITECTURE.md](ARCHITECTURE.md) et [CONTRIBUTING.md](../CONTRIBUTING.md).
 </details>
 
 ## Licence et crédits
