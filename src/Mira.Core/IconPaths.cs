@@ -28,6 +28,9 @@ public static class IconPaths
     public static IReadOnlyDictionary<string, string> Strokes { get; } = new Dictionary<string, string>
     {
         ["home"] = "M3.5 10.5Q2.6 9.3 4 8.1L9.6 3.7Q12 1.8 14.4 3.7L20 8.1Q21.4 9.3 20.5 10.5V16.5Q20.5 21 16 21H8Q3.5 21 3.5 16.5Z M9 20V15Q9 12 12 12Q15 12 15 15V20",
+        // The password, shown or hidden (the sign-in of Windows and Mac).
+        ["eye"] = "M2 12Q6.5 5 12 5Q17.5 5 22 12Q17.5 19 12 19Q6.5 19 2 12Z M15 12A3 3 0 1 1 9 12A3 3 0 1 1 15 12",
+        ["eye-off"] = "M2 12Q6.5 5 12 5Q17.5 5 22 12Q17.5 19 12 19Q6.5 19 2 12Z M15 12A3 3 0 1 1 9 12A3 3 0 1 1 15 12 M4 4L20 20",
         ["search"] = "M18.3 10.4A7.7 7.7 0 1 1 2.9 10.4A7.7 7.7 0 1 1 18.3 10.4 M16 16L21 21",
         ["film"] = "M7 3H17Q21 3 21 7V17Q21 21 17 21H7Q3 21 3 17V7Q3 3 7 3Z M7.5 3.5V20.5 M16.5 3.5V20.5 M3.5 8.3H7 M3.5 15.7H7 M17 8.3H20.5 M17 15.7H20.5 M8 12H16",
         ["series"] = "M7 7H17C21 7 21 9 21 13S21 19 17 19H7C3 19 3 17 3 13S3 7 7 7Z M8 3L12 7L16 3 M8 22H16",

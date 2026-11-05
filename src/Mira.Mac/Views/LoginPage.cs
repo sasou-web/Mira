@@ -17,6 +17,9 @@ public sealed class LoginPage : UserControl
     private readonly TextBox _server = new() { Watermark = "192.168.1.20:8096" };
     private readonly TextBox _user = new();
     private readonly TextBox _password = new() { PasswordChar = '•', RevealPassword = false };
+    // As on Windows: an eye that shows the password, and a line under it while Caps Lock is on.
+    private readonly Button _eye;
+    private readonly TextBlock _caps = new() { Text = L("Verr. Maj est activé", "Caps Lock is on"), FontSize = 12, Foreground = Ui.Brush("#D5B787"), Margin = new Thickness(0, -6, 0, 0), IsVisible = false };
     private readonly Button _connect;
     private readonly TextBlock _error = new() { Foreground = Ui.Brush("#F0B4A7"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     /// <summary>The server found on this Mac, the home network or Tailscale (<see cref="ServerSearch"/>), and the others found.</summary>
@@ -51,6 +54,13 @@ public sealed class LoginPage : UserControl
         };
         Avalonia.Automation.AutomationProperties.SetLiveSetting(_tailnetText, Avalonia.Automation.AutomationLiveSetting.Polite);
         foreach (var box in new[] { _server, _user, _password }) box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; _ = ConnectAsync(); } };
+        _eye = Ui.IconButton("eye", L("Afficher le mot de passe", "Show password"), RevealPassword, "icon", 18);
+        _eye.Width = _eye.Height = 32; _eye.Margin = new Thickness(0, 0, 5, 0); _eye.Foreground = Ui.TextTertiary;
+        _password.InnerRightContent = _eye;
+        Avalonia.Automation.AutomationProperties.SetLiveSetting(_caps, Avalonia.Automation.AutomationLiveSetting.Polite);
+        _password.GotFocus += (_, _) => ShowCaps(); _password.LostFocus += (_, _) => _caps.IsVisible = false;
+        _password.AddHandler(KeyDownEvent, (_, _) => ShowCaps(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        _password.AddHandler(KeyUpEvent, (_, _) => ShowCaps(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         // Another address is another question: the warning given for the previous one no longer answers it.
         _server.TextChanged += (_, _) => { ServerTyped(); RenderTailnet(); if (_warned is not null && !_busy && _server.Text != _warned) { _warned = null; Label.Text = L("Se connecter", "Sign in"); _error.IsVisible = false; } };
         if (error is not null) ShowError(error);
@@ -63,7 +73,7 @@ public sealed class LoginPage : UserControl
         var form = Ui.Column(14,
             Spaced(Ui.Heading(L("Se connecter", "Sign in"), 30, 1, FontWeight.Bold), 0, 10),
             Field(L("Serveur Jellyfin", "Jellyfin server"), _server), _found, _choices, _searchAgain, _tailnet,
-            Field(L("Nom d’utilisateur", "Username"), _user), Field(L("Mot de passe", "Password"), _password), _error, Spaced(_connect, 8),
+            Field(L("Nom d’utilisateur", "Username"), _user), Field(L("Mot de passe", "Password"), _password), _caps, _error, Spaced(_connect, 8),
             Ui.Text(L("Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin.", "Your password is never saved: Mira only keeps the session Jellyfin opened."), 12.5, color: Ui.Faint));
         form.Width = 420;
         Content = new Grid
@@ -88,6 +98,22 @@ public sealed class LoginPage : UserControl
     private static Control Field(string label, TextBox box) =>
         Ui.Column(7, new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextTertiary }, box);
     private void ShowError(string text) { _error.Text = text; _error.IsVisible = true; }
+    /// <summary>The eye: the password in clear, or hidden again; the typing goes on where it was.</summary>
+    private void RevealPassword()
+    {
+        var show = !_password.RevealPassword;
+        _password.RevealPassword = show;
+        ((Icon)_eye.Content!).Kind = show ? "eye-off" : "eye";
+        var label = show ? L("Masquer le mot de passe", "Hide password") : L("Afficher le mot de passe", "Show password");
+        ToolTip.SetTip(_eye, label); Avalonia.Automation.AutomationProperties.SetName(_eye, label);
+        _password.Focus(); _password.CaretIndex = _password.Text?.Length ?? 0;
+    }
+    private void ShowCaps() => _caps.IsVisible = _password.IsFocused && MacKeyboard.CapsLock;
+    /// <summary>For the self-check: the eye, whether the password shows, and the Caps Lock line.</summary>
+    public Button PasswordEye => _eye;
+    public bool PasswordShown => _password.RevealPassword;
+    public bool CapsShown => _caps.IsVisible;
+    public void FocusPassword(string? text = null) { if (text is not null) _password.Text = text; _password.Focus(); ShowCaps(); }
 
     /// <summary>Fills the form and signs in, as a click on « Se connecter » would (the self-check).</summary>
     public Task SignInAsync(string server, string user, string password)
