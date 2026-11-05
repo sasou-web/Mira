@@ -114,6 +114,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/overview.json
         buildPhase: resources
+      - path: ../../tests/fixtures/viewers.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:
