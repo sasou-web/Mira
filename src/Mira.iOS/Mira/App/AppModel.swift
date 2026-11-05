@@ -31,6 +31,8 @@ final class AppModel {
     var retryItem: Item?
     /// « Watch together »: the group this iPhone is in, Jellyfin's SyncPlay.
     let together = Together()
+    /// « Ta party » of another Jellyfin, joined as its guest: while it lasts, `client` is the guest's.
+    let party = Party()
     /// The sleep timer, chosen on a title's page, read by the player it opens.
     var sleep = SleepTimer()
     /// Settings, some of them kept on the account's Jellyfin too (choices).
@@ -78,8 +80,9 @@ final class AppModel {
         device = DeviceIdentity(id: id, name: UIDevice.current.model, version: version)
         session = SessionStore.load()
         together.app = self
+        party.app = self
         preferences.use(account: session?.userId)
-        preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.client } }
+        preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.ownClient } }
         // The UI tests reach the stand-in Jellyfin only through Built-in Tailscale, though it is on this Mac.
         var only: Set<WayPlan.Kind>?
         #if DEBUG
@@ -123,17 +126,37 @@ final class AppModel {
 
     /// What is new in the series followed: at the start, and back after 15 minutes away.
     func lookForNewEpisodes(comingBack: Bool = false) async {
-        guard let client, let account = session?.userId else { return }
+        guard party.guest == nil, let client, let account = session?.userId else { return }
         await newEpisodes.look(client, account: account, comingBack: comingBack)
     }
 
     /// The account's choices compared with its Jellyfin: at the start, and back on the screen after a while.
     func syncChoices(lookAgain: Bool = false) {
-        if lookAgain { choices.lookAgain { [weak self] in self?.client } } else if let client { choices.run(client) }
+        guard party.guest == nil else { return }
+        if lookAgain { choices.lookAgain { [weak self] in self?.ownClient } } else if let client { choices.run(client) }
     }
 
+    /// This iPhone's account on its Jellyfin; a friend's party's guest instead while this iPhone is one.
     var client: JellyfinClient? {
-        session.map { JellyfinClient(server: $0.server, device: device, token: $0.token, userId: $0.userId) }
+        if party.guest != nil { return party.client(device) }
+        return session.map { JellyfinClient(server: $0.server, device: device, token: $0.token, userId: $0.userId) }
+    }
+
+    /// This iPhone's own account, for what is kept on its Jellyfin (choices): none while a friend's party's guest.
+    var ownClient: JellyfinClient? { party.guest == nil ? client : nil }
+
+    /// Becoming a friend's party's guest: this iPhone's own account let go (its session stays on its Jellyfin, and
+    /// comes back on leaving the party), its title and its group closed here.
+    func becomingGuest() {
+        player?.close()
+        together.signedOut()
+        choices.stop()
+        newEpisodes.dismiss()
+    }
+
+    /// Out of a friend's party: this iPhone's own account again, every page read again.
+    func leftGuest() {
+        playback += 1
     }
 
     var lastServer: String { UserDefaults.standard.string(forKey: Keys.lastServer) ?? "" }
@@ -257,6 +280,11 @@ final class AppModel {
 
     /// Jellyfin no longer knows the token (401): back to the sign-in screen, which says why.
     func sessionEnded() {
+        // A friend's party's guest that Jellyfin no longer knows: the party is over, this iPhone's account stays.
+        if party.guest != nil {
+            party.ended()
+            return
+        }
         guard let session else { return }
         player?.close()
         together.signedOut()

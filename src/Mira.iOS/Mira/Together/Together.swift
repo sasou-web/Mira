@@ -95,52 +95,56 @@ final class Together {
 
     /// A party link opened in Mira (its page's « Open in Mira »): on this iPhone's Jellyfin, straight into its host's
     /// group, or waiting a few minutes for them to open it. Another Jellyfin's party (or one made anew since), or no
-    /// account here, gives the page to open in Safari instead, where Mira web brings this iPhone in as a guest.
-    func openParty(_ url: URL) async -> URL? {
+    /// account here: this iPhone joins it as its guest, in Mira itself (Party).
+    func openParty(_ url: URL) async {
         guard let link = SyncRules.partyLink(url) else {
             notice = String(localized: "Mira can’t open this link.")
-            return nil
+            return
         }
         let code = link.code
         partyAsked += 1
         let asked = partyAsked
-        let web = SyncRules.partyWebLink(server: link.server, code: code)
-        guard let client = app?.client else { return web }
+        guard let app else { return }
+        guard app.party.guest == nil, let client = app.client else {
+            await app.party.open(code: code, server: link.server)
+            return
+        }
         let host: String
         do {
             host = try await client.get("Mira/party/\(code)", as: PartyHost.self).host
         } catch JellyfinError.http(404) {
-            return web
+            await app.party.open(code: code, server: link.server)
+            return
         } catch {
             notice = Messages.text(error)
-            return nil
+            return
         }
-        if host == app?.session?.userName {
+        if host == app.session?.userName {
             notice = String(localized: "This is your own party link: send it to whoever wants to join you.")
-            return nil
+            return
         }
         // Ten minutes at most, a look every 4 seconds, until the host opens their group.
         for attempt in 0..<150 {
-            guard asked == partyAsked, app?.client != nil else { return nil }
+            guard asked == partyAsked, app.client != nil else { return }
             let groups: [SyncGroup]
             do {
                 groups = try await client.syncGroups()
             } catch JellyfinError.forbidden {
                 notice = String(localized: "Jellyfin doesn’t let this account watch together.")
-                return nil
+                return
             } catch {
                 groups = []
             }
             if let found = SyncRules.findGroup(groups, id: nil, host: host) {
-                if SyncRules.sameGroup(group?.groupId, found.groupId) { return nil }
+                if SyncRules.sameGroup(group?.groupId, found.groupId) { return }
                 do { try await join(found.groupId) } catch { notice = Messages.text(error) }
-                return nil
+                return
             }
             if attempt == 0 { notice = String(localized: "Waiting for \(host) to open their group…") }
             try? await Task.sleep(for: .seconds(4))
         }
         if asked == partyAsked { notice = String(localized: "\(host) hasn’t opened their group yet: open the link again once they have.") }
-        return nil
+        return
     }
 
     func leave() async {
@@ -258,7 +262,11 @@ final class Together {
         socket?.cancel(with: .goingAway, reason: nil)
         socket = nil
         socketOpen = false
-        if was != nil { player?.groupLeft() }
+        if was != nil {
+            player?.groupLeft()
+            // A friend's party guest waits for its host's group again (or learns that the party is over).
+            app?.party.groupGone()
+        }
         if let text { notice = text }
     }
 

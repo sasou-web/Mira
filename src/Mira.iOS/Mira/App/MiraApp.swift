@@ -41,25 +41,30 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var phase
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ZStack {
             Palette.bg.ignoresSafeArea()
-            if app.session != nil {
+            if app.party.shown {
+                PartyView().transition(.opacity)
+            } else if app.session != nil {
                 MainView().transition(.opacity)
             } else {
                 LoginView().transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: app.session?.userId)
-        // A party link (mira://party/…): into the host's group, or its page in Safari as a guest.
+        .animation(.easeInOut(duration: 0.25), value: app.party.shown)
+        // A party link (mira://party/…): into the host's group, or as its guest when it is another Jellyfin's.
         .onOpenURL { url in
-            Task { if let web = await app.together.openParty(url) { openURL(web) } }
+            Task { await app.together.openParty(url) }
         }
         .onChange(of: phase) {
             switch phase {
-            case .active: app.foreground()
+            case .active:
+                app.foreground()
+                // A friend's party's guest: its group's socket opened again at once (MainView does it otherwise).
+                if app.party.guest != nil { app.together.foreground() }
             case .background: app.background()
             default: break
             }

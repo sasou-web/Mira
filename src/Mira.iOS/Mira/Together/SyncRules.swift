@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// A group of « Watch together » as Jellyfin lists it (SyncPlay/List, GroupJoined), read by JSON.decoder.
@@ -134,11 +135,25 @@ enum SyncRules {
         return (code, server)
     }
 
-    /// The party in Mira web, as a guest joins it without an account (#/party/<code>).
-    static func partyWebLink(server: URL, code: String) -> URL? {
+    /// The extension's gateway for guests of a Jellyfin (its address): the server of a guest's session (Party), where
+    /// the paths of Jellyfin a guest may use answer. As Together.GuestServer of Core.
+    static func guestServer(_ server: URL) -> URL {
         var base = server.absoluteString
         while base.hasSuffix("/") { base.removeLast() }
-        return URL(string: base + "/Mira/#/party/" + code)
+        return URL(string: base + "/Mira/guest/") ?? server
+    }
+
+    /// The device id a guest of another Jellyfin gives it: drawn from this iPhone's own, always the same for it, 32
+    /// hexadecimal characters, never the one this iPhone gives its own Jellyfin. As Together.GuestDevice of Core.
+    static func guestDevice(_ deviceId: String) -> String {
+        String(SHA256.hash(data: Data(("mira-party|" + deviceId).utf8)).map { String(format: "%02x", $0) }.joined().prefix(32))
+    }
+
+    /// The guest's name in a party: what was typed, without control characters, trimmed, 30 characters at most.
+    static func partyName(_ typed: String) -> String {
+        let kept = String(String.UnicodeScalarView(typed.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
+        let name = kept.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.count > 30 ? String(name.prefix(30)).trimmingCharacters(in: .whitespacesAndNewlines) : name
     }
 
     /// Jellyfin writes a group's id with or without dashes.
