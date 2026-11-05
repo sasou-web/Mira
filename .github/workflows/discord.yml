@@ -1,0 +1,78 @@
+name: Discord
+# The announcement of each release in the #releases channel of Mira's Discord (tools/discord/announce.mjs): the
+# banner, the English summary and highlights of WhatsNew.json, a link to the release. Runs when a release is published
+# (tools/release.ps1 publishes through gh, so the event fires) and by hand to announce a version again. The channel's
+# webhook URL is the DISCORD_RELEASES_WEBHOOK secret; without it the message is only printed. A failure here never
+# touches the release: it is already published.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to announce (x.y.z), already published
+        required: true
+      dry_run:
+        description: Only print the message
+        type: boolean
+        default: false
+  pull_request:
+    paths: ["tools/discord/**", ".github/workflows/discord.yml", "src/Mira.Core/WhatsNew.json"]
+permissions:
+  contents: read
+concurrency:
+  group: discord-${{ github.event.release.tag_name || inputs.version || github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Tests
+        run: node --test tools/discord/announce.test.mjs
+      - name: Message of the latest version
+        run: |
+          version=$(node -e "console.log(JSON.parse(require('fs').readFileSync('src/Mira.Core/WhatsNew.json','utf8'))[0].version)")
+          node tools/discord/announce.mjs "$version" --dry-run
+  announce:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || format('v{0}', inputs.version) }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::notice::$TAG is not a version of Mira: nothing to announce."; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
+          if [ "$(jq -r '.draft or .prerelease' "$RUNNER_TEMP/release.json")" = true ]; then echo "::error::$TAG is not published."; exit 1; fi
+          {
+            echo "version=${TAG#v}"
+            echo "url=$(jq -r .html_url "$RUNNER_TEMP/release.json")"
+            echo "date=$(jq -r .published_at "$RUNNER_TEMP/release.json")"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.release.outputs.skip != 'true'
+        with:
+          ref: v${{ steps.release.outputs.version }}
+          persist-credentials: false
+      - name: Announce
+        if: steps.release.outputs.skip != 'true'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
+          RELEASE_DATE: ${{ steps.release.outputs.date }}
+          VERSION: ${{ steps.release.outputs.version }}
+          DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
+        # The script of the default branch, the words of the release's tag: a release made before this file existed
+        # (0.9.4) is announced too.
+        run: |
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git show "$GITHUB_SHA:tools/discord/announce.mjs" > "$RUNNER_TEMP/announce.mjs"
+          node "$RUNNER_TEMP/announce.mjs" "$VERSION" $DRY_RUN
