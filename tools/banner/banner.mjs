@@ -1,14 +1,14 @@
-// The banner at the head of a release's page, drawn from real captures of this version's Mira (Windows, Mac, web) and
+// The banner at the head of a release's page, drawn from real captures of this version's Mira (Windows, Mac, iPhone) and
 // from the English of its entry in WhatsNew.json; what it shows is planned by tools/banner/plan.mjs (scenes.json).
 // Two templates, chosen by the version:
 //   - changes (a patch, x.y.z with z > 0): the version, its summary, then a card per point of WhatsNew.json, cut from
 //     the screen it changed, what changed ringed (or the point's icon when it shows on no screen);
 //   - lineup (x.y.0): the version and its summary over a film's backdrop, in front of it Mira for Windows, Mira for Mac
-//     and Mira web on an iPhone, on the screens this version changed, what changed lit.
+//     and Mira for iPhone, on the screens this version changed, what changed lit.
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/banner/banner.mjs <x.y.z> <captures folder> <out.jpg> [template]
 // The folder (searched with its subfolders) holds the captures by name: windows-*.png (Mira.exe --readme-gallery),
-// mac-*.png (Mira --gallery), web-*.png (tools/gallery/web.mjs), the scenes of capture.mjs with their banner.json
-// and the films' backdrops, still-<name>.jpg. JPEG copies are taken as well.
+// mac-*.png (Mira --gallery), iphone-*.png (testGallery of MiraUITests) and the films' backdrops, still-<name>.jpg
+// (tools/banner/stills.mjs). JPEG copies are taken as well.
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -37,16 +37,11 @@ function size(file) {
   }
   throw new Error(`no size in ${file}`);
 }
-// The scenes of capture.mjs bring their focus, in CSS pixels of the page.
-const sceneFocus = Object.fromEntries(files.filter((f) => f.endsWith('/banner.json'))
-  .flatMap((f) => JSON.parse(readFileSync(f, 'utf8')))
-  .map((s) => [s.file.replace(/\.png$/, ''), s.focus ? [s.focus.x / s.width, s.focus.y / s.height, s.focus.width / s.width, s.focus.height / s.height] : null]));
 const shot = (name, focus = null) => {
   const file = named(name);
   if (!file) throw new Error(`no capture named ${name} in ${folder}`);
   const { w, h } = size(file);
-  const f = focus ?? sceneFocus[name] ?? null;
-  return { name, file: pathToFileURL(file).href, w, h, kind: platformOf(name) === 'web' ? (h > w ? 'phone' : 'screen') : platformOf(name), focus: f && [f[0] * w, f[1] * h, f[2] * w, f[3] * h] };
+  return { name, file: pathToFileURL(file).href, w, h, kind: platformOf(name) === 'iphone' ? 'phone' : platformOf(name), focus: focus && [focus[0] * w, focus[1] * h, focus[2] * w, focus[3] * h] };
 };
 
 // The version's own numbers (FNV-1a of « x.y.z »): the same version always picks the same film.
@@ -70,7 +65,7 @@ const icon = (name, cls = '') => {
     washed.has(name) ? `<path d="${path}" fill="currentColor" fill-opacity=".15" stroke="none"/>` : ''}<path d="${path}"${filled ? ' fill="currentColor" stroke="none"' : ''}/></svg>`;
 };
 const mark = `<svg viewBox="0 0 24 24" class="mark"><path fill="#f5f5f7" d="M12 1C3 1 1 3 1 12S3 23 12 23 23 21 23 12 21 1 12 1Z"/><path fill="none" stroke="#101013" stroke-width="2.65" stroke-linecap="round" stroke-linejoin="round" d="M6.3 16.5V10.6C6.3 6.3 12 6.3 12 10.6V15.6M12 10.6C12 6.3 17.7 6.3 17.7 10.6V16.5"/></svg>`;
-const platformName = { windows: 'Windows', mac: 'macOS', web: 'Mira web', iphone: 'iPhone', server: 'Jellyfin PC' };
+const platformName = { windows: 'Windows', mac: 'macOS', iphone: 'iPhone', server: 'Jellyfin PC' };
 const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // ——— The devices ———
@@ -121,7 +116,7 @@ figure { margin: 0; }
 .crop { position: relative; overflow: hidden; }
 .crop img { position: absolute; display: block; }
 .ring { position: absolute; border-radius: 12px; box-shadow: 0 0 0 1.5px rgba(255,255,255,0.85), 0 0 22px 2px rgba(255,255,255,0.15); }
-/* A recent iPhone around a whole screen of Mira web (402 × 874 points), as site/css/site.css draws it. */
+/* A recent iPhone around a whole screen of Mira for iPhone (402 × 874 points), as site/css/site.css draws it. */
 .phone { position: absolute; container-type: inline-size; border-radius: 17.6% / 8.39%;
   background: linear-gradient(145deg, #75777d, #2e2f33 16%, #1c1d20 50%, #2e2f33 84%, #66686e);
   box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.35), 0 0 0 0.5px #000, 0 30px 60px rgba(0,0,0,0.65), 0 10px 24px rgba(0,0,0,0.5); }

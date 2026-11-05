@@ -35,6 +35,15 @@
 
 Mira for iPhone is a native app with its own player (Picture in Picture, AirPlay), Watch together and, away from home, Built-in Tailscale, with no Tailscale app to install. It is installed with AltStore and your free Apple ID, and refreshed each week by the server PC ([guide, in French](docs/INSTALLATION-IOS.md)). Mira web, which Jellyfin served to phones until 0.9.3, has ended: on Android, there is no Mira for now.
 
+<table>
+  <tr>
+    <td width="25%"><img src="docs/screenshots/readme/iphone-home.jpg" alt="Home in Mira for iPhone, with Continue Watching" /></td>
+    <td width="25%"><img src="docs/screenshots/readme/iphone-film.jpg" alt="A film's page in Mira for iPhone" /></td>
+    <td width="25%"><img src="docs/screenshots/readme/iphone-series.jpg" alt="A series and its episodes in Mira for iPhone" /></td>
+    <td width="25%"><img src="docs/screenshots/readme/iphone-movies.jpg" alt="All films in Mira for iPhone" /></td>
+  </tr>
+</table>
+
 **Watch with someone who has no account.** Your party link, always the same, opens Mira for your friend on Windows, Mac or iPhone, with no account and no Tailscale, straight into your “Watch together” group. Each guest gets a device of their own, and when you take one back, they are out at once. It goes through Tailscale Funnel, which opens only Mira to the Internet, never the rest of Jellyfin (details, in French, in [SECURITY.md](SECURITY.md#liens-dinvités-inviter-par-lien)).
 
 ## On your computer

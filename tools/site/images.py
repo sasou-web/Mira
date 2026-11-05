@@ -1,5 +1,5 @@
 """Images of the showcase site (site/img) from the README's screenshots: WebP at three or four widths. The opening's still
-(site/img/film-still-*.webp, Piltover, given by ogsas) is the site's own: the README's film-still.jpg is left out; its
+(site/img/film-still-*.webp, Piltover, given by ogsas) is the site's own; its
 cinema-wide band (film-scope-*.webp, 2.39:1) is cut here from the widest one. Elsewhere: the share cards
 (tools/site/share.mjs), the party page (tools/site/party.mjs), the tour and its still of Spring (tools/site/tour.py).
 
@@ -11,10 +11,10 @@ from PIL import Image
 SOURCE = Path("docs/screenshots/readme")
 OUT = Path("site/img")
 # The captures the pages show. Mira for Windows goes edge to edge: up to the capture's own width (1440 points at twice
-# their pixels); Mira web is inside a phone.
-WINDOWS, WEB = (960, 1600, 2400, 2880), (390, 720, 1080)
+# their pixels); Mira for iPhone is inside a phone.
+WINDOWS, PHONE = (960, 1600, 2400, 2880), (390, 720, 1080)
 SHOWN = {"windows-home": WINDOWS, "windows-series": WINDOWS, "windows-subtitles": WINDOWS,
-         "web-home": WEB, "web-film": WEB, "web-films": WEB, "web-series": WEB}
+         "iphone-home": PHONE, "iphone-film": PHONE, "iphone-movies": PHONE, "iphone-series": PHONE, "iphone-together": PHONE}
 # The opening's band: the rows of film-still-2000.webp (2000 x 1125) kept at 2.39:1, the towers and the light of the sky.
 SCOPE = (150, 987)
 

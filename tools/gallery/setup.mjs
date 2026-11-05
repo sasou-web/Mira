@@ -1,6 +1,6 @@
 // A fresh Jellyfin ready for the README's captures, through its own API: first-run wizard in French, an account, the
 // Films and Séries libraries of tools/banner/media.sh scanned with their TMDb artwork, then a viewer's traces (titles
-// started, seen, favourites) for « Continuer à regarder », and Mira web installed from a repository when one is given.
+// started, seen, favourites) for « Continuer à regarder », and Mira's extension installed from a repository when one is given.
 //   node tools/gallery/setup.mjs <server> <media folder as the server sees it> <user> <password> [repository url]
 // MIRA_GALLERY_ARTWORK=0: no wait for TMDb's artwork (a machine without the Internet). MIRA_GALLERY_TRACES: a JSON file
 // of traces other than tools/banner/traces.json's.
@@ -109,6 +109,6 @@ if (repository) {
   await call('POST', `Packages/Installed/Mira?assemblyGuid=4ea89259-3350-45b0-8045-f1ab627214dd&repositoryUrl=${encodeURIComponent(repository)}`, { token });
   await call('POST', 'System/Restart', { token });
   await sleep(3000);
-  if (!await until('Mira web at /Mira', async () => (await fetch(`${base}/Mira/manifest.webmanifest`)).ok, 120)) process.exit(1);
-  console.log('Mira web installed from the repository and served at /Mira');
+  if (!await until("Mira's extension at /Mira", async () => (await fetch(`${base}/Mira/manifest.webmanifest`)).ok, 120)) process.exit(1);
+  console.log("Mira's extension installed from the repository, /Mira served");
 }

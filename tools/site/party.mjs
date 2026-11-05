@@ -1,6 +1,6 @@
-// The party page as a friend opens it on an iPhone (site/img/web-party-*.webp, a full screen like the README's captures):
+// The party page as a friend opens it on an iPhone (site/img/party-*.webp, a full screen like the README's captures):
 // src/Mira.Jellyfin/Pages/party.html filled the way the extension fills it (PartyPage.Render), with its own style and script, the
-// README's demo library, and the film's poster cut from Mira web's film page (docs/screenshots/readme/web-film.jpg).
+// README's demo library, and the film’s poster cut from the README’s old capture of its page (docs/screenshots/readme/web-film.jpg).
 // Needs Pillow (the same WebP as tools/site/images.py). Run from the repository's root after images.py:
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/site/party.mjs
 import { execFileSync } from 'node:child_process';
@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 
 const { chromium } = await import(process.env.PLAYWRIGHT ?? 'playwright');
 const origin = 'http://mira.test';
-// Spider-Man: Across the Spider-Verse, as Mira web's film page shows its poster: 2:3 from the top of the capture.
+// Spider-Man: Across the Spider-Verse, as the old capture of its page shows its poster: 2:3 from the top of the capture.
 const POSTER = [279, 0, 782, 1173];
 const html = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll('\'', '&#39;');
 
@@ -53,7 +53,7 @@ await page.goto(`${origin}/Mira/party/demo`, { waitUntil: 'networkidle' });
 await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(300);
 const scratch = mkdtempSync(join(tmpdir(), 'mira-party-'));
-const shot = join(scratch, 'web-party.png');
+const shot = join(scratch, 'party.png');
 writeFileSync(shot, await page.screenshot({ type: 'png' }));
 await browser.close();
 
@@ -63,7 +63,7 @@ from PIL import Image
 image = Image.open(sys.argv[1]).convert("RGB")
 for width in (390, 720, 1080):
     copy = image.resize((width, round(image.height * width / image.width)), Image.LANCZOS)
-    copy.save(f"site/img/web-party-{width}.webp", "WEBP", quality=80, method=6)
+    copy.save(f"site/img/party-{width}.webp", "WEBP", quality=80, method=6)
 `, shot], { stdio: 'inherit' });
 rmSync(scratch, { recursive: true, force: true });
-console.log('site/img/web-party-390.webp, 720 and 1080 written.');
+console.log('site/img/party-390.webp, 720 and 1080 written.');
