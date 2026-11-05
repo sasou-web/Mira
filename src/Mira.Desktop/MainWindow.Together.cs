@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
@@ -405,11 +406,18 @@ public partial class MainWindow
     private void ShowTogetherButton()
     {
         TogetherButton.Visibility = _demo ? Visibility.Collapsed : Visibility.Visible;
-        if (_group is not { } group) { SetActionLabel(TogetherButton, "users", L("Regarder ensemble", "Watch together")); ShowState(TogetherButton, false, L("Regarder ce titre au même moment que d’autres comptes de ce Jellyfin, chacun chez soi", "Watch this title at the same moment as other accounts on this Jellyfin, each at home")); return; }
-        // In a group: its count and a live dot, outlined as every button that is on.
+        if (_group is not { } group)
+        {
+            SetActionLabel(TogetherButton, "users", L("Regarder ensemble", "Watch together"));
+            TogetherButton.ToolTip = L("Regarder ce titre au même moment que d’autres comptes de ce Jellyfin, chacun chez soi", "Watch this title at the same moment as other accounts on this Jellyfin, each at home");
+            TogetherButton.ClearValue(AutomationProperties.NameProperty);
+            return;
+        }
+        // In a group: its count and a live dot; the Narrator says the group and what a click does.
         var label = ActionLabel("users", L("En groupe · ", "In a group · ") + Together.People(Math.Max(1, group.Participants.Count))); label.Children.Add(LiveDot());
         TogetherButton.Content = label;
-        ShowState(TogetherButton, true, L($"En groupe · {Together.GroupText(group)}. Clique pour inviter ou quitter le groupe", $"In a group · {Together.GroupText(group)}. Click to invite or leave the group"));
+        var tip = L($"En groupe · {Together.GroupText(group)}. Clique pour inviter ou quitter le groupe", $"In a group · {Together.GroupText(group)}. Click to invite or leave the group");
+        TogetherButton.ToolTip = tip; AutomationProperties.SetName(TogetherButton, tip);
     }
     private async void Together_Click(object sender, RoutedEventArgs e)
     {

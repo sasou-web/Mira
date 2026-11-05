@@ -24,6 +24,9 @@ struct TitleView: View {
     @State private var replacing: (item: Item, fromStart: Bool, current: String)?
     /// « Watch together » opened from « … ».
     @State private var showsTogether = false
+    /// How far the title was watched when Favorite or Watched was touched, until Play: a progress line that goes then
+    /// fades out keeping its room, so nothing under it moves (Watched takes it away).
+    @State private var held: HeldProgress?
     /// The round buttons beside Play, growing with the text.
     @ScaledMetric(relativeTo: .body) private var side: CGFloat = 48
 
@@ -139,13 +142,17 @@ struct TitleView: View {
                 Text(meta).font(MiraFont.subheadline).foregroundStyle(Palette.muted)
             }
             let progress = ItemText.progress(item)
-            if progress > 0 {
+            if progress > 0 || held != nil {
+                let shown = progress > 0 ? HeldProgress(value: progress, left: ItemText.remaining(item)) : held
                 HStack(spacing: 12) {
-                    ProgressLine(value: progress).frame(maxWidth: 160)
-                    if let left = ItemText.remaining(item) {
+                    ProgressLine(value: shown?.value ?? 0).frame(maxWidth: 160)
+                    if let left = shown?.left {
                         Text(left).font(MiraFont.footnote).foregroundStyle(Palette.muted)
                     }
                 }
+                .opacity(progress > 0 ? 1 : 0)
+                .animation(.easeOut(duration: 0.2), value: progress > 0)
+                .accessibilityHidden(progress == 0)
             }
         }
     }
@@ -154,8 +161,8 @@ struct TitleView: View {
     /// one row of what a title does. At the largest text sizes, Play alone on its line.
     @ViewBuilder private var actions: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { playButton.layoutPriority(1); TitleActions(item: $item); moreMenu }
-            VStack(alignment: .leading, spacing: 12) { playButton; HStack(spacing: 8) { TitleActions(item: $item); moreMenu } }
+            HStack(spacing: 8) { playButton.layoutPriority(1); TitleActions(item: $item, touching: hold); moreMenu }
+            VStack(alignment: .leading, spacing: 12) { playButton; HStack(spacing: 8) { TitleActions(item: $item, touching: hold); moreMenu } }
         }
         .confirmationDialog(Text("Watch together"), isPresented: Binding(get: { replacing != nil }, set: { if !$0 { replacing = nil } }), titleVisibility: .visible, presenting: replacing) { asked in
             Button("Replace for the group") {
@@ -320,7 +327,14 @@ struct TitleView: View {
     private var playable: Item? { item.isSeries ? next : item }
 
     /// Play: alone, or for the group this iPhone is in (its own title joined where it is; another one asked first).
+    /// Favorite or Watched touched: the progress line, if one is shown, keeps its room until Play.
+    private func hold() {
+        let progress = ItemText.progress(item)
+        if held == nil, progress > 0 { held = HeldProgress(value: progress, left: ItemText.remaining(item)) }
+    }
+
     private func start(_ playable: Item, fromStart: Bool) {
+        held = nil
         let together = app.together
         if together.group != nil, let queue = together.queue, queue.itemId == playable.id {
             joinGroupTitle()
@@ -472,4 +486,10 @@ private struct TrackLabel: View {
         .padding(.vertical, 6)
         .contentShape(.rect)
     }
+}
+
+/// The progress line of a title as it was when Favorite or Watched was touched.
+private struct HeldProgress {
+    let value: Double
+    let left: String?
 }

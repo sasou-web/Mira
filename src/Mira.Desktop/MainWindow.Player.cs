@@ -40,6 +40,8 @@ public partial class MainWindow
     {
         ClosePreview(); var asked = item; Task? darkening = null;
         if (_playBusy) return; _playBusy = true;
+        // Back from the player, the title's page is laid out afresh (« Depuis le début », the progress line).
+        _detailSettled = null;
         // Opening a stream can take a moment: say so right away instead of looking frozen.
         if (!_playing) Mouse.OverrideCursor = Cursors.AppStarting;
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is not null) _returnToDetail = _detail;

@@ -563,8 +563,8 @@ public partial class MainWindow
     {
         if (_demo) { _catalog.Resume = (_demoItems ?? []).Where(x => x.Progress > 0).ToList(); }
         RenderLibrary();
-        // Lecture's new words (« Revoir ») move the buttons after it: they slide there.
-        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { DetailActions.EaseNext(); RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0 || _saga is not null) RenderSimilar(); }
+        // Lecture's new words (« Revoir ») and the buttons' glyphs; nothing moves (_detailSettled).
+        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0 || _saga is not null) RenderSimilar(); }
     }
     private void ResumePrevious_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, -624, true);
     private void ResumeNext_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, 624, true);

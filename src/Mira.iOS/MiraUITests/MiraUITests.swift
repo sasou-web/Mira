@@ -43,12 +43,19 @@ final class MiraUITests: XCTestCase {
         closePlayer(app)
         XCTAssertTrue(waitForReport("/Stopped", item: Self.tearsOfSteel, timeout: 20), "Jellyfin never heard that playback stopped")
         XCTAssertTrue(app.buttons["title.play"].waitForExistence(timeout: 10), "Closing the player did not lead back to the title page")
-        // Favorite, then not: Jellyfin is told each time, and the page reads it back.
+        // Favorite, then not: Jellyfin is told each time, and the page reads it back. Only its glyph changes: the button
+        // keeps its size and Play its place.
         let favorite = app.buttons["title.favorite"]
         XCTAssertTrue(favorite.waitForExistence(timeout: 5), "The title page has no Favorite")
+        settle()
+        let (playFrame, favoriteFrame) = (app.buttons["title.play"].frame, favorite.frame)
         favorite.tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'title.favorite' AND label == 'In favorites'")).firstMatch.waitForExistence(timeout: 10),
                       "Favorite did not stick")
+        settle()
+        capture("04b-title-favorite")
+        XCTAssertEqual(favorite.frame, favoriteFrame, "Favorite changed its size or its place")
+        XCTAssertEqual(app.buttons["title.play"].frame, playFrame, "Favorite moved Play")
         favorite.tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'title.favorite' AND label == 'Favorite'")).firstMatch.waitForExistence(timeout: 10),
                       "Taking the title out of favorites did not stick")
