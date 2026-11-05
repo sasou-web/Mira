@@ -86,7 +86,7 @@ public static class JellyfinStartup
         if (!Path.IsPathFullyQualified(program) || program.Contains('"')) throw new ArgumentException("A full path to jellyfin.exe is expected.", nameof(program));
         string Allow(string protocol, int on, string from, string description) => $"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol={protocol} localport={on} " +
             $"remoteip={from} profile={Profiles(RuleProfiles)} program=\"{program}\" enable=yes description=\"{description}\"";
-        const string devices = "Mira web : Jellyfin pour tes appareils, chez toi et sur Tailscale.";
+        const string devices = "Mira : Jellyfin pour tes appareils, chez toi et sur Tailscale.";
         return
         [
             RemoveRule(rule),
