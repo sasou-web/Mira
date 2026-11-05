@@ -37,10 +37,13 @@ public sealed class MockJellyfin : HttpMessageHandler
     {
         _media = media; _short = shortMedia;
         object Person(string id, string name, string type, string role = "") => new { Id = id, Name = name, Type = type, Role = role };
+        // Jellyfin's BlurHash of each poster (samples of blurha.sh): the cards' soft placeholder until the poster comes.
+        string[] hashes = ["LEHV6nWB2yk8pyo0adR*.7kCMdnj", "LGF5]+Yk^6#M@-5c,1J5@[or[Q6.", "L6PZfSi_.AyE_3t7t7R**0o#DgR4", "LKN]Rv%2Tw=w]~RBVZRi};RPxuwH"];
+        object Blurs(string id) => new Dictionary<string, Dictionary<string, string>> { ["Primary"] = new() { ["p" + id] = hashes[Math.Abs(id.Sum(x => x)) % hashes.Length] } };
         object Movie(string id, string name, int year, double progress, string overview) => new
         {
             Id = id, Name = name, Type = "Movie", ProductionYear = year, RunTimeTicks = 30L * TimeSpan.TicksPerSecond, CommunityRating = 7.8,
-            Overview = overview, Genres = new[] { "Aventure", "Animation" }, ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + id },
+            Overview = overview, Genres = new[] { "Aventure", "Animation" }, ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + id }, ImageBlurHashes = Blurs(id),
             BackdropImageTags = new[] { "b" + id }, OfficialRating = "Tous publics", Taglines = id == "movie-1" ? new[] { "Quand le jour tombe, la forêt s’allume." } : [],
             People = new[] { Person("actor-1", "Jeanne Essai", "Actor", "Lina"), Person("actor-2", "Paul Témoin", "Actor", "Le passeur"), Person("director-1", "Réa Lisatrice", "Director") },
             UserData = new { PlaybackPositionTicks = (long)(progress * 30 * TimeSpan.TicksPerSecond), Played = false, IsFavorite = id == "movie-2", LastPlayedDate = progress > 0 ? DateTimeOffset.UtcNow.AddHours(-2) : (DateTimeOffset?)null }
@@ -54,7 +57,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         object Series(string id, string name, int seasons) => new
         {
             Id = id, Name = name, Type = "Series", ProductionYear = 2022, ChildCount = seasons, Overview = $"{name}, la série de démonstration du contrôle de Mira pour Mac.",
-            Genres = new[] { "Comédie" }, ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + id }, BackdropImageTags = new[] { "b" + id },
+            Genres = new[] { "Comédie" }, ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + id }, ImageBlurHashes = Blurs(id), BackdropImageTags = new[] { "b" + id },
             People = new[] { Person("actor-1", "Jeanne Essai", "Actor") }, UserData = new { PlaybackPositionTicks = 0L, Played = false, IsFavorite = false }
         };
         _series = [Series("series-1", "Petite série", 1), Series("series-2", "Longue série", 1)];
@@ -136,6 +139,7 @@ public sealed class MockJellyfin : HttpMessageHandler
                 TranscodingInfo = new { IsVideoDirect = false, IsAudioDirect = true, VideoCodec = "h264", AudioCodec = "aac", Bitrate = 4_000_000, TranscodeReasons = new[] { "ContainerBitrateExceedsLimit" }, HardwareAccelerationType = "videotoolbox" }
             }
         });
+        if (path.Contains("/Images/") || path == "Items") await Task.Delay(Slow, cancellationToken);
         if (path.Contains("/Images/")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(await ImageAsync(path)) };
         if (path == "UserItems/Resume") return Items(_movies.Where(x => Id(x) == "movie-1"));
         if (path == "Shows/NextUp") return Items(query["seriesId"] is { } series ? _episodes.GetValueOrDefault(series)?.Take(1) ?? [] : _episodes["series-1"].Take(1));
@@ -190,6 +194,8 @@ public sealed class MockJellyfin : HttpMessageHandler
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
+    /// <summary>The time the library's lists and pictures take: the cards' shapes and soft placeholders while they come.</summary>
+    public TimeSpan Slow { get; set; }
     /// <summary>The name of the collection « Ajouter à une collection » made.</summary>
     public string? CollectionMade { get; private set; }
     /// <summary>No stream for any title while true: the player's « Lecture impossible ».</summary>

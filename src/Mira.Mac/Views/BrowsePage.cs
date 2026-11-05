@@ -333,6 +333,8 @@ public sealed class BrowsePage : Page
         _request?.Cancel(); _request = new CancellationTokenSource();
         var ct = _request.Token; var version = ++_version;
         _loading = true;
+        // Nothing shown yet: the cards' shapes, as on Windows, until the titles come.
+        if (_items.Count == 0) _grid.Skeleton(2);
         try
         {
             // A refresh keeps every page already loaded, so the grid does not shrink back under the reader.
@@ -365,12 +367,14 @@ public sealed class BrowsePage : Page
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (Errors.Expected(ex)) { if (version == _version) Shell.Notice(Errors.Friendly(ex), L("Réessayer", "Try again"), () => _ = ReloadAsync()); }
-        finally { if (version == _version) _loading = false; }
+        finally { if (version == _version) { _loading = false; _grid.Skeleton(0); } }
     }
     private async Task MoreAsync()
     {
         if (_loading || _items.Count >= _total || Shell.Session is not { } session) return;
         _loading = true; var version = _version;
+        // A row of the cards' shapes under the last one while the next page comes, as on Windows.
+        _grid.Skeleton(1);
         try
         {
             var search = _search.Text?.Trim() ?? "";
@@ -383,8 +387,10 @@ public sealed class BrowsePage : Page
             Count();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { }
-        finally { if (version == _version) _loading = false; }
+        finally { if (version == _version) { _loading = false; _grid.Skeleton(0); } }
     }
+    /// <summary>The cards' shapes shown while titles come: for the self-check.</summary>
+    public int SkeletonCards => _grid.SkeletonCards;
     private void Count() => _count.Text = _total == 0 ? "" : Lang.Count(_total, "titre", "titres", "title", "titles");
     /// <summary>The people found, drawn again only when they change (their photos do not flash at each refresh).</summary>
     private void ShowPeople(List<MediaItem> people)
