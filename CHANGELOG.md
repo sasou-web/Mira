@@ -2,7 +2,7 @@
 
 ## Non publié
 
-- **Un wiki pour Mira, wiki.miracinema.app** : les guides d’installation (Windows, Mac avec Homebrew, iPhone avec AltStore), la préparation de Jellyfin, la connexion, Tailscale hors de chez soi, la bibliothèque, le lecteur, l’audio et les sous-titres, Regarder ensemble et la party, la carte des réglages, la vie privée, le dépannage et les questions, en anglais et en français, avec une recherche dans la page. Pages statiques faites depuis `wiki/` par `tools/site/wiki.mjs`, sans dépendance ni rien chargé ailleurs, publiées par `site.yml` vers le dépôt `sasou-web/mira-wiki`.
+- **Un wiki pour Mira, miracinema.app/wiki** : les guides d’installation (Windows, Mac avec Homebrew, iPhone avec AltStore), la préparation de Jellyfin, la connexion, Tailscale hors de chez soi, la bibliothèque, le lecteur, l’audio et les sous-titres, Regarder ensemble et la party, la carte des réglages, la vie privée, le dépannage et les questions, en anglais et en français, avec une recherche dans la page. Pages statiques faites depuis `wiki/` par `tools/site/wiki.mjs`, sans dépendance ni rien chargé ailleurs, publiées avec le site par `site.yml`.
 - **Chaque release annoncée sur Discord** : à la publication, le salon #releases du Discord de Mira reçoit un message avec la bannière de la version, son résumé et ses points en anglais (ceux de la page de release) et le lien de téléchargement, au lieu du seul lien de GitHub (`discord.yml`, `tools/discord/announce.mjs`, webhook dans le secret `DISCORD_RELEASES_WEBHOOK`). Seul ce texte public part vers Discord, depuis GitHub Actions.
 
 ## 0.9.4 — 2026-11-05

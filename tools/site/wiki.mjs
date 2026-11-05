@@ -10,7 +10,8 @@ import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const languages = ['en', 'fr'];
-export const origin = 'https://wiki.miracinema.app';
+// Served by the showcase site's own GitHub Pages, under /wiki/: no repository, key or DNS of its own.
+export const origin = 'https://miracinema.app/wiki';
 const site = 'https://miracinema.app';
 const repository = 'https://github.com/sasou-web/Mira';
 
@@ -298,35 +299,6 @@ ${body}
 `;
 }
 
-// GitHub Pages' page for an address that leads nowhere: served at any depth, so its links start at the root.
-const lost = () => `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="referrer" content="no-referrer">
-  <meta name="robots" content="noindex">
-  <title>Page not found · Mira wiki</title>
-  <meta name="theme-color" content="#000000">
-  <link rel="icon" href="/img/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/wiki.css">
-</head>
-<body>
-  <main class="lost">
-    <img src="/img/mark.svg" alt="" width="56" height="56">
-    <p class="code num">404</p>
-    <h1>This page isn’t in the wiki.</h1>
-    <p lang="fr">Cette page n’est pas dans le wiki.</p>
-    <div class="actions">
-      <a class="btn primary" href="/">Wiki home</a>
-      <a class="btn quiet" href="/fr/" lang="fr">Accueil du wiki</a>
-    </div>
-  </main>
-</body>
-</html>
-`;
-
 export function buildWiki(out, version, source = 'wiki') {
   const nav = JSON.parse(readFileSync(join(source, 'nav.json'), 'utf8'));
   const slugs = nav.flatMap(group => group.pages);
@@ -403,18 +375,14 @@ export function buildWiki(out, version, source = 'wiki') {
 ${urls.map(url => `  <url><loc>${url}</loc></url>`).join('\n')}
 </urlset>
 `);
-  writeFileSync(join(out, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`);
-  // GitHub Pages: the custom domain, and no Jekyll (it would hide nothing here, but costs a build).
-  writeFileSync(join(out, 'CNAME'), `${new URL(origin).host}\n`);
-  writeFileSync(join(out, '.nojekyll'), '');
-  writeFileSync(join(out, '404.html'), lost());
+  // robots.txt, the 404 page and the domain are the site's (site/robots.txt names this sitemap too).
   return urls.length;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [version, out = 'dist/wiki'] = process.argv.slice(2);
+  const [version, out = 'dist/site/wiki'] = process.argv.slice(2);
   if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) {
-    console.error('Usage: node tools/site/wiki.mjs <x.y.z> [out]');
+    console.error('Usage: node tools/site/wiki.mjs <x.y.z> [out=dist/site/wiki]');
     process.exit(1);
   }
   console.log(`${out}: ${buildWiki(out, version)} pages`);

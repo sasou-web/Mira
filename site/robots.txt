@@ -1,3 +1,4 @@
 User-agent: *
 Allow: /
 Sitemap: https://miracinema.app/sitemap.xml
+Sitemap: https://miracinema.app/wiki/sitemap.xml
