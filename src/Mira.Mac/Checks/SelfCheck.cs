@@ -289,8 +289,20 @@ public static class SelfCheck
                 var before = player.Position;
                 Key(window, Avalonia.Input.Key.Right);
                 Check(await Until(() => player.Position >= before + 8, 6), $"avance de 10 s ({renderer})", $"{before:0.0} → {player.Position:0.0}");
+                Check(player.SeekPillText == "+10 s", $"lecteur : « +10 s » au milieu de l’image ({renderer})", player.SeekPillText ?? "rien");
                 if (!software)
                 {
+                    // The keys of Windows: ⇧← a minute back (to the start of this short film), 5 the middle of the title,
+                    // Space held (the Mac repeating it) a single pause.
+                    Key(window, Avalonia.Input.Key.Left, KeyModifiers.Shift);
+                    Check(await Until(() => player.Position < 1.5, 6) && player.SeekPillText == "−60 s", "lecteur : ⇧← recule d’une minute", $"{player.Position:0.0}, « {player.SeekPillText} »");
+                    Key(window, Avalonia.Input.Key.D5);
+                    Check(await Until(() => Math.Abs(player.Position - player.Duration / 2) < 2, 6) && player.SeekPillText == "50 %", "lecteur : 5 va à la moitié du titre", $"{player.Position:0.0} sur {player.Duration:0.0}, « {player.SeekPillText} »");
+                    Key(window, Avalonia.Input.Key.Space, presses: 4);
+                    await Task.Delay(500);
+                    var paused = engine.Flag("pause");
+                    Key(window, Avalonia.Input.Key.Space);
+                    Check(paused && await Until(() => !engine.Flag("pause"), 3), "lecteur : Espace tenu ne met en pause qu’une fois");
                     // Two fingers sideways over the picture: about 6 s on, the bar at once, the film when the fingers rest.
                     var from = player.Position;
                     Swipe(player, new Point(player.Bounds.Width / 2, player.Bounds.Height / 2), .15, 0, 20);
@@ -382,6 +394,30 @@ public static class SelfCheck
                 var stop = mock.Reports.LastOrDefault(x => x.Kind == "stop").Body;
                 Check(kinds.Contains("start") && kinds.Contains("stop") && stop.ValueKind != System.Text.Json.JsonValueKind.Undefined && stop.GetProperty("PositionTicks").GetInt64() > 0 && stop.GetProperty("VolumeLevel").GetInt32() == 100,
                     "rapports envoyés à Jellyfin", $"{string.Join(", ", kinds.Distinct())} ; volume signalé {(stop.ValueKind == System.Text.Json.JsonValueKind.Undefined ? "?" : stop.GetProperty("VolumeLevel").ToString())}");
+            }
+
+            // —— « Lecture impossible », as on Windows: its screen, another try in the same player, Échap back to the library ——
+            if (mock is not null)
+            {
+                mock.RefusePlayback = true;
+                await window.PlayAsync(movie, fromStart: true);
+                var failing = window.Player;
+                var failureShown = await Until(() => failing?.FailureShown == true, 15);
+                await Task.Delay(500); Capture(window, output, "08h-player-failure");
+                var unnamedFailure = Unnamed(window);
+                Check(failureShown && unnamedFailure.Count == 0, "lecture impossible : son écran, comme sous Windows", (failing?.FailureText ?? window.NoticeText ?? "lecteur fermé") + (unnamedFailure.Count > 0 ? " — sans nom : " + string.Join(", ", unnamedFailure.Take(4)) : ""));
+                mock.RefusePlayback = false;
+                failing?.RetryForCheck();
+                Check(await Until(() => failing is { FailureShown: false, IsFileLoaded: true } && window.Player == failing, 30), "lecture impossible : « Réessayer » relance le titre", failing?.FailureText ?? window.NoticeText ?? "");
+                await window.StopPlaybackAsync();
+                mock.RefusePlayback = true;
+                await window.PlayAsync(movie, fromStart: true);
+                var refused = window.Player;
+                var refusedShown = await Until(() => refused?.FailureShown == true, 15);
+                Key(window, Avalonia.Input.Key.Escape);
+                Check(refusedShown && await Until(() => window.Player is null, 5), "lecture impossible : Échap revient à la bibliothèque", window.Player is null ? window.Current?.GetType().Name ?? "" : "lecteur encore là");
+                mock.RefusePlayback = false;
+                await window.StopPlaybackAsync();
             }
 
             // —— Next episode at the end of one ——
@@ -566,7 +602,13 @@ public static class SelfCheck
         while (DateTime.UtcNow < end) { if (condition()) return true; await Task.Delay(100); }
         return condition();
     }
-    private static void Key(MainWindow window, Key key) => window.Player?.HandleKey(new KeyEventArgs { Key = key, RoutedEvent = InputElement.KeyDownEvent });
+    /// <summary>A key pressed <paramref name="presses"/> times before its release: more than once is a key held, the Mac repeating it.</summary>
+    private static void Key(MainWindow window, Key key, KeyModifiers modifiers = KeyModifiers.None, int presses = 1)
+    {
+        var player = window.Player;
+        for (var i = 0; i < presses; i++) player?.HandleKey(new KeyEventArgs { Key = key, KeyModifiers = modifiers, RoutedEvent = InputElement.KeyDownEvent });
+        player?.HandleKeyUp(new KeyEventArgs { Key = key, KeyModifiers = modifiers, RoutedEvent = InputElement.KeyUpEvent });
+    }
 
     /// <summary>The window as Avalonia draws it (without mpv's picture, which only reaches the screen).</summary>
     internal static void CaptureWindow(Window window, string output, string name)
@@ -593,7 +635,7 @@ public static class SelfCheck
             if (!string.IsNullOrWhiteSpace(name) && !(control is ContentControl { Content: { } content and not string } && name == content.ToString())) continue;
             var text = control.GetVisualDescendants().OfType<TextBlock>().Select(x => x.Text).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
             var icon = control.GetVisualDescendants().OfType<Icon>().Select(x => x.Kind).FirstOrDefault();
-            unnamed.Add($"{control.GetType().Name}{(text is not null ? $" « {text} »" : icon is not null ? $" ({icon})" : "")}");
+            unnamed.Add($"{control.GetType().Name}{(text is not null ? $" « {text} »" : icon is not null ? $" ({icon})" : $" dans {string.Join(" < ", control.GetVisualAncestors().Take(3).Select(x => x.GetType().Name))}")}");
         }
         return unnamed;
     }

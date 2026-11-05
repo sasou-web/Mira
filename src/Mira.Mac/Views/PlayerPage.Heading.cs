@@ -11,12 +11,14 @@ public sealed partial class PlayerPage
 {
     private Button Heading(TextBlock text, bool episodeLine)
     {
-        var button = new Button { Content = text, Classes = { "heading" } };
-        // VoiceOver reads a button by its content only when it is a string: named after the text it shows.
+        var button = new Button { Content = text, Classes = { "heading" }, IsVisible = !string.IsNullOrEmpty(text.Text) };
+        // VoiceOver reads a button by its content only when it is a string: named after the text it shows. Without one
+        // (a film without a line under its title, a title not loaded yet), no button for Tab to stop on.
         text.PropertyChanged += (_, e) =>
         {
             if (e.Property != TextBlock.TextProperty) return;
             AutomationProperties.SetName(button, text.Text ?? "");
+            button.IsVisible = !string.IsNullOrEmpty(text.Text);
             var episode = _session.Item is { Type: "Episode", SeriesId: not null };
             ToolTip.SetTip(button, !episode ? L("Voir la fiche", "View details") : episodeLine ? L("Voir l’épisode dans sa saison", "View the episode in its season") : L("Voir la série", "View show"));
         };

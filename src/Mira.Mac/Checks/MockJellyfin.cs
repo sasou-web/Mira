@@ -119,6 +119,8 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path.EndsWith("/Similar")) return Items(_movies.Where(x => !path.Contains(Id(x))));
         if (path.EndsWith("/PlaybackInfo"))
         {
+            // « Lecture impossible »: a title Jellyfin has no stream for.
+            if (RefusePlayback) return Json(new { PlaySessionId = "refused", MediaSources = Array.Empty<object>() });
             var id = path.Split('/')[1];
             var file = id.StartsWith("series") ? _short : _media;
             return Json(new { PlaySessionId = "session-" + id, MediaSources = new[] { new { Id = "source-" + id, Protocol = "File", Path = file, MediaStreams = Array.Empty<object>() } } });
@@ -157,6 +159,8 @@ public sealed class MockJellyfin : HttpMessageHandler
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
+    /// <summary>No stream for any title while true: the player's « Lecture impossible ».</summary>
+    public bool RefusePlayback { get; set; }
     /// <summary>The policy « Ajouter un ami » sent for the friend's account.</summary>
     public string? FriendPolicy { get; private set; }
     private async Task<HttpResponseMessage> RelayAsync(HttpRequestMessage request, string path, CancellationToken ct)

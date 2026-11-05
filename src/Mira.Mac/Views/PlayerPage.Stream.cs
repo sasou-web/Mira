@@ -212,13 +212,7 @@ public sealed partial class PlayerPage
         try { return await client.PingAsync(); }
         catch (Exception ex) when (Errors.Expected(ex) || ex is ObjectDisposedException) { return false; }
     }
-    private async Task GiveUpStreamAsync()
-    {
-        var item = _session.Item;
-        await StopAsync();
-        await _shell.CloseOverlayPlayerAsync(this);
-        _shell.Notice(StreamRecovery.StuckText, item is null ? null : L("Réessayer", "Try again"), item is null ? null : () => _ = _shell.PlayAsync(item), sticky: true);
-    }
+    private Task GiveUpStreamAsync() => FailAsync(StreamRecovery.StuckText, _session.Item);
 
     /// <summary>mpv waiting for data (a slow connection, a seek far ahead): the spinner after a second, as at the opening.</summary>
     private void ShowBuffering(MpvPlayer mpv)

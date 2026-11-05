@@ -146,6 +146,9 @@ public sealed partial class MainWindow : Window
         // The mini-player takes its keys only when it has the focus: the library around it keeps its own.
         // A sheet over the window has the keys first: Escape closes it, nothing reaches the page or the player under it.
         AddHandler(KeyDownEvent, (_, e) => { if (CurrentSheet is { } sheet) { if (e.Key == Key.Escape) { CloseSheet(sheet); e.Handled = true; } return; } if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // Its releases always: a key held is read once where acting again would undo it (PlayerPage.Keys.cs).
+        AddHandler(KeyUpEvent, (_, e) => Player?.HandleKeyUp(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        Deactivated += (_, _) => Player?.ForgetHeldKeys();
         KeyDown += OnKeyDown;
         PointerPressed += (_, e) => { var buttons = e.GetCurrentPoint(this).Properties; if (buttons.IsXButton1Pressed) Back(); else if (buttons.IsXButton2Pressed) Forward(); };
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
@@ -756,10 +759,12 @@ public sealed partial class MainWindow : Window
     /// </summary>
     public void Say(Exception error)
     {
-        if (error is HttpRequestException or OperationCanceledException or TimeoutException) _unanswered = true;
+        NotAnswered(error);
         if (Tailnet.Says(Session?.Connection.Server, error) is { } said) Notice(said.Text, said.Action, said.Act, sticky: said.Action is not null);
         else Notice(Errors.Friendly(error), tone: NoticeTone.Error);
     }
+    /// <summary>Jellyfin did not answer: the page reloads once « Tailscale intégré » joins (TailnetJoined).</summary>
+    internal void NotAnswered(Exception error) { if (error is HttpRequestException or OperationCanceledException or TimeoutException) _unanswered = true; }
     /// <summary>« Tailscale intégré » joined the tailnet (started, back from no network): the page Jellyfin did not answer loads again.</summary>
     public void TailnetJoined()
     {
