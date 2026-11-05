@@ -182,7 +182,7 @@ public sealed partial class MainWindow
         _partyGuest = guest; Session = session;
         // Nothing of the library under the party: a page left open would ask the guest's Jellyfin for what it never gives.
         _rail.IsVisible = false; _railButtons["downloads"].IsVisible = false;
-        _history.Clear(); _forward.Clear(); _host.Content = null;
+        _history.Clear(); _forward.Clear(); Host(null);
         if (Login is { } login) _overlay.Children.Remove(login);
         _avatar.Text = guest.Connection.UserName[..1].ToUpperInvariant(); SetPhoto(null);
         void Listening(bool open) => Dispatcher.UIThread.Post(() =>

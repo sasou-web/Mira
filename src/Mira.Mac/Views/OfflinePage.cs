@@ -29,7 +29,8 @@ public sealed class OfflinePage : Page
         Content = new ScrollViewer { Content = page };
         void Updated() => Render();
         void Progressed() => _summary.Text = Shell.OfflineSummary();
-        AttachedToVisualTree += (_, _) => { Shell.OfflineUpdated += Updated; Shell.OfflineProgressed += Progressed; Render(); };
+        AttachedToVisualTree += (_, _) => { Shell.OfflineUpdated += Updated; Shell.OfflineProgressed += Progressed; };
+        Showing += shown => { if (shown) Render(); };
         DetachedFromVisualTree += (_, _) => { Shell.OfflineUpdated -= Updated; Shell.OfflineProgressed -= Progressed; };
     }
     public override Task RefreshAsync() { _shown = ""; Render(); return Task.CompletedTask; }

@@ -48,7 +48,9 @@ public sealed class Images
     private Task<Bitmap?> Get(ImageRef image, int width)
     {
         var key = $"{image.ItemId}-{image.Type}-{image.Tag}-{width}";
-        return _memory.Get(key, () => FetchAsync(key, image, width));
+        // All of it away from the interface's thread, the disk's copy included (its name, its reading): a page that
+        // comes in asks for dozens at once.
+        return _memory.Get(key, () => Task.Run(() => FetchAsync(key, image, width)));
     }
     private async Task<Bitmap?> FetchAsync(string key, ImageRef image, int width)
     {
@@ -68,7 +70,7 @@ public sealed class Images
                 try { await File.WriteAllBytesAsync(temporary, bytes); File.Move(temporary, file, true); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { try { File.Delete(temporary); } catch (Exception again) when (again is IOException or UnauthorizedAccessException) { } }
             }
-            return await Task.Run(() => Decode(bytes, width));
+            return Decode(bytes, width);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or TaskCanceledException) { return null; }
     }

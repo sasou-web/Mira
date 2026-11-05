@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Mac.Services;
 using static Mira.Core.Lang;
@@ -51,7 +50,7 @@ public sealed class HomePage : Page
         _hero.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#00070708", 0.45), ("#C0070708", 0.82), ("#FF070708", 1)) });
         _hero.Children.Add(_heroText); _hero.Children.Add(_heroSide); _hero.Children.Add(_dots);
         _hero.PointerEntered += (_, _) => _rotate.Stop();
-        _hero.PointerExited += (_, _) => { if (_heroItems.Count > 1) _rotate.Start(); };
+        _hero.PointerExited += (_, _) => { if (_heroItems.Count > 1 && IsShowing) _rotate.Start(); };
         _rotate.Tick += (_, _) => ShowHero(_heroIndex + 1);
         _groupJoin = Ui.Action(L("Rejoindre", "Join"), null, "primary", () => _ = JoinGroupAsync());
         _groupJoin.Margin = new Thickness(18, 0, 0, 0);
@@ -72,8 +71,8 @@ public sealed class HomePage : Page
         _scroll = new ScrollViewer { Content = page };
         Content = _scroll;
         SizeChanged += (_, e) => _hero.Height = Math.Clamp(e.NewSize.Height * 0.7, 440, 760);
-        DetachedFromVisualTree += (_, _) => _rotate.Stop();
-        AttachedToVisualTree += (_, _) => { if (_heroItems.Count > 1) _rotate.Start(); };
+        // The banner turns only while Accueil shows (kept hidden behind another page, it waits).
+        Showing += shown => { if (!shown) _rotate.Stop(); else if (_heroItems.Count > 1) _rotate.Start(); };
     }
     private static LinearGradientBrush Gradient(double x1, double y1, double x2, double y2, params (string Color, double Offset)[] stops)
     {
@@ -132,11 +131,21 @@ public sealed class HomePage : Page
         try { return await load(); } catch (Exception ex) when (Errors.Expected(ex)) { return null; }
     }
 
+    /// <summary>
+    /// The rows drawn, by what they show: a refresh that brings the same (Accueil come back to, Jellyfin's answer after
+    /// the last known home) keeps them as they are, cards and pictures, instead of drawing the page again whole.
+    /// </summary>
+    private Dictionary<string, Control> _drawn = [];
     private void Render(Session session, List<MediaItem> resume, List<MediaItem> latest, List<MediaItem> favorites, List<LibrarySection> libraries, Dictionary<string, List<MediaItem>> shelves)
     {
         Continue = resume; Latest = latest;
-        _rows.Children.Clear();
+        var rows = new List<Control>(); var drawn = new Dictionary<string, Control>();
         Control Poster(MediaItem x) => Sized(Cards.Poster(x, session.Images, Shell.Open, Shell.Menu));
+        void Add(string key, Func<Control> make)
+        {
+            if (!_drawn.TryGetValue(key, out var control) || !drawn.TryAdd(key, control)) drawn[key] = control = make();
+            rows.Add(control);
+        }
         foreach (var row in HomeLayout.Rows(Shell.Settings.HomeRows, libraries).Where(x => x.Shown))
         {
             var items = row.Key switch
@@ -149,9 +158,13 @@ public sealed class HomePage : Page
             };
             // « Ajoutés récemment » is the grid under the rows, as on Windows: it goes on with « Afficher plus ».
             if (items.Count == 0 || row.Key == HomeLayout.Latest) continue;
-            _rows.Children.Add(new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu)) : items.Select(Poster)));
+            Add(row.Key + "|" + row.Title + "|" + string.Join('\n', items.Select(Cards.Key)),
+                () => new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu)) : items.Select(Poster)));
         }
-        if (latest.Count > 0 && HomeLayout.Rows(Shell.Settings.HomeRows, libraries).Any(x => x.Key == HomeLayout.Latest && x.Shown)) _rows.Children.Add(LatestGrid(session, latest));
+        if (latest.Count > 0 && HomeLayout.Rows(Shell.Settings.HomeRows, libraries).Any(x => x.Key == HomeLayout.Latest && x.Shown))
+            Add("latest|" + string.Join('\n', latest.Select(Cards.Key)), () => LatestGrid(session, latest));
+        _drawn = drawn;
+        Ui.Place(_rows, rows);
         if (resume.Count == 0 && latest.Count == 0 && favorites.Count == 0 && shelves.Values.All(x => x.Count == 0))
             _empty.Show("folder", L("Ta bibliothèque est vide", "Your library is empty"), L("Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici.", "Put your movies and shows in Jellyfin’s folders: they’ll show up here."),
                 L("Actualiser", "Refresh"), () => _ = Shell.RefreshPagesAsync());
@@ -160,7 +173,7 @@ public sealed class HomePage : Page
         var heroes = resume.Take(2).Concat(latest.Where(x => x.BackdropImageTags.Length > 0)).DistinctBy(x => ContinueWatching.Group(x)).Take(5).ToList();
         if (heroes.Select(x => x.Id).SequenceEqual(_heroItems.Select(x => x.Id)) && heroes.Count > 0) { _heroItems = heroes; ShowHero(_heroIndex, animate: false); return; }
         _heroItems = heroes; ShowHero(0);
-        _rotate.Stop(); if (heroes.Count > 1 && IsAttachedToVisualTree()) _rotate.Start();
+        _rotate.Stop(); if (heroes.Count > 1 && IsShowing) _rotate.Start();
     }
     /// <summary>The latest titles in a grid of posters, 30 more at each « Afficher plus de titres » while Jellyfin has more.</summary>
     private Control LatestGrid(Session session, List<MediaItem> latest)
@@ -201,7 +214,6 @@ public sealed class HomePage : Page
     /// <summary>Down to the grid (the self-check's capture).</summary>
     public void ScrollToEnd() => _scroll.ScrollToEnd();
     public void ScrollToHome() => _scroll.ScrollToHome();
-    private bool IsAttachedToVisualTree() => this.GetVisualRoot() is not null;
 
     private async Task LoadGroupsAsync(Session session)
     {

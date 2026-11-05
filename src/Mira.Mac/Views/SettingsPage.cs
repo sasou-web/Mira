@@ -193,7 +193,9 @@ public sealed partial class SettingsPage : Page
                 var from = WatchReport.Start(DateTimeOffset.Now, year);
                 var (played, series) = await session.Client.PlayedSinceAsync(from, session.Lifetime);
                 if (mine != version) return;
-                var report = WatchReport.Build(played, series, from);
+                // A year of titles is sorted out away from the interface's thread, while Réglages comes in.
+                var report = await Task.Run(() => WatchReport.Build(played, series, from));
+                if (mine != version) return;
                 if (report.Empty) { counts.Text = L($"Aucun film ni épisode terminé {period} pour l’instant.", $"No movie or episode finished {period} yet."); return; }
                 time.Text = WatchReport.Time(report.Minutes); time.IsVisible = true;
                 counts.Text = L($"devant l’écran {period}", $"spent watching {period}") + " · " + string.Join(" · ", new[] { report.Films > 0 ? Count(report.Films, "film", "films", "movie", "movies") : null, report.Episodes > 0 ? Count(report.Episodes, "épisode", "épisodes", "episode", "episodes") : null }.OfType<string>());
