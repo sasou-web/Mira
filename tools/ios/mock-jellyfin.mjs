@@ -30,6 +30,10 @@ const reports = [];
 
 const port = Number(process.argv[2] ?? 18097);
 const TOKEN = 'mock-token';
+// A friend's party on this Jellyfin (Mira's extension): its link's code, and the session of the guest it opens.
+const PARTY = 'dafty-party-link-00001';
+const GUEST_TOKEN = 'mock-guest-token', GUEST_ID = 'c0ffee00c0ffee00c0ffee00c0ffee00';
+let guestName = '';
 const SERVER_ID = 'b6c2f1a0d4e94c0a9f3e2d1c0b9a8f7e';
 const tick = 10_000_000;
 const minutes = (m) => m * 60 * tick;
@@ -164,8 +168,8 @@ function command(name, ticks, delay = 0) {
   broadcast({ MessageType: 'SyncPlayCommand', Data: { GroupId: group.GroupId, PlaylistItemId: queue?.PlaylistItemId ?? '', When: jellyfinDate(Date.now() + delay), PositionTicks: ticks, Command: name, EmittedAt: jellyfinDate(Date.now()) } });
 }
 function state(name) { group.State = name; groupUpdate('StateUpdate', { State: name, Reason: 'Mock' }); }
-function syncPlay(what, body) {
-  syncLog.push({ what, body });
+function syncPlay(what, body, logged = what) {
+  syncLog.push({ what: logged, body });
   switch (what) {
     case 'New':
       group = { GroupId: randomUUID().replaceAll('-', ''), GroupName: body.GroupName, State: 'Idle', Participants: ['ogsas'], LastUpdatedAt: jellyfinDate(Date.now()) };
@@ -196,9 +200,24 @@ function syncPlay(what, body) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  const path = url.pathname, q = url.searchParams;
+  // The gateway of a friend's party's guests: Jellyfin's paths under /Mira/guest, with the guest's token.
+  const guest = url.pathname.startsWith('/Mira/guest/');
+  const path = guest ? url.pathname.slice('/Mira/guest'.length) : url.pathname, q = url.searchParams;
   let raw = ''; for await (const part of req) raw += part;
   console.log(req.method, req.url);
+  if (url.pathname === `/Mira/party/${PARTY}`) return send(res, 200, { host: 'Dafty' });
+  if (url.pathname === '/Mira/guest/open' && req.method === 'POST') {
+    const body = JSON.parse(raw || '{}');
+    if (body.party !== PARTY || !/^[A-Za-z0-9_-]{16,64}$/.test(body.device ?? '')) return send(res, 404, { error: 'This party link no longer exists.' });
+    guestName = body.guest || 'Guest';
+    return send(res, 200, { token: GUEST_TOKEN, userId: GUEST_ID, userName: guestName, serverId: SERVER_ID, host: 'Dafty' });
+  }
+  // The host, Dafty, opens their group (the test says when).
+  if (path === '/Mock/PartyGroup' && req.method === 'POST') {
+    group = { GroupId: randomUUID().replaceAll('-', ''), GroupName: "Dafty's group", State: 'Idle', Participants: ['Dafty'], LastUpdatedAt: jellyfinDate(Date.now()) };
+    queue = null;
+    return send(res, 204, undefined);
+  }
   if (path === '/System/Info/Public') return send(res, 200, { LocalAddress: `http://127.0.0.1:${port}`, ServerName: 'Maison', Version: '12.1.0', ProductName: 'Jellyfin Server', Id: SERVER_ID, StartupWizardCompleted: true });
   if (path === '/Mock/Reports') return send(res, 200, reports);
   if (path === '/Mock/SyncPlay') return send(res, 200, { group, queue, requests: syncLog });
@@ -244,13 +263,17 @@ const server = http.createServer(async (req, res) => {
     if (body.Pw !== 'mira') return send(res, 401, undefined);
     return send(res, 200, { User: { Id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f', Name: body.Username, ServerId: SERVER_ID }, AccessToken: TOKEN, ServerId: SERVER_ID });
   }
-  if (!(req.headers.authorization ?? '').includes(`Token="${TOKEN}"`)) return send(res, 401, undefined);
-  if (path === '/Sessions/Logout') return send(res, 204, undefined);
+  if (!(req.headers.authorization ?? '').includes(`Token="${guest ? GUEST_TOKEN : TOKEN}"`)) return send(res, 401, undefined);
+  if (path === '/Sessions/Logout') { if (guest) syncLog.push({ what: 'GuestLogout', body: {} }); return send(res, 204, undefined); }
   if (path === '/Sessions/Capabilities') return send(res, 204, undefined);
   if (path === '/GetUtcTime') { const now = jellyfinDate(Date.now()); return send(res, 200, { RequestReceptionTime: now, ResponseTransmissionTime: now }); }
   if (path === '/SyncPlay/List') return send(res, 200, group ? [group] : []);
   const sync = /^\/SyncPlay\/(\w+)$/.exec(path);
-  if (sync && req.method === 'POST') { syncPlay(sync[1], JSON.parse(raw || '{}')); return send(res, 204, undefined); }
+  if (sync && req.method === 'POST') {
+    if (guest && sync[1] === 'Join' && group && !group.Participants.includes(guestName)) group.Participants.push(guestName);
+    syncPlay(sync[1], JSON.parse(raw || '{}'), guest ? 'Guest' + sync[1] : sync[1]);
+    return send(res, 204, undefined);
+  }
   if (path === '/UserItems/Resume') return send(res, 200, list([episodes[1], films[0]]));
   if (path === '/Shows/NextUp') return send(res, 200, list([q.get('seriesId') ? episodes[1] : episodes[2]]));
   if (path === `/Shows/${SERIES}/Seasons`) return send(res, 200, list([{ Id: SEASON, Name: 'Season 1', Type: 'Season', IndexNumber: 1, SeriesId: SERIES }]));
@@ -324,7 +347,8 @@ const server = http.createServer(async (req, res) => {
 server.on('upgrade', (req, socket) => {
   const url = new URL(req.url, 'http://localhost');
   const key = req.headers['sec-websocket-key'];
-  if (url.pathname !== '/socket' || !key || !(req.headers.authorization ?? '').includes(`Token="${TOKEN}"`)) { socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n'); return; }
+  const guest = url.pathname === '/Mira/guest/socket';
+  if ((url.pathname !== '/socket' && !guest) || !key || !(req.headers.authorization ?? '').includes(`Token="${guest ? GUEST_TOKEN : TOKEN}"`)) { socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n'); return; }
   const accept = createHash('sha1').update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
   socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
   sockets.add(socket);

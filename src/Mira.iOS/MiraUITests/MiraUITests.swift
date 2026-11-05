@@ -318,6 +318,39 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/Stopped", item: Self.sintel, timeout: 20), "Closing the bar did not stop Sintel")
     }
 
+    /// A friend's party on another Jellyfin, with no account on this iPhone: its link opened in Mira asks the first
+    /// name, makes this iPhone the party's guest (the stand-in's /Mira/guest), waits for the host's group, joins it as
+    /// soon as the host opens it, then leaves it, back to the sign-in.
+    @MainActor
+    func testParty() throws {
+        let app = launch(language: "en", locale: "en_US")
+        XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 10), "No sign-in screen")
+        let link = "mira://party/dafty-party-link-00001?server=" + "http://\(Self.server)".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
+        app.open(URL(string: link)!)
+        let heading = app.staticTexts["party.heading"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 15), "The party's screen did not open")
+        XCTAssertTrue(waitForLabel(heading, "Join Dafty’s party", timeout: 10), "The host is not named: \(heading.label)")
+        let name = app.textFields["party.name"]
+        focus(name)
+        name.typeText("Léa")
+        settle()
+        capture("47-party-name")
+        app.buttons["party.join"].tap()
+        XCTAssertTrue(waitForLabel(heading, "Dafty hasn’t started movie night yet", timeout: 15), "Not waiting for the host: \(heading.label)")
+        capture("48-party-waiting")
+        // The host opens their group: this iPhone joins it within a few seconds.
+        mock("/Mock/PartyGroup")
+        XCTAssertTrue(waitForSync("GuestJoin", timeout: 20), "The guest never joined the host's group")
+        XCTAssertTrue(waitForLabel(heading, "You’re in Dafty’s party", timeout: 15), "Not in the group: \(heading.label)")
+        XCTAssertTrue(app.descendants(matching: .any)["party.members"].waitForExistence(timeout: 5), "The group's members are not shown")
+        settle()
+        capture("49-party-in")
+        app.buttons["party.leave"].tap()
+        XCTAssertTrue(waitForSync("GuestLeave", timeout: 15), "The guest never left the group")
+        XCTAssertTrue(waitForSync("GuestLogout", timeout: 15), "The guest's session was not ended")
+        XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 10), "Leaving the party did not bring the sign-in back")
+    }
+
     /// Built-in Tailscale from end to end (ios.yml starts the stand-in Tailscale network, whose « Jellyfin PC » puts the
     /// stand-in Jellyfin on it, and passes its address in MIRA_TS_CONTROL): turned on from the sign-in screen, signed in
     /// once on its page, Jellyfin found on the network, then the account, Home and a title played; every request through
@@ -537,6 +570,18 @@ final class MiraUITests: XCTestCase {
         }.resume()
         _ = done.wait(timeout: .now() + 10)
         XCTAssertEqual(answer.status.withLock { $0 }, 204, "The stand-in Tailscale network did not take \(command)")
+    }
+
+    /// Waits for an element to say this.
+    @MainActor
+    private func waitForLabel(_ element: XCUIElement, _ label: String, timeout: TimeInterval) -> Bool {
+        let said = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", label), object: element)
+        return XCTWaiter().wait(for: [said], timeout: timeout) == .completed
+    }
+
+    /// Tells the stand-in Jellyfin something (POST /Mock/…: the host opens their group), and checks it was done.
+    private func mock(_ path: String) {
+        bench("http://\(Self.server)", path)
     }
 
     /// Waits for the stand-in Jellyfin to have received this request of « Watch together » (SyncPlay/<what>).
