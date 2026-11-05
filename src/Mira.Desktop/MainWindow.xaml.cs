@@ -586,7 +586,9 @@ public partial class MainWindow : Window
     /// <see cref="Legibility.NoticeDuration"/>), never while the pointer or the keyboard focus is on them.
     /// <paramref name="action"/> adds a button, such as "Redémarrer" for a downloaded update: such a message stays until
     /// it is used or closed, as does one marked <paramref name="sticky"/> (an error that matters); sticky false lets a
-    /// message with a button leave all the same (« Annuler »).
+    /// message with a button leave all the same (« Annuler »). Never for what the window already shows (a button that
+    /// changed, a row that left): only a failure, what cannot be seen otherwise (the clipboard, work in the background or
+    /// on another device, what Jellyfin does later), or a message with a button.
     /// </summary>
     private void SetNotice(string message, string? action, Action? onAction, bool? sticky = null, NoticeTone tone = NoticeTone.Info)
     {

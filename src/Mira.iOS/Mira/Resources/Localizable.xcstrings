@@ -2191,16 +2191,6 @@
         }
       }
     },
-    "Removed from Continue watching.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retiré de Continuer à regarder."
-          }
-        }
-      }
-    },
     "Replace for the group": {
       "localizations": {
         "fr": {
@@ -4921,26 +4911,6 @@
         }
       }
     },
-    "Removed from the list.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retiré de la liste."
-          }
-        }
-      }
-    },
-    "Request canceled.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Demande annulée."
-          }
-        }
-      }
-    },
     "Request saved: the server PC will handle it as soon as Mira is open there.": {
       "localizations": {
         "fr": {
@@ -5027,16 +4997,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Envoyé à TorLink : %@"
-          }
-        }
-      }
-    },
-    "Sent to the server PC.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Envoyé au PC serveur."
           }
         }
       }

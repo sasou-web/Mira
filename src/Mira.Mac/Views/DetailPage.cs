@@ -455,9 +455,10 @@ public sealed class DetailPage : Page
     private void FollowMenu(Button button)
     {
         if (Shell.Session is not { } session) return;
-        async Task Run(Func<Task> action, string done)
+        // Said when the page cannot show it (what following does, a search started); « Ne plus suivre » shows on the button.
+        async Task Run(Func<Task> action, string? done)
         {
-            try { await action(); Shell.Notice(done); }
+            try { await action(); if (done is not null) Shell.Notice(done); }
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
             await LoadFollowAsync(session);
         }
@@ -472,7 +473,7 @@ public sealed class DetailPage : Page
         void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
         Add(L("Chercher maintenant", "Search now"), () => _ = Run(() => session.Client.TorLinkCheckFollowAsync(follow.Id, session.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")));
         Add(L("Voir dans Téléchargements", "See in Downloads"), () => Shell.Go("downloads"));
-        Add(L("Ne plus suivre", "Stop following"), () => _ = Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")));
+        Add(L("Ne plus suivre", "Stop following"), () => _ = Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), null));
         Ui.OpenUnder(menu, button);
     }
     /// <summary>An administrator of Jellyfin: « ⋮ » offers « Identifier… », « Actualiser les métadonnées » and, for a film, « Chercher une meilleure version ».</summary>
@@ -770,7 +771,6 @@ public sealed class DetailPage : Page
             foreach (var id in EpisodePages.SeasonMark(_allEpisodes, season).Ids) await session.Client.SetPlayedAsync(id, played);
             var episodes = _allEpisodes.Where(x => EpisodePages.Season(x) == season).ToList();
             await Task.Run(() => { foreach (var episode in episodes) session.Store.ForgetProgress(episode.Id); });
-            Shell.Notice(played ? L("Saison marquée comme vue.", "Season marked as watched.") : L("Saison marquée comme non vue.", "Season marked as unwatched."));
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         finally { _marking = false; _seasonMark.IsEnabled = true; }

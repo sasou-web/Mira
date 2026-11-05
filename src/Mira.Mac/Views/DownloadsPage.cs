@@ -474,7 +474,7 @@ public sealed class DownloadsPage : Page
         buttons.Children.Add(SmallButton(L("Chercher maintenant", "Search now"), "refresh", () => _ = FollowActionAsync(c => c.TorLinkCheckFollowAsync(follow.Id, _session!.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")),
             L($"Chercher maintenant les nouveaux épisodes de « {follow.Name} »", $"Search now for new episodes of “{follow.Name}”")));
         buttons.Children.Add(SmallButton(L("Nom cherché", "Search name"), "search", () => EditQuery(actions, follow), L($"Changer le nom cherché pour « {follow.Name} »", $"Change the search name for “{follow.Name}”")));
-        buttons.Children.Add(SmallButton(L("Ne plus suivre", "Stop following"), "close", () => _ = FollowActionAsync(c => c.TorLinkUnfollowAsync(follow.Id, _session!.Lifetime), L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")),
+        buttons.Children.Add(SmallButton(L("Ne plus suivre", "Stop following"), "close", () => _ = FollowActionAsync(c => c.TorLinkUnfollowAsync(follow.Id, _session!.Lifetime), null),
             L($"Ne plus suivre « {follow.Name} »", $"Stop following “{follow.Name}”")));
         actions.Children.Add(buttons);
         return RowView("series", Ui.Ink, follow.Name, line, null, follow.Note?.Kind is "failed" or "missing" or "unknown", actions, follow.Query is { } query ? L($"Cherchée sous « {query} »", $"Searched as “{query}”") : null);
@@ -519,10 +519,11 @@ public sealed class DownloadsPage : Page
         return RowView(failed ? "warning" : "clock", failed ? Warning : Ui.Faint, name, RemoteLines.Pick(pick, now), null, failed, actions, full);
     }
 
-    private async Task FollowActionAsync(Func<JellyfinClient, Task> action, string done)
+    /// <param name="done">Said when the list cannot show it (a search started); null when it does (a series no longer followed leaves it).</param>
+    private async Task FollowActionAsync(Func<JellyfinClient, Task> action, string? done)
     {
         if (_session is not { } session) return;
-        try { await action(session.Client); Shell.Notice(done); }
+        try { await action(session.Client); if (done is not null) Shell.Notice(done); }
         catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         await LoadStatusAsync();
     }
@@ -532,12 +533,14 @@ public sealed class DownloadsPage : Page
         if (_session is not { } session) return;
         try
         {
-            Shell.Notice(await session.Client.TorLinkCancelAsync(pick.Id, session.Lifetime) switch
+            // Gone from the list, it needs no notice; what the list cannot show is said.
+            var said = await session.Client.TorLinkCancelAsync(pick.Id, session.Lifetime) switch
             {
-                true => pick.State == "waiting" ? L($"{pick.Episode} annulé : ce fichier ne sera plus pris, un autre de l’épisode pourra l’être.", $"{pick.Episode} canceled: this file won’t be taken again, another one of the episode may be.") : L("Retiré de la liste.", "Removed from the list."),
+                true => pick.State == "waiting" ? L($"{pick.Episode} annulé : ce fichier ne sera plus pris, un autre de l’épisode pourra l’être.", $"{pick.Episode} canceled: this file won’t be taken again, another one of the episode may be.") : null,
                 false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC already took it: cancel it in its list as soon as it shows up there."),
                 null => L("Cet épisode n’est plus en attente.", "This episode is no longer waiting.")
-            });
+            };
+            if (said is not null) Shell.Notice(said);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         await LoadStatusAsync();
@@ -556,12 +559,14 @@ public sealed class DownloadsPage : Page
         if (_session is not { } session) return;
         try
         {
-            Shell.Notice(await session.Client.TorLinkCancelAsync(request.Id, session.Lifetime) switch
+            // Gone from the list, it needs no notice; what the list cannot show is said.
+            var said = await session.Client.TorLinkCancelAsync(request.Id, session.Lifetime) switch
             {
-                true => request.State == "waiting" ? L("Demande annulée.", "Request canceled.") : L("Retiré de la liste.", "Removed from the list."),
+                true => null,
                 false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC already took it: cancel it in its list as soon as it shows up there."),
                 null => L("Cette demande n’est plus là.", "This request is no longer there.")
-            });
+            };
+            if (said is not null) Shell.Notice(said);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         await LoadStatusAsync();
@@ -792,11 +797,15 @@ public sealed class DownloadsPage : Page
         catch (Exception ex) when (Errors.Expected(ex)) { button.IsEnabled = true; Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
 
-    /// <summary>Its row, with its progress, is at the top of the right column.</summary>
+    /// <summary>
+    /// Its row, with its progress, is at the top of the right column, where the list goes back to: that says it is on its
+    /// way. A notice only for what the row cannot show: a better version replacing the old one, a request kept until Mira
+    /// opens on the server PC.
+    /// </summary>
     private async Task SentAsync(bool replacing = false)
     {
-        Shell.Notice(replacing ? L("Demandé au PC serveur : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.", "Requested from the server PC: the new version will take the old one’s place once downloaded and checked.")
-            : _ready ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
+        if (replacing) Shell.Notice(L("Demandé au PC serveur : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.", "Requested from the server PC: the new version will take the old one’s place once downloaded and checked."));
+        else if (!_ready) Shell.Notice(L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
         _queueScroll.Offset = default;
         await LoadStatusAsync();
     }

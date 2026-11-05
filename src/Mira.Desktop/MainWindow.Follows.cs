@@ -205,9 +205,8 @@ public partial class MainWindow
         if (_client is not { } client) return;
         try
         {
+            // What following does was said by the question before: the button, now « Suivie », says the rest.
             await client.TorLinkFollowAsync(item.Id, item.Name, null, _connectionLifetime.Token);
-            SetNotice(L($"« {item.Name} » suivie : le PC serveur cherche ses nouveaux épisodes toutes les 6 h. Chacun attend 10 min dans Téléchargements, le temps de l’annuler, puis rejoint ta bibliothèque.",
-                $"Following “{item.Name}”: the server PC looks for its new episodes every 6 hours. Each one waits 10 min in Downloads, time to cancel it, then joins your library."));
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); return; }
         if (_detail?.Id == item.Id) await ShowFollowButtonAsync(item);
@@ -224,7 +223,7 @@ public partial class MainWindow
     private async Task UnfollowAsync(RelayFollow follow)
     {
         if (_client is not { } client) return;
-        try { await client.TorLinkUnfollowAsync(follow.Id, _connectionLifetime.Token); SetNotice(L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")); }
+        try { await client.TorLinkUnfollowAsync(follow.Id, _connectionLifetime.Token); }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); }
         if (_serverScreen) await LoadServerDownloadsAsync();
     }
@@ -311,12 +310,14 @@ public partial class MainWindow
         if (_client is not { } client) return;
         try
         {
-            SetNotice(await client.TorLinkCancelAsync(pick.Id, _connectionLifetime.Token) switch
+            // Gone from the list, it needs no notice; what the list cannot show is said.
+            var said = await client.TorLinkCancelAsync(pick.Id, _connectionLifetime.Token) switch
             {
-                true => pick.State == "waiting" ? L($"{pick.Episode} annulé : ce fichier ne sera plus pris, un autre de l’épisode pourra l’être.", $"{pick.Episode} canceled: this file won’t be taken again, another one of the episode may be.") : L("Retiré de la liste.", "Removed from the list."),
+                true => pick.State == "waiting" ? L($"{pick.Episode} annulé : ce fichier ne sera plus pris, un autre de l’épisode pourra l’être.", $"{pick.Episode} canceled: this file won’t be taken again, another one of the episode may be.") : null,
                 false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC has already taken it: cancel it in its list as soon as it shows up there."),
                 null => L("Cet épisode n’est plus en attente.", "This episode is no longer waiting.")
-            });
+            };
+            if (said is not null) SetNotice(said);
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); }
         await LoadServerDownloadsAsync();

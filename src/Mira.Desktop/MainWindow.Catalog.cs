@@ -552,7 +552,6 @@ public partial class MainWindow
             if (_store is { } store) await Task.Run(() => store.ForgetProgress(item.Id));
             _catalog.MarkPlayed(item, played, _episodes, _similar);
             _metadata?.Clear();
-            SetNotice(L($"« {item.DisplayTitle} » {(played ? "marqué comme vu" : "marqué comme non vu")}.", $"“{item.DisplayTitle}” marked as {(played ? "watched" : "unwatched")}."));
             RenderAfterUserDataChange();
             if (!_demo) await RefreshAsync(quiet: true);
             return true;

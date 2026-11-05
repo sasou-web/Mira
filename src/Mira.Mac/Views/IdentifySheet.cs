@@ -149,8 +149,8 @@ public sealed class IdentifySheet
         {
             var done = await _session.Client.ApplyMatchAsync(_item.Id, match, _session.Lifetime);
             Applied = true;
-            Said = done ? L($"« {Chosen(match)} » : Jellyfin a mis à jour sa fiche.", $"“{Chosen(match)}”: Jellyfin updated its page.")
-                : L($"Jellyfin prend « {Chosen(match)} » : il lui faut un peu plus de temps, la fiche se met à jour dans un moment.", $"Jellyfin is taking “{Chosen(match)}”: it needs a little longer, the page updates in a moment.");
+            // Done, its page (or the list) shows it at once; only a page that comes later is said.
+            Said = done ? null : L($"Jellyfin prend « {Chosen(match)} » : il lui faut un peu plus de temps, la fiche se met à jour dans un moment.", $"Jellyfin is taking “{Chosen(match)}”: it needs a little longer, the page updates in a moment.");
             _applying = _sheet.Busy = false;
             Close();
         }

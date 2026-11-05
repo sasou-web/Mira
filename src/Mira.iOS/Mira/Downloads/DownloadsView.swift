@@ -512,7 +512,8 @@ struct DownloadsView: View {
             case let .magnet(link, _):
                 try await client.torLinkRequest(magnet: link)
             }
-            say(line.ready ? String(localized: "Sent to the server PC.") : String(localized: "Request saved: the server PC will handle it as soon as Mira is open there."))
+            // Marked « Sent » and at the top of the list: a notice only when the server PC will do it later.
+            if !line.ready { say(String(localized: "Request saved: the server PC will handle it as soon as Mira is open there.")) }
         } catch {
             say(explain(error))
         }
@@ -522,8 +523,8 @@ struct DownloadsView: View {
     private func cancel(_ request: RemoteLines.Request) async {
         guard let client = app.client else { return }
         do {
+            // Gone from the list, it needs no notice.
             try await client.torLinkCancel(request.id)
-            say(request.state == "waiting" ? String(localized: "Request canceled.") : String(localized: "Removed from the list."))
         } catch JellyfinError.http(409) {
             say(String(localized: "The server PC has already picked it up. Cancel it in its list as soon as it shows up there."))
         } catch JellyfinError.http(404) {
