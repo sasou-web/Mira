@@ -111,13 +111,13 @@ public sealed class FriendsSection
     private void ShowDone(Session session, AuthUser friend, string password, bool codes, IReadOnlyList<string> shared)
     {
         _body.Children.Clear(); _status.Text = ""; Made = friend.Name;
-        var address = Reachable(session) + "/Mira";
+        var address = Reachable(session);
         _body.Children.Add(new TextBlock { Text = L($"Compte de {friend.Name} créé, avec {Friends.Joined(shared)}.", $"{friend.Name}’s account is ready, with {Friends.Joined(shared)}."), FontSize = 15, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
         _body.Children.Add(Note(codes
-            ? L($"Sur son téléphone, {friend.Name} ouvre {address}, touche « Se connecter avec un code » et te donne les 6 chiffres : saisis-les ici, ils valent pour son compte. Aucun mot de passe à lui envoyer.",
-                $"On their phone, {friend.Name} opens {address}, taps “Sign in with a code” and gives you the 6 digits: type them here, they count for their account. No password to send them.")
-            : L($"{friend.Name} se connecte sur son téléphone ({address}) ou dans Mira pour Windows ou Mac avec son prénom et ce mot de passe. Envoie-le-lui : Mira ne le garde pas.",
-                $"{friend.Name} signs in on their phone ({address}) or in Mira for Windows or Mac with their name and this password. Send it to them: Mira doesn’t keep it.")));
+            ? L($"Dans Mira (Windows, Mac ou iPhone), {friend.Name} se connecte à {address} avec un code et te donne les 6 chiffres : saisis-les ici, ils valent pour son compte. Aucun mot de passe à lui envoyer.",
+                $"In Mira (Windows, Mac or iPhone), {friend.Name} signs in to {address} with a code and gives you the 6 digits: type them here, they count for their account. No password to send them.")
+            : L($"{friend.Name} se connecte à {address} dans Mira (Windows, Mac ou iPhone) avec son prénom et ce mot de passe. Envoie-le-lui : Mira ne le garde pas.",
+                $"{friend.Name} signs in to {address} in Mira (Windows, Mac or iPhone) with their name and this password. Send it to them: Mira doesn’t keep it.")));
         var secret = new TextBox { Text = password, IsReadOnly = true, Width = 220, FontFamily = new FontFamily("Menlo, monospace") };
         Avalonia.Automation.AutomationProperties.SetName(secret, L($"Mot de passe de {friend.Name}", $"{friend.Name}’s password"));
         var copy = Ui.Action(L("Copier", "Copy"), null, "", () => _ = CopyAsync(password));
