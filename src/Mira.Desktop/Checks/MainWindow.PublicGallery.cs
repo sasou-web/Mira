@@ -152,6 +152,8 @@ public partial class MainWindow
             foreach (var size in new[] { sizes[0], sizes[3] }) await At(size, "23-player-error", null, PlayerError);
             GoBack();
             if (PlayerErrorShown || PlayerShell.IsVisible || !LibraryShell.IsVisible) throw new InvalidOperationException("« Retour » does not leave the player's error screen.");
+            // A click on Favori or Vu moves nothing on the title page, during the change and after it.
+            drawn.AddRange(await CheckTitleRowStillAsync(output));
             await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {16 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }
