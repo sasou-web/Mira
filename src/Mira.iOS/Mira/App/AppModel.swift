@@ -209,10 +209,9 @@ final class AppModel {
     }
 
     /// Takes a film or series out of Continue watching until it is played again; its resume point goes to 0 on
-    /// Jellyfin too, so that no other device offers it (hideFromResume of Mira web).
+    /// Jellyfin too, so that no other device offers it (hideFromResume of Mira web). Its card leaving the row says it.
     func hideFromContinueWatching(_ item: Item) async {
         preferences.hide(item.seriesId ?? item.id, true)
-        together.notice = String(localized: "Removed from Continue watching.")
         if (item.userData?.playbackPositionTicks ?? 0) > 0 { try? await client?.setPosition(item.id, ticks: 0) }
         playback += 1
     }

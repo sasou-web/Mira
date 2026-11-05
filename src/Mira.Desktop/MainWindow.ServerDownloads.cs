@@ -433,12 +433,14 @@ public partial class MainWindow
         if (_client is not { } client) return;
         try
         {
-            SetNotice(await client.TorLinkCancelAsync(request.Id, _connectionLifetime.Token) switch
+            // Gone from the list, it needs no notice; what the list cannot show is said.
+            var said = await client.TorLinkCancelAsync(request.Id, _connectionLifetime.Token) switch
             {
-                true => request.State == "waiting" ? L("Demande annulée.", "Request canceled.") : L("Retiré de la liste.", "Removed from the list."),
+                true => null,
                 false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC has already taken it: cancel it in its list as soon as it shows up there."),
                 null => L("Cette demande n’est plus là.", "This request is no longer there.")
-            });
+            };
+            if (said is not null) SetNotice(said);
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); }
         await LoadServerDownloadsAsync();
@@ -448,12 +450,8 @@ public partial class MainWindow
     {
         if (_serverLocal)
         {
-            SetNotice(await ControlHereAsync(download.Id, action) ?? action switch
-            {
-                "pause" => L("Téléchargement mis en pause.", "Download paused."),
-                "resume" => L("Téléchargement repris.", "Download resumed."),
-                _ => L("Téléchargement annulé.", "Download canceled.")
-            });
+            // Its row says it at once: only a refusal is a notice.
+            if (await ControlHereAsync(download.Id, action) is { } refused) SetNotice(refused);
             await LoadServerDownloadsAsync();
             return;
         }
@@ -705,13 +703,15 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { button.IsEnabled = true; SetNotice(ServerError(ex)); }
     }
 
-    /// <summary>Its row, with its progress, is at the top of the right column.</summary>
-    private async Task SentToServerAsync(bool replacing = false, bool qbittorrent = false)
+    /// <summary>
+    /// Its row, with its progress, is at the top of the right column, where the list goes back to: that says it is on its
+    /// way. A notice only for what the row cannot show: a better version replacing the old one, a request kept until Mira
+    /// opens on the server PC.
+    /// </summary>
+    private async Task SentToServerAsync(bool replacing = false)
     {
-        SetNotice(replacing ? L("Demandé : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.", "Requested: the new version will take the old one’s place once downloaded and checked.")
-            : qbittorrent ? L("qBittorrent le télécharge : sa progression s’affiche à droite.", "qBittorrent is downloading it: its progress shows on the right.")
-            : _serverLocal ? L("TorLink le télécharge : sa progression s’affiche à droite.", "TorLink is downloading it: its progress shows on the right.")
-            : _serverReady ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
+        if (replacing) SetNotice(L("Demandé : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.", "Requested: the new version will take the old one’s place once downloaded and checked."));
+        else if (!_serverLocal && !_serverReady) SetNotice(L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
         SmoothScroll.Jump(ServerQueueScroll);
         await LoadServerDownloadsAsync();
     }
@@ -755,7 +755,7 @@ public partial class MainWindow
             if (!_serverLocal) await client!.TorLinkRequestAsync(magnet, _connectionLifetime.Token);
             else if (await (qbittorrent ? AddToQBittorrentAsync(magnet, null) : DownloadHereAsync(magnet)) is { } refused) { ShowMagnetError(refused); return; }
             CloseServerMagnet(); ServerMagnetButton.Focus();
-            await SentToServerAsync(qbittorrent: qbittorrent);
+            await SentToServerAsync();
         }
         catch (Exception ex) when (IsExpected(ex)) { ShowMagnetError(ServerError(ex)); }
         finally { ServerMagnetSend.IsEnabled = true; }

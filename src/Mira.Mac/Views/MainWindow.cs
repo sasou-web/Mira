@@ -245,7 +245,9 @@ public sealed partial class MainWindow : Window
     /// <paramref name="action"/> adds a button (« Réessayer », « Redémarrer »…): such a message stays until it is used or
     /// closed, as does one marked <paramref name="sticky"/> (an error that matters); sticky false lets a message with a
     /// button leave all the same (« Annuler »). A message with a button that stays is not lost under the next one: it
-    /// comes back once that one is closed.
+    /// comes back once that one is closed. Never for what the window already shows (a button that changed, a row that
+    /// left): only a failure, what cannot be seen otherwise (the clipboard, work in the background or on another device,
+    /// what Jellyfin does later), or a message with a button.
     /// </summary>
     public void Notice(string text, string? action = null, Action? click = null, bool? sticky = null, NoticeTone tone = NoticeTone.Info)
     {
@@ -841,7 +843,6 @@ public sealed partial class MainWindow : Window
             await session.Client.SetPlayedAsync(item.Id, played);
             await Task.Run(() => session.Store.ForgetProgress(item.Id));
             item.UserData.Played = played; item.UserData.PlaybackPositionTicks = 0;
-            Notice(played ? L($"« {item.DisplayTitle} » marqué comme vu.", $"“{item.DisplayTitle}” marked as watched.") : L($"« {item.DisplayTitle} » marqué comme non vu.", $"“{item.DisplayTitle}” marked as unwatched."), tone: NoticeTone.Done);
             await RefreshPagesAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
@@ -853,7 +854,6 @@ public sealed partial class MainWindow : Window
         {
             await session.Client.SetFavoriteAsync(item.Id, favorite);
             item.UserData.IsFavorite = favorite;
-            Notice(favorite ? L($"« {item.DisplayTitle} » est dans tes favoris.", $"“{item.DisplayTitle}” is in your favorites.") : L($"« {item.DisplayTitle} » n’est plus dans tes favoris.", $"“{item.DisplayTitle}” is no longer in your favorites."), tone: NoticeTone.Done);
             await RefreshPagesAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
@@ -924,7 +924,6 @@ public sealed partial class MainWindow : Window
         try
         {
             await session.Client.DeleteCollectionAsync(collection.Id);
-            Notice(TitleCollections.Deleted(collection.Name));
             if (Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id) { Back(); return; }
             await RefreshPagesAsync();
         }
@@ -937,8 +936,8 @@ public sealed partial class MainWindow : Window
         try
         {
             await session.Client.SetInCollectionAsync(collection.Id, [item.Id], inside);
-            if (inside) Notice(TitleCollections.Added(collection.Name));
-            else Notice(TitleCollections.Removed(collection.Name), L("Annuler", "Undo"), () => _ = PutInCollectionAsync(item, collection, true), sticky: false);
+            // Put back (« Annuler »), the title shows in its collection again: nothing more to say.
+            if (!inside) Notice(TitleCollections.Removed(collection.Name), L("Annuler", "Undo"), () => _ = PutInCollectionAsync(item, collection, true), sticky: false);
             await RefreshPagesAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }

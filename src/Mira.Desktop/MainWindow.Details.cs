@@ -577,7 +577,6 @@ public partial class MainWindow
             if (_store is { } store) await Task.Run(() => { foreach (var episode in episodes) store.ForgetProgress(episode.Id); });
             foreach (var episode in episodes) { episode.UserData.Played = played; episode.UserData.PlaybackPositionTicks = 0; }
             _metadata?.Clear();
-            SetNotice(played ? L("Saison marquée comme vue.", "Season marked as watched.") : L("Saison marquée comme non vue.", "Season marked as unwatched."));
             RenderEpisodes();
             if (!_demo) { await RefreshDetailAsync(); await RefreshAsync(quiet: true); }
         }

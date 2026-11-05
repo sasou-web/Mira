@@ -118,8 +118,9 @@ public partial class MainWindow
         return row;
     }
     /// <summary>
-    /// A title put in a collection or taken out of it; said in the overlay when it is open (quiet), else by a notice
-    /// whose « Annuler » puts it back. False when Jellyfin refused.
+    /// A title put in a collection or taken out of it; said in the overlay when it is open (quiet); taken out from its
+    /// collection's page, a notice whose « Annuler » puts it back (put back, the title shows there again: nothing more
+    /// to say). False when Jellyfin refused.
     /// </summary>
     private async Task<bool> PutInCollectionAsync(MediaItem item, string collectionId, string collectionName, bool inside, bool quiet = false)
     {
@@ -129,8 +130,7 @@ public partial class MainWindow
             await client.SetInCollectionAsync(collectionId, [item.Id], inside, _connectionLifetime.Token);
             var said = inside ? TitleCollections.Added(collectionName) : TitleCollections.Removed(collectionName);
             if (quiet) SayInCollections(said);
-            else if (inside) SetNotice(said);
-            else SetNotice(said, L("Annuler", "Undo"), () => _ = PutInCollectionAsync(item, collectionId, collectionName, true), sticky: false);
+            else if (!inside) SetNotice(said, L("Annuler", "Undo"), () => _ = PutInCollectionAsync(item, collectionId, collectionName, true), sticky: false);
             _ = RefreshAsync(quiet: true);
             return true;
         }
@@ -182,7 +182,6 @@ public partial class MainWindow
                 {
                     await client.RenameCollectionAsync(collection.Id, name, _connectionLifetime.Token);
                     if (_catalog.Saga?.Id == collection.Id) { _catalog.Saga = (collection.Id, name); ShowPersonFilter(); }
-                    SetNotice(L($"Collection renommée « {name} ».", $"Collection renamed “{name}”."));
                 }
             }
             else if (_collecting is { } item)
@@ -208,7 +207,6 @@ public partial class MainWindow
         try
         {
             await client.DeleteCollectionAsync(collection.Id, _connectionLifetime.Token);
-            SetNotice(TitleCollections.Deleted(collection.Name));
             // Its titles shown: the page it was opened from comes back.
             if (_catalog.Saga?.Id == collection.Id) { await BackFromPersonAsync(); return; }
             _ = RefreshAsync(quiet: true);

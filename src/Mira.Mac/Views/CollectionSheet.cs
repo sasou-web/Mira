@@ -145,7 +145,8 @@ public sealed class CollectionSheet
                 if (name != collection.Name)
                 {
                     await _session.Client.RenameCollectionAsync(collection.Id, name);
-                    (Said, NewName, Changed) = (L($"Collection renommée « {name} ».", $"Collection renamed “{name}”."), name, true);
+                    // Its page opens again under its new name: that says it.
+                    (NewName, Changed) = (name, true);
                 }
             }
             else if (_item is { } item)

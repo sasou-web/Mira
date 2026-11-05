@@ -158,8 +158,8 @@ public partial class MainWindow
             var done = await client.ApplyMatchAsync(item.Id, match, _connectionLifetime.Token);
             if (!ReferenceEquals(client, _client)) return;
             await CloseIdentifyAsync();
-            SetNotice(done ? L($"« {Chosen(match)} » : Jellyfin a mis à jour sa fiche.", $"“{Chosen(match)}”: Jellyfin updated its page.")
-                : L($"Jellyfin prend « {Chosen(match)} » : il lui faut un peu plus de temps, la fiche se met à jour dans un moment.", $"Jellyfin is taking “{Chosen(match)}”: it needs a little longer, the page updates in a moment."));
+            // Done, its page (or the list) shows it at once; only a page that comes later is said.
+            if (!done) SetNotice(L($"Jellyfin prend « {Chosen(match)} » : il lui faut un peu plus de temps, la fiche se met à jour dans un moment.", $"Jellyfin is taking “{Chosen(match)}”: it needs a little longer, the page updates in a moment."));
             // Its page drawn again, with its new name and pictures; the library and the list follow.
             if (_detail?.Id == item.Id && DetailOverlay.Visibility == Visibility.Visible) { _metadata?.Clear(); await ShowDetailsAsync(item); }
             _ = RefreshAsync(quiet: true);

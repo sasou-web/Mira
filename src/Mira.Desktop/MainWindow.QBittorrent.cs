@@ -207,8 +207,7 @@ public partial class MainWindow
             }
             else if (_client is { } client) await client.TorLinkTorrentAsync(bytes, _connectionLifetime.Token);
             else return;
-            SetNotice(_serverLocal ? L($"qBittorrent télécharge « {torrent.Name} » : sa progression s’affiche à droite.", $"qBittorrent is downloading “{torrent.Name}”: its progress shows on the right.")
-                : L($"« {torrent.Name} » envoyé au qBittorrent du PC serveur : sa progression s’affiche à droite.", $"“{torrent.Name}” sent to the server PC’s qBittorrent: its progress shows on the right."));
+            // Its row at the top of the right column says it.
             SmoothScroll.Jump(ServerQueueScroll);
             await LoadServerDownloadsAsync();
         }
