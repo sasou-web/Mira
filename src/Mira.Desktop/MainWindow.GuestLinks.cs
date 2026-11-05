@@ -10,10 +10,12 @@ using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
-// « Inviter par lien » (Réglages → Jellyfin, for an administrator): a link for someone without an account here, who
-// opens it from anywhere and watches with this account's group (GuestLinks, JellyfinClient.GuestLinksAsync; the
-// extension makes each link's account and deletes it with the link). Links need the address Tailscale Funnel gives
-// the PC of Jellyfin: on that PC, Mira turns Funnel on itself (TailscaleCli.OpenFunnel), after saying what it means.
+// « Ta party » (Réglages → Amis et invités): this account's one link to watch together (JellyfinClient.PartyAsync),
+// made anew when it went too far (the old one stops, its guests go); for an administrator, the guests it let in, each
+// taken back on its own (GuestLinks, JellyfinClient.GuestLinksAsync; the extension makes each guest's account and
+// deletes it with them), the links of one device made before party links, and the address on the Internet the links
+// start with: the one Tailscale Funnel gives the PC of Jellyfin, which Mira turns on itself there
+// (TailscaleCli.OpenFunnel), after saying what it means.
 public partial class MainWindow
 {
     private bool _guestBusy;
@@ -23,23 +25,46 @@ public partial class MainWindow
     /// <summary>The address is being changed: its form shows although one is set.</summary>
     private bool _guestAddressEditing;
 
-    /// <summary>The row, for an administrator of a Jellyfin whose extension makes links; what was just made stays shown.</summary>
-    private async Task ShowGuestLinksAsync(bool keepMade = true)
+    /// <summary>The row, for an account whose Jellyfin's extension makes party links (an administrator also sees its guests).</summary>
+    private async Task ShowGuestLinksAsync()
     {
         if (_guestBusy) return;
         if (_demo || _client is not { } client) { GuestRow.Visibility = Visibility.Collapsed; return; }
-        GuestRules.Text = GuestLinks.Rules;
+        GuestRules.Text = L("Un seul lien pour regarder ensemble, le même à chaque fois : envoie-le à qui tu veux. Qui l’ouvre te rejoint, sans compte ni rien à régler.",
+            "One link to watch together, always the same: send it to whoever you like. Whoever opens it joins you, with no account and nothing to set up.");
+        PartyLink? party = null;
         GuestLinkList? list = null;
-        try { if (await client.IsAdministratorAsync() == true) list = await client.GuestLinksAsync(_connectionLifetime.Token); }
+        try
+        {
+            party = await client.PartyAsync(ct: _connectionLifetime.Token);
+            if (await client.IsAdministratorAsync() == true) list = await client.GuestLinksAsync(_connectionLifetime.Token);
+        }
         catch (RelayRefusedException) { list = null; }
         catch (Exception ex) when (IsExpected(ex)) { if (GuestRow.Visibility == Visibility.Visible) GuestStatus.Text = ServerError(ex); return; }
         if (!ReferenceEquals(client, _client) || _guestBusy) return;
-        if (list is null) { GuestRow.Visibility = Visibility.Collapsed; return; }
-        await RenderGuestLinksAsync(client, list, keepMade);
+        if (party is null && list is null) { GuestRow.Visibility = Visibility.Collapsed; return; }
+        ShowParty(party);
+        if (list is null) { HideGuestAdmin(); GuestList.Children.Clear(); }
+        else await RenderGuestLinksAsync(client, list);
         GuestRow.Visibility = Visibility.Visible;
     }
 
-    private async Task RenderGuestLinksAsync(JellyfinClient client, GuestLinkList list, bool keepMade = true)
+    private void ShowParty(PartyLink? party)
+    {
+        PartyPanel.Visibility = party is null ? Visibility.Collapsed : Visibility.Visible;
+        if (party is null) return;
+        PartyLinkBox.Text = party.Link;
+        PartyReach.Text = party.Note ?? "";
+        PartyReach.Foreground = Palette.Get(party.Reach is "internet" or null ? "Muted" : "Warning");
+        PartyReach.Visibility = string.IsNullOrWhiteSpace(party.Note) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void HideGuestAdmin()
+    {
+        GuestAddressPanel.Visibility = GuestFunnelPanel.Visibility = GuestAddressLine.Visibility = Visibility.Collapsed;
+    }
+
+    private async Task RenderGuestLinksAsync(JellyfinClient client, GuestLinkList list)
     {
         var address = list.Address;
         var asking = address is null || _guestAddressEditing;
@@ -58,91 +83,94 @@ public partial class MainWindow
                 GuestFunnelPanel.Visibility = Visibility.Visible;
             }
         }
-        var made = keepMade && GuestMade.Visibility == Visibility.Visible;
-        GuestForm.Visibility = !asking && !made ? Visibility.Visible : Visibility.Collapsed;
-        if (asking) GuestMade.Visibility = Visibility.Collapsed;
         GuestAddressLine.Visibility = address is null || asking ? Visibility.Collapsed : Visibility.Visible;
         GuestAddressText.Text = GuestLinks.AddressLine(list) ?? "";
 
         GuestList.Children.Clear();
         var invites = list.Invites ?? [];
-        if (invites.Count > 0)
-            GuestList.Children.Add(new TextBlock { Text = Lang.Count(invites.Count, "lien en cours", "liens en cours", "link in use", "links in use"), FontSize = 12, Foreground = Palette.Get("TextTertiary"), Margin = new Thickness(0, 18, 0, 0) });
-        foreach (var invite in invites)
-        {
-            var text = new StackPanel();
-            text.Children.Add(new TextBlock { Text = invite.Name, Foreground = Palette.Get("TextBody"), TextWrapping = TextWrapping.Wrap });
-            text.Children.Add(new TextBlock { Text = GuestLinks.State(invite, DateTimeOffset.Now), Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0, 3, 0, 0) });
-            var row = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
-            var remove = new Button { Content = L("Retirer", "Take back"), Style = (Style)FindResource("Quiet"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 0, 0, 0) };
-            AutomationProperties.SetName(remove, L($"Retirer le lien de {invite.Name}", $"Take back {invite.Name}’s link"));
-            remove.Click += async (_, _) => await RemoveGuestLinkAsync(invite);
-            DockPanel.SetDock(remove, Dock.Right); row.Children.Add(remove);
-            if (invite.Link is { } link && !invite.Opened)
-            {
-                var copy = new Button { Content = L("Copier", "Copy"), Style = (Style)FindResource("Quiet"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 0, 0, 0) };
-                AutomationProperties.SetName(copy, L($"Copier le lien de {invite.Name}", $"Copy {invite.Name}’s link"));
-                copy.Click += (_, _) => CopyGuestLink(link, invite.Name);
-                DockPanel.SetDock(copy, Dock.Right); row.Children.Add(copy);
-            }
-            row.Children.Add(text);
-            GuestList.Children.Add(row);
-        }
+        var guests = invites.Where(x => x.Party).ToList();
+        var single = invites.Where(x => !x.Party).ToList();
+        GuestList.Children.Add(ListLabel(guests.Count > 0 ? Lang.Count(guests.Count, "invité", "invités", "guest", "guests") : L("Invités", "Guests")));
+        if (guests.Count == 0)
+            GuestList.Children.Add(new TextBlock { Text = L("Personne pour l’instant. Chaque appareil qui ouvre ton lien sans compte ici y apparaît, avec le prénom donné.", "Nobody yet. Each device that opens your link without an account here shows up, with the first name given."), Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0, 6, 0, 0) });
+        foreach (var invite in guests) GuestList.Children.Add(GuestLine(invite));
+        if (single.Count > 0) GuestList.Children.Add(ListLabel(L("Anciens liens", "Older links")));
+        foreach (var invite in single) GuestList.Children.Add(GuestLine(invite));
     }
 
-    private void GuestName_KeyDown(object sender, KeyEventArgs e)
-    { if (e.Key == Key.Enter) { e.Handled = true; GuestCreate_Click(sender, e); } }
-    private async void GuestCreate_Click(object sender, RoutedEventArgs e)
+    private TextBlock ListLabel(string text) => new() { Text = text, FontSize = 12, Foreground = Palette.Get("TextTertiary"), Margin = new Thickness(0, 18, 0, 0) };
+
+    /// <summary>A guest of the party, or an older link of one device: who, where it is, « Retirer » (and « Copier » for a link not opened yet).</summary>
+    private DockPanel GuestLine(GuestLink invite)
+    {
+        var text = new StackPanel();
+        text.Children.Add(new TextBlock { Text = invite.Name, Foreground = Palette.Get("TextBody"), TextWrapping = TextWrapping.Wrap });
+        text.Children.Add(new TextBlock { Text = GuestLinks.State(invite, DateTimeOffset.Now), Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0, 3, 0, 0) });
+        var row = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var remove = new Button { Content = L("Retirer", "Take back"), Style = (Style)FindResource("Quiet"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 0, 0, 0) };
+        AutomationProperties.SetName(remove, invite.Party ? L($"Retirer {invite.Name}", $"Remove {invite.Name}") : L($"Retirer le lien de {invite.Name}", $"Take back {invite.Name}’s link"));
+        remove.Click += async (_, _) => await RemoveGuestLinkAsync(invite);
+        DockPanel.SetDock(remove, Dock.Right); row.Children.Add(remove);
+        if (invite.Link is { } link && !invite.Opened)
+        {
+            var copy = new Button { Content = L("Copier", "Copy"), Style = (Style)FindResource("Quiet"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 0, 0, 0) };
+            AutomationProperties.SetName(copy, L($"Copier le lien de {invite.Name}", $"Copy {invite.Name}’s link"));
+            copy.Click += (_, _) => CopyGuestLink(link, invite.Name);
+            DockPanel.SetDock(copy, Dock.Right); row.Children.Add(copy);
+        }
+        row.Children.Add(text);
+        return row;
+    }
+
+    private void PartyCopy_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(GuestLinks.Message(PartyLinkBox.Text)); GuestStatus.Text = L("Lien copié : envoie-le à qui tu veux.", "Link copied: send it to whoever you like."); }
+        catch (System.Runtime.InteropServices.ExternalException) { GuestStatus.Text = L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again."); }
+    }
+
+    /// <summary>« Faire un nouveau lien »: the old one stops, the guests it let in leave the group and lose their account.</summary>
+    private async void PartyNew_Click(object sender, RoutedEventArgs e)
     {
         if (_client is not { } client || _guestBusy) return;
-        var name = Friends.CleanName(GuestNameBox.Text);
-        if (name.Length > 0 && Friends.NameProblem(name, []) is { } wrong) { GuestStatus.Text = wrong; GuestNameBox.Focus(); return; }
-        _guestBusy = true; GuestCreateButton.IsEnabled = false; GuestStatus.Text = L("Création du compte de l’invité…", "Creating the guest’s account…");
+        if (!await ConfirmAsync(L("Faire un nouveau lien ?", "Make a new link?"),
+            L("L’ancien lien ne marchera plus, et ceux qui sont entrés sans compte sortent du groupe : leur compte est supprimé de Jellyfin. Tes amis qui ont un compte ici ne perdent rien.",
+                "The old link will stop working, and those who came in without an account leave the group: their account is deleted from Jellyfin. Your friends with an account here lose nothing."),
+            L("Faire un nouveau lien", "Make a new link"), L("Garder celui-ci", "Keep this one"))) return;
+        _guestBusy = true; PartyNewButton.IsEnabled = false;
         var ct = _connectionLifetime.Token;
         try
         {
-            var invite = await client.MakeGuestLinkAsync(name, ct);
+            var party = await client.PartyAsync(fresh: true, ct);
             if (!ReferenceEquals(client, _client)) return;
-            GuestStatus.Text = ""; GuestNameBox.Clear();
-            if (invite.Link is { } link)
-            {
-                GuestMadeText.Text = L($"Envoie ce lien à {invite.Name} : il ouvre Mira et rejoint ton groupe.", $"Send this link to {invite.Name}: it opens Mira and joins your group.");
-                GuestLinkBox.Text = link; GuestCopyButton.Tag = invite.Name;
-                GuestForm.Visibility = Visibility.Collapsed; GuestMade.Visibility = Visibility.Visible;
-                _ = Dispatcher.BeginInvoke(() => GuestCopyButton.Focus(), DispatcherPriority.Input);
-            }
-            _guestBusy = false;
-            await ShowGuestLinksAsync();
+            ShowParty(party);
+            GuestStatus.Text = L("Nouveau lien prêt : l’ancien ne marche plus.", "New link ready: the old one no longer works.");
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
         catch (Exception ex) when (IsExpected(ex)) { GuestStatus.Text = ServerError(ex); }
-        finally { _guestBusy = false; GuestCreateButton.IsEnabled = true; }
+        finally { _guestBusy = false; PartyNewButton.IsEnabled = true; }
+        await ShowGuestLinksAsync();
     }
-    private void GuestCopy_Click(object sender, RoutedEventArgs e) => CopyGuestLink(GuestLinkBox.Text, GuestCopyButton.Tag as string ?? "");
+
     private void CopyGuestLink(string link, string name)
     {
         try { Clipboard.SetText(GuestLinks.Message(link)); GuestStatus.Text = L($"Lien copié : envoie-le à {name}.", $"Link copied: send it to {name}."); }
         catch (System.Runtime.InteropServices.ExternalException) { GuestStatus.Text = L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again."); }
     }
-    private void GuestAgain_Click(object sender, RoutedEventArgs e)
-    {
-        GuestMade.Visibility = Visibility.Collapsed; GuestForm.Visibility = Visibility.Visible; GuestStatus.Text = "";
-        GuestNameBox.Focus();
-    }
     private async Task RemoveGuestLinkAsync(GuestLink invite)
     {
         if (_client is not { } client || _guestBusy) return;
-        var question = invite.Opened
+        var question = invite.Party
+            ? L($"{invite.Name} sort du groupe tout de suite. Son compte est supprimé de Jellyfin ; s’il rouvre ton lien, il entre de nouveau.", $"{invite.Name} leaves the group right away. Their account is deleted from Jellyfin; if they open your link again, they come back in.")
+            : invite.Opened
             ? L($"{invite.Name} sort du groupe tout de suite et ne pourra plus revenir avec ce lien. Son compte est supprimé de Jellyfin.", $"{invite.Name} leaves the group right away and can’t come back with this link. Their account is deleted from Jellyfin.")
             : L($"Le lien de {invite.Name} ne marchera plus. Son compte est supprimé de Jellyfin.", $"{invite.Name}’s link will stop working. Their account is deleted from Jellyfin.");
-        if (!await ConfirmAsync(L("Retirer ce lien ?", "Take back this link?"), question, L("Retirer", "Take back"), L("Garder", "Keep"))) return;
+        if (!await ConfirmAsync(invite.Party ? L($"Retirer {invite.Name} ?", $"Remove {invite.Name}?") : L("Retirer ce lien ?", "Take back this link?"), question, L("Retirer", "Take back"), L("Garder", "Keep"))) return;
         _guestBusy = true;
         var ct = _connectionLifetime.Token;
         try
         {
             await client.RemoveGuestLinkAsync(invite.Id, ct);
-            if (GuestLinkBox.Text == invite.Link) { GuestMade.Visibility = Visibility.Collapsed; GuestLinkBox.Clear(); }
-            GuestStatus.Text = L($"Lien de {invite.Name} retiré.", $"{invite.Name}’s link taken back.");
+            GuestStatus.Text = invite.Party ? L($"{invite.Name} retiré.", $"{invite.Name} removed.") : L($"Lien de {invite.Name} retiré.", $"{invite.Name}’s link taken back.");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
         catch (Exception ex) when (IsExpected(ex)) { GuestStatus.Text = ServerError(ex); }
@@ -170,7 +198,6 @@ public partial class MainWindow
             _guestAddressEditing = false; GuestAddressBox.Clear();
             GuestStatus.Text = list.Address is null ? "" : L("Adresse enregistrée.", "Address saved.");
             await RenderGuestLinksAsync(client, list);
-            if (GuestForm.Visibility == Visibility.Visible) GuestNameBox.Focus();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { GuestStatus.Text = ServerError(ex); }
@@ -179,7 +206,7 @@ public partial class MainWindow
     private async void GuestAddressChange_Click(object sender, RoutedEventArgs e)
     {
         _guestAddressEditing = true;
-        await ShowGuestLinksAsync(keepMade: false);
+        await ShowGuestLinksAsync();
         GuestAddressBox.Focus(); GuestAddressBox.SelectAll();
     }
 
@@ -226,7 +253,7 @@ public partial class MainWindow
         await _guestShowing;
         if (GuestRow.Visibility != Visibility.Visible || SettingsOverlay.Visibility != Visibility.Visible) return;
         GuestRow.BringIntoView();
-        if (GuestForm.Visibility == Visibility.Visible) GuestNameBox.Focus();
+        if (GuestFunnelPanel.Visibility == Visibility.Visible) GuestFunnelButton.Focus();
         else if (GuestAddressPanel.Visibility == Visibility.Visible) GuestAddressBox.Focus();
     }
 

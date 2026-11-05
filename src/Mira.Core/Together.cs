@@ -293,8 +293,8 @@ public static class Together
         {
             L("Qui l’ouvre te rejoint : pas de compte, rien à régler. Avec Mira sur son ordinateur ou son iPhone, le lien s’y ouvre.",
                 "Whoever opens it joins you: no account, nothing to set up. With Mira on their computer or iPhone, the link opens there."),
-            L("C’est toujours le même lien : garde-le dans ta conversation. « Faire un nouveau lien » (Réglages de Mira web → Ta party) arrête l’ancien.",
-                "It’s always the same link: keep it in your chat. “Make a new link” (Mira web settings → Your party) stops the old one."),
+            L("C’est toujours le même lien : garde-le dans ta conversation. « Faire un nouveau lien » (Réglages de Mira → Amis & invités → Ta party) arrête l’ancien.",
+                "It’s always the same link: keep it in your chat. “Make a new link” (Mira’s settings → Friends & guests → Your party) stops the old one."),
         };
         if (!string.IsNullOrWhiteSpace(note)) steps.Add(note);
         return steps;
