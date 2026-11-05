@@ -73,6 +73,16 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(group.waitForExistence(timeout: 15), "Making a group did not show it on the title page")
         settle()
         capture("05b-together")
+        // The group's button over the tabs, on every page while in a group: its sheet says who is in it, Invite, Leave.
+        let groupButton = app.buttons["tab.group"]
+        XCTAssertTrue(groupButton.waitForExistence(timeout: 5), "No group button over the tabs while in a group")
+        groupButton.tap()
+        let groupLeave = app.buttons["group.leave"]
+        XCTAssertTrue(groupLeave.waitForExistence(timeout: 5), "The group button did not open the group's sheet")
+        settle()
+        capture("05b-group-sheet")
+        app.buttons["group.close"].tap()
+        XCTAssertTrue(groupLeave.waitForNonExistence(timeout: 5), "The group's sheet did not close")
         let play = app.buttons["title.play"]
         for _ in 0..<4 where !play.isHittable { app.swipeDown() }
         XCTAssertEqual(play.label, "Start for the group")
@@ -89,6 +99,7 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(leave.waitForExistence(timeout: 10), "No Leave the group")
         leave.tap()
         XCTAssertTrue(group.waitForNonExistence(timeout: 15), "Leaving the group did not take it off the title page")
+        XCTAssertTrue(groupButton.waitForNonExistence(timeout: 10), "The group button stays over the tabs after leaving the group")
         app.navigationBars.buttons.firstMatch.tap()
 
         // A series: Play for its next episode, then its episodes, each with a Play of its own.

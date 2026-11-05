@@ -202,6 +202,24 @@ enum SyncRules {
         }
     }
 
+    /// The count on the group's button over the tabs: « 2 », « 99+ » (Jellyfin names each account once). As
+    /// Together.CountText of Core.
+    static func countText(_ group: SyncGroup) -> String {
+        let count = max(1, group.participants?.count ?? 0)
+        return count > 99 ? "99+" : String(count)
+    }
+
+    /// What the group's button over the tabs says to VoiceOver: « In a group · mira’s group · mira and Marc », and what
+    /// the group is doing when it holds the picture (« · Paused for the group »). As Together.IndicatorText of Core.
+    static func indicatorText(_ group: SyncGroup, me: String?) -> String {
+        let names = group.participants ?? []
+        let who = names.isEmpty ? people(1) : namesText(names)
+        let label = group.groupName == nil ? String(localized: "Group") : groupLabel(group.groupName)
+        let status = groupStatus(group, me: me)
+        let line = String(localized: "In a group · \(label) · \(who)", comment: "The group's button over the tabs: En groupe · Groupe de mira · mira et Marc")
+        return status.alert ? "\(line) · \(status.text)" : line
+    }
+
     /// « Marc joined the group », « Marc left the group ».
     static func memberText(_ name: String, joined: Bool) -> String {
         joined ? String(localized: "\(name) joined the group") : String(localized: "\(name) left the group")

@@ -17,6 +17,8 @@ enum Palette {
     static let onAccent = Color(hex: 0x0B0B0C)
     static let danger = Color(hex: 0xFF6B5F)
     static let warning = Color(hex: 0xD5B787)
+    /// Something going well: in a group of Watch together (Success of Mira for Windows).
+    static let success = Color(hex: 0x86C6A2)
 }
 
 extension Color {
