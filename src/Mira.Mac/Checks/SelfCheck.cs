@@ -143,6 +143,24 @@ public static class SelfCheck
             window.Open(movie);
             Check(await Until(() => window.Current is DetailPage { Item.People.Count: > 0 } or DetailPage { Item.Overview: not null }, 15), "fiche d’un film", movie.Name);
             await Task.Delay(1200); Capture(window, output, "05-film");
+            // As on Windows: the picture fills the window, Lecture and « Regarder ensemble » keep their words, the others are
+            // round but those on (« Favori », « Vu »); the cast with their photos under the picture.
+            if (window.Current is DetailPage film)
+            {
+                var buttons = film.ActionButtons().ToList();
+                Check(film.HeroHeight >= film.Bounds.Height - 1 && buttons.Count >= 3 && buttons.Count(x => x.Words) == 1 + buttons.Count(x => x.On),
+                    "fiche d’un film : image de toute la fenêtre, boutons ronds", $"{film.HeroHeight:0}/{film.Bounds.Height:0} px · " + string.Join(", ", buttons.Select(x => (x.Words ? "« " + x.Name + " »" : x.Name) + (x.On ? " (actif)" : ""))));
+                Check(film.CastShown == 2, "fiche d’un film : distribution en photos", $"{film.CastShown} personnes");
+                film.ShowCastForCheck(); await Task.Delay(800); Capture(window, output, "05b-film-cast");
+            }
+            // A favourite: « Favori » outlined, its words kept beside its icon.
+            if (mock is not null)
+            {
+                window.Open(new MediaItem { Id = "movie-2", Name = "Brume basse", Type = "Movie" });
+                var lit = await Until(() => window.Current is DetailPage { Item.UserData.IsFavorite: true } page && page.ActionButtons().Any(x => x.On && x.Words), 15);
+                Check(lit, "fiche d’un favori : « Favori » entouré, avec ses mots", string.Join(", ", (window.Current as DetailPage)?.ActionButtons().Where(x => x.On).Select(x => x.Name) ?? []));
+                await Task.Delay(800); Capture(window, output, "05c-film-favorite");
+            }
             window.Go("Series");
             await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15);
             var series = ((BrowsePage)window.Current!).Items.OrderByDescending(x => x.Name.Contains("Longue", StringComparison.OrdinalIgnoreCase)).First();

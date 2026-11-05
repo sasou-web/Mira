@@ -261,7 +261,8 @@ public sealed class HomePage : Page
         if (animate) _heroImage.Opacity = 0;
         _ = LoadHeroArtAsync(session, item, version);
 
-        var title = new TextBlock { Text = item.DisplayTitle, FontSize = 53, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, LineHeight = 57 };
+        // Its own line height: a tighter one cuts the letters that go below the line (« g », « p »).
+        var title = new TextBlock { Text = item.DisplayTitle, FontSize = 53, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, Margin = new Thickness(0, -6, 0, -6) };
         _heroText.Children.Add(title);
         var tags = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
         if (item.Type == "Episode") tags.Children.Add(Ui.Tag(Cards.EpisodeCode(item)));

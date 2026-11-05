@@ -30,13 +30,13 @@ public sealed class MockJellyfin : HttpMessageHandler
     public MockJellyfin(string media, string shortMedia)
     {
         _media = media; _short = shortMedia;
-        object Person(string id, string name, string type) => new { Id = id, Name = name, Type = type, Role = "" };
+        object Person(string id, string name, string type, string role = "") => new { Id = id, Name = name, Type = type, Role = role };
         object Movie(string id, string name, int year, double progress, string overview) => new
         {
             Id = id, Name = name, Type = "Movie", ProductionYear = year, RunTimeTicks = 30L * TimeSpan.TicksPerSecond, CommunityRating = 7.8,
             Overview = overview, Genres = new[] { "Aventure", "Animation" }, ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + id },
-            BackdropImageTags = new[] { "b" + id }, OfficialRating = "Tous publics",
-            People = new[] { Person("actor-1", "Jeanne Essai", "Actor"), Person("actor-2", "Paul Témoin", "Actor"), Person("director-1", "Réa Lisatrice", "Director") },
+            BackdropImageTags = new[] { "b" + id }, OfficialRating = "Tous publics", Taglines = id == "movie-1" ? new[] { "Quand le jour tombe, la forêt s’allume." } : [],
+            People = new[] { Person("actor-1", "Jeanne Essai", "Actor", "Lina"), Person("actor-2", "Paul Témoin", "Actor", "Le passeur"), Person("director-1", "Réa Lisatrice", "Director") },
             UserData = new { PlaybackPositionTicks = (long)(progress * 30 * TimeSpan.TicksPerSecond), Played = false, IsFavorite = id == "movie-2", LastPlayedDate = progress > 0 ? DateTimeOffset.UtcNow.AddHours(-2) : (DateTimeOffset?)null }
         };
         _movies =

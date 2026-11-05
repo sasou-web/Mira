@@ -3,6 +3,8 @@
 ## Non publié
 
 - **On voit qu’on est dans un groupe (Windows, Mac)** : rien ne le disait hors de la fiche du titre et du lecteur. Tant que Mira est dans un groupe de « Regarder ensemble », un bouton du groupe se voit sur chaque page, dans la barre de gauche au-dessus du Guide et des Réglages, avec le nombre de personnes dans le groupe ; au survol, qui est dedans et ce que fait le groupe (« En pause pour le groupe »). Un clic : qui est dans le groupe, revenir au lecteur ou voir le titre du groupe, inviter quelqu’un, quitter le groupe. Windows contrôlé par le job `server` de la CI ; Mac seulement compilé.
+- **La fiche d’un titre sur Mac comme sous Windows** : elle s’ouvre sur son image, de toute la fenêtre pour un film, des trois quarts pour une série ; logo ou nom en grand, phrase d’accroche, infos et résumé posés dessus, puis un grand bouton Lecture (« Reprendre » et le temps restant dessous) et les boutons ronds à côté. « Regarder ensemble » garde ses mots ; Favori, Vu et « Suivie » gardent les leurs une fois actifs, entourés de blanc. Sous l’image, la distribution en photos avec leurs rôles, puis genres, réalisation et studio deux par deux. Les lettres qui descendent sous la ligne (« g », « p ») ne sont plus coupées dans les grands titres de la fiche et de l’Accueil. Jamais essayé sur un vrai Mac.
+
 ## 0.9.3 — 2026-11-04
 
 - **Un second clic sur la page ouverte ne la recharge plus (Windows, Mac)** : Accueil, Films, Séries, la bibliothèque, Téléchargements, Réglages ou le Guide cliqués (ou Ctrl+1 à 5, F1, ⌘K, ⌘,) alors qu’ils sont déjà à l’écran ne rechargeaient la page et ne rejouaient son arrivée pour rien. Maintenant rien ne bouge, sauf une page défilée, qui remonte en haut en douceur. Filtres et recherche restent.
