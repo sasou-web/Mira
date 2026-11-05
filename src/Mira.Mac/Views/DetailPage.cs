@@ -11,20 +11,27 @@ using static Mira.Core.Lang;
 namespace Mira.Mac.Views;
 
 /// <summary>
-/// A title's page: its banner, Lecture or Reprendre, favourites and watched, the synopsis, genres, cast, direction and
-/// studios (each one leads to its titles), the episodes of a series by season (a season marked watched at once), its
-/// saga, its studio's other titles and similar titles.
+/// A title's page, as Windows': it opens on its picture (the whole window for a film, most of it for a series), its logo
+/// or name, catchphrase, facts and summary on it, then a large Lecture and the round buttons beside it; under the picture,
+/// the cast with their photos, the genres, direction and studios (each one leads to its titles), the episodes of a series
+/// by season (a season marked watched at once), its saga, its studio's other titles and similar titles.
 /// </summary>
 public sealed class DetailPage : Page
 {
     private MediaItem _item;
-    private readonly Image _backdrop = new() { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top, Opacity = 0 };
-    private readonly Grid _header = new() { ClipToBounds = true };
-    private readonly StackPanel _top = new() { Spacing = 18, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(56 + MainWindow.RailWidth, 0, 56, 34), MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly Image _backdrop = new() { Stretch = Stretch.UniformToFill, Opacity = 0 };
+    private readonly Grid _header = new() { ClipToBounds = true, Height = 600 };
+    /// <summary>What sits on the picture, at its bottom left: kind, logo or name, catchphrase, facts, summary, buttons.</summary>
+    private readonly StackPanel _top = new() { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(56 + MainWindow.RailWidth, 0, 56, 56) };
     private readonly StackPanel _body = new() { Spacing = 36, Margin = new Thickness(56, 8, 56, 64) };
     private readonly ComboBox _seasons = new() { MinWidth = 200 };
     private readonly StackPanel _episodes = new() { Spacing = 10 };
-    private readonly TextBlock _episodeHeading = new() { FontSize = 24, FontWeight = FontWeight.Normal, Foreground = Ui.TextTertiary, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _episodeHeading = new() { FontSize = 24, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+    /// <summary>Its logo from Jellyfin once loaded: it takes the place of its name.</summary>
+    private Avalonia.Media.Imaging.Bitmap? _logo;
+    private bool _overviewOpen;
+    /// <summary>The height of the page on screen: the picture's own follows it.</summary>
+    private double _viewport;
     /// <summary>« Marquer la saison comme vue », beside the season list when the series has another season.</summary>
     private readonly Button _seasonMark = new() { Classes = { "chip", "quiet" }, IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
     private bool _marking;
@@ -58,18 +65,20 @@ public sealed class DetailPage : Page
         _backdrop.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(380) }];
         _header.Children.Add(new Border { Background = Ui.Brush("#0E0E10") });
         _header.Children.Add(_backdrop);
-        _header.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F2070708", 0), ("#A0070708", 0.45), ("#20070708", 0.8)) });
-        _header.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#00070708", 0.35), ("#FF070708", 1)) });
+        // Shaded from the left and the bottom, where the text and the buttons sit, as on Windows.
+        _header.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F0070708", 0), ("#C4070708", 0.3), ("#40070708", 0.62), ("#00070708", 0.86)) });
+        _header.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#66070708", 0), ("#00070708", 0.2), ("#00070708", 0.5), ("#A6070708", 0.8), ("#FF070708", 1)) });
         var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => Shell.Back(), "icon", 24);
-        back.HorizontalAlignment = HorizontalAlignment.Left; back.VerticalAlignment = VerticalAlignment.Top; back.Margin = new Thickness(40 + MainWindow.RailWidth, 26 + shell.TitleBarInset, 0, 0);
-        back.Width = back.Height = 46; back.Background = Ui.Brush("#66000000");
+        back.HorizontalAlignment = HorizontalAlignment.Left; back.VerticalAlignment = VerticalAlignment.Top; back.Margin = new Thickness(44 + MainWindow.RailWidth, 30 + shell.TitleBarInset, 0, 0);
+        back.Width = back.Height = 46;
         _header.Children.Add(_top); _header.Children.Add(back);
         var page = new StackPanel();
         // The picture runs under the rail, as on Windows; the text keeps clear of it.
         _body.Margin += new Thickness(MainWindow.RailWidth, 0, 0, 0);
         page.Children.Add(_header); page.Children.Add(_body);
         Content = new ScrollViewer { Content = page };
-        SizeChanged += (_, e) => _header.Height = Math.Clamp(e.NewSize.Height * 0.66, 430, 720);
+        SizeChanged += (_, e) => { _viewport = e.NewSize.Height; SizeHero(); };
+        _top.SizeChanged += (_, e) => { if (e.HeightChanged) SizeHero(); };
         _seasons.SelectionChanged += (_, _) => { if (!_filling) { RenderEpisodes(); ShowOffline(); } };
         // « Garder sur ce Mac »: the button and the episodes follow the copies as they come.
         void OfflineUpdated() { ShowOffline(); if (_item.Type == "Series" && _allEpisodes.Count > 0) RenderEpisodes(); }
@@ -84,6 +93,16 @@ public sealed class DetailPage : Page
         var brush = new LinearGradientBrush { StartPoint = new RelativePoint(x1, y1, RelativeUnit.Relative), EndPoint = new RelativePoint(x2, y2, RelativeUnit.Relative) };
         foreach (var (color, offset) in stops) brush.GradientStops.Add(new GradientStop(Color.Parse(color), offset));
         return brush;
+    }
+    /// <summary>
+    /// The picture as tall as the window for a film, most of it for a series (its episodes lead below the picture); never
+    /// shorter than what sits on it (a summary opened, a small window).
+    /// </summary>
+    private void SizeHero()
+    {
+        var view = _viewport > 0 ? _viewport : 760;
+        var wanted = _item.Type == "Series" ? Math.Max(470, view * .72) : Math.Max(470, view);
+        _header.Height = Math.Max(wanted, _top.Bounds.Height + _top.Margin.Bottom + 110 + Shell.TitleBarInset);
     }
 
     public override async Task LoadAsync()
@@ -113,17 +132,36 @@ public sealed class DetailPage : Page
         if (!_admin) _ = CheckAdministratorAsync(session);
         if (_item.Type == "Series" && SeriesTarget is { } target && _targetFile?.Id != target.Id) await LoadTargetFileAsync(session, target);
     }
-    private static string FavoriteLabel(bool on) => on ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites");
-    private static string WatchedLabel(bool on) => on ? L("Vu", "Watched") : L("Marquer comme vu", "Mark as watched");
+    private static string FavoriteLabel(bool on) => on ? L("Favori", "Favorite") : L("Ajouter aux favoris", "Add to favorites");
+    private static string FavoriteTip(bool on) => on ? L("Dans tes favoris. Clique pour le retirer", "In your favorites. Click to remove it") : FavoriteLabel(false);
+    private string WatchedLabel(bool on) => on ? _item.Type == "Series" ? L("Vue", "Watched") : L("Vu", "Watched")
+        : _item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched");
+    private string WatchedTip(bool on) => on ? L("Vu. Clique pour le marquer comme non vu", "Watched. Click to mark it as unwatched") : WatchedLabel(false);
     /// <summary>
-    /// Favori and Vu change at the click, in place (the button's colours ease, its icon and words change), before Jellyfin
-    /// answers; the page drawn again afterwards shows the same state, and a refusal puts the button back.
+    /// A button of the page on or off, each state seen at a glance, as on Windows: on, a white outline and its words kept
+    /// beside its icon (« Favori », « Suivie »); off, the plain button, its icon alone, its words in its tooltip.
     /// </summary>
-    private static void Flip(Button button, string icon, string label, bool on)
+    /// <param name="tip">Its tooltip, and what VoiceOver says of it: what it is, and when on what a click does.</param>
+    private static void ShowState(Button button, string icon, string label, bool on, string tip, bool keep = true)
     {
-        if (button.Content is StackPanel { Children: [Icon glyph, TextBlock text] }) { glyph.Kind = icon; text.Text = label; }
-        button.Classes.Set("on", on);
-        Avalonia.Automation.AutomationProperties.SetName(button, label);
+        if (button.Content is StackPanel { Children: [Icon glyph, TextBlock text, ..] }) { glyph.Kind = icon; text.Text = label; }
+        button.Classes.Set("lit", on);
+        if (keep) ActionLine.SetKeep(button, on);
+        ToolTip.SetTip(button, tip);
+        Avalonia.Automation.AutomationProperties.SetName(button, on ? tip : label);
+        Avalonia.Automation.AutomationProperties.SetHelpText(button, !on && tip != label ? tip : null);
+    }
+    /// <summary>A button of the line: its icon, its words beside it (hidden while it is round), and a live dot when on.</summary>
+    private static Button LineButton(string icon, string label, Action click, bool dot = false)
+    {
+        var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 9 };
+        content.Children.Add(new Icon(icon, 18) { VerticalAlignment = VerticalAlignment.Center });
+        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        // A green dot: on and live (a group, a series followed).
+        if (dot) content.Children.Add(new Avalonia.Controls.Shapes.Ellipse { Width = 8, Height = 8, Fill = Ui.Brush("#86C6A2"), Margin = new Thickness(1, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        var button = new Button { Content = content, Classes = { "state" }, VerticalAlignment = VerticalAlignment.Center };
+        button.Click += (_, _) => click();
+        return button;
     }
     private bool _favoriteBusy, _watchedBusy;
     private async Task FlipFavoriteAsync(Button button)
@@ -132,7 +170,7 @@ public sealed class DetailPage : Page
         var item = _item; var want = !item.UserData.IsFavorite;
         try
         {
-            Flip(button, want ? "heart-filled" : "heart", FavoriteLabel(want), want);
+            ShowState(button, want ? "heart-filled" : "heart", FavoriteLabel(want), want, FavoriteTip(want));
             await Shell.SetFavoriteAsync(item, want);
             if (item.UserData.IsFavorite != want && ReferenceEquals(item, _item)) RenderTop();
         }
@@ -144,7 +182,7 @@ public sealed class DetailPage : Page
         var item = _item; var want = !item.UserData.Played;
         try
         {
-            Flip(button, "check", WatchedLabel(want), want);
+            ShowState(button, "check", WatchedLabel(want), want, WatchedTip(want));
             await Shell.SetPlayedAsync(item, want);
             if (item.UserData.Played != want && ReferenceEquals(item, _item)) RenderTop();
         }
@@ -165,97 +203,177 @@ public sealed class DetailPage : Page
     {
         var art = await session.Images.BackdropAsync(_item, 1920);
         if (art is not null) { _backdrop.Source = art; _backdrop.Opacity = 1; }
-        if (await session.Images.LogoAsync(_item) is { } logo && _top.Children.Count > 1 && _top.Children[1] is TextBlock title)
+        if (await session.Images.LogoAsync(_item) is not { } logo) return;
+        _logo = logo;
+        var index = _top.Children.IndexOf(_title);
+        if (index >= 0) _top.Children[index] = Title();
+    }
+    /// <summary>Its name in large type, the page's heading; its logo instead once Jellyfin gave one.</summary>
+    private TextBlock _title = new();
+    private Control Title()
+    {
+        if (_logo is { } logo)
         {
-            _top.Children[1] = new Image { Source = logo, MaxHeight = 140, MaxWidth = 520, HorizontalAlignment = HorizontalAlignment.Left, Stretch = Stretch.Uniform, Margin = new Thickness(0, 4, 0, 6) };
-            Avalonia.Automation.AutomationProperties.SetName(_top.Children[1], title.Text ?? "");
-            Avalonia.Automation.AutomationProperties.SetHeadingLevel(_top.Children[1], 1);
+            var image = new Image { Source = logo, MaxWidth = 520, MaxHeight = 160, HorizontalAlignment = HorizontalAlignment.Left, Stretch = Stretch.Uniform, Margin = new Thickness(0, 2, 0, 4) };
+            Avalonia.Automation.AutomationProperties.SetName(image, _item.DisplayTitle);
+            Avalonia.Automation.AutomationProperties.SetHeadingLevel(image, 1);
+            return image;
         }
+        // Its own line height: a tighter one (Windows' 70) cuts the letters that go below the line (« g », « p »).
+        _title = new TextBlock { Text = _item.DisplayTitle, FontSize = 68, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, -10, 0, -12) };
+        Avalonia.Automation.AutomationProperties.SetHeadingLevel(_title, 1);
+        return _title;
     }
 
     /// <summary>The episode Lecture opens on a series: Jellyfin's next one, else one in progress, else the first unwatched.</summary>
     private MediaItem? SeriesTarget => _next ?? _allEpisodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _allEpisodes.FirstOrDefault(x => !x.UserData.Played) ?? _allEpisodes.FirstOrDefault();
 
+    /// <summary>Lecture picks up where it stopped: started, not finished, and Mira set to remember.</summary>
+    private bool Resumes(MediaItem item) => item.Progress > 0 && !item.UserData.Played && Shell.Settings.RememberPosition;
+
     private void RenderTop()
     {
-        var logo = _top.Children.Count > 1 && _top.Children[1] is Image ? _top.Children[1] : null;
         _top.Children.Clear();
-        _top.Children.Add(new TextBlock { Text = (Ui.Kind(_item) + (_item.ProductionYear is { } y ? " · " + y : "")).ToUpperInvariant(), Classes = { "label" }, FontSize = 12.5, Foreground = Ui.Brush("#D0D0D6") });
-        var name = new TextBlock { Text = _item.Name, FontSize = 45, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap, LineHeight = 49 };
-        Avalonia.Automation.AutomationProperties.SetHeadingLevel(name, 1);
-        _top.Children.Add(logo ?? name);
+        var kind = Ui.Kind(_item).ToUpperInvariant();
+        _top.Children.Add(new TextBlock { Text = _item.ProductionYear is { } y ? $"{kind}  ·  {y}" : kind, FontSize = 11.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#E0E0E0"), Margin = new Thickness(1, 0, 0, 14) });
+        _top.Children.Add(Title());
+        if (_item.Taglines?.Select(x => x.Trim()).FirstOrDefault(x => x.Length > 0) is { } tagline)
+            _top.Children.Add(new TextBlock { Text = tagline, FontSize = 20, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#E0E0E0"), TextWrapping = TextWrapping.Wrap, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(1, 12, 0, 0) });
         var meta = new List<string>();
         if (_item.ProductionYear is { } year) meta.Add(year.ToString());
         if (_item.Type == "Series") { if (_item.ChildCount is > 0) meta.Add(Count(_item.ChildCount.Value, "saison", "saisons", "season", "seasons")); }
         else if (_item.DurationLabel.Length > 0) meta.Add(_item.DurationLabel);
-        if (_item.CommunityRating is { } rating) meta.Add("★ " + Number(rating, "0.0"));
+        if (_item.CommunityRating is { } rating and > 0) meta.Add("★ " + Number(rating, "0.0"));
         if (!string.IsNullOrWhiteSpace(_item.OfficialRating)) meta.Add(_item.OfficialRating!);
         // The picture of the file Lecture plays and when it ends: the film's, or the episode's it picks up at.
         var played = _item.Type == "Series" ? SeriesTarget : _item;
         if ((_item.Type != "Series" ? MediaQuality.Label(_item) : _targetFile is { } known && known.Id == played?.Id ? MediaQuality.Label(known.Source) : null) is { } file) meta.Add(file);
-        if (MediaQuality.EndsAt(played, DateTime.Now, played is { Progress: > 0, UserData.Played: false }) is { } end) meta.Add(end);
-        _top.Children.Add(new TextBlock { Text = string.Join("  ·  ", meta), FontSize = 16, Foreground = Ui.Brush("#DADADF") });
+        if (MediaQuality.EndsAt(played, DateTime.Now, played is not null && Resumes(played)) is { } end) meta.Add(end);
+        _top.Children.Add(new TextBlock { Text = string.Join("  ·  ", meta), FontSize = 14.5, Foreground = Ui.Brush("#C7C7C7"), Margin = new Thickness(1, 16, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        // The summary on three lines over the picture, « Lire la suite » for the rest.
+        var summary = OverviewText.Plain(string.IsNullOrWhiteSpace(_item.Overview) ? L("Aucun résumé disponible pour ce titre.", "No summary available for this title.") : _item.Overview);
+        var overview = new TextBlock { Text = summary, FontSize = 15, LineHeight = 24, Foreground = Ui.Brush("#C7C7C7"), TextWrapping = TextWrapping.Wrap, MaxWidth = 660, HorizontalAlignment = HorizontalAlignment.Left, MaxLines = _overviewOpen ? 0 : 3, TextTrimming = TextTrimming.WordEllipsis, Margin = new Thickness(1, 16, 0, 0) };
+        _top.Children.Add(overview);
+        // Three lines of the summary's width hold about 300 characters: a longer one gets « Lire la suite ».
+        if (summary.Length > 260)
+        {
+            string MoreText() => _overviewOpen ? L("Réduire", "Show less") : L("Lire la suite", "Read more");
+            var more = new Button { Classes = { "quiet" }, Content = MoreText(), Padding = new Thickness(0, 4), Margin = new Thickness(1, 4, 0, 0), FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Left };
+            more.Click += (_, _) => { _overviewOpen = !_overviewOpen; overview.MaxLines = _overviewOpen ? 0 : 3; more.Content = MoreText(); };
+            _top.Children.Add(more);
+        }
+        _top.Children.Add(Actions());
+        // How far the film was watched, under its buttons and as wide as the page, as on Windows.
+        if (_item.Type != "Series" && Resumes(_item))
+            _top.Children.Add(new ProgressLine { Value = _item.Progress, Height = 5, Margin = new Thickness(2, 18, 0, 0) });
+        SizeHero();
+    }
 
-        var actions = new WrapPanel { ItemSpacing = 12, LineSpacing = 12 };
+    /// <summary>
+    /// Lecture, then « Depuis le début », « Regarder ensemble », Favori, Vu, « Suivre… », « Garder sur ce Mac » and « ⋮ »,
+    /// in Windows' order: Lecture and « Regarder ensemble » with their words, the others round, their words in their tooltip
+    /// but once on (« Favori », « Vu », « Suivie »).
+    /// </summary>
+    private ActionLine Actions()
+    {
+        var line = new ActionLine { Margin = new Thickness(0, 22, 0, 0) };
+        var inGroup = Shell.Group.Active;
+        MediaItem? restart = null;
+        Button play;
         if (_item.Type == "Series")
         {
+            // « Reprendre · S01 E07 · 12 min restantes »: the button says which episode it opens.
             var target = SeriesTarget;
-            var code = target is null ? "" : $"S{target.ParentIndexNumber ?? 1} {L("É", "E")}{target.IndexNumber ?? 1}";
-            var label = target is null ? L("Lecture", "Play") : GroupPlayLabel(target, code)
-                ?? (target.Progress > 0 && !target.UserData.Played ? L("Reprendre", "Resume") : L("Regarder", "Watch")) + " · " + code;
-            actions.Children.Add(Ui.Action(label, "play", "primary", () => { if (SeriesTarget is { } episode) _ = Shell.PlayAsync(episode); else _ = Shell.PlayAsync(_item); }));
+            var code = target is null ? "" : $"S{target.ParentIndexNumber ?? 1:00} E{target.IndexNumber ?? 1:00}";
+            var resume = target is not null && Resumes(target);
+            var label = target is null ? L("Regarder", "Watch") : GroupPlayLabel(target, code) ?? L($"{(resume ? "Reprendre" : "Regarder")} · {code}", $"{(resume ? "Resume" : "Watch")} · {code}");
+            var detail = resume && !inGroup ? MediaQuality.Left(target) : null;
+            var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+            if (detail is not null) text.Inlines!.Add(new Avalonia.Controls.Documents.Run("  ·  " + detail) { FontWeight = FontWeight.Normal, FontSize = 12.5 });
+            play = new Button { Content = Ui.Row(9, new Icon("play", 18) { VerticalAlignment = VerticalAlignment.Center }, text), Classes = { "primary" }, Height = ActionLine.Round, Padding = new Thickness(25, 0), VerticalContentAlignment = VerticalAlignment.Center };
+            play.Click += (_, _) => { if (SeriesTarget is { } episode) _ = Shell.PlayAsync(episode); else _ = Shell.PlayAsync(_item); };
+            Avalonia.Automation.AutomationProperties.SetName(play, detail is null ? label : $"{label}, {detail}");
+            if (resume) restart = target;
         }
         else
         {
-            var resume = _item.Progress > 0 && !_item.UserData.Played;
-            actions.Children.Add(Ui.Action(GroupPlayLabel(_item, "") ?? (resume ? L("Reprendre · ", "Resume · ") + Ui.Remaining(_item).ToLowerInvariant() : L("Lecture", "Play")), "play", "primary", () => _ = Shell.PlayAsync(_item)));
-            if (resume) actions.Children.Add(Ui.Action(L("Depuis le début", "From the beginning"), "refresh", "", () => _ = Shell.PlayAsync(_item, fromStart: true)));
+            // A film's page leads with its Lecture: large, what it plays, then the time left (or its length) under it.
+            var resume = Resumes(_item);
+            var label = GroupPlayLabel(_item, "") ?? (resume ? L("Reprendre", "Resume") : _item.UserData.Played ? L("Revoir", "Watch again") : L("Regarder", "Watch"));
+            var detail = resume && !inGroup ? MediaQuality.Left(_item) : _item.DurationLabel is { Length: > 0 } length ? length : null;
+            var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = label, FontSize = 18, FontWeight = FontWeight.Bold });
+            if (detail is not null) text.Children.Add(new TextBlock { Text = detail, FontSize = 12.5, FontWeight = FontWeight.SemiBold, Opacity = .72, Margin = new Thickness(0, 1, 0, 0) });
+            var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
+            content.Children.Add(new Icon("play", 24) { VerticalAlignment = VerticalAlignment.Center }); content.Children.Add(text);
+            play = new Button { Content = content, Classes = { "primary" }, Padding = new Thickness(32, 15, 36, 15), MinWidth = 250, VerticalContentAlignment = VerticalAlignment.Center };
+            play.Click += (_, _) => _ = Shell.PlayAsync(_item);
+            Avalonia.Automation.AutomationProperties.SetName(play, detail is null ? label : $"{label}, {detail}");
+            if (resume) restart = _item;
         }
-        Button? favorite = null, watched = null;
-        favorite = Ui.Action(FavoriteLabel(_item.UserData.IsFavorite), _item.UserData.IsFavorite ? "heart-filled" : "heart", _item.UserData.IsFavorite ? "state on" : "state", () => _ = FlipFavoriteAsync(favorite!));
-        watched = Ui.Action(WatchedLabel(_item.UserData.Played), "check", _item.UserData.Played ? "state on" : "state", () => _ = FlipWatchedAsync(watched!));
-        actions.Children.Add(favorite); actions.Children.Add(watched);
-        _offlineButton = new Button { Padding = new Thickness(15, 11) };
-        _offlineButton.Click += (_, _) => OfflineClicked();
-        actions.Children.Add(_offlineButton); ShowOffline();
-        var group = Shell.Group.Active ? Shell.Group.Group : null;
+        play.CornerRadius = ActionLine.Corners; play.VerticalAlignment = VerticalAlignment.Center;
+        line.Children.Add(play);
+        if (restart is not null)
+        {
+            var from = restart;
+            var button = LineButton("refresh", L("Depuis le début", "From the beginning"), () => _ = Shell.PlayAsync(from, fromStart: true));
+            ShowState(button, "refresh", L("Depuis le début", "From the beginning"), false, L("Depuis le début", "From the beginning"), keep: false);
+            line.Children.Add(button);
+        }
+        // « Regarder ensemble » keeps its words beside Lecture; in a group, its count and a live dot, outlined.
+        var group = inGroup ? Shell.Group.Group : null;
+        var togetherLabel = group is null ? L("Regarder ensemble", "Watch together") : L("En groupe · ", "In a group · ") + Together.People(Math.Max(1, group.Participants.Count));
         Button? together = null;
-        together = Ui.Action(group is null ? L("Regarder ensemble", "Watch together") : L("Ensemble · ", "Together · ") + Together.People(Math.Max(1, group.Participants.Count)), "users", group is null ? "" : "on", () => _ = TogetherMenuAsync(together!));
-        actions.Children.Add(together);
+        together = LineButton("users", togetherLabel, () => _ = TogetherMenuAsync(together!), dot: group is not null);
+        ShowState(together, "users", togetherLabel, group is not null, group is null
+            ? L("Regarder ce titre au même moment que d’autres comptes de ce Jellyfin, chacun chez soi", "Watch this title at the same moment as other accounts on this Jellyfin, each at home")
+            : L($"En groupe · {Together.GroupText(group)}. Clique pour inviter ou quitter le groupe", $"In a group · {Together.GroupText(group)}. Click to invite or leave the group"), keep: false);
+        ActionLine.SetKeep(together, true); ActionLine.SetShrink(together, 5);
+        line.Children.Add(together);
+        var isFavorite = _item.UserData.IsFavorite;
+        Button? favorite = null;
+        favorite = LineButton(isFavorite ? "heart-filled" : "heart", FavoriteLabel(isFavorite), () => _ = FlipFavoriteAsync(favorite!));
+        ShowState(favorite, isFavorite ? "heart-filled" : "heart", FavoriteLabel(isFavorite), isFavorite, FavoriteTip(isFavorite));
+        ActionLine.SetShrink(favorite, 1);
+        line.Children.Add(favorite);
+        var isPlayed = _item.UserData.Played;
+        Button? watched = null;
+        watched = LineButton("check", WatchedLabel(isPlayed), () => _ = FlipWatchedAsync(watched!));
+        ShowState(watched, "check", WatchedLabel(isPlayed), isPlayed, WatchedTip(isPlayed));
+        ActionLine.SetShrink(watched, 2);
+        line.Children.Add(watched);
         if (_followKnown)
         {
+            // « Suivre… » off, « Suivie » on (outlined, a live dot): the state of the series seen at a glance.
+            var label = _follow is null ? L("Suivre…", "Follow…") : L("Suivie", "Following");
             Button? follow = null;
-            follow = Ui.Action(_follow is null ? L("Nouveaux épisodes", "New episodes") : L("Épisodes suivis", "Episodes followed"), _follow is null ? "plus" : "check", _follow is null ? "" : "on", () => FollowMenu(follow!));
-            ToolTip.SetTip(follow, _follow is null ? L("Le PC serveur cherche les nouveaux épisodes et les télécharge tout seul, avec TorLink", "The server PC looks for new episodes and downloads them on its own, with TorLink")
-                : string.Join(" · ", new[] { RemoteLines.FollowNote(_follow.Note), RemoteLines.Follow(_follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0)));
-            actions.Children.Add(follow);
+            follow = LineButton("calendar", label, () => FollowMenu(follow!), dot: _follow is not null);
+            ShowState(follow, "calendar", label, _follow is not null, _follow is null
+                ? L("Suivre les nouveaux épisodes : le PC serveur les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: the server PC looks for them and downloads them on its own, with TorLink")
+                : string.Join(" · ", new[] { L("Suivie", "Following"), RemoteLines.FollowNote(_follow.Note), RemoteLines.Follow(_follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0)));
+            ActionLine.SetShrink(follow, 4);
+            line.Children.Add(follow);
         }
+        _offlineButton = new Button { Classes = { "state" }, VerticalAlignment = VerticalAlignment.Center };
+        _offlineButton.Click += (_, _) => OfflineClicked();
+        line.Children.Add(_offlineButton); ShowOffline();
         if (_admin && _item.Type is "Movie" or "Series")
         {
-            // « ⋮ » as on Windows: what an administrator rarely needs stays out of the row of actions.
+            // « ⋮ » as on Windows: what an administrator rarely needs stays out of the row of buttons.
             Button? fix = null;
-            fix = Ui.IconButton("more", L("Identifier le titre, actualiser ses informations", "Identify the title, refresh its details"), () => FixMenu(fix!), "", 18, L("Plus d’actions sur ce titre", "More actions for this title"));
-            fix.Padding = new Thickness(15, 11);
-            actions.Children.Add(fix);
+            fix = Ui.IconButton("more", L("Identifier le titre, actualiser ses informations", "Identify the title, refresh its details"), () => FixMenu(fix!), "state", 18, L("Plus d’actions sur ce titre", "More actions for this title"));
+            fix.VerticalAlignment = VerticalAlignment.Center;
+            line.Children.Add(fix);
         }
-        // Lecture keeps its words; the others are round icons, their label in their tooltip, as on Windows.
-        foreach (var button in actions.Children.OfType<Button>().Skip(1).Where(x => !ReferenceEquals(x, _offlineButton))) Round(button);
-        _top.Children.Add(actions);
-        // How far the film was watched, under its actions, as on Windows and Mira web.
-        if (_item.Type != "Series" && _item.Progress > 0 && !_item.UserData.Played)
-            _top.Children.Add(new ProgressLine { Value = _item.Progress, Width = 300, Height = 5, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, Margin = new Thickness(2, 6, 0, 0) });
+        return line;
     }
-
-    private static void Round(Button button)
-    {
-        if (button.Content is StackPanel panel && panel.Children.OfType<TextBlock>().FirstOrDefault() is { } label)
-        {
-            if (ToolTip.GetTip(button) is null) ToolTip.SetTip(button, label.Text);
-            label.IsVisible = false;
-        }
-        button.Width = button.Height = 46; button.Padding = new Thickness(0); button.CornerRadius = new CornerRadius(23);
-        button.HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center; button.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
-    }
+    /// <summary>For the self-check: the buttons beside Lecture, and whether each shows its words.</summary>
+    public IEnumerable<(string Name, bool Words, bool On)> ActionButtons() => _top.Children.OfType<ActionLine>().SelectMany(x => x.Children.OfType<Button>().Skip(1))
+        .Where(x => x.IsVisible).Select(x => (Avalonia.Automation.AutomationProperties.GetName(x) ?? "", ActionLine.ShowsWords(x), x.Classes.Contains("lit")));
+    /// <summary>For the self-check: the picture's height, and the cast shown under it.</summary>
+    public double HeroHeight => _header.Bounds.Height;
+    public int CastShown => _cast?.Children.Count ?? 0;
+    public void ShowCastForCheck() => (_cast?.Parent as Control)?.BringIntoView();
 
     // —— « Garder sur ce Mac », as Windows' « Garder sur ce PC » ——
     private Button? _offlineButton;
@@ -296,7 +414,7 @@ public sealed class DetailPage : Page
         var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 9 };
         content.Children.Add(new Icon(icon, 18) { VerticalAlignment = VerticalAlignment.Center });
         if (label.Length > 0) content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        button.Content = content; button.Classes.Set("on", complete > 0 && complete == targets.Count);
+        button.Content = content;
         ToolTip.SetTip(button, tip);
         Avalonia.Automation.AutomationProperties.SetName(button, label.Length > 0 ? label + ". " + tip : tip);
     }
@@ -376,7 +494,7 @@ public sealed class DetailPage : Page
             var window = new IdentifyWindow(session, _item);
             await window.ShowDialog(Shell);
             if (window.Said is { } said) Shell.Notice(said);
-            if (window.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; await RefreshAsync(); }
+            if (window.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; _logo = null; await RefreshAsync(); }
         };
         var refresh = new MenuItem { Header = L("Actualiser les métadonnées", "Refresh metadata") };
         refresh.Click += async (_, _) =>
@@ -442,54 +560,54 @@ public sealed class DetailPage : Page
         Ui.OpenUnder(menu, button);
     }
 
+    /// <summary>The cast's cards under the picture, null without a cast.</summary>
+    private WrapPanel? _cast;
     private void RenderBody(Session session)
     {
         _body.Children.Clear();
-        var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,48,*") };
-        var left = new StackPanel { Spacing = 18 };
-        if (!string.IsNullOrWhiteSpace(_item.Overview))
+        // The cast with their photos, each one their titles in the library; then the facts, two by two, as on Windows.
+        _cast = null;
+        if (_item.CastPeople.Length > 0)
         {
-            // Three lines, « Lire la suite » for the rest of a long summary.
-            var overview = new TextBlock { Text = OverviewText.Plain(_item.Overview), FontSize = 16, LineHeight = 26, Foreground = Ui.Brush("#C9C9CF"), TextWrapping = TextWrapping.Wrap, MaxLines = 3, TextTrimming = TextTrimming.WordEllipsis };
-            left.Children.Add(overview);
-            if (overview.Text.Length > 300)
+            _cast = new WrapPanel();
+            foreach (var person in _item.CastPeople)
             {
-                var more = new Button { Classes = { "quiet" }, Content = L("Lire la suite", "Read more"), Padding = new Thickness(0, 4), Margin = new Thickness(0, -10, 0, 0), FontWeight = FontWeight.SemiBold };
-                more.Click += (_, _) =>
-                {
-                    var open = overview.MaxLines == 3;
-                    overview.MaxLines = open ? 0 : 3; more.Content = open ? L("Réduire", "Show less") : L("Lire la suite", "Read more");
-                };
-                left.Children.Add(more);
+                var photo = person.PrimaryImageTag is { } tag ? new Dictionary<string, string> { ["Primary"] = tag } : [];
+                var known = person.Id is { Length: > 0 };
+                var card = Cards.Person(new MediaItem { Id = person.Id ?? "", Name = person.Name, Type = "Person", ImageTags = photo }, known ? session.Images : null, _ => Shell.OpenPerson(person, false), person.Role);
+                card.Margin = new Thickness(0, 0, 18, 22);
+                if (known) ToolTip.SetTip(card, L($"Les titres avec {person.Name} dans ta bibliothèque", $"Titles with {person.Name} in your library"));
+                else { card.IsHitTestVisible = false; card.Focusable = false; }
+                _cast.Children.Add(card);
             }
+            _body.Children.Add(Ui.Column(18, new TextBlock { Text = L("Distribution", "Cast"), FontSize = 24, FontWeight = FontWeight.SemiBold }, _cast));
         }
-        columns.Children.Add(left);
-        var side = new StackPanel { Spacing = 22 }; Grid.SetColumn(side, 2);
+        var left = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 40, 0) };
+        var right = new StackPanel { Spacing = 10 }; Grid.SetColumn(right, 1);
         // Each genre: Films or Séries (as the title is) filtered on it, as in Mira web.
-        if (_item.Genres.Length > 0) side.Children.Add(Section(L("GENRES", "GENRES"), Links(_item.Genres.Select<string, (string, string, Action?)>(genre => (genre,
+        if (_item.Genres.Length > 0) left.Children.Add(Fact("GENRES", Links(_item.Genres.Select<string, (string, string, Action?)>(genre => (genre,
             L($"Les {(_item.Type == "Series" ? "séries" : "films")} « {genre} » de ta bibliothèque", $"The {genre} {(_item.Type == "Series" ? "shows" : "movies")} of your library"),
             () => Shell.OpenGenre(genre, _item.Type))))));
-        if (_item.CastPeople.Length > 0) side.Children.Add(Section(L("AVEC", "STARRING"), Cast(_item.CastPeople)));
-        if (_item.DirectorPeople.Length > 0) side.Children.Add(Section(L("RÉALISATION", _item.DirectorPeople.Length > 1 ? "DIRECTORS" : "DIRECTOR"), People(_item.DirectorPeople, director: true)));
+        if (_item.DirectorPeople.Length > 0) left.Children.Add(Fact(L("RÉALISATION", "DIRECTED BY"), People(_item.DirectorPeople, director: true)));
         var studios = _item.Studios.Where(x => x.Name.Trim().Length > 0).Take(3).ToList();
-        if (studios.Count > 0) side.Children.Add(Section("STUDIO", Links(studios.Select(studio => (studio.Name, L($"Les titres de {studio.Name} dans ta bibliothèque", $"Titles from {studio.Name} in your library"),
+        if (studios.Count > 0) right.Children.Add(Fact("STUDIO", Links(studios.Select(studio => (studio.Name, L($"Les titres de {studio.Name} dans ta bibliothèque", $"Titles from {studio.Name} in your library"),
             studio.Id is { Length: > 0 } ? () => Shell.OpenStudio(studio) : (Action?)null)))));
-        columns.Children.Add(side);
-        _body.Children.Add(columns);
+        if (left.Children.Count + right.Children.Count > 0)
+        {
+            var facts = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
+            facts.Children.Add(left); facts.Children.Add(right);
+            _body.Children.Add(facts);
+        }
         if (_item.Type == "Series") _body.Children.Add(EpisodeSection());
     }
-    private static Control Section(string title, Control content) => Ui.Column(8, new TextBlock { Text = title, Classes = { "label" } }, content);
-    /// <summary>Four names, then « +N » that names the others.</summary>
-    private Control Cast(PersonInfo[] people)
+    /// <summary>« GENRES   Aventure · Animation »: a small label in its column, the names beside it.</summary>
+    private static Control Fact(string title, Control content)
     {
-        var box = new ContentControl { Content = People(people.Take(4), director: false) };
-        if (people.Length <= 4) return box;
-        var more = new Button { Classes = { "quiet" }, Content = $"+{people.Length - 4}", Padding = new Thickness(4, 0), Foreground = Ui.Muted };
-        ToolTip.SetTip(more, L("Voir toute la distribution", "See the whole cast"));
-        Avalonia.Automation.AutomationProperties.SetName(more, L($"{people.Length - 4} de plus : voir toute la distribution", $"{people.Length - 4} more: see the whole cast"));
-        more.Click += (_, _) => box.Content = People(people, director: false);
-        ((WrapPanel)box.Content).Children.Add(more);
-        return box;
+        var row = new DockPanel();
+        var label = new TextBlock { Text = title, Width = 110, FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(0, 4, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+        DockPanel.SetDock(label, Dock.Left);
+        row.Children.Add(label); row.Children.Add(content);
+        return row;
     }
     /// <summary>Names as links to their titles in the library; plain text for a person Jellyfin gave no id.</summary>
     private Control People(IEnumerable<PersonInfo> people, bool director) => Links(people.Select(person => (person.Name,
@@ -506,13 +624,13 @@ public sealed class DetailPage : Page
             Control name;
             if (open is not null)
             {
-                var link = new Button { Content = text, Classes = { "link" } };
+                var link = new Button { Content = text, Classes = { "link" }, FontSize = 14, Foreground = Ui.Brush("#C7C7C7") };
                 ToolTip.SetTip(link, tip);
                 link.Click += (_, _) => open();
                 name = link;
             }
-            else name = new TextBlock { Text = text, FontSize = 15 };
-            panel.Children.Add(last ? name : Ui.Row(0, name, new TextBlock { Text = "·", FontSize = 15, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) }));
+            else name = new TextBlock { Text = text, FontSize = 14, Foreground = Ui.Brush("#C7C7C7") };
+            panel.Children.Add(last ? name : Ui.Row(0, name, new TextBlock { Text = "·", FontSize = 14, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) }));
         }
         return panel;
     }

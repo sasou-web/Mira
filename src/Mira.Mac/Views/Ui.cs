@@ -264,10 +264,10 @@ public static class Cards
     /// <summary>« S1 · É3 », “S1 · E3”.</summary>
     public static string EpisodeCode(MediaItem item) => $"S{item.ParentIndexNumber ?? 1} · {L("É", "E")}{item.IndexNumber ?? 1}";
     /// <summary>
-    /// An actor or director found by a search: their photo in a circle (their initials without one) and their name;
-    /// a click shows their titles.
+    /// An actor or director found by a search: their photo in a circle (their initials without one) and their name, and on
+    /// a title's page the part they play; a click shows their titles.
     /// </summary>
-    public static Button Person(MediaItem person, Images? images, Action<MediaItem> open)
+    public static Button Person(MediaItem person, Images? images, Action<MediaItem> open, string? role = null)
     {
         const double size = 88;
         var image = new Image { Stretch = Stretch.UniformToFill, Width = size, Height = size };
@@ -279,6 +279,8 @@ public static class Cards
         var body = new StackPanel { Spacing = 10, Width = 112 };
         body.Children.Add(circle);
         body.Children.Add(new TextBlock { Text = person.Name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (role?.Trim() is { Length: > 0 } part)
+            body.Children.Add(new TextBlock { Text = part, FontSize = 12.5, FontWeight = FontWeight.Normal, Foreground = Ui.Muted, TextAlignment = TextAlignment.Center, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, -8, 0, 0) });
         var button = new Button { Content = body, Classes = { "card" } };
         Hover(button, circle);
         button.Click += (_, _) => open(person);
