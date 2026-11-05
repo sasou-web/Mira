@@ -103,6 +103,21 @@ struct TogetherTests {
         }
     }
 
+    @Test("Le bouton du groupe au-dessus des onglets : le compte, et ce que le groupe fait quand il retient l'image")
+    func indicators() throws {
+        let fixture = try SyncFixture.load()
+        for case let entry as [Any] in try #require(fixture["indicators"] as? [Any]) {
+            let group = try #require(try groups([entry[0]]).first)
+            let me = entry[1] as? String
+            #expect(SyncRules.countText(group) == entry[2] as? String, "\(entry)")
+            let status = SyncRules.groupStatus(group, me: me)
+            let text = SyncRules.indicatorText(group, me: me)
+            #expect(text.hasSuffix(" · \(status.text)") == status.alert, "\(entry)")
+        }
+        let crowd = SyncGroup(groupId: "g", groupName: nil, state: "Playing", participants: (1...120).map { "p\($0)" })
+        #expect(SyncRules.countText(crowd) == "99+")
+    }
+
     @Test("Un lien de party : son code et son Jellyfin, rien d'autre")
     func partyLinks() throws {
         let link = try #require(URL(string: "mira://party/AbCdEfGhIjKlMnOpQr_-12?server=https%3A%2F%2Fjellyfin-pc.tail1234.ts.net&id=0123456789abcdef0123456789abcdef"))

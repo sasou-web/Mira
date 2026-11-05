@@ -7,7 +7,8 @@ import UIKit
 /// bar. Scrolling a page down folds it to the open tab and Search, scrolling up or back to the top unfolds it. The open
 /// tab touched again goes back to its first page. Its size stops at a large text size (MainView), past which a long
 /// press on a tab shows it larger, as with iOS's own bar. The player reduced (MiniPlayer) sits over the tabs, and
-/// between the open tab and Search while the bar is folded.
+/// between the open tab and Search while the bar is folded. In a group of Watch together, its button (GroupButton) sits
+/// above them on the right, folded or not, on every page.
 struct MiraTabBar: View {
     @Binding var section: MainView.Section
     /// The player reduced to a bar, if there is one.
@@ -15,6 +16,7 @@ struct MiraTabBar: View {
     /// The open tab, touched again.
     let reselect: (MainView.Section) -> Void
     @Environment(TabBarModel.self) private var model
+    @Environment(AppModel.self) private var app
     @Namespace private var lens
     /// The tabs' height, growing with the text.
     @ScaledMetric(relativeTo: .footnote) private var side: CGFloat = 46
@@ -45,6 +47,13 @@ struct MiraTabBar: View {
     var body: some View {
         GlassEffectContainer(spacing: 12) {
             VStack(spacing: 10) {
+                if let group = app.together.group {
+                    HStack {
+                        Spacer(minLength: 0)
+                        GroupButton(group: group) { model.groupShown = true }
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .trailing)))
+                }
                 if let player, !model.folded {
                     reduced(player, inline: false)
                 }
@@ -83,6 +92,7 @@ struct MiraTabBar: View {
         .animation(spring, value: section)
         .animation(spring, value: model.folded)
         .animation(spring, value: player == nil)
+        .animation(spring, value: app.together.group == nil)
         .sensoryFeedback(.selection, trigger: section)
     }
 
@@ -197,6 +207,9 @@ struct MiraTabBar: View {
 final class TabBarModel {
     var folded = false
     var room: CGFloat = 0
+    /// The group's sheet, opened by its button over the tabs: shown by MainView, which stays when the bar steps out
+    /// of the keyboard's way.
+    var groupShown = false
 }
 
 extension View {

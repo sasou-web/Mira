@@ -713,6 +713,16 @@
         }
       }
     },
+    "Back to the player": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revenir au lecteur"
+          }
+        }
+      }
+    },
     "Built-in Tailscale": {
       "localizations": {
         "fr": {
@@ -1039,6 +1049,17 @@
           }
         }
       }
+    },
+    "In a group · %@ · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En groupe · %1$@ · %2$@"
+          }
+        }
+      },
+      "comment": "The group's button over the tabs: En groupe · Groupe de mira · mira et Marc"
     },
     "Jellyfin on your Tailscale network": {
       "localizations": {
@@ -3256,6 +3277,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Version"
+          }
+        }
+      }
+    },
+    "View “%@”": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voir « %@ »"
           }
         }
       }

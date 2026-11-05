@@ -101,6 +101,7 @@ struct MainView: View {
         .animation(.easeOut(duration: 0.2), value: keyboard)
         .modifier(KeyboardWatch(shown: $keyboard))
         .environment(bar)
+        .sheet(isPresented: $bar.groupShown) { GroupSheet() }
         .onChange(of: section) { _, now in
             bar.folded = false
             withAnimation(.easeOut(duration: 0.2)) { entered = now }
