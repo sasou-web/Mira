@@ -6,9 +6,9 @@ name: Web build
 on:
   push:
     branches: [main]
-    paths: ["src/Mira.Web/**", "src/Mira.Jellyfin/**", "tools/web/**", ".github/workflows/web.yml"]
+    paths: ["src/Mira.Web/**", "src/Mira.Jellyfin/**", "tools/web/**", "tools/extension/**", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["src/Mira.Web/**", "src/Mira.Jellyfin/**", "tools/web/**", ".github/workflows/web.yml"]
+    paths: ["src/Mira.Web/**", "src/Mira.Jellyfin/**", "tools/web/**", "tools/extension/**", ".github/workflows/web.yml"]
   # The newest Jellyfin, which nothing pins: a 12.x that breaks the plugin shows here before a friend runs into it.
   schedule:
     - cron: "17 5 * * 1"
@@ -90,6 +90,10 @@ jobs:
           cp .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0/
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
           node tools/web/setup.mjs http://127.0.0.1:8096 /media mira mira-check http://127.0.0.1:8765/jellyfin-manifest.json
+      # The extension through its API, as Mira for Windows, Mac and iPhone use it, without Mira web: what stays once
+      # Mira web is gone. Before Chromium, which runs long and changes the account's party link.
+      - name: Check the extension
+        run: node tools/extension/check.mjs http://127.0.0.1:8096 mira mira-check .artifacts/check/extension
       - name: Check in Chromium
         run: |
           npm install --silent --no-audit --no-fund --prefix .artifacts/pw playwright@1.56.1

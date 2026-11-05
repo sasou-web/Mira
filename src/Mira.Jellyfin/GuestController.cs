@@ -433,8 +433,10 @@ public sealed partial class GuestController : ControllerBase
         return clean.Length == 0 ? "Navigateur" : clean;
     }
 
+    // The device's name escaped, as Jellyfin's own clients send it (Jellyfin unescapes it): an HTTP header takes ASCII
+    // only, and « Téléphone de Léa » as it is made the request fail before it left.
     private static string Authorization(string device, string deviceId, string? token) =>
-        $"MediaBrowser Client=\"Mira\", Device=\"{device}\", DeviceId=\"{deviceId}\", Version=\"{Version}\"" + (token is null ? "" : $", Token=\"{token}\"");
+        $"MediaBrowser Client=\"Mira\", Device=\"{Uri.EscapeDataString(device)}\", DeviceId=\"{deviceId}\", Version=\"{Version}\"" + (token is null ? "" : $", Token=\"{token}\"");
 
     /// <summary>
     /// Where the request comes from, for the tries counted: the visitor's address that Tailscale Funnel (or any proxy

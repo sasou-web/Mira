@@ -7,6 +7,7 @@ Ce qui vérifie Mira, où ça tourne et comment le lancer. Les derniers résulta
 | `tests/Mira.Core.Tests` | tout système (.NET 10) | tout ce qui se passe de WPF | `ci.yml`, sous Linux ; ses tests « Tailscale intégré » aussi dans `mac.yml`, avec le nœud signé de Mira.app |
 | `tests/Mira.Tests` | Windows | la suite précédente, puis l’app Windows | `ci.yml`, sous Windows |
 | `tools/web/unit` | Node.js 22 ou plus | les décisions du lecteur de Mira web, sans navigateur | `web.yml` |
+| `tools/extension/check.mjs` | Node.js 22 + Jellyfin | l’extension par son API, comme les apps s’en servent : party et passerelle d’invités, garde de Funnel, relais TorLink (faux agent), HLS de l’app iPhone, sous-titres automatiques, affiches d’« Identifier… », sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi) | `web.yml` |
 | `tools/web/check.mjs` | Chromium (Playwright) + Jellyfin | Mira web de bout en bout, sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi) | `web.yml` |
 | `tools/web/safari.mjs` | Safari sur Mac + Jellyfin | lecture HLS et lecteur d’Apple | `web.yml` |
 | harnais de `Mira.exe` | Windows | captures, vrai lecteur, intégration Windows, TorLink | `ci.yml` (galerie seulement) |
@@ -53,6 +54,7 @@ Ces modules, et `dom.js` qu’ils importent, ne touchent à rien du navigateur �
 ```bash
 tools/web/media.sh <dossier>                     # médias de test (ffmpeg) ; « formats » en plus pour safari.mjs
 node tools/web/setup.mjs <serveur> <médias> <user> <mdp> [url du manifeste]   # Jellyfin neuf préparé par son API
+node tools/extension/check.mjs <serveur> <user> <mdp> <dossier>             # l’extension par son API, sans navigateur
 PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <user> <mdp> "Courte Web" <dossier>
 safaridriver -p 4444 &  node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dossier>   # Mac ; MIRA_FORMATS=1 pour les formats
 ```
