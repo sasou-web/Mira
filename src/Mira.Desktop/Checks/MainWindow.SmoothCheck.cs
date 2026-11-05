@@ -11,6 +11,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Mira.Checks;
 using Mira.Core;
 using Mira.Desktop.Views;
 

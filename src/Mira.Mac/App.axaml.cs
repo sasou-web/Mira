@@ -30,7 +30,7 @@ public partial class App : Application
             // question can hold their sign-in on a Mac nobody watches (GitHub's); the self-check checks the keychain apart,
             // with a time limit. The key of « Tailscale intégré » goes the same way (Profile.TailnetKey), in the same item:
             // one question from macOS after an update rather than one per secret.
-            var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") && !args.Contains("--tailnet-check") && !args.Contains("--gallery") ? new KeychainVault(new Keychain(), data ?? Profile.DefaultDirectory()) : null;
+            var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") && !args.Contains("--tailnet-check") && !args.Contains("--gallery") && !args.Contains("--smooth-check") ? new KeychainVault(new Keychain(), data ?? Profile.DefaultDirectory()) : null;
             var window = new MainWindow(args, new Profile(data, tokens));
             desktop.MainWindow = window;
             NameMenu();
@@ -56,7 +56,7 @@ public partial class App : Application
         if (desktop.MainWindow is not MainWindow window) return;
         ErrorLog.Append(window.Profile.DirectoryPath, e.Exception);
         // The checks fail on it, with the stack in their log.
-        if (window.Args.Contains("--self-check") || window.Args.Contains("--tailnet-check")) return;
+        if (window.Args.Contains("--self-check") || window.Args.Contains("--tailnet-check") || window.Args.Contains("--smooth-check")) return;
         e.Handled = true;
         // Closing, or not open yet: nothing is left to retry from, and a hidden window would keep Mira running. It ends.
         if (window.IsClosing || !window.IsVisible) { desktop.Shutdown(1); return; }

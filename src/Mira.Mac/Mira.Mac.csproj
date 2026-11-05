@@ -26,5 +26,7 @@
     <AvaloniaResource Include="../Mira.Desktop/Assets/Fonts/*.ttf" Link="Assets/Fonts/%(Filename)%(Extension)" />
     <AvaloniaResource Include="../Mira.Desktop/Assets/mira.png" Link="Assets/mira.png" />
     <AvaloniaResource Include="Assets/**" />
+    <!-- The Jellyfin answered inside Mira by the smoothness check, the Windows app's (its pictures drawn by Skia here). -->
+    <Compile Include="../Mira.Desktop/Checks/StandInJellyfin.cs" Link="Checks/StandInJellyfin.cs" />
   </ItemGroup>
 </Project>

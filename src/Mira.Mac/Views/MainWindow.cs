@@ -311,6 +311,7 @@ public sealed partial class MainWindow : Window
     {
         if (Args.Contains("--self-check")) { await Checks.SelfCheck.RunAsync(this); return; }
         if (Args.Contains("--gallery")) { await Checks.Gallery.RunAsync(this); return; }
+        if (Args.Contains("--smooth-check")) { await Checks.SmoothCheck.RunAsync(this); return; }
         // The check of « Tailscale intégré »: its stand-in Jellyfin served before anything asks it.
         var tailnetCheck = Args.Contains("--tailnet-check") ? new Checks.TailnetCheck(this) : null;
         // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.
