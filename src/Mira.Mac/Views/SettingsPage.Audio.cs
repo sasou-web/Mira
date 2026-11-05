@@ -11,8 +11,8 @@ namespace Mira.Mac.Views;
 // A device chosen but unplugged leaves the sound to the Mac's default, and stays the choice for when it comes back.
 public sealed partial class SettingsPage
 {
-    private readonly ComboBox _audioDevice = new() { MinWidth = 240 };
-    private readonly TextBlock _soundTestStatus = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly ComboBox _audioDevice = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+    private readonly TextBlock _soundTestStatus = new() { FontSize = 12, LineHeight = 19, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, IsVisible = false, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
     private Button? _soundTestButton;
     private MpvPlayer? _soundTest;
     private DispatcherTimer? _soundTestClock;
@@ -39,21 +39,25 @@ public sealed partial class SettingsPage
         // An HDMI choice of Windows' settings is not one a Mac makes: its Dolby Digital and DTS.
         var passthrough = AudioOutput.KnownPassthrough(settings.AudioPassthrough) == AudioOutput.Hdmi ? AudioOutput.Optical : AudioOutput.KnownPassthrough(settings.AudioPassthrough);
         _soundTestButton = Ui.Action(L("Tester", "Test"), "volume", "", SoundTest);
+        _soundTestButton.MinWidth = 96; _soundTestButton.Margin = new Avalonia.Thickness(10, 0, 0, 0);
+        Avalonia.Automation.AutomationProperties.SetName(_soundTestButton, L("Tester la sortie audio", "Test the audio output"));
+        var device = new DockPanel { Margin = new Avalonia.Thickness(0, 14, 0, 0) };
+        DockPanel.SetDock(_soundTestButton, Dock.Right); device.Children.Add(_soundTestButton); device.Children.Add(_audioDevice);
         return
         [
-            Row(L("Sortie", "Output"), L("Où Mira envoie le son. Débranchée, le son passe par la sortie du Mac ; elle reprend dès qu’elle revient. Aussi dans le lecteur (Audio).",
-                "Where Mira sends the sound. Unplugged, the sound plays on the Mac’s output; it comes back as soon as the device does. Also in the player (Audio)."), _audioDevice),
+            Ui.Column(0, CardTitle(L("Sortie audio", "Audio output")),
+                Description(L("Par défaut, celle du Mac, qui suit ce que tu branches. Aussi dans le lecteur, sous Audio.", "The Mac’s own by default, which follows what you plug in. Also in the player, under Audio.")),
+                device, _soundTestStatus),
             AudioChoice(L("Canaux", "Channels"), AudioOutput.MacChannelChoices, AudioOutput.KnownChannels(settings.AudioChannels), v => settings.AudioChannels = v,
-                L("Un film 5.1 sur des enceintes stéréo est mixé en deux canaux ; un film stéréo reste en stéréo.", "A 5.1 film on stereo speakers is mixed to two channels; a stereo film stays stereo.")),
+                L("« Automatique » suit le Mac. « Stéréo » pour un casque, 5.1 ou 7.1 pour un ampli.", "“Automatic” follows the Mac. “Stereo” for headphones, 5.1 or 7.1 for an amplifier.")),
             AudioChoice(L("Son envoyé à l’ampli tel quel", "Sound sent to the amplifier as is"), AudioOutput.MacPassthroughChoices, passthrough, v => settings.AudioPassthrough = v,
-                L("Pour un ampli ou une barre de son qui décode lui-même. Le volume se règle alors sur l’ampli. Vaut pour la prochaine lecture.",
-                    "For an amplifier or sound bar that decodes it itself. The volume is then set on the amplifier. Applies from the next playback.")),
-            Ui.Column(10, Row(L("Tester la sortie", "Test the output"), L("Un son sur chaque haut-parleur, l’un après l’autre.", "A tone on each speaker, one after the other."), _soundTestButton), _soundTestStatus),
+                L("Pour un ampli ou une barre de son qui décode le Dolby Digital et le DTS. Le volume se règle alors sur l’ampli. À la prochaine lecture.",
+                    "For an amplifier or sound bar that decodes Dolby Digital and DTS. The volume is then set on the amplifier. From the next playback.")),
         ];
     }
     private Control AudioChoice(string title, IReadOnlyList<(string Key, string Label, string Details)> choices, string current, Action<string> set, string detail)
     {
-        var box = new ComboBox { MinWidth = 240 };
+        var box = new ComboBox { MinWidth = 210 };
         foreach (var (key, label, details) in choices)
         {
             var item = new ComboBoxItem { Content = label, Tag = key };
@@ -64,10 +68,10 @@ public sealed partial class SettingsPage
         Avalonia.Automation.AutomationProperties.SetName(box, title);
         box.SelectionChanged += (_, _) => { if (box.SelectedItem is ComboBoxItem { Tag: string value }) { set(value); AudioSaved(); } };
         // What the choice does, said under the row: a tooltip is never read by VoiceOver.
-        var said = new TextBlock { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
-        void Say() => said.Text = box.SelectedItem is ComboBoxItem { Tag: string key } ? choices.First(x => x.Key == key).Details : "";
+        var said = Description("", 12);
+        void Say() { said.Text = box.SelectedItem is ComboBoxItem { Tag: string key } ? choices.First(x => x.Key == key).Details : ""; said.IsVisible = said.Text.Length > 0; }
         box.SelectionChanged += (_, _) => Say(); Say();
-        return Ui.Column(8, Row(title, detail, box), said);
+        return Ui.Column(0, Row(title, detail, box), said);
     }
     private void AudioSaved() { Save(); Shell.Player?.AudioChanged(); }
 
