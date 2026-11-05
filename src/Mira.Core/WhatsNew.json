@@ -12,8 +12,8 @@
         "en": { "title": "You can see you’re in a group", "text": "A group button, with the number of people, shows on every page on Windows, Mac and iPhone." } },
       { "icon": "sparkle", "title": "Défilement et pages plus fluides", "text": "Sous Windows, défiler suit enfin l’écran ; sur Mac, revenir à une page est instantané.",
         "en": { "title": "Smoother scrolling and pages", "text": "On Windows, scrolling finally keeps up with the screen; on Mac, going back to a page is instant." } },
-      { "icon": "check", "title": "Une interface plus calme", "text": "Favori et Vu ne changent plus de forme, le flash lecture/pause est l’icône seule, moins d’avis inutiles.",
-        "en": { "title": "A calmer interface", "text": "Favorite and Watched no longer change shape, the play/pause flash is the icon alone, fewer needless notices." } }
+      { "icon": "check", "title": "Une interface plus calme", "text": "Favori et Vu gardent leur forme, le flash lecture/pause est l’icône seule, moins d’avis inutiles, et l’iPhone s’ouvre sur le « m » de Mira.",
+        "en": { "title": "A calmer interface", "text": "Favorite and Watched keep their shape, the play/pause flash is the icon alone, fewer needless notices, and the iPhone app opens on Mira’s “m”." } }
     ]
   },
   {
