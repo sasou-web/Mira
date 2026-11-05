@@ -70,7 +70,7 @@ public partial class MainWindow
         var index = key is >= Key.D1 and <= Key.D5 ? key - Key.D1 : key is >= Key.NumPad1 and <= Key.NumPad5 ? key - Key.NumPad1 : -1;
         if (index < 0) return false;
         // Not from a screen drawn over the rail (sign-in, welcome, what's new), where a click could not reach it either.
-        if (!NavigationRail.IsVisible || LoginOverlay.Visibility == Visibility.Visible || WelcomeOverlay.Visibility == Visibility.Visible || WhatsNewOverlay.Visibility == Visibility.Visible || InviteOverlay.Visibility == Visibility.Visible || IdentifyOverlay.Visibility == Visibility.Visible || CollectionOverlay.Visibility == Visibility.Visible || ConfirmOverlay.Visibility == Visibility.Visible) return false;
+        if (!NavigationRail.IsVisible || LoginOverlay.Visibility == Visibility.Visible || PartyOverlay.Visibility == Visibility.Visible || WelcomeOverlay.Visibility == Visibility.Visible || WhatsNewOverlay.Visibility == Visibility.Visible || InviteOverlay.Visibility == Visibility.Visible || IdentifyOverlay.Visibility == Visibility.Visible || CollectionOverlay.Visibility == Visibility.Visible || ConfirmOverlay.Visibility == Visibility.Visible) return false;
         var button = new[] { HomeNav, MoviesNav, SeriesNav, LibraryNav, TorLinkNav }[index];
         if (!button.IsVisible || !button.IsEnabled) return false;
         button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, button)); button.Focus();

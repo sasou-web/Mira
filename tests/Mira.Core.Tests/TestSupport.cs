@@ -10,6 +10,13 @@ using Mira.Core.Updates;
 internal static class TestSupport
 {
     public static void Assert(bool value, string message) { if (!value) throw new Exception(message); }
+    /// <summary>The exception <typeparamref name="T"/> <paramref name="act"/> ends with; a failure when it ends otherwise.</summary>
+    public static async Task<T> Throws<T>(Func<Task> act) where T : Exception
+    {
+        try { await act(); }
+        catch (T ex) { return ex; }
+        throw new Exception($"{typeof(T).Name} attendue");
+    }
     /// <summary>The repository's folder (the one with Mira.sln), for the checks that read its files; null outside it.</summary>
     public static string? Repository()
     {

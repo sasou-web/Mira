@@ -29,7 +29,7 @@ public partial class MainWindow
     /// </summary>
     private async Task KeepMiraWebCurrentAsync()
     {
-        if (_demo || _client is not { } client || ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) is not { } version) return;
+        if (_demo || OwnClient is not { } client || ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) is not { } version) return;
         var done = $"{version.ToString(3)} {client.Connection.Server}";
         try
         {

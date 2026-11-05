@@ -205,6 +205,48 @@ public partial class MainWindow
             await Until("the film's folder in the Recycle Bin", () => !File.Exists(binFile) && !Directory.Exists(Path.GetDirectoryName(binFile)), 60);
             await UntilServer("Jellyfin forgets the film", async () => (await client.BrowseAsync("Movie", limit: 200)).Items.Any(x => x.Id == bin.Id) ? null : client, 120);
             Require(true, "the film's folder goes to the Recycle Bin and Jellyfin takes it out of the library");
+
+            // « Ta party » of another Jellyfin, joined as its guest (MainWindow.Party.cs): its host a second device of the
+            // account, its party this Jellyfin's (the extension put in by server-check.ps1 -Extension). Last: Mira's own
+            // account is let go meanwhile, then comes back.
+            if (Environment.GetEnvironmentVariable("MIRA_CHECK_PARTY") == "1")
+            {
+                friend = await UntilServer("the party's host signs in", async () => await Friend.StartAsync(server, user, password), 60);
+                await Until("the host listens", () => friend.Listening, 30);
+                var party = await UntilServer("the host's party link", () => friend.PartyAsync(), 30);
+                await friend.SendAsync("New", new JsonObject { ["GroupName"] = Together.GroupName(user) });
+                await Until("the host's group", () => friend.Joined, 20);
+                await AskPartyAsync(server, party.Code);
+                await Until("who invites, read on the party's page", () => PartyHeading.Text == Together.PartyAsk(user), 20);
+                Require(PartyOverlay.Visibility == Visibility.Visible && PartyNameForm.Visibility == Visibility.Visible, "a friend's party: Mira asks the first name the group will see, naming who invites");
+                await CaptureAsync(output, "server-party-name");
+                PartyNameBox.Text = "Léa";
+                step = "the party's guest";
+                await OpenPartyGuestAsync();
+                Require(InParty && _client is { } guest && Together.IsGuest(guest.Connection) && guest.Connection.UserName.StartsWith("Léa", StringComparison.Ordinal),
+                    "joined as the party's guest, without an account: Mira's session goes through the extension's gateway");
+                await Until("in the host's group", () => _group is not null && _partyStage == PartyStage.In, 40);
+                Require(PartyMembersText.Text.Contains("Léa", StringComparison.Ordinal) && PartyMembersText.Text.Contains(user, StringComparison.Ordinal), $"the party's page lists who is in the group: {PartyMembersText.Text}");
+                await CaptureAsync(output, "server-party");
+                await friend.QueueAsync(signs.Id);
+                await Until("the host's title loads for the guest", () => PlayingForGroup && _loaded && _session.Item?.Id == signs.Id, 60);
+                await Until("the party plays", () => _mpv is { } mpv && !mpv.Flag("pause"), 40);
+                await Advancing("the host's title plays for the guest");
+                await friend.SendAsync("Pause");
+                await Until("paused by the host", () => _mpv?.Flag("pause") == true, 15);
+                Require(true, "the host's title plays for the guest through the gateway, and pauses with the host");
+                await CaptureAsync(output, "server-party-player");
+                await StopPlaybackAsync(); ReturnToLibrary();
+                Require(PartyOverlay.Visibility == Visibility.Visible && PartyPrimary.Visibility == Visibility.Visible, "the player closed, the party's page offers to go back to the group's title");
+                // The host makes a new link: the guests of the old one go, and Mira says so.
+                await friend.PartyAsync(fresh: true);
+                await Until("the party over for the old link", () => _partyStage == PartyStage.Ended, 40);
+                Require(PartyHeading.Text == Together.PartyOver, "the host's new link ends the old one's guests: « This link's party is over »");
+                await LeavePartyAsync();
+                await Until("this PC's own account back", () => !InParty && _client?.Connection.UserName == user && !_catalog.Loading, 40);
+                Require(PartyOverlay.Visibility == Visibility.Collapsed && LoginOverlay.Visibility == Visibility.Collapsed, "out of the party: this PC's own account and library come back");
+                await friend.DisposeAsync(); friend = null;
+            }
         }
         catch (Exception ex)
         {
@@ -257,6 +299,15 @@ public partial class MainWindow
             return new Friend(new JellyfinClient(connection));
         }
         public Task JoinAsync(string groupId) => SendAsync("Join", new JsonObject { ["GroupId"] = groupId });
+        /// <summary>This account's party (the extension's), or a new link for it (the old one stopped, its guests gone).</summary>
+        public Task<PartyLink?> PartyAsync(bool fresh = false) => _client.PartyAsync(fresh, _stop.Token);
+        /// <summary>A title put on for the group, from its start.</summary>
+        public async Task QueueAsync(string itemId)
+        {
+            await _one.WaitAsync(_stop.Token);
+            try { await _client.SyncQueueAsync(itemId, 0, _stop.Token); }
+            finally { _one.Release(); }
+        }
         public async Task SendAsync(string what, JsonObject? body = null)
         {
             await _one.WaitAsync(_stop.Token);

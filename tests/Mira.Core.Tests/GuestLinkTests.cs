@@ -45,5 +45,35 @@ internal static class GuestLinkTests
             Assert(GuestLinks.AddressLine(listed with { Tunnel = null }) == "Les liens commencent par https://pc.ts.net." && GuestLinks.AddressLine(listed with { Address = null }) is null, "adresse seule, ou rien");
             return Task.CompletedTask;
         });
+        await Test("Party d’un autre Jellyfin : invité ouvert par la passerelle, sans compte", async () =>
+        {
+            string? sent = null; Uri? asked = null;
+            var answer = """{"token":"t0k","userId":"u1","userName":"Léa","serverId":"s1","host":"Sasha"}""";
+            var status = HttpStatusCode.OK; var body = answer; var type = "application/json";
+            using var client = new JellyfinClient(new("https://pc.tail1234.ts.net/", "", "", "", "0123456789abcdef0123456789abcdef"), new Handler(async request =>
+            {
+                asked = request.RequestUri; sent = await request.Content!.ReadAsStringAsync();
+                return new HttpResponseMessage(status) { Content = new StringContent(body, System.Text.Encoding.UTF8, type) };
+            }));
+            var guest = await client.OpenPartyAsync("AbCdEfGhIjKlMnOpQr_-12", " Léa ");
+            Assert(asked?.AbsoluteUri == "https://pc.tail1234.ts.net/Mira/guest/open", "adresse : " + asked);
+            using (var doc = System.Text.Json.JsonDocument.Parse(sent!))
+                Assert(doc.RootElement.GetProperty("party").GetString() == "AbCdEfGhIjKlMnOpQr_-12" && doc.RootElement.GetProperty("guest").GetString() == "Léa"
+                    && doc.RootElement.GetProperty("device").GetString() == "0123456789abcdef0123456789abcdef" && doc.RootElement.GetProperty("name").GetString() == JellyfinClient.DeviceName, "corps : " + sent);
+            Assert(guest == new PartyGuest(new("https://pc.tail1234.ts.net/Mira/guest/", "u1", "Léa", "t0k", "0123456789abcdef0123456789abcdef"), "Sasha"), "invité : " + guest);
+            Assert(Together.IsGuest(guest.Connection) && !Together.IsGuest(guest.Connection with { Server = "https://pc.tail1234.ts.net/" }), "connexion d’invité");
+            Assert(Together.GuestOrigin(guest.Connection) == "https://pc.tail1234.ts.net" && Together.GuestServer("http://192.168.1.10:8096") == "http://192.168.1.10:8096/Mira/guest/", "origine et passerelle");
+            Assert(Together.GuestDevice("0123456789abcdef0123456789abcdef") is { Length: 32 } device && device.All(Uri.IsHexDigit) && device == Together.GuestDevice("0123456789abcdef0123456789abcdef")
+                && device != Together.GuestDevice("autre-appareil") && !device.Contains("0123456789abcdef", StringComparison.Ordinal), "appareil de l’invité");
+            Assert(Together.PartyName("  Léa\n ") == "Léa" && Together.PartyName(new string('a', 40)).Length == 30 && Together.PartyName(null) == "", "prénom");
+            // The extension's refusal in its words; an extension without the gateway; a code that is not one.
+            status = HttpStatusCode.NotFound; body = """{"error":"Ce lien ne marche plus."}""";
+            var refused = await Throws<HttpRequestException>(() => client.OpenPartyAsync("AbCdEfGhIjKlMnOpQr_-12", "Léa"));
+            Assert(refused.Message == "Ce lien ne marche plus." && refused.StatusCode == HttpStatusCode.NotFound, "refus : " + refused.Message);
+            body = ""; type = "text/plain";
+            var older = await Throws<HttpRequestException>(() => client.OpenPartyAsync("AbCdEfGhIjKlMnOpQr_-12", "Léa"));
+            Assert(older.Message.Contains("mettre Mira à jour", StringComparison.Ordinal), "extension ancienne : " + older.Message);
+            await Throws<UserInputException>(() => client.OpenPartyAsync("court", "Léa"));
+        });
     }
 }

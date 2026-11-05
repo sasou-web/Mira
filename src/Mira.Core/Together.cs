@@ -250,6 +250,35 @@ public static class Together
     }
     /// <summary>The code of a party link (Mira.Jellyfin PartyController): 22 characters of base64url.</summary>
     public static bool IsPartyCode(string? code) => code is { Length: 22 } && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+    /// <summary>
+    /// The extension's gateway for guests of a Jellyfin (<paramref name="server"/>, its address): the server of a guest's
+    /// connection (<see cref="JellyfinClient.OpenPartyAsync"/>), where the paths of Jellyfin a guest may use answer.
+    /// </summary>
+    public static string GuestServer(string server) => JellyfinClient.NormalizeServer(server) + GuestPath;
+    private const string GuestPath = "Mira/guest/";
+    /// <summary>A guest's connection (<see cref="GuestServer"/>): no account of that Jellyfin, only its host's party.</summary>
+    public static bool IsGuest(Connection connection) => connection.Server.EndsWith("/" + GuestPath, StringComparison.OrdinalIgnoreCase);
+    /// <summary>The Jellyfin a guest's connection belongs to (its address without the gateway).</summary>
+    public static string GuestOrigin(Connection connection) =>
+        IsGuest(connection) ? connection.Server[..^GuestPath.Length].TrimEnd('/') : connection.Server.TrimEnd('/');
+    /// <summary>
+    /// The device id a guest of another Jellyfin gives it (<see cref="JellyfinClient.OpenPartyAsync"/>): drawn from this
+    /// device's own, always the same for it, in the form the extension takes (32 hexadecimal characters), and never the
+    /// one this device gives its own Jellyfin.
+    /// </summary>
+    public static string GuestDevice(string deviceId) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("mira-party|" + deviceId)))[..32].ToLowerInvariant();
+    /// <summary>The guest's name in a party, as it joins: what they typed, trimmed and at most 30 characters (the extension's limit).</summary>
+    public static string PartyName(string? typed) => new string((typed ?? "").Where(c => !char.IsControl(c)).ToArray()).Trim() is var name && name.Length > 30 ? name[..30].TrimEnd() : name;
+    // A friend's party joined as its guest (Mira for Windows and Mac; the iPhone says the same in its catalogue).
+    public static string PartyAsk(string? host) => host is { Length: > 0 } ? L($"Rejoins la party de {host}", $"Join {host}’s party") : L("Rejoins la party", "Join the party");
+    public static string PartyAskLead => L("Ton prénom, pour que le groupe sache qui est là. Pas de compte à créer.", "Your first name, so the group knows who’s here. No account to create.");
+    public static string PartyIn(string host) => L($"Tu es dans la party de {host}", $"You’re in {host}’s party");
+    public static string PartyInLead(string host) => L($"Garde Mira ouvert : le titre démarre ici dès que {host} le lance, au même moment chez chacun.", $"Keep Mira open: the title starts here as soon as {host} starts it, at the same moment for everyone.");
+    public static string PartyOver => L("La soirée est finie pour ce lien", "This link’s party is over");
+    public static string PartyEnded => L("Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.", "This link no longer works: ask whoever invited you for a new one.");
+    /// <summary>Who is in the group, as the party's page lists them: « Sasha, Léa ».</summary>
+    public static string Members(Group group) => group.Participants.Count == 0 ? People(1) : string.Join(", ", group.Participants);
     /// <summary>A party in Mira web, as a guest joins it without an account (#/party/&lt;code&gt;).</summary>
     public static string PartyWebLink(string server, string code) => server.TrimEnd('/') + "/Mira/#/party/" + Uri.EscapeDataString(code);
     /// <summary>

@@ -437,6 +437,7 @@ public partial class MainWindow
         PlayerShell.Visibility = Visibility.Collapsed; LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Visible;
         TitleBar.Visibility = Visibility.Visible;
         if (reveal) Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
+        ShowPartyState();
     }
     private MediaItem? _returnToDetail;
     private bool _returnToSettings;

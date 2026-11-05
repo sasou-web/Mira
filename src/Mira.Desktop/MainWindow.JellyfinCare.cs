@@ -41,7 +41,7 @@ public partial class MainWindow
     /// </summary>
     private async Task CareForJellyfinAsync()
     {
-        if (_jellyfinBusy || _demo || _client is not { } client) return;
+        if (_jellyfinBusy || _demo || OwnClient is not { } client) return;
         var ct = _connectionLifetime.Token;
         try
         {
@@ -115,7 +115,7 @@ public partial class MainWindow
     {
         if (_jellyfinBusy) return;
         JellyfinHereRow.Visibility = Visibility.Collapsed; JellyfinStatus.Text = "";
-        if (_demo || _client is not { } client) return;
+        if (_demo || OwnClient is not { } client) return;
         var ct = _connectionLifetime.Token;
         try
         {
@@ -190,7 +190,7 @@ public partial class MainWindow
 
     private async void JellyfinBackup_Click(object sender, RoutedEventArgs e)
     {
-        if (_jellyfinBusy || _client is not { } client) return;
+        if (_jellyfinBusy || OwnClient is not { } client) return;
         SetJellyfinBusy(true);
         try { await BackUpJellyfinAsync(client, _connectionLifetime.Token); }
         finally { SetJellyfinBusy(false); }
@@ -281,7 +281,7 @@ public partial class MainWindow
     /// </summary>
     private async void JellyfinUpdate_Click(object sender, RoutedEventArgs e)
     {
-        if (_jellyfinBusy || _client is not { } client) return;
+        if (_jellyfinBusy || OwnClient is not { } client) return;
         SetJellyfinBusy(true);
         var ct = _connectionLifetime.Token; string? setup = null; Task<int?>? update = null;
         try

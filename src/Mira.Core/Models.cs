@@ -303,6 +303,8 @@ public sealed class PlayerSettings
     public bool Tailnet { get; set; }
     /// <summary>The optional outage setting of « Tailscale intégré » (TailnetText.Outage) hidden by the person: never shown again.</summary>
     public bool TailnetOutageHidden { get; set; }
+    /// <summary>The first name this PC last joined a friend's party with (a guest of another Jellyfin): offered the next time.</summary>
+    public string PartyName { get; set; } = "";
     /// <summary>TorLink folder; empty: found through its shortcuts.</summary>
     public string TorLinkPath { get; set; } = "";
     public bool TorLinkAutoImport { get; set; } = true;

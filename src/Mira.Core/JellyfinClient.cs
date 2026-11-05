@@ -932,6 +932,30 @@ public sealed class JellyfinClient : IDisposable
         using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         return body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("host", out var host) && host.ValueKind == JsonValueKind.String && host.GetString() is { Length: > 0 } name ? name : null;
     }
+    /// <summary>
+    /// A party of another Jellyfin, joined without an account there (POST Mira/guest/open; this client at that
+    /// Jellyfin's address, with no session): a guest of its own for this device, named <paramref name="guest"/> in the
+    /// group (« Invité » when empty). Its session reaches only the extension's gateway (<see cref="Together.GuestServer"/>):
+    /// the host's groups, their title and its playback. The extension's refusal (link taken back, party full, too many
+    /// tries) is a <see cref="RelayRefusedException"/> in its own words.
+    /// </summary>
+    public async Task<PartyGuest> OpenPartyAsync(string code, string guest, CancellationToken ct = default)
+    {
+        if (!Together.IsPartyCode(code)) throw new UserInputException(L("Ce lien de party n’est pas complet.", "This party link isn’t complete."));
+        var body = new JsonObject { ["party"] = code, ["device"] = Connection.DeviceId, ["name"] = DeviceName, ["guest"] = guest.Trim() };
+        using var response = await _http.PostAsync("Mira/guest/open", new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json"), ct);
+        // An older extension, or none: no gateway, nothing of this Jellyfin opens without an account.
+        if (response.StatusCode == HttpStatusCode.NotFound && response.Content.Headers.ContentType?.MediaType != "application/json")
+            throw new RelayRefusedException(L("Ce Jellyfin n’accueille pas encore d’invités : la personne qui t’invite doit mettre Mira à jour.", "This Jellyfin doesn’t welcome guests yet: whoever invites you needs to update Mira."), response.StatusCode);
+        await CheckInvitesAsync(response, ct);
+        using var answer = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        var root = answer.RootElement;
+        string? Text(string name) => root.ValueKind == JsonValueKind.Object && root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        if (Text("token") is not { Length: > 0 } token || Text("userId") is not { Length: > 0 } userId)
+            throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+        var connection = new Connection(Together.GuestServer(Connection.Server), userId, Text("userName") ?? guest, token, Connection.DeviceId);
+        return new PartyGuest(connection, Text("host") ?? "");
+    }
     /// <summary>« Inviter par lien » (an administrator): the links made, and the address they start with (GET Mira/invites).</summary>
     public async Task<GuestLinkList> GuestLinksAsync(CancellationToken ct = default)
     {

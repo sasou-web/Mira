@@ -103,11 +103,11 @@ public partial class MainWindow : Window
             // A library change may be a title TorLink just brought in.
             _ = CheckTorLinkAvailabilityAsync();
             EpisodesMayHaveArrived();
-            if (!_playing && !_demo) { _metadata?.Clear(); _heroSeries.Clear(); await RefreshAsync(quiet: true); }
+            if (!_playing && !_demo && !InParty) { _metadata?.Clear(); _heroSeries.Clear(); await RefreshAsync(quiet: true); }
         };
         _fallbackRefresh.Tick += async (_, _) =>
         {
-            if (!_demo && !_playing && _client is not null && IsActive && Cadence.RefreshDue(_listening, _lastRefresh, DateTimeOffset.UtcNow)) await RefreshAsync(quiet: true);
+            if (!_demo && !_playing && OwnClient is not null && IsActive && Cadence.RefreshDue(_listening, _lastRefresh, DateTimeOffset.UtcNow)) await RefreshAsync(quiet: true);
         };
         _playerTimer.Tick += PlayerTick;
         InitializeEpisodeNotices(); InitializeTogether(); InitializeChoices(); WatchSettingChanges();
@@ -348,6 +348,8 @@ public partial class MainWindow : Window
             if (ct.IsCancellationRequested) return;
             var reopened = open && !_listening && _lastRefresh != DateTimeOffset.MinValue; _listening = open;
             if (reopened) { Changed(); RejoinGroup(client); }
+            // A party's guest: the host may have taken the link back, which ends its session.
+            if (!open && InParty) _ = CheckPartyAsync(client);
         });
         void SyncPlay(string type, JsonElement data) => Dispatcher.BeginInvoke(() => { if (!ct.IsCancellationRequested) GroupMessage(client, type, data); });
         try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening, SyncPlay); }
@@ -430,6 +432,8 @@ public partial class MainWindow : Window
     private async Task<bool> RefreshAsync(bool more = false, bool quiet = false)
     {
         _searchTimer.Stop();
+        // A party's guest has no library: its Jellyfin answers the party only.
+        if (InParty) return false;
         // A new list, or the same one asked again: its grid may go on loading as it scrolls.
         if (!more) { ResetGridMore(); _listRefreshing = false; }
         if (_demo) { RenderDemo(); return false; }

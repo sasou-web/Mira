@@ -238,7 +238,8 @@ jobs:
           }
   # Mira for Windows against a real Jellyfin 12.1 on the runner, beside the build (tools/server-check.ps1): sign-in,
   # Home, a film streamed then converted, Jellyfin stopped under it and started again, « Garder sur ce PC » played
-  # without Jellyfin, « Regarder ensemble » with a second device, « Mettre à la Corbeille »; then « Tailscale intégré »
+  # without Jellyfin, « Regarder ensemble » with a second device, « Mettre à la Corbeille », a party of that Jellyfin
+  # joined as its guest (the extension built here); then « Tailscale intégré »
   # on a Tailscale network of the runner's own (mira-testnet), whose « Jellyfin PC » is that Jellyfin. Jellyfin is
   # compiled from its sources once and kept (actions/cache); the test media are those of Mira web's checks
   # (tools/web/media.sh).
@@ -292,17 +293,19 @@ jobs:
           go build -trimpath -tags ((Get-Content build-tags.txt -Raw).Trim()) -o ../../.artifacts/tailscale/mira-testnet.exe ./cmd/mira-testnet
           if ($LASTEXITCODE -ne 0) { throw "mira-testnet did not build ($LASTEXITCODE)." }
           Pop-Location
-      - name: Build Mira for Windows
+      - name: Build Mira for Windows and the extension
         run: |
           dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
           dotnet build src/Mira.Desktop/Mira.Desktop.csproj -c Release --no-restore
+          dotnet restore src/Mira.Jellyfin/Mira.Jellyfin.csproj --configfile NuGet.Config
+          dotnet build src/Mira.Jellyfin/Mira.Jellyfin.csproj -c Release --no-restore
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .artifacts/server-work/libmpv.7z
           key: libmpv-${{ hashFiles('src/Mira.Core/MpvPackage.cs') }}
       - name: Mira against Jellyfin, then through Built-in Tailscale
         shell: pwsh
-        run: ./tools/server-check.ps1 -Jellyfin .artifacts/jf -Testnet .artifacts/tailscale/mira-testnet.exe
+        run: ./tools/server-check.ps1 -Jellyfin .artifacts/jf -Testnet .artifacts/tailscale/mira-testnet.exe -Extension src/Mira.Jellyfin/bin/Release/net8.0/Mira.Jellyfin.dll
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

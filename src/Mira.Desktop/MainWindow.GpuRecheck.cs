@@ -24,7 +24,7 @@ public partial class MainWindow
 
     private async Task RecheckGpuAsync()
     {
-        if (_gpuRechecking || _gpuBusy || _demo || _client is not { } client) return;
+        if (_gpuRechecking || _gpuBusy || _demo || OwnClient is not { } client) return;
         _gpuRechecking = true;
         var ct = _connectionLifetime.Token;
         try

@@ -22,12 +22,12 @@ public partial class MainWindow
     /// <summary>Something kept on Jellyfin changed here, or may have changed elsewhere: Mira and Jellyfin compare them shortly.</summary>
     private void ChoicesChanged()
     {
-        if (_demo || _client is null || _store is null) return;
+        if (_demo || OwnClient is null || _store is null) return;
         _choicesSoon.Stop(); _choicesSoon.Start();
     }
     private async Task SyncChoicesAsync()
     {
-        if (_demo || _closing || _client is not { } client || _store is not { } store) return;
+        if (_demo || _closing || OwnClient is not { } client || _store is not { } store) return;
         if (_choicesBusy) { _choicesAgain = true; return; }
         _choicesBusy = true; _choicesAsked = DateTimeOffset.UtcNow;
         try
