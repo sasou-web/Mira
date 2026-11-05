@@ -42,15 +42,23 @@ public partial class MainWindow
             for (var timer = Stopwatch.StartNew(); !test(); await Task.Delay(50))
                 if (timer.Elapsed.TotalSeconds > seconds) throw new TimeoutException($"{what}: not within {seconds} s.");
         }
+        string? note = null;
         async Task Measure(string name, Func<Task> action)
         {
-            step = name;
+            step = name; note = null;
             // A moment of rest between phases: what one left moving is not counted in the next.
             await Task.Delay(400);
             meter.Begin(name);
             await action();
             var phase = meter.End();
-            lines.Add(string.Create(CultureInfo.InvariantCulture, $"{name}: {phase.Frames} images en {phase.Seconds:0.00} s ({phase.Shown:P0} des rafraîchissements), {phase.MissedRefreshes} manqués, écart max {phase.GapMax:0.0} ms, travail max {phase.WorkMax:0.0} ms"));
+            lines.Add(string.Create(CultureInfo.InvariantCulture, $"{name}: {phase.Frames} images en {phase.Seconds:0.00} s ({phase.Shown:P0} des rafraîchissements), {phase.MissedRefreshes} manqués, écart max {phase.GapMax:0.0} ms, travail max {phase.WorkMax:0.0} ms, présentations : {(phase.Results.Length > 0 ? phase.Results : "?")}{note}"));
+        }
+        // The wheel, and how far the list moved: a list that did not move measured nothing.
+        async Task Wheel(ScrollViewer viewer, int notches, int spacing, bool down)
+        {
+            var from = viewer.VerticalOffset;
+            await WheelAsync(viewer, notches, spacing, down);
+            note = string.Create(CultureInfo.InvariantCulture, $" ; défilé de {from:0} à {viewer.VerticalOffset:0} px (sur {viewer.ScrollableHeight:0})");
         }
         async Task Shot(string name)
         {
@@ -76,25 +84,25 @@ public partial class MainWindow
             await ArtworkAsync(); await Shot("accueil");
 
             await Measure("Accueil : au repos", () => Task.Delay(1500));
-            await Measure("Accueil : molette vers le bas", () => WheelAsync(LibraryScroll, 10, 75, down: true));
-            await Measure("Accueil : molette vers le haut", () => WheelAsync(LibraryScroll, 10, 75, down: false));
+            await Measure("Accueil : molette vers le bas", () => Wheel(LibraryScroll, 10, 75, down: true));
+            await Measure("Accueil : molette vers le haut", () => Wheel(LibraryScroll, 10, 75, down: false));
             await Measure("Films : ouverture (1re fois)", async () => { await GoToPageAsync("Movie"); await Task.Delay(1200); });
             await Shot("films");
-            await Measure("Films : molette rapide vers le bas", () => WheelAsync(LibraryScroll, 30, 45, down: true));
-            await Measure("Films : molette lente vers le haut", () => WheelAsync(LibraryScroll, 14, 110, down: false));
+            await Measure("Films : molette rapide vers le bas", () => Wheel(LibraryScroll, 30, 45, down: true));
+            await Measure("Films : molette lente vers le haut", () => Wheel(LibraryScroll, 14, 110, down: false));
             await Measure("Films : retour en haut", async () => { SmoothScroll.ToTop(LibraryScroll); await SettleAsync(LibraryScroll); });
             await Measure("Séries : ouverture (1re fois)", async () => { await GoToPageAsync("Series"); await Task.Delay(1200); });
-            await Measure("Séries : molette vers le bas", () => WheelAsync(LibraryScroll, 14, 60, down: true));
+            await Measure("Séries : molette vers le bas", () => Wheel(LibraryScroll, 14, 60, down: true));
             await Measure("Films : ouverture (2e fois)", async () => { await GoToPageAsync("Movie"); await Task.Delay(1000); });
             await Until("a film on Films", () => PosterCards.Children.OfType<MediaCard>().Any(), 10);
             var film = PosterCards.Children.OfType<MediaCard>().First().Item;
             await Measure("Fiche : ouverture", async () => { await ShowDetailsAsync(film); await Task.Delay(1200); });
             await Shot("fiche");
-            await Measure("Fiche : molette", () => WheelAsync(DetailScroll, 12, 70, down: true));
+            await Measure("Fiche : molette", () => Wheel(DetailScroll, 12, 70, down: true));
             await Measure("Fiche : fermeture", async () => { await CloseDetailsAsync(); await Task.Delay(500); });
             await Measure("Réglages : ouverture", async () => { Settings_Click(SettingsNav, new RoutedEventArgs()); await Task.Delay(900); });
             await Shot("reglages");
-            await Measure("Réglages : molette", () => WheelAsync(SettingsScroll, 10, 70, down: true));
+            await Measure("Réglages : molette", () => Wheel(SettingsScroll, 10, 70, down: true));
             await Measure("Réglages : fermeture", async () => { await CloseSettingsAnimatedAsync(); await Task.Delay(500); });
             await Measure("Accueil : retour", async () => { await GoToPageAsync("home"); await Task.Delay(1000); });
         }

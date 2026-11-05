@@ -182,6 +182,9 @@ internal sealed class StandInJellyfin : HttpMessageHandler
             case ["SyncPlay", "List"]: return Json(Array.Empty<object>());
             case ["DisplayPreferences", var name]: return Json(new { Id = name, Client = "mira", CustomPrefs = new Dictionary<string, string>() });
             case ["QuickConnect", "Enabled"]: return Json(false);
+            // Asked of every account, answered to administrators only; no Mira extension on this one.
+            case ["System", "Logs"] or ["Library", "VirtualFolders"]: return new HttpResponseMessage(HttpStatusCode.Forbidden);
+            case ["Mira", ..]: return new HttpResponseMessage(HttpStatusCode.NotFound);
             case ["Playback", "BitrateTest"]: return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[Math.Clamp(int.TryParse(query["size"], out var size) ? size : 0, 0, 10_000_000)]) };
             case ["Items", var id, "Similar"]:
             {
