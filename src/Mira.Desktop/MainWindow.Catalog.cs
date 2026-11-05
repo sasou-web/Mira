@@ -180,7 +180,7 @@ public partial class MainWindow
         if (recalled is not null || cached is not null || _demo) _catalog.Loading = false;
         RenderLibrary();
         if (recalled is not null) ScrollBack(recalled.Offset); else SmoothScroll.Jump(LibraryScroll);
-        Motion.Reveal(LibraryScroll, 260, 10);
+        RevealLibrary();
         // Back to a page left: every title already loaded is asked again, without the spinner, and it stays where it was.
         UpdateHeroClock(); await RefreshAsync(quiet: recalled is not null);
         await closing; UpdateNavigation(); UpdateHeroClock();
@@ -331,7 +331,7 @@ public partial class MainWindow
         CatalogSkeleton.Children.Clear();
         for (var i = 0; i < columns * 2; i++)
             CatalogSkeleton.Children.Add(SkeletonCard(width));
-        if (CatalogSkeleton.Visibility != Visibility.Visible) { CatalogSkeleton.Visibility = Visibility.Visible; Motion.Pulse(CatalogSkeleton, true); }
+        if (CatalogSkeleton.Visibility != Visibility.Visible) { CatalogSkeleton.Visibility = Visibility.Visible; Motion.Pulse(CatalogSkeleton, true, LibraryRevealMs); }
     }
     private static StackPanel SkeletonCard(double width)
     {
@@ -422,8 +422,9 @@ public partial class MainWindow
             // In reading order: once a card is past the margin below, so are all the next ones.
             if (top > LibraryScroll.ActualHeight + margin) return;
             if (top + card.ActualHeight >= -margin) _ = card.LoadImageAsync(_images, false);
-            // A few milliseconds at a time, the rest after: a page opening or scrolling meanwhile keeps its pace.
-            if (System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds > 3) { ScheduleVisibleArtwork(); return; }
+            // A few milliseconds at a time, the rest after: a page scrolling meanwhile keeps its pace. A page coming in takes
+            // more at once, its images mostly kept in memory: each time some are set, its picture is drawn again.
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds > (Environment.TickCount64 < MediaCard.QuietUntil ? 12 : 3)) { ScheduleVisibleArtwork(); return; }
         }
     }
     /// <summary>Right click (or Shift+F10 / menu key) on a card.</summary>

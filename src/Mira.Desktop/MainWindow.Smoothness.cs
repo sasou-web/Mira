@@ -30,12 +30,26 @@ public partial class MainWindow
         _libraryCovers = [TorLinkOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, PartyOverlay, StartupVeil];
         var opacity = DependencyPropertyDescriptor.FromProperty(OpacityProperty, typeof(UIElement));
         foreach (var cover in _libraryCovers) { cover.IsVisibleChanged += (_, _) => UpdateLibraryCover(); opacity.AddValueChanged(cover, (_, _) => UpdateLibraryCover()); }
-        _picturesTimer.Tick += (_, _) => { _picturesTimer.Stop(); UpdateCardPictures(); };
+        // Not while a page comes in: a poster's picture made or let go draws the page's again.
+        _picturesTimer.Tick += (_, _) => { if (Environment.TickCount64 >= MediaCard.QuietUntil) { _picturesTimer.Stop(); UpdateCardPictures(); } };
         LayoutUpdated += (_, _) => { if (!_picturesTimer.IsEnabled) _picturesTimer.Start(); };
         RenderCache.Changed += () => { foreach (var card in MediaCard.Live) if (card.Pictured) card.Pictured = true; };
         Loaded += (_, _) => UsePictureScale(); DpiChanged += (_, _) => UsePictureScale();
         // Minimized, the pictures go (memory of the graphics card, for what runs meanwhile): made again on the way back.
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) foreach (var card in MediaCard.Live) card.Pictured = false; };
+    }
+
+    /// <summary>How long a page of the library takes to come in, until its picture is let go (<see cref="Motion.Reveal"/>).</summary>
+    private const int LibraryRevealMs = 380;
+    /// <summary>
+    /// A page of the library coming in (a page of the rail, one left and found again): one picture while it does, which
+    /// nothing inside must change at each refresh. The images that arrive meanwhile come with it, set together without
+    /// a fade of their own (<see cref="MediaCard.QuietUntil"/>); the placeholders' pulse waits for its end.
+    /// </summary>
+    private void RevealLibrary()
+    {
+        MediaCard.QuietUntil = Environment.TickCount64 + LibraryRevealMs;
+        Motion.Reveal(LibraryScroll, 260, 10);
     }
 
     /// <summary>Pictures made at the scale the pages are drawn at: the screen's, times their zoom (Windows' text size).</summary>

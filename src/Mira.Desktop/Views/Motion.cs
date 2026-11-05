@@ -60,10 +60,11 @@ public static class Motion
         return animation;
     }
     /// <summary>Slow breathing opacity for loading placeholders; stops (and settles) with <paramref name="active"/> false.</summary>
-    public static void Pulse(UIElement target, bool active)
+    /// <param name="delay">Still until then: a page coming in stays one picture (<see cref="PageProperty"/>).</param>
+    public static void Pulse(UIElement target, bool active, int delay = 0)
     {
         if (!active || Reduced) { target.BeginAnimation(UIElement.OpacityProperty, null); target.Opacity = 1; return; }
-        target.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, .55, TimeSpan.FromMilliseconds(900)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = Ease });
+        target.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, .55, TimeSpan.FromMilliseconds(900)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = Ease, BeginTime = TimeSpan.FromMilliseconds(delay) });
     }
     public static async Task HideAsync(FrameworkElement target, int ms = 140)
     {
