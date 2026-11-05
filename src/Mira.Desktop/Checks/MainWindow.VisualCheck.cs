@@ -89,7 +89,12 @@ public partial class MainWindow
         // The window's own background first: the content alone is see-through where the window shows (unreadable on a light page).
         var backdrop = new DrawingVisual();
         using (var context = backdrop.RenderOpen()) context.DrawRectangle(Background, null, new Rect(0, 0, visual.ActualWidth, visual.ActualHeight));
-        bitmap.Render(backdrop); bitmap.Render(visual); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        // Without the posters' pictures (RenderCache): made at the window's scale, a capture at ×2 would stretch them.
+        var pictured = MediaCard.Live.Where(x => x.Pictured).ToList();
+        foreach (var card in pictured) card.Pictured = false;
+        try { bitmap.Render(backdrop); bitmap.Render(visual); }
+        finally { foreach (var card in pictured) card.Pictured = true; }
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using (var file = File.Create(Path.Combine(directory, name + ".png"))) encoder.Save(file);
         // After the capture, which shows the screen at fault.
         AssertNamed(name);

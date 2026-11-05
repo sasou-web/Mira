@@ -51,7 +51,7 @@ public partial class MainWindow
         if (LibraryShell is null || Content is not FrameworkElement { ActualWidth: > 0 } root) return false;
         var zoom = ValidationRun ? 1 : Legibility.Zoom(_textScale, root.ActualWidth, root.ActualHeight, 960, 600);
         if (Math.Abs(zoom - _zoom) < .005) return false;
-        _zoom = zoom;
+        _zoom = zoom; UsePictureScale();
         var scale = zoom == 1 ? Transform.Identity : new ScaleTransform(zoom, zoom);
         if (scale.CanFreeze) scale.Freeze();
         foreach (var page in new FrameworkElement[] { LibraryShell, NavigationRail, TorLinkOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, WhatsNewOverlay, InviteOverlay, IdentifyOverlay, CollectionOverlay, ConfirmOverlay, Notice })

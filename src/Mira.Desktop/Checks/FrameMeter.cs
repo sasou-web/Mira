@@ -147,10 +147,10 @@ internal sealed class FrameMeter : IDisposable
     public static string Table(IEnumerable<Phase> phases)
     {
         var c = CultureInfo.InvariantCulture; var text = new StringBuilder();
-        text.AppendLine("| Phase | s | Hz | images | montrées | rafraîchissements manqués | à l'heure | écart p95 / max (ms) | travail p95 / max (ms) | fil occupé | plus longue autre (ms) | présentées | 1re image (ms) | GC 0/1/2 |");
-        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        text.AppendLine("| Phase | s | Hz | images | montrées | rafraîchissements manqués | à l'heure | écart p95 / max (ms) | travail p95 / max (ms) | fil occupé | plus longue autre (ms) | présentées | 1re image (ms) | GC 0/1/2 | pauses GC (ms) |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var p in phases)
-            text.AppendLine(string.Create(c, $"| {p.Name} | {p.Seconds:0.0} | {p.RefreshHz:0} | {p.Frames} | {p.Shown:P0} | {p.MissedRefreshes} | {p.OnTime:P1} | {p.GapP95:0.0} / {p.GapMax:0.0} | {p.WorkP95:0.0} / {p.WorkMax:0.0} | {p.Busy:P0} | {p.LongestOther:0.0} | {p.Presented} | {p.FirstFrame:0} | {p.Gen0}/{p.Gen1}/{p.Gen2} |"));
+            text.AppendLine(string.Create(c, $"| {p.Name} | {p.Seconds:0.0} | {p.RefreshHz:0} | {p.Frames} | {p.Shown:P0} | {p.MissedRefreshes} | {p.OnTime:P1} | {p.GapP95:0.0} / {p.GapMax:0.0} | {p.WorkP95:0.0} / {p.WorkMax:0.0} | {p.Busy:P0} | {p.LongestOther:0.0} | {p.Presented} | {p.FirstFrame:0} | {p.Gen0}/{p.Gen1}/{p.Gen2} | {p.GcPause:0.0} |"));
         return text.ToString();
     }
 

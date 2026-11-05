@@ -73,8 +73,12 @@ public sealed class ImageCache
         var width = Pixels(EpisodeWidth);
         return Cached($"{item.Id}-{type}-{item.ImageTags.GetValueOrDefault(type)}-{width}", item.Id, type, width);
     }
-    /// <summary>One request per image, shared by every caller; the least recently used leave past the budget.</summary>
-    private Task<BitmapSource?> Cached(string key, string id, string type, int width) => Memory.Get(key, () => FetchAsync(key, id, type, width));
+    /// <summary>
+    /// One request per image, shared by every caller; the least recently used leave past the budget. Fetched away from
+    /// the window's thread from the start: its file checks, opened and read, each held that thread a little while a page
+    /// opened or scrolled (more with an antivirus that reads each file opened).
+    /// </summary>
+    private Task<BitmapSource?> Cached(string key, string id, string type, int width) => Memory.Get(key, () => Task.Run(() => FetchAsync(key, id, type, width)));
     private static long Size(BitmapSource bitmap) => (long)bitmap.PixelWidth * bitmap.PixelHeight * Math.Max(1, (bitmap.Format.BitsPerPixel + 7) / 8);
     private async Task<BitmapSource?> FetchAsync(string key, string id, string type, int width)
     {

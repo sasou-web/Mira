@@ -366,25 +366,35 @@ public partial class MainWindow
             var item = items[i]; var key = MediaCard.Key(item, _settings);
             if (!existing.Remove(key, out var card))
             {
-                card = new MediaCard(item, wide, i, _settings, _demo); ++made;
-                card.Click += async (_, _) =>
+                // A card of a page shown before (Films, Séries, Films again) comes back as it was left.
+                if (_cardShelf.Take(key, wide, found) is not { } kept)
                 {
-                    ClosePreview();
-                    if (item.Type == "BoxSet") await ShowSagaAsync(item, SearchBox.Text.Trim());
-                    else if (found && item.Type == "Episode") await ShowDetailsAsync(await PageItemAsync(item), item);
-                    else if (wide || _catalog.View == "offline") await PlayAsync(item, chosen: true);
-                    else await ShowDetailsAsync(item);
-                };
-                card.HoverEntered += CardHoverEntered; card.FocusEntered += CardFocusEntered; card.HoverLeft += CardHoverLeft;
-                card.ContextMenu = CardMenu(card, wide && !found);
+                    card = new MediaCard(item, wide, i, _settings, _demo) { Found = found }; ++made;
+                    card.Click += async (_, _) =>
+                    {
+                        ClosePreview();
+                        if (item.Type == "BoxSet") await ShowSagaAsync(item, SearchBox.Text.Trim());
+                        else if (found && item.Type == "Episode") await ShowDetailsAsync(await PageItemAsync(item), item);
+                        else if (wide || _catalog.View == "offline") await PlayAsync(item, chosen: true);
+                        else await ShowDetailsAsync(item);
+                    };
+                    card.HoverEntered += CardHoverEntered; card.FocusEntered += CardFocusEntered; card.HoverLeft += CardHoverLeft;
+                    card.ContextMenu = CardMenu(card, wide && !found);
+                }
+                else card = kept;
                 panel.Children.Insert(Math.Min(i, panel.Children.Count), card);
-                // The grid's posters wait until they come near the visible part of the page (LoadVisibleArtwork).
-                if (panel != PosterCards) _ = card.LoadImageAsync(_images, wide);
                 // Page navigation already animates the page. Refreshing progress must not animate it again per card.
             }
             else if (panel.Children.IndexOf(card) != i) { panel.Children.Remove(card); panel.Children.Insert(i, card); }
+            // The grid's posters wait until they come near the visible part of the page (LoadVisibleArtwork); a row's
+            // come at once, also those of a row of Accueil coming back (put away meanwhile: RenderShelves).
+            if (panel != PosterCards && !card.ImageRequested) _ = card.LoadImageAsync(_images, wide);
         }
-        while (panel.Children.Count > items.Count) panel.Children.RemoveAt(panel.Children.Count - 1);
+        while (panel.Children.Count > items.Count)
+        {
+            var last = panel.Children[^1]; panel.Children.RemoveAt(panel.Children.Count - 1);
+            if (last is MediaCard gone) _cardShelf.Put(gone);
+        }
         if (made > 0) FrameProbe.Mark($"{made} new card{(made > 1 ? "s" : "")} in {panel.Name}");
         NoteScroll();
         if (panel == PosterCards) ScheduleVisibleArtwork();
@@ -403,7 +413,7 @@ public partial class MainWindow
     private void LoadVisibleArtwork()
     {
         if (_images is null || !PosterCards.IsVisible || LibraryScroll.ActualHeight <= 0) return;
-        var margin = LibraryScroll.ActualHeight;
+        var margin = LibraryScroll.ActualHeight; var started = System.Diagnostics.Stopwatch.GetTimestamp();
         foreach (var card in PosterCards.Children.OfType<MediaCard>())
         {
             if (card.ImageRequested) continue;
@@ -412,6 +422,8 @@ public partial class MainWindow
             // In reading order: once a card is past the margin below, so are all the next ones.
             if (top > LibraryScroll.ActualHeight + margin) return;
             if (top + card.ActualHeight >= -margin) _ = card.LoadImageAsync(_images, false);
+            // A few milliseconds at a time, the rest after: a page opening or scrolling meanwhile keeps its pace.
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds > 3) { ScheduleVisibleArtwork(); return; }
         }
     }
     /// <summary>Right click (or Shift+F10 / menu key) on a card.</summary>

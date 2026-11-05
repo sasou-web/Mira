@@ -64,7 +64,13 @@ public partial class MainWindow
         if (HomeShelves.Children.Cast<UIElement>().SequenceEqual(order)) return;
         HomeShelves.Children.Clear();
         foreach (var part in order) HomeShelves.Children.Add(part);
-        foreach (var key in _shelves.Keys.Where(key => !order.Contains(_shelves[key].Section)).ToList()) _shelves.Remove(key);
+        // Away from Accueil its rows wait, cards and all, to come back with it at once (without their artwork, which the
+        // image cache keeps within its budget: asked again by AddCards); on Accueil, a row hidden goes.
+        foreach (var key in _shelves.Keys.Where(key => !order.Contains(_shelves[key].Section)).ToList())
+        {
+            if (home) _shelves.Remove(key);
+            else foreach (var card in _shelves[key].Cards.Children.OfType<MediaCard>()) card.Shelve();
+        }
     }
     /// <summary>A row of posters as Continuer à regarder is drawn: its title, its arrows when it goes past the window.</summary>
     private (StackPanel Section, TextBlock Title, ScrollViewer Scroll, StackPanel Cards, FrameworkElement Arrows) Shelf()

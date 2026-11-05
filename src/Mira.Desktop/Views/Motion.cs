@@ -43,8 +43,9 @@ public static class Motion
     /// appear as a short cascade instead of every card popping at once.</param>
     public static void Reveal(FrameworkElement target, int ms = 260, double distance = 12, int delay = 0)
     {
-        target.SetValue(VisibilityVersionProperty, (int)target.GetValue(VisibilityVersionProperty) + 1);
+        var version = (int)target.GetValue(VisibilityVersionProperty) + 1; target.SetValue(VisibilityVersionProperty, version);
         target.Visibility = Visibility.Visible; target.IsHitTestVisible = true;
+        Picture(target, version, delay + ms + 60);
         var move = target.RenderTransform as TranslateTransform ?? new TranslateTransform(); target.RenderTransform = move;
         if (Reduced || delay <= 0) { Animate(move, TranslateTransform.YProperty, 0, ms + 60, Reduced ? 0 : distance, Enter); Fade(target, 1, ms, Reduced ? 1 : 0, Enter); return; }
         move.BeginAnimation(TranslateTransform.YProperty, Delayed(distance, 0, delay, ms), HandoffBehavior.SnapshotAndReplace);
@@ -68,10 +69,32 @@ public static class Motion
     {
         if (target.Visibility != Visibility.Visible) return;
         var version = (int)target.GetValue(VisibilityVersionProperty) + 1; target.SetValue(VisibilityVersionProperty, version);
-        target.IsHitTestVisible = false; Fade(target, 0, ms, ease: Exit);
+        target.IsHitTestVisible = false; Picture(target, version, ms); Fade(target, 0, ms, ease: Exit);
         if (!Reduced) await Task.Delay(ms);
         // Only the latest transition may finish when navigation changes rapidly.
         if (version == (int)target.GetValue(VisibilityVersionProperty)) target.Visibility = Visibility.Collapsed;
+    }
+    /// <summary>
+    /// A whole page of the window, opaque (<see cref="Reveal"/> and <see cref="HideAsync"/> move and fade it): while
+    /// it comes or goes, WPF keeps it as one picture (<see cref="RenderCache.Picture"/>) that it moves and fades at each
+    /// refresh. Otherwise it draws all of the page again at each refresh into a layer it then fades: on a 4K screen at
+    /// 240 Hz, one image in three. Its content must not move by itself meanwhile (the picture would be drawn again).
+    /// </summary>
+    public static readonly DependencyProperty PageProperty = DependencyProperty.RegisterAttached("Page", typeof(bool), typeof(Motion), new PropertyMetadata(false));
+    public static bool GetPage(DependencyObject value) => (bool)value.GetValue(PageProperty);
+    public static void SetPage(DependencyObject value, bool enabled) => value.SetValue(PageProperty, enabled);
+    /// <summary>A page kept as a picture for the <paramref name="ms"/> of its transition, then drawn as usual again (its own scroll would draw all the picture again at each frame).</summary>
+    private static void Picture(FrameworkElement target, int version, int ms)
+    {
+        if (Reduced || !GetPage(target)) return;
+        target.CacheMode = RenderCache.Picture;
+        _ = LetGoAsync();
+        async Task LetGoAsync()
+        {
+            await Task.Delay(ms + 60);
+            // A newer transition of the page keeps it until its own end.
+            if (version == (int)target.GetValue(VisibilityVersionProperty)) target.ClearValue(UIElement.CacheModeProperty);
+        }
     }
     public static readonly DependencyProperty InteractiveProperty = DependencyProperty.RegisterAttached("Interactive", typeof(bool), typeof(Motion), new PropertyMetadata(false, InteractiveChanged));
     public static bool GetInteractive(DependencyObject value) => (bool)value.GetValue(InteractiveProperty);
@@ -90,8 +113,11 @@ public static class Motion
     {
         if (sender is not Button button || e.NewValue is not true || button is MediaCard) return;
         ScaleTransform? scale = null;
+        // Lit by the pointer: only then is there something to put out when the button goes.
+        var lifted = false;
         void To(double wash, double size, int ms)
         {
+            lifted = wash > 0;
             button.ApplyTemplate();
             // Wash and scale share one duration and one curve, so they move as a single gesture.
             if (button.Template?.FindName("Hover", button) is UIElement layer) Fade(layer, wash, ms, ease: Soft);
@@ -106,9 +132,10 @@ public static class Motion
         button.MouseLeave += (_, _) => To(0, 1, 240);
         button.PreviewMouseLeftButtonDown += (_, _) => To(PressWash, Shrink(), 110);
         button.PreviewMouseLeftButtonUp += (_, _) => { if (button.IsMouseOver) To(HoverWash, Grow(), 200); else To(0, 1, 240); };
-        // A button hidden or disabled under the pointer must not keep its highlight.
-        button.IsVisibleChanged += (_, _) => { if (!button.IsVisible) To(0, 1, 0); };
-        button.IsEnabledChanged += (_, _) => { if (!button.IsEnabled) To(0, 1, 120); };
+        // A button hidden or disabled under the pointer must not keep its highlight. The others have none to put out: a
+        // page closing would otherwise start an animation on each of its buttons.
+        button.IsVisibleChanged += (_, _) => { if (!button.IsVisible && lifted) To(0, 1, 0); };
+        button.IsEnabledChanged += (_, _) => { if (!button.IsEnabled && lifted) To(0, 1, 120); };
     }
 
     /// <summary>Changes a glyph with a short pop (scale and fade) so a state change reads as one gesture.</summary>

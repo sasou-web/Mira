@@ -78,7 +78,7 @@ public partial class MainWindow
             KeepFullSpeed();
             where = PlaceForMeasure(placement);
             step = "sign in";
-            _serverHandler = standIn;
+            ServerHandler = standIn;
             await ActivateConnectionAsync(new Connection(StandInJellyfin.Server, StandInJellyfin.UserId, StandInJellyfin.UserName, StandInJellyfin.Token, _profile.DeviceId));
             await Until("Accueil loaded", () => !_catalog.Loading && PosterCards.Children.Count > 0 && ResumeCards.Children.Count > 0, 40);
             await ArtworkAsync(); await Shot("accueil");
@@ -102,7 +102,12 @@ public partial class MainWindow
             await Measure("Fiche : fermeture", async () => { await CloseDetailsAsync(); await Task.Delay(500); });
             await Measure("Réglages : ouverture", async () => { Settings_Click(SettingsNav, new RoutedEventArgs()); await Task.Delay(900); });
             await Shot("reglages");
-            await Measure("Réglages : molette", () => Wheel(SettingsScroll, 10, 70, down: true));
+            // The section with the most to scroll at this size (Lecture fits on a large screen: nothing would move).
+            var longest = "playback"; var most = -1d;
+            foreach (var tab in new[] { "playback", "subtitles", "appearance", "server", "updates" })
+            { SelectSettingsTab(tab, animate: false); SettingsScroll.UpdateLayout(); if (SettingsScroll.ScrollableHeight > most) (longest, most) = (tab, SettingsScroll.ScrollableHeight); }
+            SelectSettingsTab(longest, animate: false); await Task.Delay(400);
+            await Measure("Réglages : molette", async () => { await Wheel(SettingsScroll, 10, 70, down: true); note += $" ; section {longest}"; });
             await Measure("Réglages : fermeture", async () => { await CloseSettingsAnimatedAsync(); await Task.Delay(500); });
             await Measure("Accueil : retour", async () => { await GoToPageAsync("home"); await Task.Delay(1000); });
         }
@@ -120,7 +125,7 @@ public partial class MainWindow
             {
                 $"Mira {JellyfinClient.AppVersion}, {Environment.OSVersion.VersionString}, {Environment.ProcessorCount} processeurs logiques, rendu de niveau {RenderCapability.Tier >> 16}",
                 where,
-                string.Create(c, $"Taux de l’écran lu par WPF : {meter.RefreshRate} Hz ; {meter.Sources}"),
+                string.Create(c, $"Taux de l’écran lu par WPF : {(meter.Phases.Count > 0 ? meter.Phases.Max(x => x.RefreshHz) : meter.RefreshRate):0} Hz ; {meter.Sources}"),
                 string.Create(c, $"Processeur de tout le PC pendant la mesure : {(busy < 0 ? "?" : busy.ToString("P0", c))} ; Mira : {processor:0.00} cœur"),
                 $"Jellyfin de mesure : {standIn.Requests} requêtes, {standIn.Pictures} images" + (standIn.Unknown.IsEmpty ? "" : " ; inconnues : " + string.Join(", ", standIn.Unknown.Select(x => $"{x.Key} ×{x.Value}")))
             };
