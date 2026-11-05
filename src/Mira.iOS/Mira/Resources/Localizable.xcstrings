@@ -2981,16 +2981,6 @@
         }
       }
     },
-    "These open in Mira web, inside Mira. Sign in there once.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ces pages s’ouvrent dans Mira web, dans Mira. Connecte-toi là une fois."
-          }
-        }
-      }
-    },
     "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).": {
       "localizations": {
         "fr": {
@@ -4637,6 +4627,1066 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arrêter"
+          }
+        }
+      }
+    },
+    "Actions for “%@”": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actions pour « %@ »"
+          }
+        }
+      }
+    },
+    "Added to your library": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rangés dans ta bibliothèque"
+          }
+        }
+      }
+    },
+    "All seasons": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toutes les saisons"
+          }
+        }
+      }
+    },
+    "Anime": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anime"
+          }
+        }
+      }
+    },
+    "Asking the server PC to cancel…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annulation demandée au PC serveur…"
+          }
+        }
+      }
+    },
+    "Asking the server PC to pause…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause demandée au PC serveur…"
+          }
+        }
+      }
+    },
+    "Asking the server PC to resume…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprise demandée au PC serveur…"
+          }
+        }
+      }
+    },
+    "Best pick": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meilleur choix"
+          }
+        }
+      }
+    },
+    "Cancel download": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler le téléchargement"
+          }
+        }
+      }
+    },
+    "Cancel “%@”": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler « %@ »"
+          }
+        }
+      }
+    },
+    "Checking the server PC…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecture du PC serveur…"
+          }
+        }
+      }
+    },
+    "Complete season %lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saison %lld complète"
+          }
+        }
+      }
+    },
+    "Done · adding to your library…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminé · rangement dans ta bibliothèque…"
+          }
+        }
+      }
+    },
+    "Download": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger"
+          }
+        }
+      }
+    },
+    "Download to the server PC?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger sur le PC serveur ?"
+          }
+        }
+      }
+    },
+    "Episode %lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisode %lld"
+          }
+        }
+      }
+    },
+    "Episodes %lld–%lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisodes %lld à %lld"
+          }
+        }
+      }
+    },
+    "Failed · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec · %@"
+          }
+        }
+      }
+    },
+    "Few seeders: the download will be slow.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peu de sources : le téléchargement sera lent."
+          }
+        }
+      }
+    },
+    "Filmed in a movie theater: poor picture and sound.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filmé dans une salle de cinéma : image et son médiocres."
+          }
+        }
+      }
+    },
+    "Hidden": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquées"
+          }
+        }
+      }
+    },
+    "Hide other versions": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquer les autres versions"
+          }
+        }
+      }
+    },
+    "It searches and downloads with TorLink, then adds the title to your library. Open it on the PC that runs Jellyfin, signed in with an administrator account: this screen comes alive as soon as it’s there, even minimized.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "C’est lui qui cherche et télécharge avec TorLink, puis range le titre dans ta bibliothèque. Ouvre-le sur le PC où tourne Jellyfin, connecté avec un compte administrateur : cet écran s’active dès qu’il est là, même réduit."
+          }
+        }
+      }
+    },
+    "Mira hasn’t been opened on the server PC yet: that’s where it searches and downloads, with TorLink. Open it there, signed in with an administrator account.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira n’a pas encore été ouvert sur le PC serveur : c’est lui qui cherche et télécharge, avec TorLink. Ouvre-le là-bas, connecté avec un compte administrateur."
+          }
+        }
+      }
+    },
+    "Mira isn’t open on %@ (seen %@). Your requests will wait for it and go through when it’s back.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira n’est pas ouvert sur %@ (vu %@) : tes demandes l’attendent, il les fera à son retour."
+          }
+        }
+      }
+    },
+    "Mira isn’t open on %@. Your requests will wait for it and go through when it’s back.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira n’est pas ouvert sur %@ : tes demandes l’attendent, il les fera à son retour."
+          }
+        }
+      }
+    },
+    "Movie": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film"
+          }
+        }
+      }
+    },
+    "Movie, show, anime…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film, série, anime…"
+          }
+        }
+      }
+    },
+    "No results for “%@” in movies, shows or anime. Try another title.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun résultat pour « %@ » dans les films, les séries et les animes. Essaie un autre titre."
+          }
+        }
+      }
+    },
+    "Nobody is sharing this file, so it probably won’t download.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personne ne partage ce fichier : il ne se téléchargera sans doute pas."
+          }
+        }
+      }
+    },
+    "On the server PC": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur le PC serveur"
+          }
+        }
+      }
+    },
+    "Only Jellyfin administrator accounts can download to the server PC.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seuls les comptes administrateurs de Jellyfin peuvent télécharger sur le PC serveur."
+          }
+        }
+      }
+    },
+    "Open Mira on the server PC": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre Mira sur le PC serveur"
+          }
+        }
+      }
+    },
+    "Paste a link from a site you know: TorLink downloads it on the server PC, then Mira adds it to your library.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colle le lien d’un site que tu connais : TorLink le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque."
+          }
+        }
+      }
+    },
+    "Paste a magnet link": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coller un lien magnet"
+          }
+        }
+      }
+    },
+    "Paused · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En pause · %@"
+          }
+        }
+      }
+    },
+    "Quality not stated": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qualité non précisée"
+          }
+        }
+      }
+    },
+    "Queued · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En file d’attente · %@"
+          }
+        }
+      }
+    },
+    "Remove “%@”": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer « %@ »"
+          }
+        }
+      }
+    },
+    "Removed from the list.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retiré de la liste."
+          }
+        }
+      }
+    },
+    "Request canceled.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demande annulée."
+          }
+        }
+      }
+    },
+    "Request saved: the server PC will handle it as soon as Mira is open there.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demande gardée : le PC serveur la fera dès que Mira y sera ouvert."
+          }
+        }
+      }
+    },
+    "Searching movies, shows and anime for “%@” on the server PC…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche de « %@ » dans les films, les séries et les animes sur le PC serveur…"
+          }
+        }
+      }
+    },
+    "Season %lld, episodes %lld–%lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saison %lld, épisodes %lld à %lld"
+          }
+        }
+      }
+    },
+    "See all %lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voir les %lld titres rangés"
+          }
+        }
+      }
+    },
+    "See less": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voir moins"
+          }
+        }
+      }
+    },
+    "Sending to TorLink…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoi à TorLink…"
+          }
+        }
+      }
+    },
+    "Sent": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyé"
+          }
+        }
+      }
+    },
+    "Sent to TorLink": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyé à TorLink"
+          }
+        }
+      }
+    },
+    "Sent to TorLink: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyé à TorLink : %@"
+          }
+        }
+      }
+    },
+    "Sent to the server PC.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyé au PC serveur."
+          }
+        }
+      }
+    },
+    "Show": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Série"
+          }
+        }
+      }
+    },
+    "Shown": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affichées"
+          }
+        }
+      }
+    },
+    "Stopped · %@ · resumes when TorLink reopens on the server PC": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêté · %@ · reprend quand TorLink rouvre sur le PC serveur"
+          }
+        }
+      }
+    },
+    "That’s not a magnet link (“magnet:?xt=urn:btih:…”).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »)."
+          }
+        }
+      }
+    },
+    "The Mira extension on your server doesn’t know this screen yet. Update Mira on the server PC, then restart Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’extension Mira de ton serveur ne connaît pas encore cet écran : mets à jour Mira sur le PC serveur, puis redémarre Jellyfin."
+          }
+        }
+      }
+    },
+    "The search didn’t go through.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La recherche n’a pas abouti."
+          }
+        }
+      }
+    },
+    "The server PC didn’t answer in time. Check that Mira is open there, then search again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le PC serveur n’a pas répondu à temps. Vérifie que Mira y est ouvert, puis relance la recherche."
+          }
+        }
+      }
+    },
+    "The server PC has already picked it up. Cancel it in its list as soon as it shows up there.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît."
+          }
+        }
+      }
+    },
+    "Theater cam": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filmé en salle"
+          }
+        }
+      }
+    },
+    "This request is gone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette demande n’est plus là."
+          }
+        }
+      }
+    },
+    "This search was lost. Try it again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette recherche a été perdue : relance-la."
+          }
+        }
+      }
+    },
+    "TorLink can’t write to its folder": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TorLink ne peut pas écrire dans son dossier"
+          }
+        }
+      }
+    },
+    "TorLink downloads on the PC that runs Jellyfin, without you having to touch it, then Mira adds the title to your library. Mira must be open there, even minimized. Only Jellyfin administrator accounts see this screen.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les comptes administrateurs de Jellyfin voient cet écran."
+          }
+        }
+      }
+    },
+    "TorLink refused this download.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TorLink a refusé ce téléchargement."
+          }
+        }
+      }
+    },
+    "TorLink stops it and deletes what it has already downloaded on the server PC.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TorLink l’arrête et supprime ce qu’il en a déjà sur le PC serveur."
+          }
+        }
+      }
+    },
+    "Waiting for the server PC": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente du PC serveur"
+          }
+        }
+      }
+    },
+    "What do you want to download?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Que veux-tu télécharger ?"
+          }
+        }
+      }
+    },
+    "%lldh ago": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "il y a %lld h"
+          }
+        }
+      }
+    },
+    "%lld min ago": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "il y a %lld min"
+          }
+        }
+      }
+    },
+    "%lld days ago": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "il y a %lld jours"
+          }
+        }
+      }
+    },
+    "%@ of %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sur %@"
+          }
+        }
+      }
+    },
+    "%@ is ready: TorLink downloads there, then Mira adds the title to your library.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est prêt : TorLink y télécharge, puis Mira range le titre dans ta bibliothèque."
+          }
+        }
+      }
+    },
+    "%lld days": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld day"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld days"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld jour"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld jours"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@. TorLink downloads it on %@, then Mira adds it to your library. You can cancel it here until it’s done.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. TorLink le télécharge sur %@, puis Mira le range dans ta bibliothèque. Tu peux l’annuler ici tant qu’il n’est pas terminé."
+          }
+        }
+      }
+    },
+    "%@. TorLink downloads it on the server PC, then Mira adds it to your library. You can cancel it here until it’s done.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. TorLink le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque. Tu peux l’annuler ici tant qu’il n’est pas terminé."
+          }
+        }
+      }
+    },
+    "%lld other versions": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld other version"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld other versions"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld autre version"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld autres versions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lldh %@m": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld h %@"
+          }
+        }
+      }
+    },
+    "%@ GB": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Go"
+          }
+        }
+      }
+    },
+    "%@ KB/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Ko/s"
+          }
+        }
+      }
+    },
+    "%@ MB": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Mo"
+          }
+        }
+      }
+    },
+    "%@ MB/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Mo/s"
+          }
+        }
+      }
+    },
+    "%lld peers": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld peer"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld peers"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld pair"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld pairs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld peers, waiting for data": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld peer, waiting for data"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld peers, waiting for data"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld pair, en attente de données"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld pairs, en attente de données"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld seeders": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld seeder"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld seeders"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld source"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sources"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "just now": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "à l’instant"
+          }
+        }
+      }
+    },
+    "less than a minute": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "moins d’une minute"
+          }
+        }
+      }
+    },
+    "looking for peers…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "recherche de pairs…"
+          }
+        }
+      }
+    },
+    "no seeders": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aucune source"
+          }
+        }
+      }
+    },
+    "the server PC’s disk is full": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "plus de place sur le disque du PC serveur"
+          }
+        }
+      }
+    },
+    "Those marked ↗ open in Mira web, inside Mira. Sign in there once.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Celles marquées ↗ s’ouvrent dans Mira web, dans Mira. Connecte-toi là une fois."
           }
         }
       }

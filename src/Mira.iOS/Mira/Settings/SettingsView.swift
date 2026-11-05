@@ -75,11 +75,16 @@ struct SettingsView: View {
                         admin("Titles to fix", "Those Jellyfin didn’t recognize, without a poster or twice.", symbol: "exclamationmark.triangle", route: "a-corriger")
                         admin("Automatic subtitles", "Jellyfin looks for each new title’s subtitles and syncs them to the video.", symbol: "captions.bubble", route: "sous-titres-auto")
                         admin("Guest links", "Watch together with someone who has no account and no Tailscale.", symbol: "link", route: "invites")
-                        admin("Download on the server PC", "Search for a title: TorLink downloads it there, Mira files it in your library.", symbol: "arrow.down.circle", route: "telecharger")
+                        NavigationLink {
+                            DownloadsView()
+                        } label: {
+                            row("Download on the server PC", "Search for a title: TorLink downloads it there, Mira files it in your library.", symbol: "arrow.down.circle")
+                        }
+                        .accessibilityIdentifier("settings.downloads")
                     } header: {
                         Text("Administration")
                     } footer: {
-                        Text("These open in Mira web, inside Mira. Sign in there once.")
+                        Text("Those marked ↗ open in Mira web, inside Mira. Sign in there once.")
                     }
                     .listRowBackground(Palette.surface)
                 }
