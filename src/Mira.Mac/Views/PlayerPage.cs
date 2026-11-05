@@ -228,7 +228,8 @@ public sealed partial class PlayerPage : UserControl
 
     // —— Start and stop ——
     /// <summary>
-    /// Opens <paramref name="item"/> (a series: its next episode); false when it could not start. With
+    /// Opens <paramref name="item"/> (a series: its next episode); false when there is nothing to show (no account, a
+    /// newer start), a start that fails saying why on its own screen (PlayerPage.Failure.cs). With
     /// <paramref name="groupStart"/>, for the group: there, paused until Jellyfin says when to play.
     /// </summary>
     public async Task<bool> StartAsync(MediaItem item, bool fromStart = false, long? groupStart = null)
@@ -259,6 +260,8 @@ public sealed partial class PlayerPage : UserControl
             _groupReadyPending = groupStart is not null; _groupStallSince = null; _groupStalled = false;
             if (groupStart is not null) { Group.SetAway(false); Group.Report("Buffering", _session.Position, false); }
             _fileOpen = true;
+            // Another try from « Lecture impossible »: its screen leaves as the file opens.
+            if (FailureShown) { HideFailure(); ShowControls(); }
             _mpv.Load(stream.Location, _session.Position, stream.Authorization, paused: groupStart is not null);
             _session.LastReport = DateTimeOffset.Now;
             _tick.Start();
@@ -268,13 +271,20 @@ public sealed partial class PlayerPage : UserControl
         }
         catch (Exception ex) when (Errors.Expected(ex) || ex is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
         {
-            await StopAsync();
-            if (ex is IOException or FileNotFoundException) _shell.Notice(ex.Message);
+            if (generation != _generation) return false;
+            var started = L("La lecture n’a pas pu démarrer. ", "Playback couldn’t start. ");
+            if (ex is IOException or FileNotFoundException) await FailAsync(started + ex.Message, item);
+            // An engine that does not load will not load on another try either.
             else if (ex is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
-                _shell.Notice(L("La lecture n’a pas pu démarrer : le moteur mpv de Mira.app ne s’est pas chargé.", "Playback couldn’t start: Mira.app’s mpv engine didn’t load."));
+                await FailAsync(L("La lecture n’a pas pu démarrer : le moteur mpv de Mira.app ne s’est pas chargé. Réinstalle Mira depuis son image disque.", "Playback couldn’t start: Mira.app’s mpv engine didn’t load. Reinstall Mira from its disk image."), item, retry: false);
             // Jellyfin not reached: through « Tailscale intégré », why, with what helps.
-            else _shell.Say(ex);
-            return false;
+            else
+            {
+                _shell.NotAnswered(ex);
+                if (_shell.Tailnet.Says(session.Connection.Server, ex) is { } said) await FailAsync(said.Text, item, said.Action, said.Act);
+                else await FailAsync(started + Errors.Friendly(ex), item);
+            }
+            return true;
         }
     }
     /// <summary>The episode Lecture opens on a series: Jellyfin's next one, else one in progress, else the first unwatched.</summary>
@@ -382,9 +392,9 @@ public sealed partial class PlayerPage : UserControl
         if (last) _sleep.Clear();
         if (eof && _shell.Settings.AutoNext && !last && !stay && _session.Item?.Type == "Episode" && (next ?? await NextAfterAsync(_session.Item)) is { } following)
         { await PlayNextAsync(following, completed: true); return; }
+        if (error is not null) { await FailAsync(error, _session.Item); return; }
         await StopAsync(eof);
         await _shell.CloseOverlayPlayerAsync(this);
-        if (error is not null) _shell.Notice(error);
     }
     private async Task<MediaItem?> NextAfterAsync(MediaItem current)
     {
@@ -556,6 +566,7 @@ public sealed partial class PlayerPage : UserControl
 
     private void ShowControls()
     {
+        if (FailureShown) return;
         SetControls(true);
         _hide.Stop();
         _hide.Interval = TimeSpan.FromMilliseconds(_session.Paused ? 4000 : 2600);
@@ -572,34 +583,6 @@ public sealed partial class PlayerPage : UserControl
         _top.IsHitTestVisible = _bottom.IsHitTestVisible = shown;
         Cursor = shown ? Cursor.Default : new Cursor(StandardCursorType.None);
         UpdateSkip(); ShowGroup();
-    }
-
-    public void HandleKey(KeyEventArgs e)
-    {
-        var command = e.KeyModifiers.HasFlag(KeyModifiers.Meta);
-        switch (e.Key)
-        {
-            case Key.Space or Key.K: TogglePause(); break;
-            case Key.Left or Key.J: SeekBy(-10); break;
-            case Key.Right or Key.L: SeekBy(10); break;
-            case Key.Up: ChangeVolume(5); break;
-            case Key.Down: ChangeVolume(-5); break;
-            case Key.M: ToggleMute(); break;
-            case Key.C: ToggleSubtitles(); break;
-            case Key.F: ToggleFullscreen(); break;
-            case Key.S: if (_skips.Active is not null) Skip(); break;
-            case Key.N: if (_skips.Next is { } next) _ = PlayNextAsync(next); break;
-            case Key.P: if (_previous.IsVisible && _previous.IsEnabled) PlayPrevious(); break;
-            case Key.E: ToggleEpisodes(); break;
-            case Key.I: SetMini(!_mini); break;
-            // In the mini-player, Échap and ⌘[ are the library's.
-            case Key.Escape when !_mini:
-                if (_shell.WindowState == WindowState.FullScreen) ToggleFullscreen(); else SetMini(true);
-                break;
-            case Key.OemOpenBrackets when command && !_mini: SetMini(true); break;
-            default: return;
-        }
-        e.Handled = true;
     }
 
     // —— Menus ——
@@ -865,6 +848,7 @@ public sealed partial class PlayerPage : UserControl
     /// </summary>
     public void ShowGroup()
     {
+        if (FailureShown) return;
         var status = Group.Active && Group.Group is { } group && _shell.Session is { } session ? Together.GroupStatus(group, session.Connection.UserName, !_loaded || _groupReadyPending || _groupStallSince is not null) : null;
         var said = status is not null && DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
         if (status is not null) { _groupText.Text = said ?? status.Text; _groupPill.IsVisible = true; }

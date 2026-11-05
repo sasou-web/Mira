@@ -260,8 +260,8 @@ public sealed partial class PlayerPage
     }
 
     /// <summary>
-    /// C, as on Windows: the subtitles hidden, or shown again (those shown before, else the first track). A conversion's
-    /// go through its own tracks (PlayerPage.Stream.cs).
+    /// C, as on Windows: the subtitles hidden, or shown again (those shown before, else the first track), said by the
+    /// pill in the middle of the picture. A conversion's go through its own tracks (PlayerPage.Stream.cs).
     /// </summary>
     private void ToggleSubtitles()
     {
@@ -273,19 +273,19 @@ public sealed partial class PlayerPage
             {
                 _convertedBeforeOff = shown; _subtitlesBeforeOff = shown is null && !ConvertedTracks.Off(sid) ? sid : null;
                 if (shown is null && _subtitlesBeforeOff is not null) _mpv.Set("sid", "no"); else _ = ChooseConvertedAsync(text: -1);
-                ShowStatus(L("Sous-titres désactivés", "Subtitles off"), 2);
+                ShowSeekPill(L("Sous-titres désactivés", "Subtitles off"));
                 return;
             }
-            if (_subtitlesBeforeOff is not null) { _mpv.Set("sid", _subtitlesBeforeOff); ShowStatus(L("Sous-titres activés", "Subtitles on"), 2); return; }
+            if (_subtitlesBeforeOff is not null) { _mpv.Set("sid", _subtitlesBeforeOff); ShowSeekPill(L("Sous-titres activés", "Subtitles on")); return; }
             var first = _convertedBeforeOff ?? converted.Subtitles.Select(ConvertedTracks.Index).FirstOrDefault(i => !converted.IsPicture(i) && converted.Path(i) is not null, -1);
-            if (first < 0) { ShowStatus(L("Aucun sous-titre", "No subtitles"), 2); return; }
-            _ = ChooseConvertedAsync(text: first); ShowStatus(L("Sous-titres activés", "Subtitles on"), 2);
+            if (first < 0) { ShowSeekPill(L("Aucun sous-titre", "No subtitles")); return; }
+            _ = ChooseConvertedAsync(text: first); ShowSeekPill(L("Sous-titres activés", "Subtitles on"));
             return;
         }
         var current = _mpv.Get("sid");
-        if (!ConvertedTracks.Off(current)) { _subtitlesBeforeOff = current; _mpv.Set("sid", "no"); ShowStatus(L("Sous-titres désactivés", "Subtitles off"), 2); RememberTracks(); return; }
+        if (!ConvertedTracks.Off(current)) { _subtitlesBeforeOff = current; _mpv.Set("sid", "no"); ShowSeekPill(L("Sous-titres désactivés", "Subtitles off")); RememberTracks(); return; }
         var back = _subtitlesBeforeOff ?? _mpv.Tracks().FirstOrDefault(t => t.Type == "sub")?.Id;
-        if (back is null) { ShowStatus(L("Aucun sous-titre", "No subtitles"), 2); return; }
-        _mpv.Set("sid", back); ShowStatus(L("Sous-titres activés", "Subtitles on"), 2); RememberTracks();
+        if (back is null) { ShowSeekPill(L("Aucun sous-titre", "No subtitles")); return; }
+        _mpv.Set("sid", back); ShowSeekPill(L("Sous-titres activés", "Subtitles on")); RememberTracks();
     }
 }

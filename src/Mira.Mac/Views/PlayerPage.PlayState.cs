@@ -23,6 +23,7 @@ public sealed partial class PlayerPage
     private void ShowPlayState(bool paused)
     {
         if (_mini || _spinner.IsVisible) return;
+        HideSeekPill();
         if (_flash is null)
         {
             _flash = new Border
@@ -40,6 +41,13 @@ public sealed partial class PlayerPage
         _flashIcon.Margin = paused ? default : new Thickness(3, 0, 0, 0);
         _flash.IsVisible = true; _flashStart = DateTimeOffset.UtcNow;
         FlashFrame(); _flashClock!.Start();
+    }
+    /// <summary>A jump said by the pill takes the middle of the picture at once.</summary>
+    private void HidePlayState()
+    {
+        _flashClock?.Stop();
+        if (_flash is null) return;
+        _flash.IsVisible = false; _flash.Opacity = 0;
     }
     private void FlashFrame()
     {
