@@ -491,10 +491,10 @@ public sealed class DetailPage : Page
         var identify = new MenuItem { Header = L("Identifier…", "Identify…") };
         identify.Click += async (_, _) =>
         {
-            var window = new IdentifyWindow(session, _item);
-            await window.ShowDialog(Shell);
-            if (window.Said is { } said) Shell.Notice(said);
-            if (window.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; _logo = null; await RefreshAsync(); }
+            var sheet = new IdentifySheet(session, _item);
+            await sheet.ShowAsync(Shell);
+            if (sheet.Said is { } said) Shell.Notice(said);
+            if (sheet.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; _logo = null; await RefreshAsync(); }
         };
         var refresh = new MenuItem { Header = L("Actualiser les métadonnées", "Refresh metadata") };
         refresh.Click += async (_, _) =>

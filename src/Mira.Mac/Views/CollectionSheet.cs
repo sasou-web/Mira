@@ -10,35 +10,39 @@ using static Mira.Core.Lang;
 namespace Mira.Mac.Views;
 
 /// <summary>
-/// Collections made by hand (<see cref="TitleCollections"/>), as Windows and Mira web make them: « Ajouter à une
-/// collection… » of a film or series (the collections that hold it ticked, a click takes it out, a new one named with it),
-/// or a collection renamed (an administrator). A name is refused before Jellyfin sees it when it is already a collection's
-/// name or folder: Jellyfin would put the new one in the other's place, its titles lost.
+/// Collections made by hand (<see cref="TitleCollections"/>), as Windows and Mira web make them, in a sheet over the
+/// window: « Ajouter à une collection… » of a film or series (the collections that hold it ticked, a click takes it out,
+/// a new one named with it), or a collection renamed (an administrator). A name is refused before Jellyfin sees it when
+/// it is already a collection's name or folder: Jellyfin would put the new one in the other's place, its titles lost.
 /// </summary>
-public sealed class CollectionWindow : Window
+public sealed class CollectionSheet
 {
     private readonly Session _session;
     private readonly MediaItem? _item, _renamed;
+    private readonly Sheet _sheet;
     private readonly TextBox _name = new() { MaxLength = 120 };
-    private readonly TextBlock _status = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _status = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
     private readonly StackPanel _list = new() { Spacing = 2 };
     private static readonly IBrush Danger = Ui.Brush("#F3AD99");
     private List<MediaItem> _collections = [];
+    private MainWindow? _shell;
     private bool _busy;
 
-    /// <summary>What to say once the window closes; whether a collection changed (the pages are drawn again).</summary>
+    /// <summary>What to say once the sheet closes; whether a collection changed (the pages are drawn again).</summary>
     public string? Said { get; private set; }
     public bool Changed { get; private set; }
     /// <summary>The new name of the collection renamed.</summary>
     public string? NewName { get; private set; }
 
     /// <param name="item">The film or series put in collections; null with <paramref name="renamed"/>, the collection renamed.</param>
-    public CollectionWindow(Session session, MediaItem? item, MediaItem? renamed = null)
+    public CollectionSheet(Session session, MediaItem? item, MediaItem? renamed = null)
     {
         _session = session; _item = item; _renamed = renamed;
-        Title = renamed is not null ? L("Renommer la collection", "Rename collection") : L("Ajouter à une collection", "Add to collection");
-        Width = 540; SizeToContent = SizeToContent.Height; CanResize = false;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        var note = renamed is not null ? L("Ses titres restent où ils sont : une collection ne fait que les rassembler.", "Its titles stay where they are: a collection only brings them together.")
+            : L("Il va dans les collections cochées : rien n’est copié ni déplacé.", "It goes in the ticked collections: nothing is copied or moved.");
+        _sheet = new Sheet(renamed is not null ? L("RENOMMER LA COLLECTION", "RENAME COLLECTION") : L("AJOUTER À UNE COLLECTION", "ADD TO COLLECTION"), "library",
+            renamed?.Name ?? item?.DisplayTitle ?? "", width: 560, titleSize: 28);
+        _sheet.Body.Children.Add(new TextBlock { Text = note, FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap });
         Avalonia.Automation.AutomationProperties.SetName(_name, L("Nom de la collection", "Collection name"));
         Avalonia.Automation.AutomationProperties.SetLiveSetting(_status, Avalonia.Automation.AutomationLiveSetting.Polite);
         _name.Watermark = L("Soirées, À montrer à Léa…", "Movie nights, To show Léa…");
@@ -49,20 +53,27 @@ public sealed class CollectionWindow : Window
         var line = new DockPanel();
         DockPanel.SetDock(save, Dock.Right); save.Margin = new Thickness(10, 0, 0, 0);
         line.Children.Add(save); line.Children.Add(_name);
-        var close = Ui.Action(L("Fermer", "Close"), null, "quiet", Close);
-        close.HorizontalAlignment = HorizontalAlignment.Left;
-        var note = renamed is not null ? L("Ses titres restent où ils sont : une collection ne fait que les rassembler.", "Its titles stay where they are: a collection only brings them together.")
-            : L("Il va dans les collections cochées : rien n’est copié ni déplacé.", "It goes in the ticked collections: nothing is copied or moved.");
-        var column = Ui.Column(14,
-            Ui.Heading(renamed?.Name ?? item?.DisplayTitle ?? "", 24, 1),
-            new TextBlock { Text = note, FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap });
-        if (renamed is null) column.Children.Add(new ScrollViewer { Content = _list, MaxHeight = 320 });
-        column.Children.Add(Ui.Text(renamed is not null ? L("Nouveau nom", "New name") : L("Ou une nouvelle collection avec lui", "Or a new collection with it"), 13, FontWeight.SemiBold));
-        column.Children.Add(line); column.Children.Add(_status); column.Children.Add(close);
-        Content = new Border { Padding = new Thickness(32, 28), Child = column };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { Close(); e.Handled = true; } };
-        Opened += (_, _) => { _name.Focus(); if (renamed is not null) _name.SelectAll(); _ = LoadAsync(); };
+        if (renamed is null) _sheet.Body.Children.Add(new ScrollViewer { Content = _list, MaxHeight = 320, Margin = new Thickness(0, 12, 0, 0) });
+        _sheet.Body.Children.Add(new TextBlock { Text = renamed is not null ? L("Nouveau nom", "New name") : L("Ou une nouvelle collection avec lui", "Or a new collection with it"), FontSize = 13, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 18, 0, 8) });
+        _sheet.Body.Children.Add(line); _sheet.Body.Children.Add(_status);
+        _sheet.CloseButton(Close);
+        _sheet.FirstFocus = _name;
+        _sheet.Shown += () => { if (renamed is not null) _name.SelectAll(); };
     }
+
+    /// <summary>Over <paramref name="shell"/>; done once it closes.</summary>
+    public Task ShowAsync(MainWindow shell)
+    {
+        _shell = shell;
+        var done = new TaskCompletionSource();
+        _sheet.Closed += () => done.TrySetResult();
+        shell.ShowSheet(_sheet);
+        _ = LoadAsync();
+        return done.Task;
+    }
+    private void Close() => _shell?.CloseSheet(_sheet);
+    /// <summary>The sheet: for the self-check.</summary>
+    public Sheet View => _sheet;
 
     private async Task LoadAsync()
     {

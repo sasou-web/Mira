@@ -157,6 +157,10 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "Libraries/AvailableOptions") return Json(new { SubtitleFetchers = new[] { new { Name = "Open Subtitles" } } });
         if (path.StartsWith("Items/") && path.Contains("/RemoteSearch/Subtitles/"))
             return Json(new object[] { new { Id = "sub-1", Name = "Les.heures.bleues.2025.1080p.WEB", ProviderName = "Open Subtitles", Format = "srt", ThreeLetterISOLanguageName = path.Split('/')[^1], DownloadCount = 1200, IsHashMatch = true }, new { Id = "sub-2", Name = "Les heures bleues (2025)", ProviderName = "Open Subtitles", Format = "srt", ThreeLetterISOLanguageName = path.Split('/')[^1], DownloadCount = 40 } });
+        // « Identifier… »: what Jellyfin's metadata sources propose; « Ajouter à une collection »: a new one made.
+        if (request.Method == HttpMethod.Post && path is "Items/RemoteSearch/Movie" or "Items/RemoteSearch/Series")
+            return Json(new object[] { new { Name = "Les Heures bleues", ProductionYear = 2025, SearchProviderName = "TheMovieDb", Overview = "Une ville, une nuit, deux inconnus.", ProviderIds = new { Tmdb = "101" } }, new { Name = "Les Heures bleues", ProductionYear = 1998, SearchProviderName = "TheMovieDb", ProviderIds = new { Tmdb = "202" } } });
+        if (request.Method == HttpMethod.Post && path == "Collections") { CollectionMade = query["name"]; return Json(new { Id = "collection-1" }); }
         if (path == "Persons")
         {
             var people = new[] { ("actor-1", "Jeanne Essai"), ("actor-2", "Paul Témoin"), ("director-1", "Réa Lisatrice") };
@@ -186,6 +190,8 @@ public sealed class MockJellyfin : HttpMessageHandler
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
+    /// <summary>The name of the collection « Ajouter à une collection » made.</summary>
+    public string? CollectionMade { get; private set; }
     /// <summary>No stream for any title while true: the player's « Lecture impossible ».</summary>
     public bool RefusePlayback { get; set; }
     /// <summary>The policy « Ajouter un ami » sent for the friend's account.</summary>

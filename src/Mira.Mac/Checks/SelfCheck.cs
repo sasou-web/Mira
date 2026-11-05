@@ -222,6 +222,45 @@ public static class SelfCheck
                 var lit = await Until(() => window.Current is DetailPage { Item.UserData.IsFavorite: true } page && page.ActionButtons().Any(x => x.On && x.Words), 15);
                 Check(lit, "fiche d’un favori : « Favori » entouré, avec ses mots", string.Join(", ", (window.Current as DetailPage)?.ActionButtons().Where(x => x.On).Select(x => x.Name) ?? []));
                 await Task.Delay(800); Capture(window, output, "05c-film-favorite");
+                // —— Notices, as on Windows: one with a button waits under the next one, and comes back once it is closed ——
+                window.Notice("Avis avec un bouton", "Agir", () => { });
+                window.Notice("Avis suivant");
+                var next = window.NoticeText;
+                window.HideNotice();
+                Check(next == "Avis suivant" && window.NoticeText == "Avis avec un bouton" && window.NoticeAction == "Agir", "avis : celui qui a un bouton attend sous le suivant, puis revient",
+                    $"« {next} », puis « {window.NoticeText} » · {window.NoticeAction}");
+                window.AddNotice("Une ligne de plus.");
+                Check(window.NoticeText == "Avis avec un bouton\nUne ligne de plus." && window.NoticeAction == "Agir", "avis : une ligne ajoutée garde le bouton", window.NoticeText ?? "");
+                window.HideNotice(); await Task.Delay(300);
+
+                // —— In the window, as on Windows: « Ajouter à une collection », « Identifier… », « Inviter quelqu’un » ——
+                var collecting = window.CollectAsync(movie);
+                var sheetShown = await Until(() => window.CurrentSheet is { IsVisible: true } && window.FocusManager?.GetFocusedElement() is TextBox, 5);
+                await Task.Delay(800); Capture(window, output, "05d-collection");
+                Check(sheetShown && TabStaysIn(window), "collections : une feuille dans la fenêtre, le nom prêt à taper, Tab gardé dedans");
+                if (window.FocusManager?.GetFocusedElement() is TextBox name)
+                {
+                    name.Text = "Soirées";
+                    name.RaiseEvent(new KeyEventArgs { Key = Avalonia.Input.Key.Enter, RoutedEvent = InputElement.KeyDownEvent, Source = name });
+                }
+                var made = await Until(() => collecting.IsCompleted, 10);
+                Check(made && mock.CollectionMade == "Soirées" && window.CurrentSheet is null && window.NoticeText?.Contains("Soirées") == true, "collections : une nouvelle, faite par Entrée, dite par un avis",
+                    $"{mock.CollectionMade} · {window.NoticeText}");
+                window.HideNotice();
+                var identify = new IdentifySheet(window.Session!, movie);
+                var identifying = identify.ShowAsync(window);
+                var proposed = await Until(() => identify.Proposals == 2, 10);
+                await Task.Delay(600); Capture(window, output, "05e-identify");
+                Check(proposed && TabStaysIn(window), "identifier : une feuille, les propositions de Jellyfin, Tab gardé dedans", $"{identify.Proposals} propositions");
+                window.RaiseEvent(new KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = InputElement.KeyDownEvent, Source = window });
+                Check(await Until(() => identifying.IsCompleted && window.CurrentSheet is null, 3), "identifier : Échap la ferme");
+                var inviting = InviteSheet.ShowAsync(window, "Envoie ce lien : qui l’ouvre te rejoint.", "http://jellyfin.local:8096/Mira/party/AbCdEfGhIjKlMnOpQrStUv", Together.PartySteps(null), warnLast: true);
+                await Until(() => window.CurrentSheet is { IsVisible: true }, 5);
+                await Task.Delay(600); Capture(window, output, "05f-invite");
+                var copyFocused = window.FocusManager?.GetFocusedElement() is Button { Classes: var classes } && classes.Contains("primary");
+                var inviteTab = TabStaysIn(window);
+                window.RaiseEvent(new KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = InputElement.KeyDownEvent, Source = window });
+                Check(copyFocused && inviteTab && await Until(() => inviting.IsCompleted && window.CurrentSheet is null, 3), "inviter : une feuille, « Copier le lien » prêt, Tab gardé dedans, Échap la ferme", $"focus sur « Copier le lien » {copyFocused}, Tab {inviteTab}");
             }
             window.Go("Series");
             await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15);
@@ -680,6 +719,18 @@ public static class SelfCheck
             unnamed.Add($"{control.GetType().Name}{(text is not null ? $" « {text} »" : icon is not null ? $" ({icon})" : $" dans {string.Join(" < ", control.GetVisualAncestors().Take(3).Select(x => x.GetType().Name))}")}");
         }
         return unnamed;
+    }
+    /// <summary>A sheet over the window: Tab from its focused control, 40 times, never leaves it (the page under it is out of reach).</summary>
+    private static bool TabStaysIn(MainWindow window)
+    {
+        if (window.CurrentSheet is not { } sheet || window.FocusManager?.GetFocusedElement() is not IInputElement current) return false;
+        for (var i = 0; i < 40; i++)
+        {
+            if (KeyboardNavigationHandler.GetNext(current, NavigationDirection.Next) is not { } next) return false;
+            if (next is not Visual visual || !sheet.IsVisualAncestorOf(visual)) return false;
+            current = next;
+        }
+        return true;
     }
     /// <summary>
     /// Tab from the window's start, as macOS's « Navigation au clavier » does, until it comes back to a control already

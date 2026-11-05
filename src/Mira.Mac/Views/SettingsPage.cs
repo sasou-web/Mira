@@ -165,7 +165,7 @@ public sealed partial class SettingsPage : Page
             string Said(string french, string english) => chosen == French ? french : english;
             var text = Said("Mira passera en français à sa prochaine ouverture.", "Mira will be in English the next time it opens.");
             // Opened again once this Mira has quit, which saves the settings and closes the session as any quit does.
-            if (SystemLanguage.Bundle() is { } bundle) Shell.Notice(text, Said("Relancer", "Relaunch"), () => { if (Updates.RelaunchAfterInstall() || SystemLanguage.RelaunchAfterExit(bundle)) Shell.Close(); });
+            if (SystemLanguage.Bundle() is { } bundle) Shell.Notice(text, Said("Relancer", "Relaunch"), () => { if (Updates.RelaunchAfterInstall() || SystemLanguage.RelaunchAfterExit(bundle)) Shell.Close(); }, sticky: false);
             else Shell.Notice(text);
         }, L("Celle de Mira. Elle change à la prochaine ouverture de Mira.", "Mira’s own. It changes the next time Mira opens."));
     }

@@ -739,7 +739,7 @@ public sealed partial class PlayerPage : UserControl
         try { allowed = await session.Client.CanManageSubtitlesAsync(); }
         catch (Exception ex) when (Errors.Expected(ex)) { return; }
         if (allowed == false || generation != _generation) return;
-        _shell.Notice(JellyfinSubtitles.LoadedText, L("Garder sur Jellyfin", "Keep on Jellyfin"), () => _ = KeepLoadedSubtitleAsync(session.Client, item.Id, file, guess));
+        _shell.Notice(JellyfinSubtitles.LoadedText, L("Garder sur Jellyfin", "Keep on Jellyfin"), () => _ = KeepLoadedSubtitleAsync(session.Client, item.Id, file, guess), sticky: false);
     }
     private async Task KeepLoadedSubtitleAsync(JellyfinClient client, string itemId, string file, (string Format, string Language, bool Forced, bool HearingImpaired) guess)
     {

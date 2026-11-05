@@ -307,11 +307,11 @@ public sealed class WatchGroup
         if (party is not null)
         {
             var lead = L("Envoie ce lien : qui l’ouvre te rejoint, sur son téléphone, son ordinateur ou dans Mira.", "Send this link: whoever opens it joins you, on their phone, their computer or in Mira.");
-            await new InviteWindow(lead, party.Link, Together.PartySteps(party.Note), text => _shell.Notice(text)).ShowDialog(_shell);
+            await InviteSheet.ShowAsync(_shell, lead, party.Link, Together.PartySteps(party.Note), warnLast: party.Reach != "internet");
             return;
         }
         var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId, Together.GroupHost(group.GroupName));
-        await new InviteWindow(L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”."), link, Together.InviteSteps(link), text => _shell.Notice(text)).ShowDialog(_shell);
+        await InviteSheet.ShowAsync(_shell, L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”."), link, Together.InviteSteps(link));
     }
     /// <summary>The account Jellyfin does not let watch together (403 on its groups): Home asks no more.</summary>
     private Session? _refused;

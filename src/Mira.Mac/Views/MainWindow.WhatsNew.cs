@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Core.Updates;
 using Mira.Mac.Services;
@@ -24,18 +26,24 @@ public sealed partial class MainWindow
     public void ShowSheet(Sheet sheet)
     {
         foreach (var shown in _sheets.Children.OfType<Sheet>().ToList()) CloseSheet(shown);
+        // As on Windows, the focus goes back where it was once the sheet closes (the button that opened it).
+        _sheetOrigin = FocusManager?.GetFocusedElement() as Control;
         sheet.Opacity = 0;
         sheet.Transitions = [new Avalonia.Animation.DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(220) }];
         _sheets.Children.Add(sheet);
-        Dispatcher.UIThread.Post(() => { sheet.Opacity = 1; sheet.FirstFocus?.Focus(); }, DispatcherPriority.Input);
+        Dispatcher.UIThread.Post(() => { sheet.Opacity = 1; sheet.FirstFocus?.Focus(); sheet.Opened(); }, DispatcherPriority.Input);
     }
     public void CloseSheet(Sheet sheet)
     {
         if (!_sheets.Children.Remove(sheet)) return;
         sheet.Close();
-        // Back to the page: the focus would otherwise stay on a control no longer there.
-        if (CurrentSheet is null) (Current as Control)?.Focus();
+        // Back to the control that opened it, else to the page: the focus would otherwise stay on a control no longer there.
+        if (CurrentSheet is not null) return;
+        if (_sheetOrigin is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } origin && origin.GetVisualRoot() == this) origin.Focus(NavigationMethod.Tab);
+        else (Current as Control)?.Focus();
+        _sheetOrigin = null;
     }
+    private Control? _sheetOrigin;
 
     /// <summary>On opening: the main points of what this profile has not seen yet, once; a new profile gets nothing.</summary>
     private void ShowStartupScreen()

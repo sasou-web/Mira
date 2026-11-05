@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Animation;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -132,7 +133,7 @@ public sealed partial class MainWindow : Window
         }
         Content = _root;
         ListenToTrackpad();
-        _toastTimer.Tick += (_, _) => HideNotice();
+        _toastTimer.Tick += (_, _) => NoticeTick();
         _serverChanged.Tick += (_, _) => { _serverChanged.Stop(); _ = RefreshPagesAsync(fromServer: true); };
         _choicesSoon.Tick += async (_, _) => { _choicesSoon.Stop(); await SyncChoicesAsync(); };
         Activated += (_, _) =>
@@ -148,7 +149,7 @@ public sealed partial class MainWindow : Window
         // and the arrows never move a slider or a page behind the video.
         // The mini-player takes its keys only when it has the focus: the library around it keeps its own.
         // A sheet over the window has the keys first: Escape closes it, nothing reaches the page or the player under it.
-        AddHandler(KeyDownEvent, (_, e) => { if (CurrentSheet is { } sheet) { if (e.Key == Key.Escape) { CloseSheet(sheet); e.Handled = true; } return; } if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, (_, e) => { if (CurrentSheet is { } sheet) { if (e.Key == Key.Escape) { if (!sheet.Busy) CloseSheet(sheet); e.Handled = true; } return; } if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // Its releases always: a key held is read once where acting again would undo it (PlayerPage.Keys.cs).
         AddHandler(KeyUpEvent, (_, e) => Player?.HandleKeyUp(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         Deactivated += (_, _) => Player?.ForgetHeldKeys();
@@ -202,6 +203,7 @@ public sealed partial class MainWindow : Window
     {
         _toastAction.Click += (_, _) => { var click = _toastClick; HideNotice(); click?.Invoke(); };
         _toastTile.Child = _toastIcon;
+        AutomationProperties.SetLiveSetting(_toastText, AutomationLiveSetting.Polite);
         var close = Ui.IconButton("close", L("Masquer le message", "Hide the message"), HideNotice, "icon", 16);
         close.VerticalAlignment = VerticalAlignment.Center;
         var row = new DockPanel { Margin = new Thickness(12, 11, 8, 11) };
@@ -217,7 +219,7 @@ public sealed partial class MainWindow : Window
         };
         // Held under the pointer: it waits, and leaves a moment after the pointer does.
         toast.PointerEntered += (_, _) => { if (_toastTimer.IsEnabled) { _toastTimer.Stop(); RunNoticeTime(null); } };
-        toast.PointerExited += (_, _) => { if (toast.IsVisible && !_toastSticky) { _toastTimer.Interval = TimeSpan.FromSeconds(3); _toastTimer.Start(); RunNoticeTime(_toastTimer.Interval); } };
+        toast.PointerExited += (_, _) => { if (_toastOn && !_toastSticky) { _toastTimer.Interval = TimeSpan.FromSeconds(3); _toastTimer.Start(); RunNoticeTime(_toastTimer.Interval); } };
         return toast;
     }
     private bool _toastSticky;
@@ -237,24 +239,70 @@ public sealed partial class MainWindow : Window
     private static readonly IBrush NoticeDanger = Ui.Brush("#F3AD99"), NoticeDangerTile = Ui.Brush("#2EF3AD99"), NoticeTile = Ui.Brush("#30FFFFFF"), NoticeOnAccent = Ui.Brush("#111113"), NoticeAccent = Ui.Brush("#F5F5F7");
 
     /// <summary>
-    /// A short message at the bottom of the window, with an optional action (« Réessayer », « Installer »…); one marked
-    /// <paramref name="sticky"/> stays half a minute, time to read it and choose (« Rejoindre » of an invitation).
+    /// A short message at the bottom of the window, as on Windows: said by VoiceOver, it leaves on its own once there was
+    /// time to read it (<see cref="Legibility.NoticeDuration"/>), never while the pointer or the keyboard focus is on it.
+    /// <paramref name="action"/> adds a button (« Réessayer », « Redémarrer »…): such a message stays until it is used or
+    /// closed, as does one marked <paramref name="sticky"/> (an error that matters); sticky false lets a message with a
+    /// button leave all the same (« Annuler »). A message with a button that stays is not lost under the next one: it
+    /// comes back once that one is closed.
     /// </summary>
-    public void Notice(string text, string? action = null, Action? click = null, bool sticky = false, NoticeTone tone = NoticeTone.Info)
+    public void Notice(string text, string? action = null, Action? click = null, bool? sticky = null, NoticeTone tone = NoticeTone.Info)
     {
-        _toastText.Text = text; _toastClick = click; _toastSticky = sticky;
-        _toastAction.Content = action; _toastAction.IsVisible = action is not null;
+        if (_toastOn && _toastSticky && _toastClick is { } waiting && _toastAction.Content is string label && _toastText.Text != text)
+        {
+            _parkedNotices.RemoveAll(parked => parked.Text == text);
+            _parkedNotices.Add(new(_toastText.Text ?? "", label, waiting, _toastTone));
+            if (_parkedNotices.Count > 5) _parkedNotices.RemoveAt(0);
+        }
+        else _parkedNotices.RemoveAll(parked => parked.Text == text);
+        ShowNotice(text, action, click, sticky ?? click is not null, tone);
+    }
+    /// <summary>Said under the message still on screen, which keeps its button, instead of replacing it.</summary>
+    public void AddNotice(string text)
+    {
+        if (NoticeText is { Length: > 0 } shown) ShowNotice(shown + "\n" + text, _toastAction.Content as string, _toastClick, _toastSticky, _toastTone);
+        else Notice(text);
+    }
+    private readonly List<ParkedNotice> _parkedNotices = [];
+    private sealed record ParkedNotice(string Text, string Action, Action Click, NoticeTone Tone);
+    private NoticeTone _toastTone;
+    /// <summary>A notice is on screen (its card still fades out a moment after it is closed).</summary>
+    private bool _toastOn;
+    private void ShowNotice(string text, string? action, Action? click, bool sticky, NoticeTone tone)
+    {
+        _toastClick = click; _toastSticky = sticky; _toastTone = tone;
+        _toastAction.Content = action; _toastAction.IsVisible = action is not null && click is not null;
         _toastIcon.Kind = tone switch { NoticeTone.Done => "check", NoticeTone.Error => "warning", _ => "info" };
         _toastIcon.Foreground = tone switch { NoticeTone.Done => NoticeOnAccent, NoticeTone.Error => NoticeDanger, _ => Ui.Ink };
         _toastTile.Background = tone switch { NoticeTone.Done => NoticeAccent, NoticeTone.Error => NoticeDangerTile, _ => NoticeTile };
-        _toast.IsVisible = true; _toast.Opacity = 1;
-        _toastTimer.Stop(); _toastTimer.Interval = TimeSpan.FromSeconds(sticky ? 30 : action is null ? 5 : 9); _toastTimer.Start();
+        // Shown before its text changes, so that VoiceOver finds it there.
+        _toast.IsVisible = _toastOn = true; _toast.Opacity = 1;
+        _toastText.Text = text;
+        _toastTimer.Stop();
+        if (!sticky) { _toastTimer.Interval = Legibility.NoticeDuration(text); _toastTimer.Start(); }
         RunNoticeTime(sticky ? null : _toastTimer.Interval);
     }
-    public void HideNotice() { _toastTimer.Stop(); _toast.Opacity = 0; DispatcherTimer.RunOnce(() => { if (_toast.Opacity == 0) _toast.IsVisible = false; }, TimeSpan.FromMilliseconds(200)); }
-    public string? NoticeText => _toast.IsVisible ? _toastText.Text : null;
+    /// <summary>Closed (its button, ×, its time run out): the message that was waiting under it comes back, with its button.</summary>
+    public void HideNotice()
+    {
+        if (_parkedNotices.Count > 0)
+        {
+            var next = _parkedNotices[^1]; _parkedNotices.RemoveAt(_parkedNotices.Count - 1);
+            ShowNotice(next.Text, next.Action, next.Click, true, next.Tone);
+            return;
+        }
+        _toastTimer.Stop(); _toastSticky = _toastOn = false; _toast.Opacity = 0;
+        DispatcherTimer.RunOnce(() => { if (!_toastOn) _toast.IsVisible = false; }, TimeSpan.FromMilliseconds(200));
+    }
+    /// <summary>The time ran out: not under the pointer (see <see cref="BuildToast"/>) nor the keyboard focus, which hold it.</summary>
+    private void NoticeTick()
+    {
+        if (_toast.IsKeyboardFocusWithin || _toast.IsPointerOver) { RunNoticeTime(_toastTimer.Interval); return; }
+        HideNotice();
+    }
+    public string? NoticeText => _toastOn ? _toastText.Text : null;
     /// <summary>The button of the notice shown (the checks).</summary>
-    public string? NoticeAction => _toast.IsVisible && _toastAction.IsVisible ? _toastAction.Content as string : null;
+    public string? NoticeAction => _toastOn && _toastAction.IsVisible ? _toastAction.Content as string : null;
 
     private async Task StartAsync()
     {
@@ -273,7 +321,7 @@ public sealed partial class MainWindow : Window
         {
             var said = L("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut.", "Your settings couldn’t be read: Mira went back to the default settings.")
                 + (Profile.SettingsCopy is { } copy ? L($" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}.", $" The old file is kept as {Path.GetFileName(copy)}.") : "");
-            Notice(NoticeText is { } shown ? shown + "\n" + said : said);
+            AddNotice(said);
         }
         ShowStartupScreen();
         _ = Updates.StartAsync(this);
@@ -507,7 +555,7 @@ public sealed partial class MainWindow : Window
         _inviteWait?.Cancel();
         var wait = _inviteWait = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime);
         wait.CancelAfter(TimeSpan.FromHours(3));
-        Notice(Together.WaitingLead, L("Annuler", "Cancel"), () => wait.Cancel());
+        Notice(Together.WaitingLead, L("Annuler", "Cancel"), () => wait.Cancel(), sticky: false);
         _ = WaitAsync();
         async Task WaitAsync()
         {
@@ -851,20 +899,20 @@ public sealed partial class MainWindow : Window
     public async Task CollectAsync(MediaItem item)
     {
         if (Session is not { } session) return;
-        var window = new CollectionWindow(session, item);
-        await window.ShowDialog(this);
-        if (window.Said is { } said) Notice(said);
-        if (window.Changed) await RefreshPagesAsync();
+        var sheet = new CollectionSheet(session, item);
+        await sheet.ShowAsync(this);
+        if (sheet.Said is { } said) Notice(said);
+        if (sheet.Changed) await RefreshPagesAsync();
     }
     /// <summary>« Renommer… » (an administrator); its page, shown, opens again under its new name.</summary>
     public async Task RenameCollectionAsync(MediaItem collection)
     {
         if (Session is not { } session) return;
-        var window = new CollectionWindow(session, null, collection);
-        await window.ShowDialog(this);
-        if (window.Said is { } said) Notice(said);
-        if (window.NewName is { } name && Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id) { Back(); Open(new MediaItem { Id = collection.Id, Name = name, Type = "BoxSet" }); }
-        else if (window.Changed) await RefreshPagesAsync();
+        var sheet = new CollectionSheet(session, null, collection);
+        await sheet.ShowAsync(this);
+        if (sheet.Said is { } said) Notice(said);
+        if (sheet.NewName is { } name && Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id) { Back(); Open(new MediaItem { Id = collection.Id, Name = name, Type = "BoxSet" }); }
+        else if (sheet.Changed) await RefreshPagesAsync();
     }
     /// <summary>« Supprimer la collection… », asked first: its list goes, never its titles.</summary>
     public void AskDeleteCollection(MediaItem collection) =>
@@ -889,7 +937,7 @@ public sealed partial class MainWindow : Window
         {
             await session.Client.SetInCollectionAsync(collection.Id, [item.Id], inside);
             if (inside) Notice(TitleCollections.Added(collection.Name));
-            else Notice(TitleCollections.Removed(collection.Name), L("Annuler", "Undo"), () => _ = PutInCollectionAsync(item, collection, true));
+            else Notice(TitleCollections.Removed(collection.Name), L("Annuler", "Undo"), () => _ = PutInCollectionAsync(item, collection, true), sticky: false);
             await RefreshPagesAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
