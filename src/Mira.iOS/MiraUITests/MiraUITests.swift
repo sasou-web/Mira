@@ -12,6 +12,16 @@ final class MiraUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// The stand-in Jellyfin answering again as usual after each test: one stopped by a failure may leave it slow or
+    /// away for the next. Nothing said when it isn't there (gallery.yml's real Jellyfin).
+    override func tearDown() {
+        var request = URLRequest(url: URL(string: "http://\(Self.server)/Mock/Up")!, timeoutInterval: 3)
+        request.httpMethod = "POST"
+        let done = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.signal() }.resume()
+        _ = done.wait(timeout: .now() + 4)
+    }
+
     @MainActor
     func testEnglish() throws {
         let app = launch(language: "en", locale: "en_US")
@@ -325,6 +335,83 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/Stopped", item: Self.sintel, timeout: 20), "Closing the bar did not stop Sintel")
     }
 
+    /// Mira's opening (App/Opening.swift), as Mira opens every day, signed in: Jellyfin slow to answer, the opening gives
+    /// way to Home once drawn; Jellyfin away (every connection cut, a PC switched off), it gives way at once to the Home
+    /// kept from the last time, which says it can't reach Jellyfin; Jellyfin back, Retry brings Home.
+    @MainActor
+    func testOpening() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+
+        mock("/Mock/Slow?ms=1500")
+        var started = Date()
+        let slow = launch(language: "en", locale: "en_US", reset: false)
+        // XCTest may wait for the app to be idle, the opening gone: said, for what the timings mean.
+        let opening = slow.descendants(matching: .any)["opening"]
+        print("MIRA-OPENING slow: launched after \(Date().timeIntervalSince(started)) s, opening shown: \(opening.exists)")
+        XCTAssertTrue(opening.waitForNonExistence(timeout: 20), "The opening never gave way to Home")
+        print("MIRA-OPENING slow: gone after \(Date().timeIntervalSince(started)) s")
+        XCTAssertTrue(slow.staticTexts["Continue watching"].exists, "The opening gave way to no Home")
+        XCTAssertFalse(slow.buttons["Retry"].exists, "Home says Jellyfin can't be reached though it answered")
+        settle()
+        capture("51-opening-home")
+
+        mock("/Mock/Down")
+        started = Date()
+        let away = launch(language: "en", locale: "en_US", reset: false)
+        XCTAssertTrue(away.descendants(matching: .any)["opening"].waitForNonExistence(timeout: 20), "The opening never left with Jellyfin away")
+        print("MIRA-OPENING away: gone after \(Date().timeIntervalSince(started)) s")
+        let retry = away.buttons["Retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 30), "The Home kept from before does not say Jellyfin can't be reached")
+        XCTAssertTrue(away.staticTexts["Continue watching"].exists, "The Home kept from before is not shown")
+        settle()
+        capture("52-opening-away")
+
+        mock("/Mock/Up")
+        retry.tap()
+        XCTAssertTrue(retry.waitForNonExistence(timeout: 20), "Retry did not bring Home back from Jellyfin")
+    }
+
+    /// The film of Mira's opening (ios.yml's film: testOpeningFilm records the simulator meanwhile; skipped otherwise):
+    /// opened with Jellyfin slow, quick, then away and back, between the marks ios.yml cuts the film at.
+    @MainActor
+    func testOpeningFilm() throws {
+        guard ProcessInfo.processInfo.environment["MIRA_FILM"] == "1" else { throw XCTSkip("Only for ios.yml's film") }
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        settle()
+        // From the Home Screen each time, as a person opens Mira: Jellyfin slow, then quick.
+        @MainActor func fromHomeScreen() -> XCUIApplication {
+            XCUIDevice.shared.press(.home)
+            Thread.sleep(forTimeInterval: 1.2)
+            return launch(language: "en", locale: "en_US", reset: false)
+        }
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 1)
+        mock("/Mock/Mark?name=film-start")
+        for answer in ["/Mock/Slow?ms=1200", "/Mock/Up"] {
+            mock(answer)
+            let opened = fromHomeScreen()
+            XCTAssertTrue(opened.descendants(matching: .any)["opening"].waitForNonExistence(timeout: 20), "The opening never gave way to Home")
+            Thread.sleep(forTimeInterval: 2.5)
+        }
+        // Jellyfin away, then back: Retry.
+        mock("/Mock/Down")
+        let away = fromHomeScreen()
+        let retry = away.buttons["Retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 30), "Home does not say Jellyfin can't be reached")
+        Thread.sleep(forTimeInterval: 2.5)
+        mock("/Mock/Up")
+        retry.tap()
+        XCTAssertTrue(retry.waitForNonExistence(timeout: 20), "Retry did not bring Home back from Jellyfin")
+        Thread.sleep(forTimeInterval: 2)
+        mock("/Mock/Mark?name=film-end")
+    }
+
     /// A friend's party on another Jellyfin, with no account on this iPhone: its link opened in Mira asks the first
     /// name, makes this iPhone the party's guest (the stand-in's /Mira/guest), waits for the host's group, joins it as
     /// soon as the host opens it, then leaves it, back to the sign-in.
@@ -545,12 +632,13 @@ final class MiraUITests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
+    /// Mira opened (closed first if it runs), from nothing (`reset`: no account, nothing kept) or as it was left.
     @MainActor
-    private func launch(language: String, locale: String, extra: [String] = []) -> XCUIApplication {
+    private func launch(language: String, locale: String, extra: [String] = [], reset: Bool = true) -> XCUIApplication {
         let app = XCUIApplication()
         // The player's controls stay up: they hide 4 s after a touch, less than XCTest may take between finding a
         // button and tapping it while a video plays.
-        app.launchArguments = ["-mira-reset", "-mira-controls-stay", "-AppleLanguages", "(\(language))", "-AppleLocale", locale] + extra
+        app.launchArguments = (reset ? ["-mira-reset"] : []) + ["-mira-controls-stay", "-AppleLanguages", "(\(language))", "-AppleLocale", locale] + extra
         app.launch()
         return app
     }

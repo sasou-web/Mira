@@ -94,14 +94,20 @@ final class HomeModel {
     private(set) var content: HomeContent?
     private(set) var state: State = .loading
     private(set) var loadedAt: Date?
+    /// Loads started: one that ends after a later one began says nothing (the later one answers).
+    @ObservationIgnored private var loads = 0
 
     /// The account's last Home, shown at once while Jellyfin is asked again.
     func start(userId: String) {
         if content == nil { content = HomeCache.load(userId: userId) }
     }
 
-    /// `rows`: Home's rows on this iPhone (HomeLayout): only the libraries whose row is shown are asked.
-    func load(_ client: JellyfinClient, rows: String, onUnauthorized: () -> Void) async {
+    /// `rows`: Home's rows on this iPhone (HomeLayout): only the libraries whose row is shown are asked. True when this
+    /// load said where Home is (loaded or failed); false when a later load replaced it, or it was cancelled.
+    @discardableResult
+    func load(_ client: JellyfinClient, rows: String, onUnauthorized: () -> Void) async -> Bool {
+        loads += 1
+        let mine = loads
         if content == nil { state = .loading }
         do {
             async let resume = client.resume()
@@ -128,18 +134,25 @@ final class HomeModel {
                 for await item in group { if let item { found[item.id] = item } }
                 return found
             }
+            guard mine == loads else { return false }
             if fresh != content { content = fresh }
             state = .loaded
             loadedAt = .now
             if let userId = client.userId { HomeCache.save(fresh, userId: userId) }
+            return true
         } catch is CancellationError {
-            return
+            return false
         } catch JellyfinError.unauthorized {
             onUnauthorized()
+            return false
         } catch let error as JellyfinError {
+            guard mine == loads else { return false }
             state = .failed(error)
+            return true
         } catch {
+            guard mine == loads else { return false }
             state = .failed(.unreachable)
+            return true
         }
     }
 

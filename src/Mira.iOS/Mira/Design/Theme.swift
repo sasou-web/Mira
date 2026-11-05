@@ -58,9 +58,7 @@ enum MiraFont {
 /// Mira's mark, the « m » of its icon (mark.svg of Mira web), drawn in a 24 × 24 box.
 struct MiraMark: Shape {
     func path(in rect: CGRect) -> Path {
-        let s = min(rect.width, rect.height) / 24
-        let x0 = rect.midX - 12 * s, y0 = rect.midY - 12 * s
-        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x0 + x * s, y: y0 + y * s) }
+        let p = Self.place(in: rect)
         var path = Path()
         path.move(to: p(6.3, 16.5))
         path.addLine(to: p(6.3, 10.6))
@@ -69,8 +67,38 @@ struct MiraMark: Shape {
         path.move(to: p(12, 10.6))
         path.addCurve(to: p(17.7, 10.6), control1: p(12, 6.3), control2: p(17.7, 6.3))
         path.addLine(to: p(17.7, 16.5))
-        return path.strokedPath(StrokeStyle(lineWidth: 2.65 * s, lineCap: .round, lineJoin: .round))
+        return path.strokedPath(StrokeStyle(lineWidth: Self.lineWidth(in: rect), lineCap: .round, lineJoin: .round))
     }
+
+    /// The width of the mark's line in `rect`.
+    nonisolated static func lineWidth(in rect: CGRect) -> CGFloat { 2.65 * min(rect.width, rect.height) / 24 }
+
+    /// The middle of the mark's line as one pen would draw it, without lifting: up the first leg, over the first arch,
+    /// down the middle leg and back up it, over the second arch, down the last leg (Mira's opening writes it so).
+    nonisolated static func pen(in rect: CGRect) -> Path {
+        let p = place(in: rect)
+        var path = Path()
+        path.move(to: p(6.3, 16.5))
+        path.addLine(to: p(6.3, 10.6))
+        path.addCurve(to: p(12, 10.6), control1: p(6.3, 6.3), control2: p(12, 6.3))
+        path.addLine(to: p(12, 15.6))
+        path.addLine(to: p(12, 10.6))
+        path.addCurve(to: p(17.7, 10.6), control1: p(12, 6.3), control2: p(17.7, 6.3))
+        path.addLine(to: p(17.7, 16.5))
+        return path
+    }
+
+    /// A point of the 24 × 24 box, in `rect`: the box centred, as large as fits.
+    nonisolated private static func place(in rect: CGRect) -> (CGFloat, CGFloat) -> CGPoint {
+        let s = min(rect.width, rect.height) / 24
+        let x0 = rect.midX - 12 * s, y0 = rect.midY - 12 * s
+        return { x, y in CGPoint(x: x0 + x * s, y: y0 + y * s) }
+    }
+}
+
+/// The middle of the mark's line, one stroke (MiraMark.pen): what Mira's opening trims and strokes.
+struct MiraPen: Shape {
+    func path(in rect: CGRect) -> Path { MiraMark.pen(in: rect) }
 }
 
 /// The app's icon as a view: the mark on the icon's dark gradient, rounded like an icon of the Home Screen.

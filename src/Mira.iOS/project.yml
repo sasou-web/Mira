@@ -44,8 +44,12 @@ targets:
         CFBundleLocalizations: [en, fr]
         LSRequiresIPhoneOS: true
         ITSAppUsesNonExemptEncryption: false
+        # Mira's « m » on Mira's black, at the size and place where Mira's opening starts writing it (App/Opening.swift,
+        # tools/ios/launch-mark.mjs): centred on the whole screen, as the opening draws it.
         UILaunchScreen:
           UIColorName: LaunchBackground
+          UIImageName: LaunchMark
+          UIImageRespectsSafeAreaInsets: false
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UIUserInterfaceStyle: Dark

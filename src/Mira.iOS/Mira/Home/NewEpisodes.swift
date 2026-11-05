@@ -151,7 +151,8 @@ struct NewEpisodesBanner: View {
     @State private var opened: NewEpisodes.Notice?
 
     var body: some View {
-        let pick = app.newEpisodes.pick
+        // Once Mira's opening is over: under it, the banner would go by unseen.
+        let pick = app.opening.phase == .gone ? app.newEpisodes.pick : nil
         ZStack {
             if let pick, let first = pick.notices.first {
                 HStack(spacing: 12) {

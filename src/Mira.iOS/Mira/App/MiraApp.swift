@@ -37,20 +37,31 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-/// Signed in: the tabs; otherwise the sign-in screen. Built-in Tailscale follows Mira on and off the screen.
+/// Signed in: the tabs; otherwise the sign-in screen. Built-in Tailscale follows Mira on and off the screen. Over them
+/// at first, Mira's opening, until Home is drawn (OpeningView).
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var phase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let opening = app.opening.phase == .on
         ZStack {
             Palette.bg.ignoresSafeArea()
-            if app.party.shown {
-                PartyView().transition(.opacity)
-            } else if app.session != nil {
-                MainView().transition(.opacity)
-            } else {
-                LoginView().transition(.opacity)
+            Group {
+                if app.party.shown {
+                    PartyView().transition(.opacity)
+                } else if app.session != nil {
+                    MainView().transition(.opacity)
+                } else {
+                    LoginView().transition(.opacity)
+                }
+            }
+            // Revealed by the opening, the first screen settles from a little closer.
+            .scaleEffect(opening && !reduceMotion ? 1.04 : 1)
+            .animation(.easeOut(duration: 0.6), value: opening)
+            if app.opening.phase != .gone {
+                OpeningView().zIndex(1)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: app.session?.userId)
