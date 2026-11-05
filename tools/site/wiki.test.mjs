@@ -66,7 +66,7 @@ test('build: every page in both languages, links and anchors checked', () => {
   try {
     assert.ok(buildWiki(out, '1.2.3') >= 2);
     assert.ok(existsSync(join(out, 'index.html')) && existsSync(join(out, 'fr/index.html')));
-    assert.match(readFileSync(join(out, 'sitemap.xml'), 'utf8'), /<loc>https:\/\/miracinema\.app\/wiki\/fr\/together\/<\/loc>/);
+    assert.equal(readFileSync(join(out, 'CNAME'), 'utf8').trim(), 'wiki.miracinema.app');
     const windows = readFileSync(join(out, 'windows/index.html'), 'utf8');
     assert.ok(windows.includes('Mira-1.2.3-win-x64-setup.exe'));
     assert.ok(!windows.includes('__VERSION__'));
