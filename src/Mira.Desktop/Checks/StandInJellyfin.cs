@@ -1,21 +1,19 @@
+using System.Buffers;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using System.Text.Json;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using Mira.Core;
 
-namespace Mira.Desktop;
+namespace Mira.Checks;
 
 /// <summary>
-/// A Jellyfin answered inside Mira for --smooth-check: three libraries of a few hundred titles, Continuer à regarder,
-/// sagas, series with their seasons, every picture drawn as a JPEG of the width asked (as Jellyfin resizes them), each
-/// answer after a home network's delay. Nothing goes on the network; its WebSocket is never answered (the address does not exist).
+/// A Jellyfin answered inside Mira for --smooth-check (Windows and Mac: the Mac's links this file, each draws its
+/// pictures with its own encoder): three libraries of a few hundred titles, Continuer à regarder, sagas, series with
+/// their seasons, every picture drawn as a JPEG of the width asked (as Jellyfin resizes them), each answer after a home
+/// network's delay. Nothing goes on the network; its WebSocket is never answered (the address does not exist).
 /// </summary>
-internal sealed class StandInJellyfin : HttpMessageHandler
+internal sealed partial class StandInJellyfin : HttpMessageHandler
 {
     public const string Server = "http://stand-in.invalid/", UserId = "stand-in-user", Token = "stand-in-token", UserName = "Mesure";
     /// <summary>A Jellyfin on the same network: a list comes after this long, a picture after the other.</summary>
@@ -281,7 +279,9 @@ internal sealed class StandInJellyfin : HttpMessageHandler
         var height = type == "Logo" ? width / 3 : portrait ? (int)Math.Round(width * 1.5) : (int)Math.Round(width * 9 / 16d);
         height = Math.Max(8, height);
         var seed = (uint)id.GetHashCode(StringComparison.Ordinal) ^ (uint)type.Length * 2654435761u;
-        var hue = seed % 360; var stride = width * 4; var pixels = new byte[stride * height];
+        // Drawn in a borrowed buffer: a poster's pixels are a large object, which would make the collector run for the
+        // check's own drawing rather than for Mira's.
+        var hue = seed % 360; var stride = width * 4; var pixels = ArrayPool<byte>.Shared.Rent(stride * height);
         static (double R, double G, double B) Hsv(double h, double s, double v)
         {
             var c = v * s; var x = c * (1 - Math.Abs(h / 60 % 2 - 1)); var m = v - c;
@@ -313,10 +313,12 @@ internal sealed class StandInJellyfin : HttpMessageHandler
                 pixels[at] = (byte)Mix(top.B, bottom.B, accent.B); pixels[at + 1] = (byte)Mix(top.G, bottom.G, accent.G); pixels[at + 2] = (byte)Mix(top.R, bottom.R, accent.R); pixels[at + 3] = 255;
             }
         }
-        var bitmap = BitmapSource.Create(width, height, 96, 96, type == "Logo" ? PixelFormats.Pbgra32 : PixelFormats.Bgr32, null, pixels, stride);
-        BitmapEncoder encoder = type == "Logo" ? new PngBitmapEncoder() : new JpegBitmapEncoder { QualityLevel = 85 };
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var stream = new MemoryStream(); encoder.Save(stream);
-        return stream.ToArray();
+        try { return Encode(pixels, width, height, type == "Logo"); }
+        finally { ArrayPool<byte>.Shared.Return(pixels); }
     }
+    /// <summary>
+    /// Blue, green, red and alpha per pixel, top row first, as a JPEG at 85 (a see-through PNG for a logo,
+    /// <paramref name="png"/>): by WPF on Windows, by Skia on the Mac. <paramref name="pixels"/> may be longer than the picture.
+    /// </summary>
+    private static partial byte[] Encode(byte[] pixels, int width, int height, bool png);
 }

@@ -221,6 +221,23 @@ jobs:
           # A crash (139 = segmentation fault) says nothing in results.txt: the end of the log at least.
           if [ "$status" -gt 128 ]; then echo "— fin du journal :"; tail -60 .artifacts/check.log; fi
           exit $status
+      # How smooth the pages are (src/Mira.Mac/Checks/SmoothCheck.cs), as ci.yml measures Mira for Windows: signed in to a
+      # Jellyfin answered inside Mira, the trackpad down and up the pages, the rail's pages, a title's page and Réglages,
+      # frame by frame, in the log and the job's summary. A hosted Mac in a virtual machine: its numbers compare one commit
+      # with another, never with a real Mac. Nothing fails on them; not in a release, which pull requests measured.
+      - name: Smoothness of the pages
+        if: inputs.release == ''
+        continue-on-error: true
+        run: |
+          app=dist/mac/Mira.app/Contents/MacOS/Mira
+          status=0
+          "$app" --data "$PWD/.artifacts/smooth-profile" --smooth-check "$PWD/.artifacts/smooth" > .artifacts/smooth.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 240); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+          if kill -0 $pid 2>/dev/null; then echo "smooth check still running after 4 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
+          cat .artifacts/smooth/report.txt 2>/dev/null || tail -40 .artifacts/smooth.log
+          if [ -f .artifacts/smooth/summary.md ]; then { echo "### Mira pour Mac : fluidité des pages"; echo; cat .artifacts/smooth/summary.md; } >> "$GITHUB_STEP_SUMMARY"; fi
+          exit $status
       # Built-in Tailscale: the node of Mira.app as it ships (signed with it, this version) joins mira-testnet's Tailscale
       # network and reaches its Jellyfin, as on Linux in ci.yml (tests/Mira.Core.Tests): sign-in through the login page,
       # requests, WebSocket and mpv (Homebrew's libmpv) through the node, then the PC off and the node's key expired.
@@ -300,6 +317,8 @@ jobs:
           path: |
             .artifacts/check
             .artifacts/check.log
+            .artifacts/smooth
+            .artifacts/smooth.log
             .artifacts/dmg
             .artifacts/icon
             .artifacts/tailnet
