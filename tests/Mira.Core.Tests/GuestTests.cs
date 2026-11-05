@@ -308,10 +308,10 @@ internal static class GuestTests
 
             var repository = new DirectoryInfo(AppContext.BaseDirectory);
             while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "Mira.sln"))) repository = repository.Parent;
-            var files = WebFiles.FromFolder(Path.Combine((repository ?? new DirectoryInfo(Environment.CurrentDirectory)).FullName, "src", "Mira.Web"));
+            var files = WebFiles.FromFolder(Path.Combine((repository ?? new DirectoryInfo(Environment.CurrentDirectory)).FullName, "src", "Mira.Jellyfin", "Pages"));
             Assert(files.TryGet("party.html", out var page) && System.Text.Encoding.UTF8.GetString(page.Content) is var html
-                && html.Contains($"v/{files.Revision}/js/party.js", StringComparison.Ordinal) && html.Contains("{{description}}", StringComparison.Ordinal)
-                && ContentPolicy.StyleHashes(html).Count == 1, "The template, its revision written");
+                && html.Contains($"v/{files.Revision}/pages.js", StringComparison.Ordinal) && html.Contains("{{description}}", StringComparison.Ordinal)
+                && !html.Contains("#/party", StringComparison.Ordinal), "The template, its revision written, no Mira web");
             return Task.CompletedTask;
         });
     }

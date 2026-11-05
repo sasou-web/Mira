@@ -1,10 +1,9 @@
 import PhotosUI
-import SafariServices
 import SwiftUI
 import UIKit
 
-/// Settings, as Mira web's: the account, what only an administrator does (on Mira web for now), playback, this
-/// iPhone, the account's devices, and what Mira is.
+/// Settings: the account, what only an administrator does here (the rest is in Mira for Windows and Mac), playback,
+/// this iPhone, the account's devices, and what Mira is.
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.openURL) private var openURL
@@ -13,7 +12,6 @@ struct SettingsView: View {
     @State private var jellyfinVersion: String?
     @State private var quickConnect = false
     @State private var approving = false
-    @State private var web: WebPage?
     @State private var photo: PhotosPickerItem?
     @State private var sendingPhoto = false
     @State private var photoFailure: String?
@@ -65,16 +63,12 @@ struct SettingsView: View {
 
                 if me?.isAdministrator == true {
                     Section {
-                        admin("Profiles", "An account for each person in the house or a friend, with their photo.", symbol: "person.2", route: "profils")
                         NavigationLink {
                             NowOnJellyfinView()
                         } label: {
                             row("Now on Jellyfin", "Who watches what, and whether Jellyfin converts it.", symbol: "server.rack")
                         }
                         .accessibilityIdentifier("settings.now")
-                        admin("Titles to fix", "Those Jellyfin didn’t recognize, without a poster or twice.", symbol: "exclamationmark.triangle", route: "a-corriger")
-                        admin("Automatic subtitles", "Jellyfin looks for each new title’s subtitles and syncs them to the video.", symbol: "captions.bubble", route: "sous-titres-auto")
-                        admin("Guest links", "Watch together with someone who has no account and no Tailscale.", symbol: "link", route: "invites")
                         NavigationLink {
                             DownloadsView()
                         } label: {
@@ -84,7 +78,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Administration")
                     } footer: {
-                        Text("Those marked ↗ open in Mira web, inside Mira. Sign in there once.")
+                        Text("Profiles, titles to fix, automatic subtitles and your party’s guests are in Mira for Windows and Mac.")
                     }
                     .listRowBackground(Palette.surface)
                 }
@@ -125,7 +119,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Playback")
                 } footer: {
-                    Text("Languages choose the tracks at the start of each title. On a title’s page, Audio and Subtitles choose others: Mira keeps them for the next episodes of the series. These choices are kept on your Jellyfin, with the tracks of each series and the titles taken out of Continue watching: you find them on Mira web, Windows and Mac.")
+                    Text("Languages choose the tracks at the start of each title. On a title’s page, Audio and Subtitles choose others: Mira keeps them for the next episodes of the series. These choices are kept on your Jellyfin, with the tracks of each series and the titles taken out of Continue watching: you find them on Windows and Mac.")
                 }
                 .listRowBackground(Palette.surface)
 
@@ -165,13 +159,6 @@ struct SettingsView: View {
                         }
                         .accessibilityIdentifier("settings.approve")
                     }
-                    if let url = ServerAddress.miraWeb(session.server) {
-                        Button {
-                            open(url)
-                        } label: {
-                            row("Open Mira web", "For your friends, and for what Mira for iPhone doesn’t do yet.", symbol: "safari")
-                        }
-                    }
                     Button(role: .destructive) {
                         confirmSignOut = true
                     } label: {
@@ -192,7 +179,7 @@ struct SettingsView: View {
             } header: {
                 Text("About")
             } footer: {
-                Text("Mira talks only to your Jellyfin server: no account of ours, no analytics, no ads. Your progress is kept on your Jellyfin: it follows you to Mira web, Windows and Mac.")
+                Text("Mira talks only to your Jellyfin server: no account of ours, no analytics, no ads. Your progress is kept on your Jellyfin: it follows you to Windows and Mac.")
             }
             .listRowBackground(Palette.surface)
         }
@@ -206,7 +193,6 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.signout.confirm")
         }
         .sheet(isPresented: $approving) { ApproveDeviceSheet() }
-        .sheet(item: $web) { page in SafariPage(url: page.url).ignoresSafeArea() }
         .task { await load() }
         .refreshable { await load() }
         .onChange(of: photo) { _, item in
@@ -248,23 +234,6 @@ struct SettingsView: View {
         SettingsRow(title, detail, symbol: symbol)
     }
 
-    private func admin(_ title: LocalizedStringKey, _ detail: LocalizedStringKey, symbol: String, route: String) -> some View {
-        Button {
-            if let session = app.session, let url = ServerAddress.miraWeb(session.server, route: route) { open(url) }
-        } label: {
-            HStack {
-                row(title, detail, symbol: symbol)
-                Spacer(minLength: 8)
-                Image(systemName: "arrow.up.forward.app").font(.footnote).foregroundStyle(Palette.muted).accessibilityHidden(true)
-            }
-        }
-    }
-
-    /// A page of Mira web, on the way to Jellyfin taken now (through Built-in Tailscale, its relay serves it too).
-    private func open(_ url: URL) {
-        Task { web = WebPage(url: await Way.shared.map(url)) }
-    }
-
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
     }
@@ -287,23 +256,6 @@ struct SettingsView: View {
         let shown = names.prefix(2).compactMap { TrackNames.language($0) }
         return shown.count == 2 ? String(localized: "\(shown[0]), then \(shown[1])") : shown.first ?? order
     }
-}
-
-/// A page of Mira web shown inside Mira.
-struct WebPage: Identifiable {
-    let url: URL
-    var id: URL { url }
-}
-
-struct SafariPage: UIViewControllerRepresentable {
-    let url: URL
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        let controller = SFSafariViewController(url: url)
-        controller.preferredControlTintColor = UIColor(Palette.accent)
-        controller.dismissButtonStyle = .close
-        return controller
-    }
-    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
 
 /// The account's picture, or its initials.

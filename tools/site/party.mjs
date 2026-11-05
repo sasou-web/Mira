@@ -1,5 +1,5 @@
 // The party page as a friend opens it on an iPhone (site/img/web-party-*.webp, a full screen like the README's captures):
-// src/Mira.Web/party.html filled the way the extension fills it (PartyPage.Render), with its own style and script, the
+// src/Mira.Jellyfin/Pages/party.html filled the way the extension fills it (PartyPage.Render), with its own style and script, the
 // README's demo library, and the film's poster cut from Mira web's film page (docs/screenshots/readme/web-film.jpg).
 // Needs Pillow (the same WebP as tools/site/images.py). Run from the repository's root after images.py:
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/site/party.mjs
@@ -20,11 +20,11 @@ const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1',
 });
 const page = await context.newPage();
-// Mira web's files where the extension serves them (/Mira/v/<revision>/), the README's captures beside them.
+// The extension's pages where it serves them (/Mira/v/<revision>/), the README's captures beside them.
 await page.route(`${origin}/**`, route => {
   const path = new URL(route.request().url()).pathname;
   if (path === '/') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Mira</title>' });
-  const file = path.startsWith('/Mira/v/r/') ? join('src/Mira.Web', path.slice('/Mira/v/r/'.length))
+  const file = path.startsWith('/Mira/v/r/') ? join('src/Mira.Jellyfin/Pages', path.slice('/Mira/v/r/'.length))
     : path.startsWith('/readme/') ? join('docs/screenshots/readme', path.slice('/readme/'.length)) : null;
   return file ? route.fulfill({ path: resolve(file) }) : route.abort();
 });
@@ -44,9 +44,9 @@ const host = 'Camille';
 const watching = 'Spider-Man: Across the Spider-Verse';
 const values = {
   rev: 'r', title: 'Join the Mira party', description: `${host} is watching ${watching}. Join in Mira.`, image: '', url: '',
-  state: 'open', host, watching, picture, app: 'mira://party/demo', web: '#/party/demo',
+  state: 'open', host, watching, picture, app: 'mira://party/demo',
 };
-let text = readFileSync('src/Mira.Web/party.html', 'utf8');
+let text = readFileSync('src/Mira.Jellyfin/Pages/party.html', 'utf8');
 for (const [name, value] of Object.entries(values)) text = text.replaceAll(`{{${name}}}`, html(value));
 await page.route(`${origin}/Mira/party/demo`, route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: text }));
 await page.goto(`${origin}/Mira/party/demo`, { waitUntil: 'networkidle' });

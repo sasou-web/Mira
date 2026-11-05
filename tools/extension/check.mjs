@@ -89,7 +89,7 @@ await part('party', async () => {
   const asJson = await call('GET', `Mira/party/${code}`, { headers: { Accept: 'application/json' } });
   const title = /<meta property="og:title" content="([^"]*)"/.exec(page.text)?.[1];
   check('party : la page pour tous (carte Open Graph, « Open in Mira »), le JSON pour les apps',
-    page.status === 200 && /text\/html/.test(page.type) && title === 'Join the Mira party' && page.text.includes(`mira://party/${code}`)
+    page.status === 200 && /text\/html/.test(page.type) && title === 'Join the Mira party' && page.text.includes(`mira://party/${code}`) && !page.text.includes('#/party')
       && asJson.status === 200 && asJson.json?.host === me.Name && asJson.json?.serverId === info.Id,
     `page ${page.status} « ${title} » ; JSON ${asJson.status} ${asJson.text.slice(0, 120)}`);
 
@@ -243,6 +243,20 @@ await part('identifier', async () => {
     friend ? await call('GET', `Mira/identify/image?url=${encodeURIComponent('https://image.tmdb.org/t/p/w500/x.jpg')}`, { token: friend, device: 'check-friend' }) : { status: 0 }];
   check('identifier : affiches seulement des hôtes permis, et pour un administrateur',
     elsewhere.status === 400 && local.status === 400 && other.status === 403, `autre site ${elsewhere.status}, ce serveur ${local.status}, autre compte ${other.status}`);
+});
+
+// /Mira and a party's page, since Mira web is gone: where to get Mira, never the web app; their files served by the
+// revision; the manifest Mira for Windows 0.9.3 and before looks for (without it, it installs the extension again).
+await part('pages', async () => {
+  const [page, deep, manifest] = [await call('GET', 'Mira/', { token: null }), await call('GET', 'Mira/#/titre/abc', { token: null }),
+    await call('GET', 'Mira/manifest.webmanifest', { token: null })];
+  const assets = [...page.text.matchAll(/(?:href|src)="(v\/[^"]+)"/g)].map((m) => m[1]);
+  const served = await Promise.all(assets.map(async (asset) => (await call('GET', `Mira/${asset}`, { token: null })).status));
+  check('pages : /Mira dit où prendre Mira, ses fichiers servis, plus de Mira web',
+    page.status === 200 && /text\/html/.test(page.type) && page.text.includes('https://miracinema.app') && !/app\.js|hls/.test(page.text)
+      && deep.status === 200 && assets.some((a) => a.endsWith('pages.js')) && assets.some((a) => a.endsWith('pages.css')) && served.every((s) => s === 200),
+    `page ${page.status}, ${assets.join(' ')} ${served.join(' ')}`);
+  check('pages : manifeste encore servi (Mira pour Windows 0.9.3 et avant)', manifest.status === 200 && manifest.json?.name === 'Mira', `${manifest.status} ${manifest.text.slice(0, 80)}`);
 });
 
 if (olderJellyfin) console.log(`(Jellyfin ${info.Version} : même contrôle)`);

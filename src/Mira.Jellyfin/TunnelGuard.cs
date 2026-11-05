@@ -10,7 +10,7 @@ namespace Mira.Jellyfin;
 
 /// <summary>
 /// « Inviter par lien », the belt behind Tailscale Funnel: a request Funnel brought in from the Internet (its header,
-/// <see cref="GuestRoutes.FunnelHeader"/>) reaches Mira web's page and the guests' gateway, and Jellyfin's WebSocket
+/// <see cref="GuestRoutes.FunnelHeader"/>) reaches Mira's pages and the guests' gateway, and Jellyfin's WebSocket
 /// only with a guest's session (<see cref="GuestRoutes.ThroughTunnel"/>); anything else is a 404 before Jellyfin sees
 /// it. Funnel, opened for /Mira only, already refuses the rest, « /Mira/%2e%2e/… » included: this holds if it ever
 /// let more through, or was opened for all of Jellyfin. Requests from the house carry no such header and go on as

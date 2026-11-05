@@ -1,0 +1,55 @@
+/* The extension's own pages (Mira.Jellyfin/Pages): a party link's page (party.html) and what /Mira now says
+   (index.html), on Mira's tokens: the dark palette and Nunito of the apps. */
+@font-face { font-family: 'Nunito'; font-weight: 400; font-display: swap; src: url('fonts/nunito-400.woff2') format('woff2'); }
+@font-face { font-family: 'Nunito'; font-weight: 700; font-display: swap; src: url('fonts/nunito-700.woff2') format('woff2'); }
+@font-face { font-family: 'Nunito'; font-weight: 800; font-display: swap; src: url('fonts/nunito-800.woff2') format('woff2'); }
+
+:root {
+  color-scheme: dark;
+  --bg: #070708;
+  --surface: #111112;
+  --raised: #1b1b1d;
+  --raised-2: #242427;
+  --ink: #f4f4f5;
+  --muted: #a2a2a6;
+  --accent: #f5f5f7;
+  --on-accent: #0b0b0c;
+  --warning: #d5b787;
+  --r-s: 6px;
+  --r-m: 12px;
+  --top: env(safe-area-inset-top, 0px);
+  --bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html { background: var(--bg); color: var(--ink); font-family: 'Nunito', -apple-system, 'Segoe UI', system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
+body { margin: 0; min-height: 100dvh; background: var(--bg); }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  height: 48px; padding: 0 20px; border-radius: var(--r-m); font-size: 16px; font-weight: 800; text-decoration: none;
+  background: var(--raised); color: var(--ink); white-space: nowrap;
+}
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.block { width: 100%; }
+@media (hover: hover) { .btn:hover { background: var(--raised-2); } .btn.primary:hover { background: #fff; } }
+
+.page { min-height: 100dvh; box-sizing: border-box; display: grid; align-content: center; justify-items: center; gap: 24px; padding: calc(var(--top) + 32px) 24px calc(var(--bottom) + 32px); text-align: center; }
+.page .mark { width: 64px; height: 64px; }
+.page-body { display: grid; justify-items: center; gap: 16px; width: 100%; max-width: 380px; }
+.kicker { color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
+.page h1 { font-size: 28px; font-weight: 800; line-height: 1.2; margin: 0; }
+.page .lead { color: var(--muted); font-size: 16px; line-height: 1.45; margin: 0; }
+.ways { display: grid; gap: 12px; width: 100%; margin-top: 8px; }
+.note { color: var(--muted); font-size: 14px; line-height: 1.4; margin: 0; }
+
+/* « Ta party » */
+.party[data-state="gone"] .party-open, .party:not([data-state="gone"]) .party-gone { display: none; }
+.party-now { display: flex; align-items: center; gap: 16px; margin: 4px 0; padding: 12px; width: 100%; box-sizing: border-box; border-radius: var(--r-m); background: var(--surface); text-align: left; }
+.party[data-watching=""] .party-now { display: none; }
+.party-now img { width: 60px; height: 90px; object-fit: cover; border-radius: var(--r-s); background: var(--raised); flex: none; }
+.party-now figcaption { display: grid; gap: 4px; min-width: 0; }
+.party-now span { color: var(--muted); font-size: 13px; }
+.party-now strong { font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
+.party-hint { color: var(--warning); }

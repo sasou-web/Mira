@@ -88,6 +88,30 @@ final class Together {
         try await enter { try await $0.syncJoin(groupId) }
     }
 
+    /// This account's party link (GET Mira/party): the one link Windows and Mac send too, which a friend opens with
+    /// no account. Nil until read, and with an extension older than 0.8.9 (the group's link of before then).
+    private(set) var party: URL?
+    @ObservationIgnored private var partyFor: String?
+
+    private struct PartyAnswer: Decodable, Sendable { let link: String }
+
+    /// Reads this account's party link once per account.
+    func loadParty() async {
+        guard let client = app?.client, let account = app?.session?.userId, partyFor != account else { return }
+        guard let answer: PartyAnswer = try? await client.get("Mira/party") else { return }
+        partyFor = account
+        party = URL(string: answer.link)
+    }
+
+    /// What « Invite » sends for a group: the party link, or the group's link with an older extension.
+    func invitation(_ group: SyncGroup) -> (url: URL, party: Bool)? {
+        if let party { return (party, true) }
+        guard let server = app?.session?.server,
+              let url = URL(string: SyncRules.inviteLink(server: server, groupId: group.groupId,
+                                                         host: SyncRules.groupHost(group.groupName) ?? app?.session?.userName)) else { return nil }
+        return (url, false)
+    }
+
     /// Whose party a code is, as its Jellyfin says it (GET Mira/party/<code>, JSON).
     private struct PartyHost: Decodable, Sendable { let host: String }
     /// The party link opened last: a newer one ends the wait of the one before.

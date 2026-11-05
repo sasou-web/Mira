@@ -118,7 +118,7 @@ rm -rf "$TMP"
 # Files Jellyfin sends to Apple's player in ways it may refuse: the video copied out of an MP4 (Jellyfin lists 6 s
 # segments, ffmpeg cuts at keyframes), interlaced video copied as it is, HEVC and x264 open GOPs (segments that do not
 # start on an IDR), HDR10, an MPEG-2 TS whose clock starts at 50000 s, HEVC tagged hev1 in an MP4 played directly, and
-# a long Matroska with irregular keyframes, resumed far from its start. Read by tools/web/safari.mjs.
+# a long Matroska with irregular keyframes, resumed far from its start.
 if [ "${2:-}" = formats ]; then
   film() { mkdir -p "$ROOT/Films/$1 (2023)"; echo "$ROOT/Films/$1 (2023)/$1 (2023).$2"; }
   # Keyframes 2 to 9 s apart, as in an encode with scene cuts; never on Jellyfin's 6 s grid.

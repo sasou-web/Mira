@@ -12,7 +12,7 @@ namespace Mira.Jellyfin;
 /// <summary>
 /// « Ta party », the one link of « Regarder ensemble »: each account has its own, the same from one evening to the next,
 /// which anyone opens. Its page (public, through Tailscale Funnel too) shows chat apps who invites and what they watch,
-/// and offers Mira's apps (mira://party/…) or Mira web, where a guest of its own is made for each device
+/// and offers Mira's apps (mira://party/…), which open it as a guest of its own for each device
 /// (<see cref="GuestController"/>). The host's own calls (their link, a new one) need their session.
 /// </summary>
 [ApiController]
@@ -113,7 +113,7 @@ public sealed class PartyController : ControllerBase
 
     /// <summary>
     /// The page of a party link, for anyone who has it: who invites and what they watch (Open Graph, for the card of a
-    /// chat app), then « Open in Mira » or Mira web. JSON for Mira's apps (Accept: application/json).
+    /// chat app), then « Open in Mira ». JSON for Mira's apps (Accept: application/json).
     /// </summary>
     [HttpGet("{code}")]
     [AllowAnonymous]
@@ -146,7 +146,6 @@ public sealed class PartyController : ControllerBase
             ["host"] = party?.HostName,
             ["watching"] = watching?.Title,
             ["app"] = party is null ? "" : PartyPage.AppLink(origin, party.Code, _host.SystemId),
-            ["web"] = party is null ? "" : $"{origin}/Mira/#/party/{party.Code}",
             ["state"] = party is null ? "gone" : "open",
         });
         Response.Headers.ContentSecurityPolicy = ContentPolicy.For(html);

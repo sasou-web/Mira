@@ -6,8 +6,8 @@ using MediaBrowser.Model.Serialization;
 namespace Mira.Jellyfin;
 
 /// <summary>
-/// Mira web on Jellyfin: the plugin only declares itself; <see cref="WebController"/> serves the app at /Mira, where
-/// phones open it and add it to their home screen. It has no settings (Jellyfin's base class, which records the
+/// Mira's extension for Jellyfin: the plugin only declares itself; its controllers serve « Ta party », the guests'
+/// gateway, the relay of « Télécharger sur le PC serveur » and the rest under /Mira. It has no settings (Jellyfin's base class, which records the
 /// plugin's version, comes with an empty configuration). What it keeps on the server: the guests' links of « Inviter
 /// par lien » (<see cref="GuestInvites"/>), in one file beside the plugins' settings, and their accounts on Jellyfin;
 /// the series followed of « Suivre une série » (<see cref="TorLinkRelay"/>), in another file there.
@@ -69,5 +69,5 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
     public override string Name => "Mira";
     public override Guid Id => PluginId;
     public override string Description =>
-        "Mira on iPhone, iPad and Android: open http://<server address>:8096/Mira in the browser, then add the page to the Home Screen.";
+        "The server side of Mira for Windows, Mac and iPhone: the party link, guests without an account, downloads on the server PC, subtitles found automatically.";
 }

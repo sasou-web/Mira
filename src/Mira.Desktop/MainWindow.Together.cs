@@ -500,7 +500,7 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { }
         if (!ReferenceEquals(client, _client) || InviteOverlay.Visibility != Visibility.Visible) return;
         if (party is null) { await ShowInviteAddFriendAsync(client); return; }
-        InviteLead.Text = L("Envoie ce lien : qui l’ouvre te rejoint, sur son téléphone, son ordinateur ou dans Mira.", "Send this link: whoever opens it joins you, on their phone, their computer or in Mira.");
+        InviteLead.Text = L("Envoie ce lien : qui l’ouvre te rejoint dans Mira, sur Windows, Mac ou iPhone.", "Send this link: whoever opens it joins you in Mira, on Windows, Mac or iPhone.");
         InviteLink.Text = party.Link;
         InviteSteps.Children.Clear();
         var steps = Together.PartySteps(party.Note);

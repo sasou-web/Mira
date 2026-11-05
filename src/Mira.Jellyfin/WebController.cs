@@ -6,8 +6,9 @@ using Microsoft.Net.Http.Headers;
 namespace Mira.Jellyfin;
 
 /// <summary>
-/// Serves Mira web at /Mira (after Jellyfin's base URL, if any). Every page is public, like Jellyfin's own web
-/// client: the app signs in through Jellyfin's API, from the same address, with the person's own account.
+/// Serves /Mira (after Jellyfin's base URL, if any): since Mira web is gone, a page that sends to Mira's apps, for the
+/// phones that kept it on their Home Screen (their kept copy sees its revision change and reloads into it), and the
+/// files of the extension's pages. Public, as the page of a party link is.
 /// </summary>
 [ApiController]
 [AllowAnonymous]
@@ -22,7 +23,7 @@ public sealed class WebController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>The app itself. /Mira becomes /Mira/, so that its files are found next to it.</summary>
+    /// <summary>What /Mira says now (index.html). /Mira becomes /Mira/, so that its files are found next to it.</summary>
     [HttpGet("")]
     public IActionResult Index()
     {
@@ -36,12 +37,13 @@ public sealed class WebController : ControllerBase
         ReportUnserved(files);
         Response.Headers.ContentSecurityPolicy = files.Policy;
         Response.Headers["Referrer-Policy"] = "no-referrer";
-        // The phone keeps the page a month: Mira opens even while the PC is off or Jellyfin is starting, then waits for
-        // it. At each start the app asks for the page again and reloads when its revision changed (an update).
-        return Serve(files, "index.html", files.Immutable ? PageCache : NoCache);
+        return Serve(files, "index.html", NoCache);
     }
 
-    /// <summary>What the phone needs to add Mira to its home screen: name, colours, icons.</summary>
+    /// <summary>
+    /// Name, colours, icons; also how a Mira for Windows of 0.9.3 or before sees that the extension answers (it installs
+    /// it otherwise).
+    /// </summary>
     [HttpGet("manifest.webmanifest")]
     public IActionResult Manifest() => Serve(WebFiles.Current, "manifest.webmanifest", NoCache);
 
@@ -55,7 +57,6 @@ public sealed class WebController : ControllerBase
     }
 
     private const string AssetCache = "public, max-age=31536000, immutable";
-    private const string PageCache = "max-age=2592000";
     private const string NoCache = "no-cache";
 
     /// <summary>Files of the app that phones cannot get (see <see cref="WebFiles.Unserved"/>), said once per revision.</summary>
@@ -66,7 +67,7 @@ public sealed class WebController : ControllerBase
             return;
         }
 
-        _logger.LogWarning("Mira web: {Count} file(s) not served, their type unknown to the plugin: {Files}", files.Unserved.Count, string.Join(", ", files.Unserved));
+        _logger.LogWarning("Mira: {Count} file(s) not served, their type unknown to the plugin: {Files}", files.Unserved.Count, string.Join(", ", files.Unserved));
     }
 
     private IActionResult Serve(WebFiles files, string path, string cache)

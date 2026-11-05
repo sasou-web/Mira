@@ -125,7 +125,7 @@ public static partial class GuestRoutes
     {
         /// <summary>Not for the Internet: 404, before Jellyfin sees it.</summary>
         None,
-        /// <summary>Mira web itself: the page, its manifest, its files.</summary>
+        /// <summary>The extension's pages (/Mira and a party's), their manifest, their files.</summary>
         Page,
         /// <summary>The gateway, which lets through a guest's routes only (<see cref="For"/>).</summary>
         Gateway,

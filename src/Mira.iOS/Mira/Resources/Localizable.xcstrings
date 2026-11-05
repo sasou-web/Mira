@@ -663,16 +663,6 @@
         }
       }
     },
-    "Automatic subtitles": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sous-titres automatiques"
-          }
-        }
-      }
-    },
     "Automatic: the file as it is at home; away from home, what your connection to Jellyfin allows. Below the file’s quality, Jellyfin converts it.": {
       "localizations": {
         "fr": {
@@ -1301,16 +1291,6 @@
         }
       }
     },
-    "For your friends, and for what Mira for iPhone doesn’t do yet.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pour tes amis, et pour ce que Mira pour iPhone ne fait pas encore."
-          }
-        }
-      }
-    },
     "forced": {
       "localizations": {
         "fr": {
@@ -1367,16 +1347,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Groupe"
-          }
-        }
-      }
-    },
-    "Guest links": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Liens d’invités"
           }
         }
       }
@@ -1521,16 +1491,6 @@
         }
       }
     },
-    "Jellyfin looks for each new title’s subtitles and syncs them to the video.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jellyfin cherche les sous-titres de chaque nouveau titre et les cale sur la vidéo."
-          }
-        }
-      }
-    },
     "Jellyfin refused": {
       "localizations": {
         "fr": {
@@ -1581,12 +1541,12 @@
         }
       }
     },
-    "Languages choose the tracks at the start of each title. On a title’s page, Audio and Subtitles choose others: Mira keeps them for the next episodes of the series. These choices are kept on your Jellyfin, with the tracks of each series and the titles taken out of Continue watching: you find them on Mira web, Windows and Mac.": {
+    "Languages choose the tracks at the start of each title. On a title’s page, Audio and Subtitles choose others: Mira keeps them for the next episodes of the series. These choices are kept on your Jellyfin, with the tracks of each series and the titles taken out of Continue watching: you find them on Windows and Mac.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les langues choisissent les pistes au début de chaque titre. Sur la page d’un titre, Audio et Sous-titres en choisissent d’autres : Mira les garde pour les épisodes suivants de la série. Ces choix sont gardés sur ton Jellyfin, avec les pistes de chaque série et les titres retirés de Continuer à regarder : tu les retrouves sur Mira web, Windows et Mac."
+            "value": "Les langues choisissent les pistes au début de chaque titre. Sur la page d’un titre, Audio et Sous-titres en choisissent d’autres : Mira les garde pour les épisodes suivants de la série. Ces choix sont gardés sur ton Jellyfin, avec les pistes de chaque série et les titres retirés de Continuer à regarder : tu les retrouves sur Windows et Mac."
           }
         }
       }
@@ -1721,12 +1681,12 @@
         }
       }
     },
-    "Mira talks only to your Jellyfin server: no account of ours, no analytics, no ads. Your progress is kept on your Jellyfin: it follows you to Mira web, Windows and Mac.": {
+    "Mira talks only to your Jellyfin server: no account of ours, no analytics, no ads. Your progress is kept on your Jellyfin: it follows you to Windows and Mac.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mira ne parle qu’à ton serveur Jellyfin : aucun compte chez nous, aucune mesure d’audience, aucune publicité. Ta progression est gardée sur ton Jellyfin : elle te suit sur Mira web, Windows et Mac."
+            "value": "Mira ne parle qu’à ton serveur Jellyfin : aucun compte chez nous, aucune mesure d’audience, aucune publicité. Ta progression est gardée sur ton Jellyfin : elle te suit sur Windows et Mac."
           }
         }
       }
@@ -2007,16 +1967,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sur un appareil déjà connecté à ton compte : dans Mira, Réglages, Autoriser un appareil ; dans Jellyfin, ton profil, Quick Connect. Tapes-y ce code."
-          }
-        }
-      }
-    },
-    "Open Mira web": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ouvrir Mira web"
           }
         }
       }
@@ -3111,16 +3061,6 @@
         }
       }
     },
-    "Those Jellyfin didn’t recognize, without a poster or twice.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ceux que Jellyfin n’a pas reconnus, sans affiche ou en double."
-          }
-        }
-      }
-    },
     "Through Built-in Tailscale": {
       "localizations": {
         "fr": {
@@ -3157,16 +3097,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Titre"
-          }
-        }
-      }
-    },
-    "Titles to fix": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titres à corriger"
           }
         }
       }
@@ -3327,16 +3257,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Regarder ensemble"
-          }
-        }
-      }
-    },
-    "Watch together with someone who has no account and no Tailscale.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Regarder ensemble avec quelqu’un qui n’a ni compte ni Tailscale."
           }
         }
       }
@@ -3767,26 +3687,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cette image ne s’ouvre pas. Choisis une autre photo."
-          }
-        }
-      }
-    },
-    "Profiles": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Profils"
-          }
-        }
-      }
-    },
-    "An account for each person in the house or a friend, with their photo.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un compte pour chaque personne de la maison ou un ami, avec sa photo."
           }
         }
       }
@@ -5681,12 +5581,22 @@
         }
       }
     },
-    "Those marked ↗ open in Mira web, inside Mira. Sign in there once.": {
+    "Open this link to watch with me on Mira, with no account to make.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Celles marquées ↗ s’ouvrent dans Mira web, dans Mira. Connecte-toi là une fois."
+            "value": "Ouvre ce lien pour regarder avec moi sur Mira, sans compte à créer."
+          }
+        }
+      }
+    },
+    "Profiles, titles to fix, automatic subtitles and your party’s guests are in Mira for Windows and Mac.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les profils, les titres à corriger, les sous-titres automatiques et les invités de ta party sont dans Mira pour Windows et Mac."
           }
         }
       }

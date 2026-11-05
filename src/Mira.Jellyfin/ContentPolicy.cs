@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 namespace Mira.Jellyfin;
 
 /// <summary>
-/// The page's security policy: Mira web loads only its own files and talks only to this server. Its inline style
+/// The pages' security policy: they load only their own files and talk only to this server. Its inline style
 /// (dark from the first frame) is allowed by its hash, computed from the page as it is served, rather than any inline
 /// style ('unsafe-inline'): a style element or attribute slipped into the page is refused. The app sets its styles
 /// through the CSSOM (element.style), which a policy does not restrict, never through style attributes.

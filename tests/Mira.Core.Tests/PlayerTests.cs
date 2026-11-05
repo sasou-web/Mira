@@ -96,7 +96,6 @@ internal static class PlayerTests
                 && Together.ParseAppLink("mira://party/AbCdEfGhIjKlMnOpQr_-12?server=http%3A%2F%2Fpc.tail1234.ts.net%3A8096")?.Server == "http://pc.tail1234.ts.net:8096", "A Funnel name in http on port 80: https; its Jellyfin port stays");
             Assert(Together.ParseAppLink("mira://party/short?server=http%3A%2F%2F192.168.1.2%3A8096") is null, "Party code too short");
             Assert(Together.ParseAppLink("mira://party/AbCdEfGhIjKlMnOpQr_-12?server=file%3A%2F%2F%2Fetc") is null, "Party on no Jellyfin");
-            Assert(Together.PartyWebLink("http://192.168.1.2:8096/", "AbCdEfGhIjKlMnOpQr_-12") == "http://192.168.1.2:8096/Mira/#/party/AbCdEfGhIjKlMnOpQr_-12", "Party in Mira web");
             var partyGroups = new List<Together.Group> { new("74644121-30f5-4334-a8a1-4638f0060cd6", "Groupe de ogsas", ["ogsas"], "Idle") };
             Assert(Together.Answer(Together.PartyInvitation("http://192.168.1.2:8096", "ogsas"), partyGroups, "http://192.168.1.2:8096", null) is { Kind: Together.InviteKind.Join, Group.GroupId: "74644121-30f5-4334-a8a1-4638f0060cd6" }, "Party: the host's group");
             Assert(Together.Answer(Together.PartyInvitation("http://192.168.1.2:8096", "ogsas"), [], "http://192.168.1.2:8096", null).Kind == Together.InviteKind.Waiting, "Party: waits for the host's group");

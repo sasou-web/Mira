@@ -2,7 +2,7 @@ import Foundation
 
 /// What someone types on the sign-in screen, turned into the Jellyfin addresses to try, as Mira for Windows and Mac do
 /// (ServerAddress.cs): « 192.168.1.20 », « nas:8096 », « jellyfin.example.com », or an address copied from Jellyfin's
-/// own page (« …:8096/web/#/home ») or from Mira web (« …:8096/Mira/ ») all lead to the server.
+/// own page (« …:8096/web/#/home ») or from the extension's page (« …:8096/Mira/ ») all lead to the server.
 enum ServerAddress {
     enum Problem: Error, Equatable {
         case empty
@@ -32,7 +32,7 @@ enum ServerAddress {
         return unique
     }
 
-    /// The server's address: http or https, no credentials, no query, and nothing from Jellyfin's or Mira web's page
+    /// The server's address: http or https, no credentials, no query, and nothing from Jellyfin's or Mira's page
     /// (`/web…`, `/Mira…`); the path of a reverse proxy (« https://example.com/jellyfin ») stays, without a final slash.
     static func normalize(_ text: String) throws -> URL {
         var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -57,10 +57,6 @@ enum ServerAddress {
         return port
     }
 
-    /// Mira web, served by Jellyfin's Mira extension: `<server>/Mira/`, at a route of its own (« #/titre/<id> »).
-    static func miraWeb(_ server: URL, route: String = "") -> URL? {
-        URL(string: server.absoluteString + "/Mira/" + (route.isEmpty ? "" : "#/" + route))
-    }
 
     /// Whether signing in at this address sends the password in clear across the Internet: plain http:// to a server
     /// that is neither on the home network nor on Tailscale. A dotted name of the Internet always counts (the network's

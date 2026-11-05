@@ -126,10 +126,10 @@ internal static class PhoneTests
             Assert(Mira.Jellyfin.ContentPolicy.For("<p>Mira</p>").Contains("; style-src 'self'; img-src", StringComparison.Ordinal), "Policy without inline style");
             return Task.CompletedTask;
         });
-        await Test("Mira web : chaque fichier de l’app est servi par l’extension, un type inconnu est signalé", () =>
+        await Test("Pages de l’extension : chaque fichier est servi, un type inconnu est signalé", () =>
         {
-            // The repository's src/Mira.Web, which the plugin builds in whole (Mira.Jellyfin.csproj): every file must be
-            // served, or the phone gets a 404 for it (a .mjs once broke the QR code page).
+            // The extension's Pages folder, which the plugin builds in whole (Mira.Jellyfin.csproj): every file must be
+            // served, or the browser gets a 404 for it (a .mjs once broke Mira web's QR code page).
             static DirectoryInfo? Repository(string start)
             {
                 var folder = new DirectoryInfo(start);
@@ -138,11 +138,11 @@ internal static class PhoneTests
             }
             var repository = Repository(AppContext.BaseDirectory) ?? Repository(Environment.CurrentDirectory);
             Assert(repository is not null, "Repository not found from " + AppContext.BaseDirectory);
-            var folder = Path.Combine(repository!.FullName, "src", "Mira.Web");
+            var folder = Path.Combine(repository!.FullName, "src", "Mira.Jellyfin", "Pages");
             var web = Mira.Jellyfin.WebFiles.FromFolder(folder);
             Assert(web.Unserved.Count == 0, "Not served: " + string.Join(", ", web.Unserved));
             var paths = Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Select(file => Path.GetRelativePath(folder, file).Replace('\\', '/')).ToList();
-            Assert(paths.Count > 20 && paths.Contains("js/app.js") && paths.Contains("index.html"), "Files: " + string.Join(", ", paths));
+            Assert(paths.Count > 8 && paths.Contains("pages.js") && paths.Contains("index.html") && paths.Contains("party.html"), "Files: " + string.Join(", ", paths));
             foreach (var path in paths) Assert(web.TryGet(path, out var file) && file.ContentType.Length > 0, "Not served: " + path);
             // A file of a kind the plugin does not know is kept aside and named, never served by mistake.
             var odd = Path.Combine(testRoot, "web-odd");

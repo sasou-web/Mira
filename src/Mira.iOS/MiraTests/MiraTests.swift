@@ -19,7 +19,7 @@ struct ServerAddressTests {
         #expect(ServerAddress.explicitPort("pc:99999") == nil)
     }
 
-    @Test("Une adresse copiée de Jellyfin ou de Mira web mène au serveur")
+    @Test("Une adresse copiée de Jellyfin ou de la page de Mira mène au serveur")
     func copiedPages() throws {
         #expect(try ServerAddress.candidates("http://100.114.247.13:8096/web/#/home.html").map(\.absoluteString) == ["http://100.114.247.13:8096"])
         #expect(try ServerAddress.candidates("http://100.114.247.13:8096/Mira/#/titre/abc").map(\.absoluteString) == ["http://100.114.247.13:8096"])
@@ -48,13 +48,6 @@ struct ServerAddressTests {
         #expect(!exposed("http://nas:8096"))
         #expect(!exposed("http://nas.local:8096"))
         #expect(exposed("http://100.200.1.1:8096"))
-    }
-
-    @Test("Mira web à une route")
-    func miraWeb() {
-        let server = URL(string: "http://100.114.247.13:8096")!
-        #expect(ServerAddress.miraWeb(server)?.absoluteString == "http://100.114.247.13:8096/Mira/")
-        #expect(ServerAddress.miraWeb(server, route: "lecture/abc")?.absoluteString == "http://100.114.247.13:8096/Mira/#/lecture/abc")
     }
 }
 

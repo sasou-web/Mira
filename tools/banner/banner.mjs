@@ -95,7 +95,7 @@ const crop = (s, width, height) => {
   return `<div class="crop" style="width:${width}px;height:${height}px"><img src="${s.file}" style="width:${s.w * k}px;left:${-left}px;top:${-top}px">${ring}</div>`;
 };
 
-const font = (weight) => pathToFileURL(join(root, 'src/Mira.Web/fonts', `nunito-${weight}.woff2`)).href;
+const font = (weight) => pathToFileURL(join(root, 'src/Mira.Jellyfin/Pages/fonts', `nunito-${weight}.woff2`)).href;
 const base = `
 @font-face { font-family: Nunito; font-weight: 600; src: url(${font(600)}); }
 @font-face { font-family: Nunito; font-weight: 700; src: url(${font(700)}); }

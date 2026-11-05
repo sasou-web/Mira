@@ -1,6 +1,6 @@
 #!/bin/bash
-# Mira web for Jellyfin: the plugin (with the web app built in) as Jellyfin installs it, and the repository manifest
-# that points to it. Each release attaches both; Jellyfin installs and updates Mira web from the manifest.
+# Mira's extension for Jellyfin: the plugin as Jellyfin installs it, and the repository manifest that points to it.
+# Each release attaches both; Jellyfin installs and updates the extension from the manifest (Mira for Windows adds it).
 #   tools/web/package.sh 0.6.1 [download base]
 #   → dist/web/mira-jellyfin-0.6.1.zip and dist/web/jellyfin-manifest.json
 # The download base defaults to the release's assets on GitHub (another base serves local tests).
@@ -28,8 +28,8 @@ with open(os.path.join(os.environ["OUT"], os.environ["ZIP"]), "rb") as archive:
 print(json.dumps([{
     "guid": "4ea89259-3350-45b0-8045-f1ab627214dd",
     "name": "Mira",
-    "description": "Mira on iPhone, iPad and Android: open http://<server address>:8096/Mira in the browser, then add the page to the Home Screen.",
-    "overview": "Mira in your phone’s browser, like an app.",
+    "description": "What Mira for Windows, Mac and iPhone ask of this server: the party link, guests without an account, downloads on the server PC, subtitles found automatically.",
+    "overview": "The server side of Mira for Windows, Mac and iPhone.",
     "owner": "sasou-web",
     "category": "General",
     "versions": [{
