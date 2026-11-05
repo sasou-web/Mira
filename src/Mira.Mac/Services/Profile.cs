@@ -14,6 +14,8 @@ public sealed class Profile
 {
     public string DirectoryPath { get; }
     public string DeviceId { get; }
+    /// <summary>Opened for the first time: Mira had never written to it (its device id comes first).</summary>
+    public bool IsNew { get; }
     private const UnixFileMode Private = UnixFileMode.UserRead | UnixFileMode.UserWrite;
     private readonly ITokenStore? _tokens;
 
@@ -25,6 +27,7 @@ public sealed class Profile
         Directory.CreateDirectory(DirectoryPath);
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(DirectoryPath, Private | UnixFileMode.UserExecute);
         var deviceFile = Path.Combine(DirectoryPath, "device-id");
+        IsNew = !File.Exists(deviceFile);
         var stored = File.Exists(deviceFile) ? File.ReadAllText(deviceFile).Trim() : "";
         // An empty file (cut off while being written) would send Jellyfin an empty device id: start a new one.
         DeviceId = stored.Length > 0 ? stored : Guid.NewGuid().ToString("N");

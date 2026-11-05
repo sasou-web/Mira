@@ -115,6 +115,7 @@ public sealed partial class MainWindow : Window
         _rail = BuildRail();
         _root.Children.Add(_rail);
         Grid.SetColumnSpan(_overlay, 2); _root.Children.Add(_overlay);
+        Grid.SetColumnSpan(_sheets, 2); _root.Children.Add(_sheets);
         _toast = BuildToast();
         Grid.SetColumnSpan(_toast, 2); _root.Children.Add(_toast);
         if (TitleBarInset > 0)
@@ -143,7 +144,8 @@ public sealed partial class MainWindow : Window
         // The player takes its keys before the control that has the focus: Space never clicks again the last button pressed,
         // and the arrows never move a slider or a page behind the video.
         // The mini-player takes its keys only when it has the focus: the library around it keeps its own.
-        AddHandler(KeyDownEvent, (_, e) => { if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // A sheet over the window has the keys first: Escape closes it, nothing reaches the page or the player under it.
+        AddHandler(KeyDownEvent, (_, e) => { if (CurrentSheet is { } sheet) { if (e.Key == Key.Escape) { CloseSheet(sheet); e.Handled = true; } return; } if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
         PointerPressed += (_, e) => { var buttons = e.GetCurrentPoint(this).Properties; if (buttons.IsXButton1Pressed) Back(); else if (buttons.IsXButton2Pressed) Forward(); };
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
@@ -267,6 +269,7 @@ public sealed partial class MainWindow : Window
                 + (Profile.SettingsCopy is { } copy ? L($" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}.", $" The old file is kept as {Path.GetFileName(copy)}.") : "");
             Notice(NoticeText is { } shown ? shown + "\n" + said : said);
         }
+        ShowStartupScreen();
         _ = Updates.StartAsync(this);
     }
 
@@ -863,7 +866,7 @@ public sealed partial class MainWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (Watching) return;
+        if (Watching || CurrentSheet is not null) return;
         var command = e.KeyModifiers.HasFlag(KeyModifiers.Meta) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (e.Key == Key.Escape || command && e.Key == Key.OemOpenBrackets) { if (Back()) e.Handled = true; return; }
         if (command && e.Key == Key.OemCloseBrackets) { if (Forward()) e.Handled = true; return; }
