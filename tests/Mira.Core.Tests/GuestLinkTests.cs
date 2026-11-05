@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using Mira.Core;
 using static TestSupport;
 
