@@ -165,7 +165,20 @@ public static class SelfCheck
             }
 
             // —— Films, search ——
+            // As on Windows, while Jellyfin answers: the cards' shapes, then Jellyfin's soft placeholder until each poster.
+            if (mock is not null) mock.Slow = TimeSpan.FromSeconds(2.5);
             window.Go("Movie");
+            if (mock is not null)
+            {
+                var shaped = await Until(() => window.Current is BrowsePage { SkeletonCards: > 0 }, 5);
+                var shapes = (window.Current as BrowsePage)?.SkeletonCards ?? 0;
+                await Task.Delay(400); Capture(window, output, "03-films-loading");
+                Check(shaped, "films : la forme des cartes pendant le chargement, comme sous Windows", $"{shapes} cartes");
+                var blurred = await Until(() => window.Current is BrowsePage { Items.Count: > 0, SkeletonCards: 0 } page && Cards.Blurred(page) > 0, 10);
+                await Task.Delay(300); Capture(window, output, "03-films-blur");
+                Check(blurred, "films : l’aperçu flou de Jellyfin avant chaque affiche", $"{(window.Current is BrowsePage page ? Cards.Blurred(page) : 0)} aperçus");
+                mock.Slow = default;
+            }
             Check(await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15), "films : grille", $"{(window.Current as BrowsePage)?.Items.Count} films");
             var movie = ((BrowsePage)window.Current!).Items.FirstOrDefault(x => x.Id == "movie-1") ?? ((BrowsePage)window.Current!).Items.First();
             await Task.Delay(1000); Capture(window, output, "03-films");

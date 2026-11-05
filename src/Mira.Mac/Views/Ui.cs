@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Animation;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Mac.Services;
 using static Mira.Core.Lang;
@@ -99,7 +100,10 @@ public static class Ui
         }
         async Task SetAsync()
         {
-            var bitmap = await load();
+            var loading = load();
+            // Already in memory (a page come back to): there at once, as on Windows; fetched: it fades in over its placeholder.
+            if (loading.IsCompletedSuccessfully) image.Transitions = null;
+            var bitmap = await loading;
             if (bitmap is null) return;
             image.Source = bitmap; image.Opacity = 1;
         }
@@ -173,6 +177,18 @@ public sealed class CardGrid : Panel
     public double Gap { get; set; } = 22;
     public double RowGap { get; set; } = 30;
     private int Columns(double width) => Math.Max(1, (int)Math.Floor((width + Gap) / (MinItemWidth * Zoom + Gap)));
+    /// <summary>The columns at its width now (a page not laid out yet counts a window of 1200).</summary>
+    public int ColumnsShown => Columns(Bounds.Width > 0 ? Bounds.Width : 1200 - 140);
+    /// <summary>
+    /// <paramref name="rows"/> rows of <see cref="SkeletonCard"/> after the cards there (none: the skeleton taken away),
+    /// as on Windows: two rows while a grid first loads, one under it while the next page does.
+    /// </summary>
+    public void Skeleton(int rows)
+    {
+        foreach (var shown in Children.OfType<SkeletonCard>().ToList()) Children.Remove(shown);
+        for (var i = 0; i < rows * ColumnsShown; i++) Children.Add(new SkeletonCard());
+    }
+    public int SkeletonCards => Children.OfType<SkeletonCard>().Count();
     protected override Size MeasureOverride(Size available)
     {
         var width = double.IsInfinity(available.Width) ? 1200 : available.Width;
@@ -210,7 +226,7 @@ public static class Cards
     {
         var image = new Image { Stretch = Stretch.UniformToFill };
         var frame = new Grid { ClipToBounds = true };
-        frame.Children.Add(Placeholder(item));
+        frame.Children.Add(Placeholder(item, false));
         frame.Children.Add(image);
         if (item.Progress > 0 && !item.UserData.Played) frame.Children.Add(Progress(item.Progress));
         if (item.UserData.Played) frame.Children.Add(Watched());
@@ -235,7 +251,7 @@ public static class Cards
     {
         var image = new Image { Stretch = Stretch.UniformToFill };
         var frame = new Grid { ClipToBounds = true, Height = width * 9 / 16 };
-        frame.Children.Add(Placeholder(item));
+        frame.Children.Add(Placeholder(item, true));
         frame.Children.Add(image);
         frame.Children.Add(new Border { Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0.55, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#00000000"), 0), new GradientStop(Color.Parse("#A0000000"), 1) } } });
         if (item.Progress > 0 && !item.UserData.Played) frame.Children.Add(Progress(item.Progress));
@@ -289,17 +305,46 @@ public static class Cards
         return button;
     }
 
-    /// <summary>Behind the artwork while it loads, or when there is none: the initials on a quiet tone.</summary>
-    private static Control Placeholder(MediaItem item)
+    /// <summary>
+    /// Behind the artwork while it loads, as on Windows: Jellyfin's BlurHash of that picture (the same pixels as Mira web
+    /// and the iPhone), read from what Jellyfin already sent; without one (or without a picture), the title under a film
+    /// or play glyph, on the card's quiet tone.
+    /// </summary>
+    private static Control Placeholder(MediaItem item, bool wide)
     {
-        var hue = Math.Abs(item.Id.GetHashCode() % 360);
-        var tone = HsvColor.ToRgb(hue, 0.25, 0.22);
-        return new Border
+        if (Blur(item, wide) is { } blur)
         {
-            Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(tone, 0), new GradientStop(Color.Parse("#141416"), 1) } },
-            Child = new TextBlock { Text = item.DisplayTitle, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#CCFFFFFF"), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(14), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }
+            var soft = new Image { Source = blur, Stretch = Stretch.Fill, IsHitTestVisible = false, Classes = { "blur" } };
+            RenderOptions.SetBitmapInterpolationMode(soft, BitmapInterpolationMode.HighQuality);
+            return soft;
+        }
+        return new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20), IsHitTestVisible = false,
+            Children =
+            {
+                new Icon(wide ? "play" : "film", 30) { Foreground = Ui.Brush("#4E4E57"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 15) },
+                new TextBlock { Text = item.DisplayTitle, FontSize = 13, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxLines = 4, TextTrimming = TextTrimming.WordEllipsis }
+            }
         };
     }
+    /// <summary>Decoded placeholders, kept by hash: the same poster comes back on every page, and each takes a few kilobytes.</summary>
+    private static readonly Dictionary<string, Bitmap> Blurs = [];
+    private static Bitmap? Blur(MediaItem item, bool wide)
+    {
+        if (BlurHash.Of(item, wide ? Artwork.Landscape(item) : Artwork.Poster(item)) is not { } hash) return null;
+        var (width, height) = BlurHash.Size(wide ? 16 / 9d : 2 / 3d);
+        var key = $"{hash}|{width}|{height}";
+        if (Blurs.TryGetValue(key, out var known)) return known;
+        if (BlurHash.Decode(hash, width, height) is not { } pixels) return null;
+        var bitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), Avalonia.Platform.PixelFormat.Bgra8888, Avalonia.Platform.AlphaFormat.Opaque);
+        using (var buffer = bitmap.Lock())
+            for (var y = 0; y < height; y++) System.Runtime.InteropServices.Marshal.Copy(pixels, y * width * 4, buffer.Address + y * buffer.RowBytes, width * 4);
+        if (Blurs.Count >= 600) Blurs.Clear();
+        return Blurs[key] = bitmap;
+    }
+    /// <summary>The cards under <paramref name="root"/> showing Jellyfin's BlurHash: for the self-check.</summary>
+    public static int Blurred(Visual root) => root.GetVisualDescendants().OfType<Image>().Count(x => x.Classes.Contains("blur") && x.IsEffectivelyVisible);
     private static Control Progress(double share) => new ProgressLine { Value = share, VerticalAlignment = VerticalAlignment.Bottom, Height = 4, Margin = new Thickness(10, 0, 10, 10) };
     /// <summary>A soft shadow under the corner badges: they stay legible on a light poster.</summary>
     private static readonly BoxShadows BadgeShadow = BoxShadows.Parse("0 0 0 1 #2E000000, 0 2 8 0 #73000000");
@@ -323,6 +368,54 @@ public static class Cards
         art.Transitions = [new TransformOperationsTransition { Property = Visual.RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(160) }];
         button.PointerEntered += (_, _) => art.RenderTransform = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1.03)");
         button.PointerExited += (_, _) => art.RenderTransform = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1)");
+    }
+}
+
+/// <summary>
+/// A card's shape while the grid's titles are on their way, as on Windows: the artwork, the title and its line, pulsing
+/// softly (but with macOS's « Réduire les animations », where they stay still), so that nothing jumps when the real cards take their place.
+/// </summary>
+public sealed class SkeletonCard : StackPanel
+{
+    private static readonly IBrush Surface = Ui.Brush("#111112");
+    private CancellationTokenSource? _pulse;
+
+    public SkeletonCard()
+    {
+        IsHitTestVisible = false; Focusable = false;
+        Children.Add(new AspectBox(2.0 / 3) { Child = new Border { CornerRadius = new CornerRadius(10), Background = Surface } });
+        Children.Add(Bar(12, 72, Ui.Raised, new Thickness(0, 16, 0, 0)));
+        Children.Add(Bar(9, 42, Surface, new Thickness(0, 12, 0, 20)));
+    }
+    /// <summary>A line <paramref name="share"/> % of the card wide.</summary>
+    private static Grid Bar(double height, int share, IBrush brush, Thickness margin)
+    {
+        var bar = new Border { Height = height, CornerRadius = new CornerRadius(3), Background = brush };
+        var line = new Grid { ColumnDefinitions = new ColumnDefinitions($"{share}*,{100 - share}*"), Margin = margin };
+        line.Children.Add(bar);
+        return line;
+    }
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (MacMotion.Reduced) return;
+        _pulse = new CancellationTokenSource();
+        var pulse = new Animation
+        {
+            Duration = TimeSpan.FromMilliseconds(1800), IterationCount = IterationCount.Infinite, Easing = new Avalonia.Animation.Easings.SineEaseInOut(),
+            Children =
+            {
+                new KeyFrame { Cue = new Cue(0), Setters = { new Avalonia.Styling.Setter(OpacityProperty, 1d) } },
+                new KeyFrame { Cue = new Cue(.5), Setters = { new Avalonia.Styling.Setter(OpacityProperty, .55) } },
+                new KeyFrame { Cue = new Cue(1), Setters = { new Avalonia.Styling.Setter(OpacityProperty, 1d) } },
+            }
+        };
+        _ = pulse.RunAsync(this, _pulse.Token);
+    }
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _pulse?.Cancel(); _pulse = null;
     }
 }
 
