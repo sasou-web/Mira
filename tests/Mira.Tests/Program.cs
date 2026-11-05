@@ -584,6 +584,30 @@ await Test("Nouveautés : chaque icône citée est dessinée par Mira", () =>
     Assert(missing.Length == 0, "Icons not drawn: " + string.Join(", ", missing));
     return Task.CompletedTask;
 });
+await Test("Lecture et pause au milieu de l’image : les images clés de Windows suivent la courbe de Core, celle du Mac", () =>
+{
+    // A keyframe's value at a time, as WPF works it out: from the previous one's value (or the value it starts from).
+    static double Sample(System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames animation, double ms, double from)
+    {
+        var previous = from; var start = 0d;
+        foreach (System.Windows.Media.Animation.DoubleKeyFrame frame in animation.KeyFrames)
+        {
+            var end = frame.KeyTime.TimeSpan.TotalMilliseconds;
+            if (ms <= end) return frame.InterpolateValue(previous, end > start ? (ms - start) / (end - start) : 1);
+            previous = frame.Value; start = end;
+        }
+        return previous;
+    }
+    foreach (var from in new[] { 0d, .6 })
+        for (var ms = 0d; ms <= PlayStateBadge.End; ms += 2.5)
+        {
+            var (opacity, scale) = PlayStateBadge.At(ms, from);
+            var fade = Sample(Mira.Desktop.PlayStateMotion.Fade, ms, from); var grow = Sample(Mira.Desktop.PlayStateMotion.Grow, ms, 1);
+            Assert(Math.Abs(fade - opacity) < 1e-9 && Math.Abs(grow - scale) < 1e-9, $"{ms} ms from {from}: opacity {fade} for {opacity}, size {grow} for {scale}");
+        }
+    Assert(Mira.Desktop.PlayStateMotion.Fade.Duration.TimeSpan.TotalMilliseconds == PlayStateBadge.End && Mira.Desktop.PlayStateMotion.Grow.Duration.TimeSpan.TotalMilliseconds == PlayStateBadge.End, "As long as Core's curve");
+    return Task.CompletedTask;
+});
 await Test("Session protégée par Windows, mot de passe absent du stockage", () =>
 {
     var profile = new LocalProfile(Path.Combine(testRoot, "protected")); var connection = new Connection("http://localhost/", "user", "Alice", "secret-session-token", profile.DeviceId);

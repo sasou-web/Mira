@@ -30,6 +30,10 @@ public partial class MainWindow
     private static readonly TimeSpan PlayingIdle = TimeSpan.FromSeconds(2.6), PausedIdle = TimeSpan.FromSeconds(4), MiniIdle = TimeSpan.FromSeconds(1.4);
     /// <summary>Button whose menu is open (audio and subtitles, or ⋮); the menu opens above it.</summary>
     private Button? _menuAnchor;
+    /// <summary>The presses on the picture follow one that closed a menu and went no further (PlayerOptions_PreviewMouseDown).</summary>
+    private bool _pressClosedMenu;
+    /// <summary>Another menu's button, pressed to close the open menu: its menu opens when it is let go.</summary>
+    private Button? _menuOnRelease;
     private static readonly double[] Speeds = [.5, .75, 1, 1.25, 1.5, 2];
     // Slider width plus its margins, revealed beside the speaker.
     private const double VolumeRevealWidth = 174;
@@ -39,6 +43,7 @@ public partial class MainWindow
     {
         _fullscreenWindow = new(this);
         _windowFrame = new(this);
+        InitializePlayState();
         _surfaceClick.Tick += (_, _) => { _surfaceClick.Stop(); if (_playing) Pause_Click(this, new()); };
         _volumeHide.Tick += (_, _) => { _volumeHide.Stop(); if (!KeepVolumeOpen) SetVolumeReveal(false); };
         if (_settings.Volume > 0) _lastAudibleVolume = _settings.Volume;
@@ -46,6 +51,7 @@ public partial class MainWindow
         SeekBar.Seeking += Scrub;
         SeekBar.SeekCompleted += SeekTo;
         InitializeTransportLayer();
+        PlayerTransport.AddHandler(MouseLeftButtonUpEvent, new MouseButtonEventHandler(MenuButton_MouseUp), handledEventsToo: true);
         PlayerOptionsPopup.CustomPopupPlacementCallback = (size, target, _) => [new CustomPopupPlacement(MenuPlacement(size, target), PopupPrimaryAxis.None)];
         LocationChanged += (_, _) => PositionPlayerControls();
         StateChanged += (_, _) => { PositionPlayerControls(); UpdatePlayerControls(); };
@@ -184,12 +190,16 @@ public partial class MainWindow
     private void PlayerSurface_MouseDown(object sender, MouseButtonEventArgs e)
     {
         var activating = (ReferenceEquals(sender, PlayerTransport) ? TransportLayer : PlayerOverlayLayer).TakeActivatingClick();
-        if (_miniPlayer) { MiniPointerDown(e, activating); return; }
+        // The press that closed a menu went no further, but WPF counted it: the presses that quickly follow it at the same
+        // spot are counted without it (the next one is a first click, the one after it a double click).
+        if (e.ClickCount == 1) _pressClosedMenu = false;
+        var clicks = _pressClosedMenu ? e.ClickCount - 1 : e.ClickCount;
+        if (_miniPlayer) { MiniPointerDown(e, activating, clicks); return; }
         if (e.OriginalSource != PlayerSurface) return;
         PlayerSurface.Focus(); ShowPlayerControls(); e.Handled = true;
         _surfaceClick.Stop();
         if (activating || InBarBand(e.GetPosition(PlayerSurface))) return;
-        if (e.ClickCount == 2) ToggleFullscreen(); else _surfaceClick.Start();
+        if (clicks == 2) ToggleFullscreen(); else _surfaceClick.Start();
     }
     private void PlayerSurface_MouseUp(object sender, MouseButtonEventArgs e) { if (_miniPlayer) MiniPointerUp(e); }
     private void PlayerChrome_MouseDown(object sender, MouseButtonEventArgs e)
@@ -590,18 +600,32 @@ public partial class MainWindow
         return choice;
     }
     private static string DelayLabel(double seconds) => PlayerText.Delay(seconds);
-    private void PlayerOptions_Opened(object? sender, EventArgs e) => ShowPlayerControls();
-    private void PlayerOptions_Closed(object? sender, EventArgs e)
+    private void PlayerOptions_Opened(object? sender, EventArgs e) { _menuOnRelease = null; ShowPlayerControls(); }
+    private void PlayerOptions_Closed(object? sender, EventArgs e) => _lastPlayerInteraction = DateTimeOffset.UtcNow;
+    /// <summary>
+    /// A press outside the open menu closes it (WPF's popup, just before this handler) and goes no further, as a menu's
+    /// does: WPF would give it to what lies under the pointer once the menu let go of the mouse, where it would pause or
+    /// play the film, or open again the menu its own button had just closed. On another menu's button, that menu opens
+    /// once the button is let go (MenuButton_MouseUp): opened while the button is still down, it would close at once.
+    /// </summary>
+    private void PlayerOptions_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        _lastPlayerInteraction = DateTimeOffset.UtcNow;
-        // The click that closed the menu went to the popup, not to the button under it: a click on the other menu's
-        // button opens that menu, as the viewer meant (a click on the same button just closes it).
-        if (Mouse.LeftButton != MouseButtonState.Pressed || !_playing) return;
-        var other = ReferenceEquals(_menuAnchor, PlayerTracksButton) ? PlayerMoreButton : PlayerTracksButton;
-        if (!other.IsVisible || PresentationSource.FromVisual(other) is null) return;
-        var point = Mouse.GetPosition(other);
-        if (point.X >= 0 && point.Y >= 0 && point.X < other.ActualWidth && point.Y < other.ActualHeight)
-            Dispatcher.BeginInvoke(() => TogglePlayerMenu(other), DispatcherPriority.Input);
+        if (PlayerOptionsPopup.IsOpen) return;
+        e.Handled = true; _pressClosedMenu = true; _lastPlayerInteraction = DateTimeOffset.UtcNow;
+        _menuOnRelease = new[] { PlayerTracksButton, PlayerMoreButton, PlayerEpisodesButton }.FirstOrDefault(x => !ReferenceEquals(x, _menuAnchor) && x.IsEnabled && PointerOn(x));
+    }
+    private void MenuButton_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_menuOnRelease is not { } button) return;
+        _menuOnRelease = null;
+        if (_playing && !PlayerOptionsPopup.IsOpen && button.IsEnabled && PointerOn(button)) TogglePlayerMenu(button);
+    }
+    /// <summary>The pointer is over this element now, measured (not WPF's idea of what the mouse is over).</summary>
+    private static bool PointerOn(FrameworkElement element)
+    {
+        if (!element.IsVisible || PresentationSource.FromVisual(element) is null) return false;
+        var point = Mouse.GetPosition(element);
+        return point.X >= 0 && point.Y >= 0 && point.X < element.ActualWidth && point.Y < element.ActualHeight;
     }
     private void PlayerOptions_KeyDown(object sender, KeyEventArgs e)
     {

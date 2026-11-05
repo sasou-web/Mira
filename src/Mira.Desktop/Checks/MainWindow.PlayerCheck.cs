@@ -37,6 +37,7 @@ public partial class MainWindow
             await RunPlayerV044ChecksAsync(output, checks, Require);
             await RunPlayerBarChecksAsync(output, checks, Require);
             await RunPlayerCaptureChecksAsync(output, checks, Require);
+            await RunPlayerMenuChecksAsync(output, checks, Require);
             _mpv!.Set("pause", "yes"); await Task.Delay(200);
             var engine = _mpv; var handle = _videoHandle;
             _mpv.Command("seek", "4", "absolute+exact"); await Task.Delay(240); _mpv.Poll();

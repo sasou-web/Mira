@@ -91,9 +91,10 @@ public sealed partial class PlayerPage
         _miniProgress.InvalidateVisual();
     }
     /// <summary>A press on the picture: a click pauses, a double click expands, a drag moves it to another corner.</summary>
-    private void MiniPressed(PointerPressedEventArgs e)
+    /// <param name="twice">The second of two presses on the picture (PlayerPage's own count, not Avalonia's).</param>
+    private void MiniPressed(PointerPressedEventArgs e, bool twice)
     {
-        if (e.ClickCount >= 2) { _click.Stop(); _miniPress = null; SetMini(false); return; }
+        if (twice) { _click.Stop(); _miniPress = null; SetMini(false); return; }
         _miniPress = e.GetPosition(_shell); e.Pointer.Capture(_videoHost);
     }
     private void MiniMoved(PointerEventArgs e)
