@@ -91,14 +91,25 @@ public static class Ui
         Child = new TextBlock { Text = text, FontSize = 13, Foreground = Ink }
     };
 
-    /// <summary>Loads <paramref name="load"/>'s image into <paramref name="image"/> once it first comes into view.</summary>
+    /// <summary>
+    /// Loads <paramref name="load"/>'s image into <paramref name="image"/> once it first comes into view. Avalonia works out
+    /// where each card waiting for it lies at every layout pass (each frame of a scroll): a card listens only until its
+    /// image is asked, and only while its page shows (a page kept hidden behind another one waits).
+    /// </summary>
     public static void LoadWhenVisible(Control host, Image image, Func<Task<Bitmap?>> load)
     {
-        var started = false;
-        void Start()
+        var started = false; var listening = false;
+        void Seen(object? sender, EffectiveViewportChangedEventArgs e)
         {
-            if (started) return; started = true;
+            if (started || e.EffectiveViewport.Width <= 0 || e.EffectiveViewport.Height <= 0 || !e.EffectiveViewport.Intersects(new Rect(host.Bounds.Size))) return;
+            started = true; Listen(false);
             _ = SetAsync();
+        }
+        void Listen(bool on)
+        {
+            if (on && started || on == listening) return;
+            listening = on;
+            if (on) host.EffectiveViewportChanged += Seen; else host.EffectiveViewportChanged -= Seen;
         }
         async Task SetAsync()
         {
@@ -111,9 +122,25 @@ public static class Ui
         }
         image.Opacity = 0;
         image.Transitions = [new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(220) }];
-        host.EffectiveViewportChanged += (_, e) => { if (e.EffectiveViewport.Width > 0 && e.EffectiveViewport.Height > 0 && e.EffectiveViewport.Intersects(new Rect(host.Bounds.Size))) Start(); };
+        Page.WhileShown(host, Listen);
     }
 
+    /// <summary>
+    /// <paramref name="panel"/>'s children made <paramref name="wanted"/>, touching as little as it can: nothing when they
+    /// already are, only those that changed when the others keep their places (a title watched, its progress), all of
+    /// them otherwise. A child taken out and put back is styled again by Avalonia, as a new one is made.
+    /// </summary>
+    public static void Place(Panel panel, IReadOnlyList<Control> wanted)
+    {
+        var children = panel.Children;
+        if (children.Count == wanted.Count)
+        {
+            var inPanel = children.ToHashSet(); var inPlace = true;
+            for (var i = 0; i < wanted.Count && inPlace; i++) inPlace = wanted[i] == children[i] || !inPanel.Contains(wanted[i]);
+            if (inPlace) { for (var i = 0; i < wanted.Count; i++) if (children[i] != wanted[i]) children[i] = wanted[i]; return; }
+        }
+        children.Clear(); children.AddRange(wanted);
+    }
     /// <summary>The time left, « Reste 1 h 22 », “1 h 22 left”.</summary>
     public static string Remaining(MediaItem item)
     {
@@ -244,7 +271,7 @@ public static class Cards
         var button = new Button { Content = body, Classes = { "card" } };
         Hover(button, art);
         button.Click += (_, _) => open(item);
-        if (menu?.Invoke(item) is { } context) button.ContextMenu = context;
+        Menu(button, item, menu);
         Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { item.DisplayTitle, Caption(item), item.EpisodesToWatchText }.Where(x => !string.IsNullOrEmpty(x))));
         if (images is not null) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(item, pixels));
         return button;
@@ -267,11 +294,47 @@ public static class Cards
         var button = new Button { Content = body, Classes = { "card" } };
         Hover(button, art);
         button.Click += (_, _) => open(item);
-        if (menu?.Invoke(item) is { } context) button.ContextMenu = context;
+        Menu(button, item, menu);
         Avalonia.Automation.AutomationProperties.SetName(button, $"{item.DisplayTitle}, {line}");
         if (images is not null) Ui.LoadWhenVisible(button, image, () => images.LandscapeAsync(item, (int)(width * 2)));
         return button;
     }
+    /// <summary>
+    /// The card's right-click menu, made as it opens: what it offers (rights read after the card was drawn, a copy on this
+    /// Mac, the collection shown) is as it is then, even on a card kept from an earlier refresh (<see cref="Update"/>).
+    /// </summary>
+    private static void Menu(Button button, MediaItem item, Func<MediaItem, ContextMenu?>? make)
+    {
+        if (make is null) return;
+        var menu = new ContextMenu();
+        menu.Opening += (_, e) =>
+        {
+            menu.Items.Clear();
+            if (make(item) is { } fresh) { var entries = fresh.Items.ToList(); fresh.Items.Clear(); foreach (var entry in entries) menu.Items.Add(entry); }
+            e.Cancel = menu.Items.Count == 0;
+        };
+        button.ContextMenu = menu;
+    }
+    /// <summary>What a card shows of <paramref name="item"/>: the same key, the same card (title, line, marks, picture).</summary>
+    public static string Key(MediaItem item) => string.Join('|', item.Id, item.Type, item.Name, item.SeriesName, item.ProductionYear, item.ParentIndexNumber, item.IndexNumber, item.RunTimeTicks,
+        item.ExtraType, item.UserData.Played, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, item.EpisodesToWatchBadge, string.Join(',', item.ImageTags.Select(x => x.Key + ":" + x.Value)),
+        item.SeriesPrimaryImageTag, item.SeasonThumbImageTag, string.Join(',', item.BackdropImageTags), item.ParentLogoImageTag);
+    /// <summary>
+    /// The cards of <paramref name="panel"/> for <paramref name="items"/>, made by <paramref name="make"/> under
+    /// <paramref name="kind"/> (its size, its picture's): a card that would show the same (<see cref="Key"/>) stays as it is,
+    /// picture and all, and the panel is left alone when nothing changed. A page come back to was otherwise drawn again
+    /// whole at each refresh: 40 to 70 ms of the interface's thread for a grid of a hundred titles (--smooth-check).
+    /// </summary>
+    public static void Update(Panel panel, IReadOnlyList<MediaItem> items, string kind, Func<MediaItem, Control> make)
+    {
+        var known = new Dictionary<string, Control>();
+        foreach (var card in panel.Children) if (card.Tag is string key) known.TryAdd(key, card);
+        var wanted = new List<Control>(items.Count);
+        foreach (var item in items) wanted.Add(known.Remove(kind + "|" + Key(item), out var card) ? card : Keyed(make(item), kind, item));
+        Ui.Place(panel, wanted);
+    }
+    /// <summary><paramref name="card"/> marked with what it shows, for <see cref="Update"/> to find it again.</summary>
+    public static Control Keyed(Control card, string kind, MediaItem item) { card.Tag = kind + "|" + Key(item); return card; }
     private static string Caption(MediaItem item) => item.Type switch
     {
         "Series" => string.Join(" · ", new[] { item.ProductionYear?.ToString(), L("Série", "Series") }.Where(x => x is not null)),
@@ -388,6 +451,8 @@ public sealed class SkeletonCard : StackPanel
         Children.Add(new AspectBox(2.0 / 3) { Child = new Border { CornerRadius = new CornerRadius(10), Background = Surface } });
         Children.Add(Bar(12, 72, Ui.Raised, new Thickness(0, 16, 0, 0)));
         Children.Add(Bar(9, 42, Surface, new Thickness(0, 12, 0, 20)));
+        // Only while its page shows: one kept behind another (MainWindow.Host) would keep the animations' clock going.
+        Page.WhileShown(this, Pulse);
     }
     /// <summary>A line <paramref name="share"/> % of the card wide.</summary>
     private static Grid Bar(double height, int share, IBrush brush, Thickness margin)
@@ -397,10 +462,10 @@ public sealed class SkeletonCard : StackPanel
         line.Children.Add(bar);
         return line;
     }
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    private void Pulse(bool on)
     {
-        base.OnAttachedToVisualTree(e);
-        if (MacMotion.Reduced) return;
+        _pulse?.Cancel(); _pulse = null;
+        if (!on || MacMotion.Reduced) return;
         _pulse = new CancellationTokenSource();
         var pulse = new Animation
         {
@@ -413,11 +478,6 @@ public sealed class SkeletonCard : StackPanel
             }
         };
         _ = pulse.RunAsync(this, _pulse.Token);
-    }
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-        _pulse?.Cancel(); _pulse = null;
     }
 }
 

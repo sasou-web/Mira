@@ -192,8 +192,11 @@ public sealed class DownloadsPage : Page
         DescribeAgent(DateTimeOffset.UtcNow);
         _timer.Tick += async (_, _) => await TickAsync();
         // Jellyfin is asked only while the page shows: not from the history, behind a title opened by « Voir ».
-        AttachedToVisualTree += (_, _) => { _timer.Start(); Dispatcher.UIThread.Post(() => _query.Focus(), DispatcherPriority.Input); };
-        DetachedFromVisualTree += (_, _) => _timer.Stop();
+        Showing += shown =>
+        {
+            if (!shown) { _timer.Stop(); return; }
+            _timer.Start(); Dispatcher.UIThread.Post(() => { if (IsShowing) _query.Focus(); }, DispatcherPriority.Input);
+        };
     }
 
     public override async Task LoadAsync()

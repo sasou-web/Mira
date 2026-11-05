@@ -33,8 +33,8 @@ public sealed class ViewersSection
         Section = section(L("En ce moment sur Jellyfin", "On Jellyfin right now"), [Ui.Column(0, _status, _list)]);
         Section.IsVisible = false;
         _timer.Tick += (_, _) => _ = LoadAsync();
-        Section.AttachedToVisualTree += (_, _) => { _shown = ""; _timer.Start(); _ = LoadAsync(); };
-        Section.DetachedFromVisualTree += (_, _) => _timer.Stop();
+        // Asked only while it can be seen: not from Réglages kept behind a title opened from it.
+        Page.WhileShown(Section, shown => { if (!shown) { _timer.Stop(); return; } _shown = ""; _timer.Start(); _ = LoadAsync(); });
     }
     private async Task LoadAsync()
     {

@@ -36,6 +36,42 @@ public abstract class Page : UserControl
     public virtual Task RefreshAsync() => Task.CompletedTask;
     /// <summary>Its rail entry (or shortcut) chosen again while it shows: nothing reloads or fades in again; its list glides back to the top.</summary>
     public virtual void ShowAgain() { if (Content is ScrollViewer scroll) GlideUp.Start(scroll); }
+    /// <summary>
+    /// On screen, or not: left for another page (kept hidden in the window while it may come back, see
+    /// <see cref="MainWindow.Host"/>) or taken out of the window. What runs only while the page shows (a timer, the banner's
+    /// turns, a field's focus) follows this rather than the visual tree, which a page kept no longer leaves.
+    /// </summary>
+    public event Action<bool>? Showing;
+    public bool IsShowing { get; private set; }
+    private void UpdateShowing(bool attached)
+    {
+        var showing = attached && IsVisible;
+        if (showing == IsShowing) return;
+        IsShowing = showing; Showing?.Invoke(showing);
+    }
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e) { base.OnAttachedToVisualTree(e); UpdateShowing(true); }
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e) { base.OnDetachedFromVisualTree(e); UpdateShowing(false); }
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsVisibleProperty) UpdateShowing(this.GetVisualRoot() is not null);
+    }
+    /// <summary>
+    /// <paramref name="changed"/> with true once <paramref name="part"/> is on screen with its page, false once that page is
+    /// put away or the part leaves it: a section's timer runs only while it can be seen.
+    /// </summary>
+    public static void WhileShown(Control part, Action<bool> changed)
+    {
+        Page? page = null; var on = false;
+        void Set(bool shown) { if (shown == on) return; on = shown; changed(shown); }
+        part.AttachedToVisualTree += (_, _) =>
+        {
+            page = part.FindAncestorOfType<Page>();
+            if (page is null) { Set(true); return; }
+            page.Showing += Set; Set(page.IsShowing);
+        };
+        part.DetachedFromVisualTree += (_, _) => { if (page is not null) page.Showing -= Set; page = null; Set(false); };
+    }
 }
 
 /// <summary>
@@ -51,7 +87,8 @@ public sealed partial class MainWindow : Window
     public ConnectionSpeed Speed { get; } = new();
     public string[] Args { get; }
     private readonly Grid _root = new();
-    private readonly ContentControl _host = new();
+    /// <summary>The pages: the one shown, and those that may come back, hidden (<see cref="Host"/>).</summary>
+    private readonly Panel _host = new();
     private readonly Panel _overlay = new();
     private readonly StackPanel _railItems = new() { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Border _rail;
@@ -339,7 +376,7 @@ public sealed partial class MainWindow : Window
         // Opened from an invitation (a mira:// link) before any account: its Jellyfin, to sign in to.
         if (_invite is { } invite) login.Server = invite.Server;
         _overlay.Children.Clear(); _overlay.Children.Add(login);
-        _history.Clear(); _forward.Clear(); _kept.Clear(); _host.Content = null;
+        _history.Clear(); _forward.Clear(); _kept.Clear(); Host(null);
         // A party link opened while Mira was starting, before any account: its first name is asked now.
         if (_invite is { Party: not null }) _ = OfferInviteAsync();
     }
@@ -448,7 +485,7 @@ public sealed partial class MainWindow : Window
                 if (update.AutoSkip is { } skip) Settings.AutoSkip = skip;
                 Profile.SaveSettings(Settings);
                 // The settings on screen show the new ones.
-                if (Current is SettingsPage) { var fresh = new SettingsPage(this); _host.Content = fresh; await fresh.LoadAsync(); }
+                if (Current is SettingsPage) { var fresh = new SettingsPage(this); Host(fresh); await fresh.LoadAsync(); }
             }
             if (update.Hidden is not null && Current is HomePage) await RefreshPagesAsync(fromServer: true);
         }
@@ -610,7 +647,7 @@ public sealed partial class MainWindow : Window
     }
 
     // —— Navigation ——
-    public Page? Current => _host.Content as Page;
+    public Page? Current { get; private set; }
     public LoginPage? Login => _overlay.Children.OfType<LoginPage>().FirstOrDefault();
     /// <summary>The page behind a rail entry: "home", "search", "Movie", "Series", "library", "downloads" or "settings".</summary>
     public void Go(string key) => NavigateRoot(key);
@@ -645,6 +682,27 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private readonly Dictionary<string, Page> _kept = [];
     private static readonly string[] KeptPages = ["home", "search", "Movie", "Series", "library"];
+    /// <summary>
+    /// <paramref name="page"/> shown (none: the login or a party hides them all). A page that may come back (one of the
+    /// rail's kept, the history, the way forward) stays in the window, hidden: taken out and put back, Avalonia styled it
+    /// all again (20 to 70 ms of the interface's thread for Accueil or Films, measured by --smooth-check, at each change of
+    /// page). The others leave it.
+    /// </summary>
+    private void Host(Page? page)
+    {
+        var left = Current;
+        if (page is not null && !_host.Children.Contains(page)) _host.Children.Add(page);
+        Current = page;
+        if (left is not null && left != page)
+        {
+            // Never the keyboard's focus in a page put away: what is typed would go to a field nobody sees.
+            if (left.IsKeyboardFocusWithin) FocusManager?.ClearFocus();
+            left.IsVisible = false;
+        }
+        if (page is not null) page.IsVisible = true;
+        foreach (var gone in _host.Children.OfType<Page>().Where(x => x != page && !_kept.ContainsValue(x) && !_history.Contains(x) && !_forward.Contains(x)).ToList())
+            _host.Children.Remove(gone);
+    }
     /// <summary>A page reached from the one shown (a title, a person…): Back returns to the one shown.</summary>
     public Task NavigateAsync(Page page) => ShowPageAsync(page, root: false, fresh: true);
     /// <param name="root">A page of the rail: it starts a new history, as on Windows, so that its entry chosen again finds it.</param>
@@ -653,7 +711,7 @@ public sealed partial class MainWindow : Window
     {
         if (!root && Current is { } current && current != page) _history.Add(current);
         _forward.Clear();
-        _host.Content = page;
+        Host(page);
         Light(page.Rail);
         page.Opacity = 0;
         page.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
@@ -672,7 +730,7 @@ public sealed partial class MainWindow : Window
         if (_history.Count == 0) return false;
         var previous = _history[^1]; _history.RemoveAt(_history.Count - 1);
         if (Current is { } current) _forward.Add(current);
-        _host.Content = previous; Light(previous.Rail);
+        Host(previous); Light(previous.Rail);
         _ = previous.RefreshAsync();
         return true;
     }

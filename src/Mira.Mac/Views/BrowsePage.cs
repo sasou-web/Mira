@@ -141,7 +141,7 @@ public sealed class BrowsePage : Page
             _typing.Tick += (_, _) => { _typing.Stop(); _ = ReloadAsync(); };
             Avalonia.Automation.AutomationProperties.SetName(_search, L("Rechercher dans la bibliothèque", "Search the library"));
             page.Children.Add(_search);
-            AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() => _search.Focus(), DispatcherPriority.Input);
+            Showing += shown => { if (shown) Dispatcher.UIThread.Post(() => { if (IsShowing) _search.Focus(); }, DispatcherPriority.Input); };
         }
         else { page.Children.Add(tools); page.Children.Add(_filters); }
         _genreRow = new ScrollViewer { Content = _genreChips, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(0, 0, 0, 24), IsVisible = false };
@@ -359,8 +359,8 @@ public sealed class BrowsePage : Page
             ShowPeople(found); ShowStudios(foundStudios); ShowFound(foundEpisodes, foundSagas);
             _items.Clear(); _items.AddRange(result.Items); _total = result.TotalRecordCount;
             var offset = _scroll.Offset;
-            _grid.Children.Clear();
-            foreach (var item in result.Items) _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
+            // A refresh that brings the same titles (a page come back to) keeps their cards as they are.
+            Cards.Update(_grid, result.Items, GridKind, item => Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
             if (keep) _scroll.Offset = offset; else _scroll.Offset = default;
             Count();
             if (_items.Count == 0 && _found.Count + _foundStudios.Count + _foundEpisodes.Count + _foundSagas.Count == 0)
@@ -384,13 +384,15 @@ public sealed class BrowsePage : Page
             await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)));
             if (version != _version) return;
             foreach (var item in result.Items.Where(x => _items.All(old => old.Id != x.Id)))
-            { _items.Add(item); _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels)); }
+            { _items.Add(item); _grid.Children.Add(Cards.Keyed(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels), GridKind, item)); }
             _total = result.Items.Count == 0 ? _items.Count : result.TotalRecordCount;
             Count();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { }
         finally { if (version == _version) { _loading = false; _grid.Skeleton(0); } }
     }
+    /// <summary>The grid's cards, by the size of their picture (a pinch past 105 % fetches larger ones).</summary>
+    private static string GridKind => "grid" + CardGrid.Pixels;
     /// <summary>The cards' shapes shown while titles come: for the self-check.</summary>
     public int SkeletonCards => _grid.SkeletonCards;
     private void Count() => _count.Text = _total == 0 ? "" : Lang.Count(_total, "titre", "titres", "title", "titles");

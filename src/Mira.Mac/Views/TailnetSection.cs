@@ -54,8 +54,13 @@ public sealed class TailnetSection
         Section.IsVisible = _tailscale.Offered;
         if (!_tailscale.Offered) return;
         Render();
-        Section.AttachedToVisualTree += (_, _) => { _tailscale.Changed += Render; _ = _tailscale.ReadAppAsync(); Render(); };
-        Section.DetachedFromVisualTree += (_, _) => _tailscale.Changed -= Render;
+        // While Réglages shows it (not while the page waits behind a title opened from it): the Tailscale app read again
+        // each time it comes back.
+        Page.WhileShown(Section, shown =>
+        {
+            if (!shown) { _tailscale.Changed -= Render; return; }
+            _tailscale.Changed += Render; _ = _tailscale.ReadAppAsync(); Render();
+        });
     }
 
     private static TextBlock Note(string text) => new() { Text = text, FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };

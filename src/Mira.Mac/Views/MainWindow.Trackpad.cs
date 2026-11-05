@@ -67,7 +67,7 @@ public sealed partial class MainWindow
         if (Watching || _forward.Count == 0) return false;
         var next = _forward[^1]; _forward.RemoveAt(_forward.Count - 1);
         if (Current is { } current) _history.Add(current);
-        _host.Content = next; Light(next.Rail);
+        Host(next); Light(next.Rail);
         _ = next.RefreshAsync();
         return true;
     }
