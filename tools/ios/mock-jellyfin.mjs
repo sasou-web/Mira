@@ -7,6 +7,9 @@
 // player reports is listed at /Mock/Reports for the UI tests. Sintel plays media/film.mp4 instead when ios.yml could
 // fetch it (its trailer, © Blender Foundation, CC BY 3.0), at its real length, with chapters and the trickplay
 // pictures of media/trickplay (tools/ios/trickplay.sh): the player's captures.
+// The tests switch it (POST): /Mock/Slow?ms=… answers the account's requests that much later (pictures and the server's
+// public answer stay quick), /Mock/Down cuts every connection but /Mock's (a PC switched off), /Mock/Up undoes both;
+// /Mock/Mark?name=… notes when a moment of a filmed test came (/Mock/Marks, read by ios.yml to cut the film).
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
 import http from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
@@ -27,6 +30,8 @@ function mp4Seconds(data) {
   return scale ? length / scale : 0;
 }
 const reports = [];
+let slow = 0, down = false;
+const marks = [];
 
 const port = Number(process.argv[2] ?? 18097);
 const TOKEN = 'mock-token';
@@ -205,6 +210,15 @@ const server = http.createServer(async (req, res) => {
   const path = guest ? url.pathname.slice('/Mira/guest'.length) : url.pathname, q = url.searchParams;
   let raw = ''; for await (const part of req) raw += part;
   console.log(req.method, req.url);
+  if (req.method === 'POST' && ['/Mock/Slow', '/Mock/Down', '/Mock/Up'].includes(path)) {
+    slow = path === '/Mock/Slow' ? Math.min(60_000, Math.max(0, Number(q.get('ms') ?? 3000))) : 0;
+    down = path === '/Mock/Down';
+    if (down) for (const socket of sockets) socket.destroy();
+    return send(res, 204, undefined);
+  }
+  if (path === '/Mock/Mark' && req.method === 'POST') { marks.push({ name: q.get('name') ?? '', at: Date.now() }); return send(res, 204, undefined); }
+  if (path === '/Mock/Marks') return send(res, 200, marks);
+  if (down && !path.startsWith('/Mock/')) { req.socket.destroy(); return; }
   if (url.pathname === `/Mira/party/${PARTY}`) return send(res, 200, { host: 'Dafty' });
   if (url.pathname === '/Mira/guest/open' && req.method === 'POST') {
     const body = JSON.parse(raw || '{}');
@@ -264,6 +278,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { User: { Id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f', Name: body.Username, ServerId: SERVER_ID }, AccessToken: TOKEN, ServerId: SERVER_ID });
   }
   if (!(req.headers.authorization ?? '').includes(`Token="${guest ? GUEST_TOKEN : TOKEN}"`)) return send(res, 401, undefined);
+  if (slow) await new Promise((resolve) => setTimeout(resolve, slow));
   if (path === '/Sessions/Logout') { if (guest) syncLog.push({ what: 'GuestLogout', body: {} }); return send(res, 204, undefined); }
   if (path === '/Sessions/Capabilities') return send(res, 204, undefined);
   if (path === '/GetUtcTime') { const now = jellyfinDate(Date.now()); return send(res, 200, { RequestReceptionTime: now, ResponseTransmissionTime: now }); }
@@ -345,6 +360,7 @@ const server = http.createServer(async (req, res) => {
   return send(res, 404, undefined);
 });
 server.on('upgrade', (req, socket) => {
+  if (down) { socket.destroy(); return; }
   const url = new URL(req.url, 'http://localhost');
   const key = req.headers['sec-websocket-key'];
   const guest = url.pathname === '/Mira/guest/socket';

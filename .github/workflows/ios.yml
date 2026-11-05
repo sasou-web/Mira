@@ -27,6 +27,10 @@ on:
         description: "Simulator to test on, to see the app on another size of iPhone (iPhone 17 Pro by default)"
         required: false
         type: string
+      film:
+        description: "A UI test to film on the simulator (testOpeningFilm): the film is committed to this branch, to fetch, then drop; never on main"
+        required: false
+        type: string
 permissions:
   contents: read
 env:
@@ -155,7 +159,7 @@ jobs:
           xcodebuild test -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" -resultBundlePath .artifacts/tests.xcresult \
             -retry-tests-on-failure -test-iterations 2 \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$VERSION" > .artifacts/tests.log 2>&1 || status=$?
-          grep -E "error:|Test Case .* (passed|failed|skipped)|✔|✘|Executed|\*\* TEST" .artifacts/tests.log | tail -120 || true
+          grep -E "error:|Test Case .* (passed|failed|skipped)|✔|✘|Executed|\*\* TEST|MIRA-OPENING" .artifacts/tests.log | tail -120 || true
           [ $status -eq 0 ] || tail -60 .artifacts/tests.log
           xcrun xcresulttool get test-results summary --path .artifacts/tests.xcresult --compact 2>/dev/null | head -c 4000 || true
           exit $status
@@ -173,6 +177,66 @@ jobs:
             echo "::group::mira-tailscale.log (the app's node)"; tail -150 .artifacts/mira-tailscale.log; echo "::endgroup::"
             echo "::group::mira-testnet.log (the stand-in network)"; tail -150 .artifacts/mira-testnet.log; echo "::endgroup::"
           fi
+      # A UI test filmed on the simulator (film: testOpeningFilm), for what captures can't show: the screen recorded while
+      # it runs, cut between the moments it marked on the stand-in Jellyfin (/Mock/Marks), 540 points wide, by the ffmpeg
+      # of the player's captures (imageio-ffmpeg from PyPI, pinned by its hash). After Tailscale logs: it starts from
+      # nothing (-mira-reset), which deletes Built-in Tailscale's log. The film job hands the film to the branch.
+      - name: Film
+        if: ${{ !cancelled() && inputs.film != '' }}
+        env:
+          UDID: ${{ steps.simulator.outputs.udid }}
+          VERSION: ${{ steps.version.outputs.version }}
+          FILM: ${{ inputs.film }}
+        run: |
+          [[ "$FILM" =~ ^test[A-Za-z]+$ ]] || { echo "film: a UI test's name expected (testOpeningFilm), got '$FILM'" >&2; exit 1; }
+          ffmpeg=$(ls "$RUNNER_TEMP"/ffmpeg/imageio_ffmpeg/binaries/ffmpeg-macos-* 2>/dev/null | head -1 || true)
+          if [ -z "$ffmpeg" ]; then
+            echo 'imageio-ffmpeg==0.6.0 --hash=sha256:b1ae3173414b5fc5f538a726c4e48ea97edc0d2cdc11f103afee655c463fa742' > "$RUNNER_TEMP/ffmpeg.txt"
+            python3 -m venv "$RUNNER_TEMP/venv"
+            "$RUNNER_TEMP/venv/bin/pip" install --disable-pip-version-check --quiet --no-deps --only-binary ':all:' --require-hashes \
+              --target "$RUNNER_TEMP/ffmpeg" -r "$RUNNER_TEMP/ffmpeg.txt"
+            ffmpeg=$(ls "$RUNNER_TEMP"/ffmpeg/imageio_ffmpeg/binaries/ffmpeg-macos-* | head -1); chmod +x "$ffmpeg"
+          fi
+          # The stand-in Jellyfin of the tests, started again if it is gone.
+          if ! curl -fs http://127.0.0.1:18097/System/Info/Public > /dev/null; then
+            node tools/ios/mock-jellyfin.mjs >> .artifacts/mock-jellyfin.log 2>&1 &
+            for i in $(seq 1 20); do curl -fs http://127.0.0.1:18097/System/Info/Public > /dev/null && break; sleep 0.5; done
+          fi
+          mkdir -p .artifacts/film
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force .artifacts/film/screen.mp4 > .artifacts/film/record.log 2>&1 &
+          recorder=$!
+          for i in $(seq 1 50); do grep -q "Recording started" .artifacts/film/record.log && break; sleep 0.2; done
+          started=$(python3 -c 'import time; print(int(time.time() * 1000))')
+          status=0
+          TEST_RUNNER_MIRA_FILM=1 xcodebuild test-without-building -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" \
+            -resultBundlePath .artifacts/film.xcresult -only-testing:"MiraUITests/MiraUITests/$FILM" \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$VERSION" > .artifacts/film.log 2>&1 || status=$?
+          # Stopped as by Ctrl+C: simctl writes the end of the file then.
+          pkill -INT -f "recordVideo" || true
+          wait "$recorder" || true
+          cat .artifacts/film/record.log
+          grep -E "error:|Test Case .* (passed|failed|skipped)|\*\* TEST" .artifacts/film.log | tail -20 || true
+          [ $status -eq 0 ] || { tail -40 .artifacts/film.log; exit $status; }
+          # Where the test marked its start and its end, in seconds of the recording.
+          cut=$(curl -fs http://127.0.0.1:18097/Mock/Marks | STARTED="$started" python3 -c '
+          import json, os, sys
+          marks = {m["name"]: m["at"] for m in json.load(sys.stdin)}
+          start = max(0, (marks["film-start"] - int(os.environ["STARTED"])) / 1000 - 0.3)
+          length = (marks["film-end"] - marks["film-start"]) / 1000 + 0.6
+          print("%.2f %.2f" % (start, length))')
+          read -r from length <<< "$cut"
+          echo "Film: $length s from $from s of the recording"
+          encode() { "$ffmpeg" -loglevel error -y -ss "$from" -i .artifacts/film/screen.mp4 -t "$length" -vf "fps=30,scale=540:-2:flags=lanczos" -an -pix_fmt yuv420p -movflags +faststart "$@" ".artifacts/film/$FILM.mp4"; }
+          encode -c:v libx264 -preset slow -crf 24 || encode -c:v h264_videotoolbox -b:v 2500k
+          rm .artifacts/film/screen.mp4
+          ls -la .artifacts/film
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ !cancelled() && inputs.film != '' }}
+        with:
+          name: Mira-ios-film
+          overwrite: true
+          path: .artifacts/film/*.mp4
+          retention-days: 7
       # The captures the UI tests attached, named as they named them.
       - name: Captures
         if: always()
@@ -216,6 +280,7 @@ jobs:
             .artifacts/mock-jellyfin.log
             .artifacts/mira-testnet.log
             .artifacts/mira-tailscale.log
+            .artifacts/film.log
           retention-days: 7
       # The app for iPhones, unsigned: AltStore signs it on the iPhone with the Apple account of whoever installs it.
       - name: Unsigned .ipa
@@ -247,6 +312,32 @@ jobs:
             dist/ios/*.ipa
             dist/ios/*.ipa.sha256
           retention-days: 14
+  film:
+    # The film of a UI test (film), committed alone to the branch it was asked on: a thread fetches it from there (the
+    # artifacts and the logs' files are out of its reach), then drops that commit before the branch is merged. Never on
+    # main; refused when the branch moved since the film was asked for.
+    if: ${{ !cancelled() && inputs.film != '' && github.ref_name != 'main' }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Mira-ios-film
+          path: film
+      - name: Commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+          FILM: ${{ inputs.film }}
+        run: |
+          [[ "$FILM" =~ ^test[A-Za-z]+$ ]] || { echo "film: a UI test's name expected, got '$FILM'" >&2; exit 1; }
+          git add -f film
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Film of $FILM: fetch it, then drop this commit"
+          git push origin "HEAD:$BRANCH"
   release:
     # The draft tools/release.ps1 made gets its .ipa here, built from the draft's commit and tested above.
     if: inputs.release != ''

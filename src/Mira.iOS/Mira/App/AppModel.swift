@@ -40,6 +40,8 @@ final class AppModel {
     let choices: ChoicesSync
     /// What is new in the series followed, said when Mira opens (NewEpisodes).
     let newEpisodes = NewEpisodesWatch()
+    /// Mira's opening, over everything until Home is drawn (OpeningView).
+    let opening = Opening()
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
     /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.

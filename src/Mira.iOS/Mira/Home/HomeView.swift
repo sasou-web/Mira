@@ -11,11 +11,14 @@ struct TitleRoute: Hashable {
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.displayScale) private var displayScale
     @State private var model = HomeModel()
     @State private var size = CGSize(width: 402, height: 874)
     /// On screen: Continue watching follows a title stopped at once; otherwise once Home shows again.
     @State private var shown = false
     @State private var stale = false
+    /// No way to Jellyfin found while Home was first asked for: asked again as soon as one is.
+    @State private var lostAtStart = false
     /// Built-in Tailscale's sheet, offered when it is what Jellyfin can't be reached without.
     @State private var tailscale = false
     @Namespace private var zoom
@@ -40,7 +43,7 @@ struct HomeView: View {
                     } else {
                         BannerView(entries: banner, client: client, size: size, zoom: zoom)
                     }
-                    if case let .failed(error) = model.state {
+                    if let error = failure {
                         AwayLine(error: error, tailscale: offersTailscale ? { tailscale = true } : nil) { Task { await retry() } }
                     }
                     HomeGroup()
@@ -48,7 +51,7 @@ struct HomeView: View {
                     if content.isEmpty(hidden: hidden) {
                         EmptyState(symbol: "film.stack", title: Text("Your library is empty"), text: Text("Movies and shows you add to Jellyfin will show up here."))
                     }
-                } else if case let .failed(error) = model.state {
+                } else if let error = failure {
                     Text("Home")
                         .font(MiraFont.largeTitle)
                         .foregroundStyle(Palette.ink)
@@ -100,6 +103,7 @@ struct HomeView: View {
         }
         .task {
             if let userId = app.session?.userId { model.start(userId: userId) }
+            app.opening.report(model.content == nil ? .waiting : .kept)
             await load()
         }
         .onChange(of: scenePhase) { _, phase in
@@ -118,7 +122,17 @@ struct HomeView: View {
         .onDisappear { shown = false }
         // A way to Jellyfin found again (back home, Built-in Tailscale connected): what failed is asked again.
         .onChange(of: app.way) { _, way in
-            if way != nil, case .failed = model.state { Task { await load() } }
+            guard way != nil else { return }
+            let lost = lostAtStart
+            lostAtStart = false
+            switch model.state {
+            case .failed: Task { await load() }
+            case .loading where lost: Task { await load() }
+            default: break
+            }
+        }
+        .onChange(of: app.wayHint) { _, hint in
+            if hint != nil, model.state == .loading, app.way == nil { lostAtStart = true }
         }
         .sheet(isPresented: $tailscale) { TailscaleSheet() }
         .accessibilityIdentifier("home")
@@ -130,6 +144,14 @@ struct HomeView: View {
         case .tailscaleOff, .signedOut, .expired, .approval: true
         default: false
         }
+    }
+
+    /// Why Home can't be asked for: Jellyfin's failure, or no way to it found (said at once: the first request may wait
+    /// a while before it fails).
+    private var failure: JellyfinError? {
+        if case let .failed(error) = model.state { return error }
+        if model.state == .loading, app.way == nil, app.wayHint != nil { return .unreachable }
+        return nil
     }
 
     /// « Try again »: the way looked for again, then Home.
@@ -147,45 +169,99 @@ struct HomeView: View {
 
     private func load() async {
         guard let client = app.client else { return }
-        await model.load(client, rows: app.preferences.homeRows) { app.sessionEnded() }
-        await app.together.refresh()
+        // Replaced by a later load, or cancelled: that one says what came.
+        guard await model.load(client, rows: app.preferences.homeRows, onUnauthorized: { app.sessionEnded() }) else { return }
+        guard app.opening.waitsForHome else {
+            await app.together.refresh()
+            return
+        }
+        // Mira opening: Home is shown once drawn, the group open on Jellyfin and the pictures at the top of the screen
+        // in memory (OpeningPlan), never a screen that fills in under the eyes.
+        switch model.state {
+        case .loaded:
+            app.opening.report(.answered(.now))
+            let together = app.together, pictures = topPictures(client)
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await together.refresh() }
+                for picture in pictures { group.addTask { _ = await ImagePipeline.shared.image(picture.url, pixels: picture.pixels) } }
+            }
+            app.opening.report(.ready)
+        case .failed:
+            app.opening.report(.failed)
+            await app.together.refresh()
+        case .loading:
+            // Ended without an answer: another load answers.
+            break
+        }
+    }
+
+    /// The pictures of Home's first screen, at the addresses and sizes its views ask for them: the banner's first slide
+    /// and its logo, the first cards of the first row.
+    private func topPictures(_ client: JellyfinClient) -> [(url: URL, pixels: CGFloat)] {
+        guard let content = model.content else { return [] }
+        var pictures: [(url: URL, pixels: CGFloat)] = []
+        func add(_ art: Artwork?, width: CGFloat) {
+            if let art { pictures.append((client.imageURL(art, width: width, scale: displayScale), width * displayScale)) }
+        }
+        if let first = content.banner(hidden: app.preferences.hidden).first {
+            add(Artwork.of(first.item, .backdrop), width: BannerView.drawnWidth(size, scale: displayScale))
+            add(Artwork.of(first.item, .logo), width: LogoImage.width)
+        }
+        if let first = shownRows(content).first {
+            if first.row.key == HomeLayout.continueKey {
+                for item in first.items.prefix(2) { add(Artwork.of(item, .wide), width: wideWidth) }
+            } else {
+                for item in first.items.prefix(3) { add(Artwork.of(item, .poster), width: posterWidth) }
+            }
+        }
+        return pictures
+    }
+
+    /// A row of Home and its titles.
+    private struct ShownRow: Identifiable {
+        let row: HomeLayout.Row
+        let items: [Item]
+        var id: String { row.id }
+    }
+
+    /// Home's rows in the order and choice of Settings (HomeLayout), with their titles; an empty row is left out.
+    private func shownRows(_ content: HomeContent) -> [ShownRow] {
+        let hidden = app.preferences.hidden
+        return HomeLayout.rows(app.preferences.homeRows, libraries: content.libraries)
+            .filter { $0.shown && !HomeLayout.notOnIPhone.contains($0.key) }
+            .compactMap { row -> ShownRow? in
+                let items: [Item] = switch row.key {
+                case HomeLayout.continueKey: content.continueWatching(hidden: hidden)
+                case HomeLayout.latestKey: content.latest
+                case HomeLayout.favoritesKey: content.favorites
+                default: row.library.flatMap { content.libraryRows[$0] } ?? []
+                }
+                return items.isEmpty ? nil : ShownRow(row: row, items: items)
+            }
     }
 
     /// Home's rows in the order and choice of Settings (HomeLayout); an empty row is left out.
     @ViewBuilder private func rows(_ content: HomeContent, _ client: JellyfinClient) -> some View {
-        let continuing = content.continueWatching(hidden: app.preferences.hidden)
-        ForEach(HomeLayout.rows(app.preferences.homeRows, libraries: content.libraries).filter { $0.shown && !HomeLayout.notOnIPhone.contains($0.key) }) { row in
-            switch row.key {
-            case HomeLayout.continueKey:
-                if !continuing.isEmpty {
-                    CardRow(title: row.title, items: continuing) { item in
-                        NavigationLink(value: TitleRoute(item: item, source: "continue-\(item.id)")) {
-                            WideCard(item: item, client: client, width: wideWidth)
-                                .matchedTransitionSource(id: "continue-\(item.id)", in: zoom)
-                        }
-                        .buttonStyle(.plain)
-                        .titleMenu(item, inContinueWatching: true)
+        ForEach(shownRows(content)) { shown in
+            let row = shown.row
+            if row.key == HomeLayout.continueKey {
+                CardRow(title: row.title, items: shown.items) { item in
+                    NavigationLink(value: TitleRoute(item: item, source: "continue-\(item.id)")) {
+                        WideCard(item: item, client: client, width: wideWidth)
+                            .matchedTransitionSource(id: "continue-\(item.id)", in: zoom)
                     }
+                    .buttonStyle(.plain)
+                    .titleMenu(item, inContinueWatching: true)
                 }
-            case HomeLayout.latestKey:
-                posters(row, content.latest, client)
-            case HomeLayout.favoritesKey:
-                posters(row, content.favorites, client)
-            default:
-                posters(row, row.library.flatMap { content.libraryRows[$0] } ?? [], client)
-            }
-        }
-    }
-
-    @ViewBuilder private func posters(_ row: HomeLayout.Row, _ items: [Item], _ client: JellyfinClient) -> some View {
-        if !items.isEmpty {
-            CardRow(title: row.title, items: items) { item in
-                NavigationLink(value: TitleRoute(item: item, source: "\(row.key)-\(item.id)")) {
-                    PosterCard(item: item, client: client, width: posterWidth)
-                        .matchedTransitionSource(id: "\(row.key)-\(item.id)", in: zoom)
+            } else {
+                CardRow(title: row.title, items: shown.items) { item in
+                    NavigationLink(value: TitleRoute(item: item, source: "\(row.key)-\(item.id)")) {
+                        PosterCard(item: item, client: client, width: posterWidth)
+                            .matchedTransitionSource(id: "\(row.key)-\(item.id)", in: zoom)
+                    }
+                    .buttonStyle(.plain)
+                    .titleMenu(item)
                 }
-                .buttonStyle(.plain)
-                .titleMenu(item)
             }
         }
     }
@@ -332,8 +408,17 @@ struct BannerView: View {
     /// On screen (not under a title's page): only then does the banner turn by itself.
     @State private var shown = false
 
+    /// The banner's height on a screen of `size`.
+    static func height(_ size: CGSize) -> CGFloat { min(size.width * 1.2, max(420, size.height * 0.62)) }
+
+    /// A 16:9 picture filling a taller slide is drawn wider than the screen: asked at that width, 1920 pixels at most
+    /// (Jellyfin's backdrops are 1920 or 3840 wide; beyond, three times the weight for nothing seen).
+    static func drawnWidth(_ size: CGSize, scale: CGFloat) -> CGFloat {
+        min(max(size.width * 1.4, height(size) * 16 / 9), 1920 / max(1, scale))
+    }
+
     var body: some View {
-        let height = min(size.width * 1.2, max(420, size.height * 0.62))
+        let height = Self.height(size)
         ScrollView(.horizontal) {
             LazyHStack(spacing: 0) {
                 ForEach(entries) { entry in
@@ -384,9 +469,7 @@ struct BannerView: View {
         let art = Artwork.of(item, .backdrop)
         let logo = Artwork.of(item, .logo)
         let width = size.width
-        // A 16:9 picture filling a taller slide is drawn wider than the screen: asked at that width, 1920 pixels at
-        // most (Jellyfin's backdrops are 1920 or 3840 wide; beyond, three times the weight for nothing seen).
-        let drawn = min(max(width * 1.4, height * 16 / 9), 1920 / max(1, displayScale))
+        let drawn = Self.drawnWidth(size, scale: displayScale)
         return ZStack(alignment: .bottomLeading) {
             RemoteImage(url: art.map { client.imageURL($0, width: drawn, scale: displayScale) }, blurHash: art?.blurHash, width: drawn)
                 .frame(width: width * 1.4, height: height)
@@ -412,7 +495,7 @@ struct BannerView: View {
                 .matchedTransitionSource(id: "banner-\(item.id)", in: zoom)
             VStack(alignment: .leading, spacing: 10) {
                 if let logo {
-                    LogoImage(url: client.imageURL(logo, width: 300, scale: displayScale), name: item.name ?? "")
+                    LogoImage(url: client.imageURL(logo, width: LogoImage.width, scale: displayScale), name: item.name ?? "")
                         .frame(maxWidth: min(300, width * 0.7), maxHeight: 96, alignment: .bottomLeading)
                 } else {
                     Text(item.name ?? "").font(MiraFont.extraBold(34, .largeTitle)).foregroundStyle(Palette.ink).lineLimit(2)
@@ -467,6 +550,9 @@ struct BannerView: View {
 
 /// A title's logo, drawn whole; its name while it loads or when it does not.
 struct LogoImage: View {
+    /// The width logos are asked at (points).
+    static let width: CGFloat = 300
+
     let url: URL
     let name: String
     @State private var image: UIImage?
@@ -480,7 +566,7 @@ struct LogoImage: View {
                 Text(verbatim: name).font(MiraFont.extraBold(34, .largeTitle)).foregroundStyle(Palette.ink).lineLimit(2)
             }
         }
-        .task(id: url) { image = await ImagePipeline.shared.image(url, pixels: 300 * displayScale) }
+        .task(id: url) { image = await ImagePipeline.shared.image(url, pixels: Self.width * displayScale) }
     }
 }
 
@@ -542,7 +628,7 @@ struct LoadingHome: View {
     let size: CGSize
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
-            Rectangle().fill(Palette.surface).frame(height: min(size.width * 1.2, max(420, size.height * 0.62)) * 0.6)
+            Rectangle().fill(Palette.surface).frame(height: BannerView.height(size) * 0.6)
             ForEach(0..<2, id: \.self) { row in
                 VStack(alignment: .leading, spacing: 12) {
                     RoundedRectangle(cornerRadius: 6).fill(Palette.raised).frame(width: 180, height: 20).padding(.horizontal, 16)

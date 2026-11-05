@@ -873,6 +873,16 @@
         }
       }
     },
+    "Connecting to Jellyfin…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion à Jellyfin…"
+          }
+        }
+      }
+    },
     "Connecting to Tailscale…": {
       "localizations": {
         "fr": {
@@ -1577,6 +1587,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chargement"
+          }
+        }
+      }
+    },
+    "Loading your library…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chargement de ta bibliothèque…"
           }
         }
       }
