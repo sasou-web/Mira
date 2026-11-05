@@ -1,6 +1,6 @@
 # Installer Mira pour iPhone (AltStore Classic)
 
-Mira pour iPhone et iPad est une app native (SwiftUI, iOS 26, Liquid Glass). Elle n’est pas sur l’App Store : tu l’installes avec **AltStore Classic**, gratuit, qui la signe sur ton iPhone avec ton propre identifiant Apple. Elle a ta bibliothèque, la recherche, les favoris, son propre lecteur (Image dans l’image, AirPlay, épisode suivant), la Minuterie, Regarder ensemble avec les autres appareils de Mira et, loin de la maison, **Tailscale intégré** (sans l’app Tailscale). Tes amis gardent Mira web ([Mira sur iPhone, iPad et Android](INSTALLATION-WEB.md)), qui n’expire jamais.
+Mira pour iPhone et iPad est une app native (SwiftUI, iOS 26, Liquid Glass). Elle n’est pas sur l’App Store : tu l’installes avec **AltStore Classic**, gratuit, qui la signe sur ton iPhone avec ton propre identifiant Apple. Elle a ta bibliothèque, la recherche, les favoris, son propre lecteur (Image dans l’image, AirPlay, épisode suivant), la Minuterie, Regarder ensemble avec les autres appareils de Mira et, loin de la maison, **Tailscale intégré** (sans l’app Tailscale). Pour regarder avec toi, tes amis n’ont rien à installer de plus que Mira : ton lien de party les fait entrer sans compte.
 
 ## Ce que ça implique
 

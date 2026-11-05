@@ -6,10 +6,7 @@ Ce qui vérifie Mira, où ça tourne et comment le lancer. Les derniers résulta
 | --- | --- | --- | --- |
 | `tests/Mira.Core.Tests` | tout système (.NET 10) | tout ce qui se passe de WPF | `ci.yml`, sous Linux ; ses tests « Tailscale intégré » aussi dans `mac.yml`, avec le nœud signé de Mira.app |
 | `tests/Mira.Tests` | Windows | la suite précédente, puis l’app Windows | `ci.yml`, sous Windows |
-| `tools/web/unit` | Node.js 22 ou plus | les décisions du lecteur de Mira web, sans navigateur | `web.yml` |
-| `tools/extension/check.mjs` | Node.js 22 + Jellyfin | l’extension par son API, comme les apps s’en servent : party et passerelle d’invités, garde de Funnel, relais TorLink (faux agent), HLS de l’app iPhone, sous-titres automatiques, affiches d’« Identifier… », sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi) | `web.yml` |
-| `tools/web/check.mjs` | Chromium (Playwright) + Jellyfin | Mira web de bout en bout, sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi) | `web.yml` |
-| `tools/web/safari.mjs` | Safari sur Mac + Jellyfin | lecture HLS et lecteur d’Apple | `web.yml` |
+| `tools/extension/check.mjs` | Node.js 22 + Jellyfin | l’extension par son API, comme les apps s’en servent : party et passerelle d’invités, garde de Funnel, relais TorLink (faux agent), HLS de l’app iPhone, sous-titres automatiques, affiches d’« Identifier… », pages `/Mira` et de party, sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi) | `web.yml` |
 | harnais de `Mira.exe` | Windows | captures, vrai lecteur, intégration Windows, TorLink | `ci.yml` (galerie seulement) |
 | harnais de Mira.app | Mac | chaque écran et la lecture ; « Tailscale intégré » sur un réseau Tailscale de test | `mac.yml` |
 
@@ -38,34 +35,18 @@ dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release -- 
 
 **Où mettre un nouveau test.** Sans WPF : dans `tests/Mira.Core.Tests`, dans le fichier de son thème (un fichier de l’app Windows sans WPF peut y être lié par le `.csproj`). Seulement sous Windows (chemins, liens physiques, DPAPI, WPF) : dans `tests/Mira.Tests/Program.cs`. Le code commun à Windows et Mac va dans Mira.Core, où il se teste partout.
 
-## Mira web
+## Extension pour Jellyfin
 
-**Tests Node** (`tools/web/unit/*.test.mjs`, `node:test`, sans dépendance) : cascade de secours et adresses des flux (`stream.js`), passages (chapitres compris, mêmes cas que Mira.Core dans `tests/fixtures/chapters.json`), épisode suivant et trickplay (`timeline.js`), plein écran d’Apple (`presentation.js`), noms et choix des pistes (`tracks.js`), « En ce moment sur Jellyfin » (`viewers.js`, mêmes cas que Mira.Core dans `tests/fixtures/viewers.json`), versions et points de « Nouveau dans Mira » (`whats-new.js`, mêmes cas que `WhatsNew.Since` dans `tests/fixtures/whats-new.json`), recherches et liens magnet de « Télécharger sur le PC serveur » (`torlink.js`, mêmes cas que `RemoteDownloads` dans `tests/fixtures/torlink-remote.json`).
-
-```bash
-node --test tools/web/unit/*.test.mjs
-for f in src/Mira.Web/js/*.js src/Mira.Web/js/*/*.js tools/web/*.mjs tools/web/unit/*.mjs; do node --experimental-default-type=module --check "$f"; done
-```
-
-Ces modules, et `dom.js` qu’ils importent, ne touchent à rien du navigateur à leur chargement : Node les importe tels quels. Les tests restent hors de `src/Mira.Web`, dont chaque fichier est intégré à l’extension et servi. Sans `--experimental-default-type=module`, `node --check` laisse passer une redéclaration.
-
-**Contrôles de bout en bout**, contre un vrai Jellyfin où l’extension est installée :
+Mira web est retirée après la 0.9.3 (ses tests Node, Chromium et Safari avec elle). L’extension reste contrôlée contre un vrai Jellyfin où elle est installée depuis son dépôt :
 
 ```bash
-tools/web/media.sh <dossier>                     # médias de test (ffmpeg) ; « formats » en plus pour safari.mjs
+tools/web/media.sh <dossier>                     # médias de test (ffmpeg)
 node tools/web/setup.mjs <serveur> <médias> <user> <mdp> [url du manifeste]   # Jellyfin neuf préparé par son API
 node tools/extension/check.mjs <serveur> <user> <mdp> <dossier>             # l’extension par son API, sans navigateur
-PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <user> <mdp> "Courte Web" <dossier>
-safaridriver -p 4444 &  node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dossier>   # Mac ; MIRA_FORMATS=1 pour les formats
+for f in src/Mira.Jellyfin/Pages/*.js tools/web/*.mjs tools/extension/*.mjs; do node --experimental-default-type=module --check "$f"; done
 ```
 
-`check.mjs` parcourt Mira web dans Chromium à la taille d’un iPhone (connexion, chaque écran, lecture en WebM, reprise, épisodes à voir sur l’affiche, bibliothèque d’animés à part, qualité et heure de fin sur la fiche, saga faite par Jellyfin, rangée Bonus, pistes, intro d’après les chapitres, choix gardés sur Jellyfin et retrouvés sur un autre téléphone, téléchargement sur le PC serveur avec un faux Mira pour Windows au relais de l’extension, déconnexion, sécurité, robustesse) et simule le lecteur d’Apple (épisode suivant dans le même plein écran, et dès le générique de fin d’après les chapitres) ; avec `MIRA_STOP` et `MIRA_START` (commandes qui arrêtent et relancent Jellyfin), il ouvre aussi Mira serveur éteint. `safari.mjs` vérifie la lecture HLS et le vrai lecteur d’Apple dans Safari. Pour servir Mira web depuis le disque sans recompiler l’extension, lance Jellyfin avec `MIRA_WEB_DIR=<chemin de src/Mira.Web>` (la page n’est alors pas gardée : « serveur éteint » se teste avec l’extension compilée).
-
-« Lecture impossible » : `check.mjs` coupe chaque flux d’un titre ; l’écran doit dire ce que contient le fichier et chaque essai, et le rapport « Envoyer le détail à Jellyfin » est relu dans les journaux de Jellyfin (`System/Logs`), sans jeton ni dossier.
-
-Reprise un peu avant : `check.mjs` arrête un titre à 34 s ; il doit reprendre 5 s avant, puis pile au point d’arrêt une fois « Non » choisi dans **Reprendre un peu avant**.
-
-Sous-titres gardés sur Jellyfin : `check.mjs` simule l’extension de sous-titres de Jellyfin (`Items/{id}/RemoteSearch/Subtitles`) ; la feuille doit lister ses résultats par langue, garder le fichier choisi sur Jellyfin et le proposer à la lecture.
+`web.yml` le fait sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi), avec une fausse extension TheTVDB (`tools/web/fake-tvdb`).
 
 ## Harnais des applications
 

@@ -2,7 +2,7 @@
   <img src="src/Mira.Desktop/Assets/mira.png" width="80" alt="Mira logo" />
   <h1>Mira</h1>
   <p><strong>Your Jellyfin library, like at the movies.</strong></p>
-  <p>An app for Windows and Mac that plays everything itself, and Mira web for your iPhone or Android phone.<br />Free, with no account or subscription, and nothing leaves your server.</p>
+  <p>Apps for Windows, Mac and iPhone that play everything themselves.<br />Free, with no account or subscription, and nothing leaves your server.</p>
   <p>
     <a href="https://github.com/sasou-web/Mira/releases/tag/v0.9.2"><img src="https://img.shields.io/badge/version-0.9.2_preview-e8e8ed?style=flat-square" alt="Version 0.9.2, preview" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-e8e8ed?style=flat-square" alt="MIT licence" /></a>
@@ -12,7 +12,7 @@
   <p>
     <a href="https://github.com/sasou-web/Mira/releases/tag/v0.9.2"><strong>Download for Windows</strong></a> ·
     <a href="docs/INSTALLATION-MAC.md">Mac</a> ·
-    <a href="docs/INSTALLATION-WEB.md">iPhone and Android</a> ·
+    <a href="docs/INSTALLATION-IOS.md">iPhone</a> ·
     <a href="https://discord.gg/Bh3F6PDUvB">Discord</a> ·
     <a href="docs/README.fr.md">Français</a>
   </p>
@@ -25,26 +25,17 @@
 [Jellyfin](https://jellyfin.org) keeps your films and series on your PC and serves them anywhere. Mira is the pleasant way to watch them, in English or in French.
 
 - **Beautiful from the start.** Posters, large artwork, summaries, cast, sagas: your library looks like a streaming service.
-- **Pick up where you left off.** On the PC, the Mac or the phone, Continue Watching takes you back to the right minute, and the next episode follows on its own.
+- **Pick up where you left off.** On the PC, the Mac or the iPhone, Continue Watching takes you back to the right minute, and the next episode follows on its own.
 - **Playback inside Mira.** The mpv engine plays almost any file as it is: subtitles, audio tracks, chapters, intros skipped in one gesture.
 - **Watch together.** A link is enough to start the same film at a friend's, at the same time, each at home.
-- **No complicated setup.** No Jellyfin yet? Mira installs and prepares it for you. The phone connects by scanning a QR code.
+- **No complicated setup.** No Jellyfin yet? Mira installs and prepares it for you, firewall and Tailscale included.
 - **Your privacy stays at home.** No Mira account, no ads, nothing collected; only the update check contacts GitHub, and Tailscale only if you sign Mira in to it.
 
-## On your phone too
+## On your iPhone too
 
-Mira web is served by your own Jellyfin server: nothing to get from the App Store, no Apple account. On iPhone, **Share → Add to Home Screen**, and it opens like an app, at home or anywhere with Tailscale.
+Mira for iPhone is a native app with its own player (Picture in Picture, AirPlay), Watch together and, away from home, Built-in Tailscale, with no Tailscale app to install. It is installed with AltStore and your free Apple ID, and refreshed each week by the server PC ([guide, in French](docs/INSTALLATION-IOS.md)). Mira web, which Jellyfin served to phones until 0.9.3, has ended: on Android, there is no Mira for now.
 
-<table>
-  <tr>
-    <td width="33%"><img src="docs/screenshots/readme/web-home.jpg" alt="Mira web on iPhone: Home" /></td>
-    <td width="33%"><img src="docs/screenshots/readme/web-film.jpg" alt="Mira web on iPhone: a film's page" /></td>
-    <td width="33%"><img src="docs/screenshots/readme/web-series.jpg" alt="Mira web on iPhone: a series and its episodes" /></td>
-  </tr>
-  <tr><td align="center">Home</td><td align="center">A film</td><td align="center">A series</td></tr>
-</table>
-
-**Watch with someone who has no account.** A guest link, made in the settings, opens Mira for your friend, with no account and no Tailscale, straight into your “Watch together” group. It works on one device only, and when you take it back, your friend is out at once. It goes through Tailscale Funnel, which opens only Mira to the Internet, never the rest of Jellyfin (details, in French, in [SECURITY.md](SECURITY.md#liens-dinvités-inviter-par-lien)).
+**Watch with someone who has no account.** Your party link, always the same, opens Mira for your friend on Windows, Mac or iPhone, with no account and no Tailscale, straight into your “Watch together” group. Each guest gets a device of their own, and when you take one back, they are out at once. It goes through Tailscale Funnel, which opens only Mira to the Internet, never the rest of Jellyfin (details, in French, in [SECURITY.md](SECURITY.md#liens-dinvités-inviter-par-lien)).
 
 ## On your computer
 
@@ -70,9 +61,8 @@ Mira web is served by your own Jellyfin server: nothing to get from the App Stor
 | **Windows** 10 or 11 (x64) | `Mira-0.9.2-win-x64-setup.exe` | Run the installer, connect your Jellyfin server, or let Mira install one. [Guide (French)](docs/INSTALLATION.md) |
 | **Mac** with Apple silicon, macOS 15 or later | `Mira-0.9.2-mac-arm64.dmg` | Drag Mira to Applications, allow it once (it is not signed by Apple). Or with [Homebrew](https://github.com/sasou-web/homebrew-mira): `brew install --cask sasou-web/mira/mira`. [Guide (French)](docs/INSTALLATION-MAC.md) |
 | **iPhone, iPad** (trial) | AltStore Classic, iOS 26 | The native app: library, search, its own player (Picture in Picture, AirPlay), sleep timer, Watch together and, away from home, Built-in Tailscale. Installed with your free Apple ID, refreshed each week by the server PC. [Guide (French)](docs/INSTALLATION-IOS.md) |
-| **iPhone, iPad, Android** | Nothing to download | In Mira for Windows: **Guide → Mira on your phone → Set everything up**, then scan the QR code. [Guide (French)](docs/INSTALLATION-WEB.md) |
 
-Every file is in the [0.9.2 release](https://github.com/sasou-web/Mira/releases/tag/v0.9.2). You need a Jellyfin 10.9 or later server (Mira web is tried on 10.9, 10.10, 12.1 and 12.4 at every change; on 10.9 and 10.10, a film’s page has no row for its saga and an ASS subtitle keeps its style marks). Until the Windows files are signed, SmartScreen may show a warning: **More info → Run anyway**. Mira then updates itself.
+Every file is in the [0.9.2 release](https://github.com/sasou-web/Mira/releases/tag/v0.9.2). You need a Jellyfin 10.9 or later server (Mira’s extension for Jellyfin is tried on 10.9, 10.10, 12.1 and 12.4 at every change). Until the Windows files are signed, SmartScreen may show a warning: **More info → Run anyway**. Mira then updates itself.
 
 <details>
 <summary>The other Windows files</summary>
@@ -114,7 +104,7 @@ dotnet build Mira.sln -c Release --no-restore
 dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build
 dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .artifacts/dev-profile
 ./tools/package.ps1
-./tools/release.ps1   # the GitHub release vX.Y.Z: Windows (signed by SignPath Foundation), Mac and Mira web from GitHub Actions, signed manifest, notes (gh)
+./tools/release.ps1   # the GitHub release vX.Y.Z: Windows (signed by SignPath Foundation), Mac, iPhone and the Jellyfin extension from GitHub Actions, signed manifest, notes (gh)
 ```
 
 Tests use an executable harness, not `dotnet test`; a failure does not stop the following tests, `--filter <text>` picks tests by name, and `tests/Mira.Core.Tests` (the tests free of WPF) also runs on Linux and macOS. Baseline tests require neither a live server nor libmpv. The captures on this page are made by the [`gallery.yml`](.github/workflows/gallery.yml) workflow (`tools/gallery`). [Contribution guide](CONTRIBUTING.md).
