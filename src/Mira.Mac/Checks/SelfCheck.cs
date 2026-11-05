@@ -128,6 +128,17 @@ public static class SelfCheck
             var movie = ((BrowsePage)window.Current!).Items.FirstOrDefault(x => x.Id == "movie-1") ?? ((BrowsePage)window.Current!).Items.First();
             await Task.Delay(1000); Capture(window, output, "03-films");
             if (window.Current is BrowsePage films) { films.ToggleFilters(); await Task.Delay(500); Capture(window, output, "03b-films-filtres"); films.ToggleFilters(); }
+            // Left and come back to, as on Windows (PageMemory): the same page, scrolled where it was, not filled again from the start.
+            if (window.Current is BrowsePage left && left.Content is ScrollViewer leftScroll)
+            {
+                leftScroll.Offset = new Vector(0, Math.Max(0, Math.Min(300, leftScroll.Extent.Height - leftScroll.Viewport.Height))); await Task.Delay(200);
+                var before = leftScroll.Offset.Y;
+                window.Go("home"); await Task.Delay(400);
+                var away = window.Current is HomePage;
+                window.Go("Movie"); await Task.Delay(800);
+                Check(away && window.Current == left && Math.Abs(leftScroll.Offset.Y - before) < 2, "films : la page revient comme laissée", $"{before:0} px, puis {leftScroll.Offset.Y:0} px, même page {window.Current == left}");
+                leftScroll.Offset = default;
+            }
             window.Go("search");
             await Until(() => window.Current is BrowsePage, 5);
             var word = movie.Name.Split(' ').OrderByDescending(x => x.Length).First();

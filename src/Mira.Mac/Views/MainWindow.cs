@@ -281,7 +281,7 @@ public sealed partial class MainWindow : Window
         // Opened from an invitation (a mira:// link) before any account: its Jellyfin, to sign in to.
         if (_invite is { } invite) login.Server = invite.Server;
         _overlay.Children.Clear(); _overlay.Children.Add(login);
-        _history.Clear(); _forward.Clear(); _host.Content = null;
+        _history.Clear(); _forward.Clear(); _kept.Clear(); _host.Content = null;
     }
     /// <summary>Opens the library of a signed-in account.</summary>
     public async Task ActivateAsync(Connection connection, HttpMessageHandler? handler = null)
@@ -322,8 +322,10 @@ public sealed partial class MainWindow : Window
         CollectionRights = TitleCollections.Rights.None;
         _ = LoadCollectionRightsAsync(Session);
         _ = LoadOfflineAsync(Session);
-        _history.Clear(); _forward.Clear();
-        await NavigateAsync(new HomePage(this));
+        _history.Clear(); _forward.Clear(); _kept.Clear();
+        var home = new HomePage(this);
+        _kept["home"] = home;
+        await ShowPageAsync(home, root: true, fresh: true);
         if (Session.Store.DamagedCopy is not null) Notice(L("Le cache local de ce compte était illisible : il a été recréé.", "This account’s local cache couldn’t be read: it was created again."));
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
@@ -557,6 +559,8 @@ public sealed partial class MainWindow : Window
         if (_history.Count == 0 && Current is { } shown && shown.Rail == key) { shown.ShowAgain(); return; }
         // The rail starts a new history, as on the Windows app.
         _history.Clear(); _forward.Clear();
+        // Left before: back as it was, then refreshed quietly.
+        if (_kept.TryGetValue(key, out var kept)) { _ = ShowPageAsync(kept, root: true, fresh: false); return; }
         Page page = key switch
         {
             "home" => new HomePage(this),
@@ -568,18 +572,30 @@ public sealed partial class MainWindow : Window
             "downloads" => new DownloadsPage(this),
             _ => new SettingsPage(this)
         };
-        _ = NavigateAsync(page);
+        if (KeptPages.Contains(key)) _kept[key] = page;
+        _ = ShowPageAsync(page, root: true, fresh: true);
     }
-    public async Task NavigateAsync(Page page)
+    /// <summary>
+    /// The rail's pages as they were left, as on Windows (PageMemory): Accueil, Recherche, Films, Séries and the library
+    /// come back with their filters, search, titles and scroll, then refreshed quietly. A list reached from a title page
+    /// (a person, a studio, a collection) is not a page of the rail and is not kept. Forgotten with the account.
+    /// </summary>
+    private readonly Dictionary<string, Page> _kept = [];
+    private static readonly string[] KeptPages = ["home", "search", "Movie", "Series", "library"];
+    /// <summary>A page reached from the one shown (a title, a person…): Back returns to the one shown.</summary>
+    public Task NavigateAsync(Page page) => ShowPageAsync(page, root: false, fresh: true);
+    /// <param name="root">A page of the rail: it starts a new history, as on Windows, so that its entry chosen again finds it.</param>
+    /// <param name="fresh">Filled for the first time; otherwise a kept page, only refreshed.</param>
+    private async Task ShowPageAsync(Page page, bool root, bool fresh)
     {
-        if (Current is { } current && current != page) _history.Add(current);
+        if (!root && Current is { } current && current != page) _history.Add(current);
         _forward.Clear();
         _host.Content = page;
         Light(page.Rail);
         page.Opacity = 0;
         page.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
         Dispatcher.UIThread.Post(() => page.Opacity = 1, DispatcherPriority.Loaded);
-        try { await page.LoadAsync(); _unanswered = false; }
+        try { if (fresh) await page.LoadAsync(); else await page.RefreshAsync(); _unanswered = false; }
         catch (Exception ex) when (Errors.Expected(ex)) { Say(ex); }
     }
     private void Light(string rail)
