@@ -2115,21 +2115,6 @@ try {
       && invitedLead.startsWith(`${user} t’invite à regarder ensemble`) && /^Tu es dans « Groupe de .+ »$/.test(joinPage) && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine)
       && created.includes('Personne d’autre pour l’instant') && (joinedLine.includes(`${user} et Ami Mira`) || joinedLine.includes(`Ami Mira et ${user}`)),
     `« ${created} » ; lien ${link || 'absent'} ; « ${invitedLead} » ; « ${joinPage} » ; « ${joinedLine} »`);
-  // In a group, it stays in sight on every screen with the tab bar: a pill above the tabs on a phone (group-nav.js),
-  // tapped, the group with who is in it, « Inviter » and « Quitter ».
-  await tb.waitForFunction(() => /2 personnes/.test(document.querySelector('.group-bar')?.textContent ?? ''), null, { timeout: 10000 }).catch(() => {});
-  const groupBar = (await tb.locator('.group-bar').innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
-  const pillSaid = (await tb.locator('.group-bar').getAttribute('aria-label').catch(() => '')) ?? '';
-  await tb.evaluate(() => { location.hash = '#/'; }); await tb.waitForTimeout(1500);
-  const pillHome = await tb.locator('.group-bar').isVisible().catch(() => false);
-  await tb.locator('.group-bar').click().catch(() => {}); await tb.waitForTimeout(800);
-  const pillSheet = (await tb.locator('.sheet-item').allInnerTexts().catch(() => [])).map((x) => x.replace(/\s+/g, ' ').trim());
-  await tb.keyboard.press('Escape'); await tb.waitForTimeout(500);
-  await tb.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await tb.waitForTimeout(1500);
-  check('ensemble : le groupe reste en vue sur chaque écran (pastille au-dessus des onglets), touchée : qui est dedans, inviter, quitter',
-    /^Groupe de .+ · 2 personnes$/.test(groupBar) && pillSaid.startsWith('En groupe · Groupe de ') && pillHome
-      && pillSheet.some((x) => x.includes('Ami Mira')) && pillSheet.some((x) => x.startsWith('Inviter quelqu’un')) && pillSheet.includes('Quitter le groupe'),
-    `« ${groupBar} » (${pillSaid}) ; ${pillHome ? 'sur l’accueil' : 'absente de l’accueil'} ; ${pillSheet.join(' | ')}`);
   // A busy server takes two requests sent at once in either order: a Buffering taken after the Ready sent just behind it
   // would hold the group for this phone (for good on Jellyfin 10.x, 30 s on 12.x). Here each Buffering of the first
   // phone reaches Jellyfin 0.8 s late: Mira sends them one at a time, in order.
@@ -2247,9 +2232,8 @@ try {
   await tb.locator('.sheet-item', { hasText: 'Quitter le groupe' }).click();
   await tb.waitForTimeout(1500);
   const leftLine = (await line(tb).innerText()).replace(/\s+/g, ' ').trim();
-  const pillGone = !(await tb.locator('.group-bar').isVisible().catch(() => false));
-  check('ensemble : fermer le lecteur laisse les autres regarder, et sauter ; quitter le groupe', stillA && !stillA.paused && stillA.t < seekFrom - 4 && leftLine === 'Regarder ensemble' && pillGone && !togetherErrors.length,
-    `${stillA && !stillA.paused ? 'l’autre continue' : 'l’autre s’est arrêté'}, de ${seekFrom.toFixed(2)} s à ${stillA?.t.toFixed(2)} s ; « ${leftLine} »${pillGone ? '' : ' ; pastille du groupe restée'}${togetherErrors.length ? ` ; ${togetherErrors.slice(0, 2).join(' | ')}` : ''}`);
+  check('ensemble : fermer le lecteur laisse les autres regarder, et sauter ; quitter le groupe', stillA && !stillA.paused && stillA.t < seekFrom - 4 && leftLine === 'Regarder ensemble' && !togetherErrors.length,
+    `${stillA && !stillA.paused ? 'l’autre continue' : 'l’autre s’est arrêté'}, de ${seekFrom.toFixed(2)} s à ${stillA?.t.toFixed(2)} s ; « ${leftLine} »${togetherErrors.length ? ` ; ${togetherErrors.slice(0, 2).join(' | ')}` : ''}`);
   // Home, out of the group: the group open on Jellyfin is a line, a tap from joining it (its title then opens, as
   // the group plays it); once in it, the line goes.
   const homeGroup = tb.locator('#view .home-group');

@@ -123,8 +123,7 @@ public static class Together
     }
     /// <summary>
     /// What the rail's group button says, in its tooltip and to a screen reader: « En groupe · Groupe de mira · mira et
-    /// Marc », and what the group is doing when it holds the picture (« · En pause pour le groupe »). As Mira web's
-    /// indicatorText.
+    /// Marc », and what the group is doing when it holds the picture (« · En pause pour le groupe »).
     /// </summary>
     public static string IndicatorText(Group group, string? me)
     {
