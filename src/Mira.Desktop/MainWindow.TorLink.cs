@@ -41,7 +41,7 @@ public partial class MainWindow
     private void InitializeTorLink()
     {
         // Automated visual, player and Windows checks never touch downloads or libraries; the TorLink check only in isolation.
-        _torlinkEnabled = !_args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--public-gallery")
+        _torlinkEnabled = !_args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--public-gallery" or "--smooth-check")
             && (!_args.Contains("--torlink-check") || TorLinkCheckIsolated());
         TorLinkNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
         if (!_torlinkEnabled) return;

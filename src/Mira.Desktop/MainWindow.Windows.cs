@@ -14,7 +14,7 @@ public partial class MainWindow
     private void InitializeWindowsIntegration()
     {
         // Offscreen visual/player fixtures must not publish fictitious titles to the user's Shell.
-        if (_args.Contains("--visual-check") || _args.Contains("--player-check") || _args.Contains("--public-gallery")) return;
+        if (_args.Contains("--visual-check") || _args.Contains("--player-check") || _args.Contains("--public-gallery") || _args.Contains("--smooth-check")) return;
         SourceInitialized += (_, _) => _windows = new WindowsIntegration(this, App.ShellAppId, App.ShellValidation, WindowsCommand);
         StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) _lastVisibleState = WindowState; };
     }
