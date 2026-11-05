@@ -17,6 +17,8 @@ namespace Mira.Mac.Views;
 public static class Ui
 {
     public static readonly IBrush Muted = Brush("#A2A2A6"), Faint = Brush("#8A8A90"), Ink = Brush("#F4F4F5"), Raised = Brush("#1B1B1D"), TextTertiary = Brush("#B6B6BD");
+    /// <summary>The glyph of a poster without artwork, as on Windows (MediaCard): decorative, never text.</summary>
+    public static readonly IBrush Glyph = Brush("#4E4E57");
     public static SolidColorBrush Brush(string color) => new(Color.Parse(color));
 
     public static TextBlock Text(string text, double size = 14, FontWeight weight = FontWeight.Normal, IBrush? color = null, string? classes = null)
@@ -323,7 +325,7 @@ public static class Cards
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20), IsHitTestVisible = false,
             Children =
             {
-                new Icon(wide ? "play" : "film", 30) { Foreground = Ui.Brush("#4E4E57"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 15) },
+                new Icon(wide ? "play" : "film", 30) { Foreground = Ui.Glyph, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 15) },
                 new TextBlock { Text = item.DisplayTitle, FontSize = 13, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxLines = 4, TextTrimming = TextTrimming.WordEllipsis }
             }
         };
