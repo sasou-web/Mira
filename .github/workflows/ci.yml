@@ -13,6 +13,10 @@ on:
         description: "Width of each preview in pixels"
         required: false
         default: "480"
+      preview_quality:
+        description: "JPEG quality of each preview, 1 to 100 (a capture to look at closely: 90)"
+        required: false
+        default: "50"
 permissions:
   contents: read
 jobs:
@@ -215,15 +219,17 @@ jobs:
         env:
           PREVIEWS: ${{ inputs.previews }}
           PREVIEW_WIDTH: ${{ inputs.preview_width }}
+          PREVIEW_QUALITY: ${{ inputs.preview_quality }}
         run: |
           Add-Type -AssemblyName System.Drawing
           $folder = Join-Path $PWD '.artifacts/interface'
           $sizes = Join-Path $folder 'sizes.txt'
           if (Test-Path -LiteralPath $sizes) { Get-Content -LiteralPath $sizes }
           $maximum = [int]($env:PREVIEW_WIDTH ?? '480'); if ($maximum -lt 160) { $maximum = 480 }
+          $quality = [int]($env:PREVIEW_QUALITY ?? '50'); if ($quality -lt 1 -or $quality -gt 100) { $quality = 50 }
           $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object MimeType -eq 'image/jpeg'
           $parameters = [System.Drawing.Imaging.EncoderParameters]::new(1)
-          $parameters.Param[0] = [System.Drawing.Imaging.EncoderParameter]::new([System.Drawing.Imaging.Encoder]::Quality, [long]50)
+          $parameters.Param[0] = [System.Drawing.Imaging.EncoderParameter]::new([System.Drawing.Imaging.Encoder]::Quality, [long]$quality)
           $patterns = $env:PREVIEWS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
           $files = Get-ChildItem -LiteralPath $folder -Filter '*.png' | Where-Object { $name = $_.BaseName; $patterns | Where-Object { $name -like $_ } } | Sort-Object Name
           foreach ($file in $files) {

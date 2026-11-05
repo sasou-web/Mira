@@ -79,11 +79,12 @@ public partial class MainWindow
     }
 
     /// <param name="activating">The click brings Mira back to the front: it may still drag, never pauses.</param>
-    private void MiniPointerDown(MouseButtonEventArgs e, bool activating)
+    /// <param name="clicks">WPF's click count, less a press that only closed a menu.</param>
+    private void MiniPointerDown(MouseButtonEventArgs e, bool activating, int clicks)
     {
         if (!IsMiniBackground(e.OriginalSource as DependencyObject)) return;
         PlayerSurface.Focus(); e.Handled = true;
-        if (e.ClickCount == 2 && !activating) { _miniPress = null; _surfaceClick.Stop(); SetMiniPlayerSmoothly(false); return; }
+        if (clicks == 2 && !activating) { _miniPress = null; _surfaceClick.Stop(); SetMiniPlayerSmoothly(false); return; }
         _miniPress = Mouse.GetPosition(Root); _miniPressPauses = !activating && !InBarBand(e.GetPosition(PlayerSurface));
     }
     private void MiniPointerUp(MouseButtonEventArgs e)

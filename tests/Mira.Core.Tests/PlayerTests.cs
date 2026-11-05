@@ -318,6 +318,29 @@ internal static class PlayerTests
             Assert(IconPaths.TenCentre("play") is null, "Only the jumps carry it");
             return Task.CompletedTask;
         });
+        await Test("Lecture et pause au milieu de l’image : l’icône seule, là tout de suite, nette, puis partie vite en s’ouvrant, sans voile qui traîne (Windows et Mac)", () =>
+        {
+            Assert(PlayStateBadge.At(0) == (0, PlayStateBadge.FromScale), $"At the press: {PlayStateBadge.At(0)}");
+            Assert(PlayStateBadge.At(PlayStateBadge.In).Opacity == 1 && PlayStateBadge.At(PlayStateBadge.Settle) == (1, 1) && PlayStateBadge.At(PlayStateBadge.Hold) == (1, 1), "Opaque from 70 ms, at its size from 160 ms, held until 360 ms");
+            Assert(PlayStateBadge.At(PlayStateBadge.End) == (0, PlayStateBadge.ToScale) && PlayStateBadge.At(10_000) == (0, PlayStateBadge.ToScale) && PlayStateBadge.At(double.NaN).Opacity == 0, "Gone at 620 ms and after");
+            // Leaving, it goes while it can still be seen: barely 50 ms faint (5 to 40 %), where the old badge left a
+            // grey veil over the film for 150 ms.
+            var faint = Enumerable.Range((int)PlayStateBadge.Hold, 400).Count(ms => PlayStateBadge.At(ms).Opacity is > .05 and < .4);
+            Assert(faint <= 60, $"{faint} ms faint");
+            // Smooth at 240 Hz: no jump from one frame to the next, and once it leaves it only fades and opens up.
+            const double frame = 1000 / 240d;
+            for (var ms = 0d; ms < PlayStateBadge.End; ms += frame)
+            {
+                var (a, s) = PlayStateBadge.At(ms); var (b, t) = PlayStateBadge.At(ms + frame);
+                Assert(Math.Abs(a - b) < .15 && Math.Abs(s - t) < .01, $"{ms:0} ms: {a:0.00} then {b:0.00}, {s:0.000} then {t:0.000}");
+                if (ms >= PlayStateBadge.Hold) Assert(b <= a && t >= s, $"{ms:0} ms: leaving, it never comes back");
+            }
+            // Pressed again while it shows: from the opacity it has, never off for a frame.
+            Assert(PlayStateBadge.At(0, .6).Opacity == .6 && PlayStateBadge.At(35, .6).Opacity > .85 && PlayStateBadge.At(0, 2).Opacity == 1 && PlayStateBadge.At(0, double.NaN).Opacity == 0, "From the opacity it had");
+            // At its largest, it and its wide shadow (three standard deviations around it) fit the room kept for them.
+            Assert(PlayStateBadge.Glyph * PlayStateBadge.ToScale + 2 * (PlayStateBadge.Glow.Down + 3 * PlayStateBadge.Glow.Sigma) <= PlayStateBadge.Room, "Room for the shadow");
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres gardés sur Jellyfin : langues, résultats, messages et nouvelle piste, comme Mira web (tests/fixtures/subtitles.json)", () =>
         {
             var repository = TestSupport.Repository() ?? throw new Exception("Repository not found");

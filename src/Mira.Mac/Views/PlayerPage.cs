@@ -202,12 +202,16 @@ public sealed partial class PlayerPage : UserControl
         {
             if (!e.GetCurrentPoint(_videoHost).Properties.IsLeftButtonPressed) return;
             _click.Stop();
+            // A double click is two presses on the picture. The press that closed a menu went to Avalonia's dismiss
+            // layer, never here, but counts in the click count: the quick press after it is a first click.
+            var twice = e.ClickCount >= 2 && _pictureClickAt is { } previous && e.Timestamp - previous <= DoubleClickTime();
+            _pictureClickAt = e.Timestamp;
             // The click that brings Mira to the front, or one in the band of a bar while the controls are hidden (the
             // shown bars take their clicks): the controls show, the film never pauses.
             if (Environment.TickCount64 - _shell.ActivatedAt < 400 || !_mini && InBarBand(e.GetPosition(_chrome))) { ShowControls(); return; }
-            if (_mini) { MiniPressed(e); return; }
+            if (_mini) { MiniPressed(e, twice); return; }
             // A double click toggles fullscreen; a single one, after a short wait, pauses or resumes.
-            if (e.ClickCount >= 2) ToggleFullscreen(); else _click.Start();
+            if (twice) ToggleFullscreen(); else _click.Start();
         };
         PointerMoved += (_, _) => ShowControls();
         _videoHost.PointerMoved += (_, e) => { if (_mini) MiniMoved(e); };
@@ -220,6 +224,10 @@ public sealed partial class PlayerPage : UserControl
     }
     /// <summary>The places of the top and bottom bars, their shades included, shown or not.</summary>
     public bool InBarBand(Point point) => _top.Bounds.Contains(point) || _bottom.Bounds.Contains(point);
+    /// <summary>When the picture was last pressed (Avalonia's timestamp, in ms).</summary>
+    private ulong? _pictureClickAt;
+    /// <summary>macOS's double-click interval (System Settings → Accessibility), 0.5 s where it is not known.</summary>
+    private ulong DoubleClickTime() => (ulong)(TopLevel.GetTopLevel(this)?.PlatformSettings?.GetDoubleTapTime(PointerType.Mouse).TotalMilliseconds ?? 500);
     private static LinearGradientBrush Fade(bool top) => new()
     {
         StartPoint = new RelativePoint(0, top ? 0 : 1, RelativeUnit.Relative), EndPoint = new RelativePoint(0, top ? 1 : 0, RelativeUnit.Relative),
