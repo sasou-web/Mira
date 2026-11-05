@@ -115,6 +115,23 @@ public static class Together
     public static string People(int count) => count <= 1 ? L("1 personne", "1 person") : L($"{count} personnes", $"{count} people");
     /// <summary>« Groupe de mira · 2 personnes ».</summary>
     public static string GroupText(Group group) => $"{group.GroupName} · {People(Math.Max(1, group.Participants.Count))}";
+    /// <summary>The count beside the group's button of the rail: « 2 », « 99+ » (Jellyfin names each account once).</summary>
+    public static string CountText(Group group)
+    {
+        var count = Math.Max(1, group.Participants.Count);
+        return count > 99 ? "99+" : count.ToString(CultureInfo.InvariantCulture);
+    }
+    /// <summary>
+    /// What the rail's group button says, in its tooltip and to a screen reader: « En groupe · Groupe de mira · mira et
+    /// Marc », and what the group is doing when it holds the picture (« · En pause pour le groupe »). As Mira web's
+    /// indicatorText.
+    /// </summary>
+    public static string IndicatorText(Group group, string? me)
+    {
+        var who = group.Participants.Count > 0 ? NamesText(group.Participants) : People(1);
+        var status = GroupStatus(group, me);
+        return L("En groupe · ", "In a group · ") + group.GroupName + " · " + who + (status.Alert ? " · " + status.Text : "");
+    }
     /// <summary>
     /// The group Home offers to join (« Groupe de Marc · 2 personnes », Rejoindre): the first Jellyfin has open, none
     /// while this device is in one (<paramref name="current"/>). As Mira web's Home (views/home.js).

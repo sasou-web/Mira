@@ -131,7 +131,7 @@ public partial class MainWindow
     }
     private void GroupChanged()
     {
-        ShowTogetherButton(); UpdateGroupPill(); ShowHomeGroup();
+        ShowTogetherButton(); UpdateGroupPill(); ShowHomeGroup(); ShowGroupNav();
         // Out of a group: Home's line comes back with the groups as they are now (the one left may be over).
         if (_group?.GroupId != _homeGroupFor) { _homeGroupFor = _group?.GroupId; if (_group is null && _client is { } client) _ = LoadHomeGroupsAsync(client); }
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) ShowDetailPlayLabel(detail);
@@ -702,6 +702,50 @@ public partial class MainWindow
             await EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false);
         }
         finally { HomeGroupJoin.IsEnabled = true; }
+    }
+
+    /// <summary>
+    /// The rail's group button, above the Guide: in sight on every page while this PC is in a group, with how many are in
+    /// it (Jellyfin names each account once). Clicked: the group, its title, « Inviter » and « Quitter ».
+    /// </summary>
+    private void ShowGroupNav()
+    {
+        if (!InGroup || _group is not { } group) { GroupNav.Visibility = Visibility.Collapsed; return; }
+        GroupNavCountText.Text = Together.CountText(group);
+        var said = Together.IndicatorText(group, _client!.Connection.UserName);
+        GroupNav.ToolTip = said; System.Windows.Automation.AutomationProperties.SetName(GroupNav, said);
+        GroupNav.Visibility = Visibility.Visible;
+    }
+    private async void GroupNav_Click(object sender, RoutedEventArgs e)
+    {
+        if (!InGroup || _group is not { } group || _client is not { } client) return;
+        // The group's title, named: one request, skipped when Jellyfin is slow to answer.
+        MediaItem? title = null;
+        if (_groupQueue is { } queue && !(_playing && _session.Item?.Id == queue.ItemId))
+        {
+            try { title = await client.ItemAsync(queue.ItemId, _connectionLifetime.Token).WaitAsync(TimeSpan.FromSeconds(3)); }
+            catch (Exception ex) when (ex is TimeoutException || IsExpected(ex)) { }
+            // Left meanwhile, or another account: nothing to show.
+            if (!ReferenceEquals(client, _client) || _group is null) return;
+            group = _group;
+        }
+        var menu = new ContextMenu { PlacementTarget = GroupNav, Placement = PlacementMode.Right, HorizontalOffset = 8 };
+        menu.Items.Add(new MenuItem { Header = Together.GroupText(group) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : ""), Tag = "users", IsEnabled = false });
+        if (Together.GroupStatus(group, client.Connection.UserName) is { Alert: true } status) menu.Items.Add(new MenuItem { Header = status.Text, Tag = group.State == "Paused" ? "pause" : "clock", IsEnabled = false });
+        menu.Items.Add(new Separator());
+        if (_playing && _miniPlayer && _groupQueue is { } playing && _session.Item?.Id == playing.ItemId)
+            menu.Items.Add(MenuAction(L("Revenir au lecteur", "Back to the player"), "play", () => { SetMiniPlayerSmoothly(false); return Task.CompletedTask; }));
+        else if (title is not null)
+            menu.Items.Add(MenuAction(L($"Voir « {Together.TitleName(title)} »", $"View “{Together.TitleName(title)}”"), "film", () => OpenGroupTitleAsync(title)));
+        menu.Items.Add(MenuAction(L("Inviter quelqu’un…", "Invite someone…"), "link", () => { ShowInvite(); return Task.CompletedTask; }));
+        menu.Items.Add(MenuAction(L("Quitter le groupe", "Leave the group"), "close", LeaveGroupAsync));
+        menu.IsOpen = true;
+    }
+    /// <summary>The page of the group's title: its series' for an episode, opened at it.</summary>
+    private async Task OpenGroupTitleAsync(MediaItem title)
+    {
+        try { await ShowDetailsAsync(await PageItemAsync(title), title.Type == "Episode" ? title : null); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
 
     /// <summary>The player's ⋮: the group and « Quitter », while in one.</summary>

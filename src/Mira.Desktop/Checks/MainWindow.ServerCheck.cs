@@ -171,6 +171,10 @@ public partial class MainWindow
             Require(_group is not null, "« Créer un groupe » makes a SyncPlay group on Jellyfin");
             await friend.JoinAsync(_group!.GroupId);
             await Until("the second device in the group", () => friend.Joined, 20);
+            // In sight on every page while in the group: the rail's button, above the Guide.
+            await Until("the group's button in the rail", () => GroupNav.Visibility == Visibility.Visible && System.Windows.Automation.AutomationProperties.GetName(GroupNav).Contains(_group!.GroupName, StringComparison.Ordinal), 20);
+            Require(GroupNavCountText.Text == Together.CountText(_group!), "in a group: the rail's button says so, with how many accounts are in it");
+            await CaptureAsync(output, "server-group-rail");
             var signs = await FindFilm("Signes Test (2022)") ?? throw new InvalidOperationException("The film « Signes Test » is not in the library.");
             await PlayAsync(signs, chosen: true);
             await Until("the group's title loads here", () => PlayingForGroup && _loaded && _session.Item?.Id == signs.Id, 60);
@@ -185,6 +189,7 @@ public partial class MainWindow
             await Until("played again by the other device", () => _mpv?.Flag("pause") == false, 20);
             Require(true, "played on the other device: played here");
             await LeaveGroupAsync(); await StopPlaybackAsync(); ReturnToLibrary();
+            Require(GroupNav.Visibility == Visibility.Collapsed, "out of the group: its button leaves the rail");
             await friend.DisposeAsync(); friend = null;
 
             // « Mettre à la Corbeille » on a film of the library: its folder goes, then Jellyfin forgets it.

@@ -485,6 +485,35 @@ html:not(.touch) .letter:active, .letter.pressed { transform: scale(0.94); }
 }
 .netbar .spinner { flex: none; width: 16px; height: 16px; border-width: 2px; }
 body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px); }
+/* « Regarder ensemble »: the group in sight on every screen with a tab bar (group-nav.js). On a phone, a pill above the
+   tab bar, its five tabs kept; on a tablet or a computer, the foot of the rail. Its count is Jellyfin's accounts. */
+.group-bar, .rail-group { display: none; }
+@media (max-width: 699px), (max-height: 599px) {
+  .group-bar:not([hidden]) {
+    position: fixed; z-index: 55; bottom: calc(var(--tabbar) + 10px); left: 50%; transform: translateX(-50%);
+    width: max-content; max-width: calc(100% - 32px - var(--left) - var(--right)); min-height: 40px; display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px 8px 12px; border-radius: var(--r-full); background: var(--raised-2); color: var(--ink); box-shadow: var(--shadow);
+    font-size: calc(13px * var(--text)); font-weight: 700; line-height: 1.3; animation: fade var(--slow) linear;
+  }
+  #app:not(.with-tabs) > .group-bar, body:has(.netbar:not([hidden])) .group-bar { display: none; }
+  #app.with-tabs.in-group { padding-bottom: calc(var(--tabbar) + 60px); }
+  html:has(#app.with-tabs.in-group) { scroll-padding-bottom: calc(var(--tabbar) + 60px); }
+  body:has(#app.with-tabs.in-group) .toast-layer { bottom: calc(var(--tabbar) + 64px); }
+}
+.group-bar-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html:not(.touch) .group-bar:active, .group-bar.pressed { background: var(--raised); }
+.rail-group-icon { position: relative; display: grid; }
+.group-count {
+  position: absolute; top: -6px; right: -11px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: var(--r-full);
+  background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 800; line-height: 17px; text-align: center;
+}
+@media (min-width: 700px) and (min-height: 600px) {
+  .tabbar .rail-group:not([hidden]) {
+    flex: none; height: 64px; margin: auto 12px 0; border-radius: var(--r-m); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
+  }
+  .tabbar .rail-group:hover { background: var(--surface); }
+}
 /* Under an open sheet rather than over its last rows; near the bottom on screens without a tab bar. */
 body:has(.sheet-layer) .toast-layer { z-index: 89; }
 #app:not(.with-tabs) ~ .toast-layer { bottom: calc(var(--bottom) + 16px); }
@@ -1028,7 +1057,7 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 /* Windows' contrast themes (forced colours) take every fill away, Mira's dark one with them: a control drawn by its
    fill keeps an edge in the theme's colour, and what is chosen (a chip, a letter, a switch, a tab) takes its highlight. */
 @media (forced-colors: active) {
-  .btn, .round, .chip, .letter, .segmented button, .tool, .sheet, .toast, .pill, .netbar, .up-next,
+  .btn, .round, .chip, .letter, .segmented button, .tool, .sheet, .toast, .pill, .netbar, .up-next, .group-bar, .group-count,
   :is(.tracks-line, .group-line, .next-line) { border: 1px solid ButtonText; }
   .round.flat, .btn.quiet { border-color: transparent; }
   :is(.chip[aria-pressed='true'], .chip.on, .letter.on, .segmented button[aria-checked='true']) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
