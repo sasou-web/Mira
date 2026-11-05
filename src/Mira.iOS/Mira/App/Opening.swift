@@ -100,9 +100,48 @@ enum MarkStroke {
         return 0.7 + 0.3 * cos(2 * .pi * (elapsed - still) / 2.4)
     }
 
+    /// Where the mark's time starts. Mira's first frame may come long after its start (a cold start, a slow device), iOS's
+    /// launch screen showing the mark whole meanwhile: then the mark moves from that first frame, from the start of a
+    /// stroke, never from the middle of one.
+    static func origin(startedAt: Date, shownAt: Date) -> Date {
+        max(startedAt, shownAt.addingTimeInterval(-still))
+    }
+
+    /// Two frames further apart than this: none could be drawn in between (Mira busy opening), the mark's time stood.
+    static let stall: TimeInterval = 0.1
+
     /// Slow, fast, slow (a cubic ease in and out).
     static func ease(_ x: Double) -> Double {
         x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2
+    }
+}
+
+/// The mark's time (MarkStroke.frame), from its first frame (MarkStroke.origin), standing while no frame could be drawn:
+/// the mark is drawn by the main thread, busiest while Mira opens; after a stall the stroke goes on from where it was
+/// seen, never jumps ahead.
+@MainActor
+final class MarkClock {
+    private var origin: Date?
+    private var last: Date?
+    private var stood: TimeInterval = 0
+
+    /// The mark's time at this frame. Not observed: drawing a frame changes nothing SwiftUI looks at.
+    func tick(_ date: Date, startedAt: Date) -> TimeInterval {
+        if origin == nil { origin = MarkStroke.origin(startedAt: startedAt, shownAt: date) }
+        if let before = last {
+            let gap = date.timeIntervalSince(before)
+            if gap > MarkStroke.stall { stood += gap - 1.0 / 60 }
+            last = max(before, date)
+        } else {
+            last = date
+        }
+        return time(at: date)
+    }
+
+    /// The mark's time then, as the clock stands now (where the stroke stopped when the opening began to leave).
+    func time(at date: Date) -> TimeInterval {
+        guard let origin else { return 0 }
+        return date.timeIntervalSince(origin) - stood
     }
 }
 
@@ -239,6 +278,7 @@ struct OpeningMark: View {
     let startedAt: Date
     let leftAt: Date?
     let still: Bool
+    @State private var clock = MarkClock()
 
     var body: some View {
         TimelineView(.animation) { timeline in
@@ -250,9 +290,9 @@ struct OpeningMark: View {
 
     @ViewBuilder
     private func mark(at date: Date) -> some View {
-        let elapsed = date.timeIntervalSince(startedAt)
+        let elapsed = clock.tick(date, startedAt: startedAt)
         // Leaving: 0 to 1 as the whole mark lights, from where it was when the opening began to leave.
-        let left = leftAt.map { $0.timeIntervalSince(startedAt) }
+        let left = leftAt.map { clock.time(at: $0) }
         let lit = leftAt.map { min(1, max(0, date.timeIntervalSince($0) / MarkStroke.lighting)) } ?? 0
         if still {
             MiraMark().fill(Palette.accent)
