@@ -114,7 +114,7 @@ public static class GuestLinks
     }
 }
 
-/// <summary>A link made for a guest, as the extension lists it (GET Mira/invites).</summary>
+/// <summary>A link made for a guest, as the extension lists it (GET Mira/invites): <c>Party</c> for a guest who came in by a party link.</summary>
 public sealed record GuestLink(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
@@ -123,7 +123,8 @@ public sealed record GuestLink(
     [property: JsonPropertyName("ends")] DateTimeOffset Ends,
     [property: JsonPropertyName("opened")] bool Opened,
     [property: JsonPropertyName("device")] string? Device,
-    [property: JsonPropertyName("link")] string? Link);
+    [property: JsonPropertyName("link")] string? Link,
+    [property: JsonPropertyName("party")] bool Party = false);
 
 /// <summary>
 /// The links made, the address they start with (null until one is given), and what the extension found trying that
