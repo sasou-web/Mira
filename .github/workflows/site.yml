@@ -4,9 +4,7 @@ name: Site
 # event fires: a release published by GITHUB_TOKEN would not start this workflow). A release's run is on its tag, which
 # the github-pages environment refuses (main only): it starts this workflow again on main, the one deploy it allows
 # (a workflow_dispatch is the one event GITHUB_TOKEN may start).
-# wiki.miracinema.app: the wiki (wiki/, tools/site/wiki.mjs), built here too. GitHub Pages serves one custom domain per
-# repository, so the wiki is pushed to sasou-web/mira-wiki (Pages from its main branch) with the deploy key in the
-# secret WIKI_DEPLOY_KEY; without it, the job says so and stops.
+# The wiki (wiki/, tools/site/wiki.mjs) is built into the site, served at miracinema.app/wiki/.
 on:
   push:
     branches: [main]
@@ -60,22 +58,16 @@ jobs:
       - name: Wiki
         run: |
           node --test tools/site/wiki.test.mjs
-          node tools/site/wiki.mjs "${{ steps.release.outputs.version }}" dist/wiki
+          node tools/site/wiki.mjs "${{ steps.release.outputs.version }}" dist/site/wiki
       # Nothing a page loads may come from another host (each page's policy says so too): links only.
       - name: No third-party request
         run: |
-          if grep -rnIE '(src|srcset|poster)="(https?:)?//|url\((https?:)?//' dist/site dist/wiki; then exit 1; fi
-          if grep -rnIE '<link [^>]*href="(https?:)?//' dist/site dist/wiki | grep -vE 'rel="(canonical|alternate)"'; then exit 1; fi
+          if grep -rnIE '(src|srcset|poster)="(https?:)?//|url\((https?:)?//' dist/site; then exit 1; fi
+          if grep -rnIE '<link [^>]*href="(https?:)?//' dist/site | grep -vE 'rel="(canonical|alternate)"'; then exit 1; fi
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:
           path: dist/site
-      - uses: actions/upload-artifact@v4
-        if: github.event_name != 'pull_request'
-        with:
-          name: wiki
-          path: dist/wiki
-          include-hidden-files: true
   deploy:
     if: github.event_name != 'pull_request' && github.event_name != 'release'
     needs: build
@@ -90,36 +82,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-  wiki:
-    if: github.event_name != 'pull_request' && github.event_name != 'release'
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: wiki
-          path: wiki
-      - name: Push to sasou-web/mira-wiki
-        env:
-          KEY: ${{ secrets.WIKI_DEPLOY_KEY }}
-        run: |
-          if [ -z "$KEY" ]; then
-            echo "::notice::WIKI_DEPLOY_KEY is not set: the wiki is built but not published."
-            exit 0
-          fi
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$KEY" > ~/.ssh/wiki && chmod 600 ~/.ssh/wiki
-          # GitHub's published host key (docs.github.com, "GitHub's SSH key fingerprints"), never one read from the network.
-          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > ~/.ssh/known_hosts
-          export GIT_SSH_COMMAND="ssh -i ~/.ssh/wiki -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
-          git clone --depth 1 git@github.com:sasou-web/mira-wiki.git out
-          cd out
-          git checkout -B main
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -a ../wiki/. .
-          git add -A
-          if git diff --cached --quiet; then echo "Wiki unchanged."; exit 0; fi
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -q -m "Wiki from sasou-web/Mira@${GITHUB_SHA::7}"
-          git push origin main
