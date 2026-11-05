@@ -463,8 +463,10 @@ final class MiraUITests: XCTestCase {
         signInAccount(app, user: environment["MIRA_GALLERY_USER"] ?? "", password: environment["MIRA_GALLERY_PASSWORD"] ?? "")
         XCTAssertTrue(app.staticTexts[french ? "Continuer à regarder" : "Continue watching"].waitForExistence(timeout: 30), "Home never showed Continue watching")
         dismissSavePassword(app)
-        // The posters and backdrops come from the server, at their size in pixels: longer than the stand-in's.
+        // The posters and backdrops come from the server, at their size in pixels: longer than the stand-in's. The
+        // banner's picture waited for (once captured with its blurred placeholder, the README's first picture).
         Thread.sleep(forTimeInterval: 5)
+        XCTAssertTrue(waitForSharpBanner(timeout: 60), "Home's banner still shows its blurred placeholder")
         capture("iphone-home")
 
         app.buttons["tab.movies"].tap()
@@ -766,6 +768,50 @@ final class MiraUITests: XCTestCase {
     }
 
     private func settle() { Thread.sleep(forTimeInterval: 2.5) }
+
+    /// Waits for the picture at the top of Home's banner to be the picture itself: its blurred placeholder (a BlurHash
+    /// of 24 × 24 drawn over the whole width) has almost no difference from one pixel to the next, a backdrop has
+    /// plenty. Measured under the status bar, above the title's logo, where the banner's fade is clear.
+    @MainActor
+    private func waitForSharpBanner(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var detail = 0.0
+        while Date() < deadline {
+            if let picture = XCUIScreen.main.screenshot().image.cgImage {
+                detail = Self.detail(picture, from: 0.08, to: 0.3)
+                if detail > 2 { return true }
+            }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        print("Banner's detail: \(detail)")
+        return false
+    }
+
+    /// The mean difference of brightness between neighbouring pixels (0 to 255) of a band of `picture`, given in
+    /// fractions of its height, drawn at half its size.
+    private static func detail(_ picture: CGImage, from top: Double, to bottom: Double) -> Double {
+        let width = picture.width / 2, height = picture.height / 2
+        var pixels = [UInt8](repeating: 0, count: width * height)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width,
+                                          space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+            context.interpolationQuality = .medium
+            context.draw(picture, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn, width > 1 else { return 0 }
+        // Rows from the top of the picture (the context's memory starts at its top row).
+        let first = Int(Double(height) * top), last = Int(Double(height) * bottom)
+        var total = 0, count = 0
+        for y in first..<max(first, last) {
+            let row = y * width
+            for x in 1..<width {
+                total += abs(Int(pixels[row + x]) - Int(pixels[row + x - 1]))
+                count += 1
+            }
+        }
+        return count == 0 ? 0 : Double(total) / Double(count)
+    }
 
     @MainActor
     private func capture(_ name: String) {

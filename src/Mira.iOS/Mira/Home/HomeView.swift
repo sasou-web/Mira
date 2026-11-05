@@ -455,12 +455,28 @@ struct BannerView: View {
         .onAppear { shown = true }
         .onDisappear { shown = false }
         // As on Mira web: the next one every 9 s, counted again after a swipe; never with Reduce Motion or VoiceOver.
+        // Its pictures are fetched meanwhile, and it waits for them: turned to, a slide never shows its blurred
+        // placeholder (a slow way to Jellyfin only makes the banner turn later).
         .task(id: "\(current ?? "")-\(shown)-\(scenePhase == .active)") {
             guard shown, scenePhase == .active, !reduceMotion, !voiceOver, entries.count > 1 else { return }
-            try? await Task.sleep(for: .seconds(9))
-            guard !Task.isCancelled else { return }
             let index = entries.firstIndex { $0.id == (current ?? entries.first?.id) } ?? 0
-            withAnimation(.smooth(duration: 0.7)) { current = entries[(index + 1) % entries.count].id }
+            let next = entries[(index + 1) % entries.count]
+            let turn = ContinuousClock.now + .seconds(9)
+            await preload(next)
+            try? await Task.sleep(until: turn, clock: .continuous)
+            guard !Task.isCancelled else { return }
+            withAnimation(.smooth(duration: 0.7)) { current = next.id }
+        }
+    }
+
+    /// A slide's backdrop and logo in memory, at the addresses and sizes its views ask for them.
+    private func preload(_ entry: BannerEntry) async {
+        if let art = Artwork.of(entry.item, .backdrop) {
+            let drawn = Self.drawnWidth(size, scale: displayScale)
+            _ = await ImagePipeline.shared.image(client.imageURL(art, width: drawn, scale: displayScale), pixels: drawn * displayScale)
+        }
+        if let logo = Artwork.of(entry.item, .logo) {
+            _ = await ImagePipeline.shared.image(client.imageURL(logo, width: LogoImage.width, scale: displayScale), pixels: LogoImage.width * displayScale)
         }
     }
 
