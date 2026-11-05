@@ -25,7 +25,9 @@ internal sealed class FrameMeter : IDisposable
     private static readonly Type? MediaContextType = typeof(Visual).Assembly.GetType("System.Windows.Media.MediaContext");
     private static readonly MethodInfo? From = MediaContextType?.GetMethod("From", BindingFlags.Static | BindingFlags.NonPublic, [typeof(Dispatcher)]);
     private static FieldInfo? Field(string name) => MediaContextType?.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
-    private static readonly FieldInfo? PresentedAt = Field("_lastPresentationTime"), Result = Field("_lastPresentationResults"), Refresh = Field("_displayRefreshRate");
+    // _displayRefreshRate is only kept when the render thread presents on its own vsync; through the DWM (every Windows
+    // since 8), the screen's rate is _animationRenderRate, the rate WPF then paces its frames at.
+    private static readonly FieldInfo? PresentedAt = Field("_lastPresentationTime"), Result = Field("_lastPresentationResults"), Refresh = Field("_displayRefreshRate"), Pace = Field("_animationRenderRate");
     private static readonly FieldInfo? OperationMethod = typeof(DispatcherOperation).GetField("_method", BindingFlags.Instance | BindingFlags.NonPublic);
 
     private readonly Dispatcher _dispatcher;
@@ -37,8 +39,17 @@ internal sealed class FrameMeter : IDisposable
     private Recording? _phase;
     public List<Phase> Phases { get; } = [];
     /// <summary>What reflection found of WPF's private state (presentations unread without it).</summary>
-    public string Sources => $"MediaContext {(_context is null ? "missing" : "found")}, presentation time {(PresentedAt is null ? "missing" : "found")}, result {(Result is null ? "missing" : "found")}, refresh rate {(Refresh is null ? "missing" : "found")}";
-    public int RefreshRate => _context is not null && Refresh?.GetValue(_context) is int hz && hz > 0 ? hz : 0;
+    public string Sources => $"MediaContext {(_context is null ? "missing" : "found")}, presentation time {(PresentedAt is null ? "missing" : "found")}, result {(Result is null ? "missing" : "found")}, refresh rate {(Refresh is null ? "missing" : "found")}, pace {(Pace is null ? "missing" : "found")}";
+    /// <summary>The screen's refresh rate as WPF knows it (0 before its first presentation).</summary>
+    public int RefreshRate
+    {
+        get
+        {
+            if (_context is null) return 0;
+            if (Refresh?.GetValue(_context) is int hz && hz > 0) return hz;
+            return Result?.GetValue(_context)?.ToString() == "MIL_PRESENTATION_DWM" && Pace?.GetValue(_context) is int pace && pace > 0 ? pace : 0;
+        }
+    }
 
     public FrameMeter(Dispatcher dispatcher)
     {
@@ -101,7 +112,7 @@ internal sealed class FrameMeter : IDisposable
             {
                 var result = Result?.GetValue(_context)?.ToString() ?? "?";
                 p.Results[result] = p.Results.GetValueOrDefault(result) + 1;
-                if (Refresh?.GetValue(_context) is int hz && hz > 0) p.Refresh = hz;
+                if (RefreshRate is var hz && hz > 0) p.Refresh = hz;
             }
         }
         if (presented != 0) _lastPresented = presented;
