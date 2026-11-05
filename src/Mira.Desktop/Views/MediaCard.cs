@@ -189,7 +189,28 @@ public sealed class MediaCard : Button
         var width = images.Pixels(Width); var shelved = _shelved;
         var request = wide ? images.LandscapeAsync(Item, width) : images.GetAsync(Item, false, width); var cached = request.IsCompletedSuccessfully;
         var bitmap = await request;
-        if (bitmap is not null && shelved == _shelved) { var initial = _image.Source is null; _image.Source = bitmap; if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft); }
+        if (bitmap is null || shelved != _shelved) return;
+        // Coming with a page: set with the others, without a fade of its own.
+        if (!cached && Environment.TickCount64 < QuietUntil) { await ArrivalsAsync(); if (shelved != _shelved) return; cached = true; }
+        var initial = _image.Source is null; _image.Source = bitmap;
+        if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft);
+    }
+    /// <summary>
+    /// Until then (<see cref="Environment.TickCount64"/>), a page is coming in (MainWindow.RevealLibrary): the images that
+    /// arrive come with it, set together at most every 50 ms, rather than each fading in on its own. A poster fading draws
+    /// its picture again at each refresh, and each change draws the page's again: dozens at once held a page coming in, on
+    /// a 4K screen at 240 Hz, to a third of its refreshes (more with the badges' shadow, on Séries).
+    /// </summary>
+    internal static long QuietUntil;
+    private static TaskCompletionSource? _arrivals;
+    /// <summary>The next time the images held meanwhile are set, all in one frame.</summary>
+    private static Task ArrivalsAsync()
+    {
+        if (_arrivals is { } waiting) return waiting.Task;
+        var next = _arrivals = new TaskCompletionSource();
+        _ = SetAsync(Math.Clamp(QuietUntil - Environment.TickCount64, 0, 50));
+        return next.Task;
+        async Task SetAsync(long ms) { await Task.Delay((int)ms); _arrivals = null; next.SetResult(); }
     }
     /// <summary>
     /// Put away by the window, to come back with its page (Films, then Séries, then Films again): made anew, the posters
