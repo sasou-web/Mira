@@ -26,7 +26,8 @@ public static class Accessible
         AccessText access => access.Text,
         ContentControl control => ContentText(control.Content),
         Decorator decorator => ContentText(decorator.Child),
-        Panel panel => string.Join(" ", panel.Children.OfType<object>().Select(ContentText).Where(x => x.Length > 0)),
+        // A label hidden to keep its room (Lecture's widest words on a series) is not said; one collapsed for a round button is.
+        Panel panel => string.Join(" ", panel.Children.OfType<object>().Where(x => x is not UIElement { Visibility: Visibility.Hidden }).Select(ContentText).Where(x => x.Length > 0)),
         _ => ""
     };
     /// <summary>Names a button after its <see cref="ContentControl.Content"/> (the default style's AutomationProperties.Name).</summary>

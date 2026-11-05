@@ -225,25 +225,23 @@ public partial class MainWindow
         if (targets.Count == 0) return;
         var copies = targets.Select(x => CopyOf(x.Id)).OfType<OfflineCopy>().ToList();
         var complete = copies.Count(x => x.Complete);
-        string icon, label, tip;
+        // Off, an arrow in a circle; coming, a ring of how far it is (its words in the tooltip); kept, a solid disc.
         if (copies.Count == 0)
         {
-            (icon, label) = ("download", "");
-            tip = item.Type == "Series" ? L($"Garder la saison {SeasonShown()} sur ce PC ({Episodes(targets.Count)}), pour la regarder sans connexion", $"Keep season {SeasonShown()} on this PC ({Episodes(targets.Count)}), to watch it offline") : L("Garder ce film sur ce PC, pour le regarder sans connexion", "Keep this movie on this PC, to watch it offline");
+            var keep = item.Type == "Series" ? L($"Garder la saison {SeasonShown()} sur ce PC ({Episodes(targets.Count)}), pour la regarder sans connexion", $"Keep season {SeasonShown()} on this PC ({Episodes(targets.Count)}), to watch it offline") : L("Garder ce film sur ce PC, pour le regarder sans connexion", "Keep this movie on this PC, to watch it offline");
+            ShowState(OfflineButton, "offline", false, keep, keep);
         }
-        else if (complete == targets.Count) { (icon, label) = ("check", L("Sur ce PC", "On this PC")); tip = L($"Sur ce PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Clique pour le retirer", $"On this PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Click to remove it"); }
+        else if (complete == targets.Count)
+            ShowState(OfflineButton, "offline", true, L("Sur ce PC", "On this PC"), L($"Sur ce PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Clique pour le retirer", $"On this PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Click to remove it"));
         else
         {
-            icon = "download";
-            label = item.Type == "Series" ? $"{complete}/{targets.Count}" + (_offlineProgress is { } running && copies.Any(x => x.Item.Id == running.Id) ? " · " + CopyState(running.Id) : "") : CopyState(item.Id) ?? "";
-            tip = L("Arrive sur ce PC. Clique pour l’arrêter", "Coming to this PC. Click to stop it");
+            var label = item.Type == "Series" ? $"{complete}/{targets.Count}" + (_offlineProgress is { } running && copies.Any(x => x.Item.Id == running.Id) ? " · " + CopyState(running.Id) : "") : CopyState(item.Id) ?? "";
+            ShowState(OfflineButton, "offline", false, L($"Arrive sur ce PC · {label}", $"Coming to this PC · {label}"), L($"Arrive sur ce PC · {label}. Clique pour l’arrêter", $"Coming to this PC · {label}. Click to stop it"), targets.Sum(CopyDone) / targets.Count);
         }
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
-        panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18 });
-        if (label.Length > 0) panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) });
-        OfflineButton.Content = panel; OfflineButton.ToolTip = tip;
-        AutomationProperties.SetName(OfflineButton, label.Length > 0 ? label + ". " + tip : tip);
     }
+    /// <summary>How much of a title is on this PC, from 0 to 1: kept whole, or as far as its copy came.</summary>
+    private double CopyDone(MediaItem item) => CopyOf(item.Id) is not { } copy ? 0 : copy.Complete ? 1
+        : _offlineProgress is { } running && running.Id == item.Id && running.Total > 0 ? Math.Min(.99, running.Done / (double)running.Total) : 0;
     private static string Episodes(int count) => count == 1 ? L("1 épisode", "1 episode") : L($"{count} épisodes", $"{count} episodes");
     private int SeasonShown() => ((SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage)?.Season ?? 1;
     /// <summary>What the button acts on: the film, or every episode of the season shown (not only a slice of a long one).</summary>

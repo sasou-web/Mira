@@ -203,6 +203,9 @@ public sealed partial class MainWindow
         return _offlinePending.Contains(id) ? L("En attente", "Waiting") : Paused;
     }
     public bool CopyPaused(string id) => CopyOf(id) is { Complete: false } && CopyState(id) == Paused;
+    /// <summary>How much of a title is on this Mac, from 0 to 1: kept whole, or as far as its copy came.</summary>
+    public double CopyDone(string id) => CopyOf(id) is not { } copy ? 0 : copy.Complete ? 1
+        : _offlineProgress is { } running && running.Id == id && running.Total > 0 ? Math.Min(.99, running.Done / (double)running.Total) : 0;
     public string OfflineSummary()
     {
         var kept = _offline.Count(x => x.Complete);

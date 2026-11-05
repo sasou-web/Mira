@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using Mira.Core;
 using Mira.Core.TorLink;
@@ -52,11 +53,21 @@ public partial class MainWindow
                 if (!ActionRow.ShowsLabel(DetailPlay)) throw new InvalidOperationException($"Lecture lost its label {when}.");
                 if (actions.Skip(1).FirstOrDefault(x => ActionRow.ShowsLabel(x) && x.Content is Panel && !ActionRow.GetKeep(x) || Accessible.ContentText(x.Content).Length == 0 && x.ToolTip is null) is { } odd)
                     throw new InvalidOperationException($"A button of the title page is not a named round icon {when}: « {Accessible.ContentText(odd.Content)} ».");
+                // A state button is the same rounded square on or off: its glyph alone says which.
+                if (actions.FirstOrDefault(x => x.Content is StateIcon && (Math.Abs(x.ActualWidth - 46) > .5 || Math.Abs(x.ActualHeight - 46) > .5)) is { } grown)
+                    throw new InvalidOperationException($"« {AutomationProperties.GetName(grown)} » is not a 46 px square {when}: {grown.ActualWidth:0} × {grown.ActualHeight:0}.");
             }
             AssertActions("at 960 px");
             TogetherButton.Visibility = OfflineButton.Visibility = FollowButton.Visibility = Visibility.Collapsed;
             await CaptureAsync(output, "06-film-actions-fewer"); AssertActions("with four buttons at 960 px");
             Width = 1440; Height = 960;
+            // Every state button on, then off with a copy a little under half way: the same squares, their glyphs alone changed.
+            ShowEveryDetailAction(); var shown = _detail!;
+            ShowFavorite(true); ShowWatched(shown, true); ShowState(FollowButton, "follow", true, L("Suivie", "Following"), L("Suivie", "Following"));
+            await CaptureAsync(output, "06-film-states-on"); AssertActions("all on");
+            ShowFavorite(false); ShowWatched(shown, false); ShowState(FollowButton, "follow", false, L("Suivre…", "Follow…"), L("Suivre…", "Follow…"));
+            ShowState(OfflineButton, "offline", false, L("Arrive sur ce PC · 42 %", "Coming to this PC · 42%"), L("Arrive sur ce PC · 42 %", "Coming to this PC · 42%"), .42);
+            await CaptureAsync(output, "06-film-states-off"); AssertActions("all off, a copy coming");
             Settings_Click(this, new()); await CaptureAsync(output, "07-playback-settings");
             // A switch applies on its own, with no button to press: in the settings a moment later, and back the same way.
             var autoNext = _settings.AutoNext;
@@ -170,8 +181,8 @@ public partial class MainWindow
     private void ShowEveryDetailAction()
     {
         DetailPlay.Content = ActionLabel("play", L("Reprendre", "Resume")); DetailRestart.Visibility = Visibility.Visible;
-        TogetherButton.Content = ActionLabel("users", L("Regarder ensemble", "Watch together")); ShowState(TogetherButton, false);
-        OfflineButton.Content = ActionLabel("check", L("Sur ce PC", "On this PC")); OfflineButton.ToolTip = L("Sur ce PC · 4,2 Go. Clique pour le retirer", "On this PC · 4.2 GB. Click to remove it");
+        TogetherButton.Content = ActionLabel("users", L("Regarder ensemble", "Watch together"));
+        ShowState(OfflineButton, "offline", true, L("Sur ce PC", "On this PC"), L("Sur ce PC · 4,2 Go. Clique pour le retirer", "On this PC · 4.2 GB. Click to remove it"));
         _detailFollow = null; DescribeFollowButton();
         TogetherButton.Visibility = OfflineButton.Visibility = FilesButton.Visibility = FollowButton.Visibility = Visibility.Visible;
     }

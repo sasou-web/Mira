@@ -59,7 +59,7 @@ public partial class MainWindow
             if (DetailOverlay.Visibility == Visibility.Visible && DetailOverlay.IsHitTestVisible && _detail is { } current) _detailTrail.Leave(current, DetailScroll.VerticalOffset, item);
             else _detailTrail.Clear();
         }
-        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
+        ClosePreview(); _detail = item; _detailSettled = null; DetailOverview.Text = ""; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
         StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = Visibility.Collapsed;
         _extras = []; ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
@@ -331,13 +331,57 @@ public partial class MainWindow
     {
         if (_detail?.Type != "Series") return;
         var target = _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played);
-        if (target is null) { DetailPlay.Content = ActionLabel("play", _episodes.Count > 0 ? L("Revoir depuis le début", "Watch again from the beginning") : L("Regarder", "Watch")); DetailRestart.Visibility = Visibility.Collapsed; return; }
+        KeepPlayWidth();
+        if (target is null) { DetailPlay.Content = SeriesPlayLabel(_episodes.Count > 0 ? L("Revoir", "Watch again") : L("Regarder", "Watch"), null); ShowRestart(false); return; }
         var resume = target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
         var code = $"S{target.ParentIndexNumber ?? 1:00} E{target.IndexNumber ?? 1:00}";
-        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(target, code) ?? L($"{(resume ? "Reprendre" : "Regarder")} · {code}", $"{(resume ? "Resume" : "Watch")} · {code}"),
+        DetailPlay.Content = SeriesPlayLabel(GroupPlayLabel(target, code) ?? L($"{(resume ? "Reprendre" : "Regarder")} · {code}", $"{(resume ? "Resume" : "Watch")} · {code}"),
             resume && !InGroup ? MediaQuality.Left(target) : null);
-        DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
+        ShowRestart(resume);
         _detailNext ??= target;
+    }
+    /// <summary>
+    /// A series' Lecture: what it plays, the episode's time left beside it; never narrower than « Reprendre · S01 E01 »,
+    /// held by a hidden copy, so that its words changing after a click (Vu: « Revoir ») move nothing beside it.
+    /// </summary>
+    private static Grid SeriesPlayLabel(string label, string? detail)
+    {
+        var room = ActionLabel("play", L("Reprendre · S01 E01", "Resume · S01 E01")); room.Visibility = Visibility.Hidden;
+        return new Grid { Children = { room, ActionLabel("play", label, detail) } };
+    }
+    /// <summary>
+    /// The title whose page a click changed (Favori, Vu…): from then on, until another title or the player, its page keeps
+    /// where everything is. Words and glyphs change, never places: « Depuis le début » stays (it still plays from the
+    /// start), the progress line fades out keeping its room, Lecture never gets narrower.
+    /// </summary>
+    private string? _detailSettled;
+    private bool DetailSettled => _detailSettled is { } id && _detail?.Id == id && DetailOverlay.Visibility == Visibility.Visible;
+    /// <summary>On a settled page, Lecture keeps at least the width it has on screen, whatever its new words.</summary>
+    private void KeepPlayWidth()
+    {
+        if (DetailSettled && DetailPlay.ActualWidth > DetailPlay.MinWidth) DetailPlay.MinWidth = DetailPlay.ActualWidth;
+    }
+    /// <summary>« Depuis le début », beside Lecture when it picks up; on a settled page, it stays where it is.</summary>
+    private void ShowRestart(bool resume) =>
+        DetailRestart.Visibility = resume || DetailSettled && DetailRestart.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>How far the film was watched; on a settled page, a line that goes fades out and keeps its room.</summary>
+    private void ShowDetailProgress(MediaItem item, bool resume)
+    {
+        if (resume)
+        {
+            DetailProgress.Progress = item.Progress;
+            if (DetailProgress.Visibility != Visibility.Visible || DetailProgress.Opacity < 1) { DetailProgress.Visibility = Visibility.Visible; Motion.Fade(DetailProgress, 1, DetailSettled ? 200 : 0); }
+            return;
+        }
+        if (DetailProgress.Visibility == Visibility.Collapsed) return;
+        if (!DetailSettled) { DetailProgress.Visibility = Visibility.Collapsed; return; }
+        if (DetailProgress.Visibility == Visibility.Hidden) return;
+        _ = HideKeepingRoomAsync(DetailProgress);
+    }
+    private static async Task HideKeepingRoomAsync(FrameworkElement element)
+    {
+        Motion.Fade(element, 0, 220); await Task.Delay(Motion.Reduced ? 0 : 230);
+        if (element.Opacity < .01) element.Visibility = Visibility.Hidden;
     }
     /// <summary>
     /// A film's page leads with its Lecture: a large button (what it plays, then the time left under it) and the
@@ -347,7 +391,8 @@ public partial class MainWindow
     {
         SizeDetailHero();
         DetailPlay.Padding = film ? new Thickness(32, 15, 36, 15) : new Thickness(25, 13, 25, 13);
-        DetailPlay.MinWidth = film ? 250 : 0;
+        var floor = DetailSettled ? DetailPlay.MinWidth : 0;
+        DetailPlay.MinWidth = Math.Max(film ? 250 : 0, floor);
         // The same corners as the buttons beside it (they were 11 for a film, 6 for a series: tighter than the rest).
         Motion.SetRadius(DetailPlay, ActionRow.Corners);
         DetailProgress.Width = film ? double.NaN : 300; DetailProgress.HorizontalAlignment = film ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
@@ -363,13 +408,12 @@ public partial class MainWindow
     /// <summary>Lecture's label: what it plays, or, in a group, that it starts it for everyone (or joins its title).</summary>
     private void ShowDetailPlayLabel(MediaItem item)
     {
-        ShapeDetailPlay(item.Type == "Movie");
+        KeepPlayWidth(); ShapeDetailPlay(item.Type == "Movie");
         if (item.Type == "Series") { DetailProgress.Visibility = Visibility.Collapsed; UpdateDetailPlayLabel(); return; }
         var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
         DetailPlay.Content = FilmPlayLabel(GroupPlayLabel(item, "") ?? (resume ? L("Reprendre", "Resume") : item.UserData.Played ? L("Revoir", "Watch again") : L("Regarder", "Watch")),
             resume && !InGroup ? MediaQuality.Left(item) : item.DurationLabel is { Length: > 0 } length ? length : null);
-        DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
-        DetailProgress.Progress = item.Progress; DetailProgress.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
+        ShowRestart(resume); ShowDetailProgress(item, resume);
     }
     /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>
     private string? GroupPlayLabel(MediaItem target, string code) =>
@@ -380,9 +424,13 @@ public partial class MainWindow
         var kind = item.Type switch { "Series" => L("SÉRIE", "SERIES"), "Episode" => L("ÉPISODE", "EPISODE"), _ => L("FILM", "MOVIE") };
         DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
         RenderDetailMeta();
-        DetailOverview.Text = OverviewText.Plain(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title."));
-        // Three lines of the page's width hold about 300 characters: a longer summary gets « Lire la suite ».
-        DetailOverview.MaxHeight = 72; DetailOverviewMore.Content = L("Lire la suite", "Read more");
+        // The same summary drawn again (after a click on Vu) stays as it was, opened or not.
+        var overview = OverviewText.Plain(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title."));
+        if (DetailOverview.Text != overview)
+        {
+            // Three lines of the page's width hold about 300 characters: a longer summary gets « Lire la suite ».
+            DetailOverview.Text = overview; DetailOverview.MaxHeight = 72; DetailOverviewMore.Content = L("Lire la suite", "Read more");
+        }
         DetailOverviewMore.Visibility = DetailOverview.Text.Length > 260 ? Visibility.Visible : Visibility.Collapsed;
         var tagline = item.Taglines?.Select(x => x.Trim()).FirstOrDefault(x => x.Length > 0);
         DetailTagline.Text = tagline ?? ""; DetailTagline.Visibility = tagline is null ? Visibility.Collapsed : Visibility.Visible;
@@ -397,16 +445,13 @@ public partial class MainWindow
         ShowFavorite(item.UserData.IsFavorite); ShowWatched(item, item.UserData.Played);
         ShowTogetherButton(); ShowOfflineButton(); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item);
     }
-    private void ShowFavorite(bool favorite)
-    {
-        SetActionLabel(FavoriteButton, favorite ? "heart-fill" : "heart", favorite ? L("Favori", "Favorite") : L("Ajouter aux favoris", "Add to favorites"));
-        ShowState(FavoriteButton, favorite, favorite ? L("Dans tes favoris. Clique pour le retirer", "In your favorites. Click to remove it") : null);
-    }
+    private void ShowFavorite(bool favorite) => ShowState(FavoriteButton, "favorite", favorite, favorite ? L("Favori", "Favorite") : L("Ajouter aux favoris", "Add to favorites"),
+        favorite ? L("Dans tes favoris. Clique pour le retirer", "In your favorites. Click to remove it") : L("Ajouter aux favoris", "Add to favorites"));
     private void ShowWatched(MediaItem item, bool played)
     {
-        SetActionLabel(WatchedButton, "check", played ? item.Type == "Series" ? L("Vue", "Watched") : L("Vu", "Watched")
-            : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"));
-        ShowState(WatchedButton, played, played ? L("Vu. Clique pour le marquer comme non vu", "Watched. Click to mark it as unwatched") : null);
+        var name = played ? item.Type == "Series" ? L("Vue", "Watched") : L("Vu", "Watched")
+            : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched");
+        ShowState(WatchedButton, "watched", played, name, played ? L("Vu. Clique pour le marquer comme non vu", "Watched. Click to mark it as unwatched") : name);
     }
     /// <summary>A button's icon and label changed where they are (<see cref="ActionRow.Relabel"/>), or its first content.</summary>
     private static void SetActionLabel(Button button, string icon, string label)
@@ -424,35 +469,20 @@ public partial class MainWindow
             file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
     }
     /// <summary>
-    /// A button of the page on or off, each state seen at a glance: on, a white outline and its word kept beside its icon
-    /// (« Favori », « Suivie »), also once the row is short of room for words; off, the plain button, its icon alone.
+    /// A state button of the page (Favori, Vu, Suivre, Garder sur ce PC): the same rounded square on or off, its glyph
+    /// alone telling which (<see cref="StateIcon"/>: an outline off, solid white on, a short pop between the two). Never
+    /// a word that comes, an outline or a new width: a click on the page moves nothing.
     /// </summary>
-    /// <param name="tip">Said by its tooltip and to the Narrator when on: what it is and what a click does.</param>
-    private void ShowState(Button button, bool on, string? tip = null)
+    /// <param name="name">What the Narrator calls it, its state included (« Favori », « Ajouter aux favoris »).</param>
+    /// <param name="tip">Its tooltip, also read as its help: what it is and what a click does.</param>
+    /// <param name="progress">How far a copy is, drawn as a ring, while it comes.</param>
+    private static void ShowState(Button button, string kind, bool on, string name, string tip, double? progress = null)
     {
-        var wasOn = _buttonOn.GetValueOrDefault(button); _buttonOn[button] = on;
-        // The outline fades in and out with the row's own movement, once the page is on screen; drawn again in the same
-        // state, it stays as it is.
-        var eased = button.IsVisible && !Motion.Reduced;
-        if (on && !wasOn)
-        {
-            var brush = Palette.Get("Text").Clone(); button.BorderBrush = brush; button.BorderThickness = new Thickness(1.5);
-            if (eased) Motion.Animate(brush, System.Windows.Media.Brush.OpacityProperty, 1, 240, 0, Motion.Soft);
-        }
-        else if (!on && wasOn)
-        {
-            if (!eased) { button.ClearValue(Control.BorderBrushProperty); button.ClearValue(Control.BorderThicknessProperty); }
-            else
-            {
-                var brush = button.BorderBrush.Clone(); button.BorderBrush = brush;
-                var fade = new System.Windows.Media.Animation.DoubleAnimation { To = 0, Duration = TimeSpan.FromMilliseconds(180), EasingFunction = Motion.Soft };
-                fade.Completed += (_, _) => { if (ReferenceEquals(button.BorderBrush, brush)) { button.ClearValue(Control.BorderBrushProperty); button.ClearValue(Control.BorderThicknessProperty); } };
-                brush.BeginAnimation(System.Windows.Media.Brush.OpacityProperty, fade);
-            }
-        }
-        if (!ReferenceEquals(button, TogetherButton)) ActionRow.SetKeep(button, on);
+        if (button.Content is not StateIcon glyph) button.Content = glyph = new StateIcon(kind);
+        glyph.Show(kind, on, progress);
         button.ToolTip = tip;
-        if (on && tip is not null) AutomationProperties.SetName(button, tip); else button.ClearValue(AutomationProperties.NameProperty);
+        AutomationProperties.SetName(button, name);
+        if (tip == name) button.ClearValue(AutomationProperties.HelpTextProperty); else AutomationProperties.SetHelpText(button, tip);
     }
     /// <summary>A green dot: on and live (a group, a series followed).</summary>
     private static System.Windows.Shapes.Ellipse LiveDot() => new() { Width = 8, Height = 8, Fill = Palette.Get("Success"), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -679,11 +709,9 @@ public partial class MainWindow
         }
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return false; }
     }
-    // Favori and Vu change at the click, before Jellyfin answers, and move there smoothly (the row eases its buttons to
-    // their new widths); a refusal puts them back. Never disabled while waiting: a disabled button fades to 35 %, a flash.
+    // Favori and Vu change at the click, before Jellyfin answers (their glyph alone: the page does not move); a refusal
+    // puts them back. Never disabled while waiting: a disabled button fades to 35 %, a flash.
     private string? _castShown;
-    /// <summary>Whether each button of the page was last drawn on: its outline fades only when that changes.</summary>
-    private readonly Dictionary<Button, bool> _buttonOn = [];
     private bool _favoriteBusy, _watchedBusy;
     private async void Favorite_Click(object sender, RoutedEventArgs e)
     {
@@ -691,9 +719,9 @@ public partial class MainWindow
         try
         {
             var want = !item.UserData.IsFavorite;
-            DetailActions.EaseNext(); ShowFavorite(want);
+            _detailSettled = item.Id; ShowFavorite(want);
             await ToggleFavoriteAsync(item);
-            if (_detail is { } shown && shown.Id == item.Id && shown.UserData.IsFavorite != want) { DetailActions.EaseNext(); ShowFavorite(shown.UserData.IsFavorite); }
+            if (_detail is { } shown && shown.Id == item.Id && shown.UserData.IsFavorite != want) ShowFavorite(shown.UserData.IsFavorite);
         }
         finally { _favoriteBusy = false; }
     }
@@ -703,10 +731,10 @@ public partial class MainWindow
         try
         {
             var want = !item.UserData.Played;
-            DetailActions.EaseNext(); ShowWatched(item, want);
+            _detailSettled = item.Id; ShowWatched(item, want);
             var done = await SetPlayedAsync(item, want);
             if (_detail is not { } shown || shown.Id != item.Id) return;
-            if (shown.UserData.Played != want) { DetailActions.EaseNext(); ShowWatched(shown, shown.UserData.Played); }
+            if (shown.UserData.Played != want) ShowWatched(shown, shown.UserData.Played);
             // A series' episodes and the one Lecture picks up at come from Jellyfin; a film has nothing more to ask.
             if (done && item.Type == "Series") await RefreshDetailAsync();
         }

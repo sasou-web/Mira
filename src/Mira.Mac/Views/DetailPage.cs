@@ -138,51 +138,68 @@ public sealed class DetailPage : Page
         : _item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched");
     private string WatchedTip(bool on) => on ? L("Vu. Clique pour le marquer comme non vu", "Watched. Click to mark it as unwatched") : WatchedLabel(false);
     /// <summary>
-    /// A button of the page on or off, each state seen at a glance, as on Windows: on, a white outline and its words kept
-    /// beside its icon (« Favori », « Suivie »); off, the plain button, its icon alone, its words in its tooltip.
+    /// A state button of the page (Favori, Vu, Suivre, Garder sur ce Mac), as on Windows: the same rounded square on or
+    /// off, its glyph alone telling which (<see cref="StateIcon"/>: an outline off, solid white on, a short pop between
+    /// the two). Never a word that comes, an outline or a new width: a click on the page moves nothing.
     /// </summary>
-    /// <param name="tip">Its tooltip, and what VoiceOver says of it: what it is, and when on what a click does.</param>
-    private static void ShowState(Button button, string icon, string label, bool on, string tip, bool keep = true)
+    /// <param name="name">What VoiceOver calls it, its state included (« Favori », « Ajouter aux favoris »).</param>
+    /// <param name="tip">Its tooltip, also its help for VoiceOver: what it is and what a click does.</param>
+    /// <param name="progress">How far a copy is, drawn as a ring, while it comes.</param>
+    private static void ShowState(Button button, string kind, bool on, string name, string tip, double? progress = null)
     {
-        if (button.Content is StackPanel { Children: [Icon glyph, TextBlock text, ..] }) { glyph.Kind = icon; text.Text = label; }
-        button.Classes.Set("lit", on);
-        if (keep) ActionLine.SetKeep(button, on);
+        if (button.Content is not StateIcon glyph) button.Content = glyph = new StateIcon(kind) { VerticalAlignment = VerticalAlignment.Center };
+        glyph.Show(kind, on, progress);
         ToolTip.SetTip(button, tip);
-        Avalonia.Automation.AutomationProperties.SetName(button, on ? tip : label);
-        Avalonia.Automation.AutomationProperties.SetHelpText(button, !on && tip != label ? tip : null);
+        Avalonia.Automation.AutomationProperties.SetName(button, name);
+        Avalonia.Automation.AutomationProperties.SetHelpText(button, tip != name ? tip : null);
     }
-    /// <summary>A button of the line: its icon, its words beside it (hidden while it is round), and a live dot when on.</summary>
-    private static Button LineButton(string icon, string label, Action click, bool dot = false)
+    /// <summary>A state button of the line: its glyph alone, in a rounded square (<see cref="ActionLine"/>).</summary>
+    private static Button StateButton(string kind, Action click)
+    {
+        var button = new Button { Content = new StateIcon(kind) { VerticalAlignment = VerticalAlignment.Center }, Classes = { "state" }, VerticalAlignment = VerticalAlignment.Center };
+        button.Click += (_, _) => click();
+        return button;
+    }
+    /// <summary>A button of the line with words: its icon, its words beside it (hidden while it is round).</summary>
+    private static Button LineButton(string icon, string label, Action click)
+    {
+        var button = new Button { Content = Words(icon, label, false), Classes = { "state" }, VerticalAlignment = VerticalAlignment.Center };
+        button.Click += (_, _) => click();
+        return button;
+    }
+    /// <summary>An icon, its words beside it, and a green dot when on and live (a group).</summary>
+    private static StackPanel Words(string icon, string label, bool dot)
     {
         var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 9 };
         content.Children.Add(new Icon(icon, 18) { VerticalAlignment = VerticalAlignment.Center });
         content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        // A green dot: on and live (a group, a series followed).
         if (dot) content.Children.Add(new Avalonia.Controls.Shapes.Ellipse { Width = 8, Height = 8, Fill = Ui.Brush("#86C6A2"), Margin = new Thickness(1, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
-        var button = new Button { Content = content, Classes = { "state" }, VerticalAlignment = VerticalAlignment.Center };
-        button.Click += (_, _) => click();
-        return button;
+        return content;
     }
+    private void ShowFavorite(bool on) => ShowState(_favorite!, "favorite", on, FavoriteLabel(on), FavoriteTip(on));
+    private void ShowWatched(bool on) => ShowState(_watched!, "watched", on, WatchedLabel(on), WatchedTip(on));
+    // Favori and Vu change at the click, before Jellyfin answers (their glyph alone: the page does not move); a refusal
+    // puts them back.
     private bool _favoriteBusy, _watchedBusy;
-    private async Task FlipFavoriteAsync(Button button)
+    private async Task FlipFavoriteAsync()
     {
         if (_favoriteBusy) return; _favoriteBusy = true;
         var item = _item; var want = !item.UserData.IsFavorite;
         try
         {
-            ShowState(button, want ? "heart-filled" : "heart", FavoriteLabel(want), want, FavoriteTip(want));
+            _settled = true; ShowFavorite(want);
             await Shell.SetFavoriteAsync(item, want);
             if (item.UserData.IsFavorite != want && ReferenceEquals(item, _item)) RenderTop();
         }
         finally { _favoriteBusy = false; }
     }
-    private async Task FlipWatchedAsync(Button button)
+    private async Task FlipWatchedAsync()
     {
         if (_watchedBusy) return; _watchedBusy = true;
         var item = _item; var want = !item.UserData.Played;
         try
         {
-            ShowState(button, "check", WatchedLabel(want), want, WatchedTip(want));
+            _settled = true; ShowWatched(want);
             await Shell.SetPlayedAsync(item, want);
             if (item.UserData.Played != want && ReferenceEquals(item, _item)) RenderTop();
         }
@@ -231,14 +248,35 @@ public sealed class DetailPage : Page
     /// <summary>Lecture picks up where it stopped: started, not finished, and Mira set to remember.</summary>
     private bool Resumes(MediaItem item) => item.Progress > 0 && !item.UserData.Played && Shell.Settings.RememberPosition;
 
+    /// <summary>
+    /// A click changed the page (Favori, Vu): from then on, until the player opens, it keeps where everything is, as on
+    /// Windows. Words and glyphs change, never places: « Depuis le début » stays (it still plays from the start), the
+    /// progress line fades out keeping its room, Lecture never gets narrower.
+    /// </summary>
+    private bool _settled;
+    /// <summary>The line of buttons, made once for the page and changed where it is, its buttons too: a click never rebuilds it.</summary>
+    private ActionLine? _line;
+    private Button? _play, _restart, _together, _favorite, _watched, _followButton, _fix;
+    /// <summary>What « Depuis le début » plays: the film, or the episode Lecture picks up.</summary>
+    private MediaItem? _restartFrom;
+    private string? _togetherShown;
+    private ProgressLine? _progressLine;
+
+    /// <summary>
+    /// Kind, logo or name, catchphrase, facts and summary drawn again; the line of buttons and the progress line under it
+    /// stay where they are, changed in place.
+    /// </summary>
     private void RenderTop()
     {
-        _top.Children.Clear();
+        var line = _line ??= Actions();
+        foreach (var child in _top.Children.Where(x => !ReferenceEquals(x, line) && !ReferenceEquals(x, _progressLine)).ToList()) _top.Children.Remove(child);
+        var at = 0;
+        void Add(Control control) => _top.Children.Insert(at++, control);
         var kind = Ui.Kind(_item).ToUpperInvariant();
-        _top.Children.Add(new TextBlock { Text = _item.ProductionYear is { } y ? $"{kind}  ·  {y}" : kind, FontSize = 11.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#E0E0E0"), Margin = new Thickness(1, 0, 0, 14) });
-        _top.Children.Add(Title());
+        Add(new TextBlock { Text = _item.ProductionYear is { } y ? $"{kind}  ·  {y}" : kind, FontSize = 11.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#E0E0E0"), Margin = new Thickness(1, 0, 0, 14) });
+        Add(Title());
         if (_item.Taglines?.Select(x => x.Trim()).FirstOrDefault(x => x.Length > 0) is { } tagline)
-            _top.Children.Add(new TextBlock { Text = tagline, FontSize = 20, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#E0E0E0"), TextWrapping = TextWrapping.Wrap, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(1, 12, 0, 0) });
+            Add(new TextBlock { Text = tagline, FontSize = 20, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#E0E0E0"), TextWrapping = TextWrapping.Wrap, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(1, 12, 0, 0) });
         var meta = new List<string>();
         if (_item.ProductionYear is { } year) meta.Add(year.ToString());
         if (_item.Type == "Series") { if (_item.ChildCount is > 0) meta.Add(Count(_item.ChildCount.Value, "saison", "saisons", "season", "seasons")); }
@@ -249,37 +287,85 @@ public sealed class DetailPage : Page
         var played = _item.Type == "Series" ? SeriesTarget : _item;
         if ((_item.Type != "Series" ? MediaQuality.Label(_item) : _targetFile is { } known && known.Id == played?.Id ? MediaQuality.Label(known.Source) : null) is { } file) meta.Add(file);
         if (MediaQuality.EndsAt(played, DateTime.Now, played is not null && Resumes(played)) is { } end) meta.Add(end);
-        _top.Children.Add(new TextBlock { Text = string.Join("  ·  ", meta), FontSize = 14.5, Foreground = Ui.Brush("#C7C7C7"), Margin = new Thickness(1, 16, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        Add(new TextBlock { Text = string.Join("  ·  ", meta), FontSize = 14.5, Foreground = Ui.Brush("#C7C7C7"), Margin = new Thickness(1, 16, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         // The summary on three lines over the picture, « Lire la suite » for the rest.
         var summary = OverviewText.Plain(string.IsNullOrWhiteSpace(_item.Overview) ? L("Aucun résumé disponible pour ce titre.", "No summary available for this title.") : _item.Overview);
         var overview = new TextBlock { Text = summary, FontSize = 15, LineHeight = 24, Foreground = Ui.Brush("#C7C7C7"), TextWrapping = TextWrapping.Wrap, MaxWidth = 660, HorizontalAlignment = HorizontalAlignment.Left, MaxLines = _overviewOpen ? 0 : 3, TextTrimming = TextTrimming.WordEllipsis, Margin = new Thickness(1, 16, 0, 0) };
-        _top.Children.Add(overview);
+        Add(overview);
         // Three lines of the summary's width hold about 300 characters: a longer one gets « Lire la suite ».
         if (summary.Length > 260)
         {
             string MoreText() => _overviewOpen ? L("Réduire", "Show less") : L("Lire la suite", "Read more");
             var more = new Button { Classes = { "quiet" }, Content = MoreText(), Padding = new Thickness(0, 4), Margin = new Thickness(1, 4, 0, 0), FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Left };
             more.Click += (_, _) => { _overviewOpen = !_overviewOpen; overview.MaxLines = _overviewOpen ? 0 : 3; more.Content = MoreText(); };
-            _top.Children.Add(more);
+            Add(more);
         }
-        _top.Children.Add(Actions());
-        // How far the film was watched, under its buttons and as wide as the page, as on Windows.
-        if (_item.Type != "Series" && Resumes(_item))
-            _top.Children.Add(new ProgressLine { Value = _item.Progress, Height = 5, Margin = new Thickness(2, 18, 0, 0) });
+        if (line.Parent is null) _top.Children.Add(line);
+        ShowActions(); ShowProgress();
         SizeHero();
+    }
+    /// <summary>
+    /// How far the film was watched, under its buttons and as wide as the page, as on Windows; on a settled page, a line
+    /// that goes fades out and keeps its room.
+    /// </summary>
+    private void ShowProgress()
+    {
+        if (_item.Type != "Series" && Resumes(_item))
+        {
+            if (_progressLine is null)
+            {
+                _progressLine = new ProgressLine { Height = 5, Margin = new Thickness(2, 18, 0, 0), Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(220) }] };
+                _top.Children.Add(_progressLine);
+            }
+            _progressLine.Value = _item.Progress; _progressLine.IsVisible = true; _progressLine.Opacity = 1; _progressLine.InvalidateVisual();
+            return;
+        }
+        if (_progressLine is not { IsVisible: true } line) return;
+        if (_settled) line.Opacity = 0; else line.IsVisible = false;
     }
 
     /// <summary>
     /// Lecture, then « Depuis le début », « Regarder ensemble », Favori, Vu, « Suivre… », « Garder sur ce Mac » and « ⋮ »,
-    /// in Windows' order: Lecture and « Regarder ensemble » with their words, the others round, their words in their tooltip
-    /// but once on (« Favori », « Vu », « Suivie »).
+    /// in Windows' order, made once for the page: Lecture and « Regarder ensemble » with their words, the others the
+    /// same rounded squares on or off, their words in their tooltip (<see cref="ShowActions"/> sets what each shows).
     /// </summary>
     private ActionLine Actions()
     {
         var line = new ActionLine { Margin = new Thickness(0, 22, 0, 0) };
+        _play = new Button { Classes = { "primary" }, VerticalContentAlignment = VerticalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, CornerRadius = ActionLine.Corners };
+        _play.Click += (_, _) =>
+        {
+            _settled = false;
+            if (_item.Type == "Series" && SeriesTarget is { } episode) _ = Shell.PlayAsync(episode); else _ = Shell.PlayAsync(_item);
+        };
+        line.Children.Add(_play);
+        _restart = LineButton("refresh", L("Depuis le début", "From the beginning"), () => { _settled = false; if (_restartFrom is { } from) _ = Shell.PlayAsync(from, fromStart: true); });
+        ToolTip.SetTip(_restart, L("Depuis le début", "From the beginning"));
+        line.Children.Add(_restart);
+        Button? together = null;
+        together = _together = LineButton("users", L("Regarder ensemble", "Watch together"), () => _ = TogetherMenuAsync(together!));
+        ActionLine.SetKeep(together, true); ActionLine.SetShrink(together, 5);
+        line.Children.Add(together);
+        _favorite = StateButton("favorite", () => _ = FlipFavoriteAsync()); line.Children.Add(_favorite);
+        _watched = StateButton("watched", () => _ = FlipWatchedAsync()); line.Children.Add(_watched);
+        Button? follow = null;
+        follow = _followButton = StateButton("follow", () => FollowMenu(follow!)); line.Children.Add(follow);
+        _offlineButton = StateButton("offline", OfflineClicked); line.Children.Add(_offlineButton);
+        // « ⋮ » as on Windows: what an administrator rarely needs stays out of the row of buttons.
+        Button? fix = null;
+        fix = _fix = Ui.IconButton("more", L("Identifier le titre, actualiser ses informations", "Identify the title, refresh its details"), () => FixMenu(fix!), "state", 18, L("Plus d’actions sur ce titre", "More actions for this title"));
+        fix.VerticalAlignment = VerticalAlignment.Center;
+        line.Children.Add(fix);
+        return line;
+    }
+    /// <summary>What each button of the line shows now, changed where it is.</summary>
+    private void ShowActions()
+    {
         var inGroup = Shell.Group.Active;
+        var play = _play!;
+        // On a settled page, Lecture keeps at least the width it has on screen, whatever its new words.
+        var floor = _settled ? Math.Max(play.MinWidth, play.Bounds.Width) : 0;
         MediaItem? restart = null;
-        Button play;
         if (_item.Type == "Series")
         {
             // « Reprendre · S01 E07 · 12 min restantes »: the button says which episode it opens.
@@ -290,8 +376,10 @@ public sealed class DetailPage : Page
             var detail = resume && !inGroup ? MediaQuality.Left(target) : null;
             var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
             if (detail is not null) text.Inlines!.Add(new Avalonia.Controls.Documents.Run("  ·  " + detail) { FontWeight = FontWeight.Normal, FontSize = 12.5 });
-            play = new Button { Content = Ui.Row(9, new Icon("play", 18) { VerticalAlignment = VerticalAlignment.Center }, text), Classes = { "primary" }, Height = ActionLine.Round, Padding = new Thickness(25, 0), VerticalContentAlignment = VerticalAlignment.Center };
-            play.Click += (_, _) => { if (SeriesTarget is { } episode) _ = Shell.PlayAsync(episode); else _ = Shell.PlayAsync(_item); };
+            // Never narrower than « Reprendre · S01 E01 », held by an invisible copy: new words after a click move nothing beside it.
+            var room = new TextBlock { Text = L("Reprendre · S01 E01", "Resume · S01 E01"), Opacity = 0, VerticalAlignment = VerticalAlignment.Center };
+            play.Content = Ui.Row(9, new Icon("play", 18) { VerticalAlignment = VerticalAlignment.Center }, new Grid { Children = { room, text } });
+            play.Height = ActionLine.Round; play.Padding = new Thickness(25, 0); play.MinWidth = floor;
             Avalonia.Automation.AutomationProperties.SetName(play, detail is null ? label : $"{label}, {detail}");
             if (resume) restart = target;
         }
@@ -306,70 +394,53 @@ public sealed class DetailPage : Page
             if (detail is not null) text.Children.Add(new TextBlock { Text = detail, FontSize = 12.5, FontWeight = FontWeight.SemiBold, Opacity = .72, Margin = new Thickness(0, 1, 0, 0) });
             var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
             content.Children.Add(new Icon("play", 24) { VerticalAlignment = VerticalAlignment.Center }); content.Children.Add(text);
-            play = new Button { Content = content, Classes = { "primary" }, Padding = new Thickness(32, 15, 36, 15), MinWidth = 250, VerticalContentAlignment = VerticalAlignment.Center };
-            play.Click += (_, _) => _ = Shell.PlayAsync(_item);
+            play.Content = content; play.Padding = new Thickness(32, 15, 36, 15); play.MinWidth = Math.Max(250, floor);
             Avalonia.Automation.AutomationProperties.SetName(play, detail is null ? label : $"{label}, {detail}");
             if (resume) restart = _item;
         }
-        play.CornerRadius = ActionLine.Corners; play.VerticalAlignment = VerticalAlignment.Center;
-        line.Children.Add(play);
-        if (restart is not null)
-        {
-            var from = restart;
-            var button = LineButton("refresh", L("Depuis le début", "From the beginning"), () => _ = Shell.PlayAsync(from, fromStart: true));
-            ShowState(button, "refresh", L("Depuis le début", "From the beginning"), false, L("Depuis le début", "From the beginning"), keep: false);
-            line.Children.Add(button);
-        }
-        // « Regarder ensemble » keeps its words beside Lecture; in a group, its count and a live dot, outlined.
+        // « Depuis le début » beside Lecture when it picks up; on a settled page, it stays where it is.
+        var restartButton = _restart!;
+        restartButton.IsVisible = restart is not null || _settled && restartButton.IsVisible;
+        _restartFrom = restart ?? (restartButton.IsVisible ? _restartFrom : null);
+        Avalonia.Automation.AutomationProperties.SetName(restartButton, L("Depuis le début", "From the beginning"));
+        // « Regarder ensemble » keeps its words beside Lecture; in a group, its count and a live dot.
         var group = inGroup ? Shell.Group.Group : null;
         var togetherLabel = group is null ? L("Regarder ensemble", "Watch together") : L("En groupe · ", "In a group · ") + Together.People(Math.Max(1, group.Participants.Count));
-        Button? together = null;
-        together = LineButton("users", togetherLabel, () => _ = TogetherMenuAsync(together!), dot: group is not null);
-        ShowState(together, "users", togetherLabel, group is not null, group is null
+        var together = _together!;
+        if (_togetherShown != togetherLabel + (group is null ? "" : "·")) { together.Content = Words("users", togetherLabel, group is not null); _togetherShown = togetherLabel + (group is null ? "" : "·"); }
+        var togetherTip = group is null
             ? L("Regarder ce titre au même moment que d’autres comptes de ce Jellyfin, chacun chez soi", "Watch this title at the same moment as other accounts on this Jellyfin, each at home")
-            : L($"En groupe · {Together.GroupText(group)}. Clique pour inviter ou quitter le groupe", $"In a group · {Together.GroupText(group)}. Click to invite or leave the group"), keep: false);
-        ActionLine.SetKeep(together, true); ActionLine.SetShrink(together, 5);
-        line.Children.Add(together);
-        var isFavorite = _item.UserData.IsFavorite;
-        Button? favorite = null;
-        favorite = LineButton(isFavorite ? "heart-filled" : "heart", FavoriteLabel(isFavorite), () => _ = FlipFavoriteAsync(favorite!));
-        ShowState(favorite, isFavorite ? "heart-filled" : "heart", FavoriteLabel(isFavorite), isFavorite, FavoriteTip(isFavorite));
-        ActionLine.SetShrink(favorite, 1);
-        line.Children.Add(favorite);
-        var isPlayed = _item.UserData.Played;
-        Button? watched = null;
-        watched = LineButton("check", WatchedLabel(isPlayed), () => _ = FlipWatchedAsync(watched!));
-        ShowState(watched, "check", WatchedLabel(isPlayed), isPlayed, WatchedTip(isPlayed));
-        ActionLine.SetShrink(watched, 2);
-        line.Children.Add(watched);
+            : L($"En groupe · {Together.GroupText(group)}. Clique pour inviter ou quitter le groupe", $"In a group · {Together.GroupText(group)}. Click to invite or leave the group");
+        ToolTip.SetTip(together, togetherTip);
+        Avalonia.Automation.AutomationProperties.SetName(together, group is null ? togetherLabel : togetherTip);
+        Avalonia.Automation.AutomationProperties.SetHelpText(together, group is null ? togetherTip : null);
+        ShowFavorite(_item.UserData.IsFavorite); ShowWatched(_item.UserData.Played);
+        var follow = _followButton!;
+        follow.IsVisible = _followKnown;
         if (_followKnown)
-        {
-            // « Suivre… » off, « Suivie » on (outlined, a live dot): the state of the series seen at a glance.
-            var label = _follow is null ? L("Suivre…", "Follow…") : L("Suivie", "Following");
-            Button? follow = null;
-            follow = LineButton("calendar", label, () => FollowMenu(follow!), dot: _follow is not null);
-            ShowState(follow, "calendar", label, _follow is not null, _follow is null
+            // « Suivre… » off, « Suivie » on (its calendar solid, with a tick): the state of the series seen at a glance.
+            ShowState(follow, "follow", _follow is not null, _follow is null ? L("Suivre…", "Follow…") : L("Suivie", "Following"), _follow is null
                 ? L("Suivre les nouveaux épisodes : le PC serveur les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: the server PC looks for them and downloads them on its own, with TorLink")
                 : string.Join(" · ", new[] { L("Suivie", "Following"), RemoteLines.FollowNote(_follow.Note), RemoteLines.Follow(_follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0)));
-            ActionLine.SetShrink(follow, 4);
-            line.Children.Add(follow);
-        }
-        _offlineButton = new Button { Classes = { "state" }, VerticalAlignment = VerticalAlignment.Center };
-        _offlineButton.Click += (_, _) => OfflineClicked();
-        line.Children.Add(_offlineButton); ShowOffline();
-        if (_admin && _item.Type is "Movie" or "Series")
-        {
-            // « ⋮ » as on Windows: what an administrator rarely needs stays out of the row of buttons.
-            Button? fix = null;
-            fix = Ui.IconButton("more", L("Identifier le titre, actualiser ses informations", "Identify the title, refresh its details"), () => FixMenu(fix!), "state", 18, L("Plus d’actions sur ce titre", "More actions for this title"));
-            fix.VerticalAlignment = VerticalAlignment.Center;
-            line.Children.Add(fix);
-        }
-        return line;
+        ShowOffline();
+        _fix!.IsVisible = _admin && _item.Type is "Movie" or "Series";
     }
-    /// <summary>For the self-check: the buttons beside Lecture, and whether each shows its words.</summary>
-    public IEnumerable<(string Name, bool Words, bool On)> ActionButtons() => _top.Children.OfType<ActionLine>().SelectMany(x => x.Children.OfType<Button>().Skip(1))
-        .Where(x => x.IsVisible).Select(x => (Avalonia.Automation.AutomationProperties.GetName(x) ?? "", ActionLine.ShowsWords(x), x.Classes.Contains("lit")));
+    /// <summary>For the self-check: the buttons beside Lecture, whether each shows its words, and whether a state button is on.</summary>
+    public IEnumerable<(string Name, bool Words, bool On)> ActionButtons() => (_line?.Children.OfType<Button>().Skip(1) ?? [])
+        .Where(x => x.IsVisible).Select(x => (Avalonia.Automation.AutomationProperties.GetName(x) ?? "", ActionLine.ShowsWords(x), x.Content is StateIcon { On: true }));
+    /// <summary>For the self-check: where Lecture, each button and the words over the picture are, in the page.</summary>
+    public IReadOnlyDictionary<string, Rect> TopPlaces()
+    {
+        var places = new Dictionary<string, Rect>();
+        var index = 0;
+        foreach (var control in _top.Children.Where(x => x.IsVisible && !ReferenceEquals(x, _line) && !ReferenceEquals(x, _progressLine)))
+            if (control.TranslatePoint(new Point(), this) is { } at) places[$"{control.GetType().Name} {++index}"] = new Rect(at, control.Bounds.Size);
+        foreach (var button in _line?.Children.OfType<Button>().Where(x => x.IsVisible) ?? [])
+            if (button.TranslatePoint(new Point(), this) is { } at) places[Avalonia.Automation.AutomationProperties.GetName(button) is { Length: > 0 } name && !ReferenceEquals(button, _play) ? button.Content is StateIcon icon ? icon.Kind : name : "Lecture"] = new Rect(at, button.Bounds.Size);
+        return places;
+    }
+    /// <summary>For the self-check: a click on Favori or Vu, as the pointer makes it.</summary>
+    public void ClickForCheck(string kind) => (kind == "favorite" ? _favorite : _watched)?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
     /// <summary>For the self-check: the picture's height, and the cast shown under it.</summary>
     public double HeroHeight => _header.Bounds.Height;
     public int CastShown => _cast?.Children.Count ?? 0;
@@ -397,26 +468,21 @@ public sealed class DetailPage : Page
         if (!button.IsVisible) return;
         var copies = targets.Select(x => Shell.CopyOf(x.Id)).OfType<OfflineCopy>().ToList();
         var complete = copies.Count(x => x.Complete);
-        string icon, label, tip;
+        // Off, an arrow in a circle; coming, a ring of how far it is (its words in the tooltip); kept, a solid disc.
         if (copies.Count == 0)
         {
-            (icon, label) = ("download", "");
-            tip = _item.Type == "Series" ? L($"Garder la saison {SeasonShown()} sur ce Mac ({Lang.Count(targets.Count, "épisode", "épisodes", "episode", "episodes")}), pour la regarder sans connexion", $"Keep season {SeasonShown()} on this Mac ({Lang.Count(targets.Count, "épisode", "épisodes", "episode", "episodes")}), to watch it offline") : L("Garder ce film sur ce Mac, pour le regarder sans connexion", "Keep this movie on this Mac, to watch it offline");
+            var keep = _item.Type == "Series" ? L($"Garder la saison {SeasonShown()} sur ce Mac ({Lang.Count(targets.Count, "épisode", "épisodes", "episode", "episodes")}), pour la regarder sans connexion", $"Keep season {SeasonShown()} on this Mac ({Lang.Count(targets.Count, "épisode", "épisodes", "episode", "episodes")}), to watch it offline") : L("Garder ce film sur ce Mac, pour le regarder sans connexion", "Keep this movie on this Mac, to watch it offline");
+            ShowState(button, "offline", false, keep, keep);
         }
-        else if (complete == targets.Count) { (icon, label) = ("check", L("Sur ce Mac", "On this Mac")); tip = L($"Sur ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Clique pour le retirer", $"On this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Click to remove it"); }
+        else if (complete == targets.Count)
+            ShowState(button, "offline", true, L("Sur ce Mac", "On this Mac"), L($"Sur ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Clique pour le retirer", $"On this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Click to remove it"));
         else
         {
-            icon = "download";
             var running = copies.FirstOrDefault(x => !x.Complete && Shell.CopyState(x.Item.Id) is { } state && state.Any(char.IsDigit));
-            label = _item.Type == "Series" ? $"{complete}/{targets.Count}" + (running is null ? "" : " · " + Shell.CopyState(running.Item.Id)) : Shell.CopyState(_item.Id) ?? "";
-            tip = L("Arrive sur ce Mac. Clique pour l’arrêter", "Coming to this Mac. Click to stop it");
+            var label = _item.Type == "Series" ? $"{complete}/{targets.Count}" + (running is null ? "" : " · " + Shell.CopyState(running.Item.Id)) : Shell.CopyState(_item.Id) ?? "";
+            ShowState(button, "offline", false, L($"Arrive sur ce Mac · {label}", $"Coming to this Mac · {label}"), L($"Arrive sur ce Mac · {label}. Clique pour l’arrêter", $"Coming to this Mac · {label}. Click to stop it"),
+                targets.Sum(x => Shell.CopyDone(x.Id)) / targets.Count);
         }
-        var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 9 };
-        content.Children.Add(new Icon(icon, 18) { VerticalAlignment = VerticalAlignment.Center });
-        if (label.Length > 0) content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        button.Content = content;
-        ToolTip.SetTip(button, tip);
-        Avalonia.Automation.AutomationProperties.SetName(button, label.Length > 0 ? label + ". " + tip : tip);
     }
     private void OfflineClicked()
     {

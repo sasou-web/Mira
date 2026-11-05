@@ -148,24 +148,13 @@ public partial class MainWindow
         FollowButton.Visibility = Visibility.Visible;
     }
 
-    /// <summary>« Suivre… » off, « Suivie » on (outlined, a live dot): the state of the series seen at a glance.</summary>
+    /// <summary>« Suivre… » off, « Suivie » on (its calendar solid, with a tick): the state of the series seen at a glance.</summary>
     private void DescribeFollowButton()
     {
         var follow = _detailFollow;
-        var label = follow is null ? L("Suivre…", "Follow…") : L("Suivie", "Following");
-        // The same state drawn again keeps its content: the button does not flicker.
-        if (FollowButton.Content is not StackPanel { Children: [Icon _, TextBlock text, ..] } shown || text.Text != label || shown.Children.Count != (follow is null ? 2 : 3))
-        {
-            var panel = new StackPanel { Orientation = Orientation.Horizontal };
-            panel.Children.Add(new Icon { Kind = "calendar", Width = 18, Height = 18 });
-            panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) });
-            if (follow is not null) panel.Children.Add(LiveDot());
-            FollowButton.Content = panel;
-        }
         var tip = follow is null ? L("Suivre les nouveaux épisodes : le PC serveur les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: the server PC looks for them and downloads them on its own, with TorLink")
             : string.Join(" · ", new[] { L("Suivie", "Following"), RemoteLines.FollowNote(follow.Note), RemoteLines.Follow(follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0));
-        ShowState(FollowButton, follow is not null, tip);
-        if (follow is null) AutomationProperties.SetName(FollowButton, tip);
+        ShowState(FollowButton, "follow", follow is not null, follow is null ? L("Suivre…", "Follow…") : L("Suivie", "Following"), tip);
     }
 
     /// <summary>

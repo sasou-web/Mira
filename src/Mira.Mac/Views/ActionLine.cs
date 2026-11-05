@@ -7,7 +7,8 @@ namespace Mira.Mac.Views;
 /// <summary>
 /// The buttons of a title's page on one line, as Windows' <c>ActionRow</c>: Lecture first, with its words; every other
 /// button a rounded square of its icon alone (its words in its tooltip), but those that keep theirs (<see cref="KeepProperty"/>:
-/// « Regarder ensemble », « Favori » or « Vu » once on). Short of room, a kept button goes round too, the smallest
+/// « Regarder ensemble »). A state button (Favori, Vu…) never keeps words: on or off, the same square, its glyph alone
+/// changing (<see cref="StateIcon"/>). Short of room, a kept button goes round too, the smallest
 /// <see cref="ShrinkProperty"/> first, and gets its words back when the line widens. A button's words are the
 /// <see cref="TextBlock"/> beside its icon in its content panel.
 /// </summary>

@@ -1,9 +1,12 @@
 import SwiftUI
 
-/// Favorite and Watched on a title's page: two round buttons of glass beside Play, filled when set, that change the title
-/// at once (Jellyfin is told, then every page reads it again).
+/// Favorite and Watched on a title's page: two round buttons of glass beside Play, their glyph outlined off and filled
+/// on, at the same size (only the glyph changes, never the button), that change the title at once (Jellyfin is told,
+/// then every page reads it again).
 struct TitleActions: View {
     @Binding var item: Item
+    /// Called at a touch, before the title changes: the page keeps where everything is from then on.
+    var touching: @MainActor () -> Void = {}
     @Environment(AppModel.self) private var app
     /// Touched here: the only change that is felt (not a page read again after the player closed).
     @State private var touched = 0
@@ -17,7 +20,7 @@ struct TitleActions: View {
                 update(favorite: !favorite)
             } label: {
                 Image(systemName: favorite ? "heart.fill" : "heart")
-                    .font(.body.weight(.bold))
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: side, height: side)
@@ -31,8 +34,8 @@ struct TitleActions: View {
             Button {
                 update(played: !played)
             } label: {
-                Image(systemName: played ? "checkmark.circle.fill" : "checkmark")
-                    .font(played ? .title3.weight(.bold) : .body.weight(.bold))
+                Image(systemName: played ? "checkmark.circle.fill" : "checkmark.circle")
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: side, height: side)
@@ -54,6 +57,7 @@ struct TitleActions: View {
             if played { data.playbackPositionTicks = 0; data.playedPercentage = nil }
         }
         if let favorite { data.isFavorite = favorite }
+        touching()
         let target = item
         item.userData = data
         touched += 1

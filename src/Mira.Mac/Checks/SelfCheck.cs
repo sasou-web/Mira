@@ -228,11 +228,11 @@ public static class SelfCheck
             Check(await Until(() => window.Current is DetailPage { Item.People.Count: > 0 } or DetailPage { Item.Overview: not null }, 15), "fiche d’un film", movie.Name);
             await Task.Delay(1200); Capture(window, output, "05-film");
             // As on Windows: the picture fills the window, Lecture and « Regarder ensemble » keep their words, the others are
-            // round but those on (« Favori », « Vu »); the cast with their photos under the picture.
+            // the same rounded squares on or off (« Favori », « Vu »: their glyph alone changes); the cast with their photos under the picture.
             if (window.Current is DetailPage film)
             {
                 var buttons = film.ActionButtons().ToList();
-                Check(film.HeroHeight >= film.Bounds.Height - 1 && buttons.Count >= 3 && buttons.Count(x => x.Words) == 1 + buttons.Count(x => x.On),
+                Check(film.HeroHeight >= film.Bounds.Height - 1 && buttons.Count >= 3 && buttons.Count(x => x.Words) == 1,
                     "fiche d’un film : image de toute la fenêtre, boutons ronds", $"{film.HeroHeight:0}/{film.Bounds.Height:0} px · " + string.Join(", ", buttons.Select(x => (x.Words ? "« " + x.Name + " »" : x.Name) + (x.On ? " (actif)" : ""))));
                 Check(film.CastShown == 2, "fiche d’un film : distribution en photos", $"{film.CastShown} personnes");
                 film.ShowCastForCheck(); await Task.Delay(800); Capture(window, output, "05b-film-cast");
@@ -256,12 +256,35 @@ public static class SelfCheck
             full = full && window.ChooseInMenu(Lang.L("Quitter le mode plein écran", "Exit Full Screen"));
             Check(full && await Until(() => window.WindowState != WindowState.FullScreen, 3), "barre des menus : plein écran (⌃⌘F) et retour", window.WindowState.ToString());
             await Task.Delay(800);
-            // A favourite: « Favori » outlined, its words kept beside its icon.
+            if (mock is not null && window.Current is DetailPage still)
+            {
+                // A click on Favori or Vu moves nothing on the page, as on Windows: the film picked up halfway, whose « Vu »
+                // took away « Depuis le début » and the progress line, measured from the click to well after Jellyfin's answer.
+                var moved = new List<string>();
+                foreach (var kind in new[] { "favorite", "watched", "watched", "favorite" })
+                {
+                    window.HideNotice(); await Task.Delay(300);
+                    var before = still.TopPlaces();
+                    still.ClickForCheck(kind);
+                    var clock = System.Diagnostics.Stopwatch.StartNew();
+                    while (clock.ElapsedMilliseconds < 1200)
+                    {
+                        await Task.Delay(16);
+                        foreach (var (part, now) in still.TopPlaces())
+                            if (!before.TryGetValue(part, out var was)) moved.Add($"{kind}: {part} appeared");
+                            else if (new[] { now.X - was.X, now.Y - was.Y, now.Width - was.Width, now.Height - was.Height }.Max(Math.Abs) > .5)
+                                moved.Add($"{kind}: {part} {was.X:0},{was.Y:0} {was.Width:0}×{was.Height:0} → {now.X:0},{now.Y:0} {now.Width:0}×{now.Height:0} ({clock.ElapsedMilliseconds} ms)");
+                    }
+                    if (window.NoticeText is { Length: > 0 } notice) moved.Add($"{kind}: a notice « {notice} »");
+                }
+                Check(moved.Count == 0, "fiche d’un film : un clic sur Favori ou Vu ne bouge rien, sans avis", string.Join(" ; ", moved.Distinct().Take(6)));
+            }
+            // A favourite: « Favori » solid, the same square as off, no words.
             if (mock is not null)
             {
                 window.Open(new MediaItem { Id = "movie-2", Name = "Brume basse", Type = "Movie" });
-                var lit = await Until(() => window.Current is DetailPage { Item.UserData.IsFavorite: true } page && page.ActionButtons().Any(x => x.On && x.Words), 15);
-                Check(lit, "fiche d’un favori : « Favori » entouré, avec ses mots", string.Join(", ", (window.Current as DetailPage)?.ActionButtons().Where(x => x.On).Select(x => x.Name) ?? []));
+                var lit = await Until(() => window.Current is DetailPage { Item.UserData.IsFavorite: true } page && page.ActionButtons().Any(x => x.On && !x.Words), 15);
+                Check(lit, "fiche d’un favori : « Favori » plein, même carré, sans mots", string.Join(", ", (window.Current as DetailPage)?.ActionButtons().Where(x => x.On).Select(x => x.Name) ?? []));
                 await Task.Delay(800); Capture(window, output, "05c-film-favorite");
                 // —— Notices, as on Windows: one with a button waits under the next one, and comes back once it is closed ——
                 window.Notice("Avis avec un bouton", "Agir", () => { });

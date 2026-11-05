@@ -24,6 +24,27 @@ public static class IconPaths
     public const string Ten = "10";
     public const double TenSize = 7.5;
     public static (double X, double Y)? TenCentre(string kind) => kind switch { "rewind" => (11.67, 11.66), "forward" => (12.33, 11.66), _ => null };
+    /// <summary>
+    /// A state button of a title's page (Favori, Vu, Suivre, Garder sur cet ordinateur), drawn the same on Windows and Mac:
+    /// off, <see cref="Off"/> as an outline; on, <see cref="Solid"/> filled in the button's ink (with <see cref="Lines"/>
+    /// stroked in it too), and <see cref="Marks"/> stroked over it in the dark ink of Lecture's words. The button keeps
+    /// its size and its words (in its tooltip) in both states: only this drawing changes. A copy under way draws a ring
+    /// round <see cref="Marks"/> (« Garder sur ce PC »).
+    /// </summary>
+    public sealed record StateGlyph(string Off, string Solid, string Lines, string Marks);
+    /// <summary>A circle the size of the outlines' (radius 9), and the disc that covers it with its stroke (radius 10).</summary>
+    public const string Ring = "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12";
+    public const string Disc = "M22 12A10 10 0 1 1 2 12A10 10 0 1 1 22 12Z";
+    private const string Tick = "M7.8 12.4L10.6 15.2L16.2 9";
+    private const string Down = "M12 7.4V15.6 M8.6 12.4L12 15.8L15.4 12.4";
+    private const string Calendar = "M5.5 5H18.5Q21 5 21 7.5V18.5Q21 21 18.5 21H5.5Q3 21 3 18.5V7.5Q3 5 5.5 5Z";
+    public static IReadOnlyDictionary<string, StateGlyph> States { get; } = new Dictionary<string, StateGlyph>
+    {
+        ["favorite"] = new(Heart, Heart, "", ""),
+        ["watched"] = new($"{Ring} {Tick}", Disc, "", Tick),
+        ["offline"] = new($"{Ring} {Down}", Disc, "", Down),
+        ["follow"] = new($"{Calendar} M3 10H21 M8 3V7 M16 3V7", Calendar, "M8 3V7 M16 3V7", "M8.8 14.6L11 16.8L15.2 12.6")
+    };
     /// <summary>Outlines, by kind (play and pause are filled).</summary>
     public static IReadOnlyDictionary<string, string> Strokes { get; } = new Dictionary<string, string>
     {
