@@ -44,6 +44,8 @@ public partial class MainWindow : Window
     private int _viewVersion, _detailVersion;
     private string? _testMedia;
     private readonly string[] _args;
+    /// <summary>The Jellyfin answered inside Mira of --smooth-check (<c>StandInJellyfin</c>); null otherwise: the network.</summary>
+    private System.Net.Http.HttpMessageHandler? _serverHandler;
     private static Brush Brush(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
 
     public MainWindow(string[] args)
@@ -118,7 +120,7 @@ public partial class MainWindow : Window
         _initializing = false;
     }
     /// <summary>Validation runs set their own sizes, off screen: nothing is remembered from them.</summary>
-    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--server-check" or "--tailnet-check" or "--offscreen");
+    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--server-check" or "--tailnet-check" or "--smooth-check" or "--offscreen");
     /// <summary>
     /// The size the window had when Mira last closed, or the default one (1480 × 930), kept within the screen it opens
     /// on, with that screen's scale: a 1080p screen at 125 % has about 1536 × 826 usable, at 150 % about 1280 × 688 (see
@@ -273,7 +275,7 @@ public partial class MainWindow : Window
     {
         await DisconnectServicesAsync();
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
-        var client = _client = new JellyfinClient(connection);
+        var client = _client = new JellyfinClient(connection, _serverHandler);
         // Another server, or the same from elsewhere: its connection is measured again (« Automatique »).
         _speed.Forget();
         LibraryStore store; SyncService sync;
@@ -302,8 +304,9 @@ public partial class MainWindow : Window
         _metadata = new MetadataCache(_client); ++_heroVersion;
         _sync.Changed += SyncChanged;
         _connectionLifetime = new(); _pageGenres.Clear(); _pageGenresAsked.Clear(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
-        if (!_args.Contains("--visual-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
-        if (!_args.Contains("--visual-check")) { StartEpisodeNotices(); ChoicesChanged(); }
+        // --smooth-check's Jellyfin has no WebSocket, and its new episodes would only add requests to what it measures.
+        if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
+        if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check")) { StartEpisodeNotices(); ChoicesChanged(); }
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
         _ = LoadOfflineAsync(client);
