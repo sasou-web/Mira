@@ -29,143 +29,61 @@
   <link rel="stylesheet" href="css/site.css">
   <script src="js/site.js" defer></script>
 </head>
-<body>
-  <a class="skip" href="#contenu">Aller au contenu</a>
+<body data-close="Fermer" data-failed="Ce navigateur n’a pas lu la présentation." data-download="La télécharger" data-size="(MP4, 15&nbsp;Mo).">
+  <a class="skip" href="#main">Aller au contenu</a>
 
   <header class="bar wrap">
-    <a class="brand" href="./" aria-label="Mira, accueil"><img src="img/mark.svg" alt="" width="26" height="26">Mira</a>
-    <nav aria-label="Parties de la page">
-      <a href="#ecrans">Écrans</a>
-      <a href="#lecture">Lecture</a>
-      <a href="#ensemble">Ensemble</a>
-      <a href="#telecharger">Télécharger</a>
+    <a class="brand" href="./" aria-label="Mira, accueil"><img src="img/mark.svg" alt="" width="28" height="28">Mira</a>
+    <nav aria-label="Site">
+      <a href="#download">Télécharger</a>
+      <a class="wide" href="https://discord.gg/Bh3F6PDUvB">Discord</a>
+      <a class="wide" href="https://github.com/sasou-web/Mira">GitHub</a>
     </nav>
     <a class="lang" href="en/" hreflang="en" lang="en">EN</a>
   </header>
 
-  <main id="contenu">
-    <section class="opening" aria-labelledby="titre">
-      <figure class="tour">
-        <video preload="none" playsinline aria-label="La présentation de Mira, 1 minute 20, sans le son">
-          <source src="video/tour.mp4" type="video/mp4; codecs=avc1.64002A">
-        </video>
-        <picture>
-          <source media="(max-width: 760px)" srcset="img/film-still-640.webp 640w, img/film-still-1280.webp 1280w" sizes="100vw" width="1280" height="720">
-          <img class="poster" src="img/film-scope-1440.webp" srcset="img/film-scope-960.webp 960w, img/film-scope-1440.webp 1440w, img/film-scope-2000.webp 2000w" sizes="(max-width: 1680px) 100vw, 1680px" width="2000" height="837" alt="" fetchpriority="high">
-        </picture>
-        <a class="play" href="video/tour.mp4"><span class="disc"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#play"/></svg></span>Voir la présentation<span class="len num">1:20</span></a>
-      </figure>
-      <p class="tour-failed wrap" role="status" hidden>Ce navigateur n’a pas lu la présentation. <a href="video/tour.mp4" download>La télécharger</a> (MP4, 15&nbsp;Mo).</p>
-      <div class="wrap title-card">
-        <h1 id="titre">Ta bibliothèque,<br> comme au cinéma.</h1>
-        <div>
-          <p class="lede">Un client Jellyfin gratuit pour Windows, Mac et&nbsp;iPhone.</p>
-          <div class="actions">
-            <a class="btn primary" data-for="windows" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Windows</a>
-            <a class="btn primary" data-for="mac" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Mac</a>
-            <a class="btn primary" data-for="phone" href="#telecharger" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Mira sur ton iPhone</a>
-            <a class="btn quiet" data-for="windows mac" href="#telecharger">Autres appareils</a>
-          </div>
+  <main id="main">
+    <section class="wrap story" aria-labelledby="t-mira">
+      <h1 id="t-mira" class="sr">Mira, un client Jellyfin pour Windows, Mac et iPhone</h1>
+      <p class="said">
+        Mira projette ta bibliothèque Jellyfin
+        <a class="chip c-home" data-view="window" href="img/windows-home-2880.webp"><img src="img/windows-home-960.webp" alt="L’Accueil sur Windows&nbsp;: Arcane, puis ce que tu regardais" width="960" height="600"></a>
+        comme au cinéma, sur Windows, Mac et <span class="keep">iPhone&nbsp;<a class="chip tall c-phone-home" data-view="phone" href="img/iphone-home-1080.webp"><img src="img/iphone-home-390.webp" alt="L’Accueil sur iPhone" width="390" height="848"></a>.</span>
+        Chaque fichier est lu tel quel, dans la bonne langue
+        <a class="chip c-subtitles" data-view="window" href="img/windows-subtitles-2880.webp"><img src="img/windows-subtitles-960.webp" alt="Audio et sous-titres&nbsp;: les bonnes langues dès le premier épisode" width="960" height="600"></a>
+        dès le premier épisode, et le <span class="keep">suivant&nbsp;<a class="chip c-series" data-view="window" href="img/windows-series-2880.webp"><img src="img/windows-series-960.webp" alt="Une série&nbsp;: les épisodes d’Arcane, le troisième en cours" width="960" height="600"></a></span>
+        t’attend toujours. Envoie un <span class="keep">lien&nbsp;<a class="chip tall c-party" data-view="phone" href="img/party-1080.webp"><img src="img/party-390.webp" alt="L’iPhone de ton ami&nbsp;: rejoindre la party Mira" width="390" height="848"></a></span>
+        et un ami regarde le même film, à la même seconde, de n’importe où.
+        <span class="quiet">Pas de compte Mira, aucune mesure d’audience&nbsp;: rien ne quitte ton serveur.</span>
+      </p>
+      <div class="under">
+        <div class="actions">
+          <a class="btn primary" data-for="windows" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Windows</a>
+          <a class="btn primary" data-for="mac" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Mac</a>
+          <a class="btn primary" data-for="phone" href="#download" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Sur ton iPhone</a>
+          <a class="btn quiet" data-for="windows mac" href="#download">Autres appareils</a>
         </div>
+        <a class="tour" data-view="tour" href="video/tour.mp4" data-poster="img/film-still-1280.webp" data-caption="La présentation de Mira, sans le son"><span class="disc"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#play"/></svg></span>Voir la présentation <span class="num">1:20</span></a>
       </div>
     </section>
 
-    <section class="scene" id="ecrans" aria-labelledby="t-grand">
-      <div class="wrap card">
-        <h2 id="t-grand">Sur grand écran.</h2>
-        <p>Mira pour Windows et Mac&nbsp;: ta bibliothèque Jellyfin avec ses affiches, chaque fichier lu tel quel.</p>
-      </div>
-      <figure class="bleed"><img src="img/windows-home-1600.webp" srcset="img/windows-home-960.webp 960w, img/windows-home-1600.webp 1600w, img/windows-home-2400.webp 2400w, img/windows-home-2880.webp 2880w" sizes="(max-width: 1680px) 100vw, 1680px" width="2880" height="1800" alt="Mira pour Windows, l’Accueil&nbsp;: Arcane dans le bandeau, les titres à reprendre dessous" loading="lazy"></figure>
-    </section>
-
-    <section class="scene" aria-labelledby="t-poche">
-      <div class="wrap card">
-        <h2 id="t-poche">Et dans ta poche.</h2>
-        <p>Mira pour iPhone et iPad, une vraie app&nbsp;: ton Jellyfin chez toi et ailleurs, avec Tailscale intégré. Installée avec AltStore, sans passer par l’App Store.</p>
-      </div>
-      <ul class="strip" aria-label="Mira sur un iPhone">
-        <li><figure class="phone"><div class="screen"><img src="img/iphone-home-720.webp" srcset="img/iphone-home-390.webp 390w, img/iphone-home-720.webp 720w, img/iphone-home-1080.webp 1080w" sizes="(max-width: 760px) 64vw, 250px" width="1206" height="2622" alt="L’Accueil&nbsp;: reprendre Arcane, saison 1, épisode 3" loading="lazy"></div></figure></li>
-        <li><figure class="phone"><div class="screen"><img src="img/iphone-film-720.webp" srcset="img/iphone-film-390.webp 390w, img/iphone-film-720.webp 720w, img/iphone-film-1080.webp 1080w" sizes="(max-width: 760px) 64vw, 250px" width="1206" height="2622" alt="Un film&nbsp;: Spider-Man: Across the Spider-Verse, à reprendre à 1 h 23 de la fin" loading="lazy"></div></figure></li>
-        <li><figure class="phone"><div class="screen"><img src="img/iphone-series-720.webp" srcset="img/iphone-series-390.webp 390w, img/iphone-series-720.webp 720w, img/iphone-series-1080.webp 1080w" sizes="(max-width: 760px) 64vw, 250px" width="1206" height="2622" alt="Une série&nbsp;: les épisodes d’Arcane, le troisième en cours" loading="lazy"></div></figure></li>
-        <li><figure class="phone"><div class="screen"><img src="img/iphone-movies-720.webp" srcset="img/iphone-movies-390.webp 390w, img/iphone-movies-720.webp 720w, img/iphone-movies-1080.webp 1080w" sizes="(max-width: 760px) 64vw, 250px" width="1206" height="2622" alt="Les films, en grille" loading="lazy"></div></figure></li>
-      </ul>
-    </section>
-
-    <section class="scene" aria-labelledby="t-suivant">
-      <div class="wrap card">
-        <h2 id="t-suivant">Toujours l’épisode suivant.</h2>
-        <p>Arrête sur le PC, reprends sur le téléphone là où tu en étais. Intros passées, saisons marquées comme vues.</p>
-      </div>
-      <figure class="bleed"><img src="img/windows-series-1600.webp" srcset="img/windows-series-960.webp 960w, img/windows-series-1600.webp 1600w, img/windows-series-2400.webp 2400w, img/windows-series-2880.webp 2880w" sizes="(max-width: 1680px) 100vw, 1680px" width="2880" height="1800" alt="Mira pour Windows&nbsp;: les épisodes d’Arcane, deux vus, le troisième en cours" loading="lazy"></figure>
-    </section>
-
-    <section class="scene" id="lecture" aria-labelledby="t-lecture">
-      <div class="wrap card">
-        <h2 id="t-lecture">Les bonnes langues, dès le premier épisode.</h2>
-        <p>Sous Windows et Mac, Mira lit avec mpv, dans sa propre fenêtre. Choisis l’audio et les sous-titres une fois&nbsp;: Mira s’en souvient pour chaque série.</p>
-      </div>
-      <figure class="bleed"><img src="img/windows-subtitles-1600.webp" srcset="img/windows-subtitles-960.webp 960w, img/windows-subtitles-1600.webp 1600w, img/windows-subtitles-2400.webp 2400w, img/windows-subtitles-2880.webp 2880w" sizes="(max-width: 1680px) 100vw, 1680px" width="2880" height="1800" alt="Mira pour Windows, Réglages, Audio et sous-titres&nbsp;: audio japonais puis anglais, sous-titres anglais et leur taille" loading="lazy"></figure>
-      <ul class="wrap index">
-        <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#films"/></svg>Chaque fichier lu tel quel</li>
-        <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#subtitles"/></svg>Sous-titres trouvés et recalés</li>
-        <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#chapters"/></svg>Aperçus sur la barre</li>
-        <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#next"/></svg>Intros passées</li>
-        <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#volume"/></svg>Le son vers ton ampli&nbsp;(Windows)</li>
-        <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#pip"/></svg>Image dans l’image</li>
-        <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#clock"/></svg>Minuterie</li>
-        <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#language"/></svg>Tes langues, série par série</li>
-      </ul>
-    </section>
-
-    <section class="scene together" id="ensemble" aria-labelledby="t-ensemble">
-      <figure class="scope"><img src="img/spring-scope-1440.webp" srcset="img/spring-scope-960.webp 960w, img/spring-scope-1440.webp 1440w, img/spring-scope-1920.webp 1920w" sizes="(max-width: 1680px) 100vw, 1680px" width="1920" height="803" alt="" loading="lazy"></figure>
-      <div class="wrap together-body">
-        <div class="card">
-          <h2 id="t-ensemble">Un lien, le&nbsp;même film.</h2>
-          <p>Envoie le lien de ta party. Tes amis la rejoignent dans Mira, sans compte, même avec un autre Jellyfin, et Mira garde tout le monde à la même seconde.</p>
-        </div>
-        <div class="duo">
-          <figure class="phone"><div class="screen"><img src="img/iphone-together-720.webp" srcset="img/iphone-together-390.webp 390w, img/iphone-together-720.webp 720w, img/iphone-together-1080.webp 1080w" sizes="(max-width: 760px) 42vw, 230px" width="1206" height="2622" alt="Ton iPhone&nbsp;: ton groupe sur la fiche de Spider-Man: Across the Spider-Verse" loading="lazy"></div></figure>
-          <figure class="phone bar"><div class="screen"><img src="img/party-720.webp" srcset="img/party-390.webp 390w, img/party-720.webp 720w, img/party-1080.webp 1080w" sizes="(max-width: 760px) 42vw, 230px" width="1206" height="2622" alt="L’iPhone de ton ami&nbsp;: Camille l’invite à regarder Spider-Man: Across the Spider-Verse ensemble, Ouvrir dans Mira" loading="lazy"></div></figure>
-        </div>
-      </div>
-    </section>
-
-    <section class="wrap promises" aria-label="Loin de chez toi, installation et vie privée">
-      <article>
-        <h3>Ton serveur, de partout.</h3>
-        <p>Tailscale est intégré à Mira pour Windows, Mac et iPhone&nbsp;: aucune app de VPN à installer.</p>
-      </article>
-      <article>
-        <h3>Pas encore de Jellyfin&nbsp;? Mira s’en occupe.</h3>
-        <p>Mira pour Windows l’installe, l’ouvre à ta maison seulement, et prépare ton iPhone en un clic.</p>
-      </article>
-      <article>
-        <h3>Rien ne quitte ton serveur.</h3>
-        <p>Pas de compte Mira, aucune mesure d’audience, et le code est ouvert.</p>
-      </article>
-    </section>
-
-    <section class="wrap downloads" id="telecharger" aria-labelledby="t-telecharger">
-      <h2 id="t-telecharger">Télécharger Mira <span class="num">__VERSION__</span></h2>
-      <div class="doors">
+    <section class="wrap download" id="download" aria-labelledby="t-download">
+      <h2 id="t-download">Télécharger Mira <span class="num">__VERSION__</span></h2>
+      <div class="rows">
         <article data-for="windows">
           <h3>Windows</h3>
           <p class="needs">Windows 10 ou 11, x64</p>
-          <a class="btn primary" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Installateur</a>
-          <p class="more"><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-portable.exe">Portable</a><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64.zip">Zip</a><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION.md">Guide</a></p>
+          <p class="get"><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-portable.exe">Portable</a><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64.zip">Zip</a><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION.md">Guide</a><a class="btn primary" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Installateur</a></p>
         </article>
         <article data-for="mac">
           <h3>Mac</h3>
           <p class="needs">Apple silicon, macOS 15 ou plus récent</p>
-          <a class="btn quiet" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Image disque</a>
-          <p class="more"><code><span>brew install</span> <span>--cask sasou-web/mira/mira</span></code><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-MAC.md">Guide</a></p>
+          <p class="get"><code>brew install --cask sasou-web/mira/mira</code><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-MAC.md">Guide</a><a class="btn quiet" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Image disque</a></p>
         </article>
         <article data-for="phone">
           <h3>iPhone et iPad</h3>
           <p class="needs">iOS 26 ou plus récent, avec AltStore</p>
-          <a class="btn quiet" href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-IOS.md"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Installer avec AltStore</a>
-          <p class="more"><code><span>miracinema.app/</span><span>altstore.json</span></code><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-IOS.md">Guide</a></p>
+          <p class="get"><code>miracinema.app/altstore.json</code><a class="btn quiet" href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-IOS.md"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Installer avec AltStore</a></p>
         </article>
       </div>
       <p class="note">Fichiers Windows pas encore signés&nbsp;: SmartScreen peut demander une confirmation. Empreintes <span class="nowrap">SHA-256</span> dans chaque <a href="https://github.com/sasou-web/Mira/releases/tag/v__VERSION__">release</a>.</p>
@@ -173,10 +91,8 @@
   </main>
 
   <footer class="foot wrap">
-    <div class="sign">
-      <a class="brand" href="./"><img src="img/mark.svg" alt="" width="24" height="24">Mira</a>
-      <p>Gratuit et open source. Sans lien avec Jellyfin. Aucun film fourni.</p>
-    </div>
+    <a class="brand" href="./"><img src="img/mark.svg" alt="" width="24" height="24">Mira</a>
+    <span>Libre et gratuit. Sans lien avec Jellyfin. Aucun film fourni.</span>
     <nav aria-label="Liens">
       <a href="https://github.com/sasou-web/Mira">Code source</a>
       <a href="https://discord.gg/Bh3F6PDUvB">Discord</a>
@@ -184,7 +100,7 @@
       <a href="https://github.com/sasou-web/Mira/blob/main/SECURITY.md">Sécurité</a>
       <a href="en/" hreflang="en" lang="en">English</a>
     </nav>
-    <p class="credits">Une app de <a href="https://github.com/sasou-web">sasou-web</a>, écrite avec Claude. Arcane © Riot Games, Fortiche. Spring © Blender Foundation, CC BY 4.0. Les autres titres à leurs ayants droit, affiches de TMDb. Nunito (SIL Open Font License), icônes Phosphor (MIT).</p>
+    <p class="credits">Une app de <a href="https://github.com/sasou-web">sasou-web</a>, écrite avec Claude. Arcane © Riot Games, Fortiche. Les autres titres à leurs ayants droit, affiches de TMDb. Nunito (SIL Open Font License), icônes Phosphor (MIT).</p>
   </footer>
 </body>
 </html>
