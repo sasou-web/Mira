@@ -79,6 +79,41 @@ struct OpeningTests {
         #expect(close(MarkStroke.frame(MarkStroke.still + 0.3), MarkStroke.frame(MarkStroke.still + MarkStroke.period + 0.3)))
     }
 
+    @Test("Une première image tardive : le « m » repart du début d'un tracé, jamais du milieu")
+    func movesFromTheFirstFrame() {
+        // Shown at once: the mark's time is the opening's.
+        #expect(MarkStroke.origin(startedAt: start, shownAt: start) == start)
+        #expect(MarkStroke.origin(startedAt: start, shownAt: start.addingTimeInterval(0.4)) == start)
+        // Shown late, iOS's launch screen showing the mark whole meanwhile: its first frame ends the still moment, then
+        // the mark is wound back from where the pen starts.
+        let shown = start.addingTimeInterval(1.9)
+        let origin = MarkStroke.origin(startedAt: start, shownAt: shown)
+        #expect(abs(shown.timeIntervalSince(origin) - MarkStroke.still) < 1e-6)
+        let after = MarkStroke.frame(shown.addingTimeInterval(0.2).timeIntervalSince(origin))
+        #expect(after.to == 1)
+        #expect(after.from > 0 && after.from < 0.5)
+    }
+
+    @Test("Mira occupé à s'ouvrir : le « m » s'arrête, puis reprend où il était, sans sauter")
+    @MainActor
+    func standsWhileBusy() {
+        // Shown at once: the opening's own time.
+        let quick = MarkClock()
+        #expect(abs(quick.tick(start.addingTimeInterval(0.2), startedAt: start) - 0.2) < 1e-6)
+        // A late first frame: the mark whole, as on the launch screen, its still moment over.
+        let clock = MarkClock()
+        let first = start.addingTimeInterval(1.9)
+        #expect(abs(clock.tick(first, startedAt: start) - MarkStroke.still) < 1e-6)
+        // Frames come: its time goes on.
+        let next = first.addingTimeInterval(1.0 / 60)
+        #expect(abs(clock.tick(next, startedAt: start) - (MarkStroke.still + 1.0 / 60)) < 1e-6)
+        // Nothing drawn for 0.7 s: the time stood meanwhile, and goes on from where it was seen.
+        let after = next.addingTimeInterval(0.7)
+        #expect(abs(clock.tick(after, startedAt: start) - (MarkStroke.still + 2.0 / 60)) < 1e-6)
+        // Where the stroke stopped when the opening began to leave, as the clock stands.
+        #expect(abs(clock.time(at: after) - (MarkStroke.still + 2.0 / 60)) < 1e-6)
+    }
+
     @Test("Réduire les animations : rien ne bouge, seul l'éclat varie")
     func brightnessOnly() {
         #expect(MarkStroke.brightness(0) == 1)
