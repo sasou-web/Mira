@@ -989,10 +989,10 @@ await Test("Lecteurs d’écran : un bouton fait d’une icône et d’un texte 
     if (failure is not null) throw failure;
     return Task.CompletedTask;
 });
-await Test("Boutons de la fiche : « Vu », « Favori » et « Regarder ensemble » changent d’icône et de mot sur place, sans erreur", () =>
+await Test("Boutons de la fiche à mot (« Regarder ensemble ») : icône et mot changés sur place, sans erreur", () =>
 {
     // 0.9.1 replaced the label by `Children[1] = …`, which WPF refuses while the slot holds a child: every click on « Vu »
-    // or « Favori » ended in Mira's error message.
+    // or « Favori » ended in Mira's error message. Those two are StateIcon squares now; « Regarder ensemble » still relabels.
     Exception? failure = null;
     var thread = new Thread(() =>
     {
