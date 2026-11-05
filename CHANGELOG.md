@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Chaque release annoncée sur Discord** : à la publication, le salon #releases du Discord de Mira reçoit un message avec la bannière de la version, son résumé et ses points en anglais (ceux de la page de release) et le lien de téléchargement, au lieu du seul lien de GitHub (`discord.yml`, `tools/discord/announce.mjs`, webhook dans le secret `DISCORD_RELEASES_WEBHOOK`). Seul ce texte public part vers Discord, depuis GitHub Actions.
+
 ## 0.9.4 — 2026-11-05
 
 - **L’indicateur lecture/pause et les menus du lecteur (Windows, Mac)** : au milieu de l’image, la pause ou la lecture demandée n’est plus un disque sombre qui grisait l’image, mais l’icône seule, blanche, sur une ombre douce qui la garde lisible sur une image claire. Elle est là tout de suite, puis part en 0,6 s en s’ouvrant, sans voile qui traîne sur le film ; la même courbe sous Windows et sur Mac, immobile avec « Réduire les animations ». Avec un menu ouvert (audio et sous-titres, ⋮, épisodes), un clic sur l’image ferme le menu et rien d’autre : il ne met plus en pause ni ne relance la lecture (Windows) ; un clic sur le bouton d’un autre menu ouvre celui-ci (Windows), et le clic qui a fermé le menu ne compte plus dans un double clic (Windows, Mac : plus de plein écran par erreur). Contrôlé sous Windows par de vrais clics dans la CI ; jamais essayé sur un vrai PC ni un vrai Mac.
