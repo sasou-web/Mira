@@ -122,6 +122,37 @@ public static class SelfCheck
                 homeScroll.Offset = default;
             }
 
+            // —— A friend's party, on another Jellyfin ——
+            // Its link opened here: the first name asked, then this Mac its guest (no account there), in the host's group;
+            // left, this Mac's own account back. A link taken back since says the party is over.
+            if (mock is not null)
+            {
+                var link = $"mira://party/{MockJellyfin.PartyCode}?server={Uri.EscapeDataString(MockJellyfin.FriendServer)}";
+                window.OpenLink(link);
+                Check(await Until(() => window.Party is { Parent: not null } party && party.Heading == Together.PartyAsk("Dafty"), 10), "party d’un ami : prénom demandé, hôte nommé", window.Party?.Heading ?? "pas de carte");
+                await Task.Delay(800); Capture(window, output, "02c-party-name");
+                window.Party!.FirstName = "Léa"; window.Party.ClickPrimary();
+                Check(await Until(() => window.InParty && window.Session is { } guest && Together.IsGuest(guest.Connection) && guest.Connection.UserName == "Léa", 10), "party d’un ami : invité sans compte", window.Party?.Error ?? window.Session?.Connection.Server ?? "");
+                Check(window.Settings.PartyName == "Léa", "party d’un ami : prénom gardé pour la suivante", window.Settings.PartyName);
+                bool Called(string call) { lock (mock.FriendCalls) return mock.FriendCalls.Contains(call); }
+                Check(await Until(() => Called("POST Mira/guest/SyncPlay/Join"), 25), "party d’un ami : groupe de l’hôte rejoint", string.Join(", ", mock.FriendCalls.TakeLast(6)));
+                // Jellyfin's answer, which its WebSocket would bring.
+                using (var joined = System.Text.Json.JsonDocument.Parse("""{"Type":"GroupJoined","Data":{"GroupId":"party-group","GroupName":"Dafty's group","Participants":["Dafty","Léa"],"State":"Idle"}}"""))
+                    window.Group.Message(window.Session!, "SyncPlayGroupUpdate", joined.RootElement.Clone());
+                Check(await Until(() => window.Party?.Heading == Together.PartyIn("Dafty") && window.Party.Members.Contains("Léa"), 10), "party d’un ami : dans le groupe, ses membres", $"{window.Party?.Heading} — {window.Party?.Members}");
+                Check(window.Current is null, "party d’un ami : rien de la bibliothèque de ce Mac", window.Current?.GetType().Name ?? "");
+                await Task.Delay(600); Capture(window, output, "02d-party-in");
+                await window.LeavePartyAsync();
+                Check(await Until(() => !window.InParty && window.Session?.Connection.Server == MockJellyfin.Server && window.Current is HomePage, 15), "party d’un ami : quitter rend le compte de ce Mac", window.Session?.Connection.Server ?? "aucun compte");
+                Check(Called("POST Mira/guest/SyncPlay/Leave") && Called("POST Mira/guest/Sessions/Logout"), "party d’un ami : groupe quitté, session fermée chez l’ami", string.Join(", ", mock.FriendCalls.TakeLast(4)));
+                mock.PartyGone = true;
+                window.OpenLink(link);
+                Check(await Until(() => window.Party is { Parent: not null } party && party.Heading == Together.PartyOver, 10), "party d’un ami : lien retiré, la party est finie", window.Party?.Heading ?? "pas de carte");
+                window.Party!.ClickSecondary();
+                Check(await Until(() => window.Party is not { Parent: not null } && window.Current is HomePage, 5), "party d’un ami : « Fermer » rend la bibliothèque");
+                if (window.Session is null) throw new InvalidOperationException("pas de session après la party");
+            }
+
             // —— Films, search ——
             window.Go("Movie");
             Check(await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15), "films : grille", $"{(window.Current as BrowsePage)?.Items.Count} films");

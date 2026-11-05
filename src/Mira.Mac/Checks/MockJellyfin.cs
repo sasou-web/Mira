@@ -17,6 +17,12 @@ namespace Mira.Mac.Checks;
 public sealed class MockJellyfin : HttpMessageHandler
 {
     public const string Server = "http://127.0.0.1:8096/", UserId = "check-user";
+    /// <summary>A friend's Jellyfin, with Mira's extension: its party (<see cref="PartyCode"/>, Dafty's) and the gateway of its guests.</summary>
+    public const string FriendServer = "http://127.0.0.1:8097/", PartyCode = "dafty-party-link-00001";
+    /// <summary>The friend's party link was taken back: its page and its gateway answer 404.</summary>
+    public bool PartyGone { get; set; }
+    /// <summary>Every request to the friend's Jellyfin, « POST Mira/guest/open ».</summary>
+    public List<string> FriendCalls { get; } = [];
     private readonly string _media, _short;
     private readonly List<object> _movies, _series;
     private readonly Dictionary<string, List<object>> _episodes = [];
@@ -63,6 +69,26 @@ public sealed class MockJellyfin : HttpMessageHandler
         UserData = new { PlaybackPositionTicks = 0L, Played = false, IsFavorite = false }
     };
 
+    /// <summary>
+    /// The friend's Jellyfin as its extension answers a guest: the party's page names its host, Mira/guest/open makes the
+    /// guest, its gateway gives the host's group (« Dafty's group »), joined or left; its WebSocket is the check's to play.
+    /// </summary>
+    private async Task<HttpResponseMessage> FriendAsync(HttpRequestMessage request, string path, CancellationToken ct)
+    {
+        lock (FriendCalls) FriendCalls.Add($"{request.Method} {path}");
+        if (PartyGone) return path == "Mira/guest/open" ? Json(new { error = "Ce lien de party n’existe plus." }, HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.NotFound);
+        if (path == "Mira/party/" + PartyCode) return Json(new { host = "Dafty" });
+        if (request.Method == HttpMethod.Post && path == "Mira/guest/open")
+        {
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+            var name = body.RootElement.GetProperty("guest").GetString();
+            return Json(new { token = "guest-token", userId = "guest-1", userName = name, serverId = "friend-server", host = "Dafty" });
+        }
+        if (path == "Mira/guest/SyncPlay/List") return Json(new object[] { new { GroupId = "party-group", GroupName = "Dafty's group", Participants = new[] { "Dafty" }, State = "Idle" } });
+        if (request.Method == HttpMethod.Post && (path.StartsWith("Mira/guest/SyncPlay/") || path == "Mira/guest/Sessions/Logout")) return new HttpResponseMessage(HttpStatusCode.NoContent);
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
+    }
+
     private IEnumerable<object> All => _movies.Concat(_series);
     private object? Find(string id) => All.Concat(_episodes.Values.SelectMany(x => x)).FirstOrDefault(x => Id(x) == id);
     private static string Id(object item) => (string)item.GetType().GetProperty("Id")!.GetValue(item)!;
@@ -73,6 +99,7 @@ public sealed class MockJellyfin : HttpMessageHandler
     {
         var path = request.RequestUri!.AbsolutePath.TrimStart('/');
         var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
+        if (request.RequestUri.Port == 8097) return await FriendAsync(request, path, cancellationToken);
         lock (Calls) Calls.Add($"{request.Method} {path}");
         if (request.Method == HttpMethod.Post && path.StartsWith("Sessions/Playing"))
         {
@@ -214,7 +241,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         return response;
     }
     private static HttpResponseMessage Items(IEnumerable<object> items) { var list = items.ToList(); return Json(new { Items = list, TotalRecordCount = list.Count }); }
-    private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
+    private static HttpResponseMessage Json(object value, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
 
     /// <summary>Artwork drawn by Avalonia: a tone per title and its name, in the requested shape.</summary>
     private async Task<byte[]> ImageAsync(string path)

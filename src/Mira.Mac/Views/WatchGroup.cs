@@ -282,7 +282,7 @@ public sealed class WatchGroup
             if (Group is null && ReferenceEquals(session, _shell.Session)) _shell.Notice(L("Jellyfin n’a pas répondu. Réessaie dans un instant.", "Jellyfin didn’t answer. Try again in a moment."));
             // A new group is empty: its invitation comes at once, the way to bring someone in.
             else if (Group is not null && invite) await InviteAsync();
-            else if (Group is { } group) _shell.Notice(L($"Tu es dans « {group.GroupName} » : Lecture lance le titre pour tout le groupe, au même moment chez chacun.", $"You’re in “{group.GroupName}”: Play starts the title for the whole group, at the same moment for everyone."));
+            else if (Group is { } group && !_shell.InParty) _shell.Notice(L($"Tu es dans « {group.GroupName} » : Lecture lance le titre pour tout le groupe, au même moment chez chacun.", $"You’re in “{group.GroupName}”: Play starts the title for the whole group, at the same moment for everyone."));
         }
         catch (UnauthorizedAccessException) { _shell.Notice(NoSyncPlay); }
         catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
@@ -295,6 +295,8 @@ public sealed class WatchGroup
     /// </summary>
     public async Task InviteAsync()
     {
+        // A friend's party guest invites nobody: the party's link is its host's.
+        if (_shell.InParty) return;
         if (!Active || Group is not { } group || _session is not { } session) return;
         var server = session.Connection.Server;
         var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
@@ -323,6 +325,8 @@ public sealed class WatchGroup
     }
     public async Task LeaveAsync()
     {
+        // A friend's party guest is there for the group only: leaving it is leaving the party.
+        if (_shell.InParty) { await _shell.LeavePartyAsync(); return; }
         if (_session is { } session && ReferenceEquals(session, _shell.Session))
         {
             try { await session.Client.SyncLeaveAsync(session.Lifetime); }

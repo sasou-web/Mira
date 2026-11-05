@@ -92,7 +92,7 @@ public sealed partial class MainWindow : Window
         Args = args; Profile = profile; SystemLanguage.Apply(profile.ChosenLanguage());
         Settings = profile.LoadSettings();
         Group = new WatchGroup(this);
-        Group.Changed += () => { ShowGroupRail(); Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); };
+        Group.Changed += () => { ShowGroupRail(); Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); PartyGroupChanged(); };
         Group.Member += said => { if (Player is { } player) player.ShowMember(said); else Notice(said + "."); };
         Tailnet = new BuiltInTailscale(this);
         Title = "Mira"; MinWidth = 960; MinHeight = 600;
@@ -137,7 +137,10 @@ public sealed partial class MainWindow : Window
         _choicesSoon.Tick += async (_, _) => { _choicesSoon.Stop(); await SyncChoicesAsync(); };
         Activated += (_, _) =>
         {
-            ActivatedAt = Environment.TickCount64; if (DateTimeOffset.UtcNow - _choicesAsked > TimeSpan.FromMinutes(1)) ChoicesChanged();
+            ActivatedAt = Environment.TickCount64;
+            // A friend's party guest: nothing of this Mac's own account is asked of the friend's Jellyfin.
+            if (InParty) return;
+            if (DateTimeOffset.UtcNow - _choicesAsked > TimeSpan.FromMinutes(1)) ChoicesChanged();
             // An account made administrator (or no longer) since the sign-in: Téléchargements comes or goes when Mira is back in front.
             if (Session is { } session && DateTimeOffset.UtcNow - _rightsAsked > TimeSpan.FromMinutes(1)) _ = OfferDownloadsAsync(session);
         };
@@ -282,11 +285,14 @@ public sealed partial class MainWindow : Window
         if (_invite is { } invite) login.Server = invite.Server;
         _overlay.Children.Clear(); _overlay.Children.Add(login);
         _history.Clear(); _forward.Clear(); _kept.Clear(); _host.Content = null;
+        // A party link opened while Mira was starting, before any account: its first name is asked now.
+        if (_invite is { Party: not null }) _ = OfferInviteAsync();
     }
     /// <summary>Opens the library of a signed-in account.</summary>
     public async Task ActivateAsync(Connection connection, HttpMessageHandler? handler = null)
     {
         await CloseSessionAsync();
+        _handler = handler;
         JellyfinClient.DeviceName = "Mac";
         // Another server, or the same from elsewhere: its connection is measured again.
         Speed.Forget();
@@ -368,7 +374,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Something kept on Jellyfin changed on this Mac, or may have changed elsewhere: Mira and Jellyfin compare them shortly.</summary>
     public void ChoicesChanged()
     {
-        if (Session is null) return;
+        if (Session is null || InParty) return;
         _choicesSoon.Stop(); _choicesSoon.Start();
     }
     private async Task SyncChoicesAsync()
@@ -450,29 +456,31 @@ public sealed partial class MainWindow : Window
     }
     /// <summary>
     /// A party link (mira://party/…, from its page): on the Jellyfin this app is signed in to, straight into the host's
-    /// group, or waiting for it to open; anywhere else (another Jellyfin, no account here), Mira web as their guest.
+    /// group, or waiting for it to open; anywhere else (another Jellyfin, no account here), its guest in Mira itself
+    /// (MainWindow.Party.cs).
     /// </summary>
     private async Task OfferPartyAsync(Together.Invitation invite, string code)
     {
-        var web = new Uri(Together.PartyWebLink(invite.Server, code));
-        if (Session is not { } session)
+        if (Session is not { } session || InParty)
         {
-            if (Login is null) return;
+            // Still starting: asked once the sign-in or the account shows.
+            if (Session is null && Login is null) return;
             _invite = null;
-            Updates.Open(web, plainHttp: true);
+            await AskPartyAsync(invite.Server, code);
             return;
         }
-        for (var i = 0; !_listening && i < 40 && ReferenceEquals(session, Session); i++) await Task.Delay(250);
-        if (!ReferenceEquals(session, Session) || !ReferenceEquals(_invite, invite)) return;
         _invite = null;
         string? host;
         // Not answered by this app's own Jellyfin: the party is on its own server anyway.
         try { host = await session.Client.PartyHostAsync(code, session.Lifetime); }
         catch (Exception ex) when (Errors.Expected(ex)) { host = null; }
-        if (!ReferenceEquals(session, Session)) return;
+        if (!ReferenceEquals(session, Session) || _invite is not null) return;
         Activate();
-        if (host is null) { Updates.Open(web, plainHttp: true); return; }
+        if (host is null) { await AskPartyAsync(invite.Server, code); return; }
         if (host == session.Connection.UserName) { Notice(L("C’est ton propre lien de party : envoie-le à ceux qui veulent te rejoindre.", "This is your own party link: send it to whoever wants to join you.")); return; }
+        // Jellyfin says GroupJoined through the WebSocket: open first, or the answer would go unheard.
+        for (var i = 0; !_listening && i < 40 && ReferenceEquals(session, Session); i++) await Task.Delay(250);
+        if (!ReferenceEquals(session, Session)) return;
         var party = Together.PartyInvitation(session.Connection.Server, host);
         List<Together.Group> groups;
         try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
@@ -553,7 +561,7 @@ public sealed partial class MainWindow : Window
     public void Go(string key) => NavigateRoot(key);
     private void NavigateRoot(string key)
     {
-        if (Session is null) return;
+        if (Session is null || InParty) return;
         if (Watching) return;
         // Its own entry again while its page shows (the one the rail opened, not a page reached from it): as on Windows.
         if (_history.Count == 0 && Current is { } shown && shown.Rail == key) { shown.ShowAgain(); return; }
@@ -646,7 +654,7 @@ public sealed partial class MainWindow : Window
         menu.Items.Add(new Separator());
         if (Player is { IsMini: true } mini && Group.PlaysFor(mini)) Add(L("Revenir au lecteur", "Back to the player"), () => mini.SetMini(false));
         else if (title is not null) Add(L($"Voir « {Together.TitleName(title)} »", $"View “{Together.TitleName(title)}”"), () => Open(title));
-        Add(L("Inviter quelqu’un…", "Invite someone…"), () => _ = Group.InviteAsync());
+        if (!InParty) Add(L("Inviter quelqu’un…", "Invite someone…"), () => _ = Group.InviteAsync());
         Add(L("Quitter le groupe", "Leave the group"), () => _ = Group.LeaveAsync());
         menu.PlacementTarget = _groupRail; menu.Placement = PlacementMode.RightEdgeAlignedBottom; menu.HorizontalOffset = 8;
         menu.Open(_groupRail);
@@ -686,7 +694,9 @@ public sealed partial class MainWindow : Window
         await StopPlaybackAsync();
         var player = new PlayerPage(this);
         Player = player;
-        _overlay.Children.Clear(); _overlay.Children.Add(player);
+        // A friend's party keeps its card under the player, in sight again when it closes.
+        foreach (var shown in _overlay.Children.Where(child => !ReferenceEquals(child, _party)).ToList()) _overlay.Children.Remove(shown);
+        _overlay.Children.Add(player);
         if (!await player.StartAsync(item, fromStart, groupStart)) await CloseOverlayPlayerAsync(player);
     }
     public async Task StopPlaybackAsync()
@@ -911,6 +921,8 @@ public sealed partial class MainWindow : Window
             // The last progress report still leaves while the window is already gone.
             await AttemptAsync(StopPlaybackAsync);
             Attempt(() => Profile.SaveSettings(Settings));
+            // A friend's party guest leaves the friend's Jellyfin, and this Mac, with the window.
+            await AttemptAsync(EndGuestSessionAsync);
             await AttemptAsync(CloseSessionAsync);
             // After the last reports to Jellyfin, which may go through it.
             await AttemptAsync(Tailnet.DisposeAsync);
