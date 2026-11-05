@@ -133,6 +133,20 @@ export function groupStatus(group, me, loading = false) {
   if (group.State === 'Paused') return { text: tr('En pause pour le groupe'), alert: true };
   return { text: others.length ? tr('Ensemble · {names}', { names: namesText(group.Participants) }) : tr('Ensemble · personne d’autre pour l’instant'), alert: false };
 }
+/** The count beside the group's button: « 2 », « 99+ » (Jellyfin names each account once). The same as Together.CountText. */
+export function countText(group) {
+  const count = Math.max(1, group?.Participants?.length ?? 0);
+  return count > 99 ? '99+' : String(count);
+}
+/**
+ * What the group's button says, to a screen reader and under it: « En groupe · Groupe de mira · mira et Marc », and
+ * what the group is doing when it holds the picture (« · En pause pour le groupe »). The same as Together.IndicatorText.
+ */
+export function indicatorText(group, me) {
+  const names = group?.Participants ?? [];
+  const status = groupStatus(group, me);
+  return `${tr('En groupe · ')}${groupLabel(group?.GroupName ?? tr('Groupe'))} · ${names.length ? namesText(names) : people(1)}${status?.alert ? ` · ${status.text}` : ''}`;
+}
 /** « Marc a rejoint le groupe », « Marc a quitté le groupe ». */
 export const memberText = (name, joined) => (joined ? tr('{name} a rejoint le groupe', { name }) : tr('{name} a quitté le groupe', { name }));
 

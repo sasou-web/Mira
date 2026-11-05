@@ -50,6 +50,10 @@ internal static class PlayerTests
             foreach (var row in root.GetProperty("statuses").EnumerateArray())
                 Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupStatus(group, row[1].GetString(), row[2].GetBoolean()) is var status
                     && status.Text == row[3].GetProperty("text").GetString() && status.Alert == row[3].GetProperty("alert").GetBoolean(), $"Status: {row[3]} ≠ {(Together.ParseGroup(row[0]) is { } g ? Together.GroupStatus(g, row[1].GetString(), row[2].GetBoolean()) : null)}");
+            // The rail's group button: its count and what it says.
+            foreach (var row in root.GetProperty("indicators").EnumerateArray())
+                Assert(Together.ParseGroup(row[0]) is { } group && Together.CountText(group) == row[2].GetString() && Together.IndicatorText(group, row[1].GetString()) == row[3].GetString(),
+                    $"Indicator: {row[3]} ≠ {(Together.ParseGroup(row[0]) is { } g ? Together.CountText(g) + " " + Together.IndicatorText(g, row[1].GetString()) : null)}");
             Assert(Together.MemberText("Marc", true) == "Marc a rejoint le groupe" && Together.MemberText("Marc", false) == "Marc a quitté le groupe", "Member");
             // Lecture in a group: its label, and the question before it replaces the title the group has on.
             foreach (var row in root.GetProperty("replaces").EnumerateArray())

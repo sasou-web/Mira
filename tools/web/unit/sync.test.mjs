@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import { readFileSync } from 'node:fs';
-import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink, groupHost, findGroup, rejoinPlan, waitingText, namesText, groupStatus, memberText, asksToReplace, titleName, replaceQuestion, groupPlayLabel } from '../../../src/Mira.Web/js/player/sync.js';
+import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink, groupHost, findGroup, rejoinPlan, waitingText, namesText, groupStatus, countText, indicatorText, memberText, asksToReplace, titleName, replaceQuestion, groupPlayLabel } from '../../../src/Mira.Web/js/player/sync.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/syncplay.json', import.meta.url), 'utf8'));
 
@@ -42,6 +42,7 @@ test('what the group is doing, in words: Jellyfin never says who a wait or a pau
   for (const [names, text] of fixture.names) assert.equal(namesText(names), text);
   for (const [group, me, loading, status] of fixture.statuses) assert.deepEqual(groupStatus(group, me, loading), status, `${group.State} · ${me}`);
   assert.equal(groupStatus(null, 'mira'), null);
+  for (const [group, me, count, text] of fixture.indicators) assert.deepEqual([countText(group), indicatorText(group, me)], [count, text], `${group.State} · ${me}`);
   assert.equal(memberText('Marc', true), 'Marc a rejoint le groupe');
   assert.equal(memberText('Marc', false), 'Marc a quitté le groupe');
 });

@@ -67,6 +67,9 @@ public sealed partial class MainWindow : Window
     private readonly TextBlock _avatar = new() { FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#DEDEE4"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly List<Page> _history = [];
     private readonly Dictionary<string, Button> _railButtons = [];
+    /// <summary>« Regarder ensemble »: the rail's group button, above Réglages, in sight while this Mac is in a group (ShowGroupRail).</summary>
+    private readonly Button _groupRail = new() { IsVisible = false };
+    private readonly TextBlock _groupCount = new() { FontSize = 10, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#121212"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private Action? _toastClick;
     public PlayerPage? Player { get; private set; }
     /// <summary>The player over the whole window; the mini-player leaves the library usable.</summary>
@@ -89,7 +92,7 @@ public sealed partial class MainWindow : Window
         Args = args; Profile = profile; SystemLanguage.Apply(profile.ChosenLanguage());
         Settings = profile.LoadSettings();
         Group = new WatchGroup(this);
-        Group.Changed += () => { Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); };
+        Group.Changed += () => { ShowGroupRail(); Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); };
         Group.Member += said => { if (Player is { } player) player.ShowMember(said); else Notice(said + "."); };
         Tailnet = new BuiltInTailscale(this);
         Title = "Mira"; MinWidth = 960; MinHeight = 600;
@@ -168,7 +171,18 @@ public sealed partial class MainWindow : Window
         _railButtons["settings"] = settings;
         var avatar = new Grid { Width = 29, Height = 29, Margin = new Thickness(0, 12, 0, 0), Children = { new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3D3D43"), Child = _avatar }, _avatarPhoto } };
         ToolTip.SetTip(avatar, L("Compte Jellyfin", "Jellyfin account"));
-        var bottom = Ui.Column(8, settings, avatar); bottom.HorizontalAlignment = HorizontalAlignment.Center;
+        // Its count of accounts in a corner, as the title page's « En groupe · 2 personnes ».
+        _groupRail.Classes.Add("rail"); Avalonia.Automation.AutomationProperties.SetName(_groupRail, L("Groupe", "Group"));
+        _groupRail.Content = new Grid
+        {
+            Children =
+            {
+                new Icon("users", 22),
+                new Border { MinWidth = 16, Height = 16, Padding = new Thickness(4, 0), CornerRadius = new CornerRadius(8), Background = Ui.Brush("#86C6A2"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -6, -9, 0), IsHitTestVisible = false, Child = _groupCount }
+            }
+        };
+        _groupRail.Click += async (_, _) => await GroupMenuAsync();
+        var bottom = Ui.Column(8, _groupRail, settings, avatar); bottom.HorizontalAlignment = HorizontalAlignment.Center;
         var dock = new DockPanel { Margin = new Thickness(0, TitleBarInset, 0, 18) };
         DockPanel.SetDock(brand, Dock.Top); DockPanel.SetDock(bottom, Dock.Bottom);
         dock.Children.Add(brand); dock.Children.Add(bottom); dock.Children.Add(_railItems);
@@ -579,6 +593,44 @@ public sealed partial class MainWindow : Window
         _host.Content = previous; Light(previous.Rail);
         _ = previous.RefreshAsync();
         return true;
+    }
+    /// <summary>The rail's group button: shown with its count while this Mac is in a group, what it says in its tooltip.</summary>
+    private void ShowGroupRail()
+    {
+        if (!Group.Active || Group.Group is not { } group || Session is not { } session) { _groupRail.IsVisible = false; return; }
+        _groupCount.Text = Together.CountText(group);
+        var said = Together.IndicatorText(group, session.Connection.UserName);
+        ToolTip.SetTip(_groupRail, said); Avalonia.Automation.AutomationProperties.SetName(_groupRail, said);
+        _groupRail.IsVisible = true;
+    }
+    /// <summary>The group button's menu: who is in the group, what holds it, its title, « Inviter » and « Quitter ».</summary>
+    private async Task GroupMenuAsync()
+    {
+        if (!Group.Active || Group.Group is null || Session is not { } session) return;
+        // The group's title, named: one request, left out when Jellyfin is slow to answer.
+        MediaItem? title = null;
+        if (Group.Queue is { } queue && Player?.Item?.Id != queue.ItemId)
+        {
+            try { title = await session.Client.ItemAsync(queue.ItemId, session.Lifetime).WaitAsync(TimeSpan.FromSeconds(3)); }
+            catch (Exception ex) when (ex is TimeoutException || Errors.Expected(ex)) { }
+        }
+        if (!Group.Active || Group.Group is not { } group || !ReferenceEquals(session, Session)) return;
+        var menu = new ContextMenu();
+        void Add(string label, Action? action)
+        {
+            var entry = new MenuItem { Header = label, IsEnabled = action is not null };
+            if (action is not null) entry.Click += (_, _) => action();
+            menu.Items.Add(entry);
+        }
+        Add(Together.GroupText(group) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : ""), null);
+        if (Together.GroupStatus(group, session.Connection.UserName) is { Alert: true } status) Add(status.Text, null);
+        menu.Items.Add(new Separator());
+        if (Player is { IsMini: true } mini && Group.PlaysFor(mini)) Add(L("Revenir au lecteur", "Back to the player"), () => mini.SetMini(false));
+        else if (title is not null) Add(L($"Voir « {Together.TitleName(title)} »", $"View “{Together.TitleName(title)}”"), () => Open(title));
+        Add(L("Inviter quelqu’un…", "Invite someone…"), () => _ = Group.InviteAsync());
+        Add(L("Quitter le groupe", "Leave the group"), () => _ = Group.LeaveAsync());
+        menu.PlacementTarget = _groupRail; menu.Placement = PlacementMode.RightEdgeAlignedBottom; menu.HorizontalOffset = 8;
+        menu.Open(_groupRail);
     }
     public void Open(MediaItem item)
     {
