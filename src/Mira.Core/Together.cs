@@ -350,8 +350,8 @@ public static class Together
         var reach = Reach(host);
         if (reach == "tailnet") steps.Add(L("Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.",
             "Outside your home, they need Tailscale: share Jellyfin’s computer with them (login.tailscale.com → Machines → … → Share), and they accept with their free Tailscale account."));
-        else if (reach == "home") steps.Add(L("Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).",
-            "This link only works on your Wi-Fi. For a friend elsewhere, install Tailscale on Jellyfin’s computer (Mira for Windows: Guide → Mira on your phone)."));
+        else if (reach == "home") steps.Add(L("Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton iPhone).",
+            "This link only works on your Wi-Fi. For a friend elsewhere, install Tailscale on Jellyfin’s computer (Mira for Windows: Guide → Mira on your iPhone)."));
         steps.Add(L("Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment.",
             "Once they’re in, the group counts one more person: start the title and it plays for both of you at the same moment."));
         return steps;

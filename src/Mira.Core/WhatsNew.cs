@@ -61,7 +61,7 @@ public static class WhatsNew
         return Since(seen, current, entries).Count > 0 ? StartupScreen.WhatsNew : StartupScreen.None;
     }
     /// <summary>The release page's text on GitHub, in English like the README (the French stays in the app, in WhatsNew.json): what Mira is (SignPath Foundation
-    /// wants the download page to describe the program), the summary, the highlights, how to install on Windows, on a Mac and on a phone, where the details are, and
+    /// wants the download page to describe the program), the summary, the highlights, how to install on Windows, on a Mac and on an iPhone, where the details are, and
     /// the "Code signing policy" line it asks for on every download page, with its credit only when the Windows files carry
     /// its signature (<paramref name="signed"/>). With <paramref name="banner"/>, the version's banner on top
     /// (docs/releases/x.y.z.jpg, drawn by tools/banner), shown from the release's tag, which never changes.</summary>
@@ -69,14 +69,14 @@ public static class WhatsNew
     {
         var text = new StringBuilder();
         if (banner) text.Append("![Mira ").Append(release.Version).Append("](").Append(BannerUrl(release.Version)).Append(")\n\n");
-        text.Append("**Mira** is a cinema-style Jellyfin client: a Windows app with mpv built in, its Mac version, and Mira web for iPhone, iPad and Android, served by your Jellyfin server.\n\n");
+        text.Append("**Mira** is a cinema-style Jellyfin client: a Windows app with mpv built in, its Mac version, and a native iPhone and iPad app.\n\n");
         text.Append(release.EnglishSummary).Append("\n\n");
         foreach (var item in release.Items) text.Append("- **").Append(item.EnglishTitle).Append("** — ").Append(item.EnglishText).Append('\n');
         text.Append("\n**On Windows**: `Mira-").Append(release.Version).Append("-win-x64-setup.exe`. Copies already installed update themselves.\n\n");
         text.Append("**On Mac** (Apple silicon, macOS 15 or later): `Mira-").Append(release.Version).Append("-mac-arm64.dmg`. The first launch asks for an authorisation: [install Mira on Mac (French)](https://github.com/sasou-web/Mira/blob/v")
             .Append(release.Version).Append("/docs/INSTALLATION-MAC.md).\n\n");
-        text.Append("**On iPhone, iPad and Android**: Mira web, served by Jellyfin. In Mira for Windows, **Guide → Mira on your phone → Set everything up**: [Mira on iPhone, iPad and Android (French)](https://github.com/sasou-web/Mira/blob/v")
-            .Append(release.Version).Append("/docs/INSTALLATION-WEB.md).\n\n");
+        text.Append("**On iPhone and iPad** (iOS 26 or later): `Mira-").Append(release.Version).Append("-ios.ipa`, through AltStore Classic, which offers each update: [install Mira on iPhone (French)](https://github.com/sasou-web/Mira/blob/v")
+            .Append(release.Version).Append("/docs/INSTALLATION-IOS.md).\n\n");
         text.Append("Every detail: [CHANGELOG](https://github.com/sasou-web/Mira/blob/v").Append(release.Version).Append("/CHANGELOG.md)\n\n");
         text.Append("**Code signing policy**: ").Append(signed
             ? "Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org). This version's Windows files are signed; "
