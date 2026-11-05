@@ -113,14 +113,18 @@ html.lights-down .tour { z-index: 41; }
 .bleed { width: min(100%, 1680px); margin-inline: auto; }
 .bleed img { width: 100%; }
 
-/* An iPhone 17 Pro around a full-screen capture of Mira web: a flat frame, the status bar, the Dynamic Island and the
-   home indicator. Sizes in cqw, a hundredth of the phone's width. */
+/* An iPhone 17 Pro around a full-screen capture of the iPhone app: a flat frame, the Dynamic Island and the home
+   indicator (the simulator's captures have their own status bar; .bar draws one, for the party page rendered by
+   party.mjs). Sizes in cqw, a hundredth of the phone's width. */
 .phone { position: relative; display: flow-root; container-type: inline-size; border-radius: 15.6% / 7.38%; background: #050505; box-shadow: inset 0 0 0 1.5px #3b3b3e, inset 0 0 0 3px #0c0c0d, 0 0 0 1px rgba(0, 0, 0, 0.9), 0 24px 64px rgba(0, 0, 0, 0.5); }
 .phone .screen { position: relative; margin: 2.6cqw; border-radius: 13cqw; overflow: hidden; background: #000000; }
 .phone .screen img { width: 100%; }
 .phone .screen::before, .phone .screen::after { content: ''; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
 .phone .screen::before {
   top: 0; aspect-ratio: 402 / 54;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 402 54'%3E%3Crect x='138.5' y='11' width='125' height='37' rx='18.5' fill='%23000'/%3E%3Ccircle cx='245' cy='29.5' r='5.5' fill='%230d0f17'/%3E%3Ccircle cx='245' cy='29.5' r='2.4' fill='%23151a2b'/%3E%3C/svg%3E") top / 100% auto no-repeat;
+}
+.phone.bar .screen::before {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 402 54'%3E%3Ctext x='78' y='35.5' text-anchor='middle' font-family='-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif' font-size='17' font-weight='600' fill='%23fff'%3E9:41%3C/text%3E%3Crect x='138.5' y='11' width='125' height='37' rx='18.5' fill='%23000'/%3E%3Ccircle cx='245' cy='29.5' r='5.5' fill='%230d0f17'/%3E%3Ccircle cx='245' cy='29.5' r='2.4' fill='%23151a2b'/%3E%3Cg fill='%23fff'%3E%3Crect x='289' y='31' width='3.4' height='4.5' rx='1'/%3E%3Crect x='294.2' y='28.5' width='3.4' height='7' rx='1'/%3E%3Crect x='299.4' y='26' width='3.4' height='9.5' rx='1'/%3E%3Crect x='304.6' y='23.5' width='3.4' height='12' rx='1'/%3E%3Cpath d='M322.5 35.5l-3.4-3.6a4.9 4.9 0 0 1 6.8 0z'/%3E%3C/g%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M316.6 29.4a8.4 8.4 0 0 1 11.8 0'/%3E%3Cpath d='M313.3 26a13.1 13.1 0 0 1 18.4 0'/%3E%3C/g%3E%3Crect x='339.5' y='23.5' width='25.5' height='12' rx='3.8' fill='none' stroke='%23fff' stroke-opacity='.4'/%3E%3Crect x='341.5' y='25.5' width='19' height='8' rx='2.2' fill='%23fff'/%3E%3Crect x='366' y='27.5' width='1.6' height='4' rx='.8' fill='%23fff' fill-opacity='.4'/%3E%3C/svg%3E") top / 100% auto no-repeat;
 }
 .phone .screen::after {
