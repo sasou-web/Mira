@@ -56,7 +56,8 @@ public static class Updates
         {
             Delete(Path.Combine(folder, FailedName));
             foreach (var image in Images(folder)) Delete(image);
-            window.Notice(L($"Mira est passée à la version {Current}.", $"Mira is now version {Current}."), tone: NoticeTone.Done);
+            // « Nouveautés » already says it, and what it brings.
+            if (!window.WhatsNewShown) window.Notice(L($"Mira est passée à la version {Current}.", $"Mira is now version {Current}."), tone: NoticeTone.Done);
         }
         else if (!result.Installed)
         {

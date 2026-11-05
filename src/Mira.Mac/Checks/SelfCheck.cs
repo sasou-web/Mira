@@ -80,6 +80,15 @@ public static class SelfCheck
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
             home.ScrollToEnd(); await Task.Delay(800); Capture(window, output, "02b-home-grid"); home.ScrollToHome();
+            // « Nouveautés », as on Windows: after an update from 0.9.0, this version's points and a line for each one skipped;
+            // Escape closes it and gives the keys back to the page.
+            var missed = WhatsNew.Since(new Version(0, 9, 0), Updates.Current);
+            window.ShowWhatsNew(missed);
+            var news = await Until(() => window.CurrentSheet is { IsVisible: true }, 5);
+            await Task.Delay(500); Capture(window, output, "02c-whats-new");
+            window.RaiseEvent(new KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = InputElement.KeyDownEvent, Source = window });
+            Check(news && await Until(() => window.CurrentSheet is null, 3) && window.Current is HomePage, "nouveautés : montrées après une mise à jour, fermées par Échap",
+                missed.Count > 0 ? string.Join(", ", missed.Select(x => x.Version)) : "aucune version");
             // A row's arrows only when it goes past the window, and a press glides about three posters along, not a page.
             Check(home.GetVisualDescendants().OfType<CardRow>().All(x => x.GetVisualDescendants().OfType<ScrollViewer>().First() is var s && x.ArrowsShown == s.Extent.Width > s.Viewport.Width + 1), "accueil : flèches des rangées seulement si elles débordent");
             var row = new CardRow("Contrôle", Enumerable.Range(0, 24).Select(_ => (Control)new Border { Width = 176, Height = 40 }));

@@ -76,5 +76,7 @@ public sealed class Icon : Control
         else geometry = null;
         return Tens[kind] = geometry;
     }
+    /// <summary>Whether this kind has a glyph of its own (another is drawn as « info »).</summary>
+    public static bool Draws(string kind) => kind == "brand" || Shapes.ContainsKey(kind) || Solids.ContainsKey(kind);
     private static Pen Round(IBrush brush, double width) => new(brush, width, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
 }
