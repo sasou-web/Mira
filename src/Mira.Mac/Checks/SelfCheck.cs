@@ -221,7 +221,7 @@ public static class SelfCheck
             // « Sortie audio », as on Windows: the devices mpv lists, and « Tester » made and played here.
             if (window.Current is SettingsPage withAudio)
             {
-                withAudio.Show("audio");
+                withAudio.Show("audio"); withAudio.UnfoldAdvanced();
                 Check(await Until(() => withAudio.AudioDevices >= 0, 15), "réglages : sortie audio", $"{withAudio.AudioDevices} sorties");
                 withAudio.TestSoundForCheck();
                 var heard = await Until(() => withAudio.SoundTested is not null && !File.Exists(Path.Combine(Path.GetTempPath(), "Mira-sound-test.wav")), 15);
@@ -229,6 +229,10 @@ public static class SelfCheck
                 withAudio.AudioOutputRow.BringIntoView(); await Task.Delay(500); Capture(window, output, "07d-settings-audio");
             }
             if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Show("care"); withFix.Fix.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
+            // The other sections, as on Windows: the account and the way to Jellyfin, this Mac's version and kept titles, Home's rows.
+            if (window.Current is SettingsPage others)
+                foreach (var (tab, shot) in new[] { ("server", "07e-settings-server"), ("updates", "07f-settings-updates"), ("appearance", "07g-settings-appearance"), ("audio", "07h-settings-subtitles") })
+                { others.Show(tab); await Task.Delay(500); Capture(window, output, shot); }
 
             // —— Téléchargements: sent to the PC of Jellyfin ——
             if (mock is not null)
