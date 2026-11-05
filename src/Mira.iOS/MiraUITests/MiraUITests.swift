@@ -351,6 +351,69 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 10), "Leaving the party did not bring the sign-in back")
     }
 
+    /// The README's and the site's captures of the app (gallery.yml, never ios.yml: skipped without MIRA_GALLERY_SERVER):
+    /// signed in to a real Jellyfin 12.1 whose library is the README's demonstration one (tools/banner/media.sh, set up
+    /// by tools/gallery/setup.mjs), in the language asked for: Home, the films, a film's page, a series' episodes, and a
+    /// group made on the film's page. Named iphone-<screen>, the names gallery.yml keeps.
+    @MainActor
+    func testGallery() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let server = environment["MIRA_GALLERY_SERVER"], !server.isEmpty else { throw XCTSkip("Only for gallery.yml") }
+        let french = environment["MIRA_GALLERY_LANGUAGE"] == "fr"
+        let app = launch(language: french ? "fr" : "en", locale: french ? "fr_FR" : "en_US")
+        let address = app.textFields["login.address"]
+        XCTAssertTrue(address.waitForExistence(timeout: 10), "No sign-in screen")
+        focus(address)
+        address.typeText(server)
+        app.buttons["login.continue"].tap()
+        signInAccount(app, user: environment["MIRA_GALLERY_USER"] ?? "", password: environment["MIRA_GALLERY_PASSWORD"] ?? "")
+        XCTAssertTrue(app.staticTexts[french ? "Continuer à regarder" : "Continue watching"].waitForExistence(timeout: 30), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        // The posters and backdrops come from the server, at their size in pixels: longer than the stand-in's.
+        Thread.sleep(forTimeInterval: 5)
+        capture("iphone-home")
+
+        app.buttons["tab.movies"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Coco'")).firstMatch.waitForExistence(timeout: 15), "Movies shows no grid of films")
+        Thread.sleep(forTimeInterval: 5)
+        capture("iphone-movies")
+
+        app.buttons["tab.home"].tap()
+        let film = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Spider-Man: Across the Spider-Verse'")).firstMatch
+        XCTAssertTrue(film.waitForExistence(timeout: 10), "No card for Spider-Man: Across the Spider-Verse on Home")
+        tapCard(app, film)
+        XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "The film's page did not open")
+        Thread.sleep(forTimeInterval: 5)
+        capture("iphone-film")
+        // Watch together, from « … »: the group on the film's page, as a friend's invitation finds it.
+        app.buttons["title.more"].tap()
+        let together = app.buttons.matching(NSPredicate(format: "identifier == 'title.together' OR label == %@", french ? "Regarder ensemble" : "Watch together")).firstMatch
+        XCTAssertTrue(together.waitForExistence(timeout: 5), "« … » has no Watch together")
+        together.tap()
+        let create = app.buttons["together.create"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5), "Watch together has no Create a group")
+        create.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["together.group"].waitForExistence(timeout: 15), "Making a group did not show it on the film's page")
+        settle()
+        capture("iphone-together")
+        let leave = app.buttons["together.leave"]
+        for _ in 0..<4 where !leave.isHittable { app.swipeUp() }
+        if leave.exists { leave.tap() }
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // A series from Shows, scrolled to its episodes, the third one started.
+        for _ in 0..<2 where !app.buttons["tab.shows"].exists { app.swipeDown() }
+        app.buttons["tab.shows"].tap()
+        let series = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Arcane'")).firstMatch
+        XCTAssertTrue(series.waitForExistence(timeout: 15), "No card for Arcane")
+        tapCard(app, series)
+        let third = app.buttons["episode.play.3"]
+        for _ in 0..<5 where !(third.exists && third.isHittable) { app.swipeUp() }
+        XCTAssertTrue(third.exists, "Arcane's page lists no episodes")
+        Thread.sleep(forTimeInterval: 5)
+        capture("iphone-series")
+    }
+
     /// Built-in Tailscale from end to end (ios.yml starts the stand-in Tailscale network, whose « Jellyfin PC » puts the
     /// stand-in Jellyfin on it, and passes its address in MIRA_TS_CONTROL): turned on from the sign-in screen, signed in
     /// once on its page, Jellyfin found on the network, then the account, Home and a title played; every request through
@@ -497,12 +560,12 @@ final class MiraUITests: XCTestCase {
 
     /// The account's form, once the server is found.
     @MainActor
-    private func signInAccount(_ app: XCUIApplication, password: String) {
+    private func signInAccount(_ app: XCUIApplication, user: String = "ogsas", password: String) {
         let username = app.textFields["login.username"]
         XCTAssertTrue(username.waitForExistence(timeout: 15), "The server was not found")
         focus(username)
         // Return goes on to the password, as a person would.
-        username.typeText("ogsas\n")
+        username.typeText(user + "\n")
         let field = app.secureTextFields["login.password"]
         focus(field)
         field.typeText(password)

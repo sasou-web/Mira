@@ -3,11 +3,11 @@
 // dark while it plays, and a click outside it, Escape or scrolling it away pauses it.
 const ua = navigator.userAgent;
 const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
-const device = /iPhone|iPad|iPod|Android/.test(ua) || touchMac ? 'phone' : /Mac OS X|Macintosh/.test(ua) ? 'mac' : 'windows';
+const device = /iPhone|iPad|iPod/.test(ua) || touchMac ? 'phone' : /Mac OS X|Macintosh/.test(ua) ? 'mac' : 'windows';
 if (device !== 'windows') {
   document.querySelectorAll('.actions [data-for]').forEach(link => { link.hidden = !link.dataset.for.split(' ').includes(device); });
 }
-if (/Windows|Mac OS X|Macintosh|iPhone|iPad|iPod|Android/.test(ua)) {
+if (/Windows|Mac OS X|Macintosh|iPhone|iPad|iPod/.test(ua)) {
   document.querySelector(`.doors [data-for="${device}"]`)?.classList.add('yours');
 }
 

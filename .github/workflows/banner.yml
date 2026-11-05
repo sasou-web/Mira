@@ -1,8 +1,8 @@
 name: Release banner
 # The banner at the head of a release's page (tools/banner/): drawn from real captures of this version in English, on
 # the README's library (tools/banner/media.sh, a real Jellyfin 12.1 with its TMDb artwork): Mira for Windows (the
-# README's Windows job, gallery.yml), Mira for Mac (Mira --gallery under a virtual display, at ×2), Mira web (the
-# README's screens and the scenes of tools/banner/capture.mjs). What it shows comes from tools/banner/scenes.json and
+# README's Windows job, gallery.yml), Mira for Mac (Mira --gallery under a virtual display, at ×2), Mira for iPhone (the
+# README's iPhone job, gallery.yml), lit by a film's backdrop (tools/banner/stills.mjs). What it shows comes from tools/banner/scenes.json and
 # the version's entry of WhatsNew.json (tools/banner/plan.mjs): a card per point for a patch, Mira on every screen
 # for x.y.0. Run on request (Run workflow) from the release's preparation branch: docs/releases/<version>.jpg is
 # committed to it, to reach main and the release's tag through its pull request; from main, only kept as an artifact.
@@ -31,6 +31,7 @@ jobs:
     outputs:
       windows: ${{ steps.plan.outputs.windows }}
       mac: ${{ steps.plan.outputs.mac }}
+      iphone: ${{ steps.plan.outputs.iphone }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -52,6 +53,16 @@ jobs:
       language: en
       windows_only: true
 
+  iphone:
+    needs: plan
+    if: needs.plan.outputs.iphone == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/gallery.yml
+    with:
+      language: en
+      iphone_only: true
+
   linux:
     needs: plan
     runs-on: ubuntu-latest
@@ -63,10 +74,6 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 10.0.x
-      - name: Package the plugin and a local repository
-        run: |
-          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
-          tools/web/package.sh "$version" http://127.0.0.1:8765
       - name: The library
         run: |
           command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
@@ -75,19 +82,13 @@ jobs:
           echo "MIRA_GALLERY_TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
           echo "MIRA_GALLERY_TRACES=$PWD/tools/banner/traces.json" >> "$GITHUB_ENV"
           du -sh .artifacts/media
-      - name: Jellyfin 12.1, its library, Mira web installed from the repository
+      - name: Jellyfin 12.1 and its library
         run: |
-          (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
           mkdir -p .artifacts/jf-config .artifacts/jf-cache
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
-          node tools/gallery/setup.mjs http://127.0.0.1:8096 /media "$GALLERY_USER" "$GALLERY_PASSWORD" http://127.0.0.1:8765/jellyfin-manifest.json
-      - name: Mira web, the scenes and the films' backdrops
-        run: |
-          npm install --silent --no-audit --no-fund --prefix .artifacts/pw playwright@1.56.1
-          npx --prefix .artifacts/pw playwright install --with-deps chromium >/dev/null
-          export PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs"
-          node tools/banner/capture.mjs "$VERSION" http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/captures/scenes
-          node tools/gallery/web.mjs http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/captures/web
+          node tools/gallery/setup.mjs http://127.0.0.1:8096 /media "$GALLERY_USER" "$GALLERY_PASSWORD"
+      - name: The films' backdrops
+        run: node tools/banner/stills.mjs http://127.0.0.1:8096 "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/captures/stills
       - name: Mira for Mac (Linux, virtual display, at ×2; no picture in the player)
         if: needs.plan.outputs.mac == 'true'
         run: |
@@ -109,9 +110,12 @@ jobs:
           retention-days: 7
 
   draw:
-    needs: [plan, windows, linux]
-    # The Windows job is skipped when no point shows on Mira for Windows.
-    if: always() && needs.plan.result == 'success' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped')
+    needs: [plan, windows, iphone, linux]
+    # The Windows and iPhone jobs are skipped when no point shows on them.
+    if: >-
+      always() && needs.plan.result == 'success' && needs.linux.result == 'success'
+      && (needs.windows.result == 'success' || needs.windows.result == 'skipped')
+      && (needs.iphone.result == 'success' || needs.iphone.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -129,6 +133,11 @@ jobs:
         with:
           name: gallery-windows
           path: .artifacts/captures/windows
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.iphone.result == 'success'
+        with:
+          name: gallery-iphone
+          path: .artifacts/captures/iphone
       - name: Draw the banner
         run: |
           find .artifacts/captures -type f | sort

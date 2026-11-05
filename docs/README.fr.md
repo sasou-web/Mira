@@ -35,6 +35,15 @@
 
 Mira pour iPhone est une app native, avec son propre lecteur (image dans l’image, AirPlay), Regarder ensemble et, loin de chez toi, Tailscale intégré, sans l’app Tailscale à installer. Elle s’installe avec AltStore et ton identifiant Apple gratuit, et le PC serveur la rafraîchit chaque semaine ([guide](INSTALLATION-IOS.md)). Mira web, que Jellyfin servait aux téléphones jusqu’à la 0.9.3, est terminée : sur Android, pas de Mira pour l’instant.
 
+<table>
+  <tr>
+    <td width="25%"><img src="screenshots/readme/iphone-home.jpg" alt="L’Accueil de Mira pour iPhone, avec Continuer à regarder" /></td>
+    <td width="25%"><img src="screenshots/readme/iphone-film.jpg" alt="La fiche d’un film dans Mira pour iPhone" /></td>
+    <td width="25%"><img src="screenshots/readme/iphone-series.jpg" alt="Une série et ses épisodes dans Mira pour iPhone" /></td>
+    <td width="25%"><img src="screenshots/readme/iphone-movies.jpg" alt="Tous les films dans Mira pour iPhone" /></td>
+  </tr>
+</table>
+
 **Regarder avec quelqu’un qui n’a pas de compte.** Ton lien de party, toujours le même, ouvre Mira chez ton ami sur Windows, Mac ou iPhone, sans compte ni Tailscale, directement dans ton groupe « Regarder ensemble ». Chaque invité a son appareil, et quand tu en retires un, il est dehors aussitôt. Il passe par Tailscale Funnel, qui n’ouvre que Mira à Internet, jamais le reste de Jellyfin (détails dans [SECURITY.md](../SECURITY.md#liens-dinvités-inviter-par-lien)).
 
 ## Sur ton ordinateur

@@ -129,7 +129,6 @@ html.lights-down .tour { z-index: 41; }
 }
 /* What to tap, circled on a capture. */
 .ring { position: absolute; z-index: 2; box-shadow: 0 0 0 2px #ffffff, 0 0 0 5px rgba(0, 0, 0, 0.45); pointer-events: none; }
-.ring-web-together { left: 4.1%; top: 80.5%; width: 91.8%; height: 6.1%; border-radius: 2.6cqw; }
 
 /* The phone strip: four phones in a row, a swipe on a phone. */
 .strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(20px, 3vw, 48px); width: min(1180px, 100% - 2 * var(--gutter)); margin-inline: auto; }
