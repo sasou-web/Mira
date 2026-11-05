@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.9.4",
+    "summary": "Mira pour Mac comme Windows, Mira web retirée, groupe visible, pages plus fluides.",
+    "en": { "summary": "Mira for Mac like Windows, Mira web retired, a visible group, smoother pages." },
+    "items": [
+      { "icon": "laptop", "title": "Mira pour Mac comme sous Windows", "text": "Fiche, Réglages, lecteur, avis, connexion, menus : le Mac reprend ce que Windows avait déjà, avec une vraie barre des menus.",
+        "en": { "title": "Mira for Mac like Windows", "text": "Title page, Settings, player, notices, sign-in, menus: the Mac gets what Windows already had, with a real menu bar." } },
+      { "icon": "phone", "title": "Mira se concentre sur ses apps", "text": "Mira web est retirée. La party d’un ami s’ouvre dans Mira sur Windows, Mac et iPhone, sans navigateur.",
+        "en": { "title": "Mira goes all-in on its apps", "text": "Mira web is retired. A friend’s party opens in Mira on Windows, Mac and iPhone, without a browser." } },
+      { "icon": "users", "title": "On voit qu’on est dans un groupe", "text": "Un bouton du groupe, avec le nombre de personnes, se voit sur chaque page sous Windows, Mac et iPhone.",
+        "en": { "title": "You can see you’re in a group", "text": "A group button, with the number of people, shows on every page on Windows, Mac and iPhone." } },
+      { "icon": "sparkle", "title": "Défilement et pages plus fluides", "text": "Sous Windows, défiler suit enfin l’écran ; sur Mac, revenir à une page est instantané.",
+        "en": { "title": "Smoother scrolling and pages", "text": "On Windows, scrolling finally keeps up with the screen; on Mac, going back to a page is instant." } },
+      { "icon": "check", "title": "Une interface plus calme", "text": "Favori et Vu ne changent plus de forme, le flash lecture/pause est l’icône seule, moins d’avis inutiles.",
+        "en": { "title": "A calmer interface", "text": "Favorite and Watched no longer change shape, the play/pause flash is the icon alone, fewer needless notices." } }
+    ]
+  },
+  {
     "version": "0.9.3",
     "summary": "Image dans l’image, lecteur plus doux sous Windows, Réglages plus simples, gestes du trackpad.",
     "en": { "summary": "Picture in picture, a smoother player on Windows, simpler Settings, trackpad gestures." },

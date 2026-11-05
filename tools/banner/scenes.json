@@ -1,4 +1,14 @@
 {
+  "0.9.4": {
+    "backdrop": "wild-robot",
+    "items": [
+      { "shot": "mac-home" },
+      { "platform": "server" },
+      { "platform": "windows" },
+      { "shot": "windows-films" },
+      { "shot": "windows-film", "focus": [0.422, 0.838, 0.133, 0.078] }
+    ]
+  },
   "0.9.3": {
     "backdrop": "klaus",
     "items": [
