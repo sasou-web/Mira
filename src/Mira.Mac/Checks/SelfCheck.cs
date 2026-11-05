@@ -62,7 +62,18 @@ public static class SelfCheck
 
             // —— Sign-in ——
             // The sign-in page, seen as it opens (the mock signs in without it).
-            if (mock is not null) { window.ShowLogin(); await Until(() => window.Login is not null, 5); await Task.Delay(3000); Capture(window, output, "01-login"); }
+            if (mock is not null)
+            {
+                window.ShowLogin(); await Until(() => window.Login is not null, 5); await Task.Delay(3000); Capture(window, output, "01-login");
+                // As on Windows: the eye shows the password, a line says Caps Lock is on while typing it.
+                var login = window.Login!;
+                MacKeyboard.Override(true); login.FocusPassword("motdepasse"); await Task.Delay(200);
+                login.PasswordEye.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                await Task.Delay(400); Capture(window, output, "01b-login-password");
+                var eyeName = Avalonia.Automation.AutomationProperties.GetName(login.PasswordEye);
+                Check(login.PasswordShown && login.CapsShown && eyeName == Lang.L("Masquer le mot de passe", "Hide password"), "connexion : l’œil montre le mot de passe, Verr. Maj est dit", $"montré {login.PasswordShown}, Verr. Maj {login.CapsShown}, « {eyeName} »");
+                MacKeyboard.Override(null);
+            }
             if (mock is not null) await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
             else
             {
