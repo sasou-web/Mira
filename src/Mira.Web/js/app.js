@@ -73,14 +73,6 @@ const tabbar = h('nav', { class: 'tabbar', 'aria-label': tr('Navigation') },
     on: { click: (e) => { e.preventDefault(); openTab(tab.href); } },
   }, icon(tab.symbol), h('span', {}, tab.label))));
 
-// « Regarder ensemble »: the group in sight on every screen with the tab bar while this device is in one (group-nav.js),
-// loaded with the first such screen of an account; a guest has the player only.
-let groupNav = null;
-function watchGroup() {
-  if (groupNav || GUEST || !session.current) return;
-  groupNav = import('./group-nav.js').then(({ showGroupNav }) => showGroupNav(tabbar, app)).catch(() => { groupNav = null; });
-}
-
 const cache = new Map(); // hash → { view, scroll }, the least recently shown first
 const MAX_CACHED = 8;
 let current = null, currentKey = '', currentBare = false, hiddenAt = 0, navigation = 0, loadFailed = false;
@@ -238,7 +230,6 @@ async function route() {
     }
     app.classList.toggle('with-tabs', !bare);
     tabbar.hidden = bare;
-    if (!bare) watchGroup();
     lightTab(tab);
     entry.shown = true;
     endBoot();
