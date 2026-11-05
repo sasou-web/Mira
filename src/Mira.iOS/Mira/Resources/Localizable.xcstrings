@@ -3940,6 +3940,166 @@
           }
         }
       }
+    },
+    "Join %@’s party": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejoins la party de %@"
+          }
+        }
+      }
+    },
+    "Join a party": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejoins la party"
+          }
+        }
+      }
+    },
+    "Join the party": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejoindre la party"
+          }
+        }
+      }
+    },
+    "Your first name, so the group knows who’s here. No account to create.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton prénom, pour que le groupe sache qui est là. Pas de compte à créer."
+          }
+        }
+      }
+    },
+    "Your first name": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton prénom"
+          }
+        }
+      }
+    },
+    "%@ hasn’t started movie night yet": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas encore lancé la soirée"
+          }
+        }
+      }
+    },
+    "whoever invited you": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la personne qui t’invite"
+          }
+        }
+      }
+    },
+    "Keep Mira open: you’ll join the group as soon as it opens.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garde Mira ouvert : tu entres dans le groupe dès qu’il est ouvert."
+          }
+        }
+      }
+    },
+    "Leave the party": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitter la party"
+          }
+        }
+      }
+    },
+    "You’re in %@’s party": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu es dans la party de %@"
+          }
+        }
+      }
+    },
+    "Keep Mira open: the title starts here as soon as %@ starts it, at the same moment for everyone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garde Mira ouvert : le titre démarre ici dès que %@ le lance, au même moment chez chacun."
+          }
+        }
+      }
+    },
+    "Back to the group’s title": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revenir au titre du groupe"
+          }
+        }
+      }
+    },
+    "This link’s party is over": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La soirée est finie pour ce lien"
+          }
+        }
+      }
+    },
+    "This link no longer works: ask whoever invited you for a new one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité."
+          }
+        }
+      }
+    },
+    "Type your first name: it’s what the group sees.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Écris ton prénom : c’est lui que le groupe voit."
+          }
+        }
+      }
+    },
+    "This Jellyfin doesn’t welcome guests yet: whoever invites you needs to update Mira.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce Jellyfin n’accueille pas encore d’invités : la personne qui t’invite doit mettre Mira à jour."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -118,13 +118,23 @@ struct TogetherTests {
         #expect(SyncRules.countText(crowd) == "99+")
     }
 
+    @Test("Invité d'une party : appareil tiré de celui de l'iPhone, prénom nettoyé, comme Core")
+    func partyGuest() {
+        // The same as Together.GuestDevice of Core for this id.
+        #expect(SyncRules.guestDevice("0123456789abcdef0123456789abcdef") == "a851d4911245d041b23feb6f495d6c13")
+        #expect(SyncRules.guestDevice("autre-appareil") != SyncRules.guestDevice("0123456789abcdef0123456789abcdef"))
+        #expect(SyncRules.partyName("  Léa\u{7}  ") == "Léa")
+        #expect(SyncRules.partyName(String(repeating: "a", count: 40)).count == 30)
+        #expect(SyncRules.partyName(" \n ").isEmpty)
+    }
+
     @Test("Un lien de party : son code et son Jellyfin, rien d'autre")
     func partyLinks() throws {
         let link = try #require(URL(string: "mira://party/AbCdEfGhIjKlMnOpQr_-12?server=https%3A%2F%2Fjellyfin-pc.tail1234.ts.net&id=0123456789abcdef0123456789abcdef"))
         let party = try #require(SyncRules.partyLink(link))
         #expect(party.code == "AbCdEfGhIjKlMnOpQr_-12")
         #expect(party.server.absoluteString == "https://jellyfin-pc.tail1234.ts.net")
-        #expect(SyncRules.partyWebLink(server: party.server, code: party.code)?.absoluteString == "https://jellyfin-pc.tail1234.ts.net/Mira/#/party/AbCdEfGhIjKlMnOpQr_-12")
+        #expect(SyncRules.guestServer(party.server).absoluteString == "https://jellyfin-pc.tail1234.ts.net/Mira/guest/")
         for bad in ["mira://party/short?server=http%3A%2F%2F192.168.1.2%3A8096",
                     "mira://party/AbCdEfGhIjKlMnOpQr_-12?server=file%3A%2F%2F%2Fetc",
                     "mira://party/AbCdEfGhIjKlMnOpQr_-12",
