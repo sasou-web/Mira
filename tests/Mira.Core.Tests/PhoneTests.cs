@@ -59,7 +59,6 @@ internal static class PhoneTests
             Assert(await client.InstallWebAppAsync(repository, TimeSpan.FromSeconds(1)) == WebAppInstall.Unavailable, "No version for this Jellyfin: not reported");
             admin = false;
             Assert(await client.InstallWebAppAsync(repository) == WebAppInstall.NotAllowed, "A guest installed a plugin");
-            Assert(MiraWeb.SharePage("http://192.168.1.20:8096/") == "http://192.168.1.20:8096/Mira/#/partager", "Share page address");
         });
         await Test("Journal de Jellyfin : la cause d’un démarrage raté est lue, pas les erreurs ordinaires ni les anciennes", () =>
         {
@@ -153,7 +152,7 @@ internal static class PhoneTests
             Assert(oddWeb.Unserved.SequenceEqual(["js/app.js.map"]) && !oddWeb.TryGet("js/app.js.map", out _) && oddWeb.TryGet("index.html", out _), "Unserved: " + string.Join(", ", oddWeb.Unserved));
             return Task.CompletedTask;
         });
-        await Test("Mira sur ton téléphone : étapes cochées, « Tout préparer » en une autorisation, QR code qui marche partout avec Tailscale", () =>
+        await Test("Mira sur ton iPhone : étapes cochées, « Tout préparer » en une autorisation, adresse qui marche partout avec Tailscale", () =>
         {
             const string server = "http://127.0.0.1:8096", home = "http://192.168.1.20:8096", tailnet = "http://100.101.102.103:8096";
             JellyfinStartup.State service = new(true, true, false, true), noService = new(false, false, false, false);
@@ -165,19 +164,18 @@ internal static class PhoneTests
             var steps = PhoneSetup.Steps(fresh);
             Assert(Marks(steps) == "web:ToDo firewall:ToDo tailscale:ToDo boot:Note", "A new PC: " + Marks(steps));
             Assert(PhoneSetup.CanPrepare(steps) && PhoneSetup.NeedsWindows(steps), "« Tout préparer » and Windows' consent");
-            Assert(PhoneSetup.Everywhere(fresh) is null && PhoneSetup.Address(fresh) == home + "/Mira" && PhoneSetup.SharePage(fresh) == home + "/Mira/#/partager",
-                "Before it is ready, the QR code is the home network's: " + PhoneSetup.SharePage(fresh));
-            // Once prepared: the QR code is this PC on Tailscale, which works at home too, with the home address to switch to.
+            Assert(PhoneSetup.Everywhere(fresh) is null && PhoneSetup.Address(fresh) == home,
+                "Before it is ready, the address is the home network's: " + PhoneSetup.Address(fresh));
+            // Once prepared: the address is this PC on Tailscale, which works at home too.
             var ready = fresh with { Web = true, TailnetAllowed = true, Firewall = reachOpen };
             steps = PhoneSetup.Steps(ready);
             Assert(Marks(steps) == "web:Done firewall:Done tailscale:Done boot:Note" && !PhoneSetup.CanPrepare(steps), "Ready: " + Marks(steps));
-            Assert(PhoneSetup.Everywhere(ready) == tailnet && PhoneSetup.Address(ready) == tailnet + "/Mira"
-                && PhoneSetup.SharePage(ready) == home + "/Mira/#/partager?partout=http%3A%2F%2F100.101.102.103%3A8096", "Everywhere: " + PhoneSetup.SharePage(ready));
-            // Without Tailscale: the rest is ready, Tailscale is the person's to install (a link), and the QR code stays at home.
+            Assert(PhoneSetup.Everywhere(ready) == tailnet && PhoneSetup.Address(ready) == tailnet, "Everywhere: " + PhoneSetup.Address(ready));
+            // Without Tailscale: the rest is ready, Tailscale is the person's to install (a link), and the address stays at home.
             var noTailscale = ready with { Tailnet = null, TailnetAllowed = false };
             steps = PhoneSetup.Steps(noTailscale);
             Assert(Marks(steps) == "web:Done firewall:Done tailscale:Yours boot:Note" && steps[2].Action == "Installer Tailscale" && !PhoneSetup.CanPrepare(steps)
-                && PhoneSetup.Address(noTailscale) == home + "/Mira", "Without Tailscale: " + Marks(steps));
+                && PhoneSetup.Address(noTailscale) == home, "Without Tailscale: " + Marks(steps));
             // The box counted as public: Mira's rule never applies there. The same Wi-Fi joins a café's, so the network is made
             // private only when the person says it is home's (« Passer en privé », its own consent, named by its name);
             // « Tout préparer » still writes Mira's rule, for Tailscale. When Windows will not, the person is told where.
@@ -211,9 +209,9 @@ internal static class PhoneTests
             Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.Yours } closed && closed.Text.Contains("Réseau public") && !PhoneSetup.CanPrepare(steps)
                 && PhoneSetup.Everywhere(ready with { Firewall = new(JellyfinFirewall.Verdict.Closed, JellyfinFirewall.Private, Tailnet: JellyfinFirewall.Verdict.Closed) }) is null,
                 "Everything blocked: " + Marks(steps));
-            // The Wi-Fi blocking everything, Tailscale open: the QR code gives the address that works, Tailscale's.
+            // The Wi-Fi blocking everything, Tailscale open: the address that works is Tailscale's.
             var wifiClosed = ready with { Firewall = new(JellyfinFirewall.Verdict.Closed, JellyfinFirewall.Public, Tailnet: JellyfinFirewall.Verdict.Open) };
-            Assert(PhoneSetup.Everywhere(wifiClosed) == tailnet && PhoneSetup.Address(wifiClosed) == tailnet + "/Mira", "Tailscale open, the Wi-Fi closed: " + PhoneSetup.Address(wifiClosed));
+            Assert(PhoneSetup.Everywhere(wifiClosed) == tailnet && PhoneSetup.Address(wifiClosed) == tailnet, "Tailscale open, the Wi-Fi closed: " + PhoneSetup.Address(wifiClosed));
             // What « Tout préparer » cannot change is the person's, never asked again: a block rule naming no program, or a
             // Jellyfin whose program Mira does not find (started by another account, in Docker) without Mira's rule.
             steps = PhoneSetup.Steps(fresh with { Firewall = reachBlocked with { Kept = "Bloquer 8096" } });
@@ -257,7 +255,7 @@ internal static class PhoneTests
             // Jellyfin on another computer: Mira web only, the rest is set up over there.
             var remote = new PhoneSetup.Facts("http://192.168.1.30:8096", false, Web: true, Home: "http://192.168.1.30:8096");
             steps = PhoneSetup.Steps(remote);
-            Assert(Marks(steps) == "web:Done elsewhere:Note" && PhoneSetup.Address(remote) == "http://192.168.1.30:8096/Mira" && PhoneSetup.Everywhere(remote) is null, "Another computer: " + Marks(steps));
+            Assert(Marks(steps) == "web:Done elsewhere:Note" && PhoneSetup.Address(remote) == "http://192.168.1.30:8096" && PhoneSetup.Everywhere(remote) is null, "Another computer: " + Marks(steps));
             // This PC on no network: said first among the steps.
             Assert(PhoneSetup.Steps(fresh with { Home = null })[1] is { Key: "network", Mark: PhoneSetup.Mark.Yours }, "No network");
             // A Jellyfin here reached at this PC's own address is this PC's.
@@ -451,10 +449,10 @@ internal static class PhoneTests
             Publish(other);
             Assert((await Refusal()).Contains("pas signé"), "A release signed by another key accepted");
             Publish(key); files.Remove("mira-update.json.sig");
-            Assert((await Refusal()).Contains("pas de Mira web signé"), "A release without its signature accepted");
+            Assert((await Refusal()).Contains("pas d’extension Mira signée"), "A release without its signature accepted");
             // A release without the plugin in its signed manifest (up to 0.7.4), or no release at all (a development copy).
             Publish(key, withPlugin: false);
-            Assert((await Refusal()).Contains("pas de Mira web signé"), "A release signing Windows alone accepted for Mira web");
+            Assert((await Refusal()).Contains("pas d’extension Mira signée"), "A release signing Windows alone accepted for Mira web");
             files.Clear();
             Assert((await Refusal()).Contains("copie de développement"), "A missing release not said plainly");
             // Which repositories in Jellyfin are Mira's.

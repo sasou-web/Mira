@@ -4,8 +4,9 @@ using Mira.Core.Updates;
 namespace Mira.Core;
 
 /// <summary>
-/// Mira web: the app for phones, served by Jellyfin itself at /Mira through Mira's Jellyfin plugin. Each Mira release
-/// attaches the plugin and the repository manifest that Jellyfin installs and updates it from.
+/// Mira's Jellyfin plugin (« Mira web » until 0.9.3, when it served the app for phones at /Mira): the party link, guests,
+/// the relay and subtitles. Each Mira release attaches the plugin and the repository manifest that Jellyfin installs and
+/// updates it from.
 /// </summary>
 public static class MiraWeb
 {
@@ -57,13 +58,6 @@ public static class MiraWeb
         }
         return new(serving, waiting);
     }
-
-    /// <summary>
-    /// The page with the QR code for phones, at an address of the server they can reach; with
-    /// <paramref name="everywhere"/> (this PC on Tailscale), the code is for that one first.
-    /// </summary>
-    public static string SharePage(string server, string? everywhere = null) =>
-        server.TrimEnd('/') + "/Mira/#/partager" + (everywhere is null ? "" : "?partout=" + Uri.EscapeDataString(everywhere.TrimEnd('/')));
 }
 
 /// <summary>How installing Mira web on Jellyfin went.</summary>
