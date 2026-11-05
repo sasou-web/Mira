@@ -1,10 +1,11 @@
 namespace Mira.Core;
 
 /// <summary>
-/// « Mira sur ton téléphone », in the guide of Mira for Windows: what stands between a Jellyfin and a phone that opens
-/// Mira web, at home and away, as steps in the order they matter. Each is done, done by « Tout préparer » (one click,
-/// one consent of Windows, asked only for the firewall and Jellyfin's service), or left to the person (an app to install, another account); and the address the QR code
-/// gives. The guide reads the facts; this says what they mean, so that the tests can check every case.
+/// « Mira sur ton iPhone », in the guide of Mira for Windows: what stands between a Jellyfin and Mira on a phone, at
+/// home and away, as steps in the order they matter. Each is done, done by « Tout préparer » (one click, one consent of
+/// Windows, asked only for the firewall and Jellyfin's service), or left to the person (an app to install, another
+/// account); and the address to type in the app. The guide reads the facts; this says what they mean, so that the tests
+/// can check every case. (Until 0.9.3 the phone opened Mira web, which the extension served: « web » is its step still.)
 /// </summary>
 public static class PhoneSetup
 {
@@ -37,9 +38,9 @@ public static class PhoneSetup
         {
             facts.Web switch
             {
-                true => new("web", Mark.Done, L("Mira web est installé sur Jellyfin", "Mira web is installed on Jellyfin"), L("Il suit la version de Mira : quand Mira se met à jour et que tu l’ouvres avec le compte administrateur de Jellyfin, Jellyfin installe la nouvelle version tout de suite, et Mira propose de le redémarrer dès que personne ne regarde.", "It follows Mira’s version: when Mira updates and you open it with Jellyfin’s administrator account, Jellyfin installs the new version right away, and Mira offers to restart it as soon as no one is watching.")),
-                false when facts.Admin == false => new("web", Mark.Yours, L("Installer Mira web sur Jellyfin", "Install Mira web on Jellyfin"), L("Il faut le compte administrateur de Jellyfin : connecte Mira avec celui-ci.", "This needs Jellyfin’s administrator account: sign Mira in with it.")),
-                false => new("web", Mark.ToDo, L("Installer Mira web sur Jellyfin", "Install Mira web on Jellyfin"), L("C’est Jellyfin qui sert Mira à ton téléphone : rien à prendre sur l’App Store ou le Play Store.", "Jellyfin serves Mira to your phone: nothing to get from the App Store or the Play Store.")),
+                true => new("web", Mark.Done, L("L’extension Mira est installée sur Jellyfin", "Mira’s extension is installed on Jellyfin"), L("Elle sert ta party, les invités sans compte et Télécharger sur le PC serveur, et suit la version de Mira : quand Mira se met à jour et que tu l’ouvres avec le compte administrateur de Jellyfin, Jellyfin installe la nouvelle version tout de suite, et Mira le redémarre dès que personne ne regarde.", "It serves your party, guests without an account and Download on the server PC, and follows Mira’s version: when Mira updates and you open it with Jellyfin’s administrator account, Jellyfin installs the new version right away, and Mira restarts it as soon as no one is watching.")),
+                false when facts.Admin == false => new("web", Mark.Yours, L("Installer l’extension Mira sur Jellyfin", "Install Mira’s extension on Jellyfin"), L("Il faut le compte administrateur de Jellyfin : connecte Mira avec celui-ci.", "This needs Jellyfin’s administrator account: sign Mira in with it.")),
+                false => new("web", Mark.ToDo, L("Installer l’extension Mira sur Jellyfin", "Install Mira’s extension on Jellyfin"), L("Pour ta party, les invités sans compte et Télécharger sur le PC serveur, depuis ton iPhone aussi.", "For your party, guests without an account and Download on the server PC, from your iPhone too.")),
                 // Its button starts it: Windows' consent for its service, none for its program.
                 null when !facts.Answering && facts.Local && facts.Down == LocalJellyfin.Verdict.Stopped => new("web", Mark.Yours, L("Jellyfin est arrêté sur ce PC", "Jellyfin is stopped on this PC"),
                     L("Ton téléphone ne le trouve plus", "Your phone can’t find it anymore") + (facts.Boot?.HasService == true ? L(" : le démarrer demande une autorisation de Windows.", ": starting it asks for Windows’ permission.") : "."), LocalJellyfin.Start),
@@ -47,7 +48,7 @@ public static class PhoneSetup
                 null when !facts.Answering && facts.Local && facts.Down == LocalJellyfin.Verdict.Failing => new("web", Mark.Yours, L("Jellyfin s’arrête juste après avoir démarré", "Jellyfin stops right after starting"),
                     L("Son journal dit pourquoi. Une fois la cause corrigée, cette carte propose de nouveau de le démarrer.", "Its log says why. Once the cause is fixed, this card offers to start it again."), LocalJellyfin.OpenLog),
                 null when !facts.Answering => new("web", Mark.Note, L("Jellyfin ne répond pas pour l’instant", "Jellyfin isn’t answering right now"), L("Il redémarre, ou il est arrêté : cette carte se met à jour dès qu’il répond.", "It’s restarting, or it’s stopped: this card updates as soon as it answers.")),
-                null => new("web", Mark.Note, L("Mira web sur Jellyfin", "Mira web on Jellyfin"), L("Vérification…", "Checking…")),
+                null => new("web", Mark.Note, L("L’extension Mira sur Jellyfin", "Mira’s extension on Jellyfin"), L("Vérification…", "Checking…")),
             },
         };
         if (!facts.Local)
@@ -99,7 +100,7 @@ public static class PhoneSetup
                 + "ou ne laisse pas tes autres ordinateurs le trouver : Mira la remplace par une règle pour tes réseaux privés seulement.",
                 "Mira’s rule, from an earlier version, also lets public networks in, no longer matches Jellyfin’s port or program, "
                 + "or doesn’t let your other computers find it: Mira replaces it with a rule for your private networks only.")),
-            _ => new("firewall", Mark.ToDo, L("Laisser passer ton téléphone", "Let your phone through"), L("Le pare-feu de Windows bloque Jellyfin : sur le téléphone, la page reste blanche.", "Windows’ firewall blocks Jellyfin: on the phone, the page stays blank.")),
+            _ => new("firewall", Mark.ToDo, L("Laisser passer ton téléphone", "Let your phone through"), L("Le pare-feu de Windows bloque Jellyfin : Mira sur ton iPhone ne le trouve pas.", "Windows’ firewall blocks Jellyfin: Mira on your iPhone can’t find it.")),
         });
         steps.Add((facts.Tailnet, facts.TailnetAllowed) switch
         {
@@ -171,12 +172,9 @@ public static class PhoneSetup
     public static string? Everywhere(Facts facts) =>
         facts.Local && facts.Tailnet is not null && facts.TailnetAllowed == true && (facts.Firewall?.Tailnet ?? Firewall(facts)) == JellyfinFirewall.Verdict.Open ? facts.Tailnet : null;
 
-    /// <summary>The address to type in the phone's browser: the one that works everywhere, or the home network's.</summary>
-    public static string Address(Facts facts) => (Everywhere(facts) ?? facts.Home ?? facts.Server).TrimEnd('/') + "/Mira";
+    /// <summary>The server's address to type in Mira on the iPhone: the one that works everywhere, or the home network's.</summary>
+    public static string Address(Facts facts) => (Everywhere(facts) ?? facts.Home ?? facts.Server).TrimEnd('/');
 
-    /// <summary>
-    /// The page with the QR code, opened on this PC at an address it always reaches (the home network's): the code is
-    /// for the address that works everywhere when there is one, with the home one to switch to.
-    /// </summary>
-    public static string SharePage(Facts facts) => MiraWeb.SharePage(facts.Home ?? facts.Server, Everywhere(facts));
+    /// <summary>How to install Mira on an iPhone (AltStore), opened by the card once there is nothing left to prepare.</summary>
+    public const string IPhoneGuide = "https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-IOS.md";
 }

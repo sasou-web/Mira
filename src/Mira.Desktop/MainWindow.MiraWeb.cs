@@ -14,7 +14,7 @@ public partial class MainWindow
     /// <summary>The repository of Mira web for this Mira, checked on GitHub; an <see cref="UpdateException"/> says plainly why not.</summary>
     private static async Task<string> VerifiedMiraWebAsync()
     {
-        var version = ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) ?? throw new UpdateException(L("Cette copie de Mira n’a pas de numéro de version : Mira web ne peut pas être vérifié.", "This copy of Mira has no version number: Mira web can’t be checked."));
+        var version = ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) ?? throw new UpdateException(L("Cette copie de Mira n’a pas de numéro de version : l’extension Mira ne peut pas être vérifiée.", "This copy of Mira has no version number: Mira’s extension can’t be checked."));
         using var github = new UpdateClient(version, UpdateKeys.Trusted);
         return await MiraWebRelease.VerifyAsync(github, version);
     }
@@ -79,7 +79,7 @@ public partial class MainWindow
                 await BringMiraWebNowAsync(client, version, done);
                 return;
             }
-            SetNotice(L("Nouvelle version de Mira web : Jellyfin redémarre quelques secondes, personne ne regarde…", "A new Mira web: Jellyfin is restarting for a few seconds, nobody is watching…"), null, null, sticky: true);
+            SetNotice(L("Nouvelle version de l’extension Mira : Jellyfin redémarre quelques secondes, personne ne regarde…", "A new version of Mira’s extension: Jellyfin is restarting for a few seconds, nobody is watching…"), null, null, sticky: true);
             await client.RestartAsync();
         }
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return; }
@@ -92,7 +92,7 @@ public partial class MainWindow
                 if (await client.WebAppVersionsAsync() is { Serving: { } serving } && serving >= version)
                 {
                     Served(done);
-                    SetNotice(L($"Jellyfin a redémarré : ton téléphone a Mira web {serving.ToString(3)} à sa prochaine ouverture.", $"Jellyfin restarted: your phone gets Mira web {serving.ToString(3)} the next time you open it."));
+                    SetNotice(L($"Jellyfin a redémarré : il sert l’extension Mira {serving.ToString(3)}.", $"Jellyfin restarted: it serves Mira’s extension {serving.ToString(3)}."));
                     return;
                 }
             }
@@ -100,7 +100,7 @@ public partial class MainWindow
             catch (Exception ex) when (IsExpected(ex)) { }
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
-        if (ReferenceEquals(client, _client)) SetNotice(L("Jellyfin n’a pas encore fini de redémarrer : Mira web arrive sur ton téléphone dès qu’il répond.", "Jellyfin hasn’t finished restarting yet: Mira web reaches your phone as soon as it answers."));
+        if (ReferenceEquals(client, _client)) SetNotice(L("Jellyfin n’a pas encore fini de redémarrer : la nouvelle extension Mira sert dès qu’il répond.", "Jellyfin hasn’t finished restarting yet: the new version of Mira’s extension serves as soon as it answers."));
     }
 
     private void Served(string done) { _settings.MiraWebServed = done; _profile.SaveSettings(_settings); }

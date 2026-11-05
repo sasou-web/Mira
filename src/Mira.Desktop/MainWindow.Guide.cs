@@ -148,8 +148,8 @@ public partial class MainWindow
         await ShowGuideFoldersAsync(version);
     }
     /// <summary>
-    /// « Mira sur ton téléphone »: reads what stands between Jellyfin and a phone (Mira web on Jellyfin, then for a
-    /// Jellyfin on this PC: Windows' firewall, Tailscale, the service), then shows it as steps (<see cref="PhoneSetup"/>).
+    /// « Mira sur ton iPhone »: reads what stands between Jellyfin and Mira on a phone (Mira's extension on Jellyfin, then
+    /// for a Jellyfin on this PC: Windows' firewall, Tailscale, the service), then shows it as steps (<see cref="PhoneSetup"/>).
     /// </summary>
     private async Task DescribePhoneAsync()
     {
@@ -234,7 +234,7 @@ public partial class MainWindow
             catch (Exception ex) when (IsExpected(ex)) { }
         }
     }
-    /// <summary>The steps, then « Tout préparer » while one is left, or the QR code once Mira web is there.</summary>
+    /// <summary>The steps, then « Tout préparer » while one is left, or how to install Mira on the iPhone and the address to type.</summary>
     private void ShowPhone(PhoneSetup.Facts? facts, bool checking = false)
     {
         PhoneSteps.Children.Clear();
@@ -260,7 +260,7 @@ public partial class MainWindow
         var prepare = PhoneSetup.CanPrepare(steps);
         var ready = facts.Web == true;
         // A reading that ends while « Tout préparer » runs leaves its button and progress alone.
-        if (!_preparing) PhoneMain.Content = prepare ? L("Tout préparer", "Set everything up") : L("Afficher le QR code", "Show the QR code");
+        if (!_preparing) PhoneMain.Content = prepare ? L("Tout préparer", "Set everything up") : L("Installer Mira sur l’iPhone", "Install Mira on iPhone");
         PhoneMain.Visibility = prepare || ready ? Visibility.Visible : Visibility.Collapsed;
         PhoneShare.Visibility = prepare && ready ? Visibility.Visible : Visibility.Collapsed;
         PhoneActions.Visibility = PhoneMain.Visibility;
@@ -268,9 +268,9 @@ public partial class MainWindow
         if (!_preparing) ShowPhoneStatus(prepare
             ? windows.Count > 0 ? L($"Une seule autorisation de Windows, pour {string.Join(" et ", windows)}.", $"Just one permission from Windows, for {string.Join(" and ", windows)}.") : ""
             : ready ? PhoneSetup.Everywhere(facts) is not null
-                ? L("Le QR code marche chez toi et ailleurs, Tailscale activé sur ton téléphone.", "The QR code works at home and away, with Tailscale active on your phone.")
+                ? L("Cette adresse marche chez toi et ailleurs, avec Tailscale intégré à Mira ou l’app Tailscale sur ton iPhone.", "This address works at home and away, with Mira’s built-in Tailscale or the Tailscale app on your iPhone.")
                 // A firewall step left to the person (a public network, « block all »…) keeps the phone out at home.
-                : FirewallDone(steps) ? L("Le QR code marche sur le Wi-Fi de la maison.", "The QR code works on your home Wi-Fi.") : L("Chez toi, ton téléphone trouvera Jellyfin une fois l’étape du pare-feu faite.", "At home, your phone will find Jellyfin once the firewall step is done.") : "");
+                : FirewallDone(steps) ? L("Cette adresse marche sur le Wi-Fi de la maison.", "This address works on your home Wi-Fi.") : L("Chez toi, ton téléphone trouvera Jellyfin une fois l’étape du pare-feu faite.", "At home, your phone will find Jellyfin once the firewall step is done.") : "");
         PhoneAddress.Text = PhoneSetup.Address(facts);
         PhoneAddressLine.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -321,8 +321,8 @@ public partial class MainWindow
     }
     /// <summary>
     /// « Tout préparer »: every step Mira can do, in one go. Windows' consent first, while the person is looking (the
-    /// firewall, and the service when there is one), then Tailscale in Jellyfin, then Mira web, whose installation
-    /// restarts Jellyfin. Then the QR code. Once there is nothing left to prepare, the same button shows the QR code.
+    /// firewall, and the service when there is one), then Tailscale in Jellyfin, then Mira's extension, whose installation
+    /// restarts Jellyfin. Once there is nothing left to prepare, the same button opens how to install Mira on the iPhone.
     /// </summary>
     private async void PhoneMain_Click(object sender, RoutedEventArgs e)
     {
@@ -375,17 +375,17 @@ public partial class MainWindow
             }
             if (PhoneSetup.Is(steps, "web", PhoneSetup.Mark.ToDo))
             {
-                ShowPhoneStatus(L("Vérification de Mira web…", "Checking Mira web…"));
+                ShowPhoneStatus(L("Vérification de l’extension Mira…", "Checking Mira’s extension…"));
                 try
                 {
                     // Checked against this version's signed release before Jellyfin is pointed at it: nothing otherwise.
                     var repository = await VerifiedMiraWebAsync();
-                    ShowPhoneStatus(L("Installation de Mira web, puis Jellyfin redémarre quelques secondes…", "Installing Mira web, then Jellyfin restarts for a few seconds…"));
+                    ShowPhoneStatus(L("Installation de l’extension Mira, puis Jellyfin redémarre quelques secondes…", "Installing Mira’s extension, then Jellyfin restarts for a few seconds…"));
                     switch (await client.InstallWebAppAsync(repository))
                     {
-                        case WebAppInstall.NotAllowed: problems.Add(L("Il faut le compte administrateur de Jellyfin pour installer Mira web.", "Installing Mira web needs Jellyfin’s administrator account.")); break;
-                        case WebAppInstall.Unavailable: problems.Add(L("Jellyfin n’a pas pu télécharger Mira web : vérifie que ce PC a accès à Internet, puis réessaie.", "Jellyfin couldn’t download Mira web: check that this PC can reach the Internet, then try again.")); break;
-                        case WebAppInstall.Restarting: waiting = L("Mira web est installé ; Jellyfin finit de redémarrer, et cette carte se met à jour dès qu’il répond.", "Mira web is installed; Jellyfin is finishing its restart, and this card updates as soon as it answers."); break;
+                        case WebAppInstall.NotAllowed: problems.Add(L("Il faut le compte administrateur de Jellyfin pour installer l’extension Mira.", "Installing Mira’s extension needs Jellyfin’s administrator account.")); break;
+                        case WebAppInstall.Unavailable: problems.Add(L("Jellyfin n’a pas pu télécharger l’extension Mira : vérifie que ce PC a accès à Internet, puis réessaie.", "Jellyfin couldn’t download Mira’s extension: check that this PC can reach the Internet, then try again.")); break;
+                        case WebAppInstall.Restarting: waiting = L("L’extension Mira est installée ; Jellyfin finit de redémarrer, et cette carte se met à jour dès qu’il répond.", "Mira’s extension is installed; Jellyfin is finishing its restart, and this card updates as soon as it answers."); break;
                     }
                 }
                 catch (UpdateException ex) { problems.Add(ex.Message); }
@@ -403,10 +403,9 @@ public partial class MainWindow
         if (problems.Count > 0) { ShowPhoneStatus(string.Join(" ", problems), problem: true); SetNotice(problems[0]); return; }
         if (waiting is not null) { ShowPhoneStatus(waiting); return; }
         // A firewall step left to the person keeps the phone out at home, unless Tailscale lets it in: the card says so,
-        // rather than a QR code that leads nowhere.
+        // rather than an address that leads nowhere.
         if (_phone is not { Web: true } now || PhoneSetup.Everywhere(now) is null && !FirewallDone(PhoneSetup.Steps(now))) return;
-        SetNotice(L("C’est prêt : scanne le QR code avec ton téléphone.", "It’s ready: scan the QR code with your phone."));
-        OpenPhoneShare();
+        SetNotice(L($"C’est prêt : dans Mira sur ton iPhone, tape {PhoneSetup.Address(now)}.", $"It’s ready: in Mira on your iPhone, type {PhoneSetup.Address(now)}."));
     }
     /// <summary>
     /// « Ne plus ouvrir Jellyfin au réseau »: Mira's firewall rule removed, with Windows' consent; the block rules Mira
@@ -434,8 +433,8 @@ public partial class MainWindow
         SetNotice(L("Mira n’ouvre plus Jellyfin au réseau : sa règle est retirée du pare-feu de Windows.", "Mira no longer opens Jellyfin to the network: its rule is removed from Windows’ firewall."));
     }
     private void PhoneShare_Click(object sender, RoutedEventArgs e) => OpenPhoneShare();
-    /// <summary>The page with the QR code, in this PC's browser: for the address that works everywhere when there is one.</summary>
-    private void OpenPhoneShare() { if (_phone is { } facts) OpenWebPage(PhoneSetup.SharePage(facts)); }
+    /// <summary>How to install Mira on an iPhone, in this PC's browser.</summary>
+    private void OpenPhoneShare() => OpenWebPage(PhoneSetup.IPhoneGuide);
     private void CopyPhoneAddress_Click(object sender, RoutedEventArgs e)
     {
         if (_phone is not { } facts) return;

@@ -157,7 +157,7 @@ public partial class MainWindow
             ? L("Mira ne met Jellyfin à jour qu’après l’avoir sauvegardé, ce que ce Jellyfin ne sait pas faire : télécharge cette version sur jellyfin.org, après avoir sauvegardé son dossier de données.", "Mira only updates Jellyfin after backing it up, which this Jellyfin can’t do: download this version from jellyfin.org, after backing up its data folder.")
             : !_jellyfinUpdatable
             ? L("Mira ne met à jour que le Jellyfin installé en service par son installateur. Télécharge cette version sur jellyfin.org.", "Mira only updates a Jellyfin its installer set up as a service. Download this version from jellyfin.org.")
-            : (major ? L("Une version majeure peut changer ce dont Mira web se sert : lis ses nouveautés avant. ", "A major version can change what Mira web relies on: read what’s new first. ") : "")
+            : (major ? L("Une version majeure peut changer ce dont l’extension Mira se sert : lis ses nouveautés avant. ", "A major version can change what Mira’s extension relies on: read what’s new first. ") : "")
                 + L("Mira sauvegarde d’abord Jellyfin, puis lance son installateur officiel, vérifié par son empreinte. Windows demande ton autorisation et Jellyfin s’arrête une minute, jamais pendant que quelqu’un regarde. Ses réglages, ses comptes et tes bibliothèques restent ; revenir à l’ancienne version demande la sauvegarde.",
                     "Mira first backs Jellyfin up, then runs its official installer, checked by its fingerprint. Windows asks for your permission and Jellyfin stops for a minute, never while someone is watching. Its settings, accounts and libraries stay; going back to the old version takes the backup.");
         JellyfinUpdatePanel.Visibility = Visibility.Visible;
@@ -344,8 +344,8 @@ public partial class MainWindow
             _jellyfinVersion = answered;
             var said = L($"Jellyfin {answered} est installé ; la sauvegarde d’avant est gardée.", $"Jellyfin {answered} is installed; the backup from before is kept.");
             if (servedMiraWeb && !await MiraWebBackAsync(client, ct))
-                said += " " + L($"Mais il ne sert plus Mira web : son extension n’a pas chargé avec cette version. Pour revenir à {current} : désinstalle Jellyfin, installe {current} depuis jellyfin.org, puis remets la sauvegarde (Tableau de bord → Sauvegardes).",
-                    $"But it no longer serves Mira web: its plugin didn’t load with this version. To go back to {current}: uninstall Jellyfin, install {current} from jellyfin.org, then restore the backup (Dashboard → Backups).");
+                said += " " + L($"Mais l’extension Mira n’a pas chargé avec cette version. Pour revenir à {current} : désinstalle Jellyfin, installe {current} depuis jellyfin.org, puis remets la sauvegarde (Tableau de bord → Sauvegardes).",
+                    $"But Mira’s extension didn’t load with this version. To go back to {current}: uninstall Jellyfin, install {current} from jellyfin.org, then restore the backup (Dashboard → Backups).");
             if (before.RestartsAfterError && !(await Task.Run(() => JellyfinAutostart.Read())).RestartsAfterError)
                 said += " " + L("Son redémarrage après une erreur n’a pas pu être remis : « Tout préparer », dans le guide, le refait.", "Its restart after an error couldn’t be put back: “Set everything up”, in the guide, does it again.");
             if (InstallerWaits(code)) said += " " + InstallerAsks;
