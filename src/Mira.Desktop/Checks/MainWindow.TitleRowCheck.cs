@@ -23,7 +23,11 @@ public partial class MainWindow
         var film = _demoItems!.First(x => x.Type == "Movie" && x.Progress > 0 && !x.UserData.IsFavorite);
         var kept = (film.UserData.Played, film.UserData.IsFavorite, film.UserData.PlaybackPositionTicks);
         Width = 1440; Height = 960;
-        await ShowDetailsAsync(film); await CaptureAsync(output, "24-title-row-off");
+        await ShowDetailsAsync(film);
+        // The page fades in and rises (Motion.Reveal): measured and drawn once it is there, never halfway over the library.
+        for (var waited = Stopwatch.StartNew(); waited.ElapsedMilliseconds < 3000; await Task.Delay(20))
+            if (DetailOverlay.Opacity >= 0.999 && DetailOverlay.RenderTransform is not TranslateTransform { Y: > 0.01 }) break;
+        await CaptureAsync(output, "24-title-row-off");
         var found = new List<string>(); var lines = new List<string>();
         Dictionary<string, Rect> Places()
         {
