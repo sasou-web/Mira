@@ -66,7 +66,12 @@ struct SettingsView: View {
                 if me?.isAdministrator == true {
                     Section {
                         admin("Profiles", "An account for each person in the house or a friend, with their photo.", symbol: "person.2", route: "profils")
-                        admin("Now on Jellyfin", "Who watches what, and whether Jellyfin converts it.", symbol: "server.rack", route: "en-ce-moment")
+                        NavigationLink {
+                            NowOnJellyfinView()
+                        } label: {
+                            row("Now on Jellyfin", "Who watches what, and whether Jellyfin converts it.", symbol: "server.rack")
+                        }
+                        .accessibilityIdentifier("settings.now")
                         admin("Titles to fix", "Those Jellyfin didn’t recognize, without a poster or twice.", symbol: "exclamationmark.triangle", route: "a-corriger")
                         admin("Automatic subtitles", "Jellyfin looks for each new title’s subtitles and syncs them to the video.", symbol: "captions.bubble", route: "sous-titres-auto")
                         admin("Guest links", "Watch together with someone who has no account and no Tailscale.", symbol: "link", route: "invites")

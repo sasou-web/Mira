@@ -4100,6 +4100,546 @@
           }
         }
       }
+    },
+    "home network": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "réseau de la maison"
+          }
+        }
+      }
+    },
+    "this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cet iPhone"
+          }
+        }
+      }
+    },
+    "S%lld E%lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S%lld É%lld"
+          }
+        }
+      }
+    },
+    "E%lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "É%lld"
+          }
+        }
+      }
+    },
+    "%@ — %@, paused": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@, en pause"
+          }
+        }
+      }
+    },
+    "Direct play: the file as it is": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecture directe : le fichier tel quel"
+          }
+        }
+      }
+    },
+    "File repackaged, not converted": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fichier remis dans un autre format, sans conversion"
+          }
+        }
+      }
+    },
+    "Converting": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversion"
+          }
+        }
+      }
+    },
+    "video copied": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "image copiée"
+          }
+        }
+      }
+    },
+    "video to %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "image en %@"
+          }
+        }
+      }
+    },
+    "audio copied": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "son copié"
+          }
+        }
+      }
+    },
+    "audio to %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "son en %@"
+          }
+        }
+      }
+    },
+    "by the graphics card (%@)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "par la carte graphique (%@)"
+          }
+        }
+      }
+    },
+    "by the processor": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "par le processeur"
+          }
+        }
+      }
+    },
+    "Converting: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversion : %@"
+          }
+        }
+      }
+    },
+    "Why: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pourquoi : %@"
+          }
+        }
+      }
+    },
+    "file format": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "format du fichier"
+          }
+        }
+      }
+    },
+    "video codec": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "codec vidéo"
+          }
+        }
+      }
+    },
+    "audio codec": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "codec audio"
+          }
+        }
+      }
+    },
+    "subtitles to burn in": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sous-titres à incruster"
+          }
+        }
+      }
+    },
+    "separate audio track": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "piste audio à part"
+          }
+        }
+      }
+    },
+    "secondary audio track": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "piste audio secondaire"
+          }
+        }
+      }
+    },
+    "video profile": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "profil vidéo"
+          }
+        }
+      }
+    },
+    "video level": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "niveau vidéo"
+          }
+        }
+      }
+    },
+    "resolution": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "définition"
+          }
+        }
+      }
+    },
+    "10-bit video": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vidéo 10 bits"
+          }
+        }
+      }
+    },
+    "frame rate": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "images par seconde"
+          }
+        }
+      }
+    },
+    "reference frames": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "images de référence"
+          }
+        }
+      }
+    },
+    "anamorphic video": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "image anamorphosée"
+          }
+        }
+      }
+    },
+    "interlaced video": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "image entrelacée"
+          }
+        }
+      }
+    },
+    "audio channels": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "canaux audio"
+          }
+        }
+      }
+    },
+    "audio profile": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "profil audio"
+          }
+        }
+      }
+    },
+    "audio sample rate": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fréquence audio"
+          }
+        }
+      }
+    },
+    "high-resolution audio": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "audio haute résolution"
+          }
+        }
+      }
+    },
+    "bitrate above the chosen quality": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "débit au-dessus de la qualité choisie"
+          }
+        }
+      }
+    },
+    "video bitrate": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "débit vidéo"
+          }
+        }
+      }
+    },
+    "audio bitrate": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "débit audio"
+          }
+        }
+      }
+    },
+    "video poorly described": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vidéo mal décrite"
+          }
+        }
+      }
+    },
+    "audio poorly described": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "audio mal décrit"
+          }
+        }
+      }
+    },
+    "direct play failed": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "lecture directe en échec"
+          }
+        }
+      }
+    },
+    "video codec tag": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "étiquette du codec vidéo"
+          }
+        }
+      }
+    },
+    "too many tracks": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "trop de pistes"
+          }
+        }
+      }
+    },
+    "Nobody is watching anything on Jellyfin right now.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personne ne regarde rien sur Jellyfin pour l’instant."
+          }
+        }
+      }
+    },
+    "Playing now: %lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En lecture : %lld"
+          }
+        }
+      }
+    },
+    "Jellyfin says how it sends each title: the file as it is, or converted, and why. Converting on the processor can make playback stutter; Mira for Windows can hand it to the graphics card. « Stop » ends playback on the device that watches, without changing anything on its account.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin dit comment il envoie chaque titre : le fichier tel quel, ou converti, et pourquoi. Une conversion par le processeur peut faire ramer la lecture ; Mira pour Windows peut la confier à la carte graphique. « Arrêter » coupe la lecture sur l’appareil qui regarde, sans rien changer à son compte."
+          }
+        }
+      }
+    },
+    "Reading Jellyfin’s sessions…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecture des sessions de Jellyfin…"
+          }
+        }
+      }
+    },
+    "Stop this playback?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêter cette lecture ?"
+          }
+        }
+      }
+    },
+    "Stop playback": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêter la lecture"
+          }
+        }
+      }
+    },
+    "« %@ » stops on %@, which says so on screen. Nothing else changes for this account.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » s’arrête sur %@, qui le dit à l’écran. Rien d’autre ne change pour ce compte."
+          }
+        }
+      }
+    },
+    "Stop playback on %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêter la lecture sur %@"
+          }
+        }
+      }
+    },
+    "Asked %@ to stop.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêt demandé à %@."
+          }
+        }
+      }
+    },
+    "Only a Jellyfin administrator can stop another account’s playback.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seul un administrateur de Jellyfin peut arrêter la lecture d’un autre compte."
+          }
+        }
+      }
+    },
+    "This playback has already ended.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette lecture est déjà terminée."
+          }
+        }
+      }
+    },
+    "Stop": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêter"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
