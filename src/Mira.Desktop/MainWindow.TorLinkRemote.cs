@@ -75,7 +75,7 @@ public partial class MainWindow
     private async Task<TimeSpan> VisitRelayCoreAsync()
     {
         await TidyHeadlessAsync();
-        if (!_torlinkEnabled || _demo || _closing || _client is not { } client || _torlink is not { } torlink) { _remoteState = ""; return TimeSpan.FromSeconds(30); }
+        if (!_torlinkEnabled || _demo || _closing || OwnClient is not { } client || _torlink is not { } torlink) { _remoteState = ""; return TimeSpan.FromSeconds(30); }
         if (!await JellyfinOnThisPcAsync(client))
         {
             _remoteState = L("Jellyfin tourne sur un autre PC : TorLink n’est proposé que là-bas, à côté de ta bibliothèque. La page Téléchargements de ce PC lui envoie tes recherches et tes téléchargements.",

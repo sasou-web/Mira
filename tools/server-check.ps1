@@ -6,7 +6,8 @@ param(
     [string]$Work = '.artifacts/server-work',
     [string]$User = 'mira',
     [string]$Password = 'mira-check',
-    [string]$Testnet
+    [string]$Testnet,
+    [string]$Extension
 )
 # Mira for Windows against a real Jellyfin (Mira.exe --server-check, see docs/TESTS.md), run by ci.yml on the Windows
 # runner: $Jellyfin is a published Jellyfin (the folder of jellyfin.dll, run by dotnet), $Media the test media of
@@ -15,7 +16,8 @@ param(
 # (tools/mpv-engine.ps1), then Mira signed in at this PC's network address; the check stops and starts Jellyfin by the
 # two scripts written here. With -Testnet (mira-testnet.exe of src/Mira.Tailscale), then « Tailscale intégré »
 # (Mira.exe --tailnet-check, run twice on a profile of its own): Mira's own node on a Tailscale network of this PC only,
-# whose « Jellyfin PC » exposes the same Jellyfin. ffmpeg, Node.js and 7-Zip on the PATH. Windows PowerShell 5.1 and
+# whose « Jellyfin PC » exposes the same Jellyfin. With -Extension (Mira.Jellyfin.dll of src/Mira.Jellyfin), the
+# extension is put in that Jellyfin, and the check ends as the guest of a party of it (MIRA_CHECK_PARTY). ffmpeg, Node.js and 7-Zip on the PATH. Windows PowerShell 5.1 and
 # PowerShell 7.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -44,6 +46,15 @@ if (-not (Test-Path -LiteralPath $cut)) {
 $data = Join-Path $Work 'jellyfin'
 if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data -Recurse -Force }
 foreach ($folder in 'data', 'cache', 'config', 'log') { New-Item -ItemType Directory -Force -Path (Join-Path $data $folder) | Out-Null }
+if ($Extension) {
+    # As an installed extension is: its folder named after its version (that of the csproj, four parts).
+    $version = ([xml](Get-Content -LiteralPath (Join-Path $PSScriptRoot '../src/Mira.Jellyfin/Mira.Jellyfin.csproj') -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+    $plugin = Join-Path $data "data/plugins/Mira_$version.0"
+    New-Item -ItemType Directory -Force -Path $plugin | Out-Null
+    Copy-Item -LiteralPath ([IO.Path]::GetFullPath($Extension)) -Destination $plugin
+    $env:MIRA_CHECK_PARTY = '1'
+    Write-Output "Extension $version in $plugin"
+}
 $dotnet = (Get-Command dotnet).Source
 $processFile = Join-Path $Work 'jellyfin.pid'
 $arguments = @((Join-Path $Jellyfin 'jellyfin.dll'), '--datadir', (Join-Path $data 'data'), '--cachedir', (Join-Path $data 'cache'), '--configdir', (Join-Path $data 'config'),

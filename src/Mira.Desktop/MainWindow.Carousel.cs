@@ -116,7 +116,7 @@ public partial class MainWindow
     private void UpdateHeroClock()
     {
         UpdateHeroSegments();
-        var enabled = !_closing && IsActive && _catalog.View == "home" && LibraryShell.IsVisible && DetailOverlay.Visibility != Visibility.Visible && SettingsOverlay.Visibility != Visibility.Visible && TorLinkOverlay.Visibility != Visibility.Visible && LoginOverlay.Visibility != Visibility.Visible
+        var enabled = !_closing && IsActive && _catalog.View == "home" && LibraryShell.IsVisible && DetailOverlay.Visibility != Visibility.Visible && SettingsOverlay.Visibility != Visibility.Visible && TorLinkOverlay.Visibility != Visibility.Visible && LoginOverlay.Visibility != Visibility.Visible && PartyOverlay.Visibility != Visibility.Visible
             && GuideOverlay.Visibility != Visibility.Visible && WelcomeOverlay.Visibility != Visibility.Visible && WhatsNewOverlay.Visibility != Visibility.Visible && !_playing && _settings.HeroAutoPlay && !Motion.Reduced && _heroCandidates.Count > 1
             && !HeroPaused;
         if (enabled == _heroClockAttached) return;

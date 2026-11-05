@@ -29,7 +29,7 @@ public partial class MainWindow
         var awake = false;
         try
         {
-            if (!_demo && _client is { } client && await JellyfinOnThisPcAsync(client)) awake = ServerSleep.KeepAwake(await client.ViewersAsync());
+            if (!_demo && OwnClient is { } client && await JellyfinOnThisPcAsync(client)) awake = ServerSleep.KeepAwake(await client.ViewersAsync());
         }
         catch (Exception ex) when (IsExpected(ex)) { }
         finally { _readingPlayback = false; }

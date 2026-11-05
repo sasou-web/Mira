@@ -153,3 +153,9 @@ public sealed record PartyLink(
     [property: JsonPropertyName("appLink")] string? AppLink,
     [property: JsonPropertyName("reach")] string? Reach,
     [property: JsonPropertyName("note")] string? Note);
+
+/// <summary>
+/// A party of another Jellyfin, joined as its guest (<see cref="JellyfinClient.OpenPartyAsync"/>): the guest's session,
+/// whose server is that Jellyfin's gateway for guests (<see cref="Together.GuestServer"/>), and who invited.
+/// </summary>
+public sealed record PartyGuest(Connection Connection, string Host);

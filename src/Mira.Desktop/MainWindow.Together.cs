@@ -132,6 +132,8 @@ public partial class MainWindow
     private void GroupChanged()
     {
         ShowTogetherButton(); UpdateGroupPill(); ShowHomeGroup(); ShowGroupNav();
+        // A party's guest whose group ended (its host closed it): waiting for the next one, as on arriving.
+        if (InParty) { if (_group is null && _client is { } guest) _ = JoinPartyGroupAsync(guest); else ShowPartyState(); }
         // Out of a group: Home's line comes back with the groups as they are now (the one left may be over).
         if (_group?.GroupId != _homeGroupFor) { _homeGroupFor = _group?.GroupId; if (_group is null && _client is { } client) _ = LoadHomeGroupsAsync(client); }
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) ShowDetailPlayLabel(detail);
@@ -449,7 +451,7 @@ public partial class MainWindow
             await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6)));
             if (_group is null && ReferenceEquals(client, _client)) SetNotice(L("Jellyfin n’a pas répondu. Réessaie dans un instant.", "Jellyfin didn’t answer. Try again in a moment."));
             else if (_group is { } group && invite) ShowInvite();
-            else if (_group is { } joinedGroup) SetNotice(L($"Tu es dans « {joinedGroup.GroupName} » : Regarder lance le titre pour tout le groupe, au même moment chez chacun.", $"You’re in “{joinedGroup.GroupName}”: Watch starts the title for the whole group, at the same moment for everyone."));
+            else if (_group is { } joinedGroup && !InParty) SetNotice(L($"Tu es dans « {joinedGroup.GroupName} » : Regarder lance le titre pour tout le groupe, au même moment chez chacun.", $"You’re in “{joinedGroup.GroupName}”: Watch starts the title for the whole group, at the same moment for everyone."));
         }
         catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); }
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
@@ -457,6 +459,8 @@ public partial class MainWindow
     }
     private async Task LeaveGroupAsync()
     {
+        // A party's guest is there for its group only: out of it is out of the party.
+        if (InParty) { await LeavePartyAsync(); return; }
         if (_client is { } client)
         {
             try { await client.SyncLeaveAsync(_connectionLifetime.Token); }
@@ -578,16 +582,16 @@ public partial class MainWindow
     }
     /// <summary>
     /// A party link (mira://party/…, from its page): on the Jellyfin this app is signed in to, straight into the host's
-    /// group, or waiting for it to open; anywhere else (another Jellyfin, no account here), Mira web as their guest.
+    /// group, or waiting for it to open; anywhere else (another Jellyfin, no account here), Mira as its guest
+    /// (MainWindow.Party.cs).
     /// </summary>
     private async Task OfferPartyAsync(Together.Invitation invite, string code)
     {
-        var web = Together.PartyWebLink(invite.Server, code);
-        if (_client is not { } client || _demo)
+        if (OwnClient is not { } client || _demo)
         {
             if (LoginOverlay.Visibility != Visibility.Visible && _client is null) return;
             _invite = null;
-            EnterParty(web);
+            await AskPartyAsync(invite.Server, code);
             return;
         }
         for (var i = 0; !_listening && i < 40 && ReferenceEquals(client, _client); i++) await Task.Delay(250);
@@ -599,7 +603,7 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { host = null; }
         if (!ReferenceEquals(client, _client)) return;
         RestoreFromWindows();
-        if (host is null) { EnterParty(web); return; }
+        if (host is null) { await AskPartyAsync(invite.Server, code); return; }
         if (host == client.Connection.UserName) { SetNotice(L("C’est ton propre lien de party : envoie-le à ceux qui veulent te rejoindre.", "This is your own party link: send it to whoever wants to join you.")); return; }
         var party = Together.PartyInvitation(client.Connection.Server, host);
         List<Together.Group> groups;
@@ -611,12 +615,6 @@ public partial class MainWindow
         if (answer is { Kind: Together.InviteKind.Join, Group: { } group }) await EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false);
         else if (answer.Kind == Together.InviteKind.Waiting) WaitForInvite(client, party);
         else SetNotice(answer.Text);
-    }
-    /// <summary>A friend's party on their own Jellyfin: Mira web as their guest, in a window of Mira.</summary>
-    private void EnterParty(string web)
-    {
-        if (!Uri.TryCreate(web, UriKind.Absolute, out var page)) return;
-        PartyWindow.Enter(page, System.IO.Path.Combine(_profile.DirectoryPath, "party-web"), text => SetNotice(text));
     }
     /// <summary>
     /// « Attendre »: the group of an invitation joined as soon as its host opens it (Jellyfin's groups read every few

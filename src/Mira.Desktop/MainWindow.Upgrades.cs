@@ -64,7 +64,7 @@ public partial class MainWindow
     /// <summary>The replacements TorLink finished: checked and swapped one at a time, each tried again later while its title is watched.</summary>
     private async Task ReplaceDueAsync()
     {
-        if (_replacing || _demo || _client is not { } client || _torlink is not { } torlink) return;
+        if (_replacing || _demo || OwnClient is not { } client || _torlink is not { } torlink) return;
         _replacing = true;
         try
         {
@@ -121,7 +121,7 @@ public partial class MainWindow
     /// </summary>
     private async Task FinishReplacementsAsync()
     {
-        if (_finishingReplacements || _demo || _client is not { } client || _torlink is not { } torlink) return;
+        if (_finishingReplacements || _demo || OwnClient is not { } client || _torlink is not { } torlink) return;
         var importer = torlink.Importer;
         var swapped = importer.Replacements.Where(x => x is { State: ReplacementState.Swapped, NewPath: not null }).ToList();
         if (swapped.Count == 0) return;
