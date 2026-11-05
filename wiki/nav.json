@@ -1,0 +1,6 @@
+[
+  { "title": { "en": "Start", "fr": "Bien démarrer" }, "pages": ["index", "windows", "mac", "iphone"] },
+  { "title": { "en": "Your server", "fr": "Ton serveur" }, "pages": ["jellyfin", "sign-in", "away"] },
+  { "title": { "en": "Watching", "fr": "Regarder" }, "pages": ["library", "player", "subtitles", "together"] },
+  { "title": { "en": "Help", "fr": "Aide" }, "pages": ["settings", "privacy", "troubleshooting", "faq"] }
+]

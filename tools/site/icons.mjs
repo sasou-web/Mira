@@ -3,6 +3,6 @@
 import { writeFileSync } from 'node:fs';
 import { icons } from './phosphor.js';
 
-const names = ['download', 'pause', 'phone', 'users', 'server', 'check', 'play', 'right', 'qr', 'add-home', 'subtitles', 'history', 'link', 'films', 'search', 'close', 'calendar', 'stack', 'pencil', 'volume', 'chapters', 'user', 'next', 'pip', 'clock', 'language'];
+const names = ['download', 'pause', 'phone', 'users', 'server', 'check', 'play', 'right', 'qr', 'add-home', 'subtitles', 'history', 'link', 'films', 'search', 'close', 'calendar', 'stack', 'pencil', 'volume', 'chapters', 'user', 'next', 'pip', 'clock', 'language', 'back', 'info', 'warning'];
 const symbols = names.map(name => `  <symbol id="${name}" viewBox="0 0 256 256"><path fill="currentColor" d="${icons[name]}"/></symbol>`);
 writeFileSync('site/img/icons.svg', `<svg xmlns="http://www.w3.org/2000/svg">\n  <!-- Phosphor Icons (MIT), from tools/site/phosphor.js by tools/site/icons.mjs -->\n${symbols.join('\n')}\n</svg>\n`);
