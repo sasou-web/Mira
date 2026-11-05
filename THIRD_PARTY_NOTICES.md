@@ -10,21 +10,19 @@ Mira's original source code is licensed under MIT. This does not replace the lic
 | SQLite 3.53.3 | Native database engine in the SQLitePCL.raw package | Public domain; [SQLite copyright statement](https://www.sqlite.org/copyright.html) |
 | C#/WinRT runtime | Windows media-session interop | MIT, Microsoft Corporation; `licenses/CSWINRT-MIT.txt` |
 | Windows SDK .NET targeting pack 10.0.19041.57 | Windows API projections | Microsoft Corporation; [Windows SDK licence](https://aka.ms/WinSDKLicenseURL) |
-| Nunito Sans | Bundled typefaces (Mira web: Latin subsets in WOFF2) | SIL Open Font License 1.1; `licenses/NUNITO-SANS-OFL.txt`, upstream revision in `src/Mira.Desktop/Assets/Fonts/SOURCE.txt` |
-| Phosphor Icons | Archived SVG assets from an earlier interface; icon paths of Mira web | MIT; `licenses/PHOSPHOR-MIT.txt`, revision in `src/Mira.Desktop/Assets/Phosphor/SOURCE.txt` |
+| Nunito Sans | Bundled typefaces (the Jellyfin plugin's pages and the site: Latin subsets in WOFF2) | SIL Open Font License 1.1; `licenses/NUNITO-SANS-OFL.txt`, upstream revision in `src/Mira.Desktop/Assets/Fonts/SOURCE.txt` |
+| Phosphor Icons | Archived SVG assets from an earlier interface; icon paths of the site (`tools/site/phosphor.js`) | MIT; `licenses/PHOSPHOR-MIT.txt`, revision in `src/Mira.Desktop/Assets/Phosphor/SOURCE.txt` |
 | Microsoft.Web.WebView2 1.0.4258.31 | WebView2 SDK for the embedded TorLink terminal (managed assemblies and `WebView2Loader.dll`) | Microsoft Corporation, BSD-style licence; `licenses/WEBVIEW2-BSD.txt` |
 | xterm.js 6.0.0 and @xterm/addon-fit 0.11.0 | Terminal renderer of the TorLink page, unmodified npm builds embedded as resources | MIT, the xterm.js authors; `licenses/XTERM-MIT.txt`, versions and integrity in `src/Mira.Desktop/Assets/TorLink/xterm/SOURCE.txt` |
 | SharpCompress 1.0.0 | Reads the `.7z` archive of the libmpv build Mira installs on request | MIT, Adam Hathcock; `licenses/SHARPCOMPRESS-MIT.txt` |
-| hls.js 1.7.3 | Mira web: plays HLS in browsers that do not have it built in (not Safari); unmodified npm build (`dist/hls.light.min.mjs`, without its source map comment) inside the Jellyfin plugin | Apache-2.0, Dailymotion and contributors; `licenses/HLSJS-APACHE-2.0.txt`, version in `src/Mira.Web/vendor/SOURCE.txt` |
-| qrcode-generator 2.0.4 | Mira web: the QR code of its address, unmodified npm build inside the Jellyfin plugin | MIT, Kazuhiko Arase; `licenses/QRCODE-GENERATOR-MIT.txt` |
 | mira-tailscale (Built-in Tailscale) | The Tailscale node of Mira for Windows and Mac: `mira-tailscale.exe` beside `Mira.exe` (the portable executable carries it inside and writes it into its profile), `Mira.app/Contents/MacOS/mira-tailscale` on Mac (its licences in `Mira.app/Contents/Resources/licenses/mira-tailscale`): Mira's own code (`src/Mira.Tailscale`, MIT) built with Go and unmodified Go modules | Tailscale (`tailscale.com`, BSD-3-Clause, Tailscale Inc & AUTHORS), wireguard-go (MIT), gVisor (Apache-2.0), the Go standard library and the `golang.org/x` modules (BSD-3-Clause), and the other modules listed with their exact versions in `licenses/mira-tailscale/MODULES.txt`, each licence file beside that list |
 | Inno Setup 6.7.3 | Builds the Windows installer; its setup and uninstall program is part of `Mira-*-setup.exe` | Copyright Jordan Russell and Martijn Laan, [Inno Setup License](https://jrsoftware.org/files/is/license.txt); not part of the zip or the portable executable |
 
 The current logo, icon geometry and fictional demo illustrations are original Mira assets. The gallery (`docs/SCREENSHOTS.md`) shows that offline demo. The three screenshots at the top of the README show Mira connected to a personal Jellyfin library: the posters and artwork visible in them belong to their respective rights holders and are shown only to illustrate the software. No media file, personal library data or Jellyfin cache is included in the repository or release.
 
-## Mira web
+## Jellyfin plugin
 
-The Jellyfin plugin `mira-jellyfin-*.zip` contains Mira's own code, the web app and, inside it, hls.js, qrcode-generator, Nunito Sans and Phosphor paths with their licence files (`vendor/`, `fonts/OFL.txt`). It is built against Jellyfin's public libraries (`Jellyfin.Controller`, GPL-2.0) but does not include them: the Jellyfin server that loads the plugin provides them.
+The Jellyfin plugin `mira-jellyfin-*.zip` contains Mira's own code and its pages (`/Mira`, a party's) with the Nunito typeface and its licence file (`fonts/OFL.txt`). Until 0.9.3 it also carried Mira web, with hls.js and qrcode-generator. It is built against Jellyfin's public libraries (`Jellyfin.Controller`, GPL-2.0) but does not include them: the Jellyfin server that loads the plugin provides them.
 
 ## External player
 

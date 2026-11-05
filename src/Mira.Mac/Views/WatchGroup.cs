@@ -306,7 +306,7 @@ public sealed class WatchGroup
         if (!ReferenceEquals(session, _shell.Session)) return;
         if (party is not null)
         {
-            var lead = L("Envoie ce lien : qui l’ouvre te rejoint, sur son téléphone, son ordinateur ou dans Mira.", "Send this link: whoever opens it joins you, on their phone, their computer or in Mira.");
+            var lead = L("Envoie ce lien : qui l’ouvre te rejoint dans Mira, sur Windows, Mac ou iPhone.", "Send this link: whoever opens it joins you in Mira, on Windows, Mac or iPhone.");
             await InviteSheet.ShowAsync(_shell, lead, party.Link, Together.PartySteps(party.Note), warnLast: party.Reach != "internet");
             return;
         }

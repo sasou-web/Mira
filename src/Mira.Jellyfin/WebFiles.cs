@@ -7,9 +7,9 @@ using System.Text;
 namespace Mira.Jellyfin;
 
 /// <summary>
-/// The web app's files: built into the plugin, or read from the folder named by MIRA_WEB_DIR while developing it.
-/// Assets are served under a revision (a hash of every file), so a phone keeps them until Mira changes, then
-/// fetches the new ones at once; index.html and the manifest name that revision.
+/// The extension's pages (Pages/: what /Mira says, a party's page): built into the plugin, or read from the folder
+/// named by MIRA_WEB_DIR while working on them. Assets are served under a revision (a hash of every file), so a browser
+/// keeps them until they change; index.html, party.html and the manifest name that revision.
 /// </summary>
 public sealed class WebFiles
 {
@@ -81,15 +81,12 @@ public sealed class WebFiles
     /// <summary>The app's files that are not served, their extension unknown to <see cref="Types"/>: none expected.</summary>
     public IReadOnlyList<string> Unserved => _unserved;
 
-    /// <summary>The app's files as a folder holds them (MIRA_WEB_DIR, and the tests' copy of src/Mira.Web).</summary>
+    /// <summary>The pages' files as a folder holds them (MIRA_WEB_DIR, and the tests' copy of src/Mira.Jellyfin/Pages).</summary>
     public static WebFiles FromFolder(string folder)
     {
         var root = Path.GetFullPath(folder);
         var contents = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
             .ToDictionary(file => Path.GetRelativePath(root, file).Replace('\\', '/'), File.ReadAllBytes, StringComparer.Ordinal);
-        // Each version's main points, built in beside the app (Mira.Jellyfin.csproj): from src/Mira.Core next to it.
-        var notes = Path.Combine(root, "..", "Mira.Core", "WhatsNew.json");
-        if (File.Exists(notes)) contents.TryAdd("whats-new.json", File.ReadAllBytes(notes));
         return new WebFiles(contents) { Immutable = false };
     }
 

@@ -73,6 +73,7 @@ struct GroupSheet: View {
         .presentationBackground(Palette.bg)
         .onChange(of: path.isEmpty) { _, empty in if !empty { detent = .large } }
         .onChange(of: app.together.group == nil) { _, gone in if gone { dismiss() } }
+        .task(id: app.session?.userId) { await app.together.loadParty() }
         .task(id: app.together.queue?.itemId) {
             guard let id = app.together.queue?.itemId, !id.isEmpty, let client = app.client else {
                 title = nil
@@ -141,10 +142,9 @@ struct GroupSheet: View {
                     .buttonStyle(.glass)
                     .accessibilityIdentifier("group.title")
                 }
-                if let server = app.session?.server,
-                   let url = URL(string: SyncRules.inviteLink(server: server, groupId: group.groupId,
-                                                            host: SyncRules.groupHost(group.groupName) ?? app.session?.userName)) {
-                    ShareLink(item: url, message: Text("Open this link and sign in with your own Jellyfin account: you’ll be in my group on Mira.")) {
+                if let invitation = app.together.invitation(group) {
+                    ShareLink(item: invitation.url, message: invitation.party ? Text("Open this link to watch with me on Mira, with no account to make.")
+                                                                            : Text("Open this link and sign in with your own Jellyfin account: you’ll be in my group on Mira.")) {
                         wide("Invite", "link")
                     }
                     .buttonStyle(.glass)

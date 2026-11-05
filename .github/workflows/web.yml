@@ -1,14 +1,14 @@
 name: Web build
-# Mira web (src/Mira.Web), served by Jellyfin through Mira's plugin (src/Mira.Jellyfin): packaged, installed from its
-# repository on a real Jellyfin (12.1, 12.4, and the 10.9 and 10.10 the README promises), checked in Chromium at an
-# iPhone's size, and in Safari on 12.1; attached to the draft of each release, which tools/release.ps1 publishes once
-# every platform is there.
+# Mira's extension for Jellyfin (src/Mira.Jellyfin): packaged, installed from its repository on a real Jellyfin (12.1,
+# 12.4, and the 10.9 and 10.10 the README promises) and checked through its API as Mira for Windows, Mac and iPhone use
+# it; attached to the draft of each release, which tools/release.ps1 publishes once every platform is there. (Mira web,
+# which it served until 0.9.3, is gone: /Mira now sends to the apps.)
 on:
   push:
     branches: [main]
-    paths: ["src/Mira.Web/**", "src/Mira.Jellyfin/**", "tools/web/**", "tools/extension/**", ".github/workflows/web.yml"]
+    paths: ["src/Mira.Jellyfin/**", "tools/web/**", "tools/extension/**", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["src/Mira.Web/**", "src/Mira.Jellyfin/**", "tools/web/**", "tools/extension/**", ".github/workflows/web.yml"]
+    paths: ["src/Mira.Jellyfin/**", "tools/web/**", "tools/extension/**", ".github/workflows/web.yml"]
   # The newest Jellyfin, which nothing pins: a 12.x that breaks the plugin shows here before a friend runs into it.
   schedule:
     - cron: "17 5 * * 1"
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Draft release to attach Mira web to (vX.Y.Z), without the checks; set by tools/release.ps1"
+        description: "Draft release to attach the extension to (vX.Y.Z), without the checks; set by tools/release.ps1"
         required: false
         type: string
       commit:
@@ -30,13 +30,13 @@ env:
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
 jobs:
-  chromium:
-    # The plugin as Jellyfin installs it, and the whole app against Jellyfin's own Docker image, on each version Mira
-    # claims to work with: 10.9 and 10.10 (.NET 8, what the plugin is built for), 12.1 (the one Mira for Windows
-    # installs) and the newest 12.x. Pinned by tag, moved by hand; `latest` follows Jellyfin and only fails the weekly run.
+  extension:
+    # The plugin as Jellyfin installs it, against Jellyfin's own Docker image, on each version Mira claims to work with:
+    # 10.9 and 10.10 (.NET 8, what the plugin is built for), 12.1 (the one Mira for Windows installs) and the newest
+    # 12.x. Pinned by tag, moved by hand; `latest` follows Jellyfin and only fails the weekly run.
     # Not for a release's draft: its commit was checked on its way to main.
     if: inputs.release == ''
-    name: Chromium · Jellyfin ${{ matrix.jellyfin }}
+    name: Extension · Jellyfin ${{ matrix.jellyfin }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     continue-on-error: ${{ matrix.follows && github.event_name != 'schedule' }}
@@ -59,10 +59,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Scripts parse
-        run: for f in src/Mira.Web/js/*.js src/Mira.Web/js/*/*.js tools/web/*.mjs tools/web/unit/*.mjs; do node --experimental-default-type=module --check "$f"; done
-      # The player's decisions (the cascade, the addresses, the tracks, the timeline) in Node, before any browser.
-      - name: Unit tests
-        run: node --test tools/web/unit/*.test.mjs
+        run: for f in src/Mira.Jellyfin/Pages/*.js tools/web/*.mjs tools/extension/*.mjs; do node --experimental-default-type=module --check "$f"; done
       - name: Package the plugin and a local repository
         run: |
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
@@ -81,7 +78,7 @@ jobs:
       - name: Test media
         timeout-minutes: 5
         run: tools/web/media.sh "$PWD/.artifacts/media"
-      - name: Jellyfin ${{ matrix.jellyfin }}, Mira web installed from the repository
+      - name: Jellyfin ${{ matrix.jellyfin }}, the extension installed from its repository
         run: |
           (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
           mkdir -p .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0 .artifacts/jf-cache
@@ -90,109 +87,25 @@ jobs:
           cp .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0/
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
           node tools/web/setup.mjs http://127.0.0.1:8096 /media mira mira-check http://127.0.0.1:8765/jellyfin-manifest.json
-      # The extension through its API, as Mira for Windows, Mac and iPhone use it, without Mira web: what stays once
-      # Mira web is gone. Before Chromium, which runs long and changes the account's party link.
+      # The extension through its API, as Mira for Windows, Mac and iPhone use it, and its pages (/Mira, a party's).
       - name: Check the extension
         run: node tools/extension/check.mjs http://127.0.0.1:8096 mira mira-check .artifacts/check/extension
-      - name: Check in Chromium
-        run: |
-          npm install --silent --no-audit --no-fund --prefix .artifacts/pw playwright@1.56.1
-          npx --prefix .artifacts/pw playwright install --with-deps chromium >/dev/null
-          # Jellyfin stopped then started again during the check: Mira web must open meanwhile and come back by itself.
-          export MIRA_STOP="docker stop jellyfin" MIRA_START="docker start jellyfin"
-          PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs" node tools/web/check.mjs http://127.0.0.1:8096/Mira/ mira mira-check "Courte Web" .artifacts/check
       - name: Jellyfin log
         if: failure()
-        # « Regarder ensemble » happens long before the end: its SyncPlay lines, wherever they are, then the end.
         run: |
           docker logs jellyfin 2>&1 | grep -E 'SyncPlay' | tail -120
           docker logs jellyfin 2>&1 | tail -80
-      # Small JPEG copies of the captures, in base64, to review them without downloading the artifact.
-      # Lines read: MIRA-PREVIEW <name> <part>/<parts> <base64>.
-      - name: Capture previews in the log
-        if: always()
-        run: |
-          for file in .artifacts/check/*.png; do
-            [ -f "$file" ] || continue
-            name=$(basename "$file" .png); small=".artifacts/$name.jpg"
-            ffmpeg -loglevel error -y -i "$file" -vf "scale='min(720,iw)':-2" -q:v 9 "$small"
-            data=$(base64 -w0 "$small"); parts=$(( (${#data} + 3999) / 4000 ))
-            for ((i = 0; i < parts; i++)); do echo "MIRA-PREVIEW $name $((i + 1))/$parts ${data:$((i * 4000)):4000}"; done
-          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: Mira-web-check-${{ matrix.jellyfin }}
+          name: Mira-extension-check-${{ matrix.jellyfin }}
           # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
           overwrite: true
           path: .artifacts/check
           retention-days: 7
 
-  safari:
-    # Safari itself, on a Mac: WebKit and Apple's video engine play Jellyfin's HLS as an iPhone does.
-    if: inputs.release == ''
-    runs-on: macos-15
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: jellyfin/jellyfin
-          ref: v12.1
-          path: .artifacts/jellyfin-src
-          persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          dotnet-version: 10.0.x
-      - name: ffmpeg
-        run: brew install ffmpeg
-      - name: Jellyfin 12.1 from its sources
-        working-directory: .artifacts/jellyfin-src
-        run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
-      - name: Package the plugin and a local repository
-        run: |
-          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
-          tools/web/package.sh "$version" http://127.0.0.1:8765
-      - name: Jellyfin, Mira web installed from the repository
-        run: |
-          tools/web/media.sh "$PWD/.artifacts/media" formats
-          (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
-          j=.artifacts/jf-data; mkdir -p $j/data $j/cache $j/config $j/log
-          (dotnet .artifacts/jf/jellyfin.dll --datadir $j/data --cachedir $j/cache --configdir $j/config --logdir $j/log --nowebclient --ffmpeg "$(brew --prefix)/bin/ffmpeg" > .artifacts/jellyfin.log 2>&1 &)
-          node tools/web/setup.mjs http://127.0.0.1:8096 "$PWD/.artifacts/media" mira mira-check http://127.0.0.1:8765/jellyfin-manifest.json
-      - name: Check in Safari
-        run: |
-          sudo safaridriver --enable
-          (safaridriver -p 4444 > .artifacts/safaridriver.log 2>&1 &)
-          # On a fresh runner, safaridriver may take more than a few seconds to listen: wait for it, 30 s at most.
-          for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:4444/status && break; sleep 1; done
-          MIRA_FORMATS=1 node tools/web/safari.mjs http://127.0.0.1:8096/Mira/ mira mira-check .artifacts/safari
-      - name: Jellyfin log
-        if: failure()
-        run: tail -80 .artifacts/jellyfin.log; ls -t .artifacts/jf-data/log/FFmpeg* 2>/dev/null | head -1 | xargs -I{} tail -30 {}
-      - name: Capture previews in the log
-        if: always()
-        run: |
-          for file in .artifacts/safari/*.png; do
-            [ -f "$file" ] || continue
-            name=$(basename "$file" .png); small=".artifacts/$name.jpg"
-            sips -s format jpeg -s formatOptions 45 -Z 720 "$file" --out "$small" >/dev/null
-            data=$(base64 -i "$small" | tr -d '\n'); parts=$(( (${#data} + 3999) / 4000 ))
-            for ((i = 0; i < parts; i++)); do echo "MIRA-PREVIEW safari-$name $((i + 1))/$parts ${data:$((i * 4000)):4000}"; done
-          done
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: Mira-web-safari
-          # A re-run of this job (tools/release.ps1 re-runs what failed) replaces the earlier attempt's copy.
-          overwrite: true
-          path: .artifacts/safari
-          retention-days: 7
-
   package:
-    # The draft tools/release.ps1 made gets Mira web's plugin and the repository manifest Jellyfin installs it from,
+    # The draft tools/release.ps1 made gets the plugin and the repository manifest Jellyfin installs it from,
     # built from the draft's commit. No write access here: the next job attaches them.
     if: inputs.release != ''
     runs-on: ubuntu-latest

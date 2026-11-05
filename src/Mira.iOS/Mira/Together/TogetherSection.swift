@@ -39,16 +39,17 @@ struct TogetherSection: View {
     }
 
     @ViewBuilder private func invite(_ group: SyncGroup) -> some View {
-        if let server = app.session?.server {
-            let link = SyncRules.inviteLink(server: server, groupId: group.groupId, host: SyncRules.groupHost(group.groupName) ?? app.session?.userName)
-            if let url = URL(string: link) {
-                ShareLink(item: url, message: Text("Open this link and sign in with your own Jellyfin account: you’ll be in my group on Mira.")) {
+        Group {
+            if let invitation = app.together.invitation(group) {
+                ShareLink(item: invitation.url, message: invitation.party ? Text("Open this link to watch with me on Mira, with no account to make.")
+                                                                        : Text("Open this link and sign in with your own Jellyfin account: you’ll be in my group on Mira.")) {
                     Label("Invite", systemImage: "link").font(MiraFont.callout)
                 }
                 .buttonStyle(.glass)
                 .accessibilityIdentifier("together.invite")
             }
         }
+        .task(id: app.session?.userId) { await app.together.loadParty() }
     }
 
     private var leave: some View {

@@ -20,8 +20,8 @@ LATIN = 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,
 root = pathlib.Path(__file__).resolve().parent.parent
 desktop = root / 'src/Mira.Desktop/Assets/Fonts'
 ios = root / 'src/Mira.iOS/Mira/Resources/Fonts'
-web = root / 'src/Mira.Web/fonts'
-site = root / 'site/fonts'  # the showcase site, the same files as Mira web
+web = root / 'src/Mira.Jellyfin/Pages/fonts'  # the extension's pages (/Mira, a party's)
+site = root / 'site/fonts'  # the showcase site
 
 def fetch(name):
     with urllib.request.urlopen(f'{BASE}/{name}') as answer: return answer.read()

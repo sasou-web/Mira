@@ -1,4 +1,4 @@
-// Mira's Mac icon, drawn from the mark of Mira web (src/Mira.Web/img/mark.svg) as on the iPhone: the off-white « m » on
+// Mira's Mac icon, drawn from Mira's mark (src/Mira.Jellyfin/Pages/img/mark.svg) as on the iPhone: the off-white « m » on
 // Mira's blacks (#252528 at the top, #0d0d0f at the bottom).
 // - src/Mira.Mac/Icon/Mira.icon/Assets/m.png: the « m » alone on Icon Composer's 1024 px canvas, the only layer of
 //   Mira.icon (icon.json beside it gives the fill). macOS 26 draws the shape, its edge and glass itself: Xcode 26's actool

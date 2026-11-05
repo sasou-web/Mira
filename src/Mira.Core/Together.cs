@@ -279,8 +279,6 @@ public static class Together
     public static string PartyEnded => L("Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.", "This link no longer works: ask whoever invited you for a new one.");
     /// <summary>Who is in the group, as the party's page lists them: « Sasha, Léa ».</summary>
     public static string Members(Group group) => group.Participants.Count == 0 ? People(1) : string.Join(", ", group.Participants);
-    /// <summary>A party in Mira web, as a guest joins it without an account (#/party/&lt;code&gt;).</summary>
-    public static string PartyWebLink(string server, string code) => server.TrimEnd('/') + "/Mira/#/party/" + Uri.EscapeDataString(code);
     /// <summary>
     /// The party of a host, once its Jellyfin said who (<paramref name="host"/>): their group, found by its name
     /// (<see cref="FindGroup"/>), on the Jellyfin this app is signed in to.
@@ -291,8 +289,8 @@ public static class Together
     {
         var steps = new List<string>
         {
-            L("Qui l’ouvre te rejoint : pas de compte, rien à régler. Avec Mira sur son ordinateur ou son iPhone, le lien s’y ouvre.",
-                "Whoever opens it joins you: no account, nothing to set up. With Mira on their computer or iPhone, the link opens there."),
+            L("Qui l’ouvre te rejoint dans Mira : pas de compte, rien à régler. Sans Mira, la page du lien dit où le prendre (Windows, Mac, iPhone).",
+                "Whoever opens it joins you in Mira: no account, nothing to set up. Without Mira, the link’s page says where to get it (Windows, Mac, iPhone)."),
             L("C’est toujours le même lien : garde-le dans ta conversation. « Faire un nouveau lien » (Réglages de Mira → Amis & invités → Ta party) arrête l’ancien.",
                 "It’s always the same link: keep it in your chat. “Make a new link” (Mira’s settings → Friends & guests → Your party) stops the old one."),
         };
