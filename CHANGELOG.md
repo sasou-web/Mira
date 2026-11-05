@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Site miracinema.app plus simple** : la page entière est une phrase (« Mira projette ta bibliothèque Jellyfin comme au cinéma… »), chaque écran qu’elle nomme y est une petite vignette de la taille d’un mot, ouverte en grand d’un toucher ; la présentation s’ouvre dans la même fenêtre, puis le téléchargement en trois lignes, celle de ton appareil en premier. Noir et Nunito comme les apps ; en anglais et en français ; sans JavaScript, chaque vignette est un lien vers sa capture ; rien de chargé ailleurs, toujours.
 - **Un wiki pour Mira, wiki.miracinema.app** : les guides d’installation (Windows, Mac avec Homebrew, iPhone avec AltStore), la préparation de Jellyfin, la connexion, Tailscale hors de chez soi, la bibliothèque, le lecteur, l’audio et les sous-titres, Regarder ensemble et la party, la carte des réglages, la vie privée, le dépannage et les questions, en anglais et en français, avec une recherche dans la page. Pages statiques faites depuis `wiki/` par `tools/site/wiki.mjs`, sans dépendance ni rien chargé ailleurs, publiées par `site.yml` vers le dépôt `sasou-web/mira-wiki`.
 - **Chaque release annoncée sur Discord** : à la publication, le salon #releases du Discord de Mira reçoit un message avec la bannière de la version, son résumé et ses points en anglais (ceux de la page de release) et le lien de téléchargement, au lieu du seul lien de GitHub (`discord.yml`, `tools/discord/announce.mjs`, webhook dans le secret `DISCORD_RELEASES_WEBHOOK`). Seul ce texte public part vers Discord, depuis GitHub Actions.
 

@@ -1,6 +1,5 @@
-// miracinema.app: the page is complete without this script (the tour's button is then a link to its file). It puts this
-// device's download first, and plays the tour in the page: its band opens to the film's size, the rest of the page goes
-// dark while it plays, and a click outside it, Escape or scrolling it away pauses it.
+// miracinema.app: the page is complete without this script (a screen of the sentence is then a link to its capture, the
+// tour a link to its file). It puts this device's download first, and opens a screen or the tour big over the page.
 const ua = navigator.userAgent;
 const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
 const device = /iPhone|iPad|iPod/.test(ua) || touchMac ? 'phone' : /Mac OS X|Macintosh/.test(ua) ? 'mac' : 'windows';
@@ -8,55 +7,74 @@ if (device !== 'windows') {
   document.querySelectorAll('.actions [data-for]').forEach(link => { link.hidden = !link.dataset.for.split(' ').includes(device); });
 }
 if (/Windows|Mac OS X|Macintosh|iPhone|iPad|iPod/.test(ua)) {
-  document.querySelector(`.doors [data-for="${device}"]`)?.classList.add('yours');
+  document.querySelector(`.rows [data-for="${device}"]`)?.classList.add('yours');
 }
 
-const lights = document.createElement('div');
-lights.className = 'lights';
-document.body.append(lights);
-const pauseAll = () => document.querySelectorAll('.tour video').forEach(video => video.pause());
-lights.addEventListener('click', pauseAll);
-document.addEventListener('keydown', event => { if (event.key === 'Escape') pauseAll(); });
+const text = document.body.dataset;
+const icons = document.querySelector('.tour use')?.getAttribute('href').replace(/#.*$/, '') ?? 'img/icons.svg';
+const viewer = document.createElement('dialog');
+viewer.className = 'viewer';
+const figure = document.createElement('figure');
+const close = document.createElement('button');
+close.type = 'button';
+close.className = 'close';
+close.setAttribute('aria-label', text.close ?? 'Close');
+close.innerHTML = `<svg class="icon" aria-hidden="true"><use href="${icons}#close"/></svg>`;
+viewer.append(figure, close);
+document.body.append(viewer);
+close.addEventListener('click', () => viewer.close());
+viewer.addEventListener('click', event => { if (event.target === viewer) viewer.close(); });
+viewer.addEventListener('close', () => { figure.querySelector('video')?.pause(); figure.replaceChildren(); });
 
-for (const tour of document.querySelectorAll('.tour')) {
-  const video = tour.querySelector('video');
-  const source = video.querySelector('source');
-  const play = tour.querySelector('.play');
-  const poster = tour.querySelector('.poster');
-  const failed = tour.parentElement.querySelector('.tour-failed');
-  play.setAttribute('role', 'button');
-  // Not played (a browser without H.264, the file not reached): the still comes back, the button is a link to the
-  // file again, and the line under the band says so, with the file to download.
-  const fail = () => {
-    video.pause();
-    document.documentElement.classList.remove('lights-down');
-    tour.classList.remove('playing');
-    tour.dataset.failed = '';
-    video.controls = false;
-    play.removeAttribute('role');
-    if (failed) failed.hidden = false;
-  };
-  const start = event => {
-    if ('failed' in tour.dataset) return;
-    event.preventDefault();
-    if (source && !video.canPlayType(source.type)) { fail(); return; }
-    // While the film loads, the still already on screen (no other download).
-    if (poster?.currentSrc) video.poster = poster.currentSrc;
-    tour.classList.add('playing');
-    video.controls = true;
-    video.play().catch(() => {});
-    video.focus();
-  };
-  play.addEventListener('click', start);
-  play.addEventListener('keydown', event => { if (event.key === ' ') start(event); });
-  video.addEventListener('play', () => document.documentElement.classList.add('lights-down'));
-  for (const name of ['pause', 'ended', 'emptied']) {
-    video.addEventListener(name, () => document.documentElement.classList.remove('lights-down'));
+const show = link => {
+  const kind = link.dataset.view;
+  const caption = document.createElement('figcaption');
+  let body;
+  if (kind === 'tour') {
+    body = document.createElement('video');
+    const source = document.createElement('source');
+    source.src = link.getAttribute('href');
+    source.type = 'video/mp4; codecs=avc1.64002A';
+    body.append(source);
+    body.controls = true;
+    body.playsInline = true;
+    body.poster = link.dataset.poster;
+    caption.textContent = link.dataset.caption;
+    // Not played (a browser without this H.264, the file not reached): the file to download instead.
+    const failed = () => {
+      body.remove();
+      caption.textContent = `${text.failed} `;
+      const file = document.createElement('a');
+      file.href = source.src;
+      file.download = '';
+      file.textContent = text.download;
+      caption.append(file, ` ${text.size}`);
+    };
+    if (!body.canPlayType(source.type)) { figure.replaceChildren(caption); viewer.showModal(); failed(); return; }
+    source.addEventListener('error', failed);
+  } else {
+    const shown = link.querySelector('img');
+    const img = document.createElement('img');
+    img.src = link.getAttribute('href');
+    img.alt = shown.alt;
+    caption.textContent = shown.alt;
+    body = document.createElement('div');
+    body.className = kind;
+    if (kind === 'phone') {
+      const screen = document.createElement('div');
+      screen.className = 'screen';
+      screen.append(img);
+      body.append(screen);
+    } else body.append(img);
   }
-  source?.addEventListener('error', () => { if (tour.classList.contains('playing')) fail(); });
-  video.addEventListener('error', fail);
-  // Scrolled away while it plays (less than a quarter of it left on screen): paused, the lights back on.
-  new IntersectionObserver(([entry]) => {
-    if (entry.intersectionRatio < 0.25 && !video.paused) video.pause();
-  }, { threshold: 0.25 }).observe(tour);
+  figure.replaceChildren(body, caption);
+  viewer.showModal();
+  if (kind === 'tour') body.play().catch(() => {});
+};
+for (const link of document.querySelectorAll('[data-view]')) {
+  link.addEventListener('click', event => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    show(link);
+  });
 }
