@@ -474,7 +474,8 @@ public partial class MainWindow
     /// </summary>
     private void ShowInvite()
     {
-        if (_group is not { } group || _client is not { } client) return;
+        // A friend's party guest invites nobody: the party's link is its host's.
+        if (InParty || _group is not { } group || _client is not { } client) return;
         var link = Together.InviteLink(ReachableServer(client), group.GroupId, Together.GroupHost(group.GroupName));
         InviteLead.Text = L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”.");
         InviteLink.Text = link;
@@ -735,7 +736,7 @@ public partial class MainWindow
             menu.Items.Add(MenuAction(L("Revenir au lecteur", "Back to the player"), "play", () => { SetMiniPlayerSmoothly(false); return Task.CompletedTask; }));
         else if (title is not null)
             menu.Items.Add(MenuAction(L($"Voir « {Together.TitleName(title)} »", $"View “{Together.TitleName(title)}”"), "film", () => OpenGroupTitleAsync(title)));
-        menu.Items.Add(MenuAction(L("Inviter quelqu’un…", "Invite someone…"), "link", () => { ShowInvite(); return Task.CompletedTask; }));
+        if (!InParty) menu.Items.Add(MenuAction(L("Inviter quelqu’un…", "Invite someone…"), "link", () => { ShowInvite(); return Task.CompletedTask; }));
         menu.Items.Add(MenuAction(L("Quitter le groupe", "Leave the group"), "close", LeaveGroupAsync));
         menu.IsOpen = true;
     }
