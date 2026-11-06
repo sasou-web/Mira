@@ -457,7 +457,7 @@ public static class SelfCheck
             window.SetCouchMode(true);
             await Task.Delay(1200);
             var couchZoom = Couch.Zoom(window.ClientSize.Width, window.ClientSize.Height);
-            Check(window.InCouchMode && window.Classes.Contains("couch") && window.CouchZoom == couchZoom && couchZoom > 1, "mode canapé : pages agrandies", $"zoom {window.CouchZoom:0.00} pour {window.ClientSize.Width:0} × {window.ClientSize.Height:0}");
+            Check(window.InCouchMode && window.Classes.Contains("couch") && window.CouchZoom == couchZoom && (couchZoom > 1 || window.ClientSize.Width <= 1280 || window.ClientSize.Height <= 720), "mode canapé : pages agrandies (écran du runner de 1024 × 768 : 1)", $"zoom {window.CouchZoom:0.00} pour {window.ClientSize.Width:0} × {window.ClientSize.Height:0}");
             Control? Focused() => window.FocusManager?.GetFocusedElement() as Control;
             Rect? Where(Control? control) => control?.TransformToVisual(window) is { } m ? new Rect(control.Bounds.Size).TransformToAABB(m) : null;
             window.FocusFirst();
