@@ -59,6 +59,6 @@
     <EmbeddedResource Include="Assets/mira.ico" LogicalName="Mira.App/mira-mark-v1.ico" />
     <InternalsVisibleTo Include="Mira.Tests" />
     <ProjectReference Include="../Mira.Core/Mira.Core.csproj" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
   </ItemGroup>
 </Project>
