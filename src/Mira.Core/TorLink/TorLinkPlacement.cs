@@ -154,13 +154,16 @@ public sealed class TorLinkPlacement : IDisposable
 
     /// <summary>
     /// Just before TorLink starts, closed at this point: the downloads moved into the library stop being shared (started
-    /// again, TorLink would fetch pieces of them back), and a TorLink never set up downloads on the library's drive, where
-    /// each move is a rename. Returns that folder when it was chosen.
+    /// again, TorLink would fetch pieces of them back), and TorLink downloads on the library's volume, where each move is
+    /// a rename: chosen for a TorLink never set up, or moved there from its default folder or an earlier choice of Mira on
+    /// another volume (a drive mounted in the library's folder, for one) once nothing downloads nor is shared from the old
+    /// one. Returns that folder when it was set.
     /// </summary>
     public string? PrepareStart()
     {
         if (Importer.MovedSeeds() is { Count: > 0 } moved) Importer.MarkSeedPaused(State.PauseSeeds(moved));
-        return Ready && TorLinkState.DownloadFolderBeside(Libraries, State.DownloadDirectory()) is { } folder && State.ChooseDownloadDirectory(folder) ? folder : null;
+        return Ready && TorLinkState.DownloadFolderBeside(Libraries, State.DownloadDirectory()) is { } folder
+            && (State.ChooseDownloadDirectory(folder) || State.MoveDownloadDirectory(folder)) ? folder : null;
     }
 
     /// <summary>An outcome not told yet (one message per outcome, not one per step): false while it is still being placed.</summary>

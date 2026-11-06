@@ -105,26 +105,85 @@ public sealed partial class TorLinkState : IDownloadSource
     }
 
     /// <summary>
-    /// A download folder on the library's drive when TorLink's is on another one, beside the library folders (never
-    /// inside one, where Jellyfin would list unfinished files): "Téléchargements TorLink". Null when the drive is the
-    /// same already, or when the library folders are spread over several drives.
+    /// A download folder on the library's volume when TorLink's is on another one, beside the library folders (never
+    /// inside one, where Jellyfin would list unfinished files): "Téléchargements TorLink". Volumes are told by
+    /// <paramref name="volumeOf"/> (<see cref="Volumes.Of"/>): a drive mounted in a folder of C: is not C:. Null when the
+    /// volume is the same already, or when the library folders are spread over several volumes.
     /// </summary>
-    public static string? DownloadFolderBeside(MediaLibraries libraries, string downloads)
+    public static string? DownloadFolderBeside(MediaLibraries libraries, string downloads, Func<string, string?>? volumeOf = null)
     {
+        volumeOf ??= Volumes.Of;
         try
         {
             var full = new[] { libraries.Movies, libraries.Series, libraries.Anime }.OfType<string>().Where(x => x.Trim().Length > 0)
                 .Select(x => Path.GetFullPath(x.Trim())).ToList();
-            var drives = full.Select(Path.GetPathRoot).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            if (drives is not [{ Length: > 0 } drive] || string.Equals(drive, Path.GetPathRoot(Path.GetFullPath(downloads)), StringComparison.OrdinalIgnoreCase)) return null;
+            var volumes = full.Select(volumeOf).Select(x => x is null ? null : Path.TrimEndingDirectorySeparator(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (volumes is not [{ Length: > 0 } volume] || Volumes.Same(volume, volumeOf(Path.GetFullPath(downloads)))) return null;
             var roots = full.Select(x => x.TrimEnd('\\', '/')).ToList();
             var name = L("Téléchargements TorLink", "TorLink downloads");
             bool InsideLibrary(string folder) => roots.Any(root => folder.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || string.Equals(folder, root, StringComparison.OrdinalIgnoreCase));
-            // Beside the first library folder, otherwise at the root of its drive; a library at the root of a drive leaves no room.
-            return new[] { Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent ? Path.Combine(parent, name) : null, Path.Combine(drive, name) }
-                .OfType<string>().FirstOrDefault(x => !InsideLibrary(x));
+            // Beside the first library folder, otherwise at the root of its volume; a library at the root of a volume leaves no room.
+            // A library folder that is a mount point itself has its parent on another volume: the root of its own then.
+            return new[] { Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent ? Path.Combine(parent, name) : null, Path.Combine(volume + Path.DirectorySeparatorChar, name) }
+                .OfType<string>().FirstOrDefault(x => !InsideLibrary(x) && Volumes.Same(volumeOf(x), volume));
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
+    }
+
+    /// <summary>
+    /// TorLink's folder moved to <paramref name="folder"/> (on the library's volume) when it is TorLink's default or one Mira
+    /// chose before (a folder the person picked is theirs), and only while nothing of TorLink still lives there: TorLink
+    /// closed (the caller's part), every download of its queue finished, nothing shared. Finished files already in the
+    /// old folder stay there (TorLink's history points at them) and are still sorted from there; new downloads arrive in
+    /// the new folder, where sorting is a rename.
+    /// </summary>
+    public bool MoveDownloadDirectory(string folder)
+    {
+        if (!File.Exists(ConfigFile) || !MiraMayMove(DownloadDirectory()) || !Idle()) return false;
+        try
+        {
+            if (JsonNode.Parse(ReadShared(ConfigFile)) is not JsonObject config) return false;
+            Directory.CreateDirectory(folder);
+            config["downloadDir"] = Path.GetFullPath(folder);
+            return Replace(ConfigFile, config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException or NotSupportedException) { return false; }
+    }
+
+    /// <summary>TorLink's default folder, or one named as Mira names its own (in either language): Mira may move it.</summary>
+    public static bool MiraMayMove(string folder)
+    {
+        try
+        {
+            var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+            return string.Equals(full, Path.GetFullPath(DefaultDownloadDirectory), StringComparison.OrdinalIgnoreCase)
+                || Path.GetFileName(full) is "Téléchargements TorLink" or "TorLink downloads";
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
+    }
+
+    /// <summary>
+    /// Nothing of TorLink needs its folder: every entry of queue.json finished (a paused, stopped, queued or failed one has
+    /// its pieces there), no download shared in seeds.json. False when either file cannot be read.
+    /// </summary>
+    public bool Idle()
+    {
+        try
+        {
+            if (File.Exists(QueueFile))
+            {
+                using var queue = JsonDocument.Parse(ReadShared(QueueFile));
+                if (queue.RootElement.ValueKind != JsonValueKind.Array || queue.RootElement.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.Object || Text(x, "status") != "completed")) return false;
+            }
+            if (File.Exists(SeedsFile))
+            {
+                using var seeds = JsonDocument.Parse(ReadShared(SeedsFile));
+                if (seeds.RootElement.ValueKind != JsonValueKind.Array || seeds.RootElement.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.String
+                    || x.ValueKind == JsonValueKind.Object && Text(x, "status") == "seeding")) return false;
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return false; }
     }
 
     /// <summary>Finished downloads, newest first. Null while the file cannot be read yet (TorLink replaces it atomically: try again).</summary>
