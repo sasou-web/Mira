@@ -22,6 +22,11 @@ public sealed partial class PlayerPage
     /// undo itself ten times a second. Seeks and the volume repeat, as on Windows.
     /// </summary>
     private readonly HashSet<Key> _held = [];
+    /// <summary>
+    /// The keys the player took on their way down: their release is taken too. Avalonia presses a focused button when
+    /// Space is released (Button.OnKeyUp), and Lecture, focused by its click under the player, started the film over.
+    /// </summary>
+    private readonly HashSet<Key> _taken = [];
     private readonly TextBlock _seekText = new() { FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White };
     private Border? _seekPill;
     private DispatcherTimer? _seekHide;
@@ -30,6 +35,11 @@ public sealed partial class PlayerPage
     public void HandleKey(KeyEventArgs e)
     {
         if (e.Handled) return;
+        ReadKey(e);
+        if (e.Handled) _taken.Add(e.Key);
+    }
+    private void ReadKey(KeyEventArgs e)
+    {
         var again = !_held.Add(e.Key);
         // « Lecture impossible »: Échap is « Retour »; Return and Space press the button that has the focus.
         if (FailureShown) { if (e.Key == Key.Escape && !again) { _ = LeaveFailureAsync(); e.Handled = true; } return; }
@@ -66,9 +76,13 @@ public sealed partial class PlayerPage
         }
         e.Handled = true;
     }
-    public void HandleKeyUp(KeyEventArgs e) => _held.Remove(e.Key);
+    public void HandleKeyUp(KeyEventArgs e)
+    {
+        _held.Remove(e.Key);
+        if (_taken.Remove(e.Key)) e.Handled = true;
+    }
     /// <summary>Mira left the front with a key down: its release went to another app.</summary>
-    public void ForgetHeldKeys() => _held.Clear();
+    public void ForgetHeldKeys() { _held.Clear(); _taken.Clear(); }
 
     /// <summary>← and →, J and L, ⇧← and ⇧→: the jump, and how far it went in the middle of the picture.</summary>
     private void Jump(double seconds)

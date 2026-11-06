@@ -425,6 +425,8 @@ public sealed class DetailPage : Page
         ShowOffline();
         _fix!.IsVisible = _admin && _item.Type is "Movie" or "Series";
     }
+    /// <summary>For the self-check: Lecture.</summary>
+    public Button? PlayButton => _play;
     /// <summary>For the self-check: the buttons beside Lecture, whether each shows its words, and whether a state button is on.</summary>
     public IEnumerable<(string Name, bool Words, bool On)> ActionButtons() => (_line?.Children.OfType<Button>().Skip(1) ?? [])
         .Where(x => x.IsVisible).Select(x => (Avalonia.Automation.AutomationProperties.GetName(x) ?? "", ActionLine.ShowsWords(x), x.Content is StateIcon { On: true }));
