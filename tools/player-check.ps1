@@ -46,11 +46,11 @@ $hdr = @(
     @('hdr10.mkv', 'smpte2084', ':hdr10=1:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=1000,400'),
     @('hlg.mkv', 'arib-std-b67', '')
 )
-foreach ($clip in $hdr) {
-    $x265 = "log-level=error:repeat-headers=1:colorprim=bt2020:transfer=$($clip[1]):colormatrix=bt2020nc$($clip[2])"
+foreach ($made in $hdr) {
+    $x265 = "log-level=error:repeat-headers=1:colorprim=bt2020:transfer=$($made[1]):colormatrix=bt2020nc$($made[2])"
     & $ffmpeg.FullName -loglevel error -y -f lavfi -i 'testsrc2=size=1280x720:rate=24:duration=6' -vf 'format=yuv420p10le' `
-        -c:v libx265 -preset ultrafast -x265-params $x265 -color_primaries bt2020 -color_trc $clip[1] -colorspace bt2020nc (Join-Path $colours $clip[0])
-    if ($LASTEXITCODE -ne 0) { throw "ffmpeg could not make $($clip[0]) ($LASTEXITCODE)" }
+        -c:v libx265 -preset ultrafast -x265-params $x265 -color_primaries bt2020 -color_trc $made[1] -colorspace bt2020nc (Join-Path $colours $made[0])
+    if ($LASTEXITCODE -ne 0) { throw "ffmpeg could not make $($made[0]) ($LASTEXITCODE)" }
 }
 
 # The check itself: the window is placed off screen, the result written to result.txt.
