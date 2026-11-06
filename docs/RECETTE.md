@@ -21,8 +21,8 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 ## PC d'ogsas 🖥
 - [ ] Mise à jour de Mira proposée et faite (à la prochaine version)
 - [ ] Lecteur : image « Cinéma » sans saccade sur un film 4K ; Informations dit « Cinéma »
-- [ ] Un film HDR10 avec le HDR de Windows allumé, puis éteint : couleurs justes les deux fois
-- [ ] Un film Dolby Vision (profil 5 ou 8) : pas de vert ni de violet
+- [ ] Un film HDR10 avec le HDR de Windows allumé, puis éteint : couleurs justes les deux fois ; ⋮ → Informations, ligne « Couleurs » : « envoyé en HDR à l’écran » puis « converti en SDR »
+- [ ] Un film Dolby Vision (profil 5 ou 8) : pas de vert ni de violet ; « Couleurs » dit « Dolby Vision profil 5 » ou « 8 »
 - [ ] Sortie audio : « Tester » joue chaque haut-parleur ; passthrough vers un ampli si tu en as un
 - [ ] Image dans l'image : la petite fenêtre reste au-dessus, sous-titres lisibles, retour sans image noire
 - [ ] Réduire et agrandir le lecteur : fluide, pas de noir aux deux bouts
@@ -38,6 +38,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Lecteur : double toucher ±10 s, glisser luminosité et volume, pincer, réduire vers le bas
 - [ ] PiP d'Apple et AirPlay vers une télé
 - [ ] Sous-titres d'un vrai animé (ASS) lisibles et calés
+- [ ] Un film Dolby Vision profil 8 (Jellyfin 12.2 ou plus) puis HDR10 : lus sans conversion, couleurs justes
 - [ ] Tailscale intégré en 4G (sans l'app Tailscale) : lecture, puis arrière-plan et retour
 - [ ] Ouverture avec le PC de Jellyfin éteint : message clair, puis l'Accueil quand il revient
 - [ ] Un titre qui échouait avant : noter l'erreur et les infos du média
