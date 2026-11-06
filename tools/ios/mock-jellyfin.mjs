@@ -10,6 +10,10 @@
 // The tests switch it (POST): /Mock/Slow?ms=… answers the account's requests that much later (pictures and the server's
 // public answer stay quick), /Mock/Down cuts every connection but /Mock's (a PC switched off), /Mock/Up undoes both;
 // /Mock/Mark?name=… notes when a moment of a filmed test came (/Mock/Marks, read by ios.yml to cut the film).
+// « Keep on this iPhone »: Items/{id}/Download sends the file (ranges), and Cosmos Laundromat's PlaybackInfo, asked with
+// no subtitles from its start (as the app asks to keep a title), is a conversion of an MKV: its HLS playlists cut
+// media/clip.mp4 into an init segment and segments, put end to end again by the app; its subtitles as WebVTT; where a
+// title kept was watched without the mock, told by UserItems/{id}/UserData (listed with the reports, « /UserData »).
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
 import http from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
@@ -98,6 +102,10 @@ const episodes = [
   episode(3, 'Alone in the Night'),
 ];
 const everything = [...films, series, ...episodes];
+// The title kept as Jellyfin's conversion, and the pieces of its stream.
+const converted = films[3];
+const pieces = [clip.subarray(0, 4096)];
+for (let at = 4096, size = Math.ceil((clip.length - 4096) / 4); at < clip.length; at += size) pieces.push(clip.subarray(at, Math.min(clip.length, at + size)));
 // Each playable title: one MP4 file, its tracks.
 const mediaSource = (item) => ({
   Id: item.Id, Container: 'mov,mp4,m4a', Bitrate: 30_000, RunTimeTicks: item.RunTimeTicks, SupportsDirectPlay: true, SupportsDirectStream: true,
@@ -300,7 +308,57 @@ const server = http.createServer(async (req, res) => {
   if (playback && req.method === 'POST') {
     const item = everything.find((x) => x.Id === playback[1]);
     if (!item?.MediaSources) return send(res, 404, undefined);
-    return send(res, 200, { MediaSources: item.MediaSources, PlaySessionId: `play-${reports.length}` });
+    const body = JSON.parse(raw || '{}'), session = `play-${reports.length}`;
+    if (item === converted && body.SubtitleStreamIndex === -1 && !body.StartTimeTicks) {
+      const source = { ...item.MediaSources[0], Container: 'mkv', SupportsDirectPlay: false, SupportsDirectStream: false, TranscodingSubProtocol: 'hls',
+        TranscodingUrl: `/videos/${item.Id}/master.m3u8?MediaSourceId=${item.Id}&PlaySessionId=${session}&AudioStreamIndex=${body.AudioStreamIndex ?? 1}` };
+      return send(res, 200, { MediaSources: [source], PlaySessionId: session });
+    }
+    return send(res, 200, { MediaSources: item.MediaSources, PlaySessionId: session });
+  }
+  const download = /^\/Items\/([0-9a-f]+)\/Download$/.exec(path);
+  if (download) {
+    if (!everything.some((x) => x.Id === download[1] && x.MediaSources)) return send(res, 404, undefined);
+    const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
+    if (!range) {
+      res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': clip.length, 'Accept-Ranges': 'bytes' });
+      return res.end(clip);
+    }
+    const start = Number(range[1]), end = Math.min(clip.length - 1, range[2] ? Number(range[2]) : clip.length - 1);
+    res.writeHead(206, { 'Content-Type': 'video/mp4', 'Content-Length': end - start + 1, 'Content-Range': `bytes ${start}-${end}/${clip.length}`, 'Accept-Ranges': 'bytes' });
+    return res.end(clip.subarray(start, end + 1));
+  }
+  if (path === `/videos/${converted.Id}/master.m3u8`) {
+    res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl' });
+    return res.end(`#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=300000,CODECS="avc1.64001e,mp4a.40.2"\nmain.m3u8?${q}\n`);
+  }
+  if (path === `/videos/${converted.Id}/main.m3u8`) {
+    const lines = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-TARGETDURATION:3', '#EXT-X-MEDIA-SEQUENCE:0', '#EXT-X-PLAYLIST-TYPE:VOD',
+      `#EXT-X-MAP:URI="hls1/main/-1.mp4?${q}"`];
+    for (let n = 0; n < pieces.length - 1; n++) lines.push('#EXTINF:2.5,', `hls1/main/${n}.mp4?${q}`);
+    lines.push('#EXT-X-ENDLIST', '');
+    res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl' });
+    return res.end(lines.join('\n'));
+  }
+  const segment = new RegExp(`^/videos/${converted.Id}/hls1/main/(-?\\d+)\\.mp4$`).exec(path);
+  if (segment) {
+    const piece = pieces[Number(segment[1]) + 1];
+    if (!piece) return send(res, 404, undefined);
+    res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': piece.length });
+    return res.end(piece);
+  }
+  if (/^\/Videos\/[0-9a-f]+\/[0-9a-f]+\/Subtitles\/3\/0\/Stream\.vtt$/.test(path)) {
+    res.writeHead(200, { 'Content-Type': 'text/vtt' });
+    return res.end('WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nBonjour, tout le monde.\n\n00:00:05.000 --> 00:00:08.000\nOn regarde sans connexion.\n');
+  }
+  const userData = /^\/UserItems\/([0-9a-f]+)\/UserData$/.exec(path);
+  if (userData && req.method === 'POST') {
+    const item = everything.find((x) => x.Id === userData[1]);
+    if (!item) return send(res, 404, undefined);
+    const body = JSON.parse(raw || '{}');
+    item.UserData = { ...item.UserData, PlaybackPositionTicks: body.PlaybackPositionTicks ?? 0, ...(body.LastPlayedDate ? { LastPlayedDate: body.LastPlayedDate } : {}) };
+    reports.push({ kind: '/UserData', item: item.Id, position: body.PlaybackPositionTicks });
+    return send(res, 200, item.UserData);
   }
   if (path.startsWith('/Sessions/Playing')) {
     const body = JSON.parse(raw || '{}');

@@ -239,6 +239,60 @@ final class MiraUITests: XCTestCase {
         capture("14b-reglages-bas")
     }
 
+    /// « Keep on this iPhone »: a film kept as its file (Tears of Steel), another as Jellyfin's conversion (Cosmos
+    /// Laundromat, an MKV for the stand-in: its HLS segments put end to end); then Jellyfin away, « On this iPhone »
+    /// plays the copy; Jellyfin back, it hears where the copy was left.
+    @MainActor
+    func testKeep() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let movies = app.buttons["tab.movies"]
+        for (name, shot) in [("Tears of Steel, 2012", "61-keep-file"), ("Cosmos Laundromat, 2015", "62-keep-converted")] {
+            XCTAssertTrue(movies.waitForExistence(timeout: 5), "No Movies tab")
+            movies.tap()
+            let card = app.buttons[name].firstMatch
+            XCTAssertTrue(card.waitForExistence(timeout: 15), "No card for \(name)")
+            tapCard(app, card)
+            let keep = app.buttons["title.keep"]
+            XCTAssertTrue(keep.waitForExistence(timeout: 10), "\(name): no Keep on this iPhone")
+            XCTAssertEqual(keep.label, "Keep on this iPhone")
+            keep.tap()
+            XCTAssertTrue(waitForLabel(keep, "On this iPhone", timeout: 90), "\(name) was never kept: \(keep.label)")
+            settle()
+            capture(shot)
+        }
+
+        // Jellyfin away (a PC switched off, far from home): the copy plays from this iPhone.
+        mock("/Mock/Down")
+        let before = reports("/UserData", item: Self.tearsOfSteel)
+        app.buttons["tab.settings"].tap()
+        let kept = app.buttons["settings.kept"]
+        XCTAssertTrue(kept.waitForExistence(timeout: 10), "No On this iPhone row in Settings")
+        kept.tap()
+        XCTAssertTrue(app.navigationBars["On this iPhone"].waitForExistence(timeout: 10), "On this iPhone did not open")
+        let rows = app.buttons.matching(identifier: "kept.row")
+        XCTAssertTrue(rows.element(boundBy: 1).waitForExistence(timeout: 5), "On this iPhone does not list both films")
+        settle()
+        capture("63-kept-list")
+        rows.matching(NSPredicate(format: "label CONTAINS 'Tears of Steel'")).firstMatch.tap()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let play = app.buttons["player.play"]
+        XCTAssertTrue(reveal(play, app), "The copy opened no player")
+        XCTAssertTrue(waitForLabel(play, "Pause", timeout: 15), "The copy does not play without Jellyfin: \(play.label)")
+        Thread.sleep(forTimeInterval: 1.5)
+        capture("64-kept-player")
+        closePlayer(app)
+
+        // Jellyfin back: told where the copy was left, once Mira comes back on screen.
+        mock("/Mock/Up")
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 2)
+        app.activate()
+        XCTAssertTrue(waitForReport("/UserData", item: Self.tearsOfSteel, timeout: 40, after: before), "Jellyfin never heard where the copy was left")
+    }
+
     /// The largest text a person may choose short of the accessibility sizes' last ones, in French (the longer
     /// language): every screen still reads, nothing cut.
     @MainActor

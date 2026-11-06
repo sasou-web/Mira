@@ -56,6 +56,14 @@ struct SettingsView: View {
                         row("Your recap", "What you watched this month and this year.", symbol: "clock.arrow.circlepath")
                     }
                     .accessibilityIdentifier("settings.report")
+                    if app.party.guest == nil {
+                        NavigationLink {
+                            KeptView()
+                        } label: {
+                            SettingsRow("On this iPhone", verbatim: keptLine, symbol: "arrow.down.circle")
+                        }
+                        .accessibilityIdentifier("settings.kept")
+                    }
                 }
                 .listRowBackground(Palette.surface)
 
@@ -209,6 +217,10 @@ struct SettingsView: View {
         .confirmationDialog("Sign out of Jellyfin on this iPhone?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { app.signOut() }
                 .accessibilityIdentifier("settings.signout.confirm")
+        } message: {
+            if !app.keeper.copies.isEmpty {
+                Text("The titles kept on this iPhone are removed from it.")
+            }
         }
         .sheet(isPresented: $approving) { ApproveDeviceSheet() }
         .task { await load() }
@@ -266,6 +278,13 @@ struct SettingsView: View {
         } catch {
             photoFailure = error.localizedDescription
         }
+    }
+
+    /// « 3 titles · 4.2 GB », or how to keep one.
+    private var keptLine: String {
+        let kept = app.keeper.kept
+        guard !kept.isEmpty else { return String(localized: "Movies and episodes kept here play without a connection.") }
+        return String(localized: "\(kept.count) titles · \(Keeper.size(kept.reduce(0) { $0 + $1.size }))")
     }
 
     private func row(_ title: LocalizedStringKey, _ detail: LocalizedStringKey, symbol: String? = nil) -> some View {
