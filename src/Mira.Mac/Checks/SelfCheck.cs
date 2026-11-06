@@ -365,14 +365,17 @@ public static class SelfCheck
                 await Task.Delay(500);
                 var grid = window.Current!.GetVisualDescendants().OfType<Mira.Mac.Views.CardGrid>().First();
                 var first = grid.Children[0];
+                var poster = MainWindow.Glided(first);
                 var narrow = first.Bounds.Width;
                 window.ZoomGrids(Trackpad.ZoomMax);
-                // The poster glides from its old size to its new one, then rests there.
-                var glided = first.RenderTransform is not null;
-                var settled = await Until(() => first.RenderTransform is null, 3);
+                // The poster glides from its old size to its new one, frame by frame, then rests there; shown as it is set
+                // (a button's own transition would show it as none), the button itself left to its theme (its press).
+                var glided = poster.RenderTransform is Avalonia.Media.MatrixTransform { Value.IsIdentity: false } && first.RenderTransform is not Avalonia.Media.MatrixTransform;
+                var settled = await Until(() => poster.RenderTransform is null, 3);
+                var frames = MainWindow.GlideFrames;
                 var wide = first.Bounds.Width;
-                window.ZoomGrids(1); await Until(() => first.RenderTransform is null, 3);
-                Check(wide > narrow * 1.3 && Math.Abs(first.Bounds.Width - narrow) < 1 && glided && settled, "trackpad : pincer agrandit les affiches de la grille, qui glissent à leur place", $"{narrow:0} → {wide:0} px, puis {first.Bounds.Width:0} ; glisse {glided}, posée {settled}");
+                window.ZoomGrids(1); await Until(() => poster.RenderTransform is null, 3);
+                Check(wide > narrow * 1.3 && Math.Abs(first.Bounds.Width - narrow) < 1 && glided && settled && frames > 1, "trackpad : pincer agrandit les affiches de la grille, qui glissent à leur place", $"{narrow:0} → {wide:0} px, puis {first.Bounds.Width:0} ; glisse {glided}, posée {settled} en {frames} images");
             }
             SettingsPage.OpenAt("playback");
             window.Go("settings");

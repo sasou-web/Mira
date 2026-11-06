@@ -249,10 +249,10 @@ public sealed partial class MainWindow
         if (grids.All(x => x.ColumnsAt(zoom) == x.ColumnsAt(CardGrid.Zoom))) { CardGrid.Zoom = zoom; return true; }
         var scroll = grids[0].FindAncestorOfType<ScrollViewer>();
         var share = scroll is { Extent.Height: > 0 } ? scroll.Offset.Y / scroll.Extent.Height : 0;
-        // Where each card shows now (a glide still under way included), in the page's scroller.
+        // Where each poster shows now (a glide still under way included), in the page's scroller.
         var frame = (Visual?)scroll ?? page;
         var before = new Dictionary<Control, Rect>();
-        foreach (var card in grids.SelectMany(x => x.Children)) if (Shown(card, frame) is { } rect) before[card] = rect;
+        foreach (var card in grids.SelectMany(x => x.Children)) if (Glided(card) is var poster && Shown(poster, frame) is { } rect) before[poster] = rect;
         Glides.Stop();
         CardGrid.Zoom = zoom;
         foreach (var grid in grids) grid.InvalidateMeasure();
@@ -260,16 +260,22 @@ public sealed partial class MainWindow
         if (scroll is not null) { scroll.Offset = new Vector(scroll.Offset.X, share * scroll.Extent.Height); UpdateLayout(); }
         if (MacMotion.Reduced) return true;
         var moves = new List<(Control Card, Matrix From)>();
-        foreach (var (card, was) in before)
+        foreach (var (poster, was) in before)
         {
-            if (Shown(card, frame) is not { } now || now.Width <= 0) continue;
+            if (Shown(poster, frame) is not { } now || now.Width <= 0) continue;
             var scale = was.Width / now.Width;
-            moves.Add((card, Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(was.X - now.X, was.Y - now.Y)));
+            moves.Add((poster, Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(was.X - now.X, was.Y - now.Y)));
         }
         Glides.Start(this, moves);
         return true;
     }
-    /// <summary>A card's place in <paramref name="frame"/>, its glide included; null when off screen.</summary>
+    /// <summary>
+    /// What glides of a card: its content, never the button itself. Avalonia's theme gives a button its own transition on
+    /// <see cref="Visual.RenderTransformProperty"/> (75 ms, for its press), which shows any other transform as none while
+    /// it runs: set at each frame, the button's would never show, and its last one would linger after the glide.
+    /// </summary>
+    public static Control Glided(Control card) => card is ContentControl { Content: Control content } ? content : card;
+    /// <summary>A poster's place in <paramref name="frame"/>, its glide included; null when off screen.</summary>
     private static Rect? Shown(Control card, Visual frame)
     {
         if (card.TransformToVisual(frame) is not { } matrix) return null;
@@ -279,33 +285,37 @@ public sealed partial class MainWindow
     /// <summary>The posters of a pinch, each eased from its old place to its new one, frame by frame.</summary>
     private static class Glides
     {
-        private static List<(Control Card, Matrix From)> _moves = [];
+        private static List<(Control Poster, Matrix From)> _moves = [];
         private static TimeSpan? _start;
         private static int _run;
         private const double Duration = 240;
+        /// <summary>The frames of the last glide: for the self-check.</summary>
+        public static int Frames { get; private set; }
         public static void Stop()
         {
-            foreach (var (card, _) in _moves) card.RenderTransform = null;
+            foreach (var (poster, _) in _moves) poster.RenderTransform = null;
             _moves = []; _run++;
         }
-        public static void Start(TopLevel top, List<(Control Card, Matrix From)> moves)
+        public static void Start(TopLevel top, List<(Control Poster, Matrix From)> moves)
         {
-            _moves = moves; _start = null;
+            _moves = moves; _start = null; Frames = 0;
             var run = ++_run;
-            foreach (var (card, from) in moves) { card.RenderTransformOrigin = RelativePoint.TopLeft; card.RenderTransform = new MatrixTransform(from); }
+            foreach (var (poster, from) in moves) { poster.RenderTransformOrigin = RelativePoint.TopLeft; poster.RenderTransform = new MatrixTransform(from); }
             void Frame(TimeSpan now)
             {
                 if (run != _run) return;
-                _start ??= now;
+                _start ??= now; Frames++;
                 var t = Math.Min(1, (now - _start.Value).TotalMilliseconds / Duration);
                 var left = Math.Pow(1 - t, 3);
-                foreach (var (card, from) in _moves)
-                    card.RenderTransform = t >= 1 ? null : new MatrixTransform(new Matrix(1 + (from.M11 - 1) * left, 0, 0, 1 + (from.M22 - 1) * left, from.M31 * left, from.M32 * left));
+                foreach (var (poster, from) in _moves)
+                    poster.RenderTransform = t >= 1 ? null : new MatrixTransform(new Matrix(1 + (from.M11 - 1) * left, 0, 0, 1 + (from.M22 - 1) * left, from.M31 * left, from.M32 * left));
                 if (t < 1) top.RequestAnimationFrame(Frame); else _moves = [];
             }
             top.RequestAnimationFrame(Frame);
         }
     }
+    /// <summary>The frames the last pinch's posters glided through: for the self-check.</summary>
+    public static int GlideFrames => Glides.Frames;
     /// <summary>⌘+, ⌘− and ⌘0: the pinch for the keyboard.</summary>
     private bool ZoomKey(KeyEventArgs e)
     {
