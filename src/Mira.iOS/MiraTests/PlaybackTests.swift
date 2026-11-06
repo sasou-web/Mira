@@ -40,6 +40,38 @@ struct PlaybackTests {
         }
     }
 
+    @Test("Données mobiles : plafond en 4G, en partage de connexion et en mode Données réduites, rien en Wi-Fi")
+    func mobileCap() {
+        #expect(PlaybackPlan.mobileCap("saver", expensive: false, constrained: false) == nil)
+        #expect(PlaybackPlan.mobileCap("saver", expensive: true, constrained: false) == 2_000_000)
+        #expect(PlaybackPlan.mobileCap("standard", expensive: true, constrained: false) == 6_000_000)
+        #expect(PlaybackPlan.mobileCap("standard", expensive: true, constrained: true) == 2_000_000)
+        #expect(PlaybackPlan.mobileCap("standard", expensive: false, constrained: true) == 2_000_000)
+        #expect(PlaybackPlan.mobileCap("max", expensive: true, constrained: true) == nil)
+        #expect(PlaybackPlan.capped(PlaybackPlan.fullBitrate, by: 2_000_000) == 2_000_000)
+        #expect(PlaybackPlan.capped(1_500_000, by: 2_000_000) == 1_500_000)
+        #expect(PlaybackPlan.capped(20_000_000, by: nil) == 20_000_000)
+        #expect(!PlaybackPlan.measures(under: 2_000_000))
+        #expect(PlaybackPlan.measures(under: 6_000_000))
+        #expect(PlaybackPlan.measures(under: nil))
+    }
+
+    @Test("Données mobiles : la lecture suit le réseau qui change")
+    func mobileReopens() {
+        let full = PlaybackPlan.fullBitrate
+        // Wi-Fi quitté pour la 4G : plus bas, même en groupe et même pour le fichier tel quel.
+        #expect(PlaybackPlan.reopens(bitrate: full, askedUnder: nil, now: 2_000_000, directPlay: true, inGroup: true))
+        // Déjà sous le plafond : rien.
+        #expect(!PlaybackPlan.reopens(bitrate: 1_500_000, askedUnder: nil, now: 2_000_000, directPlay: false, inGroup: false))
+        // Retour au Wi-Fi : plus haut seulement si le plafond tenait la conversion, jamais en groupe.
+        #expect(PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: nil, directPlay: false, inGroup: false))
+        #expect(!PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: nil, directPlay: false, inGroup: true))
+        #expect(!PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: nil, directPlay: true, inGroup: false))
+        #expect(!PlaybackPlan.reopens(bitrate: 1_500_000, askedUnder: 2_000_000, now: nil, directPlay: false, inGroup: false))
+        #expect(PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: 6_000_000, directPlay: false, inGroup: false))
+        #expect(!PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: 2_000_000, directPlay: false, inGroup: false))
+    }
+
     @Test("La cascade : tel quel, vidéo convertie, tout converti")
     func stages() {
         #expect(PlaybackPlan.stageRequest(0) == .init(lastResort: false, directPlay: true, directStream: true, videoCopy: true, audioCopy: true))

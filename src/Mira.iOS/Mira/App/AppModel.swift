@@ -56,6 +56,9 @@ final class AppModel {
     private(set) var way: WayPlan.Route?
     private(set) var wayHint: WayPlan.Hint?
     @ObservationIgnored private let network = NetworkWatch()
+    /// What the connection costs now (cellular, a personal hotspot, Low Data Mode): the quality's cap.
+    private(set) var cost = NetworkWatch.Cost()
+    @ObservationIgnored private var costSettling: Task<Void, Never>?
     @ObservationIgnored private var inBackground = false
 
     init() {
@@ -99,9 +102,11 @@ final class AppModel {
             }, only: only)
             await Way.shared.wake()
         }
-        network.start { network, interface in
+        network.start { [weak self] network, interface, cost in
             Task { await Way.shared.network(network) }
             if let interface { Task { await TailscaleLibrary.network(interface) } }
+            // No connection says nothing of the next one's cost.
+            if network != .none { Task { @MainActor in self?.costChanged(cost) } }
         }
         Task { await tailnet.start() }
     }
@@ -267,17 +272,41 @@ final class AppModel {
 
     /// The bitrate to ask Jellyfin for (PlaybackInfo): the one chosen, full quality at home (Tailscale is not home),
     /// else what a measure of the connection allows for this file, kept an hour (knownBitrate of Mira web). Home is the
-    /// way taken now: the server signed in at its Tailscale address is at home on the home's Wi-Fi.
+    /// way taken now: the server signed in at its Tailscale address is at home on the home's Wi-Fi. Under the cap of
+    /// mobile data, whatever was chosen.
     func bitrate(for client: JellyfinClient, fileBitrate: Int) async -> Int {
         let taken = await Way.shared.current()?.kind
         let atHome = taken.map { $0 == .home } ?? ServerAddress.isHome(client.server)
         let known: (at: Date, speed: Double)? = measure.flatMap { $0.server == client.server && $0.way == taken ? (at: $0.at, speed: $0.speed) : nil }
+        let cap = mobileCap
         if let bitrate = PlaybackPlan.knownBitrate(quality, atHome: atHome, measure: known, fileBitrate: fileBitrate) {
-            return bitrate
+            return PlaybackPlan.capped(bitrate, by: cap)
         }
-        guard let speed = await client.measureSpeed() else { return PlaybackPlan.unmeasuredBitrate }
+        if let cap, !PlaybackPlan.measures(under: cap) { return cap }
+        guard let speed = await client.measureSpeed() else { return PlaybackPlan.capped(PlaybackPlan.unmeasuredBitrate, by: cap) }
         measure = (Date(), speed, client.server, taken)
-        return PlaybackPlan.autoBitrate(speed: speed, fileBitrate: fileBitrate)
+        return PlaybackPlan.capped(PlaybackPlan.autoBitrate(speed: speed, fileBitrate: fileBitrate), by: cap)
+    }
+
+    /// The cap of the connection now (Settings → Playback → Mobile data); nil on Wi-Fi or a cable.
+    var mobileCap: Int? { PlaybackPlan.mobileCap(preferences.mobileData, expensive: cost.expensive, constrained: cost.constrained) }
+
+    /// Another connection: the title playing follows its cap once it has held 4 s (leaving the home's Wi-Fi, the
+    /// iPhone goes back and forth for a moment).
+    private func costChanged(_ cost: NetworkWatch.Cost) {
+        guard cost != self.cost else { return }
+        self.cost = cost
+        mobileDataChanged(after: .seconds(4))
+    }
+
+    /// Mobile data chosen in Settings, or the connection changed: the title playing follows the new cap.
+    func mobileDataChanged(after delay: Duration = .zero) {
+        costSettling?.cancel()
+        costSettling = Task { [weak self] in
+            if delay > .zero { try? await Task.sleep(for: delay) }
+            guard !Task.isCancelled, let self else { return }
+            self.player?.capChanged(self.mobileCap)
+        }
     }
 
     /// Signed out on this iPhone at once, then on Jellyfin; the account's Home kept for a quick start goes too.

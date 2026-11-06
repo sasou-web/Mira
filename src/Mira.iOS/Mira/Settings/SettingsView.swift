@@ -88,6 +88,13 @@ struct SettingsView: View {
                         ForEach(Preferences.qualities, id: \.self) { value in Text(verbatim: qualityName(value)).tag(value) }
                     }
                     .accessibilityIdentifier("settings.quality")
+                    Picker(selection: $preferences.mobileData) {
+                        ForEach(PlaybackPlan.mobileChoices, id: \.self) { value in Text(verbatim: mobileDataName(value)).tag(value) }
+                    } label: {
+                        row("Mobile data", "On cellular or a personal hotspot. Data saver uses about 0.9 GB an hour, and stays on with Low Data Mode.")
+                    }
+                    .accessibilityIdentifier("settings.mobileData")
+                    .onChange(of: preferences.mobileData) { app.mobileDataChanged() }
                     Toggle(isOn: $preferences.resume) {
                         row("Resume where you left off", "Otherwise, every title starts from the beginning.")
                     }
@@ -220,6 +227,8 @@ struct SettingsView: View {
         let facts: [(String, String?)] = [
             ("Signed in", app.session == nil ? "no" : "yes"),
             ("Quality", app.preferences.quality),
+            ("Mobile data", app.preferences.mobileData),
+            ("Connection", app.cost.constrained ? "low data mode" : app.cost.expensive ? "mobile data" : "unmetered"),
             ("Built-in Tailscale", String(describing: app.tailnet.phase)),
             ("System", "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"),
             ("Device", UIDevice.current.model),
@@ -272,6 +281,14 @@ struct SettingsView: View {
         case "auto": String(localized: "Automatic")
         case "max": String(localized: "Maximum")
         default: String(localized: "\(((Double(value) ?? 0) / 1_000_000).formatted(.number.precision(.fractionLength(0...1)))) Mb/s")
+        }
+    }
+
+    private func mobileDataName(_ value: String) -> String {
+        switch value {
+        case "saver": String(localized: "Data saver · 2 Mb/s")
+        case "standard": String(localized: "Standard · 6 Mb/s")
+        default: String(localized: "Maximum")
         }
     }
 
