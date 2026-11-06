@@ -124,6 +124,14 @@ extension JellyfinClient {
         return URL(string: text)
     }
 
+    /// Jellyfin's version (« 12.2.0 »), from its public information; nil when it does not answer.
+    func serverVersion() async -> String? {
+        var request = URLRequest(url: await Way.shared.map(server.appending(path: "System/Info/Public")), timeoutInterval: 6)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let answer = try? await Self.session.data(for: request), (answer.1 as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return (try? JSON.decoder.decode(PublicInfo.self, from: answer.0))?.version
+    }
+
     /// Jellyfin's Mira extension answers here (it serves Mira web): its HLS playlists then time the subtitles of a
     /// conversion right for Apple's player.
     func hasMiraExtension() async -> Bool {

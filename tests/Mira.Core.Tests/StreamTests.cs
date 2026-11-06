@@ -58,6 +58,27 @@ internal static class StreamTests
             Assert(!Feed(26, 30, steady: false) && !Feed(30, 30) && !Feed(40, 41) && !Feed(52, 52), "Not steady resets; drops spread out stay under the limit");
             return Task.CompletedTask;
         });
+        await Test("Couleurs : SDR, HDR10, HLG, Dolby Vision et ce qui arrive à l’écran (⋮ → Informations)", () =>
+        {
+            Func<string, string?> Mpv(params (string Name, string Value)[] values) => name => values.FirstOrDefault(x => x.Name == name).Value;
+            Assert(PictureColours.Source(Mpv()) is null && PictureColours.Line(null, true) == "—", "Nothing before mpv decodes a frame");
+            var sdr = Mpv(("video-params/gamma", "bt.1886"), ("video-params/primaries", "bt.709"), ("video-params/colormatrix", "bt.709"), ("video-target-params/gamma", "srgb"));
+            Assert(PictureColours.Source(sdr) == "SDR" && PictureColours.HdrOut(sdr) == false && PictureColours.Line("SDR", false) == "SDR", "An SDR film on an SDR screen: SDR alone");
+            // The values mpv gave for tools/player-check.ps1's HDR10 clip (libx265, MaxCLL 1000, mastering 1000 cd/m²).
+            var hdr10 = Mpv(("video-params/gamma", "pq"), ("video-params/primaries", "bt.2020"), ("video-params/colormatrix", "bt.2020-ncl"), ("video-params/max-cll", "1000"), ("video-params/max-luma", "1000.000000"));
+            Assert(PictureColours.Source(hdr10) == "HDR10 · 1000 nits" && PictureColours.HdrOut(hdr10) is null, $"HDR10 and its brightest pixel: {PictureColours.Source(hdr10)}");
+            Assert(PictureColours.Line("HDR10", true) == "HDR10 · envoyé en HDR à l’écran" && PictureColours.Line("HDR10", false).StartsWith("HDR10 · converti en SDR", StringComparison.Ordinal) && PictureColours.Line("SDR", true) == "SDR · écran en HDR",
+                "HDR sent as it is with Windows' HDR on, tone-mapped otherwise; an SDR film on an HDR screen said too");
+            Assert(PictureColours.Source(Mpv(("video-params/gamma", "pq"), ("video-params/max-luma", "4000"))) == "HDR10 · 4000 nits", "Without MaxCLL, the mastering display's peak");
+            Assert(PictureColours.Source(Mpv(("video-params/gamma", "pq"), ("video-params/scene-max-r", "812.5"))) == "HDR10+", "HDR10+: per-scene metadata");
+            Assert(PictureColours.Source(Mpv(("video-params/gamma", "hlg"), ("video-params/max-luma", "1000"))) == "HLG", "HLG: no peak of its own (mpv infers 1000)");
+            Assert(PictureColours.Source(Mpv(("video-params/gamma", "pq"), ("video-params/colormatrix", "dolbyvision"), ("current-tracks/video/dolby-vision-profile", "5"))) == "Dolby Vision profil 5", "Dolby Vision profile 5");
+            Assert(PictureColours.Source(Mpv(("video-params/gamma", "pq"), ("video-params/colormatrix", "bt.2020-ncl"), ("current-tracks/video/dolby-vision-profile", "8"), ("video-params/max-cll", "1200"))) == "Dolby Vision profil 8 · 1200 nits", "Dolby Vision profile 8 (HDR10 base)");
+            Assert(PictureColours.Source(Mpv(("video-params/gamma", "pq"), ("video-params/colormatrix", "dolbyvision"))) == "Dolby Vision", "Dolby Vision without the container's profile");
+            Assert(PictureColours.MacLine("HDR10", "écran non géré") == "HDR10 · converti en SDR · écran non géré" && PictureColours.MacLine("SDR", "écran large gamme (P3)") == "SDR · écran large gamme (P3)" && PictureColours.MacLine(null, "écran non géré") == "écran non géré",
+                "Mac: always SDR (Avalonia's OpenGL view), then the screen");
+            return Task.CompletedTask;
+        });
         await Test("Sortie audio : sortie choisie seulement si branchée, canaux et passthrough pour mpv, son de test par haut-parleur", () =>
         {
             var settings = new PlayerSettings();

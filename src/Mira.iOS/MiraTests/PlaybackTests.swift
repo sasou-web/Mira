@@ -166,6 +166,25 @@ struct PlaybackTests {
         #expect(try JSONSerialization.data(withJSONObject: profile).count > 500)
         #expect(try JSONSerialization.data(withJSONObject: PlaybackProfile.lastResort(bitrate: 4_000_000)).count > 300)
     }
+
+    @Test("HDR : HDR10, HLG et Dolby Vision 5 toujours, Dolby Vision 8 seulement avec Jellyfin 12.2 ou plus (étiquette hvc1)")
+    func dolbyVision() throws {
+        func ranges(_ device: PlaybackProfile.Device) throws -> [String] {
+            let codecs = try #require(PlaybackProfile.make(bitrate: 20_000_000, device: device)["CodecProfiles"] as? [[String: Any]])
+            let hevc = try #require(codecs.first { $0["Codec"] as? String == "hevc" })
+            let conditions = try #require(hevc["Conditions"] as? [[String: Any]])
+            let range = try #require(conditions.first { $0["Property"] as? String == "VideoRangeType" })
+            return (range["Value"] as? String ?? "").split(separator: "|").map(String.init)
+        }
+        let recent = try ranges(.init(hevc: true, av1: false, hdr: true, hevcLevel: 156, dolbyVision8: true))
+        #expect(["SDR", "HDR10", "HDR10Plus", "HLG", "DOVI", "DOVIWithHDR10", "DOVIWithHLG"].allSatisfy { recent.contains($0) })
+        #expect(!recent.contains("DOVIWithEL") && !recent.contains("DOVIInvalid"))
+        let older = try ranges(.init(hevc: true, av1: false, hdr: true, hevcLevel: 156, dolbyVision8: false))
+        #expect(older.contains("DOVI") && older.contains("HDR10") && !older.contains { $0.hasPrefix("DOVIWith") })
+        #expect(try ranges(.init(hevc: true, av1: false, hdr: false, hevcLevel: 156)) == ["SDR"])
+        #expect(PlaybackProfile.dolbyVision8(server: "12.2.0") && PlaybackProfile.dolbyVision8(server: "12.4.1") && PlaybackProfile.dolbyVision8(server: "13.0.0"))
+        #expect(!PlaybackProfile.dolbyVision8(server: "12.1.0") && !PlaybackProfile.dolbyVision8(server: "10.11.3") && !PlaybackProfile.dolbyVision8(server: nil) && !PlaybackProfile.dolbyVision8(server: ""))
+    }
 }
 
 @Suite("Toujours là")
