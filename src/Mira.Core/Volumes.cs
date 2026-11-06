@@ -32,6 +32,9 @@ public static class Volumes
     public static bool Same(string? a, string? b) => a is { Length: > 0 } && b is { Length: > 0 }
         && string.Equals(Path.TrimEndingDirectorySeparator(a), Path.TrimEndingDirectorySeparator(b), StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>A volume root with exactly one trailing separator (« D:\ » stays « D:\ », a mount point gets one).</summary>
+    public static string Folder(string root) => Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+
     /// <summary>Both paths are on one volume (<see cref="Of"/>); false when either cannot be told.</summary>
     public static bool Shared(string a, string b, Func<string, string?>? volumeOf = null) => Same((volumeOf ?? Of)(a), (volumeOf ?? Of)(b));
 
