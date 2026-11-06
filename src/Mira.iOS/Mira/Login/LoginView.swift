@@ -50,6 +50,10 @@ struct LoginView: View {
             if address.isEmpty { address = app.lastServer }
             message = app.notice
             focus = address.isEmpty ? .address : nil
+            if let link = app.connectLink { Task { await connect(link) } }
+        }
+        .onChange(of: app.connectLink) { _, link in
+            if let link { Task { await connect(link) } }
         }
         .sheet(isPresented: $tailscale) {
             TailscaleSheet { found in
@@ -128,6 +132,29 @@ struct LoginView: View {
         } catch {
             message = Messages.text(error)
         }
+    }
+
+    /// The QR code of « Mira on your iPhone » (Windows, Mac): its server found at the address that answers, its other
+    /// address learnt too, then the account's form. Nothing answering: the address stays filled in, and why is said.
+    private func connect(_ link: ConnectLink) async {
+        guard app.connectLink == link else { return }
+        app.connectLink = nil
+        Way.select(nil, id: nil)
+        server = nil
+        withCode = false
+        quickConnect = false
+        address = link.server.absoluteString
+        focus = nil
+        busy = true
+        message = nil
+        let found = await link.find()
+        busy = false
+        guard let found else {
+            message = String(localized: "Mira can’t reach \(link.server.absoluteString) right now. At home, join your Wi-Fi; away from home, turn on Built-in Tailscale below.")
+            return
+        }
+        await Way.shared.teach(link.addresses, id: found.id)
+        await use(found)
     }
 
     /// The server found, by its address or on the Tailscale network: its way chosen before the account's form asks it

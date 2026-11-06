@@ -33,6 +33,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 
 ## iPhone 📱
 - [ ] Installation par AltStore, rafraîchie après 7 jours sans rien faire
+- [ ] QR code de « Mira sur ton iPhone » (Guide de Mira pour Windows, ou Réglages → serveur sur Mac) scanné par l'appareil photo : Mira s'ouvre, serveur rempli, puis code ou mot de passe ; ensuite Jellyfin joint à la maison et en 4G
 - [ ] Ouverture : le « m » puis l'Accueil, sans écran blanc
 - [ ] Un film et un épisode lus du début à la fin ; épisode suivant tout seul
 - [ ] Lecteur : double toucher ±10 s, glisser luminosité et volume, pincer, réduire vers le bas

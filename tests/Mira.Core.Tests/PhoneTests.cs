@@ -17,6 +17,21 @@ internal static class PhoneTests
     {
         var Test = run.Test;
         var testRoot = run.Root;
+        await Test("Mira sur ton iPhone : le QR code donne l’adresse de partout et celle de la maison, rien d’autre (tests/fixtures/connect.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "connect.json")));
+            foreach (var row in fixture.RootElement.GetProperty("links").EnumerateArray())
+            {
+                var link = PhoneLink.Link(row.GetProperty("server").GetString()!, row.GetProperty("home").GetString());
+                Assert(link == row.GetProperty("link").GetString(), "Link: " + link);
+            }
+            Assert(PhoneLink.Link("file:///etc") is null && PhoneLink.Link(null) is null && PhoneLink.Link("192.168.1.198") is null, "A link to no server");
+            // Version 4 at most for a long address (33 modules): small enough to read from across a desk.
+            var (size, path) = PhoneLink.Qr(PhoneLink.Link("http://jellyfin-pc.tail1234.ts.net:8096", "http://192.168.1.198:8096")!);
+            Assert(size >= 21 && size <= 41 && (size - 17) % 4 == 0 && path.StartsWith("M0,0h7v1h-7z", StringComparison.Ordinal) && !path.Contains(".", StringComparison.Ordinal), $"QR: {size} {path[..Math.Min(40, path.Length)]}");
+            return Task.CompletedTask;
+        });
         await Test("Mira web : installé sur Jellyfin depuis le dépôt de Mira, les autres dépôts gardés, puis Jellyfin redémarré", async () =>
         {
             var repositories = $$"""[{"Name":"Jellyfin Stable","Url":"https://repo.jellyfin.org/files/plugin/manifest.json","Enabled":true},{"Name":"Mira","Url":"{{MiraWeb.LatestRepository}}","Enabled":true}]""";

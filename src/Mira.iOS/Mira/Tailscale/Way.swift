@@ -360,6 +360,20 @@ actor Way {
         defaults.set(list.map(\.absoluteString), forKey: Self.key(serverId))
     }
 
+    /// A server's addresses given by the QR code of Windows or Mac (ConnectLink), its own first: kept with those known,
+    /// so that the way finds it at home and away from the first time.
+    func teach(_ addresses: [URL], id: String) {
+        var list = knownAddresses(id)
+        for address in addresses.reversed() where !list.contains(where: { WayPlan.same($0, address) }) {
+            list.insert(address, at: 0)
+        }
+        list = Array(list.prefix(6))
+        defaults.set(list.map(\.absoluteString), forKey: Self.key(id))
+        if Self.plain(id) == serverId.map(Self.plain) {
+            known = list.filter { address in server.map { !WayPlan.same(address, $0) } ?? true }
+        }
+    }
+
     private func knownAddresses(_ serverId: String) -> [URL] {
         (defaults.stringArray(forKey: Self.key(serverId)) ?? []).compactMap { try? ServerAddress.normalize($0) }
     }

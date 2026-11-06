@@ -5600,6 +5600,36 @@
           }
         }
       }
+    },
+    "Mira knows %@’s addresses now, at home and away.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira connaît maintenant les adresses de %@, chez toi et ailleurs."
+          }
+        }
+      }
+    },
+    "You’re signed in to %@. To use another server, sign out in Settings first.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu es connecté à %@. Pour un autre serveur, déconnecte-toi d’abord dans Réglages."
+          }
+        }
+      }
+    },
+    "Mira can’t reach %@ right now. At home, join your Wi-Fi; away from home, turn on Built-in Tailscale below.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne joint pas %@ pour l’instant. Chez toi, connecte-toi à ton Wi-Fi ; ailleurs, active Tailscale intégré plus bas."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

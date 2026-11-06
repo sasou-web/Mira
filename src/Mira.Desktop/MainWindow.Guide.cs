@@ -272,7 +272,25 @@ public partial class MainWindow
                 // A firewall step left to the person (a public network, « block all »…) keeps the phone out at home.
                 : FirewallDone(steps) ? L("Cette adresse marche sur le Wi-Fi de la maison.", "This address works on your home Wi-Fi.") : L("Chez toi, ton téléphone trouvera Jellyfin une fois l’étape du pare-feu faite.", "At home, your phone will find Jellyfin once the firewall step is done.") : "");
         PhoneAddress.Text = PhoneSetup.Address(facts);
+        var link = ready ? PhoneLink.Link(PhoneSetup.Address(facts), facts.Local ? facts.Home : null) : null;
+        PhoneQr.Visibility = link is null ? Visibility.Collapsed : Visibility.Visible;
+        if (link is not null) ShowPhoneQr(link);
         PhoneAddressLine.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
+    }
+    private string? _phoneQr;
+    /// <summary>
+    /// The QR code of mira://connect (<see cref="PhoneLink"/>), whole modules of the same size: blurred edges or modules
+    /// of two widths are harder for a camera to read.
+    /// </summary>
+    private void ShowPhoneQr(string link)
+    {
+        if (link == _phoneQr) return;
+        _phoneQr = link;
+        var (size, path) = PhoneLink.Qr(link);
+        var module = Math.Max(3, Math.Round(136.0 / size));
+        PhoneQrCode.Width = PhoneQrCode.Height = module * size;
+        var geometry = Geometry.Parse(path); geometry.Freeze();
+        PhoneQrCode.Data = geometry;
     }
     private static bool FirewallDone(IReadOnlyList<PhoneSetup.Step> steps) => steps.All(x => x.Key != "firewall" || x.Mark == PhoneSetup.Mark.Done);
     private void ShowPhoneStatus(string text, bool problem = false)
