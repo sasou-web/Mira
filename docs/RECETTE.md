@@ -54,5 +54,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Ta party par le lien (Funnel) : Dafty Cute rejoint depuis Windows sans compte
 - [ ] Même chose depuis un iPhone, puis depuis le Mac
 - [ ] Pause, saut et épisode suivant suivis par tout le monde
+- [ ] Déjà en lecture, créer le groupe puis inviter : l'invité arrive à la même minute, sans relancer
+- [ ] 20 min ensemble par Funnel sans pause ni lecture en boucle (sauts, changement de piste audio)
 - [ ] Toi dans la party de Dafty Cute (son Jellyfin), depuis Mira pour Windows
 - [ ] Lien refait : l'ancien ne marche plus
