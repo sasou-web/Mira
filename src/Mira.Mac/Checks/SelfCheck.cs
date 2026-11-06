@@ -343,6 +343,8 @@ public static class SelfCheck
             // Two fingers to the right: the page follows them, the one before (the series grid) under it; let go short of
             // the way, it comes back; past it, the page before; to the left: this page again.
             const string swipeCheck = "trackpad : la page suit deux doigts, revient lâchée trop tôt ; vers la droite = Retour, vers la gauche = Avant";
+            // With motion, whatever this machine says (the Mac runner leaves it out): the page and the posters glide.
+            MacMotion.Override(reduced: false);
             var swipeAt = new Point(window.Bounds.Width / 2, 140);
             if (window.InputHitTest(swipeAt) is Avalonia.Interactivity.Interactive swipeTarget && window.Current is DetailPage swipedFrom)
             {
@@ -376,7 +378,15 @@ public static class SelfCheck
                 var wide = first.Bounds.Width;
                 window.ZoomGrids(1); await Until(() => poster.RenderTransform is null, 3);
                 Check(wide > narrow * 1.3 && Math.Abs(first.Bounds.Width - narrow) < 1 && glided && settled && frames > 1, "trackpad : pincer agrandit les affiches de la grille, qui glissent à leur place", $"{narrow:0} → {wide:0} px, puis {first.Bounds.Width:0} ; glisse {glided}, posée {settled} en {frames} images");
+                // With macOS's « Réduire les animations »: the posters at their new size at once, nothing gliding.
+                MacMotion.Override(reduced: true);
+                window.ZoomGrids(Trackpad.ZoomMax);
+                var unmoved = poster.RenderTransform is null;
+                var placed = first.Bounds.Width;
+                window.ZoomGrids(1);
+                Check(unmoved && Math.Abs(placed - wide) < 1 && Math.Abs(first.Bounds.Width - narrow) < 1, "trackpad : pincer sans animations (Réduire les animations) : les affiches à leur taille d’un coup", $"{narrow:0} → {placed:0} px, puis {first.Bounds.Width:0} ; immobile {unmoved}");
             }
+            MacMotion.Override(null);
             SettingsPage.OpenAt("playback");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
