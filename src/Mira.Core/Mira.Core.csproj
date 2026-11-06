@@ -6,6 +6,8 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <!-- Reads the .7z archive of the libmpv build Mira can install on request (LZMA2 + BCJ2). -->
     <PackageReference Include="SharpCompress" Version="1.0.0" />
+    <!-- The QR code of « Mira sur ton iPhone » (PhoneLink): a port of Nayuki's reference encoder, MIT, no dependency. -->
+    <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="3.2.1" />
   </ItemGroup>
   <ItemGroup>
     <!-- The main points of each version: the "what's new" screen and the release page on GitHub. -->

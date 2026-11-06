@@ -20,6 +20,8 @@ final class AppModel {
     private(set) var session: Session?
     /// Said once on the sign-in screen when Jellyfin ended the session (401).
     var notice: String?
+    /// A QR code of « Mira on your iPhone » (Windows, Mac) opened while signed out: the sign-in screen fills it in.
+    var connectLink: ConnectLink?
     let device: DeviceIdentity
     /// The title playing, in Mira's player, reduced over the tabs, or in Picture in Picture.
     private(set) var player: PlayerSession?
@@ -162,6 +164,29 @@ final class AppModel {
     }
 
     var lastServer: String { UserDefaults.standard.string(forKey: Keys.lastServer) ?? "" }
+
+    /// A mira:// link: a QR code of « Mira on your iPhone » (mira://connect), or a party.
+    func open(_ url: URL) async {
+        guard url.host()?.lowercased() == "connect" else {
+            await together.openParty(url)
+            return
+        }
+        guard let link = ConnectLink.parse(url) else {
+            if session == nil { notice = String(localized: "Mira can’t open this link.") } else { together.notice = String(localized: "Mira can’t open this link.") }
+            return
+        }
+        guard let session else {
+            connectLink = link
+            return
+        }
+        // Signed in: the same server's addresses are learnt; another server waits until this account signs out.
+        if let found = await link.find(), found.id.lowercased().filter({ $0 != "-" }) == session.serverId.lowercased().filter({ $0 != "-" }) {
+            await Way.shared.teach(link.addresses, id: session.serverId)
+            together.notice = String(localized: "Mira knows \(session.serverName)’s addresses now, at home and away.")
+        } else {
+            together.notice = String(localized: "You’re signed in to \(session.serverName). To use another server, sign out in Settings first.")
+        }
+    }
 
     func signedIn(_ session: Session, typed: String) {
         Way.select(session.server, id: session.serverId)

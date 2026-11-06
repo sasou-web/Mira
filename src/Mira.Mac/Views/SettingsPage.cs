@@ -73,6 +73,9 @@ public sealed partial class SettingsPage : Page
                     "Your library’s cache, the posters and any progress not yet sent to Jellyfin. Your settings stay."), erase)));
         // This account's photo, as on Windows: kept by Jellyfin, on every device.
         if (connection is not null) Tab("server").Children.Add(Section(null, PhotoRow()));
+        // « Mira sur ton iPhone »: the QR code the iPhone's camera reads, Mira opening there with this server filled in.
+        if (connection is not null && LocalNetwork.ForOtherDevices(connection.Server, LocalNetwork.ThisPc()) is { } phone && PhoneLink.Link(phone) is { } link)
+            Tab("server").Children.Add(Section(null, PhoneCard(link, phone)));
         // « Tailscale intégré »: how Mira reaches Jellyfin away from home without the Tailscale app.
         Tailnet = new TailnetSection(shell, Section);
         Tab("server").Children.Add(Tailnet.Section);
@@ -137,6 +140,28 @@ public sealed partial class SettingsPage : Page
         buttons.Children.Add(SignOut(erase));
         foreach (var button in buttons.Children) button.Margin = new Thickness(0, 0, 10, 8);
         return Ui.Column(0, name, Description(connection?.Server ?? "—"), buttons);
+    }
+    /// <summary>
+    /// « Mira sur ton iPhone », as the card of Windows' guide: the QR code of mira://connect (<see cref="PhoneLink"/>), in
+    /// whole modules of one size (a camera reads them better), dark on light, and the address to type instead.
+    /// </summary>
+    private static Control PhoneCard(string link, string address)
+    {
+        var (size, path) = PhoneLink.Qr(link);
+        var module = Math.Max(3, Math.Round(136.0 / size));
+        var code = new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse(path), Fill = Ui.Brush("#070708"), Stretch = Stretch.Uniform, Width = module * size, Height = module * size };
+        RenderOptions.SetEdgeMode(code, EdgeMode.Aliased);
+        var qr = new Border { Background = Ui.Ink, CornerRadius = new CornerRadius(10), Padding = new Thickness(10), Margin = new Thickness(0, 0, 20, 0), VerticalAlignment = VerticalAlignment.Top, Child = code };
+        Avalonia.Automation.AutomationProperties.SetName(qr, L("QR code à scanner avec l’iPhone", "QR code to scan with the iPhone"));
+        var text = Ui.Column(0, CardTitle(L("Mira sur ton iPhone", "Mira on your iPhone")),
+            Description(L("Scanne ce code avec l’appareil photo de l’iPhone : une fois Mira installé, il s’ouvre avec ton serveur déjà rempli, il ne reste que ton compte. Le code ne contient que l’adresse, ni compte ni mot de passe.",
+                "Scan this code with the iPhone’s camera: once Mira is installed, it opens with your server filled in, only your account is left. The code holds only the address, no account or password.")),
+            Description(L($"Ou tape cette adresse : {address}", $"Or type this address: {address}"), top: 10));
+        text.VerticalAlignment = VerticalAlignment.Center;
+        var dock = new DockPanel();
+        DockPanel.SetDock(qr, Dock.Left); dock.Children.Add(qr);
+        dock.Children.Add(text);
+        return dock;
     }
     /// <summary>This version and « Rechercher », as Windows' card; what the search finds is said by a notice.</summary>
     private Control Version()
