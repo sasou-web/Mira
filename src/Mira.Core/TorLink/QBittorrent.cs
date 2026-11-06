@@ -171,21 +171,50 @@ public sealed class QBittorrentHistory(IReadOnlyList<TorLinkCompletion> completi
     }
 
     /// <summary>
-    /// Where qBittorrent downloads for Mira: beside the first library folder (on its drive: a hard link instead of a
+    /// Where qBittorrent downloads for Mira: beside the first library folder (on its volume: a hard link instead of a
     /// copy), never inside one, where Jellyfin would list unfinished files; otherwise in the person's Downloads.
     /// </summary>
-    public static string DownloadFolder(MediaLibraries libraries)
+    public static string DownloadFolder(MediaLibraries libraries, Func<string, string?>? volumeOf = null)
     {
+        volumeOf ??= Volumes.Of;
         var name = L("Téléchargements qBittorrent", "qBittorrent downloads");
         try
         {
             var roots = new[] { libraries.Movies, libraries.Series, libraries.Anime }.OfType<string>().Where(x => x.Trim().Length > 0)
                 .Select(x => Path.GetFullPath(x.Trim()).TrimEnd('\\', '/')).ToList();
             bool InsideLibrary(string folder) => roots.Any(root => folder.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || string.Equals(folder, root, StringComparison.OrdinalIgnoreCase));
-            if (roots.Count > 0 && Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent && Path.Combine(parent, name) is var beside && !InsideLibrary(beside)) return beside;
+            if (roots.Count > 0)
+            {
+                // A library folder that is a mount point itself has its parent on another volume: the root of its own then.
+                var volume = volumeOf(roots[0]);
+                var choices = new[] { Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent ? Path.Combine(parent, name) : null,
+                    volume is { Length: > 0 } ? Path.Combine(Path.TrimEndingDirectorySeparator(volume) + Path.DirectorySeparatorChar, name) : null };
+                if (choices.OfType<string>().FirstOrDefault(x => !InsideLibrary(x) && Volumes.Same(volumeOf(x), volume)) is { } beside) return beside;
+                if (choices[0] is { } first && !InsideLibrary(first)) return first;
+            }
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { }
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", name);
+    }
+
+    /// <summary>
+    /// The folder qBittorrent downloads to from now on, given the one kept (<paramref name="kept"/>, empty the first time):
+    /// kept while it is on the library's volume, or when no better one is; otherwise <see cref="DownloadFolder"/> on that
+    /// volume (a drive mounted in the library's folder, for one). Downloads qBittorrent already has keep their folder: it
+    /// shares them from there.
+    /// </summary>
+    public static string FolderToUse(string kept, MediaLibraries libraries, Func<string, string?>? volumeOf = null)
+    {
+        volumeOf ??= Volumes.Of;
+        var beside = DownloadFolder(libraries, volumeOf);
+        if (kept.Trim().Length == 0) return beside;
+        try
+        {
+            var volumes = new[] { libraries.Movies, libraries.Series, libraries.Anime }.OfType<string>().Where(x => x.Trim().Length > 0)
+                .Select(x => volumeOf(Path.GetFullPath(x.Trim()))).Select(x => x is null ? null : Path.TrimEndingDirectorySeparator(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return volumes is [{ Length: > 0 } volume] && !Volumes.Same(volumeOf(Path.GetFullPath(kept)), volume) && Volumes.Same(volumeOf(beside), volume) ? beside : kept;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return kept; }
     }
 }
 

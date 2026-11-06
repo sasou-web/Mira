@@ -33,12 +33,18 @@ public partial class MainWindow
     /// </summary>
     private bool QBittorrentUsed() => Directory.Exists(QbHost.ProfileDirectory);
 
-    /// <summary>Where it downloads: chosen beside the library the first time, then kept (qBittorrent shares from there).</summary>
+    /// <summary>
+    /// Where it downloads: chosen beside the library the first time, then kept (qBittorrent shares from there), until the
+    /// library sits on another volume (a drive mounted in its folder): new downloads go beside it then, said once.
+    /// </summary>
     private string QBittorrentFolder()
     {
-        if (_settings.QBittorrentFolder.Length == 0 && _torlink is { } torlink)
+        if (_torlink is { } torlink && QBittorrentHistory.FolderToUse(_settings.QBittorrentFolder, torlink.Libraries) is var folder
+            && !string.Equals(folder, _settings.QBittorrentFolder, StringComparison.OrdinalIgnoreCase))
         {
-            _settings.QBittorrentFolder = QBittorrentHistory.DownloadFolder(torlink.Libraries);
+            if (_settings.QBittorrentFolder.Length > 0)
+                SetNotice(L($"qBittorrent télécharge maintenant dans « {folder} », sur le disque de ta bibliothèque. Ce qu’il partage déjà reste où il est.", $"qBittorrent now downloads to “{folder}”, on your library’s drive. What it already shares stays where it is."));
+            _settings.QBittorrentFolder = folder;
             AutoSaveSettings();
         }
         return _settings.QBittorrentFolder.Length > 0 ? _settings.QBittorrentFolder : QBittorrentHistory.DownloadFolder(new(null, null, null));

@@ -177,7 +177,8 @@ public static class MediaImporter
     /// <summary>A second name for <paramref name="source"/> (Windows, same drive); false when none could be made.</summary>
     public static bool TryHardLink(string source, string destination) =>
         OperatingSystem.IsWindows() && SameVolume(source, destination) && CreateHardLink(Extended(destination), Extended(source), IntPtr.Zero);
-    private static bool SameVolume(string a, string b) => string.Equals(Path.GetPathRoot(a), Path.GetPathRoot(b), StringComparison.OrdinalIgnoreCase);
+    // The real volume, mount points followed: a library on a drive mounted in a folder of C: is not on C:.
+    private static bool SameVolume(string a, string b) => Volumes.Shared(a, b);
     // Win32 calls need the extended prefix beyond MAX_PATH; .NET adds it itself for its own file APIs.
     private static string Extended(string path) => path.Length < 240 || path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path
         : path.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\UNC\" + path[2..] : @"\\?\" + path;

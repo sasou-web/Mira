@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Mira.Core;
 using Mira.Core.Updates;
 using Mira.Desktop.Services;
@@ -221,6 +222,49 @@ internal static class TorLinkTests
                 Assert(Beside(@"D:\Films", @"E:\Séries") is null, "Library folders on two drives");
                 Assert(Beside(null) is null, "No library folder");
             }
+            return Task.CompletedTask;
+        });
+        await Test("TorLink et qBittorrent : disque monté dans le dossier des bibliothèques (point de montage), téléchargements déplacés dessus", () =>
+        {
+            var dir = Path.Combine(testRoot, "mount-point"); var media = Path.Combine(dir, "MEDIAS");
+            var films = Path.Combine(media, "FILMS"); var series = Path.Combine(media, "SERIES"); var anime = Path.Combine(media, "ANIME");
+            // C: holds everything but MEDIAS, a drive of its own mounted there (Path.GetPathRoot sees one drive for both).
+            string? VolumeOf(string path) => Path.GetFullPath(path) is var full && (full == media || full.StartsWith(media + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                ? media + Path.DirectorySeparatorChar : dir + Path.DirectorySeparatorChar;
+            var libraries = new MediaLibraries(films, series, anime);
+            var oldDownloads = Path.Combine(dir, "Downloads", "torlink"); var beside = Path.Combine(media, "Téléchargements TorLink");
+            Assert(TorLinkState.DownloadFolderBeside(libraries, oldDownloads, VolumeOf) == beside, "Mount point taken for the same drive");
+            Assert(TorLinkState.DownloadFolderBeside(libraries, beside, VolumeOf) is null, "Already on the library's volume");
+            Assert(TorLinkState.DownloadFolderBeside(new(media, null, null), oldDownloads, VolumeOf) is null, "A library at the root of the mounted drive leaves no room");
+            Assert(TorLinkState.DownloadFolderBeside(new(films, Path.Combine(dir, "Séries"), null), oldDownloads, VolumeOf) is null, "Library folders on two volumes");
+
+            var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+            var mine = Path.Combine(dir, "Videos", "Téléchargements TorLink");
+            Directory.CreateDirectory(state.ConfigDirectory); Directory.CreateDirectory(state.DataDirectory);
+            File.WriteAllText(state.ConfigFile, new JsonObject { ["downloadDir"] = mine, ["trackers"] = new JsonArray("udp://tracker") }.ToJsonString());
+            File.WriteAllText(state.QueueFile, """[{"id":"aa","status":"completed"},{"id":"bb","status":"paused"}]""");
+            File.WriteAllText(state.SeedsFile, """[{"id":"aa","status":"paused"}]""");
+            Assert(!state.MoveDownloadDirectory(beside) && state.DownloadDirectory() == mine, "Moved with a paused download in the queue");
+            File.WriteAllText(state.QueueFile, """[{"id":"aa","status":"completed"}]""");
+            File.WriteAllText(state.SeedsFile, """[{"id":"aa","status":"seeding"}]""");
+            Assert(!state.MoveDownloadDirectory(beside) && state.DownloadDirectory() == mine, "Moved while TorLink shares from the old folder");
+            File.WriteAllText(state.SeedsFile, """[{"id":"aa","status":"paused"}]""");
+            Assert(state.MoveDownloadDirectory(beside) && state.DownloadDirectory() == Path.GetFullPath(beside) && Directory.Exists(beside), "Not moved once idle");
+            Assert(JsonNode.Parse(File.ReadAllText(state.ConfigFile))!["trackers"]![0]!.GetValue<string>() == "udp://tracker", "The rest of TorLink's config was lost");
+            Assert(TorLinkState.DownloadFolderBeside(libraries, state.DownloadDirectory(), VolumeOf) is null, "Moved again");
+            File.WriteAllText(state.ConfigFile, new JsonObject { ["downloadDir"] = Path.Combine(dir, "Mes torrents") }.ToJsonString());
+            Assert(!state.MoveDownloadDirectory(beside), "A folder the person chose was moved");
+            Assert(TorLinkState.MiraMayMove(TorLinkState.DefaultDownloadDirectory) && TorLinkState.MiraMayMove(Path.Combine(dir, "TorLink downloads")), "TorLink's default or Mira's folder");
+
+            var qb = Path.Combine(media, "Téléchargements qBittorrent");
+            Assert(Mira.Core.TorLink.QBittorrentHistory.DownloadFolder(libraries, VolumeOf) == qb, "qBittorrent: beside the library");
+            Assert(Mira.Core.TorLink.QBittorrentHistory.FolderToUse("", libraries, VolumeOf) == qb, "qBittorrent: first choice");
+            Assert(Mira.Core.TorLink.QBittorrentHistory.FolderToUse(Path.Combine(dir, "Videos", "Téléchargements qBittorrent"), libraries, VolumeOf) == qb, "qBittorrent: kept on the system drive");
+            Assert(Mira.Core.TorLink.QBittorrentHistory.FolderToUse(Path.Combine(media, "Autre"), libraries, VolumeOf) == Path.Combine(media, "Autre"), "qBittorrent: a folder on the library's volume was changed");
+            // FILMS itself the mount point: its parent is on C:, the folder goes at the root of FILMS's volume, which is the library: nothing better.
+            string? FilmsMounted(string path) => Path.GetFullPath(path) is var full && (full == films || full.StartsWith(films + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                ? films + Path.DirectorySeparatorChar : dir + Path.DirectorySeparatorChar;
+            Assert(Mira.Core.TorLink.QBittorrentHistory.FolderToUse(Path.Combine(dir, "x"), new(films, null, null), FilmsMounted) == Path.Combine(dir, "x"), "qBittorrent: moved into the library");
             return Task.CompletedTask;
         });
         await Test("TorLink : fichiers exacts du .torrent, chemins normalisés et fichiers incomplets attendus", () =>
