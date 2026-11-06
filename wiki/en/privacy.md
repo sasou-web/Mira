@@ -29,6 +29,7 @@ Before you sign in, Mira looks for Jellyfin on this computer, on your home netwo
 | **Automatic subtitles** | OpenSubtitles, SubDL, from your server | the file's fingerprint and size, IMDb/TMDb ids, season, episode, title, year, language. Never the file's name |
 | **Search for subtitles…** with another Jellyfin plugin | that plugin's service, from your server | what the plugin sends; Mira tells you before |
 | **Your party link** through Tailscale Funnel | Tailscale's relays, then your guests | your guests' traffic to Mira's page, encrypted to your PC. Your PC's Tailscale name becomes public |
+| **A trailer from the web**, at your click | the trailer's site (often YouTube), in your browser | what your browser sends (your IP address, the site's cookies). Mira loads nothing from it before your click and has no web view; a trailer kept on your server goes through it alone |
 | **AltStore** (iPhone) | Apple, `miracinema.app`, GitHub | your Apple ID to Apple only, for the free certificate; Mira's source and app |
 
 ## On your devices

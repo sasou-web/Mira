@@ -44,6 +44,10 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var premiereDate: String?
     var endDate: String?
     var productionLocations: [String]?
+    /// How many trailers its folder holds (Items/{id} only): « Trailer » plays the first one in Mira (Trailers).
+    var localTrailerCount: Int?
+    /// Its trailers on the web (Items/{id} only, YouTube from TMDb): opened in Safari, never in Mira.
+    var remoteTrailers: [RemoteTrailer]?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }
@@ -56,6 +60,11 @@ struct Person: Codable, Sendable, Hashable {
     var role: String?
     var type: String?
     var primaryImageTag: String?
+}
+
+struct RemoteTrailer: Codable, Sendable, Hashable {
+    var url: String?
+    var name: String?
 }
 
 struct Chapter: Codable, Sendable, Hashable {

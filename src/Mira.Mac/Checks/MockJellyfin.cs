@@ -44,7 +44,10 @@ public sealed class MockJellyfin : HttpMessageHandler
         {
             Id = id, Name = name, Type = "Movie", ProductionYear = year, RunTimeTicks = 30L * TimeSpan.TicksPerSecond, CommunityRating = 7.8,
             Overview = overview, Genres = new[] { "Aventure", "Animation" }, ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + id }, ImageBlurHashes = Blurs(id),
-            BackdropImageTags = new[] { "b" + id }, OfficialRating = "Tous publics", Taglines = id == "movie-1" ? new[] { "Quand le jour tombe, la forêt s’allume." } : [],
+            BackdropImageTags = new[] { "b" + id }, OfficialRating = "Tous publics",
+            // « Bande-annonce »: « Ciel ouvert » keeps one beside it on the server, « Brume basse » has one on the web only.
+            LocalTrailerCount = id == "movie-3" ? 1 : 0,
+            RemoteTrailers = id == "movie-2" ? new object[] { new { Url = "https://www.youtube.com/watch?v=mira-check", Name = "Trailer" } } : Array.Empty<object>(), Taglines = id == "movie-1" ? new[] { "Quand le jour tombe, la forêt s’allume." } : [],
             People = new[] { Person("actor-1", "Jeanne Essai", "Actor", "Lina"), Person("actor-2", "Paul Témoin", "Actor", "Le passeur"), Person("director-1", "Réa Lisatrice", "Director") },
             UserData = new { PlaybackPositionTicks = (long)(progress * 30 * TimeSpan.TicksPerSecond), Played = false, IsFavorite = id == "movie-2", LastPlayedDate = progress > 0 ? DateTimeOffset.UtcNow.AddHours(-2) : (DateTimeOffset?)null }
         };
@@ -115,7 +118,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "System/Ping") return Json("Jellyfin Server");
         if (request.Method == HttpMethod.Post && path == "Users/AuthenticateByName") return Json(new { AccessToken = "check-token", ServerId = "check-server", User = new { Id = UserId, Name = "Contrôle" } });
         if (path == "Playback/BitrateTest") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[Math.Clamp(int.TryParse(query["size"], out var size) ? size : 0, 0, 10_000_000)]) };
-        if (path.StartsWith("Videos/") && path.EndsWith("/stream")) return await FileAsync(request, path.Split('/')[1].StartsWith("series") ? _short : _media, cancellationToken);
+        if (path.StartsWith("Videos/") && path.EndsWith("/stream")) return await FileAsync(request, Short(path.Split('/')[1]) ? _short : _media, cancellationToken);
         // An administrator, whose PC of Jellyfin runs Mira for Windows: « Téléchargements » through the relay of the extension.
         if (path == "Users/Me") return Json(new { Id = UserId, Name = "Contrôle", Policy = new { IsAdministrator = true } });
         // « Ajouter un ami »: two libraries to share, an account made and limited, codes allowed.
@@ -147,13 +150,16 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "UserViews") return Items(new object[] { new { Id = "view-movies", Name = "Films", CollectionType = "movies" }, new { Id = "view-series", Name = "Séries", CollectionType = "tvshows" } });
         if (path == "Years") return Items(new object[] { new { Id = "y1", Name = "2025" }, new { Id = "y2", Name = "2024" } });
         if (path.StartsWith("Shows/") && path.EndsWith("/Episodes")) return Items(_episodes.GetValueOrDefault(path.Split('/')[1]) ?? []);
+        // Items/{id}/LocalTrailers of Jellyfin 12.1: the trailer of « Ciel ouvert », a short video of its own.
+        if (path.EndsWith("/LocalTrailers"))
+            return Json(path.Split('/')[1] == "movie-3" ? new object[] { new { Id = "trailer-3", Name = "Bande-annonce", Type = "Trailer", ExtraType = "Trailer", MediaType = "Video", RunTimeTicks = 6 * TimeSpan.TicksPerSecond, UserData = new { PlaybackPositionTicks = 0L, Played = false } } } : Array.Empty<object>());
         if (path.EndsWith("/Similar")) return Items(_movies.Where(x => !path.Contains(Id(x))));
         if (path.EndsWith("/PlaybackInfo"))
         {
             // « Lecture impossible »: a title Jellyfin has no stream for.
             if (RefusePlayback) return Json(new { PlaySessionId = "refused", MediaSources = Array.Empty<object>() });
             var id = path.Split('/')[1];
-            var file = id.StartsWith("series") ? _short : _media;
+            var file = Short(id) ? _short : _media;
             return Json(new { PlaySessionId = "session-" + id, MediaSources = new[] { new { Id = "source-" + id, Protocol = "File", Path = file, MediaStreams = Array.Empty<object>() } } });
         }
         if (path.StartsWith("MediaSegments/")) return Json(new { Items = Array.Empty<object>() });
@@ -194,6 +200,8 @@ public sealed class MockJellyfin : HttpMessageHandler
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
+    /// <summary>The short video: an episode, or a trailer.</summary>
+    private static bool Short(string id) => id.StartsWith("series") || id.StartsWith("trailer");
     /// <summary>The time the library's lists and pictures take: the cards' shapes and soft placeholders while they come.</summary>
     public TimeSpan Slow { get; set; }
     /// <summary>The name of the collection « Ajouter à une collection » made.</summary>

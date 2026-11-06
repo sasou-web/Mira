@@ -18,9 +18,15 @@ Home opens on a large banner of your titles, then **Continue watching**: the fil
 
 On a series' poster, a number says how many episodes are left to watch: a new episode of a series you follow shows up in the library.
 
-A title's page shows the picture of the file you would play ("4K · HDR10", "1080p") and the time it would end if you started now. On a series, it shows the next episode ("Resume · S01 E07"). Below: the cast and crew (a click shows their titles in your library), the extras (making-of, deleted scenes), similar titles and the other films of the same collection.
+A title's page shows the picture of the file you would play ("4K · HDR10", "1080p") and the time it would end if you started now. On a series, it shows the next episode ("Resume · S01 E07"). Below: the cast and crew (a click shows their titles in your library), the extras (making-of, deleted scenes; trailers have [their own button](library.md#trailers)), similar titles and the other films of the same collection.
 
 The buttons next to **Play** keep their shape and only change state: **Favorite**, **Watched**, and **Keep on this PC** (Windows) or **Keep on this Mac**. Their names show on hover.
+
+## Trailers
+
+When a title has a trailer, a **Trailer** button shows on its page (on iPhone, in **…**). A trailer kept on your server plays in Mira, like a film: put it in a `trailers` folder next to the film, or name it `Film (2020)-trailer.mkv`. Otherwise, Jellyfin often knows one on YouTube (from TMDb): the button says so ("Trailer on YouTube, in your browser") and opens it in your browser, never in Mira.
+
+With **Settings → Playback → Trailer before the film** (Windows and Mac, off by default), a film started from the beginning plays its trailer kept on your server first, as at the cinema; **Skip trailer** goes straight to the film. Never a trailer from the web, never when resuming, never in a group.
 
 ## Marking watched
 

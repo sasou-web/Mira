@@ -242,7 +242,8 @@ public sealed partial class PlayerPage : UserControl
     /// newer start), a start that fails saying why on its own screen (PlayerPage.Failure.cs). With
     /// <paramref name="groupStart"/>, for the group: there, paused until Jellyfin says when to play.
     /// </summary>
-    public async Task<bool> StartAsync(MediaItem item, bool fromStart = false, long? groupStart = null)
+    /// <param name="trailerDone">The film after its trailer (« Bande-annonce avant le film »): never its trailer again.</param>
+    public async Task<bool> StartAsync(MediaItem item, bool fromStart = false, long? groupStart = null, bool trailerDone = false)
     {
         if (_shell.Session is not { } session) return false;
         var generation = ++_generation;
@@ -255,6 +256,14 @@ public sealed partial class PlayerPage : UserControl
             // Jellyfin on this same Mac: its file directly; otherwise the file as it is, or Jellyfin's conversion under the
             // quality chosen (PlayerPage.Stream.cs).
             // Kept on this Mac (« Garder sur ce Mac »): its file, with or without Jellyfin; the progress goes as usual.
+            // « Bande-annonce avant le film »: its trailer kept on the server first, the film waiting behind the pill.
+            MediaItem? film = null;
+            if (!trailerDone && groupStart is null && Trailers.PlaysFirst(_shell.Settings.TrailerFirst, item, start, Group.Active, _shell.KeptCopy(item.Id) is not null)
+                && await TrailerOfAsync(session, item) is { } trailer)
+            {
+                if (generation != _generation) return false;
+                film = item; item = trailer; start = 0;
+            }
             var kept = _shell.KeptCopy(item.Id);
             var stream = kept is not null ? new ServerStream(kept.Source ?? new MediaSource(), Guid.NewGuid().ToString("N"), kept.VideoPath, null, false, null, null, 0, [])
                 : await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(session, item)), _shell.Settings.AudioLanguage, FileHere);
@@ -262,7 +271,8 @@ public sealed partial class PlayerPage : UserControl
             UseStream(stream); _playingCopy = kept;
             _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
             _stillWatching.Started(DateTimeOffset.Now, _nextByItself); _nextByItself = false;
-            _title.Text = item.DisplayTitle; _subtitle.Text = PlayerText.Subtitle(item);
+            _skips.Film = film;
+            _title.Text = (film ?? item).DisplayTitle; _subtitle.Text = film is not null ? Trailers.Playing : PlayerText.Subtitle(item);
             _next.IsEnabled = false; ShowEpisodeButtons(item);
 
             await OpenEngineAsync();
@@ -396,11 +406,13 @@ public sealed partial class PlayerPage : UserControl
         if (generation != _generation || _stopped) return;
         // A stream from Jellyfin that stopped before the end of its title: the connection, as on Windows and Mira web.
         if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
-        var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay;
+        var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay; var film = _skips.Film;
         if (eof && _session.Duration > 0) _session.Position = _session.Duration;
         // « Arrêter à la fin de l’épisode »: this one was the last.
         var last = eof && _sleep.AtEnd;
         if (last) _sleep.Clear();
+        // The trailer over (or unreadable): its film, as at the cinema.
+        if (film is not null && (eof || error is not null) && !last) { await PlayFilmAsync(film); return; }
         if (eof && _shell.Settings.AutoNext && !last && !stay && _session.Item?.Type == "Episode" && (next ?? await NextAfterAsync(_session.Item)) is { } following)
         {
             // « Tu regardes toujours ? »: three episodes in a row with nothing touched, the next one waits for an answer.
@@ -430,6 +442,21 @@ public sealed partial class PlayerPage : UserControl
             return;
         }
         if (!await StartAsync(next)) await _shell.CloseOverlayPlayerAsync(this);
+    }
+    /// <summary>The film after its trailer, in this same player.</summary>
+    private async Task PlayFilmAsync(MediaItem film)
+    {
+        await StopAsync();
+        if (!await StartAsync(film, trailerDone: true)) await _shell.CloseOverlayPlayerAsync(this);
+    }
+    /// <summary>
+    /// The trailer kept on the server for <paramref name="film"/>; null when there is none, or Jellyfin did not answer in
+    /// time: the film starts as usual, never held up by its trailer.
+    /// </summary>
+    private static async Task<MediaItem?> TrailerOfAsync(Session session, MediaItem film)
+    {
+        try { return (await session.Client.LocalTrailersAsync(film.Id, session.Lifetime).WaitAsync(TimeSpan.FromSeconds(4))).FirstOrDefault(); }
+        catch (Exception ex) when (Errors.Expected(ex) || ex is TimeoutException) { return null; }
     }
     /// <summary>The group's next title, in this same player.</summary>
     public async Task PlayForGroupAsync(MediaItem item, long start)
@@ -854,6 +881,7 @@ public sealed partial class PlayerPage : UserControl
     private void Skip()
     {
         if (_skips.Active is not { } segment || _mpv is null || !_loaded) return;
+        if (_skips.Film is { } film) { _ = PlayFilmAsync(film); return; }
         if (_skips.ToNext && _skips.Next is { } next) { _ = PlayNextAsync(next, completed: true); return; }
         SeekTo(segment.End, exact: true); _skip.IsVisible = false;
     }

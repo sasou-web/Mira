@@ -682,6 +682,41 @@ public static class SelfCheck
                 await window.StopPlaybackAsync();
             }
 
+            // —— « Bande-annonce »: on the page when the title has one, and « Bande-annonce avant le film » ——
+            if (mock is not null)
+            {
+                var kept = await window.Session.Client.ItemAsync("movie-3");
+                var web = await window.Session.Client.ItemAsync("movie-2");
+                foreach (var titled in new[] { kept, web })
+                {
+                    window.Open(titled);
+                    var tip = Trailers.Tip(titled);
+                    Check(await Until(() => window.Current is DetailPage page && page.Item.Id == titled.Id && page.ActionButtons().Any(x => x.Name == tip), 15),
+                        $"fiche : « Bande-annonce » dit où il mène ({titled.Name})", string.Join(", ", (window.Current as DetailPage)?.ActionButtons().Select(x => x.Name) ?? []));
+                    if (titled == kept) { await Task.Delay(600); Capture(window, output, "05g-film-trailer"); }
+                }
+                window.Open(movie);
+                Check(await Until(() => window.Current is DetailPage page && page.Item.Id == movie.Id && page.ActionButtons().Any(), 15)
+                    && !(window.Current as DetailPage)!.ActionButtons().Any(x => x.Name.Contains(Trailers.Label, StringComparison.OrdinalIgnoreCase)), "fiche sans bande-annonce : pas de bouton");
+                window.Settings.TrailerFirst = true;
+                await window.PlayAsync(kept, fromStart: true);
+                var trailerPlayer = window.Player;
+                Check(await Until(() => trailerPlayer is { IsFileLoaded: true, Item.Id: "trailer-3" } && trailerPlayer.SkipPillText == Trailers.SkipLabel, 30),
+                    "bande-annonce avant le film : elle passe d’abord, « Passer la bande-annonce » au-dessus", $"{trailerPlayer?.Item?.Name}, « {trailerPlayer?.SkipPillText} »");
+                trailerPlayer?.SkipForCheck();
+                Check(await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "movie-3" }, 30), "bande-annonce avant le film : la pastille mène au film", window.Player?.Item?.Name ?? window.NoticeText ?? "lecteur fermé");
+                await window.StopPlaybackAsync();
+                await window.PlayAsync(kept, fromStart: true);
+                Check(await Until(() => window.Player is { Item.Id: "trailer-3" }, 30) && await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "movie-3" }, 60),
+                    "bande-annonce avant le film : le film suit la fin de la bande-annonce", window.Player?.Item?.Name ?? window.NoticeText ?? "lecteur fermé");
+                await window.StopPlaybackAsync();
+                // A film without one starts at once, its own.
+                await window.PlayAsync(movie);
+                Check(await Until(() => window.Player is { IsFileLoaded: true }, 30) && window.Player?.Item?.Id == movie.Id && window.Player.SkipPillText != Trailers.SkipLabel, "bande-annonce avant le film : un film sans bande-annonce part tout de suite", window.Player?.Item?.Name ?? "");
+                await window.StopPlaybackAsync();
+                window.Settings.TrailerFirst = false;
+            }
+
             // —— Next episode at the end of one ——
             var episodes = (await window.Session.Client.EpisodesAsync(series.Id)).Items;
             if (episodes.Count >= 2 && (mock is not null || episodes[0].RunTimeTicks < TimeSpan.FromMinutes(3).Ticks))

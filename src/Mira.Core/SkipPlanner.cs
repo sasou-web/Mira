@@ -16,6 +16,11 @@ public sealed class SkipPlanner
     public List<SkipSegment> Segments { get; set; } = [];
     /// <summary>The episode that follows, when there is one.</summary>
     public MediaItem? Next { get; set; }
+    /// <summary>
+    /// The film this playback is the trailer of (« Bande-annonce avant le film », <see cref="Trailers.PlaysFirst"/>): the
+    /// pill offers to skip the whole trailer to it, and the end of the trailer plays it. Set after <see cref="Reset"/>.
+    /// </summary>
+    public MediaItem? Film { get; set; }
     /// <summary>The passage offered over the video.</summary>
     public SkipSegment? Active { get; set; }
     /// <summary>The pill plays the next episode: skipping would only leave credits, previews or a few seconds.</summary>
@@ -32,7 +37,7 @@ public sealed class SkipPlanner
     public void Reset()
     {
         ServerSegments = []; Segments = []; FileChapters = []; ServerChapters = [];
-        Active = null; Next = null; ToNext = false; CountdownEnd = null; Stay = false; AutoSkipped.Clear();
+        Active = null; Next = null; Film = null; ToNext = false; CountdownEnd = null; Stay = false; AutoSkipped.Clear();
     }
     /// <summary>Typed server segments win; chapter titles only fill what the server left empty.</summary>
     public void Rebuild(double duration) => Segments = PlaybackMarkers.Merge(ServerSegments, PlaybackMarkers.FromChapters(Chapters, duration));
@@ -52,7 +57,9 @@ public sealed class SkipPlanner
     /// </summary>
     public bool Offer(double position, double duration, bool offering, bool autoNext)
     {
-        var active = offering ? PlaybackMarkers.Offer(Segments, position, duration, Next is not null) : null;
+        var active = !offering ? null
+            : Film is not null ? new SkipSegment(SkipKind.Trailer, 0, Math.Max(duration, 1))
+            : PlaybackMarkers.Offer(Segments, position, duration, Next is not null);
         if (active == Active) return false;
         Active = active; CountdownEnd = null;
         if (active is { } segment)
