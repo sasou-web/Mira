@@ -209,11 +209,14 @@ final class PlayerSession: NSObject {
             player.allowsExternalPlayback = !WayPlan.isLoopback(address)
             playMethod = stream.playMethod
             inband = stream.inband
+            let how = ["DirectPlay": "file as it is", "DirectStream": "repackaged"][stream.playMethod] ?? "converted (stage \(stage)) at \(limit / 1_000_000) Mb/s"
+            Diagnostics.record(item, source: next, server: client.server, how: how + (WayPlan.isLoopback(address) ? " through the built-in Tailscale relay" : ""))
             describeTracks()
             attach(address, startSeconds: Double(ticks) / Double(ItemText.ticksPerSecond))
         } catch is CancellationError {
         } catch {
             guard attempt == opening, !closed else { return }
+            Diagnostics.record(item, source: source ?? item.mediaSources?.first, server: client.server, how: "not opened", error: error is PlayerError ? String(describing: error) : String(describing: type(of: error)))
             fail(PlayerError.text(error))
         }
     }

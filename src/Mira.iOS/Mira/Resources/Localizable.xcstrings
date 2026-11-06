@@ -1111,6 +1111,16 @@
         }
       }
     },
+    "Mira report": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rapport de Mira"
+          }
+        }
+      }
+    },
     "More": {
       "localizations": {
         "fr": {
@@ -1227,6 +1237,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réinitialiser le décalage des sous-titres"
+          }
+        }
+      }
+    },
+    "Share a report for a problem": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partager un rapport pour signaler un problème"
           }
         }
       }

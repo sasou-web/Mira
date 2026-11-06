@@ -199,7 +199,7 @@ public partial class MainWindow
             "sharing" => L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in."),
             "care" => L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres, épisodes manquants, Jellyfin sur ce PC.", "What keeps your library in shape: titles to fix, subtitles, missing episodes, Jellyfin on this PC."),
             "torlink" => L("Où vont tes téléchargements, et comment ils rejoignent Jellyfin.", "Where your downloads go, and how they join Jellyfin."),
-            "updates" => L("Mises à jour, titres gardés sur ce PC et moteur de lecture.", "Updates, titles kept on this PC and the playback engine."),
+            "updates" => L("Mises à jour, titres gardés sur ce PC, moteur de lecture et rapport pour signaler un problème.", "Updates, titles kept on this PC, the playback engine and a report for a problem."),
             "report" => L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices."),
             _ => L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")
         };
