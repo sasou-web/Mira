@@ -416,6 +416,32 @@ public static class SelfCheck
                 }
             }
 
+            // —— Space over the button that started the film ——
+            // Lecture clicked keeps the focus under the player, and Avalonia presses a focused button when Space is
+            // released: the film started over instead of pausing (0.9.4, on a real Mac). The keys go where macOS sends
+            // them, to the focus, through the window's handlers.
+            window.Open(movie);
+            if (await Until(() => window.Current is DetailPage { PlayButton.IsEffectivelyVisible: true }, 15) && window.Current is DetailPage detail && detail.PlayButton is { } lecture)
+            {
+                // As a click leaves it (the page may still be arriving: the focus is taken once it can be).
+                var focused = await Until(() => lecture.Focus(), 5);
+                lecture.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                var started = await Until(() => window.Player is { IsFileLoaded: true, Engine: not null }, 40);
+                var first = window.Player;
+                var moved = !detail.IsKeyboardFocusWithin;
+                Press(window, Avalonia.Input.Key.Space);
+                await Task.Delay(1500);
+                Check(started && window.Player == first && first?.Engine?.Flag("pause") == true && focused && moved, "lecteur : Espace met en pause, le clavier n’est plus sur la page dessous",
+                    $"lancé {started}, même lecteur {window.Player == first}, pause {first?.Engine?.Flag("pause")}, focus quitté {moved} (pris {focused})");
+                // The focus brought back onto Lecture (Tab may reach the page under the player): Space plays on, never starts over.
+                lecture.Focus();
+                Press(window, Avalonia.Input.Key.Space);
+                await Task.Delay(1500);
+                Check(window.Player == first && first?.Engine?.Flag("pause") == false, "lecteur : Espace relâché sur Lecture ne relance pas le film",
+                    $"même lecteur {window.Player == first}, pause {first?.Engine?.Flag("pause")}, focus sur Lecture {lecture.IsFocused}");
+                await window.StopPlaybackAsync();
+            }
+
             // —— Playback, OpenGL then software ——
             foreach (var software in new[] { false, true })
             {
@@ -753,6 +779,16 @@ public static class SelfCheck
         var player = window.Player;
         for (var i = 0; i < presses; i++) player?.HandleKey(new KeyEventArgs { Key = key, KeyModifiers = modifiers, RoutedEvent = InputElement.KeyDownEvent });
         player?.HandleKeyUp(new KeyEventArgs { Key = key, KeyModifiers = modifiers, RoutedEvent = InputElement.KeyUpEvent });
+    }
+
+    /// <summary>A key as macOS sends it: down then up to what has the keyboard focus (else the window), through every handler.</summary>
+    private static void Press(MainWindow window, Key key)
+    {
+        foreach (var routed in new[] { InputElement.KeyDownEvent, InputElement.KeyUpEvent })
+        {
+            var target = window.FocusManager?.GetFocusedElement() as Avalonia.Interactivity.Interactive ?? window;
+            target.RaiseEvent(new KeyEventArgs { Key = key, RoutedEvent = routed, Source = target });
+        }
     }
 
     /// <summary>The window as Avalonia draws it (without mpv's picture, which only reaches the screen).</summary>

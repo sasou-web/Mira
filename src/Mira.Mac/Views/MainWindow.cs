@@ -188,7 +188,8 @@ public sealed partial class MainWindow : Window
         // The mini-player takes its keys only when it has the focus: the library around it keeps its own.
         // A sheet over the window has the keys first: Escape closes it, nothing reaches the page or the player under it.
         AddHandler(KeyDownEvent, (_, e) => { if (CurrentSheet is { } sheet) { if (e.Key == Key.Escape) { if (!sheet.Busy) CloseSheet(sheet); e.Handled = true; } return; } if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        // Its releases always: a key held is read once where acting again would undo it (PlayerPage.Keys.cs).
+        // Its releases always: a key held is read once where acting again would undo it, and the release of a key it took
+        // is its own too: Avalonia presses a focused button when Space is released (PlayerPage.Keys.cs).
         AddHandler(KeyUpEvent, (_, e) => Player?.HandleKeyUp(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         Deactivated += (_, _) => Player?.ForgetHeldKeys();
         KeyDown += OnKeyDown;
@@ -810,6 +811,8 @@ public sealed partial class MainWindow : Window
         // A friend's party keeps its card under the player, in sight again when it closes.
         foreach (var shown in _overlay.Children.Where(child => !ReferenceEquals(child, _party)).ToList()) _overlay.Children.Remove(shown);
         _overlay.Children.Add(player);
+        // The keyboard leaves the page under the player: Lecture, focused by its click, would take Return there.
+        LeavePageFocus(player);
         if (!await player.StartAsync(item, fromStart, groupStart)) await CloseOverlayPlayerAsync(player);
     }
     public async Task StopPlaybackAsync()
@@ -822,7 +825,12 @@ public sealed partial class MainWindow : Window
     internal void MiniChanged(PlayerPage player)
     {
         if (player != Player) return;
-        if (player.IsMini) { Focus(); _ = RefreshPagesAsync(); }
+        if (player.IsMini) { Focus(); _ = RefreshPagesAsync(); } else LeavePageFocus(player);
+    }
+    /// <summary>The player over the whole window: the focus is no longer left on a control of the page it covers.</summary>
+    private void LeavePageFocus(PlayerPage player)
+    {
+        if (FocusManager?.GetFocusedElement() is Visual focused && !player.IsVisualAncestorOf(focused)) FocusManager.ClearFocus();
     }
     internal async Task CloseOverlayPlayerAsync(PlayerPage player)
     {

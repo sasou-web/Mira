@@ -40,6 +40,8 @@ public sealed class PipWindow : Window
     private readonly DispatcherTimer _click = new() { Interval = TimeSpan.FromMilliseconds(230) };
     private long _lastMotion, _activatedAt = long.MinValue / 2;
     private bool _shown = true, _paused, _closable, _moving, _keyboard;
+    /// <summary>The keys the player took on their way down: their release too (a focused button is pressed on Space's release).</summary>
+    private readonly HashSet<Key> _taken = [];
     private bool? _subtitlesShown = false;
     private Point? _press;
     private PixelPoint _pressScreen, _pressPosition;
@@ -114,8 +116,10 @@ public sealed class PipWindow : Window
         _root.PointerReleased += Released;
         _root.PointerCaptureLost += (_, _) => EndGesture();
         _root.PointerExited += (_, _) => { if (_press is null) _lastMotion = 0; };
-        // Before a focused button: Space never clicks again the last button pressed.
-        AddHandler(KeyDownEvent, (_, e) => { _keyboard = true; ShowControls(); KeyPressed?.Invoke(e); }, RoutingStrategies.Tunnel);
+        // Before a focused button: Space never clicks again the last button pressed, on its way down nor on its release.
+        AddHandler(KeyDownEvent, (_, e) => { _keyboard = true; ShowControls(); KeyPressed?.Invoke(e); if (e.Handled) _taken.Add(e.Key); }, RoutingStrategies.Tunnel);
+        AddHandler(KeyUpEvent, (_, e) => { if (_taken.Remove(e.Key)) e.Handled = true; }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        Deactivated += (_, _) => _taken.Clear();
         VideoHost.SizeChanged += (_, _) => VideoResized?.Invoke();
         Activated += (_, _) => _activatedAt = Environment.TickCount64;
         _idle.Tick += (_, _) => HideWhenIdle();
