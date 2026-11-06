@@ -29,6 +29,7 @@ internal static class PortableTests
         await TailnetExecutableTests.RunAsync(run);
         await LanguageTests.RunAsync(run);
         await DiagnosticsTests.RunAsync(run);
+        await PrivacyTests.RunAsync(run);
         await AccessibilityTests.RunAsync(run.Test);
         await SupplyChainTests.RunAsync(run.Test, run.Root);
     }

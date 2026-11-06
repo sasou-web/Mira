@@ -183,6 +183,17 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings did not open")
         settle()
         capture("09-settings")
+        // Privacy: every connection out, with Built-in Tailscale's switch (PrivacyView).
+        let privacy = app.buttons["settings.privacy"]
+        for _ in 0..<5 where !(privacy.exists && privacy.isHittable) { app.swipeUp() }
+        XCTAssertTrue(privacy.waitForExistence(timeout: 5), "No Privacy row in Settings")
+        privacy.tap()
+        XCTAssertTrue(app.navigationBars["Privacy"].waitForExistence(timeout: 10), "Privacy did not open")
+        XCTAssertTrue(app.switches["privacy.tailscale"].waitForExistence(timeout: 5), "No Built-in Tailscale switch in Privacy")
+        settle()
+        capture("09c-privacy")
+        app.navigationBars["Privacy"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Privacy did not lead back to Settings")
         let signOut = signOutButton(app)
         XCTAssertTrue(signOut.exists, "No Sign out at the bottom of Settings")
         capture("09b-settings-bottom")

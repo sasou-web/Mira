@@ -145,6 +145,12 @@ struct SettingsView: View {
                         row("Home rows", "Their order, and which show, on this iPhone.", symbol: "rectangle.grid.1x2")
                     }
                     .accessibilityIdentifier("settings.homeRows")
+                    NavigationLink {
+                        PrivacyView()
+                    } label: {
+                        row("Privacy", "Everything that goes out on the network, and how to stop it.", symbol: "hand.raised")
+                    }
+                    .accessibilityIdentifier("settings.privacy")
                 } header: {
                     Text("This iPhone")
                 }

@@ -7,6 +7,9 @@ platforms: Windows, Mac, iPhone
 
 Mira has no account, no ads, no analytics and no telemetry. It talks to your Jellyfin server, and to a few services only when a feature needs them, each listed below. The code is open: [see for yourself](https://github.com/sasou-web/Mira).
 
+> [!TIP]
+> The same list is in the apps: **Settings → Privacy** on Windows, Mac and iPhone, each connection with what it sends and its switch, where it has one (the update check, Built-in Tailscale, and on Windows the check for a newer Jellyfin).
+
 ## Always
 
 | Who | To | What |
@@ -22,7 +25,7 @@ Before you sign in, Mira looks for Jellyfin on this computer, on your home netwo
 | --- | --- | --- |
 | **Built-in Tailscale**, once you sign in to it | Tailscale's coordination servers and relays | like the Tailscale app: the account you chose, the device's name, its system and IP addresses, its public key. Videos stay end-to-end encrypted. No logs sent |
 | **The mpv engine** (Windows) | SourceForge | the download of the engine, SHA-256 checked |
-| **Installing or updating Jellyfin** (Windows) | `repo.jellyfin.org`, GitHub (winget's catalogue, once a day on the Jellyfin PC) | the download, and whether a newer version exists |
+| **Installing or updating Jellyfin** (Windows) | `repo.jellyfin.org`, GitHub (winget's catalogue, once a day on the Jellyfin PC, off in **Settings → Privacy**) | the download, and whether a newer version exists |
 | **Automatic subtitles** | OpenSubtitles, SubDL, from your server | the file's fingerprint and size, IMDb/TMDb ids, season, episode, title, year, language. Never the file's name |
 | **Search for subtitles…** with another Jellyfin plugin | that plugin's service, from your server | what the plugin sends; Mira tells you before |
 | **Your party link** through Tailscale Funnel | Tailscale's relays, then your guests | your guests' traffic to Mira's page, encrypted to your PC. Your PC's Tailscale name becomes public |
