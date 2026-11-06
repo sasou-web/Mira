@@ -44,6 +44,8 @@
     <Style Selector="TextBlock.faint"><Setter Property="Foreground" Value="{StaticResource Faint}"/></Style>
     <Style Selector="TextBlock.label"><Setter Property="FontSize" Value="11"/><Setter Property="Foreground" Value="{StaticResource Faint}"/><Setter Property="LetterSpacing" Value="0.6"/></Style>
 
+    <!-- « Mode canapé » draws its own ring (MainWindow.Couch.cs): Avalonia's focus adorner ignores the pages' zoom and lands elsewhere. -->
+    <Style Selector="Window.couch :is(Control)"><Setter Property="FocusAdorner" Value="{x:Null}"/></Style>
     <!-- Buttons: drawn by Mira, with a gentle hover wash in their own ink. -->
     <Style Selector="Button">
       <Setter Property="Background" Value="#202022"/>

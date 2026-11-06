@@ -45,7 +45,7 @@ public sealed partial class PlayerPage
         }
         Group.SetAway(true);
         _tracks.Flyout?.Hide(); _more.Flyout?.Hide(); _episodesButton.Flyout?.Hide();
-        if (_shell.WindowState == WindowState.FullScreen) { _shell.WindowState = WindowState.Normal; _fullscreenIcon.Kind = "fullscreen"; }
+        if (_shell.WindowState == WindowState.FullScreen && !_shell.InCouchMode) { _shell.WindowState = WindowState.Normal; _fullscreenIcon.Kind = "fullscreen"; }
         // The bars under it: neither VoiceOver nor Tab reach them.
         _chrome.IsVisible = _skipHost.IsVisible = _groupPill.IsVisible = false;
         _hide.Stop(); _spinner.IsVisible = false; ShowStatus(null); HideSeekPill(); HidePlayState(); Cursor = Cursor.Default;

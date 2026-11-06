@@ -284,6 +284,8 @@ public sealed class PlayerSettings
     public int SubtitleHeight { get; set; } = 100;
     public bool ShowProgress { get; set; } = true;
     public bool ReduceMotion { get; set; }
+    /// <summary>« Mode canapé » (<see cref="Couch"/>): full screen, larger pages, the arrow keys and a controller everywhere. Mira for Windows and Mac.</summary>
+    public bool CouchMode { get; set; }
     public string PosterDensity { get; set; } = "Comfortable";
     public bool RememberPosition { get; set; } = true;
     /// <summary>« Reprendre un peu avant »: seconds a title resumes before where it was left (<see cref="PlaybackSession.ResumeBack"/>); 0: exactly there.</summary>

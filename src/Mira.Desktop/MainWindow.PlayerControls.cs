@@ -204,7 +204,7 @@ public partial class MainWindow
     private void PlayerSurface_MouseUp(object sender, MouseButtonEventArgs e) { if (_miniPlayer) MiniPointerUp(e); }
     private void PlayerChrome_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource != PlayerWindowChrome || _fullscreen || _miniPlayer) return;
+        if (e.OriginalSource != PlayerWindowChrome || _fullscreen || _couchScreen || _miniPlayer) return;
         if (e.ClickCount == 2) Maximize_Click(sender, e); else DragMove();
         e.Handled = true;
     }
@@ -320,6 +320,8 @@ public partial class MainWindow
         {
             case "mira-motion": ShowPlayerControls(); break;
             case "mira-fullscreen": ToggleFullscreen(); break;
+            // In couch mode, as on a TV: back stops the film.
+            case "mira-back" or "mira-backspace" when InCouchMode && !_miniPlayer: _ = LeavePlayerAsync(); break;
             case "mira-back": if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayerSmoothly(true); break;
             case "mira-mini": SetMiniPlayerSmoothly(!_miniPlayer); break;
             case "mira-pause": Pause_Click(this, new()); break;
@@ -381,10 +383,10 @@ public partial class MainWindow
         LibraryShell.Visibility = NavigationRail.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
         if (!mini) { AutoSaveSettings(); if (!_morphing) LeavePagesForPlayer(); }
         TitleBar.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
-        PlayerWindowChrome.Visibility = mini || _fullscreen ? Visibility.Collapsed : Visibility.Visible;
+        PlayerWindowChrome.Visibility = mini || _fullscreen || _couchScreen ? Visibility.Collapsed : Visibility.Visible;
         // 42 above and 22 below the 44-unit back button: the header must stay at least 108 high.
         PlayerHeader.Height = mini ? 58 : 108; PlayerControls.Height = mini ? 84 : 210;
-        PlayerHeaderBody.Margin = mini ? new Thickness(14, 10, 8, 0) : new Thickness(24, _fullscreen ? 22 : 42, 24, 22);
+        PlayerHeaderBody.Margin = mini ? new Thickness(14, 10, 8, 0) : new Thickness(24, _fullscreen || _couchScreen ? 22 : 42, 24, 22);
         PlayerControlsBody.Margin = mini ? new Thickness(14, 0, 14, 8) : new Thickness(24, 0, 24, 14);
         // The mini-player shows its title at the top and keeps only play / pause, centred under the timeline.
         PlayerInfo.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
