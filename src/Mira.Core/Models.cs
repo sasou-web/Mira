@@ -391,4 +391,6 @@ public sealed class PlayerSettings
     public string JellyfinRelease { get; set; } = "";
     public DateTimeOffset? JellyfinReleaseCheckedAt { get; set; }
     public string JellyfinReleaseSaid { get; set; } = "";
+    /// <summary>Réglages → Confidentialité: winget's catalogue on GitHub asked once a day for a newer Jellyfin; false: never asked.</summary>
+    public bool JellyfinReleaseCheck { get; set; } = true;
 }

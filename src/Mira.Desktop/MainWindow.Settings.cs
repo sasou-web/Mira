@@ -170,7 +170,7 @@ public partial class MainWindow
         foreach (var button in SettingsNavigation.Children.OfType<Button>())
         {
             if (button.Content is not string label) continue;
-            var icon = button.Tag?.ToString() switch { "subtitles" => "subtitles", "appearance" => "sparkle", "server" => "server", "sharing" => "users", "care" => "sliders", "report" => "clock", "torlink" => "download", "updates" => "refresh", _ => "play" };
+            var icon = button.Tag?.ToString() switch { "subtitles" => "subtitles", "appearance" => "sparkle", "server" => "server", "sharing" => "users", "care" => "sliders", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", _ => "play" };
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             row.Children.Add(new Icon { Kind = icon, Width = 19, Height = 19, Margin = new Thickness(0, 0, 13, 0) });
             row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
@@ -189,8 +189,9 @@ public partial class MainWindow
         CareSettings.Visibility = tab == "care" ? Visibility.Visible : Visibility.Collapsed;
         TorLinkSettings.Visibility = tab == "torlink" ? Visibility.Visible : Visibility.Collapsed;
         UpdateSettings.Visibility = tab == "updates" ? Visibility.Visible : Visibility.Collapsed;
+        PrivacySettings.Visibility = tab == "privacy" ? Visibility.Visible : Visibility.Collapsed;
         ReportSettings.Visibility = tab == "report" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsSectionTitle.Text = tab switch { "subtitles" => L("Audio & sous-titres", "Audio & subtitles"), "appearance" => L("Apparence", "Appearance"), "server" => L("Compte & serveur", "Account & server"), "sharing" => L("Amis & invités", "Friends & guests"), "care" => L("Entretien", "Maintenance"), "torlink" => L("Téléchargements", "Downloads"), "updates" => L("Mira sur ce PC", "Mira on this PC"), "report" => L("Ton bilan", "Your recap"), _ => L("Lecture", "Playback") };
+        SettingsSectionTitle.Text = tab switch { "subtitles" => L("Audio & sous-titres", "Audio & subtitles"), "appearance" => L("Apparence", "Appearance"), "server" => L("Compte & serveur", "Account & server"), "sharing" => L("Amis & invités", "Friends & guests"), "care" => L("Entretien", "Maintenance"), "torlink" => L("Téléchargements", "Downloads"), "updates" => L("Mira sur ce PC", "Mira on this PC"), "privacy" => L("Confidentialité", "Privacy"), "report" => L("Ton bilan", "Your recap"), _ => L("Lecture", "Playback") };
         SettingsSectionDescription.Text = tab switch
         {
             "subtitles" => L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles."),
@@ -200,18 +201,20 @@ public partial class MainWindow
             "care" => L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres, épisodes manquants, Jellyfin sur ce PC.", "What keeps your library in shape: titles to fix, subtitles, missing episodes, Jellyfin on this PC."),
             "torlink" => L("Où vont tes téléchargements, et comment ils rejoignent Jellyfin.", "Where your downloads go, and how they join Jellyfin."),
             "updates" => L("Mises à jour, titres gardés sur ce PC, moteur de lecture et rapport pour signaler un problème.", "Updates, titles kept on this PC, the playback engine and a report for a problem."),
+            "privacy" => L("Tout ce qui part sur le réseau, et comment l’arrêter.", "Everything that goes out on the network, and how to stop it."),
             "report" => L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices."),
             _ => L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")
         };
         foreach (var button in SettingsNavigation.Children.OfType<Button>()) { var active = button.Tag?.ToString() == tab; button.Background = active ? Palette.Get("Text") : Brushes.Transparent; button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextBody"); }
         SettingsScroll.ScrollToTop();
-        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "sharing" => SharingSettings, "care" => CareSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "report" => ReportSettings, _ => PlaybackSettings };
+        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "sharing" => SharingSettings, "care" => CareSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "privacy" => PrivacySettings, "report" => ReportSettings, _ => PlaybackSettings };
         SmoothScroll.Jump(SettingsScroll); if (animate) Motion.Reveal(body, 230, 7);
         WatchViewers(tab == "server");
         if (tab == "server") _ = ReadTailscaleAppAsync();
         if (tab == "care") { _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
         ShowSettingsGroups();
         if (tab == "report") _ = ShowReportAsync();
+        if (tab == "privacy") ShowPrivacy();
     }
     private void LanguageChoice_Changed(object sender, SelectionChangedEventArgs e)
     {

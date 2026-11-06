@@ -81,6 +81,7 @@ public partial class MainWindow
             SelectSettingsTab("appearance"); await CaptureAsync(output, "09-appearance-settings");
             SelectSettingsTab("server"); await CaptureAsync(output, "10-server-settings");
             SelectSettingsTab("updates"); await CaptureAsync(output, "10b-this-pc-settings");
+            SelectSettingsTab("privacy"); await CaptureAsync(output, "10d-privacy-settings");
             // What a beginner needs first, the rest behind « Réglages avancés »: opened, it shows the picture and the decoding.
             SelectSettingsTab("playback"); PlaybackAdvanced.IsExpanded = true; await CaptureAsync(output, "10c-playback-advanced"); PlaybackAdvanced.IsExpanded = false;
             await Page("library", "11-hover");

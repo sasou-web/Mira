@@ -18,6 +18,7 @@ Les réglages s’ouvrent par la roue dentée de la barre de gauche (<kbd>⌘</k
 | **Apparence** | Langue de Mira, rangées de l’accueil, densité de la bibliothèque, carrousel automatique, réduire les animations |
 | **Compte & serveur** | Ton compte Jellyfin et ta photo, se déconnecter, Tailscale intégré, notifications de nouveaux épisodes, qui regarde sur Jellyfin en ce moment |
 | **Mira sur ce PC / Mac** | Les mises à jour, et les titres gardés pour regarder sans connexion |
+| **Confidentialité** | Tout ce que Mira envoie, à qui et quand, avec l’interrupteur de chaque connexion qui en a un |
 | **Ton bilan** | Ce que tu as regardé ce mois-ci et cette année, d’après Jellyfin |
 
 Sous **Ton serveur**, pour l’administrateur de Jellyfin :
@@ -37,6 +38,7 @@ L’onglet **Réglages** contient :
 - **Lecture** : langues, intros et récaps, épisode suivant, reprendre un peu avant.
 - **Ailleurs qu’à la maison** : Tailscale intégré et le chemin que prend Mira vers Jellyfin.
 - **Administration** (administrateur de Jellyfin) : qui regarde sur Jellyfin en ce moment.
+- **Cet iPhone → Confidentialité** : tout ce que Mira envoie, à qui et quand, et l’interrupteur de Tailscale intégré.
 - **À propos** : la version et le code source.
 
 ## Langue

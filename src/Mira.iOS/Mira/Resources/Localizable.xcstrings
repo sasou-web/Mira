@@ -423,6 +423,46 @@
         }
       }
     },
+    "**Sends** · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "**Envoie** · %@"
+          }
+        }
+      }
+    },
+    "**To stop it** · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "**Pour l’arrêter** · %@"
+          }
+        }
+      }
+    },
+    "**To** · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "**Vers** · %@"
+          }
+        }
+      }
+    },
+    "**When** · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "**Quand** · %@"
+          }
+        }
+      }
+    },
     "10 seconds into the end credits when they are marked, otherwise at the end of the episode. A button offers it sooner.": {
       "localizations": {
         "fr": {
@@ -509,6 +549,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toutes les années"
+          }
+        }
+      }
+    },
+    "AltStore, installed by you": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore, installé par toi"
           }
         }
       }
@@ -659,6 +709,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Automatique"
+          }
+        }
+      }
+    },
+    "Automatic subtitles": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sous-titres automatiques"
           }
         }
       }
@@ -990,6 +1050,16 @@
       },
       "comment": "An episode's number: É5 in French"
     },
+    "Each series’ TheTVDB id, for its list of episodes. No name or picture from TheTVDB is kept.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’identifiant TheTVDB de chaque série, pour sa liste d’épisodes. Ni nom, ni image de TheTVDB ne sont gardés."
+          }
+        }
+      }
+    },
     "Earlier": {
       "localizations": {
         "fr": {
@@ -1050,6 +1120,56 @@
         }
       }
     },
+    "Every detail (SECURITY.md)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tous les détails (SECURITY.md)"
+          }
+        }
+      }
+    },
+    "Everything that goes out on the network, and how to stop it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout ce qui part sur le réseau, et comment l’arrêter."
+          }
+        }
+      }
+    },
+    "From this device": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depuis cet appareil"
+          }
+        }
+      }
+    },
+    "From your Jellyfin server": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depuis ton serveur Jellyfin"
+          }
+        }
+      }
+    },
+    "GitHub, where Mira is published.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub, où Mira est publiée."
+          }
+        }
+      }
+    },
     "In a group · %@ · %@": {
       "localizations": {
         "fr": {
@@ -1060,6 +1180,26 @@
         }
       },
       "comment": "The group's button over the tabs: En groupe · Groupe de mira · mira et Marc"
+    },
+    "In Jellyfin’s dashboard, Libraries.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans le tableau de bord de Jellyfin, Bibliothèques."
+          }
+        }
+      }
+    },
+    "In Jellyfin’s dashboard, Plugins, Repositories.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans le tableau de bord de Jellyfin, Extensions, Dépôts."
+          }
+        }
+      }
     },
     "Jellyfin on your Tailscale network": {
       "localizations": {
@@ -1091,6 +1231,16 @@
         }
       }
     },
+    "Like the Tailscale app: your account, the device’s name, its system, its IP addresses and its public key. Videos stay end-to-end encrypted, no log is sent.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comme l’app Tailscale : ton compte, le nom de l’appareil, son système, ses adresses IP et sa clé publique. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé."
+          }
+        }
+      }
+    },
     "Look again": {
       "localizations": {
         "fr": {
@@ -1111,12 +1261,52 @@
         }
       }
     },
+    "Mira extension updates": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour de l’extension Mira"
+          }
+        }
+      }
+    },
+    "Mira has no account, no ads, no analytics and no crash report sent on its own. Here is everything that goes out on the network, and how to stop it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira n’a ni compte, ni publicité, ni mesure d’audience, ni rapport de plantage envoyé tout seul. Voici tout ce qui part sur le réseau, et comment l’arrêter."
+          }
+        }
+      }
+    },
     "Mira report": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Rapport de Mira"
+          }
+        }
+      }
+    },
+    "miracinema.app (Mira’s list), GitHub (the app) and Apple.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "miracinema.app (la liste de Mira), GitHub (l’app) et Apple."
+          }
+        }
+      }
+    },
+    "Missing episodes (TheTVDB)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisodes manquants (TheTVDB)"
           }
         }
       }
@@ -1161,6 +1351,16 @@
         }
       }
     },
+    "Nothing in Mira: it’s AltStore.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien dans Mira : c’est AltStore."
+          }
+        }
+      }
+    },
     "Once, with your Tailscale account. Your password stays on Tailscale’s page: Mira never sees it.": {
       "localizations": {
         "fr": {
@@ -1171,12 +1371,52 @@
         }
       }
     },
+    "Only if you installed it, at each library scan.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement si tu l’as installée, à chaque analyse de la bibliothèque."
+          }
+        }
+      }
+    },
+    "Only once turned on, when a title arrives or when you search.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement une fois activés, quand un titre arrive ou quand tu cherches."
+          }
+        }
+      }
+    },
+    "Only once turned on, while Mira is on screen or a title still plays.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement une fois activé, tant que Mira est à l’écran ou qu’un titre joue encore."
+          }
+        }
+      }
+    },
     "Open Tailscale’s admin console": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ouvrir la console de Tailscale"
+          }
+        }
+      }
+    },
+    "OpenSubtitles and SubDL, through Jellyfin’s Mira extension.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenSubtitles et SubDL, par l’extension Mira de Jellyfin."
           }
         }
       }
@@ -1207,6 +1447,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "PC de Jellyfin en ligne"
+          }
+        }
+      }
+    },
+    "Posters and descriptions": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affiches et résumés"
+          }
+        }
+      }
+    },
+    "Privacy": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confidentialité"
           }
         }
       }
@@ -2571,6 +2831,16 @@
         }
       }
     },
+    "Sign out, in Settings.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter, dans les Réglages."
+          }
+        }
+      }
+    },
     "Sign this iPhone out of your Tailscale network?": {
       "localizations": {
         "fr": {
@@ -2801,6 +3071,16 @@
         }
       }
     },
+    "Tailscale’s coordination server and its relays, then your Tailscale devices (16 at most are asked whether they run Jellyfin).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de coordination de Tailscale et ses relais, puis tes appareils Tailscale (16 au plus, à qui Mira demande s’ils font tourner Jellyfin)."
+          }
+        }
+      }
+    },
     "Tailscale’s servers see this device join your Tailscale network: its name, its system and its IP addresses (public and local, for direct connections). Your videos stay end-to-end encrypted, directly or through a Tailscale relay. Mira sends no logs to Tailscale.": {
       "localizations": {
         "fr": {
@@ -2821,12 +3101,32 @@
         }
       }
     },
+    "The address you signed in to, at home or through Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’adresse où tu t’es connecté, chez toi ou par Tailscale."
+          }
+        }
+      }
+    },
     "The code has 6 digits.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Le code a 6 chiffres."
+          }
+        }
+      }
+    },
+    "The file’s fingerprint and size (OpenSubtitles), its IMDb and TMDb ids, season, episode and language. Never the file name.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’empreinte et la taille du fichier (OpenSubtitles), ses identifiants IMDb et TMDb, la saison, l’épisode et la langue. Jamais le nom du fichier."
           }
         }
       }
@@ -2941,6 +3241,16 @@
         }
       }
     },
+    "The switch here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’interrupteur ci-contre."
+          }
+        }
+      }
+    },
     "Their order, and which show, on this iPhone.": {
       "localizations": {
         "fr": {
@@ -2957,6 +3267,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Puis connecte-toi à Tailscale, une seule fois, avec ton compte Tailscale."
+          }
+        }
+      }
+    },
+    "These connections leave from Jellyfin’s PC, never from this device.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ces connexions partent du PC de Jellyfin, jamais de cet appareil."
+          }
+        }
+      }
+    },
+    "TheTVDB, through its official Jellyfin extension.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TheTVDB, par son extension officielle de Jellyfin."
           }
         }
       }
@@ -3141,6 +3471,16 @@
         }
       }
     },
+    "TMDb and Jellyfin’s other metadata sources.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TMDb et les autres sources de métadonnées de Jellyfin."
+          }
+        }
+      }
+    },
     "Together · %@": {
       "localizations": {
         "fr": {
@@ -3187,6 +3527,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Activer Tailscale intégré"
+          }
+        }
+      }
+    },
+    "Turn them off in Mira for Windows or Mac, Maintenance.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les couper dans Mira pour Windows ou Mac, Entretien."
+          }
+        }
+      }
+    },
+    "Uninstall it from Mira for Windows or Jellyfin’s dashboard.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La désinstaller depuis Mira pour Windows ou le tableau de bord de Jellyfin."
           }
         }
       }
@@ -3311,6 +3671,16 @@
         }
       }
     },
+    "What Jellyfin sends: its IP address and its program name.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce qu’envoie Jellyfin : son adresse IP et son nom de programme."
+          }
+        }
+      }
+    },
     "What you watched this month and this year.": {
       "localizations": {
         "fr": {
@@ -3321,12 +3691,52 @@
         }
       }
     },
+    "When Jellyfin looks for updates to its extensions.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand Jellyfin cherche les mises à jour de ses extensions."
+          }
+        }
+      }
+    },
     "When Jellyfin or the file’s chapters mark them, playback jumps over them. Otherwise, a button offers it.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Quand Jellyfin ou les chapitres du fichier les repèrent, la lecture saute par-dessus. Sinon, un bouton le propose."
+          }
+        }
+      }
+    },
+    "When Jellyfin scans your library, and when you fix a title.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand Jellyfin analyse ta bibliothèque, et quand tu corriges un titre."
+          }
+        }
+      }
+    },
+    "When you install Mira and at its weekly refresh.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand tu installes Mira, puis à son rafraîchissement de chaque semaine."
+          }
+        }
+      }
+    },
+    "While you’re signed in: library, pictures, playback, Watch together.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tant que tu es connecté : bibliothèque, images, lecture, Regarder ensemble."
           }
         }
       }
@@ -3371,12 +3781,32 @@
         }
       }
     },
+    "Your Apple ID, to Apple only, for the free certificate that signs the app. Mira itself never looks for updates.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton identifiant Apple, à Apple seulement, pour le certificat gratuit qui signe l’app. Mira elle-même ne cherche jamais de mise à jour."
+          }
+        }
+      }
+    },
     "Your favorites": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Tes favoris"
+          }
+        }
+      }
+    },
+    "Your Jellyfin server": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton serveur Jellyfin"
           }
         }
       }
@@ -3437,6 +3867,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fermer"
+          }
+        }
+      }
+    },
+    "Your session token in a header, and in the address of the video the player reads (Apple’s player can’t send a header). What you watch and where you stopped.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton jeton de session dans un en-tête, et dans l’adresse de la vidéo que lit le lecteur (le lecteur d’Apple ne sait pas envoyer d’en-tête). Ce que tu regardes et où tu t’es arrêté."
           }
         }
       }
@@ -3947,6 +4387,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitter la party"
+          }
+        }
+      }
+    },
+    "Your titles’ names and years, from your server.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les noms et les années de tes titres, depuis ton serveur."
           }
         }
       }

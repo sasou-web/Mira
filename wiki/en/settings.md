@@ -18,6 +18,7 @@ Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on M
 | **Appearance** | Mira's language, home rows, library density, automatic carousel, reduce animations |
 | **Account & server** | Your Jellyfin account and photo, sign out, Built-in Tailscale, new episode notifications, who is watching on Jellyfin right now |
 | **Mira on this PC / Mac** | Updates, and the titles kept to watch offline |
+| **Privacy** | Everything Mira sends, to whom and when, with the switch of each connection that has one |
 | **Your recap** | What you watched this month and this year, from Jellyfin |
 
 Under **Your server**, for Jellyfin's administrator:
@@ -37,6 +38,7 @@ The **Settings** tab has:
 - **Playback**: languages, intros and recaps, next episode, resume a little earlier.
 - **Away from home**: Built-in Tailscale and the path Mira takes to Jellyfin.
 - **Administration** (Jellyfin administrator): who is watching on Jellyfin right now.
+- **This iPhone → Privacy**: everything Mira sends, to whom and when, and Built-in Tailscale's switch.
 - **About**: the version and the source code.
 
 ## Language

@@ -88,7 +88,7 @@ public sealed partial class SettingsPage : Page
             Version(),
             // Switched back on: GitHub is asked now rather than at the next launch, as on Windows.
             Toggle(L("Mettre à jour automatiquement", "Update automatically"), L("Chaque version est vérifiée, puis installée quand tu quittes Mira. Tes données restent en place.", "Each version is checked, then installed when you quit Mira. Your data stays in place."),
-                settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }),
+                settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }, out _updatesSwitch),
             // « Sur ce Mac »: where the titles kept to watch offline go, and all of them removed at once.
             OfflineCard(),
             // « Exporter un rapport » (SettingsPage.Diagnostics.cs).
@@ -457,12 +457,13 @@ public sealed partial class SettingsPage : Page
         dock.Children.Add(text);
         return dock;
     }
-    private Control Toggle(string title, string detail, bool value, Action<bool> set)
+    private Control Toggle(string title, string detail, bool value, Action<bool> set) => Toggle(title, detail, value, set, out _);
+    private Control Toggle(string title, string detail, bool value, Action<bool> set, out ToggleSwitch toggle)
     {
-        var toggle = new ToggleSwitch { IsChecked = value, OnContent = null, OffContent = null, MinWidth = 0 };
-        Avalonia.Automation.AutomationProperties.SetName(toggle, title);
-        toggle.IsCheckedChanged += (_, _) => { set(toggle.IsChecked == true); Save(); };
-        return Row(title, detail, toggle);
+        var made = toggle = new ToggleSwitch { IsChecked = value, OnContent = null, OffContent = null, MinWidth = 0 };
+        Avalonia.Automation.AutomationProperties.SetName(made, title);
+        made.IsCheckedChanged += (_, _) => { set(made.IsChecked == true); Save(); };
+        return Row(title, detail, made);
     }
     /// <summary>
     /// « Taille et style des sous-titres », as on Windows (<see cref="SubtitleStyle"/>): a preview over a bright scene,

@@ -398,6 +398,16 @@ public static class SelfCheck
             if (window.Current is SettingsPage others)
                 foreach (var (tab, shot) in new[] { ("server", "07e-settings-server"), ("updates", "07f-settings-updates"), ("appearance", "07g-settings-appearance"), ("audio", "07h-settings-subtitles") })
                 { others.Show(tab); await Task.Delay(500); Capture(window, output, shot); }
+            // Confidentialité: every connection, and the update check's switch the same as the one of « Mira sur ce Mac ».
+            if (window.Current is SettingsPage privacy)
+            {
+                privacy.Show("privacy"); await Task.Delay(500); Capture(window, output, "07i-settings-privacy");
+                var updates = window.Settings.AutoUpdate;
+                if (privacy.PrivacyUpdatesSwitch is { } privacySwitch) privacySwitch.IsChecked = !updates;
+                var followed = window.Settings.AutoUpdate == !updates;
+                if (privacy.PrivacyUpdatesSwitch is { } back) back.IsChecked = updates;
+                Check(privacy.PrivacyUpdatesSwitch is not null && followed && window.Settings.AutoUpdate == updates, "confidentialité : l’interrupteur des mises à jour est celui de « Mettre à jour automatiquement »");
+            }
 
             // —— Téléchargements: sent to the PC of Jellyfin ——
             if (mock is not null)
