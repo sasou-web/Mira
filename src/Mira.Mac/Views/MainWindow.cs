@@ -691,6 +691,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void Host(Page? page)
     {
+        // A page turn under the fingers, stopped where it was: this page shows instead.
+        EndSlide(turn: false);
         var left = Current;
         if (page is not null && !_host.Children.Contains(page)) _host.Children.Add(page);
         Current = page;

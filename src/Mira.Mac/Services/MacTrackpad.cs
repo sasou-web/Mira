@@ -1,11 +1,13 @@
 using System.Runtime.InteropServices;
+using Mira.Core;
 
 namespace Mira.Mac.Services;
 
 /// <summary>
 /// What macOS says of the trackpad, read rather than assumed: the scrolling direction (System Settings → Trackpad →
 /// Scroll &amp; Zoom → Natural scrolling) and whether two fingers swipe between pages (More Gestures → Swipe between pages).
-/// And the Force Touch trackpad's firm press, which Avalonia does not pass on (<see cref="ForceClicked"/>).
+/// And what Avalonia does not pass on: the Force Touch trackpad's firm press (<see cref="ForceClicked"/>), and where the
+/// fingers are in a scroll (<see cref="Phase"/>).
 /// </summary>
 public static partial class MacTrackpad
 {
@@ -26,6 +28,9 @@ public static partial class MacTrackpad
     [LibraryImport(ObjC)][return: MarshalAs(UnmanagedType.U1)] private static unsafe partial bool class_addMethod(IntPtr type, IntPtr selector, delegate* unmanaged<IntPtr, IntPtr, IntPtr, void> implementation, [MarshalAs(UnmanagedType.LPUTF8Str)] string types);
     [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial byte SendBool(IntPtr receiver, IntPtr selector);
     [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial nint SendInteger(IntPtr receiver, IntPtr selector);
+    [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial IntPtr Send(IntPtr receiver, IntPtr selector);
+    [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial nuint SendUnsigned(IntPtr receiver, IntPtr selector);
+    [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial double SendDouble(IntPtr receiver, IntPtr selector);
 
     private static bool? _naturalOverride, _swipesOverride;
     /// <summary>Natural scrolling: the content follows the fingers. On by default on a Mac, and where nothing says otherwise.</summary>
@@ -80,6 +85,44 @@ public static partial class MacTrackpad
             return type == IntPtr.Zero ? null : SendBool(type, sel_registerName("isSwipeTrackingFromScrollEventsEnabled")) != 0;
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return null; }
+    }
+
+    // —— Where the fingers are ——
+    /// <summary>
+    /// The phase of the scroll Avalonia is passing on, which it drops: NSEvent's phase and momentumPhase, read on the event
+    /// macOS is dispatching ([NSApp currentEvent]) and trusted only when it carries the travel Avalonia gives
+    /// (scrollingDelta / 50, a wheel's own delta). <see cref="ScrollPhase.Unknown"/> otherwise (a scroll made by the
+    /// self-check, another system): the gestures then end on a pause, as before.
+    /// </summary>
+    public static ScrollPhase Phase(double deltaX, double deltaY)
+    {
+        if (!OperatingSystem.IsMacOS()) return ScrollPhase.Unknown;
+        try
+        {
+            var application = Send(objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
+            var scroll = application == IntPtr.Zero ? IntPtr.Zero : Send(application, sel_registerName("currentEvent"));
+            if (scroll == IntPtr.Zero || SendUnsigned(scroll, sel_registerName("type")) != 22 /* NSEventTypeScrollWheel */) return ScrollPhase.Unknown;
+            var precise = SendBool(scroll, sel_registerName("hasPreciseScrollingDeltas")) != 0;
+            double x = SendDouble(scroll, sel_registerName(precise ? "scrollingDeltaX" : "deltaX")), y = SendDouble(scroll, sel_registerName(precise ? "scrollingDeltaY" : "deltaY"));
+            if (precise) { x /= 50; y /= 50; }
+            if (!Same(x, deltaX) || !Same(y, deltaY)) return ScrollPhase.Unknown;
+            return Trackpad.Phase(SendUnsigned(scroll, sel_registerName("phase")), SendUnsigned(scroll, sel_registerName("momentumPhase")));
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return ScrollPhase.Unknown; }
+    }
+    // Whatever the sign Avalonia gives each axis: the travel itself tells the event apart.
+    private static bool Same(double native, double avalonia) => Math.Abs(Math.Abs(native) - Math.Abs(avalonia)) < 1e-6;
+    private static (ulong Time, Avalonia.Vector Delta)? _phaseOf;
+    private static ScrollPhase _phase;
+    /// <summary>
+    /// <see cref="Phase(double, double)"/> of a wheel event, read once for each event (its time and travel): the window
+    /// and the player both ask it of the same one.
+    /// </summary>
+    public static ScrollPhase Phase(Avalonia.Input.PointerWheelEventArgs e)
+    {
+        if (_phaseOf == (e.Timestamp, e.Delta)) return _phase;
+        _phaseOf = (e.Timestamp, e.Delta);
+        return _phase = Phase(e.Delta.X, e.Delta.Y);
     }
 
     // —— Force click ——

@@ -464,26 +464,39 @@ internal static class PlayerTests
         {
             // Natural scrolling: the content follows the fingers; without it, the wheel goes the other way.
             Assert(Trackpad.Finger(1, -1, natural: true) == (1, 1) && Trackpad.Finger(1, -1, natural: false) == (-1, -1), "Finger direction");
-            // Fingers to the right, in steps of 16 ms: back once, past the reach, and nothing more in the same gesture (momentum).
-            var swipe = new TrackpadSwipe(); long time = 1000; var ways = new List<int>();
-            for (var i = 0; i < 40; i++) { swipe.Add(.15, .01, time += 16); if (swipe.Swiped() is var way and not 0) ways.Add(way); }
-            Assert(swipe.Axis == SwipeAxis.Horizontal && ways.SequenceEqual([-1]), $"Back swipe: {swipe.Axis} {string.Join(",", ways)}");
+            // Fingers to the right, in steps of 16 ms: the page follows them, and letting go past the reach goes back, once.
+            var swipe = new TrackpadSwipe(); long time = 1000;
+            for (var i = 0; i < 40; i++) swipe.Add(.15, .01, time += 16);
+            Assert(swipe.Axis == SwipeAxis.Horizontal && swipe.Way == -1 && Math.Abs(swipe.Turn - 6) < 1e-9, $"Back swipe: {swipe.Axis} {swipe.Way} {swipe.Turn}");
+            Assert(swipe.Release(rested: true) == -1 && swipe.Release(rested: true) == 0 && swipe.Turn == 0, "Back swipe let go");
             // A pause ends the gesture: the next one, to the left, goes forward.
-            ways.Clear(); time += Trackpad.Gap + 1;
-            for (var i = 0; i < 30; i++) { swipe.Add(-.15, 0, time += 16); if (swipe.Swiped() is var way and not 0) ways.Add(way); }
-            Assert(ways.SequenceEqual([1]), "Forward swipe: " + string.Join(",", ways));
-            // Short of the reach: shown, never done.
+            time += Trackpad.Gap + 1;
+            for (var i = 0; i < 30; i++) swipe.Add(-.15, 0, time += 16);
+            Assert(swipe.Way == 1 && Math.Abs(swipe.Turn - 4.5) < 1e-9 && swipe.Release(rested: true) == 1, $"Forward swipe: {swipe.Way} {swipe.Turn}");
+            // Short of the reach, the fingers still before leaving: the page comes back. The same travel flicked: it turns.
             swipe = new TrackpadSwipe(); time = 0;
             for (var i = 0; i < 10; i++) swipe.Add(.2, 0, time += 16);
-            Assert(swipe.Progress is > .5 and < 1 && swipe.Swiped() == 0, $"Half a swipe: {swipe.Progress}");
+            Assert(swipe.Turn is > 1 and < Trackpad.Reach && swipe.Release(rested: true) == 0, $"Half a swipe: {swipe.Turn}");
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 10; i++) swipe.Add(.3, 0, time += 16);
+            Assert(swipe.Speed > Trackpad.Flick && swipe.Release(rested: false) == -1, $"A flick did not turn the page: {swipe.Speed}");
+            // Past the reach, then flicked back: the page comes back. Fingers back toward where they started: never below nothing.
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 30; i++) swipe.Add(.2, 0, time += 16);
+            for (var i = 0; i < 3; i++) swipe.Add(-.6, 0, time += 16);
+            Assert(swipe.Turn >= Trackpad.Reach && swipe.Release(rested: false) == 0, $"Flicked back, the page turned: {swipe.Turn} {swipe.Speed}");
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 10; i++) swipe.Add(.2, 0, time += 16);
+            for (var i = 0; i < 20; i++) swipe.Add(-.2, 0, time += 16);
+            Assert(swipe.Way == -1 && swipe.Turn == 0 && swipe.Release(rested: true) == 0, $"Fingers back past the start: {swipe.Way} {swipe.Turn}");
             // A scroll down a page that drifts sideways is vertical, whatever the drift adds up to later.
             swipe = new TrackpadSwipe(); time = 0;
             for (var i = 0; i < 60; i++) swipe.Add(.08, -.2, time += 16);
-            Assert(swipe.Axis == SwipeAxis.Vertical && swipe.Progress == 0 && swipe.Swiped() == 0, "Vertical drift went back");
+            Assert(swipe.Axis == SwipeAxis.Vertical && swipe.Way == 0 && swipe.Turn == 0 && swipe.Release(rested: true) == 0, "Vertical drift went back");
             // Claimed by a row that scrolls: no page change.
             swipe = new TrackpadSwipe(); time = 0;
             for (var i = 0; i < 40; i++) { if (swipe.Add(.15, 0, time += 16)) swipe.Claim(); }
-            Assert(swipe.Claimed && swipe.Swiped() == 0 && swipe.Progress == 0, "A claimed swipe changed the page");
+            Assert(swipe.Claimed && swipe.Turn == 0 && swipe.Release(rested: true) == 0, "A claimed swipe changed the page");
             // A clock that goes back starts a new gesture.
             swipe.Add(.1, 0, 5); Assert(!swipe.Claimed && swipe.Axis == SwipeAxis.Undecided, "Clock going back");
             // Pinch: once per gesture, either way; the grids' zoom stays within its bounds.
@@ -494,6 +507,41 @@ internal static class PlayerTests
             Assert(pinched.SequenceEqual([1, -1]), "Pinch: " + string.Join(",", pinched));
             Assert(Trackpad.Zoom(1, 5) == Trackpad.ZoomMax && Trackpad.Zoom(1, -.9) == Trackpad.ZoomMin && Math.Abs(Trackpad.Zoom(1, .1) - 1.1) < 1e-9, "Zoom bounds");
             Assert(new PlayerSettings().GridZoom == 1, "Grid zoom default");
+            return Task.CompletedTask;
+        });
+        await Test("Trackpad du Mac : l’élan de macOS ne compte pas dans le geste", () =>
+        {
+            // NSEventPhase and momentumPhase: a mouse's wheel says neither.
+            Assert(Trackpad.Phase(1, 0) == ScrollPhase.Began && Trackpad.Phase(32, 0) == ScrollPhase.Began && Trackpad.Phase(4, 0) == ScrollPhase.Moved && Trackpad.Phase(2, 0) == ScrollPhase.Moved
+                && Trackpad.Phase(8, 0) == ScrollPhase.Ended && Trackpad.Phase(16, 0) == ScrollPhase.Ended && Trackpad.Phase(0, 4) == ScrollPhase.Momentum && Trackpad.Phase(0, 0) == ScrollPhase.Unknown, "Phases");
+            // Two thirds of the reach by the fingers, slower than a flick, then macOS's momentum. Read as before (no phase), the
+            // momentum turned the page once it died out; with the phases, the fingers let go as the momentum began, short of
+            // the reach: the page comes back, and nothing after it moves it.
+            int Flick(bool phases)
+            {
+                var swipe = new TrackpadSwipe(); long time = 1000; var way = 0;
+                for (var i = 0; i < 13; i++) swipe.Add(.15, 0, time += 16, phases ? ScrollPhase.Moved : ScrollPhase.Unknown);
+                for (var i = 0; i < 30; i++)
+                {
+                    swipe.Add(.1, 0, time += 16, phases ? ScrollPhase.Momentum : ScrollPhase.Unknown);
+                    if (phases && swipe.Coasting && !swipe.Done) way = swipe.Release(rested: false);
+                }
+                Assert(!phases || swipe.Coasting && swipe.Turn == 0, "The page left turned during the momentum");
+                return phases ? way : swipe.Release(rested: true);
+            }
+            Assert(Flick(phases: false) == -1 && Flick(phases: true) == 0, "A flick's momentum turned the page");
+            // The scrub's travel stops with the fingers.
+            var scrub = new TrackpadSwipe(); long now = 0;
+            for (var i = 0; i < 10; i++) scrub.Add(.2, 0, now += 16, ScrollPhase.Moved);
+            var held = scrub.X;
+            for (var i = 0; i < 20; i++) scrub.Add(.2, 0, now += 16, ScrollPhase.Momentum);
+            Assert(Math.Abs(scrub.X - held) < 1e-9 && !scrub.Started, $"Momentum moved the scrub: {held} then {scrub.X}");
+            // Fingers back during the momentum, their « began » never seen (it carries no travel): a new gesture all the same.
+            scrub.Add(-.2, 0, now += 16, ScrollPhase.Moved);
+            Assert(scrub.Started && !scrub.Coasting && Math.Abs(scrub.X + .2) < 1e-9, "Fingers back after the momentum: not a new gesture");
+            // Within one gesture (fingers down), each event goes on with it.
+            scrub.Add(-.2, 0, now += 16, ScrollPhase.Moved);
+            Assert(!scrub.Started && Math.Abs(scrub.X + .4) < 1e-9, "One gesture cut in two");
             return Task.CompletedTask;
         });
         await Test("Défilement : même distance à 30, 60 et 144 images/s", () =>

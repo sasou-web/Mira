@@ -60,7 +60,7 @@ Pour arrêter la recherche automatique, désactive **Réglages → Mira sur ce M
 
 Mira suit les réglages de ton trackpad (défilement naturel, balayer entre les pages).
 
-- Dans la bibliothèque : deux doigts sur le côté pour revenir et avancer, pincer pour changer la taille des affiches, clic forcé sur une affiche pour son menu.
+- Dans la bibliothèque : deux doigts sur le côté pour revenir et avancer (la page suit tes doigts, comme dans Safari ; lâche avant mi-chemin pour rester), pincer pour changer la taille des affiches, clic forcé sur une affiche pour son menu.
 - Dans le lecteur : à gauche ou à droite pour avancer et reculer, en haut ou en bas pour le volume ; écarter deux doigts passe en plein écran, pincer en sort, puis réduit le lecteur en mini-lecteur.
 
 ## Repartir de zéro

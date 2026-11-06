@@ -60,7 +60,7 @@ To stop the automatic check, turn off **Settings → Mira on this Mac → Update
 
 Mira follows your trackpad settings (natural scrolling, swipe between pages).
 
-- In the library: swipe with two fingers to go back and forward, pinch to change the size of the posters, force click a poster for its menu.
+- In the library: swipe with two fingers to go back and forward (the page follows your fingers, as in Safari; let go early to stay), pinch to change the size of the posters, force click a poster for its menu.
 - In the player: swipe left or right to seek, up or down for the volume; spread two fingers for full screen, pinch to leave it, then to shrink the player to the mini player.
 
 ## Start over
