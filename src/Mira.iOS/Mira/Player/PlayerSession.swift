@@ -705,8 +705,13 @@ final class PlayerSession: NSObject {
             return
         }
         let keptNext = app?.keeper.playable(next.id)
-        let streams = keptNext.map { $0.source?.mediaStreams ?? $0.item.mediaSources?.first?.mediaStreams ?? [] }
-            ?? (try? await client.item(next.id))?.mediaSources?.first?.mediaStreams ?? next.mediaSources?.first?.mediaStreams ?? []
+        let streams: [MediaStream]
+        if let keptNext {
+            streams = keptNext.source?.mediaStreams ?? keptNext.item.mediaSources?.first?.mediaStreams ?? []
+        } else {
+            let fetched = try? await client.item(next.id)
+            streams = fetched?.mediaSources?.first?.mediaStreams ?? next.mediaSources?.first?.mediaStreams ?? []
+        }
         guard !closed else { return }
         let audio = source?.audio.first { $0.index == audioIndex }
         let subtitle = source?.subtitles.first { $0.index == subtitleIndex }
