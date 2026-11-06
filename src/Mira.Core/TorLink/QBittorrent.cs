@@ -188,7 +188,7 @@ public sealed class QBittorrentHistory(IReadOnlyList<TorLinkCompletion> completi
                 // A library folder that is a mount point itself has its parent on another volume: the root of its own then.
                 var volume = volumeOf(roots[0]);
                 var choices = new[] { Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent ? Path.Combine(parent, name) : null,
-                    volume is { Length: > 0 } ? Path.Combine(Path.TrimEndingDirectorySeparator(volume) + Path.DirectorySeparatorChar, name) : null };
+                    volume is { Length: > 0 } ? Path.Combine(Volumes.Folder(volume), name) : null };
                 if (choices.OfType<string>().FirstOrDefault(x => !InsideLibrary(x) && Volumes.Same(volumeOf(x), volume)) is { } beside) return beside;
                 if (choices[0] is { } first && !InsideLibrary(first)) return first;
             }

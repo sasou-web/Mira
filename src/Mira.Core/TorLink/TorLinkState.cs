@@ -124,7 +124,7 @@ public sealed partial class TorLinkState : IDownloadSource
             bool InsideLibrary(string folder) => roots.Any(root => folder.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || string.Equals(folder, root, StringComparison.OrdinalIgnoreCase));
             // Beside the first library folder, otherwise at the root of its volume; a library at the root of a volume leaves no room.
             // A library folder that is a mount point itself has its parent on another volume: the root of its own then.
-            return new[] { Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent ? Path.Combine(parent, name) : null, Path.Combine(volume + Path.DirectorySeparatorChar, name) }
+            return new[] { Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent ? Path.Combine(parent, name) : null, Path.Combine(Volumes.Folder(volume), name) }
                 .OfType<string>().FirstOrDefault(x => !InsideLibrary(x) && Volumes.Same(volumeOf(x), volume));
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
