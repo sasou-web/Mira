@@ -22,6 +22,8 @@ public sealed partial class PlayerPage
     private readonly Button _failureBack = new() { Content = L("Retour", "Back"), Padding = new Thickness(18, 10) };
     private readonly Button _failureAction = new() { Classes = { "primary" }, Padding = new Thickness(22, 10) };
     private Action? _failureAct;
+    private readonly Icon _failureIcon = new("warning", 40) { Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly TextBlock _failureHeading = new() { FontSize = 22, FontWeight = FontWeight.SemiBold, Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 16, 0, 0) };
 
     /// <summary>The screen of a title that could not play, while it shows.</summary>
     public bool FailureShown => _failure is { IsVisible: true };
@@ -37,10 +39,18 @@ public sealed partial class PlayerPage
         await StopAsync();
         var retries = retry && act is null && item is not null;
         if (retries) { action = L("Réessayer", "Try again"); act = () => _ = RetryAsync(item!); }
+        await ShowScreenAsync(L("Lecture impossible", "Can’t play this"), "warning", message, item, action, act, message, NoticeTone.Error);
+    }
+    /// <summary>
+    /// The player's own screen once the playback has stopped: « Lecture impossible », or « Tu regardes toujours ? »
+    /// (<paramref name="heading"/>, <paramref name="icon"/>). In the mini-player or the small window, <paramref name="notice"/> over the library instead.
+    /// </summary>
+    private async Task ShowScreenAsync(string heading, string icon, string message, MediaItem? item, string? action, Action? act, string notice, NoticeTone tone)
+    {
         if (_mini || _pip is not null || _shell.Player != this)
         {
             await _shell.CloseOverlayPlayerAsync(this);
-            _shell.Notice(message, action, act, sticky: true, tone: NoticeTone.Error);
+            _shell.Notice(notice, action, act, sticky: true, tone: tone);
             return;
         }
         Group.SetAway(true);
@@ -50,6 +60,7 @@ public sealed partial class PlayerPage
         _chrome.IsVisible = _skipHost.IsVisible = _groupPill.IsVisible = false;
         _hide.Stop(); _spinner.IsVisible = false; ShowStatus(null); HideSeekPill(); HidePlayState(); Cursor = Cursor.Default;
         EnsureFailure();
+        _failureHeading.Text = heading; _failureIcon.Kind = icon;
         _failureTitle.Text = item?.DisplayTitle ?? ""; _failureTitle.IsVisible = _failureTitle.Text.Length > 0;
         _failureText.Text = message; _failureAct = act;
         _failureAction.Content = action; _failureAction.IsVisible = act is not null; _failureAction.IsEnabled = true;
@@ -75,9 +86,7 @@ public sealed partial class PlayerPage
             MaxWidth = 540, Margin = new Thickness(40), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
-                new Icon("warning", 40) { Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Center },
-                new TextBlock { Text = L("Lecture impossible", "Can’t play this"), FontSize = 22, FontWeight = FontWeight.SemiBold, Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 16, 0, 0) },
-                _failureTitle, _failureText, buttons
+                _failureIcon, _failureHeading, _failureTitle, _failureText, buttons
             }
         };
         // The picture's last frame and the controls stay under it: nothing of them shows nor takes a click.

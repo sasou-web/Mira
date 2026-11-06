@@ -6430,6 +6430,56 @@
           }
         }
       }
+    },
+    "Are you still watching?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu regardes toujours ?"
+          }
+        }
+      }
+    },
+    "Mira stopped after 3 episodes in a row with nothing touched. Up next: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira s’est arrêté après 3 épisodes de suite sans que rien ne soit touché. À suivre : %@"
+          }
+        }
+      }
+    },
+    "Keep watching": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuer"
+          }
+        }
+      }
+    },
+    "Ask if you’re still watching": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demander si tu regardes toujours"
+          }
+        }
+      }
+    },
+    "After 3 episodes in a row without touching anything, Mira stops and asks before the next one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Après 3 épisodes de suite sans rien toucher, Mira s’arrête et demande avant le suivant."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

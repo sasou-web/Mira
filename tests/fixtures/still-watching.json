@@ -1,0 +1,17 @@
+{
+  "about": "« Are you still watching? » (StillWatching of Mira.Core, StillWatching.swift of the iPhone): both must agree. episodes: untouched episodes before it asks. cases: [starts as [seconds, started by itself], last input in seconds (null: none known), on, asks]. An episode is untouched when it started after the last input.",
+  "episodes": 3,
+  "cases": [
+    [[[0, false]], -1, true, false],
+    [[[0, false], [1500, true]], -1, true, false],
+    [[[0, false], [1500, true], [3000, true]], -1, true, true],
+    [[[0, false], [1500, true], [3000, true]], -1, false, false],
+    [[[0, false], [1500, true], [3000, true]], 2000, true, false],
+    [[[0, false], [1500, true], [3000, true]], 1500, true, false],
+    [[[0, false], [1500, true], [3000, true], [4500, true]], 2000, true, false],
+    [[[0, false], [1500, true], [3000, true], [4500, true], [6000, true]], 2000, true, true],
+    [[[0, false], [1500, true], [3000, false], [4500, true]], -1, true, false],
+    [[[0, false], [1500, true], [3000, false], [4500, true], [6000, true]], -1, true, true],
+    [[[0, false], [1500, true], [3000, true]], null, true, true]
+  ]
+}

@@ -168,6 +168,26 @@ struct PlaybackTests {
     }
 }
 
+@Suite("Toujours là")
+struct StillWatchingTests {
+    @Test("Les mêmes cas que Windows et Mac (still-watching.json)")
+    func shared() throws {
+        let fixture = try Fixtures.json("still-watching")
+        #expect(fixture["episodes"] as? Int == StillWatching.episodes)
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        for case let entry as [Any] in try #require(fixture["cases"] as? [Any]) {
+            var watch = StillWatching()
+            for case let played as [Any] in try #require(entry[0] as? [Any]) {
+                let seconds = try #require(played[0] as? Double)
+                watch.started(start.addingTimeInterval(seconds), byItself: try #require(played[1] as? Bool))
+            }
+            let input = (entry[1] as? Double).map { start.addingTimeInterval($0) }
+            let asks = watch.asks(lastInput: input, enabled: try #require(entry[2] as? Bool))
+            #expect(asks == (entry[3] as? Bool), "\(entry)")
+        }
+    }
+}
+
 @Suite("Minuterie")
 struct SleepTimerTests {
     @Test("Les mêmes cas que Mira web, Windows et Mac (sleep.json)")

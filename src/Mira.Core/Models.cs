@@ -273,6 +273,8 @@ public sealed class PlayerSettings
     /// <summary>« off », « optical » or « hdmi » (<see cref="AudioOutput.Codecs"/>).</summary>
     public string AudioPassthrough { get; set; } = AudioOutput.Off;
     public bool AutoNext { get; set; } = true;
+    /// <summary>« Tu regardes toujours ? » (<see cref="Mira.Core.StillWatching"/>): after 3 episodes in a row untouched, the next one waits for an answer.</summary>
+    public bool StillWatching { get; set; } = true;
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
     public bool AutoSkip { get; set; }
     public int SubtitleSize { get; set; } = 40;

@@ -155,6 +155,29 @@ internal static class PlayerTests
             catch (OperationCanceledException) { stopped = true; }
             Assert(stopped, "Waiting stops when canceled");
         });
+        await Test("Toujours là : la question après 3 épisodes de suite sans rien toucher, allumée par défaut, comme l’iPhone (tests/fixtures/still-watching.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "still-watching.json")));
+            Assert(fixture.RootElement.GetProperty("episodes").GetInt32() == StillWatching.Episodes && new PlayerSettings().StillWatching, "3 episodes, on by default");
+            var start = new DateTimeOffset(2026, 11, 6, 23, 0, 0, TimeSpan.FromHours(1));
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var watch = new StillWatching();
+                foreach (var played in row[0].EnumerateArray()) watch.Started(start.AddSeconds(played[0].GetDouble()), played[1].GetBoolean());
+                var input = row[1].ValueKind == JsonValueKind.Null ? DateTimeOffset.MinValue : start.AddSeconds(row[1].GetDouble());
+                var asks = watch.Asks(input, row[2].GetBoolean());
+                Assert(asks == row[3].GetBoolean(), $"{row}: {asks}");
+            }
+            var pad = new StillWatching();
+            pad.Started(start, false); pad.Started(start.AddMinutes(25), true); pad.Started(start.AddMinutes(50), true);
+            Assert(pad.Asks(DateTimeOffset.MinValue, true), "Three untouched");
+            pad.Touched(start.AddMinutes(60));
+            Assert(!pad.Asks(DateTimeOffset.MinValue, true), "A controller press Mira read counts as someone there");
+            pad.Clear(); Assert(!pad.Asks(DateTimeOffset.MinValue, true) && pad.Untouched(DateTimeOffset.MinValue) == 0, "Cleared with the player");
+            Assert(StillWatching.Reason("S01 E04").EndsWith("S01 E04", StringComparison.Ordinal) && !StillWatching.Reason(null).Contains("suivre", StringComparison.Ordinal), StillWatching.Reason(null));
+            return Task.CompletedTask;
+        });
         await Test("Minuterie : pause au bout des minutes, une seule fois, ou arrêt à la fin de l’épisode, comme Mira web (tests/fixtures/sleep.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

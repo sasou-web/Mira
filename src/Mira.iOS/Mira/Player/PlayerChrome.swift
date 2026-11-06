@@ -564,6 +564,7 @@ private struct Overlays: View {
             .padding(.top, shown ? 66 : 14)
             .padding(.horizontal, 24)
             if model.waitingForServer { WaitingCard() }
+            if let next = model.stillWatching { StillWatchingCard(model: model, next: next) }
             if model.passage != nil || model.lockHint {
                 VStack {
                     Spacer()
@@ -735,6 +736,44 @@ private struct WaitingCard: View {
         .padding(.horizontal, 24)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("player.waiting")
+    }
+}
+
+/// « Are you still watching? »: the episode ended after 3 in a row with nothing touched, and the next one waits.
+private struct StillWatchingCard: View {
+    @Bindable var model: PlayerModel
+    let next: String
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "eye")
+                .font(.system(size: 30, weight: .regular))
+                .accessibilityHidden(true)
+            Text("Are you still watching?")
+                .font(MiraFont.headline)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
+            Text("Mira stopped after 3 episodes in a row with nothing touched. Up next: \(next)")
+                .font(MiraFont.callout)
+                .foregroundStyle(Palette.muted)
+                .multilineTextAlignment(.center)
+            ChipRow {
+                Button { model.actions?.close() } label: { Text("Stop").font(MiraFont.callout) }
+                    .buttonStyle(.glass)
+                    .accessibilityIdentifier("player.stillWatching.stop")
+                Button { model.actions?.keepWatching() } label: { Text("Keep watching").font(MiraFont.callout) }
+                    .buttonStyle(.glassProminent)
+                    .accessibilityIdentifier("player.stillWatching.continue")
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 20)
+        .frame(maxWidth: 400)
+        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .padding(.horizontal, 24)
+        .region("still", model)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("player.stillWatching")
     }
 }
 
