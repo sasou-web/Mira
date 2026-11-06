@@ -53,8 +53,11 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UIUserInterfaceStyle: Dark
-        # Picture in Picture and AirPlay go on with the app in the background.
-        UIBackgroundModes: [audio]
+        # Picture in Picture and AirPlay go on with the app in the background; « Keep on this iPhone » goes on as
+        # long as iOS lets it (BGContinuedProcessingTask, Kept/Keeper.swift: one identifier under this prefix per run).
+        UIBackgroundModes: [audio, processing]
+        BGTaskSchedulerPermittedIdentifiers:
+          - app.miracinema.Mira.keep.*
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

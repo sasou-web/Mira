@@ -45,6 +45,8 @@ struct HomeView: View {
                     }
                     if let error = failure {
                         AwayLine(error: error, tailscale: offersTailscale ? { tailscale = true } : nil) { Task { await retry() } }
+                        // What plays without Jellyfin, first.
+                        KeptShelf()
                     }
                     HomeGroup()
                     rows(content, client)
@@ -76,6 +78,7 @@ struct HomeView: View {
                             }
                         }
                     }
+                    KeptShelf()
                 } else {
                     LoadingHome(size: size)
                 }

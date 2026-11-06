@@ -91,6 +91,16 @@
         }
       }
     },
+    "%@ used by Mira · %@ free on this iPhone. Mira always leaves %@ free. Signing out removes these titles from this iPhone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ pris par Mira · %@ libres sur cet iPhone. Mira laisse toujours %@ libres. Se déconnecter retire ces titres de cet iPhone."
+          }
+        }
+      }
+    },
     "%@, then %@": {
       "localizations": {
         "fr": {
@@ -419,6 +429,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld séries que tu suis ont de nouveaux épisodes."
+          }
+        }
+      }
+    },
+    "%lld titles · %@": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld title · %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titles · %@"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titre · %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titres · %@"
+                }
+              }
+            }
           }
         }
       }
@@ -983,6 +1033,16 @@
         }
       }
     },
+    "Couldn’t keep it": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de le garder"
+          }
+        }
+      }
+    },
     "Create a group": {
       "localizations": {
         "fr": {
@@ -1201,12 +1261,82 @@
         }
       }
     },
+    "It goes on in the background as long as iOS lets it, otherwise when you open Mira again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ça continue en arrière-plan tant qu’iOS le permet, sinon quand tu rouvres Mira."
+          }
+        }
+      }
+    },
+    "It plays here without a connection. Removed, it leaves this iPhone only: it stays on Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il se lit ici sans connexion. Retiré, il ne quitte que cet iPhone : il reste sur Jellyfin."
+          }
+        }
+      }
+    },
+    "Jellyfin doesn’t let this account download its videos. In Jellyfin, Dashboard → Users → this account, allow media downloads, then try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne laisse pas ce compte télécharger ses vidéos. Dans Jellyfin, Tableau de bord → Utilisateurs → ce compte, autorise le téléchargement des médias, puis réessaie."
+          }
+        }
+      }
+    },
     "Jellyfin on your Tailscale network": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Jellyfin sur ton réseau Tailscale"
+          }
+        }
+      }
+    },
+    "Keep on this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder sur cet iPhone"
+          }
+        }
+      }
+    },
+    "Keep the season on this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder la saison sur cet iPhone"
+          }
+        }
+      }
+    },
+    "Keeping on this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise sur cet iPhone en cours"
+          }
+        }
+      }
+    },
+    "Keeping… %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise sur l’iPhone… %@"
           }
         }
       }
@@ -1257,6 +1387,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recherche de Jellyfin sur ton réseau Tailscale…"
+          }
+        }
+      }
+    },
+    "Mira can’t reach Jellyfin: it goes on as soon as it can.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne joint pas Jellyfin : ça reprend dès que possible."
           }
         }
       }
@@ -1321,6 +1461,16 @@
         }
       }
     },
+    "Movies and episodes kept here play without a connection.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les films et épisodes gardés ici se lisent sans connexion."
+          }
+        }
+      }
+    },
     "No device of your Tailscale network answers as Jellyfin on port 8096. Check that the PC with Jellyfin is on and connected to Tailscale, or type its Tailscale address.": {
       "localizations": {
         "fr": {
@@ -1341,6 +1491,16 @@
         }
       }
     },
+    "Not enough room on this iPhone: it needs %@ more. Remove a title kept here or free up some space, then try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas assez de place sur cet iPhone : il manque %@. Retire un titre gardé ici ou libère de la place, puis réessaie."
+          }
+        }
+      }
+    },
     "Not reachable now": {
       "localizations": {
         "fr": {
@@ -1357,6 +1517,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rien dans Mira : c’est AltStore."
+          }
+        }
+      }
+    },
+    "Nothing on this iPhone yet": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien sur cet iPhone pour l’instant"
+          }
+        }
+      }
+    },
+    "On a movie or an episode, touch Keep on this iPhone: it plays here without a connection, even far from Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur un film ou un épisode, touche Garder sur cet iPhone : il se lit ici sans connexion, même loin de Jellyfin."
+          }
+        }
+      }
+    },
+    "On this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur cet iPhone"
           }
         }
       }
@@ -1451,6 +1641,16 @@
         }
       }
     },
+    "Plays it from this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le lit depuis cet iPhone"
+          }
+        }
+      }
+    },
     "Posters and descriptions": {
       "localizations": {
         "fr": {
@@ -1487,6 +1687,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Joins ton Jellyfin ailleurs qu’à la maison sans l’app Tailscale : Mira rejoint elle-même ton réseau Tailscale, seulement quand elle est ouverte. À la maison, elle passe en direct."
+          }
+        }
+      }
+    },
+    "Remove": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer"
+          }
+        }
+      }
+    },
+    "Remove from this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer de cet iPhone"
           }
         }
       }
@@ -2991,6 +3211,16 @@
         }
       }
     },
+    "Stop keeping it": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne plus le garder"
+          }
+        }
+      }
+    },
     "Subtitle delay": {
       "localizations": {
         "fr": {
@@ -3231,6 +3461,16 @@
         }
       }
     },
+    "The season is on this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La saison est sur cet iPhone"
+          }
+        }
+      }
+    },
     "The server isn’t answering. Check the address and that Jellyfin is running.": {
       "localizations": {
         "fr": {
@@ -3247,6 +3487,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "L’interrupteur ci-contre."
+          }
+        }
+      }
+    },
+    "The titles kept on this iPhone are removed from it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les titres gardés sur cet iPhone en sont retirés."
           }
         }
       }
@@ -3411,6 +3661,16 @@
         }
       }
     },
+    "This title is no longer on Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce titre n’est plus sur Jellyfin."
+          }
+        }
+      }
+    },
     "This year": {
       "localizations": {
         "fr": {
@@ -3477,6 +3737,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "TMDb et les autres sources de métadonnées de Jellyfin."
+          }
+        }
+      }
+    },
+    "To watch without a connection": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour regarder sans connexion"
           }
         }
       }
@@ -3601,6 +3871,16 @@
         }
       }
     },
+    "Waiting": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente"
+          }
+        }
+      }
+    },
     "Waiting for %@…": {
       "localizations": {
         "fr": {
@@ -3621,12 +3901,32 @@
         }
       }
     },
+    "Waiting for Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente de Jellyfin"
+          }
+        }
+      }
+    },
     "Waiting for someone in the group…": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "On attend quelqu’un du groupe…"
+          }
+        }
+      }
+    },
+    "Waiting its turn": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente de son tour"
           }
         }
       }
@@ -3731,12 +4031,12 @@
         }
       }
     },
-    "While you’re signed in: library, pictures, playback, Watch together.": {
+    "While you’re signed in: library, pictures, playback, Watch together, titles kept on this iPhone.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tant que tu es connecté : bibliothèque, images, lecture, Regarder ensemble."
+            "value": "Tant que tu es connecté : bibliothèque, images, lecture, Regarder ensemble, titres gardés sur cet iPhone."
           }
         }
       }

@@ -63,6 +63,7 @@ struct EpisodeList: View {
                 .disabled(marking)
                 .accessibilityIdentifier("series.markSeason")
             }
+            KeepSeasonButton(episodes: episodes)
             if failed && episodes.isEmpty {
                 Text(verbatim: Messages.text(JellyfinError.unreachable)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
             }
@@ -179,6 +180,7 @@ struct EpisodeRow: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            if app.party.guest == nil { KeepButton(item: episode, compact: true) }
         }
         .titleMenu(episode)
     }

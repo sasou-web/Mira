@@ -161,8 +161,8 @@ struct TitleView: View {
     /// one row of what a title does. At the largest text sizes, Play alone on its line.
     @ViewBuilder private var actions: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { playButton.layoutPriority(1); TitleActions(item: $item, touching: hold); moreMenu }
-            VStack(alignment: .leading, spacing: 12) { playButton; HStack(spacing: 8) { TitleActions(item: $item, touching: hold); moreMenu } }
+            HStack(spacing: 8) { playButton.layoutPriority(1); TitleActions(item: $item, touching: hold); keepButton; moreMenu }
+            VStack(alignment: .leading, spacing: 12) { playButton; HStack(spacing: 8) { TitleActions(item: $item, touching: hold); keepButton; moreMenu } }
         }
         .confirmationDialog(Text("Watch together"), isPresented: Binding(get: { replacing != nil }, set: { if !$0 { replacing = nil } }), titleVisibility: .visible, presenting: replacing) { asked in
             Button("Replace for the group") {
@@ -206,6 +206,11 @@ struct TitleView: View {
             .buttonStyle(.glassProminent)
             .disabled(true)
         }
+    }
+
+    /// « Keep on this iPhone », for a film or an episode (a series keeps its episodes, season by season).
+    @ViewBuilder private var keepButton: some View {
+        if !item.isSeries, item.isEpisode || item.type == "Movie", app.party.guest == nil { KeepButton(item: item) }
     }
 
     /// « … »: what a title does less often, in one menu.

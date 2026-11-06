@@ -44,6 +44,8 @@ final class AppModel {
     let newEpisodes = NewEpisodesWatch()
     /// Mira's opening, over everything until Home is drawn (OpeningView).
     let opening = Opening()
+    /// « Keep on this iPhone »: films and episodes to watch without Jellyfin.
+    let keeper = Keeper()
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
     /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.
@@ -74,6 +76,7 @@ final class AppModel {
             HomeCache.clearAll()
             Tailnet.reset()
             Way.forgetAll()
+            KeptStore.erase(keeping: nil)
             defaults.removeObject(forKey: "mira.tailnet.outageHidden")
         }
         // Once the UI tests' reset is done: it reads whether it is on.
@@ -88,6 +91,8 @@ final class AppModel {
         session = SessionStore.load()
         together.app = self
         party.app = self
+        keeper.app = self
+        keeper.use(session)
         preferences.use(account: session?.userId)
         preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.ownClient } }
         // The UI tests reach the stand-in Jellyfin only through Built-in Tailscale, though it is on this Mac.
@@ -112,6 +117,8 @@ final class AppModel {
     }
 
     private func wayChanged(_ route: WayPlan.Route?, _ hint: WayPlan.Hint?) {
+        // A way to Jellyfin again: the copies that wait go on, what was watched here is told.
+        if route != nil, route != way { keeper.resume() }
         if route != way { way = route }
         if hint != wayHint { wayHint = hint }
     }
@@ -122,15 +129,23 @@ final class AppModel {
         inBackground = false
         guard wasAway else { return }
         Task {
-            await tailnet.foreground(playing: player != nil)
+            await tailnet.foreground(playing: player != nil || keeper.busy)
             await Way.shared.wake()
+            keeper.resume()
         }
     }
 
-    /// Mira off screen: Built-in Tailscale stops, unless a title plays on (Picture in Picture, AirPlay).
+    /// Mira off screen: Built-in Tailscale stops, unless a title plays on (Picture in Picture, AirPlay) or copies are
+    /// being kept on this iPhone.
     func background() {
         inBackground = true
-        tailnet.background(playing: player != nil)
+        keeper.background()
+        tailnet.background(playing: player != nil || keeper.busy)
+    }
+
+    /// The copies all fetched (or stopped) while Mira is off screen: Built-in Tailscale stops now.
+    func keepingEnded() {
+        if inBackground, player == nil { tailnet.background(playing: false) }
     }
 
     /// What is new in the series followed: at the start, and back after 15 minutes away.
@@ -161,11 +176,13 @@ final class AppModel {
         together.signedOut()
         choices.stop()
         newEpisodes.dismiss()
+        keeper.stop()
     }
 
     /// Out of a friend's party: this iPhone's own account again, every page read again.
     func leftGuest() {
         playback += 1
+        keeper.resume()
     }
 
     var lastServer: String { UserDefaults.standard.string(forKey: Keys.lastServer) ?? "" }
@@ -200,6 +217,9 @@ final class AppModel {
         notice = nil
         self.session = session
         preferences.use(account: session.userId)
+        // Another account's copies leave this iPhone; this one's go on.
+        keeper.use(session)
+        keeper.resume()
     }
 
     // MARK: Playing
@@ -322,6 +342,8 @@ final class AppModel {
         }
         newEpisodes.dismiss()
         choices.stop()
+        // What was kept on this iPhone goes with the account.
+        keeper.signedOut()
         SessionStore.delete()
         let serverId = session?.serverId
         session = nil
@@ -349,6 +371,8 @@ final class AppModel {
         NewEpisodesWatch.forget(account: session.userId)
         newEpisodes.dismiss()
         choices.stop()
+        // The copies stay for the same account signed in again: nothing is fetched meanwhile.
+        keeper.stop()
         SessionStore.delete()
         notice = String(localized: "Your session on Jellyfin has ended. Sign in again.")
         self.session = nil

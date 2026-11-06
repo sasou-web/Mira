@@ -18,7 +18,7 @@ struct PrivacyView: View {
             Section {
                 PrivacyRow(title: "Your Jellyfin server",
                            to: "The address you signed in to, at home or through Tailscale.",
-                           when: "While you’re signed in: library, pictures, playback, Watch together.",
+                           when: "While you’re signed in: library, pictures, playback, Watch together, titles kept on this iPhone.",
                            sends: "Your session token in a header, and in the address of the video the player reads (Apple’s player can’t send a header). What you watch and where you stopped.",
                            stop: "Sign out, in Settings.")
                 Toggle(isOn: Binding(get: { tailnet.enabled }, set: { on in Task { await tailnet.turn(on) } })) {

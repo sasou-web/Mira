@@ -43,6 +43,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Données mobiles : un film en 4G, ⋮ → Qualité dit « Données mobiles · 2 Mb/s » et l'image reste correcte ; quitter le Wi-Fi en pleine lecture : le film reprend au même endroit en 2 Mb/s, puis revient en qualité normale au retour du Wi-Fi
 - [ ] Ouverture avec le PC de Jellyfin éteint : message clair, puis l'Accueil quand il revient
 - [ ] Un titre qui échouait avant : noter l'erreur et les infos du média
+- [ ] « Garder sur cet iPhone » : un film MP4 et un MKV (converti), puis une saison ; Mira en arrière-plan pendant la copie (progression d'iOS, reprise au retour) ; en mode Avion, lus depuis Réglages → Sur cet iPhone et l'Accueil (pistes, sous-titres, épisode suivant, avance rapide dans le MKV converti) ; de retour à la maison, la reprise est la même sur le PC ; déconnexion = copies retirées
 
 ## Mac de Rayro 🍎
 - [ ] Installation du `.dmg` (« Ouvrir quand même ») et premier lancement
