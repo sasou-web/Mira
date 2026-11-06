@@ -17,7 +17,7 @@ public sealed partial class SettingsPage
         ("audio", L("Audio & sous-titres", "Audio & subtitles"), "subtitles", L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles.")),
         ("appearance", L("Apparence", "Appearance"), "sparkle", L("La langue de Mira et ce que montre l’accueil.", "Mira’s language and what Home shows.")),
         ("server", L("Compte & serveur", "Account & server"), "server", L("Ton compte, ton serveur Jellyfin et le chemin jusqu’à lui.", "Your account, your Jellyfin server and the way to it.")),
-        ("updates", L("Mira sur ce Mac", "Mira on this Mac"), "refresh", L("Mises à jour et titres gardés sur ce Mac.", "Updates and titles kept on this Mac.")),
+        ("updates", L("Mira sur ce Mac", "Mira on this Mac"), "refresh", L("Mises à jour, titres gardés sur ce Mac et rapport pour signaler un problème.", "Updates, titles kept on this Mac and a report for a problem.")),
         ("report", L("Ton bilan", "Your recap"), "clock", L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices.")),
         ("sharing", L("Amis & invités", "Friends & guests"), "users", L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
         ("care", L("Entretien", "Maintenance"), "sliders", L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres.", "What keeps your library in shape: titles to fix, subtitles.")),

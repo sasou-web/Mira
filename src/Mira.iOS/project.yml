@@ -126,6 +126,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/torlink-lines.json
         buildPhase: resources
+      - path: ../../tests/fixtures/diagnostics.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

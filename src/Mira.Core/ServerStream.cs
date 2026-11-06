@@ -190,6 +190,22 @@ public static partial class ServerStreams
     /// </summary>
     public static async Task<ServerStream> OpenAsync(JellyfinClient client, ConnectionSpeed speed, string quality, MediaItem item, StreamWish wish, string audioLanguages, Func<string, Task<bool>> fileHere, CancellationToken ct = default)
     {
+        // Each one kept for the diagnostic report (RecentPlaybacks): how it came, or the kind of error that stopped it.
+        try
+        {
+            var stream = await OpenOnceAsync(client, speed, quality, item, wish, audioLanguages, fileHere, ct);
+            RecentPlaybacks.Add(PlaybackTrace.Of(item, stream.Source, client.Connection.Server, DateTimeOffset.Now, PlaybackTrace.HowOf(stream)));
+            return stream;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            RecentPlaybacks.Add(PlaybackTrace.Of(item, item.MediaSources?.FirstOrDefault(), client.Connection.Server, DateTimeOffset.Now, "not opened", ex.GetType().Name));
+            throw;
+        }
+    }
+
+    private static async Task<ServerStream> OpenOnceAsync(JellyfinClient client, ConnectionSpeed speed, string quality, MediaItem item, StreamWish wish, string audioLanguages, Func<string, Task<bool>> fileHere, CancellationToken ct)
+    {
         var atHome = StreamQuality.AtHome(client.Connection.Server);
         Task<double> Measure() => client.BitrateTestAsync(ct: ct);
         var fileBitrate = item.MediaSources?.FirstOrDefault()?.Bitrate ?? 0;

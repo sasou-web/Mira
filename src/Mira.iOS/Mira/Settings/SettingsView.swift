@@ -176,6 +176,11 @@ struct SettingsView: View {
                 Link(destination: URL(string: "https://github.com/sasou-web/Mira")!) {
                     Label("Source code", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
+                // A text file the person sends by hand when something goes wrong (Diagnostics): nothing leaves by itself.
+                ShareLink(item: report(), preview: SharePreview("Mira report")) {
+                    Label("Share a report for a problem", systemImage: "doc.text.magnifyingglass")
+                }
+                .accessibilityIdentifier("settings.report")
             } header: {
                 Text("About")
             } footer: {
@@ -199,6 +204,24 @@ struct SettingsView: View {
             guard let item else { return }
             photo = nil
             Task { await send(item) }
+        }
+    }
+
+    /// The report as it stands now, written only when shared: versions, settings, the way to Jellyfin, the last playbacks.
+    private func report() -> DiagnosticFile {
+        let version = app.device.version, server = app.client?.server.absoluteString, jellyfin = jellyfinVersion
+        let names: [String?] = [app.session?.userName, UIDevice.current.name]
+        let facts: [(String, String?)] = [
+            ("Signed in", app.session == nil ? "no" : "yes"),
+            ("Quality", app.preferences.quality),
+            ("Built-in Tailscale", String(describing: app.tailnet.phase)),
+            ("System", "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"),
+            ("Device", UIDevice.current.model),
+        ]
+        return DiagnosticFile(name: Diagnostics.fileName(Date())) {
+            let way = await Way.shared.current()?.kind.rawValue
+            let playbacks = await MainActor.run { Diagnostics.playbacks }
+            return Diagnostics.build(version: version, server: server, jellyfin: jellyfin, facts: facts + [("Way to Jellyfin", way)], playbacks: playbacks, now: Date(), names: names)
         }
     }
 

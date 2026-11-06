@@ -37,6 +37,8 @@ struct MediaStream: Codable, Sendable, Hashable {
     var channels: Int?
     var width: Int?
     var height: Int?
+    /// « SDR », « HDR10 », « HLG », « DOVI »… (the diagnostic report).
+    var videoRangeType: String?
 }
 
 /// Items/{id}/PlaybackInfo's answer.

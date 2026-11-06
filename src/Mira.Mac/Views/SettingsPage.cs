@@ -88,6 +88,8 @@ public sealed partial class SettingsPage : Page
                 settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }),
             // « Sur ce Mac »: where the titles kept to watch offline go, and all of them removed at once.
             OfflineCard(),
+            // « Exporter un rapport » (SettingsPage.Diagnostics.cs).
+            ReportRow(),
             Row(L("Projet", "Project"), L("Le code, les nouveautés et les versions pour Windows et Mac.", "The code, what’s new and the versions for Windows and Mac."), Ui.Action(L("Ouvrir GitHub", "Open GitHub"), "globe", "", () => Updates.Open(Updates.Project)))));
 
         // —— Ton bilan: the month or the year, from Jellyfin's record of what was played to the end ——
