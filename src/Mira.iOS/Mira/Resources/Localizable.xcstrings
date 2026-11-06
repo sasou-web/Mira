@@ -6080,6 +6080,56 @@
           }
         }
       }
+    },
+    "Mobile data · %@ Mb/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Données mobiles · %@ Mb/s"
+          }
+        }
+      }
+    },
+    "Mobile data": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Données mobiles"
+          }
+        }
+      }
+    },
+    "On cellular or a personal hotspot. Data saver uses about 0.9 GB an hour, and stays on with Low Data Mode.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En 4G ou en partage de connexion. L’économie de données consomme environ 0,9 Go par heure, et reste active en mode Données réduites."
+          }
+        }
+      }
+    },
+    "Data saver · 2 Mb/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Économie de données · 2 Mb/s"
+          }
+        }
+      }
+    },
+    "Standard · 6 Mb/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normale · 6 Mb/s"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

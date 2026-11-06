@@ -21,6 +21,8 @@ final class PlayerSession: NSObject {
     private var playMethod = "DirectPlay"
     private var inband = false
     private var bitrate: Int?
+    /// The cap of mobile data when the bitrate was chosen (nil: none): the stream follows a new one (capChanged).
+    private var askedUnder: Int?
     private var miraHls: Bool?
     /// The subtitles' delay chosen in the player (seconds); kept from one episode to the next, until it closes.
     private var subtitleDelay: Double = 0
@@ -173,7 +175,10 @@ final class PlayerSession: NSObject {
         if started { await report(.progress) }
         do {
             let fileBitrate = source?.bitrate ?? item.mediaSources?.first?.bitrate ?? 0
-            if bitrate == nil { bitrate = await app?.bitrate(for: client, fileBitrate: fileBitrate) ?? PlaybackPlan.fullBitrate }
+            if bitrate == nil {
+                askedUnder = app?.mobileCap
+                bitrate = await app?.bitrate(for: client, fileBitrate: fileBitrate) ?? PlaybackPlan.fullBitrate
+            }
             if miraHls == nil { miraHls = await client.hasMiraExtension() }
             if !tracksChosen {
                 tracksChosen = true
@@ -406,8 +411,13 @@ final class PlayerSession: NSObject {
         case "DirectStream": model.qualityNow = String(localized: "Original quality")
         default:
             let rate = (Double(bitrate ?? PlaybackPlan.fullBitrate) / 1_000_000).formatted(.number.precision(.fractionLength(0...1)))
-            model.qualityNow = bitrate.map { $0 < PlaybackPlan.fullBitrate } == true
-                ? String(localized: "Converted · \(rate) Mb/s") : String(localized: "Converted")
+            model.qualityNow = if let askedUnder, bitrate == askedUnder {
+                String(localized: "Mobile data · \(rate) Mb/s")
+            } else if bitrate.map({ $0 < PlaybackPlan.fullBitrate }) == true {
+                String(localized: "Converted · \(rate) Mb/s")
+            } else {
+                String(localized: "Converted")
+            }
         }
     }
 
@@ -1086,6 +1096,21 @@ extension PlayerSession: PlayerActions {
         model.quality = quality
         // Asked again from scratch: the file as it is when the new quality allows it.
         bitrate = nil
+        stage = 0
+        let paused = player.timeControlStatus == .paused
+        let at = resumeSeconds
+        player.replaceCurrentItem(with: nil)
+        reopen(at, paused: paused)
+    }
+
+    /// Another connection, or Mobile data chosen in Settings: the stream opens again at the same place under the new
+    /// cap when it must (PlaybackPlan.reopens), from scratch, as for another quality.
+    func capChanged(_ cap: Int?) {
+        guard !closed, let bitrate else { askedUnder = cap; return }
+        let reopens = PlaybackPlan.reopens(bitrate: bitrate, askedUnder: askedUnder, now: cap, directPlay: playMethod == "DirectPlay", inGroup: inGroup)
+        askedUnder = cap
+        guard reopens else { return }
+        self.bitrate = nil
         stage = 0
         let paused = player.timeControlStatus == .paused
         let at = resumeSeconds
