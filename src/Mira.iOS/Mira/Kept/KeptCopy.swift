@@ -196,7 +196,12 @@ enum KeptRules {
     /// The ranges of a file of `size` bytes, in order.
     static func ranges(size: Int64, chunk: Int64 = chunk) -> [ClosedRange<Int64>] {
         guard size > 0, chunk > 0 else { return [] }
-        return stride(from: Int64(0), to: size, by: chunk).map { $0...min(size - 1, $0 + chunk - 1) }
+        var ranges: [ClosedRange<Int64>] = [], start: Int64 = 0
+        while start < size {
+            ranges.append(start...min(size - 1, start + chunk - 1))
+            start += chunk
+        }
+        return ranges
     }
 
     /// The total size a 206 tells (« bytes 0-1023/52428800 »).
@@ -239,7 +244,7 @@ enum KeptRules {
             .min { order($0.item) < order($1.item) }
     }
 
-    private static func order(_ item: Item) -> [Int] { [item.parentIndexNumber ?? 0, item.indexNumber ?? 0] }
+    private static func order(_ item: Item) -> (Int, Int) { (item.parentIndexNumber ?? 0, item.indexNumber ?? 0) }
 
     /// The copies as « On this iPhone » lists them: a series' episodes together and in order, by the newest kept of each
     /// series or film (OfflineCopies.Ordered).
@@ -250,7 +255,7 @@ enum KeptRules {
         return copies.sorted { a, b in
             let (ga, gb) = (group(a), group(b))
             if ga != gb { return newest[ga]! != newest[gb]! ? newest[ga]! > newest[gb]! : ga < gb }
-            return order(a.item).lexicographicallyPrecedes(order(b.item))
+            return order(a.item) < order(b.item)
         }
     }
 
