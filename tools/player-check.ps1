@@ -38,10 +38,25 @@ $clip = Join-Path $Work 'lecture-chapitres.mkv'
     -map 0:v -map 1:a -map_metadata 2 -map_chapters 2 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k $clip
 if ($LASTEXITCODE -ne 0) { throw "ffmpeg could not make the clip ($LASTEXITCODE)" }
 
+# HDR: 6 s of HEVC 10 bits by libx265, tagged HDR10 (PQ, BT.2020, mastering display 1000 cd/m², MaxCLL 1000) and HLG.
+# The test pattern keeps its SDR values: only what mpv reads of the tags and what it sends the screen are checked.
+$colours = Join-Path $Work 'colours'
+New-Item -ItemType Directory -Force -Path $colours | Out-Null
+$hdr = @(
+    @('hdr10.mkv', 'smpte2084', ':hdr10=1:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=1000,400'),
+    @('hlg.mkv', 'arib-std-b67', '')
+)
+foreach ($clip in $hdr) {
+    $x265 = "log-level=error:repeat-headers=1:colorprim=bt2020:transfer=$($clip[1]):colormatrix=bt2020nc$($clip[2])"
+    & $ffmpeg.FullName -loglevel error -y -f lavfi -i 'testsrc2=size=1280x720:rate=24:duration=6' -vf 'format=yuv420p10le' `
+        -c:v libx265 -preset ultrafast -x265-params $x265 -color_primaries bt2020 -color_trc $clip[1] -colorspace bt2020nc (Join-Path $colours $clip[0])
+    if ($LASTEXITCODE -ne 0) { throw "ffmpeg could not make $($clip[0]) ($LASTEXITCODE)" }
+}
+
 # The check itself: the window is placed off screen, the result written to result.txt.
 $result = Join-Path $Output 'result.txt'
 if (Test-Path -LiteralPath $result) { Remove-Item -LiteralPath $result -Force }
-$run = Start-Process -FilePath ([IO.Path]::GetFullPath($Executable)) -PassThru -ArgumentList @('--demo', '--data', "`"$profilePath`"", '--test-media', "`"$clip`"", '--player-check', "`"$Output`"", '--perf-probe')
+$run = Start-Process -FilePath ([IO.Path]::GetFullPath($Executable)) -PassThru -ArgumentList @('--demo', '--data', "`"$profilePath`"", '--test-media', "`"$clip`"", '--colour-media', "`"$colours`"", '--player-check', "`"$Output`"", '--perf-probe')
 if (-not $run.WaitForExit(300000)) { $run.Kill(); throw 'The player check did not finish within 5 minutes.' }
 if (-not (Test-Path -LiteralPath $result)) { throw "The player check wrote no result (exit code $($run.ExitCode))." }
 $lines = Get-Content -LiteralPath $result
