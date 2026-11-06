@@ -134,6 +134,8 @@ targets:
       - path: ../../tests/fixtures/diagnostics.json
       - path: ../../tests/fixtures/connect.json
         buildPhase: resources
+      - path: ../../tests/fixtures/trailers.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

@@ -144,5 +144,8 @@ public sealed partial class PlayerPage
     /// <summary>The title's length, as mpv reads it: for the self-check.</summary>
     public double Duration => _session.Duration;
     /// <summary>What the pill says, while it shows: for the self-check.</summary>
+    /// <summary>For the self-check: the pill over the picture (« Passer la bande-annonce »…), and its press.</summary>
+    public string? SkipPillText => _skip.IsVisible ? _skipText.Text : null;
+    public void SkipForCheck() => Skip();
     public string? SeekPillText => _seekPill is { IsVisible: true } ? _seekText.Text : null;
 }

@@ -83,6 +83,12 @@ public static class Privacy
             L("Comme l’app Tailscale : ton compte, le nom de l’appareil, son système, ses adresses IP et sa clé publique. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé.",
                 "Like the Tailscale app: your account, the device’s name, its system, its IP addresses and its public key. Videos stay end-to-end encrypted, no log is sent."),
             L("Se déconnecter de Tailscale, dans Compte & serveur.", "Sign out of Tailscale, in Account & server."), PrivacyControl.Tailscale, false, ["DERP"]));
+        list.Add(new("trailers", L("Bandes-annonces du web", "Trailers from the web"),
+            L("Le site de la bande-annonce (souvent YouTube), dans ton navigateur, jamais dans Mira.", "The trailer’s site (often YouTube), in your browser, never in Mira."),
+            L("Seulement quand tu cliques sur « Bande-annonce » d’un titre qui n’en a pas sur ton serveur.", "Only when you click “Trailer” on a title that has none on your server."),
+            L("Ce que ton navigateur envoie à ce site (ton adresse IP, ses cookies). Mira ne lui envoie rien et n’en charge rien avant ton clic. Une bande-annonce gardée sur ton serveur ne passe que par lui.",
+                "What your browser sends that site (your IP address, its cookies). Mira sends it nothing and loads nothing from it before your click. A trailer kept on your server goes through it alone."),
+            L("Rien à couper : rien ne part sans ton clic.", "Nothing to turn off: nothing goes without your click."), PrivacyControl.None, false, ["YouTube"]));
         if (windows)
         {
             list.Add(new("installs", L("Ce que tu installes", "What you install"),

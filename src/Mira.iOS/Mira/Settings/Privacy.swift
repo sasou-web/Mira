@@ -29,6 +29,11 @@ struct PrivacyView: View {
                                stop: "The switch here.")
                 }
                 .accessibilityIdentifier("privacy.tailscale")
+                PrivacyRow(title: "Trailers from the web",
+                           to: "The trailer’s site (often YouTube), in Safari, never in Mira.",
+                           when: "Only when you touch “Trailer on …” on a title that has none on your server.",
+                           sends: "What Safari sends that site (your IP address, its cookies). Mira sends it nothing and loads nothing from it before your touch. A trailer kept on your server goes through it alone.",
+                           stop: "Nothing to turn off: nothing goes without your touch.")
                 PrivacyRow(title: "AltStore, installed by you",
                            to: "miracinema.app (Mira’s list), GitHub (the app) and Apple.",
                            when: "When you install Mira and at its weekly refresh.",

@@ -18,10 +18,16 @@ L’accueil s’ouvre sur un grand bandeau de tes titres, puis **Continuer à re
 
 Sur l’affiche d’une série, un nombre dit combien d’épisodes restent à voir : un nouvel épisode d’une série que tu suis se voit dans la bibliothèque.
 
-La fiche d’un titre montre l’image du fichier que tu lirais (« 4K · HDR10 », « 1080p ») et l’heure de fin si tu lançais maintenant. Sur une série, elle montre l’épisode suivant (« Reprendre · S01 E07 »). Dessous : la distribution et l’équipe (un clic montre leurs titres dans ta bibliothèque), les bonus (making-of, scènes coupées), les titres similaires et les autres films de la même collection.
+La fiche d’un titre montre l’image du fichier que tu lirais (« 4K · HDR10 », « 1080p ») et l’heure de fin si tu lançais maintenant. Sur une série, elle montre l’épisode suivant (« Reprendre · S01 E07 »). Dessous : la distribution et l’équipe (un clic montre leurs titres dans ta bibliothèque), les bonus (making-of, scènes coupées ; les bandes-annonces ont [leur bouton](library.md#bandes-annonces)), les titres similaires et les autres films de la même collection.
 
 Les boutons à côté de **Lecture** gardent leur forme et ne changent que d’état : **Favori**, **Vu**, et **Garder sur ce PC** (Windows) ou **Garder sur ce Mac**. Leur nom s’affiche au survol.
 
+
+## Bandes-annonces
+
+Quand un titre a une bande-annonce, un bouton **Bande-annonce** apparaît sur sa fiche (sur iPhone, dans **…**). Une bande-annonce gardée sur ton serveur se lit dans Mira, comme un film : mets-la dans un dossier `trailers` à côté du film, ou nomme-la `Film (2020)-trailer.mkv`. Sinon, Jellyfin en connaît souvent une sur YouTube (par TMDb) : le bouton le dit (« Bande-annonce sur YouTube, dans ton navigateur ») et l’ouvre dans ton navigateur, jamais dans Mira.
+
+Avec **Réglages → Lecture → Bande-annonce avant le film** (Windows et Mac, coupé par défaut), un film lancé depuis le début passe d’abord sa bande-annonce gardée sur ton serveur, comme au cinéma ; **Passer la bande-annonce** va droit au film. Jamais une bande-annonce du web, jamais en reprise, jamais dans un groupe.
 ## Marquer comme vu
 
 Un titre compte comme vu quand il se termine, quand tu t’arrêtes après 90 %, ou quand tu passes à l’épisode suivant depuis le générique. Tu peux aussi le marquer à la main, depuis sa fiche ou son menu (clic droit ou appui long). Avec plusieurs saisons, **Marquer la saison comme vue** les marque tous d’un coup.

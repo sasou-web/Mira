@@ -13,7 +13,7 @@ Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on M
 
 | Part | What is in it |
 | --- | --- |
-| **Playback** | Skip intros and recaps, play episodes back to back, resume where you left off, picture, quality away from home, hardware decoding, the mpv engine (Windows) |
+| **Playback** | Skip intros and recaps, play episodes back to back, trailer before the film, resume where you left off, picture, quality away from home, hardware decoding, the mpv engine (Windows) |
 | **Audio & subtitles** | Preferred audio and subtitle languages, subtitle size and style, audio output and amplifier |
 | **Appearance** | Mira's language, couch mode, home rows, library density, automatic carousel, reduce animations |
 | **Account & server** | Your Jellyfin account and photo, sign out, Built-in Tailscale, new episode notifications, who is watching on Jellyfin right now |

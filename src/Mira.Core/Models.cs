@@ -68,6 +68,12 @@ public sealed record MediaItem
     public string? ExtraType { get; init; }
     /// <summary>How many bonus videos a film or series has (<see cref="JellyfinClient.ExtrasAsync"/>), returned by the single-item request.</summary>
     public int? SpecialFeatureCount { get; init; }
+    /// <summary>How many trailers its folder holds (a « trailers » folder, « …-trailer.mkv »; <see cref="JellyfinClient.LocalTrailersAsync"/>), returned by the single-item request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LocalTrailerCount { get; init; }
+    /// <summary>Its trailers on the web (YouTube, from TMDb), returned by the single-item request: opened in the browser, never in Mira (<see cref="Trailers"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<RemoteTrailer>? RemoteTrailers { get; init; }
     /// <summary>
     /// The ids of the title on TMDb, IMDb, TVDb… as Jellyfin matched it (« Tmdb » → « 438631 »), asked for with
     /// Fields=ProviderIds; none when Jellyfin recognized nothing (<see cref="TitleIdentity"/>).
@@ -110,6 +116,13 @@ public sealed record MediaItem
     private PersonInfo[] Credited(string type, int count) => People.Where(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase))
         .Select(x => x with { Name = x.Name.Trim() }).Where(x => x.Name.Length > 0).DistinctBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Take(count).ToArray();
     public static string FormatDuration(TimeSpan span) => span.TotalHours >= 1 ? L($"{(int)span.TotalHours} h {span.Minutes:00}", $"{(int)span.TotalHours} hr {span.Minutes} min") : $"{Math.Max(1, span.Minutes)} min";
+}
+
+/// <summary>A trailer Jellyfin knows on the web (TMDb gives YouTube's): its address and its name.</summary>
+public sealed record RemoteTrailer
+{
+    public string? Url { get; init; }
+    public string? Name { get; init; }
 }
 
 public sealed record PersonInfo
@@ -275,6 +288,8 @@ public sealed class PlayerSettings
     public bool AutoNext { get; set; } = true;
     /// <summary>« Tu regardes toujours ? » (<see cref="Mira.Core.StillWatching"/>): after 3 episodes in a row untouched, the next one waits for an answer.</summary>
     public bool StillWatching { get; set; } = true;
+    /// <summary>« Bande-annonce avant le film » (<see cref="Trailers.PlaysFirst"/>): a film started from the beginning plays its trailer kept on the server first.</summary>
+    public bool TrailerFirst { get; set; }
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
     public bool AutoSkip { get; set; }
     public int SubtitleSize { get; set; } = 40;

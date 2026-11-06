@@ -1531,6 +1531,16 @@
         }
       }
     },
+    "Nothing to turn off: nothing goes without your touch.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien à couper : rien ne part sans ton toucher."
+          }
+        }
+      }
+    },
     "On a movie or an episode, touch Keep on this iPhone: it plays here without a connection, even far from Jellyfin.": {
       "localizations": {
         "fr": {
@@ -1591,12 +1601,32 @@
         }
       }
     },
+    "Only when you touch “Trailer on …” on a title that has none on your server.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement quand tu touches « Bande-annonce sur … » d’un titre qui n’en a pas sur ton serveur."
+          }
+        }
+      }
+    },
     "Open Tailscale’s admin console": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ouvrir la console de Tailscale"
+          }
+        }
+      }
+    },
+    "Opens in Safari": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S’ouvre dans Safari"
           }
         }
       }
@@ -3481,6 +3511,16 @@
         }
       }
     },
+    "The trailer’s site (often YouTube), in Safari, never in Mira.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le site de la bande-annonce (souvent YouTube), dans Safari, jamais dans Mira."
+          }
+        }
+      }
+    },
     "Their order, and which show, on this iPhone.": {
       "localizations": {
         "fr": {
@@ -3761,6 +3801,36 @@
         }
       }
     },
+    "Trailer": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bande-annonce"
+          }
+        }
+      }
+    },
+    "Trailer on %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bande-annonce sur %@"
+          }
+        }
+      }
+    },
+    "Trailers from the web": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bandes-annonces du web"
+          }
+        }
+      }
+    },
     "Try again": {
       "localizations": {
         "fr": {
@@ -3957,6 +4027,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ce qu’envoie Jellyfin : son adresse IP et son nom de programme."
+          }
+        }
+      }
+    },
+    "What Safari sends that site (your IP address, its cookies). Mira sends it nothing and loads nothing from it before your touch. A trailer kept on your server goes through it alone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce que Safari envoie à ce site (ton adresse IP, ses cookies). Mira ne lui envoie rien et n’en charge rien avant ton toucher. Une bande-annonce gardée sur ton serveur ne passe que par lui."
           }
         }
       }

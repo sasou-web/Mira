@@ -8,6 +8,7 @@ struct TitleView: View {
     let route: TitleRoute
     @Environment(AppModel.self) private var app
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.openURL) private var openURL
     @State private var item: Item
     @State private var width: CGFloat = 402
     /// Scrolled past the picture: the bar then shows the title's name and its own edge, which over the picture
@@ -227,6 +228,7 @@ struct TitleView: View {
                 }
                 .accessibilityIdentifier("title.fromStart")
             }
+            trailerButton
             SleepPicker(episode: playable?.isEpisode == true)
             Button {
                 showsTogether = true
@@ -241,6 +243,41 @@ struct TitleView: View {
         .glassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel(Text("More"))
         .accessibilityIdentifier("title.more")
+    }
+
+    /// « Trailer » (Trailers): the one kept on the server in Mira's player; one on the web in Safari, its label saying so
+    /// before the touch.
+    @ViewBuilder private var trailerButton: some View {
+        switch Trailers.source(item) {
+        case .jellyfin:
+            Button {
+                Task { await playTrailer() }
+            } label: {
+                Label("Trailer", systemImage: "play.rectangle")
+            }
+            .accessibilityIdentifier("title.trailer")
+        case .web:
+            if let link = Trailers.webLink(item) {
+                Button {
+                    openURL(link)
+                } label: {
+                    Label("Trailer on \(Trailers.site(link))", systemImage: "safari")
+                }
+                .accessibilityHint(Text("Opens in Safari"))
+                .accessibilityIdentifier("title.trailer")
+            }
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private func playTrailer() async {
+        guard let client = app.client else { return }
+        do {
+            if let trailer = try await client.localTrailers(item.id).first { app.play(trailer, fromStart: true) }
+        } catch JellyfinError.unauthorized { app.sessionEnded() } catch {
+            app.actionMessage = Messages.text(error)
+        }
     }
 
     /// The genres, each opening Movies or Shows with only that genre, as on Mira web: at the end, after what to watch.
