@@ -51,7 +51,7 @@ Mira dit ce qui ne va pas avec ses mots, avec un bouton qui aide quand il y en a
 | Symptôme | Quoi faire |
 | --- | --- |
 | Windows : une mise à jour ne s’installe pas | **Réglages → Mira sur ce PC** montre la dernière erreur ; `data\updates\update.log` donne les détails. Le dossier de Mira doit rester modifiable. |
-| Mac : Mira demande le trousseau après chaque mise à jour | Normal, une fois par version : choisis **Toujours autoriser**. Voir [Installer sur Mac](mac.md#mises-a-jour). |
+| Mac : Mira demande le trousseau après une mise à jour | Seulement après une mise à jour par Homebrew ou à la main, une fois par version : choisis **Toujours autoriser**. Voir [Installer sur Mac](mac.md#mises-a-jour). |
 | iPhone : Mira ne s’ouvre plus | Elle a expiré au bout de 7 jours. Ouvre AltStore à la maison et touche **Refresh All**. Rien n’est perdu. |
 
 ## Toujours bloqué ?

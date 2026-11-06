@@ -188,6 +188,9 @@ public static class Updates
         var start = new ProcessStartInfo("/bin/sh") { UseShellExecute = false };
         foreach (var argument in MacInstall.Arguments(Environment.ProcessId, bundle, Path.Combine(Folder(window), MacInstall.ResultName), version, _relaunch ? "/usr/bin/open" : null))
             start.ArgumentList.Add(argument);
+        // The keychain trusts this copy only: the session and the key of « Tailscale intégré » go to the next one, which
+        // would otherwise wait for the Mac's password at its first launch. A swap that fails gives them back to this one.
+        window.Profile.HandOverKeychain();
         using var shell = Process.Start(start);
     }
 
