@@ -107,7 +107,7 @@ public partial class MainWindow
         SelectChoice(PictureChoice, PictureQuality.Known(_settings.Picture));
         if (QualityChoice.Items.Count == 0) foreach (var (key, label, _, details) in StreamQuality.Choices) QualityChoice.Items.Add(new ComboBoxItem { Content = label, Tag = key, ToolTip = details });
         SelectChoice(QualityChoice, StreamQuality.Known(_settings.Quality));
-        ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion;
+        ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion; CouchModeCheck.IsChecked = _settings.CouchMode;
         HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting(); SelectChoice(MiraLanguageChoice, ShownLanguage);
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
         SelectChoice(AudioLanguageChoice, _settings.AudioLanguage); SelectChoice(SubtitleLanguageChoice, _settings.SubtitleLanguage); SelectChoice(DensityChoice, _settings.PosterDensity);

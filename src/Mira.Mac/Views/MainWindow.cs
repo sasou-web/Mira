@@ -193,6 +193,7 @@ public sealed partial class MainWindow : Window
         AddHandler(KeyUpEvent, (_, e) => Player?.HandleKeyUp(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         Deactivated += (_, _) => Player?.ForgetHeldKeys();
         KeyDown += OnKeyDown;
+        InitializeCouch();
         PointerPressed += (_, e) => { var buttons = e.GetCurrentPoint(this).Properties; if (buttons.IsXButton1Pressed) Back(); else if (buttons.IsXButton2Pressed) Forward(); };
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
         // double click) left the pointer captured by what remained: every turn of the wheel went there, never to the page.
@@ -844,7 +845,8 @@ public sealed partial class MainWindow : Window
         Group.SetAway(true);
         _overlay.Children.Remove(player);
         ReleasePointer();
-        if (WindowState == WindowState.FullScreen) WindowState = WindowState.Normal;
+        // In couch mode the window stays full screen: it is the TV's.
+        if (WindowState == WindowState.FullScreen && !InCouchMode) WindowState = WindowState.Normal;
         Profile.SaveSettings(Settings);
         Focus();
         await RefreshPagesAsync();

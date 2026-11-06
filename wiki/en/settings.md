@@ -15,7 +15,7 @@ Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on M
 | --- | --- |
 | **Playback** | Skip intros and recaps, play episodes back to back, resume where you left off, picture, quality away from home, hardware decoding, the mpv engine (Windows) |
 | **Audio & subtitles** | Preferred audio and subtitle languages, subtitle size and style, audio output and amplifier (Windows) |
-| **Appearance** | Mira's language, home rows, library density, automatic carousel, reduce animations |
+| **Appearance** | Mira's language, couch mode, home rows, library density, automatic carousel, reduce animations |
 | **Account & server** | Your Jellyfin account and photo, sign out, Built-in Tailscale, new episode notifications, who is watching on Jellyfin right now |
 | **Mira on this PC / Mac** | Updates, and the titles kept to watch offline |
 | **Privacy** | Everything Mira sends, to whom and when, with the switch of each connection that has one |
@@ -44,3 +44,18 @@ The **Settings** tab has:
 ## Language
 
 Mira speaks English and French. By default it follows the language you chose when installing it, otherwise your system's. Change it in **Settings → Appearance → Mira's language**: it applies the next time Mira opens. The default audio and subtitle languages follow it.
+
+## Couch mode
+
+For a PC or a Mac plugged into the TV, watched from the couch (Windows and Mac). Turn it on in **Settings → Appearance → Couch mode**: it applies at once, and stays on the next times Mira opens.
+
+- Mira fills the whole screen, and every page is drawn larger, as on a 1280 × 720 window: readable from across the room. The player keeps its size.
+- A white ring shows what is selected. The arrow keys go from one thing to the next anywhere on the screen, the rail included; <kbd>Enter</kbd> opens, <kbd>Esc</kbd> or <kbd>Backspace</kbd> goes back.
+- In the player, <kbd>Esc</kbd> or <kbd>Backspace</kbd> stops the film and goes back to its page, as on a TV.
+- A game controller (Xbox, or one that works as one; PlayStation and other controllers paired with a Mac): **A** opens, **B** goes back, **Y** searches, **LB** and **RB** change page. In the player, **A** pauses, **X** turns subtitles on or off, **Y** skips the intro, **LB** and **RB** jump a minute. Plug a controller in with couch mode off and Mira offers to turn it on.
+- A TV remote, through the TV's HDMI-CEC with an adapter that types keys: its arrows, OK and back work like the keyboard's, and its play and pause keys reach Mira like a keyboard's media keys.
+
+> [!NOTE]
+> Couch mode reads the controller only while Mira is in front, and sends nothing anywhere.
+
+To leave it, **Settings → Appearance → Couch mode** again.

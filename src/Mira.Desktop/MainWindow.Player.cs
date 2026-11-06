@@ -497,6 +497,8 @@ public partial class MainWindow
     private void ToggleFullscreen()
     {
         if (!_playing && !_fullscreen) return;
+        // Couch mode keeps the window full screen: F and a double click only bring the controls back.
+        if (_couchScreen) { if (_miniPlayer) SetMiniPlayer(false); ShowPlayerControls(); return; }
         if (_miniPlayer) SetMiniPlayer(false);
         PlayerOptionsPopup.IsOpen = false;
         _changingPlayerLayout = true;

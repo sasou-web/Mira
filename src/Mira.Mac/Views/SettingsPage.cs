@@ -56,7 +56,9 @@ public sealed partial class SettingsPage : Page
         Tab("audio").Children.Add(Advanced(L("Sortie audio et ampli", "Audio output and amplifier"), AudioRows(settings)));
 
         // —— Apparence: Mira's language and Home's rows ——
-        Tab("appearance").Children.Add(Section(null, AppLanguage(settings)));
+        Tab("appearance").Children.Add(Section(null, AppLanguage(settings),
+            // « Mode canapé »: applied at once, the window full screen (MainWindow.Couch.cs).
+            Toggle(Couch.Title, Couch.Description + " " + Couch.Keys, settings.CouchMode, shell.SetCouchMode)));
         // « Accueil à ta main »: the libraries come from Jellyfin, for their « Nouveau dans … ».
         Tab("appearance").Children.Add(_home);
         DrawHome();

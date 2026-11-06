@@ -451,6 +451,62 @@ public static class SelfCheck
                 }
             }
 
+            // —— « Mode canapé »: the window full screen, the pages larger, the arrows anywhere, a controller as those keys ——
+            window.Go("home");
+            await Until(() => window.Current is HomePage { Latest.Count: > 0 }, 10);
+            window.SetCouchMode(true);
+            await Task.Delay(1200);
+            var couchZoom = Couch.Zoom(window.ClientSize.Width, window.ClientSize.Height);
+            Check(window.InCouchMode && window.Classes.Contains("couch") && window.CouchZoom == couchZoom && couchZoom > 1, "mode canapé : pages agrandies", $"zoom {window.CouchZoom:0.00} pour {window.ClientSize.Width:0} × {window.ClientSize.Height:0}");
+            Control? Focused() => window.FocusManager?.GetFocusedElement() as Control;
+            Rect? Where(Control? control) => control?.TransformToVisual(window) is { } m ? new Rect(control.Bounds.Size).TransformToAABB(m) : null;
+            window.FocusFirst();
+            var start = Focused();
+            await Task.Delay(200);
+            Capture(window, output, "10-couch-home");
+            Check(window.CouchRing is { } ring && Where(start) is { } at && ring.Contains(at) && ring.Width < at.Width + 40, "mode canapé : l’anneau entoure le contrôle qui a le focus", $"{window.CouchRing} autour de {Where(start)}");
+            Press(window, Avalonia.Input.Key.Down); await Task.Delay(300);
+            var below = Focused();
+            Check(start is not null && below is not null && below != start && Where(below)?.Top > Where(start)?.Top, "mode canapé : ↓ va au contrôle d’en dessous", $"{start?.GetType().Name} → {below?.GetType().Name}");
+            var reachedRail = false;
+            for (var i = 0; i < 12 && !reachedRail; i++) { Press(window, Avalonia.Input.Key.Left); await Task.Delay(120); reachedRail = Focused()?.Classes.Contains("rail") == true; }
+            var railAt = Focused();
+            // Up the rail, or down from its top: the arrows stay in it.
+            Press(window, Avalonia.Input.Key.Up); await Task.Delay(150);
+            if (Focused() == railAt) { Press(window, Avalonia.Input.Key.Down); await Task.Delay(150); }
+            Check(reachedRail && Focused()?.Classes.Contains("rail") == true && Focused() != railAt, "mode canapé : ← mène au rail, ↑ ou ↓ le parcourt", $"{Avalonia.Automation.AutomationProperties.GetName(railAt!)} → {(Focused() is { } f ? Avalonia.Automation.AutomationProperties.GetName(f) : "rien")}");
+            Press(window, Avalonia.Input.Key.Right); await Task.Delay(300);
+            Check(Focused() is { } inPage && !inPage.Classes.Contains("rail") && window.Current?.IsVisualAncestorOf(inPage) == true, "mode canapé : → revient dans la page", Focused()?.GetType().Name ?? "rien");
+            window.Go("Movie");
+            await Until(() => window.Current is BrowsePage { Items.Count: > 1 }, 10); await Task.Delay(600);
+            var posters = window.Current!.GetVisualDescendants().OfType<Button>().Where(x => x.Classes.Contains("card") && x.IsEffectivelyVisible).ToList();
+            var firstPoster = posters.FirstOrDefault();
+            firstPoster?.Focus(NavigationMethod.Directional);
+            Press(window, Avalonia.Input.Key.Right); await Task.Delay(300);
+            var secondPoster = Focused();
+            await Task.Delay(300); Capture(window, output, "10b-couch-films");
+            Check(firstPoster is not null && secondPoster != firstPoster && Where(secondPoster)?.Left > Where(firstPoster)?.Left && Math.Abs((Where(secondPoster)?.Top ?? 0) - (Where(firstPoster)?.Top ?? 1)) < 2, "mode canapé : → passe à l’affiche voisine", $"{posters.Count} affiches");
+            Press(window, Avalonia.Input.Key.Enter);
+            Check(await Until(() => window.Current is DetailPage, 10), "mode canapé : Entrée ouvre la fiche", window.Current?.GetType().Name ?? "");
+            await Task.Delay(800); Capture(window, output, "10c-couch-film");
+            Press(window, Avalonia.Input.Key.Back);
+            Check(await Until(() => window.Current is BrowsePage, 5), "mode canapé : Retour arrière revient", window.Current?.GetType().Name ?? "");
+            // A controller (MacGamepad stood in for): offered while couch mode is off, then its cross and its A and B.
+            MacGamepad.Override(new PadState(Mira.Core.Pad.None));
+            var padSeen = await Until(() => window.PadConnected, 4);
+            firstPoster?.Focus(NavigationMethod.Directional);
+            async Task PadPress(Mira.Core.Pad button) { MacGamepad.Override(new PadState(button)); await Task.Delay(120); MacGamepad.Override(new PadState(Mira.Core.Pad.None)); await Task.Delay(120); }
+            await PadPress(Mira.Core.Pad.Right);
+            var padMoved = Focused() != firstPoster;
+            await PadPress(Mira.Core.Pad.A);
+            var padOpened = await Until(() => window.Current is DetailPage, 10);
+            await PadPress(Mira.Core.Pad.B);
+            Check(padSeen && padMoved && padOpened && await Until(() => window.Current is BrowsePage, 5), "mode canapé : la manette se déplace, ouvre (A) et revient (B)", $"vue {padSeen}, déplacée {padMoved}, fiche {padOpened}, revenue {window.Current is BrowsePage}");
+            MacGamepad.StopOverride();
+            window.SetCouchMode(false);
+            await Task.Delay(800);
+            Check(!window.InCouchMode && window.CouchZoom == 1 && !window.Classes.Contains("couch"), "mode canapé : coupé, la fenêtre comme avant", $"zoom {window.CouchZoom:0.00}");
+
             // —— Space over the button that started the film ——
             // Lecture clicked keeps the focus under the player, and Avalonia presses a focused button when Space is
             // released: the film started over instead of pausing (0.9.4, on a real Mac). The keys go where macOS sends

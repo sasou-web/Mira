@@ -44,12 +44,14 @@ public partial class MainWindow
     private double LayoutHeight => ActualHeight / _zoom;
     /// <summary>
     /// Mira's pages grow with Windows' text size, as far as the window holds their smallest layout (960 × 600): each
-    /// page is zoomed whole, its text with it. The player and the title bar keep their size. True when the zoom changed.
+    /// page is zoomed whole, its text with it, and more in couch mode. The player and the title bar keep their size. True when the zoom changed.
     /// </summary>
     private bool UpdateZoom()
     {
         if (LibraryShell is null || Content is not FrameworkElement { ActualWidth: > 0 } root) return false;
         var zoom = ValidationRun ? 1 : Legibility.Zoom(_textScale, root.ActualWidth, root.ActualHeight, 960, 600);
+        // « Mode canapé »: laid out as on a 1280 × 720 window, then drawn to fill the TV (MainWindow.Couch.cs).
+        if (_settings.CouchMode) zoom = Math.Max(zoom, Couch.Zoom(root.ActualWidth, root.ActualHeight));
         if (Math.Abs(zoom - _zoom) < .005) return false;
         _zoom = zoom; UsePictureScale();
         var scale = zoom == 1 ? Transform.Identity : new ScaleTransform(zoom, zoom);
@@ -170,7 +172,7 @@ public partial class MainWindow
     }
     private bool OverMaximize(IntPtr lParam)
     {
-        if (_fullscreen || !MaximizeButton.IsVisible) return false;
+        if (_fullscreen || _couchScreen || !MaximizeButton.IsVisible) return false;
         // Screen coordinates in device pixels, signed (a screen left of the main one).
         var x = (short)(lParam.ToInt64() & 0xFFFF); var y = (short)(lParam.ToInt64() >> 16 & 0xFFFF);
         var from = MaximizeButton.PointToScreen(new Point()); var to = MaximizeButton.PointToScreen(new Point(MaximizeButton.ActualWidth, MaximizeButton.ActualHeight));

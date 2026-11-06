@@ -143,6 +143,8 @@ public sealed partial class PlayerPage : UserControl
         _volume.ValueChanged += (_, e) => VolumeChanged(e.NewValue);
         var fullscreen = new Button { Content = _fullscreenIcon, Classes = { "player" } }; fullscreen.Click += (_, _) => ToggleFullscreen();
         ToolTip.SetTip(fullscreen, L("Plein écran · F", "Full screen · F"));
+        // In couch mode the window is always full screen.
+        fullscreen.IsVisible = !_shell.InCouchMode;
         // Their icons say what a click does: VoiceOver reads the same, with the shortcut as help.
         Speak(play, _pauseIcon, kind => kind == "play" ? L("Lecture", "Play") : L("Pause", "Pause"), L("Espace", "Space"));
         Speak(mute, _volumeIcon, kind => kind == "mute" ? L("Rétablir le son", "Unmute") : L("Couper le son", "Mute"), "M");
@@ -568,6 +570,8 @@ public sealed partial class PlayerPage : UserControl
     /// <summary>F, ⌘F, ⌃⌘F and the menu bar's « Plein écran ».</summary>
     public void ToggleFullscreen()
     {
+        // In couch mode the window stays full screen: it is the TV's.
+        if (_shell.InCouchMode) { _fullscreenIcon.Kind = "collapse"; ShowControls(); return; }
         _shell.WindowState = _shell.WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
         _fullscreenIcon.Kind = _shell.WindowState == WindowState.FullScreen ? "collapse" : "fullscreen";
         ShowControls();

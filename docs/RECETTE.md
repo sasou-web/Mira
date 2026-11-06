@@ -30,6 +30,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Narrateur : Accueil, fiche et lecteur lus avec des noms (pas « bouton »)
 - [ ] Snap Layouts au survol du bouton agrandir
 - [ ] Tailscale intégré (sans l'app Tailscale, depuis un autre réseau) : se connecter, lire un film, se déconnecter
+- [ ] Mode canapé sur la télé (HDMI) : Réglages → Apparence → Mode canapé, plein écran lisible depuis le canapé ; flèches partout (rail compris), Entrée, Retour arrière ; une manette Xbox (A, B, Y, LB/RB, dans le lecteur A, X, LB/RB) ; la télécommande de la télé si un adaptateur HDMI-CEC est là
 
 ## iPhone 📱
 - [ ] Installation par AltStore, rafraîchie après 7 jours sans rien faire
@@ -51,6 +52,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Image ni grise ni noire ; sinon ⋮ → Informations, ligne « Réparé »
 - [ ] Trackpad : défiler (Accueil : un geste = la page ou la rangée), glisser à deux doigts entre les pages (la page suit les doigts, revient si lâchée tôt), pincer dans les grilles (affiches qui glissent), balayage à trois doigts, pincer dans le lecteur
 - [ ] Image dans l'image (petite fenêtre flottante)
+- [ ] Mode canapé : plein écran agrandi, flèches et Retour arrière, une manette appairée (PlayStation ou Xbox) : A ouvre, B revient
 - [ ] Tailscale intégré : connexion, trousseau gardé après une mise à jour
 
 ## Regarder ensemble 👥

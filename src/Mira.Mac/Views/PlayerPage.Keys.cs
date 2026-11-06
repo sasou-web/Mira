@@ -70,8 +70,11 @@ public sealed partial class PlayerPage
             case Key.I: if (!again) SetMini(!_mini); break;
             case Key.Escape when !_mini:
                 if (again) break;
-                if (_shell.WindowState == WindowState.FullScreen) ToggleFullscreen(); else SetMini(true);
+                // In couch mode, as on a TV: back to the title, the playback stopped.
+                if (_shell.InCouchMode) _ = _shell.StopPlaybackAsync();
+                else if (_shell.WindowState == WindowState.FullScreen) ToggleFullscreen(); else SetMini(true);
                 break;
+            case Key.Back when !_mini && _shell.InCouchMode: if (!again) _ = _shell.StopPlaybackAsync(); break;
             default: return;
         }
         e.Handled = true;
