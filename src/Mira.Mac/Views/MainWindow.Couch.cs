@@ -248,6 +248,8 @@ public sealed partial class MainWindow
     /// <summary>A controller's button, done as its key would be (<see cref="Couch.For"/>).</summary>
     public void Do(Couch.Action action)
     {
+        // Someone is there, though macOS saw no input (« Tu regardes toujours ? »).
+        Player?.Touched();
         switch (action)
         {
             case Couch.Action.Up: Press(Key.Up); break;

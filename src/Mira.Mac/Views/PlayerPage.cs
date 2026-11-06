@@ -261,6 +261,7 @@ public sealed partial class PlayerPage : UserControl
             if (generation != _generation) return false;
             UseStream(stream); _playingCopy = kept;
             _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
+            _stillWatching.Started(DateTimeOffset.Now, _nextByItself); _nextByItself = false;
             _title.Text = item.DisplayTitle; _subtitle.Text = PlayerText.Subtitle(item);
             _next.IsEnabled = false; ShowEpisodeButtons(item);
 
@@ -401,7 +402,11 @@ public sealed partial class PlayerPage : UserControl
         var last = eof && _sleep.AtEnd;
         if (last) _sleep.Clear();
         if (eof && _shell.Settings.AutoNext && !last && !stay && _session.Item?.Type == "Episode" && (next ?? await NextAfterAsync(_session.Item)) is { } following)
-        { await PlayNextAsync(following, completed: true); return; }
+        {
+            // « Tu regardes toujours ? »: three episodes in a row with nothing touched, the next one waits for an answer.
+            if (AsksStillWatching()) { await AskStillWatchingAsync(following); return; }
+            _nextByItself = true; await PlayNextAsync(following, completed: true); return;
+        }
         if (error is not null) { await FailAsync(error, _session.Item); return; }
         await StopAsync(eof);
         await _shell.CloseOverlayPlayerAsync(this);
@@ -835,13 +840,13 @@ public sealed partial class PlayerPage : UserControl
         // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there.
         if (_loaded && !_stopped && !_timeline.Dragging && _skips.AutoSkip(_session.Position, _shell.Settings.AutoSkip && !Group.Active) is { } passage) SeekTo(passage.End, exact: true);
         // Without a credits marker, the next episode during the last seconds.
-        if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext && !_sleep.AtEnd) && _skips.Active is not null)
+        if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext && !_sleep.AtEnd && !AsksStillWatching()) && _skips.Active is not null)
         {
             _skipText.Text = _skips.Label(_session.Item?.Type == "Episode");
             ToolTip.SetTip(_skip, _skipText.Text + " · S");
         }
         // Playback time drives the countdown, so pausing pauses it too.
-        if (_skips.Due(_session.Position) is { } next) { _ = PlayNextAsync(next, completed: true); return; }
+        if (_skips.Due(_session.Position) is { } next) { _nextByItself = true; _ = PlayNextAsync(next, completed: true); return; }
         if (_skips.CountdownText(_session.Position) is { } label) _skipText.Text = label;
         _skipCancel.IsVisible = _skips.Counting && !_mini;
         _skip.IsVisible = !_mini && _skips.Active is not null && (_controlsShown || _skips.Counting || !_session.Paused);

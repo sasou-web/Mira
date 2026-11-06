@@ -223,6 +223,8 @@ public partial class MainWindow
     /// <summary>A controller's button, done as its key would be (<see cref="Couch.For"/>).</summary>
     private void Do(Couch.Action action)
     {
+        // Someone is there, though Windows saw no input (« Tu regardes toujours ? »).
+        _stillWatching.Touched(DateTimeOffset.Now);
         switch (action)
         {
             case Couch.Action.Up: Press(Key.Up); break;

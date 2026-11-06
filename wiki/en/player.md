@@ -42,6 +42,8 @@ Tap to show the controls. Double tap on a side to go back or forward 10 seconds 
 
 **Next episode** appears during the end credits or in the last 20 seconds. With **Play episodes back to back**, a 10-second countdown starts; **Cancel** stays on this episode.
 
+After 3 episodes in a row with nothing touched (keyboard, mouse, trackpad, controller, or the screen on iPhone), Mira does not start the next one: it stops at the end of the episode and asks **Are you still watching?**, so a night asleep in front of a series does not mark ten episodes watched. **Keep watching** plays the next one. Never in a watch party. To turn it off: **Settings → Playback → Ask if you’re still watching**.
+
 Mira resumes a little before where you stopped, 5 seconds by default, to pick up the thread (**Settings → Playback**). **From the beginning** on a title's page starts over.
 
 ## Mini player and picture in picture

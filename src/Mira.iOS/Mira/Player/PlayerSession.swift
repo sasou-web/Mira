@@ -84,6 +84,9 @@ final class PlayerSession: NSObject {
     private var startedAt: Double = 0
     private var nextItem: Item?
     private var nextAsked = false
+    /// « Are you still watching? » (StillWatching): the episodes of this run, and the one waiting for an answer.
+    private var stillWatching = StillWatching()
+    private var waitingNext: Item?
     private var trickplay: TrickplayTiles?
     /// The speed chosen in the menu (1 in a group); twice it while held down.
     private var speed: Float = 1
@@ -132,6 +135,8 @@ final class PlayerSession: NSObject {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
         present()
+        TouchWatch.install()
+        stillWatching.started(.now, byItself: false)
         setUpNowPlaying()
         loop = Task { [weak self] in
             while !Task.isCancelled {
@@ -682,8 +687,9 @@ final class PlayerSession: NSObject {
         }
     }
 
-    /// `asked`: by the Next episode button, whatever Settings say.
-    private func nextEpisode(asked: Bool = false) async {
+    /// `asked`: by the Next episode button, whatever Settings say; `automatic`: by the countdown all the same.
+    private func nextEpisode(asked: Bool = false, automatic: Bool = false) async {
+        let byItself = !asked || automatic
         // « End of the episode » on the sleep timer: this one was the last.
         if app?.sleep.atEnd == true && !asked {
             close()
@@ -702,6 +708,11 @@ final class PlayerSession: NSObject {
         // In a group, every device reaches the end: the next one is put on for the group once, and comes back here.
         if let together, together.group != nil {
             if together.queue?.itemId == item.id { await together.start(next.id, startTicks: 0) }
+            return
+        }
+        // « Are you still watching? »: three episodes in a row with nothing touched, the next one waits for an answer.
+        if byItself, asksStillWatching {
+            askStillWatching(next)
             return
         }
         let keptNext = app?.keeper.playable(next.id)
@@ -727,7 +738,30 @@ final class PlayerSession: NSObject {
         started = false
         stopped = false
         app?.playbackChanged()
+        stillWatching.started(.now, byItself: byItself)
         await open(at: 0)
+    }
+
+    private var asksStillWatching: Bool {
+        !inGroup && stillWatching.asks(lastInput: TouchWatch.last, enabled: app?.preferences.stillWatching != false)
+    }
+
+    /// The episode ended, watched: the player stays on its last picture and asks before `next`.
+    private func askStillWatching(_ next: Item) {
+        waitingNext = next
+        player.pause()
+        showPassage(nil)
+        let code = ItemText.episodeCode(next)
+        model.stillWatching = [code, next.name ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Are you still watching?"))
+    }
+
+    /// « Keep watching »: the next episode, started by hand.
+    func keepWatching() {
+        guard waitingNext != nil, !closed else { return }
+        waitingNext = nil
+        model.stillWatching = nil
+        Task { await nextEpisode(asked: true) }
     }
 
     // MARK: Passages and the next episode
@@ -829,10 +863,10 @@ final class PlayerSession: NSObject {
             }
         }
         if nextItem != nil && at >= nextFrom {
-            let auto = !inGroup && app?.preferences.autoNext != false && app?.sleep.atEnd != true
+            let auto = !inGroup && app?.preferences.autoNext != false && app?.sleep.atEnd != true && !asksStillWatching
                 ? Timeline.nativeNextAt(passages, end: end, startedAt: startedAt) : nil
             showPassage(String(localized: "Next episode"), next: true, countdown: auto.map { 1 - max(0, $0 - at) / Timeline.countdown })
-            if let auto, at >= auto { goToNext() }
+            if let auto, at >= auto { goToNext(automatic: true) }
         } else {
             showPassage(passage.flatMap { Timeline.skipLabel($0.type) })
         }
@@ -848,7 +882,7 @@ final class PlayerSession: NSObject {
     // MARK: The end, Picture in Picture, the bar over the tabs
 
     /// The rest of the episode is credits: watched, and the next one now.
-    private func goToNext() {
+    private func goToNext(automatic: Bool = false) {
         guard !closed, !stopped, nextItem != nil else { return }
         stopped = true
         showPassage(nil)
@@ -858,7 +892,7 @@ final class PlayerSession: NSObject {
         Task {
             await tell(.stop, finished)
             if let encoding { await client.stopEncoding(encoding) }
-            await nextEpisode(asked: true)
+            await nextEpisode(asked: true, automatic: automatic)
         }
     }
 
@@ -1093,31 +1127,31 @@ final class PlayerSession: NSObject {
         session.automaticallyPublishesNowPlayingInfo = true
         let commands = session.remoteCommandCenter
         commands.playCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.player.play() }
+            Task { @MainActor in TouchWatch.touched(); self?.player.play() }
             return .success
         }
         commands.pauseCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.player.pause() }
+            Task { @MainActor in TouchWatch.touched(); self?.player.pause() }
             return .success
         }
         commands.togglePlayPauseCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.togglePlay() }
+            Task { @MainActor in TouchWatch.touched(); self?.togglePlay() }
             return .success
         }
         commands.skipForwardCommand.preferredIntervals = [10]
         commands.skipForwardCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.skip(10) }
+            Task { @MainActor in TouchWatch.touched(); self?.skip(10) }
             return .success
         }
         commands.skipBackwardCommand.preferredIntervals = [10]
         commands.skipBackwardCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.skip(-10) }
+            Task { @MainActor in TouchWatch.touched(); self?.skip(-10) }
             return .success
         }
         commands.changePlaybackPositionCommand.addTarget { @Sendable [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             let seconds = event.positionTime
-            Task { @MainActor in self?.seek(to: seconds) }
+            Task { @MainActor in TouchWatch.touched(); self?.seek(to: seconds) }
             return .success
         }
         nowPlaying = session

@@ -14,6 +14,21 @@ public partial class MainWindow
 {
     private readonly SkipPlanner _skips = new();
     private readonly SleepTimer _sleep = new();
+    private readonly StillWatching _stillWatching = new();
+    /// <summary>The next <see cref="PlayAsync"/> is the countdown's or the end of an episode's, not a press.</summary>
+    private bool _nextByItself;
+    /// <summary>
+    /// « Tu regardes toujours ? » (<see cref="StillWatching"/>): the next episode would start by itself, and nobody has touched
+    /// the PC (Windows' last input, a controller Mira read) for three episodes. Never in a group.
+    /// </summary>
+    private bool AsksStillWatching() => !InGroup && !_demo && _stillWatching.Asks(DateTimeOffset.Now - UserIdle(), _settings.StillWatching);
+    /// <summary>The episode ended and the next one waits: the player's screen asks, or a notice over the library from the mini-player.</summary>
+    private void ShowStillWatching(MediaItem next, bool mini)
+    {
+        var reason = StillWatching.Reason(PlayerText.Subtitle(next));
+        if (mini) { ReturnToLibrary(); SetNotice(StillWatching.Question + " " + reason, StillWatching.Continue, () => _ = PlayAsync(next, keepMini: true), sticky: true); return; }
+        ShowPlayerScreen(StillWatching.Question, "eye", reason, next, mini: false, StillWatching.Continue, () => PlayAsync(next));
+    }
     private DateTimeOffset _skipSince;
     private bool _skipShown;
     private double _skipLift = double.NaN;
@@ -116,7 +131,7 @@ public partial class MainWindow
             if (TryCommand("seek", passage.End.ToString(CultureInfo.InvariantCulture), "absolute+exact")) HoldPosition(passage.End);
         }
         // Without a credits marker, the next episode during the last seconds.
-        if (_skips.Offer(_session.Position, _session.Duration, offering: _playing && _loaded && !_miniPlayer, _settings.AutoNext && !_sleep.AtEnd))
+        if (_skips.Offer(_session.Position, _session.Duration, offering: _playing && _loaded && !_miniPlayer, _settings.AutoNext && !_sleep.AtEnd && !AsksStillWatching()))
         {
             _skipSince = DateTimeOffset.UtcNow;
             if (_skips.Active is not null)
@@ -127,7 +142,7 @@ public partial class MainWindow
             }
         }
         // Playback time drives the countdown, so pausing pauses it too.
-        if (_skips.Due(_session.Position) is { } next) { _ = PlayAsync(next, _miniPlayer, completePrevious: true); return; }
+        if (_skips.Due(_session.Position) is { } next) { _nextByItself = true; _ = PlayAsync(next, _miniPlayer, completePrevious: true); return; }
         var counting = _skips.Counting;
         if (_skips.CountdownText(_session.Position) is { } label && SkipText.Text != label) SkipText.Text = label;
         if (counting && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);

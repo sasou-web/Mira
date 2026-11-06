@@ -42,6 +42,8 @@ Les boutons **Passer l’intro**, **Passer le générique** et **Passer le réca
 
 **Épisode suivant** apparaît pendant le générique de fin ou dans les 20 dernières secondes. Avec **Enchaîner les épisodes**, un compte à rebours de 10 secondes démarre ; **Annuler** reste sur cet épisode.
 
+Après 3 épisodes de suite sans que rien ne soit touché (clavier, souris, trackpad, manette, ou l’écran sur iPhone), Mira ne lance pas le suivant : il s’arrête à la fin de l’épisode et demande **Tu regardes toujours ?**, pour qu’une nuit endormi devant une série ne marque pas dix épisodes comme vus. **Continuer** lance le suivant. Jamais dans une party. Pour l’éteindre : **Réglages → Lecture → Demander si tu regardes toujours**.
+
 Mira reprend un peu avant là où tu t’es arrêté, 5 secondes par défaut, pour retrouver le fil (**Réglages → Lecture**). **Depuis le début**, sur la fiche d’un titre, repart du début.
 
 ## Mini-lecteur et image dans l’image

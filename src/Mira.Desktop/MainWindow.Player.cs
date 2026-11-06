@@ -39,6 +39,8 @@ public partial class MainWindow
     private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null, bool chosen = false)
     {
         ClosePreview(); var asked = item; Task? darkening = null;
+        // The countdown or the end of the previous episode: started by itself (« Tu regardes toujours ? »).
+        var byItself = _nextByItself; _nextByItself = false;
         if (_playBusy) return; _playBusy = true;
         // Back from the player, the title's page is laid out afresh (« Depuis le début », the progress line).
         _detailSettled = null;
@@ -99,6 +101,7 @@ public partial class MainWindow
             _playingCopy = kept; UseStream(stream);
             // After the previous playback stopped: it may have been this title, now further on or watched.
             _session.Begin(item, source, session, StartAt(), stream?.PlayMethod ?? "DirectPlay"); _loaded = false;
+            _stillWatching.Started(DateTimeOffset.Now, byItself);
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
             PlayingTitle.Content = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Content = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : PlayerText.Subtitle(item);
             ShowPlayingLinks(item);
@@ -295,7 +298,9 @@ public partial class MainWindow
             {
                 var next = following ?? await GetNextAsync(previous);
                 if (stoppedGeneration != _playGeneration || _playing) return;
-                if (next is not null) { await PlayAsync(next, keepMini); return; }
+                // « Tu regardes toujours ? »: three episodes in a row with nothing touched, the next one waits for an answer.
+                if (next is not null && AsksStillWatching()) { ShowStillWatching(next, keepMini); return; }
+                if (next is not null) { _nextByItself = true; await PlayAsync(next, keepMini); return; }
             }
             if (error is not null) { PlaybackFailed(error, previous, keepMini, RetryText, previous is null ? null : () => PlayAsync(previous, keepMini)); return; }
             ReturnToLibrary();
@@ -307,10 +312,17 @@ public partial class MainWindow
     /// A title that could not play. In the player, its own screen says so, with « Retour » and another try (as Mira
     /// web); in the mini-player, the person is browsing: the library stays, with a message that waits to be closed.
     /// </summary>
-    private void PlaybackFailed(string message, MediaItem? item, bool mini, string action, Func<Task>? onAction)
+    private void PlaybackFailed(string message, MediaItem? item, bool mini, string action, Func<Task>? onAction) =>
+        ShowPlayerScreen(L("Lecture impossible", "Can’t play this"), "warning", message, item, mini, action, onAction);
+    /// <summary>
+    /// The player's own screen once the video has stopped: a title that could not play, or « Tu regardes toujours ? »
+    /// (<paramref name="heading"/>, <paramref name="icon"/>), with « Retour » and one action.
+    /// </summary>
+    private void ShowPlayerScreen(string heading, string icon, string message, MediaItem? item, bool mini, string action, Func<Task>? onAction)
     {
         EndPip(show: false);
         if (mini) { ReturnToLibrary(); SetNotice(message, onAction is null ? null : action, onAction is null ? null : () => _ = onAction(), sticky: true); return; }
+        PlayerErrorHeading.Text = heading; PlayerErrorIcon.Kind = icon;
         if (_fullscreen) ToggleFullscreen();
         ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); ClosePreview();
         DetailOverlay.Visibility = SettingsOverlay.Visibility = Visibility.Collapsed;
@@ -345,6 +357,8 @@ public partial class MainWindow
     private async void PlayerErrorAction_Click(object sender, RoutedEventArgs e)
     {
         if (_playerErrorAction is not { } action) return;
+        // « Continuer » after « Tu regardes toujours ? »: the next episode opens in the player, which stays.
+        if (Equals(PlayerErrorAction.Content, StillWatching.Continue)) { HidePlayerError(); await action(); return; }
         // Another try keeps the screen until the player opens or fails again (which says why once more); settings leave it.
         if (!Equals(PlayerErrorAction.Content, RetryText)) { HidePlayerError(); ReturnToLibrary(); await action(); return; }
         PlayerErrorAction.IsEnabled = false; PlayerErrorText.Text = L("Nouvel essai…", "Trying again…"); Accessible.Say(PlayerErrorText);
