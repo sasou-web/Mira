@@ -50,7 +50,7 @@ Your password is never stored: Mira keeps only the session Jellyfin opens, in yo
 Mira updates itself. When it opens, then every 6 hours, it asks GitHub for a new version, downloads the disk image and keeps it only if its size and SHA-256 match the release's signed manifest. It installs it when you quit Mira, or right away with **Restart** in the notice.
 
 > [!NOTE]
-> After each update, macOS asks for your login password so that Mira can read its own keychain item. Choose **Always Allow**. This happens once per version because Mira is not signed by an Apple developer account. If you refuse, Mira simply asks you to sign in to Jellyfin again.
+> When Mira updates itself, the old version hands your session over to the new one as it quits, so macOS does not ask for anything (from the version after 0.9.4: the update to it still asks once). After an update made another way (Homebrew, or the disk image dragged by hand), macOS asks once for your login password so that Mira can read its own keychain item: choose **Always Allow**. This happens because Mira is not signed by an Apple developer account. If you refuse, Mira simply asks you to sign in to Jellyfin again.
 
 Mira cannot replace itself when it runs from the disk image, from the Downloads folder (macOS runs a protected copy), or from a folder your account cannot change. It still downloads and checks the new version, and **Open the disk image** lets you drag it to Applications.
 

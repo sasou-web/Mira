@@ -50,7 +50,7 @@ Ton mot de passe n’est jamais gardé : Mira garde seulement la session ouverte
 Mira se met à jour seule. À l’ouverture, puis toutes les 6 heures, elle demande à GitHub s’il existe une nouvelle version, télécharge l’image disque et ne la garde que si sa taille et son SHA-256 sont ceux du manifeste signé de la version. Elle l’installe quand tu quittes Mira, ou tout de suite avec **Redémarrer** dans l’avis.
 
 > [!NOTE]
-> Après chaque mise à jour, macOS demande ton mot de passe de session pour laisser Mira lire son propre élément du trousseau. Choisis **Toujours autoriser**. Ça arrive une fois par version, parce que Mira n’est pas signée par un compte développeur Apple. Si tu refuses, Mira te demande simplement de te reconnecter à Jellyfin.
+> Quand Mira se met à jour seule, l’ancienne version passe ta session à la nouvelle en quittant : macOS ne demande rien (depuis la version d’après la 0.9.4 : la mise à jour vers elle demande encore une fois). Après une mise à jour faite autrement (Homebrew, ou l’image disque glissée à la main), macOS demande une fois ton mot de passe de session pour laisser Mira lire son propre élément du trousseau : choisis **Toujours autoriser**. Ça arrive parce que Mira n’est pas signée par un compte développeur Apple. Si tu refuses, Mira te demande simplement de te reconnecter à Jellyfin.
 
 Mira ne peut pas se remplacer quand elle tourne depuis l’image disque, depuis le dossier Téléchargements (macOS lance une copie protégée), ou depuis un dossier que ton compte ne peut pas modifier. Elle télécharge et vérifie quand même la nouvelle version, et **Ouvrir l’image disque** te laisse la glisser dans Applications.
 

@@ -98,6 +98,11 @@ public sealed class Profile
         DeleteMarker(Trusted);
         var path = Path.Combine(DirectoryPath, "session.json"); if (File.Exists(path)) File.Delete(path);
     }
+    /// <summary>
+    /// Just before the new version replaces this one: the keychain's entries go to it without macOS asking for the Mac's
+    /// password (<see cref="KeychainVault.HandOver"/>). False when there is nothing to give, or no keychain.
+    /// </summary>
+    public bool HandOverKeychain() => _tokens is KeychainVault vault && vault.HandOver();
     // Small files beside session.json: a token to remove from the keychain, the version that stored it last, the version
     // the keychain refused.
     private const string Forget = "keychain-forget", Trusted = "keychain-version", Refused = "keychain-refused";

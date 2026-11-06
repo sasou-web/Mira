@@ -644,5 +644,40 @@ internal static class ConnectionTests
             Assert(keychain.Tokens.Count == 0, "Item left once both secrets were gone");
             return Task.CompletedTask;
         });
+        await Test("Mac : la version que Mira installe reçoit le trousseau de la précédente, sans que macOS demande le mot de passe", () =>
+        {
+            var folder = Path.Combine(testRoot, "mac-handover"); var keychain = new TokenStandIn();
+            var tailnet = Path.Combine(folder, "tailscale");
+            var handOver = Path.Combine(folder, Mira.Mac.Services.KeychainVault.HandOverName);
+            Mira.Mac.Services.Profile Launch() => new(folder, new Mira.Mac.Services.KeychainVault(keychain, folder));
+            var profile = Launch();
+            // Nothing read in this launch: nothing to give, the item stays as it is.
+            Assert(!profile.HandOverKeychain() && !File.Exists(handOver), "Handed over an item never read");
+            profile.SaveConnection(new Connection("http://nas:8096/", "user", "Alice", "token-1", profile.DeviceId));
+            var key = Convert.ToBase64String(profile.TailnetKey()!);
+            // The quit that installs the new version: the entries leave the item, which only this copy reads without a question.
+            Assert(profile.HandOverKeychain() && File.Exists(handOver) && keychain.Tokens.Count == 0, "Entries not handed over, or left in an item the new version cannot read");
+            if (!OperatingSystem.IsWindows())
+                Assert((File.GetUnixFileMode(handOver) & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite)) == 0, "Handed-over file open to others");
+            // The new version: an item of its own, made from the file, the old one never read (macOS would ask the password).
+            keychain.Reads.Clear();
+            var next = Launch();
+            Assert(next.LoadConnection()?.Token == "token-1" && Convert.ToBase64String(next.TailnetKey()!) == key, "Secrets lost in the handover");
+            Assert(!keychain.Reads.Contains(folder) && !File.Exists(handOver) && keychain.Tokens.Keys.Single() == folder, $"Old item read, or file left: {string.Join(", ", keychain.Reads)}");
+            // The keychain refuses the new item (locked): the secrets are used from the file, and move in at a later launch.
+            next.HandOverKeychain(); keychain.RefuseStore = true;
+            Assert(Launch().LoadConnection()?.Token == "token-1" && File.Exists(handOver), "Secrets lost when the keychain refused them");
+            keychain.RefuseStore = false;
+            var later = Launch();
+            Assert(later.LoadConnection()?.Token == "token-1" && !File.Exists(handOver) && keychain.Tokens.ContainsKey(folder), "Handed-over secrets never moved back into the keychain");
+            // Signed out while the keychain refused them: the token leaves at the next launch and is never used again.
+            later.HandOverKeychain(); keychain.RefuseStore = true;
+            var signedOut = Launch();
+            signedOut.LoadConnection(); signedOut.ClearConnection(); keychain.RefuseStore = false;
+            Assert(Launch().LoadConnection() is null, "A signed-out session came back from the handed-over file");
+            var after = new Mira.Mac.Services.KeychainVault(keychain, folder);
+            Assert(after.Read(folder) is null && after.Read(tailnet) == key && !File.Exists(handOver), "Signed-out token kept, or the node's key lost");
+            return Task.CompletedTask;
+        });
     }
 }

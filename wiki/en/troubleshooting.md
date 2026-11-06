@@ -51,7 +51,7 @@ Mira says what is wrong in its own words, with a button that helps when there is
 | Symptom | What to do |
 | --- | --- |
 | Windows: an update doesn't install | **Settings → Mira on this PC** shows the last error; `data\updates\update.log` has the details. Mira's folder must stay writable. |
-| Mac: Mira asks for the keychain after each update | Normal, once per version: choose **Always Allow**. See [Install on Mac](mac.md#updates). |
+| Mac: Mira asks for the keychain after an update | Only after an update made by Homebrew or by hand, once per version: choose **Always Allow**. See [Install on Mac](mac.md#updates). |
 | iPhone: Mira no longer opens | It expired after 7 days. Open AltStore at home and tap **Refresh All**. Nothing is lost. |
 
 ## Still stuck?
