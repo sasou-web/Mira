@@ -340,27 +340,39 @@ public static class SelfCheck
                 await seriesPage.RefreshAsync(); await seriesPage.RefreshAsync();
                 Check(seriesPage.EpisodesShown, "fiche d’une série : épisodes gardés après une actualisation");
             }
-            // Two fingers to the right: the page before (the series grid); to the left: this page again.
+            // Two fingers to the right: the page follows them, the one before (the series grid) under it; let go short of
+            // the way, it comes back; past it, the page before; to the left: this page again.
+            const string swipeCheck = "trackpad : la page suit deux doigts, revient lâchée trop tôt ; vers la droite = Retour, vers la gauche = Avant";
             var swipeAt = new Point(window.Bounds.Width / 2, 140);
             if (window.InputHitTest(swipeAt) is Avalonia.Interactivity.Interactive swipeTarget && window.Current is DetailPage swipedFrom)
             {
+                Swipe(swipeTarget, swipeAt, .15, 0, 8);
+                var followed = window.Sliding;
+                var cameBack = await Until(() => !window.Sliding, 3) && window.Current == swipedFrom;
                 Swipe(swipeTarget, swipeAt, .15, 0, 30);
-                var wentBack = window.Current is BrowsePage;
+                // Under the fingers, before they leave: the title page on top, the series grid coming under it.
+                Capture(window, output, "06b-swipe-back");
+                var wentBack = await Until(() => window.Current is BrowsePage && !window.Sliding, 3);
                 if (window.InputHitTest(swipeAt) is Avalonia.Interactivity.Interactive back) Swipe(back, swipeAt, -.15, 0, 30);
-                Check(wentBack && window.Current == swipedFrom, "trackpad : deux doigts vers la droite = Retour, vers la gauche = Avant", $"retour {wentBack}, puis {window.Current?.GetType().Name}");
+                var forward = await Until(() => window.Current == swipedFrom && !window.Sliding, 3);
+                Check(followed && cameBack && wentBack && forward, swipeCheck, $"suit {followed}, revenue {cameBack}, retour {wentBack}, avant {forward} ({window.Current?.GetType().Name})");
             }
-            else Check(false, "trackpad : deux doigts vers la droite = Retour, vers la gauche = Avant", "rien sous le pointeur");
+            else Check(false, swipeCheck, "rien sous le pointeur");
             // A pinch (or ⌘+) makes the grid's posters larger: fewer of them on a line.
             window.Go("Movie");
             if (await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15))
             {
                 await Task.Delay(500);
                 var grid = window.Current!.GetVisualDescendants().OfType<Mira.Mac.Views.CardGrid>().First();
-                var narrow = grid.Children[0].Bounds.Width;
-                window.ZoomGrids(Trackpad.ZoomMax); await Task.Delay(300);
-                var wide = grid.Children[0].Bounds.Width;
-                window.ZoomGrids(1); await Task.Delay(300);
-                Check(wide > narrow * 1.3 && Math.Abs(grid.Children[0].Bounds.Width - narrow) < 1, "trackpad : pincer agrandit les affiches de la grille", $"{narrow:0} → {wide:0} px, puis {grid.Children[0].Bounds.Width:0}");
+                var first = grid.Children[0];
+                var narrow = first.Bounds.Width;
+                window.ZoomGrids(Trackpad.ZoomMax);
+                // The poster glides from its old size to its new one, then rests there.
+                var glided = first.RenderTransform is not null;
+                var settled = await Until(() => first.RenderTransform is null, 3);
+                var wide = first.Bounds.Width;
+                window.ZoomGrids(1); await Until(() => first.RenderTransform is null, 3);
+                Check(wide > narrow * 1.3 && Math.Abs(first.Bounds.Width - narrow) < 1 && glided && settled, "trackpad : pincer agrandit les affiches de la grille, qui glissent à leur place", $"{narrow:0} → {wide:0} px, puis {first.Bounds.Width:0} ; glisse {glided}, posée {settled}");
             }
             SettingsPage.OpenAt("playback");
             window.Go("settings");

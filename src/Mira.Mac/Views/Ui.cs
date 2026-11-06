@@ -20,6 +20,10 @@ public static class Ui
     /// <summary>The glyph of a poster without artwork, as on Windows (MediaCard): decorative, never text.</summary>
     public static readonly IBrush Glyph = Brush("#4E4E57");
     public static SolidColorBrush Brush(string color) => new(Color.Parse(color));
+    /// <summary>When the wheel or the trackpad last scrolled (Environment.TickCount64), set by the window for every event, momentum included.</summary>
+    public static long ScrolledAt { get; set; } = long.MinValue / 2;
+    /// <summary>The page is scrolling under the pointer: what is under it changes without the pointer moving.</summary>
+    public static bool Scrolling => Environment.TickCount64 - ScrolledAt < 250;
 
     public static TextBlock Text(string text, double size = 14, FontWeight weight = FontWeight.Normal, IBrush? color = null, string? classes = null)
     {
@@ -205,7 +209,9 @@ public sealed class CardGrid : Panel
     public static int Pixels => Zoom > 1.05 ? 540 : 360;
     public double Gap { get; set; } = 22;
     public double RowGap { get; set; } = 30;
-    private int Columns(double width) => Math.Max(1, (int)Math.Floor((width + Gap) / (MinItemWidth * Zoom + Gap)));
+    private int Columns(double width, double? zoom = null) => Math.Max(1, (int)Math.Floor((width + Gap) / (MinItemWidth * (zoom ?? Zoom) + Gap)));
+    /// <summary>The posters on a line at its width with <paramref name="zoom"/>: their size changes only with it.</summary>
+    public int ColumnsAt(double zoom) => Columns(Bounds.Width > 0 ? Bounds.Width : 1200 - 140, zoom);
     /// <summary>The columns at its width now (a page not laid out yet counts a window of 1200).</summary>
     public int ColumnsShown => Columns(Bounds.Width > 0 ? Bounds.Width : 1200 - 140);
     /// <summary>
@@ -426,13 +432,20 @@ public static class Cards
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
         Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0C"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
     };
-    /// <summary>A slight lift under the pointer.</summary>
+    private static readonly ITransform Lifted = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1.03)"), Resting = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1)");
+    /// <summary>
+    /// A slight lift under the pointer, the pointer's own doing: while the page scrolls the cards by under a still
+    /// pointer (<see cref="Ui.Scrolling"/>), none lifts and drops on its way; the one under it lifts once the pointer moves.
+    /// </summary>
     private static void Hover(Button button, Control art)
     {
-        art.RenderTransform = new ScaleTransform(1, 1);
+        art.RenderTransform = Resting;
         art.Transitions = [new TransformOperationsTransition { Property = Visual.RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(160) }];
-        button.PointerEntered += (_, _) => art.RenderTransform = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1.03)");
-        button.PointerExited += (_, _) => art.RenderTransform = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1)");
+        var lifted = false;
+        void Lift(bool up) { if (up == lifted) return; lifted = up; art.RenderTransform = up ? Lifted : Resting; }
+        button.PointerEntered += (_, _) => { if (!Ui.Scrolling) Lift(true); };
+        button.PointerMoved += (_, _) => { if (!lifted && !Ui.Scrolling) Lift(true); };
+        button.PointerExited += (_, _) => Lift(false);
     }
 }
 
@@ -543,14 +556,19 @@ public sealed class CardRow : StackPanel
         Children.Add(header); Children.Add(_scroll);
         _scroll.ScrollChanged += (_, _) => UpdateArrows();
         _scroll.SizeChanged += (_, _) => UpdateArrows();
-        // A trackpad's swipe down carries a little sideways: over a row, the row took all of it and the page stood still.
+        // One gesture over a row is the row's or the page's, whole, as in Apple's TV app: a swipe down carries a little
+        // sideways (the row took it all and the page stood still), a swipe along the row a little up or down (each event
+        // went to the row or the page, by turns: the page shook). The window decides the gesture's way on its first points.
         _scroll.AddHandler(PointerWheelChangedEvent, (_, e) =>
         {
-            if (Math.Abs(e.Delta.Y) <= Math.Abs(e.Delta.X) || e.KeyModifiers == Avalonia.Input.KeyModifiers.Shift) return;
-            if (Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<ScrollViewer>(this) is not { } page) return;
+            if (e.KeyModifiers == Avalonia.Input.KeyModifiers.Shift) return;
+            var axis = TopLevel.GetTopLevel(this) is MainWindow window ? window.GestureAxis : SwipeAxis.Undecided;
+            var down = axis == SwipeAxis.Undecided ? Math.Abs(e.Delta.Y) > Math.Abs(e.Delta.X) : axis == SwipeAxis.Vertical;
             e.Handled = true;
-            // As Avalonia's own wheel step for a page (ScrollContentPresenter: 50 per unit).
-            page.Offset = new Vector(page.Offset.X, Math.Clamp(page.Offset.Y - e.Delta.Y * 50, 0, Math.Max(0, page.Extent.Height - page.Viewport.Height)));
+            // As Avalonia's own wheel step (ScrollContentPresenter: 50 per unit), the other way left out.
+            if (!down) _scroll.Offset = new Vector(Math.Clamp(_scroll.Offset.X - e.Delta.X * 50, 0, Maximum), 0);
+            else if (Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<ScrollViewer>(this) is { } page)
+                page.Offset = new Vector(page.Offset.X, Math.Clamp(page.Offset.Y - e.Delta.Y * 50, 0, Math.Max(0, page.Extent.Height - page.Viewport.Height)));
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
     }
     private double Maximum => Math.Max(0, _scroll.Extent.Width - _scroll.Viewport.Width);

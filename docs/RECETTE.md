@@ -47,7 +47,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Installation du `.dmg` (« Ouvrir quand même ») et premier lancement
 - [ ] Mise à jour automatique vers la version suivante (« Redémarrer »)
 - [ ] Image ni grise ni noire ; sinon ⋮ → Informations, ligne « Réparé »
-- [ ] Trackpad : défiler, glisser à deux doigts entre les pages, balayage à trois doigts, pincer dans le lecteur
+- [ ] Trackpad : défiler (Accueil : un geste = la page ou la rangée), glisser à deux doigts entre les pages (la page suit les doigts, revient si lâchée tôt), pincer dans les grilles (affiches qui glissent), balayage à trois doigts, pincer dans le lecteur
 - [ ] Image dans l'image (petite fenêtre flottante)
 - [ ] Tailscale intégré : connexion, trousseau gardé après une mise à jour
 
