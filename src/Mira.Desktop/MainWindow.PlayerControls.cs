@@ -254,7 +254,7 @@ public partial class MainWindow
         if (_mpv is null || !_loaded || _session.Duration <= 0) return;
         var target = Math.Min(_session.Duration * tenth / 10, Math.Max(0, _session.Duration - .5));
         if (!TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
-        HoldPosition(target); ShowSeekPill($"{tenth * 10} %"); ShowPlayerControls();
+        HoldPosition(target); ShowSeekPill($"{tenth * 10} %"); ShowPlayerControls(); SeekedForGroup();
     }
     private string? _subtitlesBeforeOff; private int? _convertedBeforeOff;
     /// <summary>C: subtitles off, and on again with the track that was showing (else the first one).</summary>
@@ -350,7 +350,7 @@ public partial class MainWindow
     {
         _seeking = false; _lastScrub = DateTimeOffset.MinValue;
         if (_mpv is null || !_loaded) return;
-        if (TryCommand("seek", seconds.ToString(CultureInfo.InvariantCulture), "absolute+exact")) HoldPosition(seconds);
+        if (TryCommand("seek", seconds.ToString(CultureInfo.InvariantCulture), "absolute+exact")) { HoldPosition(seconds); SeekedForGroup(); }
         ShowPlayerControls();
     }
     /// <summary>Name of the chapter being played, above the time, as long as the file names its chapters.</summary>

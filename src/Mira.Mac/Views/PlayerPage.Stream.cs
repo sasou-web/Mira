@@ -117,6 +117,8 @@ public sealed partial class PlayerPage
         _session.Reopened(stream.Source, stream.PlaySessionId, stream.PlayMethod); _session.Position = position;
         if (_fileOpen) _skipEnds++;
         _fileOpen = true; _loaded = false; _reloading = true;
+        // In a group, the others wait for this Mac on its new stream, then all go on together (GroupRestarted).
+        ReopenedForGroup(position, !keepPaused);
         _mpv.Load(stream.Location, position, stream.Authorization, keepPaused);
         return true;
     }

@@ -6,6 +6,8 @@ import Observation
 protocol GroupPlayer: AnyObject {
     var groupItemId: String? { get }
     var groupPosition: Double { get }
+    /// Paused here (or opening paused): a group made meanwhile keeps it paused.
+    var groupPaused: Bool { get }
     /// The group's title again, from `startTicks`: paused there, then « ready ».
     func groupPrepare(_ startTicks: Int64)
     /// The group put another title on (the next episode, a title chosen on another device).
@@ -409,6 +411,7 @@ final class Together {
                     try? await Task.sleep(for: .seconds(60))
                 }
             }
+            if !again { share() }
         case "UserJoined", "UserLeft":
             guard group != nil, let name = data as? String else { return }
             let said = SyncRules.memberText(name, joined: update["Type"] as? String == "UserJoined")
@@ -432,6 +435,22 @@ final class Together {
             playQueue(data as? [String: Any] ?? [:])
         default:
             break
+        }
+    }
+
+    /// A group made while a title plays here (the player reduced over the title's page): the player follows the group
+    /// from now on, and its title becomes the group's, from where it is, paused if it was. Otherwise the group stays
+    /// empty, and whoever joins gets nothing until the title is started again (Jellyfin sends a newcomer the group's
+    /// title only). Jellyfin answers with a PlayQueue of this title, which waits here a moment for the group, then goes on.
+    private func share() {
+        guard player == nil, let session = app?.player, session.groupItemId != nil else { return }
+        player = session
+        guard made, queue == nil, let itemId = session.groupItemId else { return }
+        let ticks = Int64(session.groupPosition * 10_000_000), paused = session.groupPaused
+        Task {
+            await start(itemId, startTicks: ticks)
+            // Jellyfin plays a new title for the group once everyone is ready: asked to wait paused instead.
+            if paused { pause() }
         }
     }
 

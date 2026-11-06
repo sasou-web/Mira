@@ -150,6 +150,6 @@ public partial class MainWindow
         if (_skips.Active is not { } segment || _mpv is null || !_loaded) return;
         if (_skips.ToNext && _skips.Next is { } next) { await PlayAsync(next, _miniPlayer, completePrevious: true); return; }
         if (!TryCommand("seek", segment.End.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
-        HoldPosition(segment.End); SetSkipVisible(false);
+        HoldPosition(segment.End); SetSkipVisible(false); SeekedForGroup();
     }
 }

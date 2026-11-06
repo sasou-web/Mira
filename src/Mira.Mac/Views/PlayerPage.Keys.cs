@@ -96,7 +96,7 @@ public sealed partial class PlayerPage
         if (_mpv is null || !_loaded || _session.Duration <= 0) return;
         var target = Math.Min(_session.Duration * tenth / 10, Math.Max(0, _session.Duration - .5));
         if (!_mpv.TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
-        Hold(target); ShowSeekPill($"{tenth * 10} %"); ShowControls();
+        Hold(target); ShowSeekPill($"{tenth * 10} %"); ShowControls(); SeekedForGroup();
     }
 
     /// <summary>
