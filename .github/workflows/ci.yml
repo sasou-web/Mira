@@ -54,6 +54,9 @@ jobs:
           chmod +x "$RUNNER_TEMP/qbittorrent-nox-5"
           qbittorrent-nox --version
           "$RUNNER_TEMP/qbittorrent-nox-5" --version
+      # The performance budgets' rules (tools/perf/budget.mjs, budgets.json), held by the jobs smooth and build.
+      - name: Performance budgets' rules
+        run: node --test tools/perf/budget.test.mjs
       - name: Tests free of WPF (Linux)
         env:
           MIRA_QBITTORRENT: /usr/bin/qbittorrent-nox
@@ -114,6 +117,10 @@ jobs:
     runs-on: windows-latest
     # About 8 minutes, a few more when Go's cache is cold (a new go.sum).
     timeout-minutes: 20
+    # actions: read for main's numbers at rest (tools/perf/main-reports.sh).
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -193,11 +200,34 @@ jobs:
       - name: Real player (libmpv, synthetic clip)
         shell: pwsh
         run: ./tools/player-check.ps1 -Output .artifacts/interface
-      # Mira left alone on its Home for 60 s: processor, memory and bytes written, in the log and the job's summary, to
-      # see a drift from one version to the next (tools/idle-check.ps1). Numbers only: nothing fails on them.
+      # Mira left alone on its Home for 60 s: processor, memory and bytes written, in the log and the job's summary
+      # (tools/idle-check.ps1), held to tools/perf/budgets.json (source "idle") and, on a pull request, compared with
+      # main's last run (a warning only). Past a budget, measured once more: a failure only when both runs are past it.
       - name: Mira at rest (60 s)
         shell: pwsh
-        run: ./tools/idle-check.ps1
+        run: ./tools/idle-check.ps1 -Report .artifacts/perf/idle.json
+      - name: main's numbers at rest, to compare with
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/perf/main-reports.sh Mira-perf .artifacts/main-perf
+      - name: Budget at rest
+        shell: pwsh
+        run: |
+          node tools/perf/budget.mjs idle .artifacts/perf/idle.json --baseline .artifacts/main-perf/idle.json --title 'Mira at rest (Windows)'
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output 'Past a budget: measured once more.'
+            ./tools/idle-check.ps1 -Report .artifacts/perf/idle-again.json
+            node tools/perf/budget.mjs idle .artifacts/perf/idle.json .artifacts/perf/idle-again.json --title 'Mira at rest (Windows), measured again'
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Mira-perf
+          path: .artifacts/perf/*.json
+          retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-interface
@@ -323,10 +353,15 @@ jobs:
   # How smooth the pages are (tools/smooth-check.ps1): Mira signed in to a Jellyfin answered inside it, the wheel down
   # and up the pages, the rail's pages, a title's page and Settings, frame by frame, in the log and the job's summary.
   # The runner draws without a graphics card (WARP) on a small screen at 60 Hz: its numbers compare one commit with
-  # another, never with a real PC. Nothing fails on them, only a check that could not run.
+  # another, never with a real PC. Held to tools/perf/budgets.json (windows-edge, windows-offscreen): a budget's
+  # "fail" sits far past what runners measure, and a placement past one is measured once more, failing only when both
+  # runs are; on a pull request, each number is also compared with main's last run (a warning only).
   smooth:
     runs-on: windows-latest
     timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
     steps:
@@ -345,6 +380,26 @@ jobs:
         run: |
           ./tools/smooth-check.ps1 -Output .artifacts/smooth/edge -Placement edge
           ./tools/smooth-check.ps1 -Output .artifacts/smooth/offscreen -Placement offscreen
+      - name: main's smoothness, to compare with
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/perf/main-reports.sh Mira-smooth .artifacts/main-smooth
+      - name: Smoothness budgets
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($placement in 'edge', 'offscreen') {
+            node tools/perf/budget.mjs windows-$placement .artifacts/smooth/$placement/report.json --baseline .artifacts/main-smooth/$placement/report.json --title "Smoothness budgets ($placement)"
+            if ($LASTEXITCODE -eq 0) { continue }
+            Write-Output "Past a budget ($placement): measured once more."
+            ./tools/smooth-check.ps1 -Output .artifacts/smooth/$placement-again -Placement $placement
+            node tools/perf/budget.mjs windows-$placement .artifacts/smooth/$placement/report.json .artifacts/smooth/$placement-again/report.json --title "Smoothness budgets ($placement), measured again"
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { exit 1 }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
