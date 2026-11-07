@@ -127,9 +127,10 @@ jobs:
           $log = Join-Path $env:RUNNER_TEMP 'winget-logs'
           New-Item -ItemType Directory -Force $log | Out-Null
           # Setup's own log beside winget's, read whatever happens; 10 minutes at most (winget waits on Setup forever).
-          $install = Start-Process winget -PassThru -NoNewWindow -ArgumentList @('install', '--manifest', $dir, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--verbose-logs', '--log', "$log\winget.log", '--custom', "/LOG=`"$log\setup.log`"")
+          $install = Start-Process winget -PassThru -NoNewWindow -RedirectStandardOutput "$log\console.txt" -RedirectStandardError "$log\console-errors.txt" -ArgumentList @('install', '--manifest', $dir, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--verbose-logs', '--log', "$log\winget.log", '--custom', "/LOG=`"$log\setup.log`"")
           $done = $install.WaitForExit(600000)
-          foreach ($f in Get-ChildItem $log -File) { Write-Output "::group::$($f.Name)"; Get-Content $f.FullName -Tail 80; Write-Output '::endgroup::' }
+          $diag = @("$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir", "$env:TEMP\WinGet\defaultState") | Where-Object { Test-Path $_ }
+          foreach ($f in @(Get-ChildItem $log -File) + @($diag | ForEach-Object { Get-ChildItem $_ -File -Recurse | Sort-Object LastWriteTime | Select-Object -Last 2 })) { Write-Output "::group::$($f.Name)"; Get-Content $f.FullName -Tail 80; Write-Output '::endgroup::' }
           Get-Process | Where-Object { $_.ProcessName -match 'Mira|setup|\.tmp' } | Format-Table Id, ProcessName, StartTime -AutoSize | Out-String | Write-Output
           if (-not $done) { throw 'winget install still running after 10 minutes.' }
           if ($install.ExitCode -ne 0) { throw "winget install: $($install.ExitCode)" }
