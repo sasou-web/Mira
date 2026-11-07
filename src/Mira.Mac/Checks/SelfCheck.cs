@@ -259,11 +259,11 @@ public static class SelfCheck
             var bar = window.MenuBar();
             var command = window.PlatformSettings?.HotkeyConfiguration.CommandModifiers ?? KeyModifiers.Meta;
             KeyGesture? KeysOf(string name) => bar.FirstOrDefault(x => x.Item == name).Keys;
-            Check(bar.Select(x => x.Menu).Distinct().SequenceEqual([Lang.L("Édition", "Edit"), Lang.L("Présentation", "View"), Lang.L("Aller", "Go"), Lang.L("Fenêtre", "Window")])
+            Check(bar.Select(x => x.Menu).Distinct().SequenceEqual([Lang.L("Édition", "Edit"), Lang.L("Présentation", "View"), Lang.L("Aller", "Go"), Lang.L("Fenêtre", "Window"), Lang.L("Aide", "Help")])
                 && Equals(KeysOf(Lang.L("Passer en mode plein écran", "Enter Full Screen")), new KeyGesture(Avalonia.Input.Key.F, KeyModifiers.Control | KeyModifiers.Meta)) && Equals(KeysOf(Lang.L("Placer dans le Dock", "Minimize")), new KeyGesture(Avalonia.Input.Key.M, command))
                 && Equals(KeysOf(Lang.L("Fermer la fenêtre", "Close Window")), new KeyGesture(Avalonia.Input.Key.W, command)) && Equals(KeysOf(Lang.L("Précédent", "Back")), new KeyGesture(Avalonia.Input.Key.OemOpenBrackets, command))
                 && KeysOf(Lang.L("Copier", "Copy")) is not null && KeysOf(Lang.L("Coller", "Paste")) is not null,
-                "barre des menus : Édition, Présentation, Aller, Fenêtre et leurs raccourcis", string.Join(", ", bar.Select(x => x.Keys is { } k ? $"{x.Item} {k}" : x.Item)));
+                "barre des menus : Édition, Présentation, Aller, Fenêtre, Aide et leurs raccourcis", string.Join(", ", bar.Select(x => x.Keys is { } k ? $"{x.Item} {k}" : x.Item)));
             window.ChooseInMenu(Lang.L("Précédent", "Back"));
             var backed = await Until(() => window.Current is not DetailPage, 3);
             window.ChooseInMenu(Lang.L("Suivant", "Forward"));
@@ -273,6 +273,23 @@ public static class SelfCheck
             await Task.Delay(1000);
             full = full && window.ChooseInMenu(Lang.L("Quitter le mode plein écran", "Exit Full Screen"));
             Check(full && await Until(() => window.WindowState != WindowState.FullScreen, 3), "barre des menus : plein écran (⌃⌘F) et retour", window.WindowState.ToString());
+            await Task.Delay(800);
+            // Aide (MainWindow.Shortcuts.cs): the shortcuts in a sheet (⌘/), the guide and the report beside them.
+            Check(Equals(KeysOf(Lang.L("Raccourcis clavier", "Keyboard Shortcuts")), new KeyGesture(Avalonia.Input.Key.OemQuestion, command))
+                && KeysOf(Lang.L("Guide de Mira pour Mac", "Mira for Mac Guide")) is null && bar.Any(x => x.Item == Lang.L("Exporter un rapport…", "Export a Report…"))
+                && MainWindow.Guide.Host == "wiki.miracinema.app", "barre des menus : Aide (guide, raccourcis ⌘/, rapport)", MainWindow.Guide.ToString());
+            window.ChooseInMenu(Lang.L("Raccourcis clavier", "Keyboard Shortcuts"));
+            var lines = MainWindow.Shortcuts.Sum(x => x.Lines.Count);
+            Check(await Until(() => window.CurrentSheet is { Tag: "shortcuts" }, 3), "Aide : raccourcis clavier", $"{lines} raccourcis");
+            await Task.Delay(500); Capture(window, output, "05h-shortcuts");
+            if (window.CurrentSheet is { } shortcuts) window.CloseSheet(shortcuts);
+            // ⌘W as on a Mac (MainWindow.MacWindow.cs): the window goes to the Dock, Mira keeps running, the Dock icon brings it
+            // back; its place remembered for the next opening. Called directly: on Linux closing still quits.
+            await window.CloseToDockAsync();
+            var docked = window.InDock && !window.IsVisible && window.Settings.WindowX is not null;
+            window.Reopen();
+            Check(docked && await Until(() => window.IsVisible && !window.InDock, 3) && window.Current is DetailPage, "⌘W : fenêtre dans le Dock, rouverte au clic, place gardée",
+                $"x {window.Settings.WindowX}, y {window.Settings.WindowY}");
             await Task.Delay(800);
             if (mock is not null && window.Current is DetailPage still)
             {

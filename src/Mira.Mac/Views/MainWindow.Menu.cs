@@ -1,11 +1,12 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Mira.Mac.Services;
 using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
-// The menu bar of a Mac app, beside Mira's own menu (App.axaml): Édition, Présentation, Aller, Fenêtre, their keys shown
+// The menu bar of a Mac app, beside Mira's own menu (App.axaml): Édition, Présentation, Aller, Fenêtre, Aide, their keys shown
 // as macOS shows them. macOS gives a key the menu has to the menu, never to the window: so an item whose keys Mira
 // already reads does no more than press them again where the focus is (Replay), and the key does what it did before
 // the menu, the field's copy and paste, ⌘[ that reduces the player, from the keys or from the menu alike.
@@ -44,10 +45,18 @@ public sealed partial class MainWindow
             Item(L("Placer dans le Dock", "Minimize"), new KeyGesture(Key.M, command), () => { if (WindowState != WindowState.FullScreen) WindowState = WindowState.Minimized; }),
             Item(L("Réduire/agrandir", "Zoom"), null, () => { if (WindowState != WindowState.FullScreen) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; }),
             null,
-            // Mira's only window: closing it quits Mira, as System Settings does.
+            // As in Music or Mail: the window goes, Mira stays in the Dock, a click on its icon brings it back (MainWindow.MacWindow.cs).
             Item(L("Fermer la fenêtre", "Close Window"), new KeyGesture(Key.W, command), Close));
-        NativeMenu.SetMenu(this, new NativeMenu { Items = { edit, view, go, window } });
+        // The menu macOS names Help (it adds its search field to it): the guide, the shortcuts, a report for a problem.
+        var help = Menu(L("Aide", "Help"),
+            Item(L("Guide de Mira pour Mac", "Mira for Mac Guide"), null, () => Updates.Open(Guide)),
+            Item(L("Raccourcis clavier", "Keyboard Shortcuts"), new KeyGesture(Key.OemQuestion, command), () => { Reopen(); ShowShortcuts(); }),
+            null,
+            Item(L("Exporter un rapport…", "Export a Report…"), null, () => { Reopen(); _ = ExportReportAsync(); }));
+        NativeMenu.SetMenu(this, new NativeMenu { Items = { edit, view, go, window, help } });
     }
+    /// <summary>The Mac page of wiki.miracinema.app, in Mira's language: opened in the browser, never by Mira itself.</summary>
+    public static Uri Guide => new(IsFrench ? "https://wiki.miracinema.app/fr/mac/" : "https://wiki.miracinema.app/mac/");
     private static NativeMenuItem Menu(string header, params NativeMenuItemBase?[] items)
     {
         var menu = new NativeMenu();

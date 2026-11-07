@@ -21,16 +21,18 @@ The bar shows the title and episode on the left, the chapter and time on the rig
 | --- | --- | --- |
 | Play / pause | <kbd>Space</kbd> or <kbd>K</kbd> | <kbd>Space</kbd> or <kbd>K</kbd> |
 | Back / forward 10 seconds | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> |
-| Back / forward 1 minute | <kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | <kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> |
+| Back / forward 1 minute | <kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | <kbd>⇧</kbd> + <kbd>←</kbd> / <kbd>→</kbd> |
 | Jump to 0 %, 10 %… 90 % | <kbd>0</kbd> to <kbd>9</kbd> | <kbd>0</kbd> to <kbd>9</kbd> |
 | Volume | <kbd>↑</kbd> / <kbd>↓</kbd>, mouse wheel | <kbd>↑</kbd> / <kbd>↓</kbd> |
 | Mute | <kbd>M</kbd> | <kbd>M</kbd> |
 | Subtitles off / on | <kbd>C</kbd> | <kbd>C</kbd> |
-| Full screen | <kbd>F</kbd>, <kbd>F11</kbd>, double click | <kbd>F</kbd>, double click |
+| Full screen | <kbd>F</kbd>, <kbd>F11</kbd>, double click | <kbd>F</kbd>, <kbd>⌃</kbd> + <kbd>⌘</kbd> + <kbd>F</kbd>, double click |
 | Mini player | <kbd>I</kbd> | <kbd>I</kbd>, <kbd>⌘</kbd> + <kbd>[</kbd> |
 | Skip the intro, recap or credits | <kbd>S</kbd> | <kbd>S</kbd> |
 | Next episode | <kbd>N</kbd> | <kbd>N</kbd> |
 | Back, leave full screen | <kbd>Esc</kbd> | <kbd>Esc</kbd> |
+
+On Mac, **Help → Keyboard Shortcuts** (<kbd>⌘</kbd> + <kbd>/</kbd>) lists them all, the library's too.
 
 ### Media keys
 

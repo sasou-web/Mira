@@ -135,7 +135,7 @@ public sealed partial class MainWindow : Window
         Tailnet = new BuiltInTailscale(this);
         Title = "Mira"; MinWidth = 960; MinHeight = 600;
         Width = Settings.WindowWidth > 0 ? Settings.WindowWidth : 1440; Height = Settings.WindowHeight > 0 ? Settings.WindowHeight : 900;
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        PlaceWindow();
         if (Settings.WindowMaximized) WindowState = WindowState.Maximized;
         if (OperatingSystem.IsMacOS())
         {
@@ -203,7 +203,8 @@ public sealed partial class MainWindow : Window
         AddHandler(PointerWheelChangedEvent, OnWheel, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         MenuBase.ClosedEvent.AddClassHandler<MenuBase>((_, _) => Dispatcher.UIThread.Post(ReleasePointer));
         Closing += OnClosing;
-        Opened += async (_, _) => await StartAsync();
+        // Once: Avalonia says Opened again each time the window comes back from the Dock (Reopen).
+        Opened += async (_, _) => { if (_started) return; _started = true; await StartAsync(); };
     }
 
     private Border BuildRail()
@@ -1032,19 +1033,21 @@ public sealed partial class MainWindow : Window
         // I brings the mini-player back over the window, as on Windows; never while typing.
         if (e.Key == Key.I && e.KeyModifiers == KeyModifiers.None && Player is { IsMini: true } mini && e.Source is not TextBox) { mini.SetMini(false); e.Handled = true; }
     }
-    private bool _closing;
+    private bool _closing, _started;
     /// <summary>From the first close request: the window is hidden and the session is being closed.</summary>
     public bool IsClosing => _closing;
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         if (_closing) return;
+        // ⌘W or the red button on a Mac: the window goes, Mira stays in the Dock (MainWindow.MacWindow.cs). ⌘Q quits.
+        if (StaysInDock && !_quitting && e.CloseReason == WindowCloseReason.WindowClosing) { e.Cancel = true; _ = CloseToDockAsync(); return; }
         e.Cancel = true; _closing = true;
         // Each step on its own and the close guaranteed: a full disk or a failing service must not skip the steps after
         // it, nor leave Mira running without a window. Failures are logged (errors.log).
         try
         {
-            if (WindowState is WindowState.Normal) (Settings.WindowWidth, Settings.WindowHeight) = (Math.Round(Width), Math.Round(Height));
-            Settings.WindowMaximized = WindowState == WindowState.Maximized;
+            // Hidden in the Dock, it was remembered as it went.
+            if (!InDock) RememberWindow();
             Hide();
             // « Image dans l’image » goes with it; closed once the playback has stopped (CloseOverlayPlayerAsync).
             Player?.Pip?.Hide();

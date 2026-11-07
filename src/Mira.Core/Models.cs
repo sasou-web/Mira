@@ -378,8 +378,9 @@ public sealed class PlayerSettings
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }
     public bool WindowMaximized { get; set; }
-    /// <summary>Windows: the top-left corner of the window outside maximized and minimized, in device pixels of the
-    /// virtual screen; null before 0.7.5 or when it was never saved. Checked against the screens present at startup.</summary>
+    /// <summary>The top-left corner of the window outside maximized and minimized: in device pixels of the virtual screen on
+    /// Windows, in points on the Mac; null before 0.7.5 (Mac: before 0.9.5) or when it was never saved. Checked against
+    /// the screens present at startup.</summary>
     public double? WindowX { get; set; }
     public double? WindowY { get; set; }
     /// <summary>« Image dans l’image » (<see cref="PictureInPicture"/>): where its window was left, its top-left corner in

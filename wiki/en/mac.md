@@ -56,6 +56,14 @@ Mira cannot replace itself when it runs from the disk image, from the Downloads 
 
 To stop the automatic check, turn off **Settings → Mira on this Mac → Update automatically**.
 
+## Window and menus
+
+Mira behaves like the Mac's own apps:
+
+- The window reopens where you left it, on the same screen, at the same size (centred when that screen is gone).
+- <kbd>⌘</kbd> + <kbd>W</kbd> or the red button closes the window, Mira stays in the Dock: a click on its icon brings it back. What was playing stops, and where you were is kept. <kbd>⌘</kbd> + <kbd>Q</kbd> quits Mira.
+- **Help** opens this guide, **Keyboard Shortcuts** (<kbd>⌘</kbd> + <kbd>/</kbd>) and **Export a Report…**, the file to attach when you report a problem.
+
 ## Trackpad
 
 Mira follows your trackpad settings (natural scrolling, swipe between pages).

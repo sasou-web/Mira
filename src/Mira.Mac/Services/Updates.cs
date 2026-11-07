@@ -130,7 +130,7 @@ public static class Updates
 
     private static void Ready(MainWindow window, Version version) =>
         window.Notice(L($"Mira {version.ToString(3)} est prête : elle s’installera quand tu quitteras Mira.", $"Mira {version.ToString(3)} is ready: it’ll install when you quit Mira."),
-            L("Redémarrer", "Restart"), () => { _relaunch = true; window.Close(); }, sticky: true, tone: NoticeTone.Done);
+            L("Redémarrer", "Restart"), () => { _relaunch = true; window.Quit(); }, sticky: true, tone: NoticeTone.Done);
 
     /// <summary>
     /// Copies Mira.app out of the verified disk image beside the running bundle and checks the copy: the same bundle
