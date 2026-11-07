@@ -20,17 +20,26 @@ La barre montre le titre et l’épisode à gauche, le chapitre et le temps à d
 | Action | Windows | Mac |
 | --- | --- | --- |
 | Lecture / pause | <kbd>Espace</kbd> ou <kbd>K</kbd> | <kbd>Espace</kbd> ou <kbd>K</kbd> |
-| Reculer / avancer de 10 secondes | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> | <kbd>←</kbd> / <kbd>→</kbd> |
-| Reculer / avancer d’une minute | <kbd>Maj</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | |
-| Aller à 0 %, 10 %… 90 % | <kbd>0</kbd> à <kbd>9</kbd> | |
+| Reculer / avancer de 10 secondes | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> |
+| Reculer / avancer d’une minute | <kbd>Maj</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | <kbd>Maj</kbd> + <kbd>←</kbd> / <kbd>→</kbd> |
+| Aller à 0 %, 10 %… 90 % | <kbd>0</kbd> à <kbd>9</kbd> | <kbd>0</kbd> à <kbd>9</kbd> |
 | Volume | <kbd>↑</kbd> / <kbd>↓</kbd>, molette | <kbd>↑</kbd> / <kbd>↓</kbd> |
 | Couper le son | <kbd>M</kbd> | <kbd>M</kbd> |
-| Sous-titres coupés / remis | <kbd>C</kbd> | |
+| Sous-titres coupés / remis | <kbd>C</kbd> | <kbd>C</kbd> |
 | Plein écran | <kbd>F</kbd>, <kbd>F11</kbd>, double clic | <kbd>F</kbd>, double clic |
-| Mini-lecteur | <kbd>I</kbd> | |
+| Mini-lecteur | <kbd>I</kbd> | <kbd>I</kbd>, <kbd>⌘</kbd> + <kbd>[</kbd> |
 | Passer l’intro, le récap ou le générique | <kbd>S</kbd> | <kbd>S</kbd> |
 | Épisode suivant | <kbd>N</kbd> | <kbd>N</kbd> |
 | Revenir, quitter le plein écran | <kbd>Échap</kbd> | <kbd>Échap</kbd> |
+
+### Touches multimédias
+
+Les touches lecture et piste du clavier, le bouton d’un casque et les commandes du système pilotent le lecteur même quand Mira est derrière une autre fenêtre, mini-lecteur et image dans l’image compris :
+
+- **Windows** : les touches multimédias, le panneau qui s’affiche avec le volume, et les boutons lecture, ±10 s et épisode suivant de la miniature de Mira dans la barre des tâches et de son icône de la zone de notification.
+- **Mac** : <kbd>F8</kbd> (lecture / pause), <kbd>F7</kbd> (reculer de 10 secondes), <kbd>F9</kbd> (épisode suivant, quand il y en a un), le bouton des AirPods ou d’un casque, et **À l’écoute** dans le centre de contrôle et la barre des menus, avec le titre, son affiche, ±10 s et une barre pour te déplacer dans le film.
+
+Dans un groupe Regarder ensemble, elles agissent pour le groupe, comme les touches du lecteur. Le lecteur fermé, les touches reviennent à tes autres apps.
 
 ### Sur iPhone
 

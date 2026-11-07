@@ -194,6 +194,7 @@ public sealed partial class MainWindow : Window
         Deactivated += (_, _) => Player?.ForgetHeldKeys();
         KeyDown += OnKeyDown;
         InitializeCouch();
+        ListenToMediaKeys();
         PointerPressed += (_, e) => { var buttons = e.GetCurrentPoint(this).Properties; if (buttons.IsXButton1Pressed) Back(); else if (buttons.IsXButton2Pressed) Forward(); };
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
         // double click) left the pointer captured by what remained: every turn of the wheel went there, never to the page.
@@ -839,6 +840,8 @@ public sealed partial class MainWindow : Window
     {
         if (Player != player) return;
         Player = null;
+        // « Now Playing » empty, the media keys back to the other apps.
+        MacNowPlaying.Clear();
         // « Image dans l’image »: its window goes with the playback (the video already let go by StopAsync).
         player.ClosePip();
         // The group plays on without this Mac.

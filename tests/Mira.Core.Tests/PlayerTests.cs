@@ -178,6 +178,36 @@ internal static class PlayerTests
             Assert(StillWatching.Reason("S01 E04").EndsWith("S01 E04", StringComparison.Ordinal) && !StillWatching.Reason(null).Contains("suivre", StringComparison.Ordinal), StillWatching.Reason(null));
             return Task.CompletedTask;
         });
+        await Test("Touches média du Mac : « Now Playing » redit seulement ce qui change, touches comme sous Windows", () =>
+        {
+            var at = new DateTimeOffset(2026, 11, 7, 21, 0, 0, TimeSpan.FromHours(1));
+            var clock = new NowPlaying();
+            var playing = new NowPlayingState("Arcane", "S01 E02", true, false, true, 100, 2400, 1);
+            Assert(clock.Due(playing, at), "The first state is told");
+            clock.Tell(playing, at);
+            Assert(!clock.Due(playing with { Position = 110 }, at.AddSeconds(10)), "Playing on: the system moves the bar itself");
+            Assert(!clock.Due(playing with { Position = 111 }, at.AddSeconds(10)), "A second off: still the system's");
+            Assert(clock.Due(playing with { Position = 170 }, at.AddSeconds(10)), "A seek is told");
+            Assert(clock.Due(playing with { Position = 110, Paused = true }, at.AddSeconds(10)), "A pause is told");
+            Assert(clock.Due(playing with { Position = 120, Rate = 2 }, at.AddSeconds(10)), "Another speed is told");
+            Assert(clock.Due(playing with { Position = 110, CanNext = false }, at.AddSeconds(10)) && clock.Due(playing with { Title = "Dune" }, at), "The next episode gone, another title: told");
+            Assert(!clock.Due(playing with { Position = 110, Duration = 2400.4 }, at.AddSeconds(10)), "A length read again a little longer: not told");
+            clock.Tell(playing with { Paused = true }, at);
+            Assert(!clock.Due(playing with { Paused = true }, at.AddMinutes(5)) && clock.Due(playing with { Paused = true, Position = 103 }, at.AddMinutes(5)), "Paused, the bar stands still");
+            var tidy = new NowPlayingState("x", "", true, false, false, double.NaN, double.PositiveInfinity, double.NaN).Tidy();
+            Assert(tidy.Position == 0 && tidy.Duration == 0 && tidy.Rate == 1, $"Tidy: {tidy}");
+            Assert((playing with { Position = 3000 }).Tidy().Position == 2400 && (playing with { Position = -4 }).Tidy().Position == 0, "Within the title");
+            Assert(playing.Moving == 1 && (playing with { Paused = true }).Moving == 0 && (playing with { Ready = false }).Moving == 0, "Moving only while it plays");
+            clock.Clear();
+            Assert(clock.Told is null && clock.Due(playing, at), "Cleared: told from the start");
+            foreach (var key in Enum.GetValues<MediaKey>()) Assert(!NowPlaying.Enabled(key, null) && !NowPlaying.Enabled(key, playing with { Ready = false }), $"{key}: nothing before the file is open");
+            Assert(NowPlaying.Enabled(MediaKey.TogglePause, playing) && NowPlaying.Enabled(MediaKey.Seek, playing) && NowPlaying.Enabled(MediaKey.Next, playing), "Everything on an episode with a next one");
+            var film = playing with { CanNext = false, Duration = 0 };
+            Assert(!NowPlaying.Enabled(MediaKey.Next, film) && !NowPlaying.Enabled(MediaKey.Back, film) && !NowPlaying.Enabled(MediaKey.Seek, film) && NowPlaying.Enabled(MediaKey.Stop, film), "No next one, no length: no next track, no jumps");
+            Assert(NowPlaying.Changes(MediaKey.Play, paused: true) && !NowPlaying.Changes(MediaKey.Play, paused: false) && NowPlaying.Changes(MediaKey.Pause, paused: false) && !NowPlaying.Changes(MediaKey.Pause, paused: true)
+                && NowPlaying.Changes(MediaKey.TogglePause, paused: true) && NowPlaying.Changes(MediaKey.TogglePause, paused: false) && !NowPlaying.Changes(MediaKey.Seek, paused: true), "Play and Pause only when they change something");
+            return Task.CompletedTask;
+        });
         await Test("Minuterie : pause au bout des minutes, une seule fois, ou arrêt à la fin de l’épisode, comme Mira web (tests/fixtures/sleep.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

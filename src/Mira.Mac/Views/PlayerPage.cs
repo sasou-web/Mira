@@ -273,6 +273,7 @@ public sealed partial class PlayerPage : UserControl
             _stillWatching.Started(DateTimeOffset.Now, _nextByItself); _nextByItself = false;
             _skips.Film = film;
             _title.Text = (film ?? item).DisplayTitle; _subtitle.Text = film is not null ? Trailers.Playing : PlayerText.Subtitle(item);
+            TellTitle(film ?? item, _title.Text, _subtitle.Text);
             _next.IsEnabled = false; ShowEpisodeButtons(item);
 
             await OpenEngineAsync();
@@ -399,6 +400,8 @@ public sealed partial class PlayerPage : UserControl
         }
         if (_mpv is not null) _shell.Settings.Volume = _mpv.Level;
         _loaded = false;
+        // « Now Playing » keeps the title, stopped, until the next one or the player closes.
+        TellNowPlaying();
         await ReleaseEngineAsync();
     }
     private async Task EndedAsync(bool eof, int generation)
@@ -524,6 +527,7 @@ public sealed partial class PlayerPage : UserControl
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
+            TellNowPlaying();
             // « Minuterie »: the minutes are over, the film pauses where it is.
             if (_sleep.Due(DateTimeOffset.Now)) { if (!paused) { mpv.Set("pause", "yes"); _shell.Notice(L("Minuterie : lecture en pause.", "Sleep timer: playback paused.")); } RefreshMenus(); }
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;

@@ -565,6 +565,27 @@ public static class SelfCheck
                     var paused = engine.Flag("pause");
                     Key(window, Avalonia.Input.Key.Space);
                     Check(paused && await Until(() => !engine.Flag("pause"), 3), "lecteur : Espace tenu ne met en pause qu’une fois");
+                    // The Mac's media controls (F8, AirPods, Control Center), as the player's own keys: on a Mac through the
+                    // native method macOS calls, and « Now Playing » read back from macOS.
+                    var told = await Until(() => MacNowPlaying.Clock.Told is { Ready: true, Paused: false } now && now.Title == movie.DisplayTitle && now.Duration > 0, 3);
+                    Check(told, "touches média : « Now Playing » dit le titre qui joue", MacNowPlaying.Clock.Told?.ToString() ?? "rien");
+                    if (OperatingSystem.IsMacOS()) Check(MacNowPlaying.Listening && MacNowPlaying.ToldTitle() == movie.DisplayTitle, "touches média : macOS tient le titre", $"à l’écoute {MacNowPlaying.Listening}, « {MacNowPlaying.ToldTitle()} »");
+                    Check(await Until(() => MacNowPlaying.ArtworkFor == movie.DisplayTitle, 8), "touches média : l’affiche du titre à côté", MacNowPlaying.ArtworkFor ?? "aucune");
+                    MacNowPlaying.Press(MediaKey.TogglePause);
+                    Check(await Until(() => engine.Flag("pause"), 3) && await Until(() => MacNowPlaying.Clock.Told is { Paused: true }, 3), "touches média : F8 met en pause, « Now Playing » le dit");
+                    MacNowPlaying.Press(MediaKey.Pause);
+                    await Task.Delay(400);
+                    var stillPaused = engine.Flag("pause");
+                    MacNowPlaying.Press(MediaKey.Play);
+                    Check(stillPaused && await Until(() => !engine.Flag("pause"), 3), "touches média : Pause ne relance pas, Lecture reprend");
+                    var heard = player.Position;
+                    MacNowPlaying.Press(MediaKey.Back);
+                    Check(await Until(() => player.Position < heard - 7, 6), "touches média : F7 recule de 10 s", $"{heard:0.0} → {player.Position:0.0}");
+                    MacNowPlaying.Press(MediaKey.Seek, player.Duration / 4);
+                    Check(await Until(() => Math.Abs(player.Position - player.Duration / 4) < 2, 6), "touches média : la barre de « Now Playing » déplace le film", $"{player.Position:0.0} sur {player.Duration:0.0}");
+                    MacNowPlaying.Press(MediaKey.Next);
+                    await Task.Delay(500);
+                    Check(window.Player == player && player.Item?.Id == movie.Id, "touches média : F9 sans épisode suivant ne fait rien", player.Item?.Name ?? "");
                     // Two fingers sideways over the picture: about 6 s on, the bar at once, the film when the fingers rest.
                     var from = player.Position;
                     Swipe(player, new Point(player.Bounds.Width / 2, player.Bounds.Height / 2), .15, 0, 20);
@@ -646,6 +667,7 @@ public static class SelfCheck
                 Check(await Until(() => engine.Flag("pause"), 3), $"pause ({renderer})");
                 await window.StopPlaybackAsync();
                 Check(window.Player is null, $"retour à la bibliothèque ({renderer})");
+                Check(MacNowPlaying.Clock.Told is null && (!OperatingSystem.IsMacOS() || MacNowPlaying.ToldTitle() is null), $"touches média : « Now Playing » vidé à la fermeture ({renderer})", MacNowPlaying.Clock.Told?.Title ?? "");
                 if (pipLeft is not null) Check(!pipLeft.IsVisible && player.Pip is null, $"image dans l’image : partie avec la lecture ({renderer})");
             }
             Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);

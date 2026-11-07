@@ -20,17 +20,26 @@ The bar shows the title and episode on the left, the chapter and time on the rig
 | Action | Windows | Mac |
 | --- | --- | --- |
 | Play / pause | <kbd>Space</kbd> or <kbd>K</kbd> | <kbd>Space</kbd> or <kbd>K</kbd> |
-| Back / forward 10 seconds | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> | <kbd>←</kbd> / <kbd>→</kbd> |
-| Back / forward 1 minute | <kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | |
-| Jump to 0 %, 10 %… 90 % | <kbd>0</kbd> to <kbd>9</kbd> | |
+| Back / forward 10 seconds | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> |
+| Back / forward 1 minute | <kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | <kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> |
+| Jump to 0 %, 10 %… 90 % | <kbd>0</kbd> to <kbd>9</kbd> | <kbd>0</kbd> to <kbd>9</kbd> |
 | Volume | <kbd>↑</kbd> / <kbd>↓</kbd>, mouse wheel | <kbd>↑</kbd> / <kbd>↓</kbd> |
 | Mute | <kbd>M</kbd> | <kbd>M</kbd> |
-| Subtitles off / on | <kbd>C</kbd> | |
+| Subtitles off / on | <kbd>C</kbd> | <kbd>C</kbd> |
 | Full screen | <kbd>F</kbd>, <kbd>F11</kbd>, double click | <kbd>F</kbd>, double click |
-| Mini player | <kbd>I</kbd> | |
+| Mini player | <kbd>I</kbd> | <kbd>I</kbd>, <kbd>⌘</kbd> + <kbd>[</kbd> |
 | Skip the intro, recap or credits | <kbd>S</kbd> | <kbd>S</kbd> |
 | Next episode | <kbd>N</kbd> | <kbd>N</kbd> |
 | Back, leave full screen | <kbd>Esc</kbd> | <kbd>Esc</kbd> |
+
+### Media keys
+
+The keyboard's play and track keys, a headset's button and the system's own controls work the player even while Mira is behind another window, the mini player and picture in picture included:
+
+- **Windows**: the media keys, the media overlay that shows with the volume, and the play, ±10 s and next-episode buttons of Mira's taskbar thumbnail and notification-area icon.
+- **Mac**: <kbd>F8</kbd> (play / pause), <kbd>F7</kbd> (back 10 seconds), <kbd>F9</kbd> (next episode, when there is one), the button of AirPods or a headset, and **Now Playing** in Control Center and the menu bar, with the title, its poster, ±10 s and a bar to move through the film.
+
+In a Watch together group, they act for the group, as the player's own keys do. When the player closes, the keys go back to your other apps.
 
 ### On iPhone
 
