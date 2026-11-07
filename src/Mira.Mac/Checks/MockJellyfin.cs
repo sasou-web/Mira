@@ -162,6 +162,8 @@ public sealed class MockJellyfin : HttpMessageHandler
             if (RefusePlayback) return Json(new { PlaySessionId = "refused", MediaSources = Array.Empty<object>() });
             var id = path.Split('/')[1];
             var file = Short(id) ? _short : _media;
+            // Over the network (StreamServer): no file of this Mac, the address of Jellyfin's stream instead.
+            if (StreamOverHttp) return Json(new { PlaySessionId = $"session-{id}-{++_sessions}", MediaSources = new[] { new { Id = "source-" + id, Protocol = "Http", Path = "", MediaStreams = Array.Empty<object>() } } });
             return Json(new { PlaySessionId = "session-" + id, MediaSources = new[] { new { Id = "source-" + id, Protocol = "File", Path = file, MediaStreams = Array.Empty<object>() } } });
         }
         if (path.StartsWith("MediaSegments/")) return Json(new { Items = Array.Empty<object>() });
@@ -214,6 +216,11 @@ public sealed class MockJellyfin : HttpMessageHandler
     public string? CollectionMade { get; private set; }
     /// <summary>No stream for any title while true: the player's « Lecture impossible ».</summary>
     public bool RefusePlayback { get; set; }
+    /// <summary>The titles come over the network while true, from <see cref="StreamServer"/>, never as files of this Mac.</summary>
+    public bool StreamOverHttp { get; set; }
+    private int _sessions;
+    /// <summary>The video of a title.</summary>
+    public string FileOf(string id) => Short(id) ? _short : _media;
     /// <summary>The policy « Ajouter un ami » sent for the friend's account.</summary>
     public string? FriendPolicy { get; private set; }
     private async Task<HttpResponseMessage> RelayAsync(HttpRequestMessage request, string path, CancellationToken ct)

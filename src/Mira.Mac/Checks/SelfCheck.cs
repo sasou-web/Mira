@@ -761,6 +761,62 @@ public static class SelfCheck
                 await window.StopPlaybackAsync();
             }
 
+            // —— Over the network, as on Windows (MainWindow.Power.cs, WatchStall): the Mac asleep, said by macOS or only by its
+            // clock, then a connection that stops sending without closing (Jellyfin's PC gone): opened again where it was, then
+            // « Lecture impossible » when it stops again at once ——
+            if (mock is not null)
+            {
+                using var streams = StreamServer.TryStart(mock);
+                if (streams is null) Check(false, "réseau : le Jellyfin du contrôle sert ses vidéos", $"{StreamServer.Prefix} déjà pris");
+                else
+                {
+                    mock.StreamOverHttp = true;
+                    int Opened() { lock (mock.Calls) return mock.Calls.Count(x => x.EndsWith("/PlaybackInfo", StringComparison.Ordinal)); }
+                    await window.PlayAsync(movie, fromStart: true);
+                    var streamed = window.Player;
+                    var playing = await Until(() => streamed is { IsFileLoaded: true, Position: > 3 }, 30);
+                    Check(playing && streamed!.Location?.StartsWith(StreamServer.Prefix, StringComparison.Ordinal) == true, "réseau : le film arrive par une connexion", streamed?.Location ?? window.NoticeText ?? "lecteur fermé");
+                    if (playing && streamed?.Engine is not null)
+                    {
+                        // macOS says it sleeps, then wakes: paused where it was, opened again, still paused.
+                        var opened = Opened(); var was = streamed.Position;
+                        streamed.SleepForCheck();
+                        var pausedBefore = streamed.Engine?.Flag("pause") == true;
+                        streams.Hang();
+                        await Task.Delay(1500);
+                        streamed.WakeForCheck();
+                        var back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true } && streamed.Engine?.Flag("pause") == true, 20);
+                        Check(pausedBefore && back && Math.Abs(streamed.Position - was) < 2, "veille du Mac : en pause avant, rouvert au même endroit au réveil, toujours en pause",
+                            $"pause avant {pausedBefore}, {Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}, chargé {streamed.IsFileLoaded}, pause {streamed.Engine?.Flag("pause")}");
+                        // Asleep without a word from macOS: its clock alone says so.
+                        streamed.Engine?.Set("pause", "no");
+                        await Until(() => streamed.Position > was + 2, 10);
+                        opened = Opened(); was = streamed.Position;
+                        streams.Hang();
+                        streamed.ClockJumpForCheck(40);
+                        back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true } && streamed.Engine?.Flag("pause") == true, 20);
+                        Check(back && Math.Abs(streamed.Position - was) < 2, "veille vue par l’horloge seule : rouvert au même endroit, en pause", $"{Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}");
+                        // The connection stops sending: mpv waits, Mira opens it again where it was after 15 s.
+                        streamed.Engine?.Set("pause", "no");
+                        await Until(() => streamed.Position > was + 3, 10);
+                        opened = Opened();
+                        streams.Hang();
+                        var stalledAt = 0.0;
+                        var waited = await Until(() => { if (streamed.Engine?.Flag("paused-for-cache") == true && stalledAt == 0) stalledAt = streamed.Position; return stalledAt > 0; }, 20);
+                        var reopened = await Until(() => Opened() > opened, 30) && await Until(() => streamed is { IsFileLoaded: true } && streamed.Position > stalledAt + 1, 20);
+                        Check(waited && reopened && window.Player == streamed && !streamed.FailureShown, "flux bloqué : rouvert là où il était, la lecture continue",
+                            $"attente {waited} à {stalledAt:0.0}, {Opened() - opened} réouverture, lu {streamed.Position:0.0}{(streamed.FailureShown ? ", " + streamed.FailureText : "")}");
+                        // Stuck again before it played on: Jellyfin answers, the video does not come, « Lecture impossible ».
+                        await Until(() => streamed.Position > stalledAt + 3, 10);
+                        streams.Hang();
+                        var failed = await Until(() => streamed.FailureShown, 45);
+                        Check(failed && streamed.FailureText == StreamRecovery.StuckText, "flux bloqué de nouveau : « Lecture impossible »", streamed.FailureText ?? window.NoticeText ?? (window.Player is null ? "lecteur fermé" : $"lu {streamed.Position:0.0}"));
+                    }
+                    mock.StreamOverHttp = false;
+                    await window.StopPlaybackAsync();
+                }
+            }
+
             // —— « Bande-annonce »: on the page when the title has one, and « Bande-annonce avant le film » ——
             if (mock is not null)
             {

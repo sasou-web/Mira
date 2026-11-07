@@ -39,6 +39,8 @@ public sealed partial class PlayerPage
     private bool _reloading, _recovering, _recoveryLoad;
     /// <summary>Since when mpv waits for data (paused-for-cache), and whether the spinner says so.</summary>
     private DateTimeOffset? _starvedSince; private bool _buffering;
+    /// <summary>Where the stream was opened or moved to: played past it, a wait for data is judged sooner (<see cref="StreamRecovery.Stuck"/>).</summary>
+    private double _stallFrom;
     private static readonly TimeSpan BufferingShown = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan LostRetry = TimeSpan.FromSeconds(3);
     private readonly TextBlock _statusText = new() { FontSize = 13, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxWidth = 460 };
@@ -78,6 +80,7 @@ public sealed partial class PlayerPage
         _stream = stream; _converted = stream.Converted ? new(stream) : null;
         _recovery.Reset(); _reloadTracks = null; _reopenTracks = null; _reopenText = null; _reopenChosen = false;
         _trackIds = default; _playingTracks = null; _fileOpen = false; _skipEnds = 0; _reloading = false; _recoveryLoad = false;
+        Awake();
     }
     /// <summary>The playback stops: Jellyfin's conversion with it (Jellyfin ends it on « stop » too, but later).</summary>
     private void ForgetStream()
@@ -95,12 +98,13 @@ public sealed partial class PlayerPage
     /// <summary>
     /// The same title on a new stream from Jellyfin, where it is: another quality, another audio track or picture subtitles
     /// of a conversion (Jellyfin's index, -1 for none), the connection back. False when nothing was opened: the same file as
-    /// it is (unless <paramref name="always"/>), or the playback gone meanwhile. Throws when Jellyfin cannot be asked.
+    /// it is (unless <paramref name="always"/>), or the playback gone meanwhile; <paramref name="paused"/> after sleeping,
+    /// else as it was. Throws when Jellyfin cannot be asked.
     /// </summary>
-    private async Task<bool> ReopenStreamAsync(int? audio = null, int? burn = null, int? text = null, bool chosen = false, bool always = false)
+    private async Task<bool> ReopenStreamAsync(int? audio = null, int? burn = null, int? text = null, bool chosen = false, bool always = false, bool? paused = null)
     {
         if (_shell.Session is not { } session || _mpv is null || _session.Item is not { } item || _stream is not { } before) return false;
-        var generation = _generation; var keepPaused = _mpv.Flag("pause");
+        var generation = _generation; var keepPaused = paused ?? _mpv.Flag("pause");
         var memory = _loaded ? CurrentTracks() : _playingTracks; var ids = _loaded ? (_mpv.Get("aid"), _mpv.Get("sid")) : _trackIds;
         _spinner.IsVisible = true;
         var stream = await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(_session.Position, audio, burn, memory), _shell.Settings.AudioLanguage, FileHere);
@@ -116,7 +120,7 @@ public sealed partial class PlayerPage
         _stream = stream; _converted = stream.Converted ? new(stream) : null;
         _session.Reopened(stream.Source, stream.PlaySessionId, stream.PlayMethod); _session.Position = position;
         if (_fileOpen) _skipEnds++;
-        _fileOpen = true; _loaded = false; _reloading = true;
+        _fileOpen = true; _loaded = false; _reloading = true; _waking = false;
         _mpv.Load(stream.Location, position, stream.Authorization, keepPaused);
         return true;
     }
@@ -173,9 +177,10 @@ public sealed partial class PlayerPage
         _shell.ChoicesChanged();
     }
 
+    /// <summary>What plays comes from Jellyfin over the network: not a file of this Mac (a copy kept, Jellyfin on this Mac).</summary>
+    private bool Streaming => _stream is { } stream && Uri.TryCreate(stream.Location, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
     /// <summary>A stream from Jellyfin that stopped while it played, before the end of its title, or one opened again after it that could not load.</summary>
-    private bool StreamCut() => _stream is not null && Uri.TryCreate(_stream.Location, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https"
-        && (_loaded && StreamRecovery.CutShort(_session.Position, _session.Duration) || _recoveryLoad);
+    private bool StreamCut() => Streaming && (_loaded && StreamRecovery.CutShort(_session.Position, _session.Duration) || _recoveryLoad);
     /// <summary>
     /// A cut stream (<see cref="StreamRecovery"/>): Jellyfin silent, waited for, as said under the spinner; answering, the
     /// stream is opened again where it was; stopped again before it played on, the player closes and says so, with « Réessayer ».
@@ -221,6 +226,19 @@ public sealed partial class PlayerPage
         var buffering = _starvedSince is { } since && DateTimeOffset.UtcNow - since > BufferingShown;
         if (buffering == _buffering) return;
         _buffering = buffering; _spinner.IsVisible = buffering;
+    }
+    /// <summary>
+    /// mpv waiting for data too long on a stream from Jellyfin, as on Windows: it may never end the file (Jellyfin gone
+    /// with its PC, a connection that hangs, a Wi-Fi left for another), so the cut is handled as one: Jellyfin silent,
+    /// waited for; answering, opened again where it was, once; stuck again at once, « Lecture impossible ». Its old file's
+    /// end, if it comes, is then not the end of the title (EndedAsync).
+    /// </summary>
+    private void WatchStall()
+    {
+        if (_starvedSince is not { } since || _recovering || _reloading || _waking || _asleep || !Streaming) return;
+        if (!StreamRecovery.Stuck(DateTimeOffset.UtcNow - since, moved: _session.Position > _stallFrom + 1)) return;
+        _starvedSince = null;
+        _ = RecoverStreamAsync(_generation);
     }
 
     /// <summary>« Qualité » in ⋮: the choices of Réglages as chips, four to a row as on Windows, and what Jellyfin sends now.</summary>

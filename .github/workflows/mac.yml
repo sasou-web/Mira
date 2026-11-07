@@ -214,8 +214,8 @@ jobs:
           status=0
           "$app" --data "$PWD/.artifacts/profile" --self-check "$PWD/.artifacts/check" --mock --media "$PWD/.artifacts/media/test.mkv" --short "$PWD/.artifacts/media/short.mkv" > .artifacts/check.log 2>&1 &
           pid=$!
-          for i in $(seq 1 300); do kill -0 $pid 2>/dev/null || break; sleep 1; done
-          if kill -0 $pid 2>/dev/null; then echo "self-check still running after 5 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
+          for i in $(seq 1 420); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+          if kill -0 $pid 2>/dev/null; then echo "self-check still running after 7 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
           cat .artifacts/check/results.txt 2>/dev/null || tail -40 .artifacts/check.log
           echo "— Avalonia et OpenGL :"; grep -a -i -E "opengl|gpu|metal|render|exception" .artifacts/check.log | head -30 || true
           # A crash (139 = segmentation fault) says nothing in results.txt: the end of the log at least.

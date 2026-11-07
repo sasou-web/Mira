@@ -337,7 +337,9 @@ public sealed partial class PlayerPage : UserControl
             _fileOpen = false;
             // The stream opened again could not load: an end, never that of the title.
             var ended = eof && !_reloading;
-            Dispatcher.UIThread.Post(() => _ = EndedAsync(ended, generation));
+            // The Mac asleep or woken, a stuck stream being opened again: the old connection's end, nothing more.
+            var interrupted = _asleep || _waking || _recovering;
+            Dispatcher.UIThread.Post(() => _ = EndedAsync(ended, generation, interrupted));
         };
         player.Error += message => _session.Failure = message;
         // A Mac whose OpenGL drew the picture grey before: what brought it back (PlayerPage.Picture.cs).
@@ -404,9 +406,10 @@ public sealed partial class PlayerPage : UserControl
         TellNowPlaying();
         await ReleaseEngineAsync();
     }
-    private async Task EndedAsync(bool eof, int generation)
+    private async Task EndedAsync(bool eof, int generation, bool interrupted = false)
     {
         if (generation != _generation || _stopped) return;
+        if (interrupted) { _loaded = false; _session.Failure = null; _spinner.IsVisible = true; return; }
         // A stream from Jellyfin that stopped before the end of its title: the connection, as on Windows and Mira web.
         if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
         var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay; var film = _skips.Film;
@@ -483,6 +486,7 @@ public sealed partial class PlayerPage : UserControl
         _loaded = true; _spinner.IsVisible = false;
         SayAudioMissing();
         _session.Paused = mpv.Flag("pause"); _session.Duration = mpv.Number("duration", _session.Duration); _session.Position = mpv.Number("time-pos", _session.Position);
+        _stallFrom = _session.Position;
         _skips.FileChapters = mpv.Chapters(); Rebuild();
         ShowControls();
         // Opened again (another quality, the connection back): the same playback goes on for Jellyfin, told at the next
@@ -508,14 +512,17 @@ public sealed partial class PlayerPage : UserControl
     private bool _tickBusy;
     private async void Tick()
     {
-        if (_tickBusy || _mpv is not { } mpv) return;
+        if (_mpv is not { } mpv) return;
+        // Before mpv is asked anything, even while the previous tick still awaits its report: only a Mac asleep stops the ticks.
+        NoticeSleep();
+        if (_tickBusy) return;
         _tickBusy = true;
         try
         {
             mpv.Poll(); ShowGroup();
             // The video on its way to or from the small window, paused for that moment: never a pause for the group.
             if (_mpv is null || !_loaded || _stopped || _pipMoving) return;
-            ShowBuffering(mpv); KeepTracks(mpv);
+            ShowBuffering(mpv); WatchStall(); KeepTracks(mpv);
             _session.Position = Reported(mpv.Number("time-pos", _session.Position)); _session.Duration = mpv.Number("duration", _session.Duration);
             _recovery.Played(_session.Position);
             var paused = mpv.Flag("pause");
@@ -560,7 +567,7 @@ public sealed partial class PlayerPage : UserControl
     }
     private void Hold(double target)
     {
-        _session.Hold(target, DateTimeOffset.UtcNow);
+        _session.Hold(target, DateTimeOffset.UtcNow); _stallFrom = target;
         _timeline.Hold(target); ShowTime(target);
     }
     private void TogglePause()
