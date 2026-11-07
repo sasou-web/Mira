@@ -32,6 +32,8 @@ public sealed class MockJellyfin : HttpMessageHandler
     public List<(string Kind, JsonElement Body)> Reports { get; } = [];
     /// <summary>What « Téléchargements » sent to the PC of Jellyfin: the names of its requests.</summary>
     public List<string> Requests { get; } = [];
+    /// <summary>When Jellyfin added a new episode of « Petite série », a favourite: none until the check says so.</summary>
+    public DateTimeOffset? NewEpisodeAt { get; set; }
 
     public MockJellyfin(string media, string shortMedia)
     {
@@ -191,6 +193,10 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "Items")
         {
             IEnumerable<object> items = All;
+            // « Nouvel épisode »: Jellyfin's newest episodes not watched yet, and the series they belong to (a favourite).
+            if (query["includeItemTypes"] == "Episode" && query["sortBy"] == "DateCreated")
+                return Items(NewEpisodeAt is { } added ? [new { Id = "series-1-e4", Name = "Le retour", Type = "Episode", SeriesId = "series-1", SeriesName = "Petite série", ParentIndexNumber = 1, IndexNumber = 4, DateCreated = added, ImageTags = new Dictionary<string, string>(), UserData = new { Played = false } }] : []);
+            if (query["ids"] == "series-1") return Items([new { Id = "series-1", Name = "Petite série", Type = "Series", UserData = new { IsFavorite = true, Played = false } }]);
             if (query["ids"] is { } ids) return Items(ids.Split(',').Select(x => (object)new { Id = x, Name = "Saison 1", Type = "Season", ImageTags = new Dictionary<string, string>() }));
             if (query["includeItemTypes"] is { } types) items = items.Where(x => types.Split(',').Contains(Type(x)));
             if (query["searchTerm"] is { } search) items = items.Where(x => Name(x).Contains(search, StringComparison.CurrentCultureIgnoreCase));

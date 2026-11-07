@@ -131,7 +131,7 @@ public sealed partial class MainWindow : Window
         Settings = profile.LoadSettings();
         Group = new WatchGroup(this);
         Group.Changed += () => { ShowGroupRail(); Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); PartyGroupChanged(); };
-        Group.Member += said => { if (Player is { } player) player.ShowMember(said); else Notice(said + "."); };
+        Group.Member += GroupMember;
         Tailnet = new BuiltInTailscale(this);
         Title = "Mira"; MinWidth = 960; MinHeight = 600;
         Width = Settings.WindowWidth > 0 ? Settings.WindowWidth : 1440; Height = Settings.WindowHeight > 0 ? Settings.WindowHeight : 900;
@@ -195,6 +195,7 @@ public sealed partial class MainWindow : Window
         KeyDown += OnKeyDown;
         InitializeCouch();
         ListenToMediaKeys();
+        InitializeNotifications();
         PointerPressed += (_, e) => { var buttons = e.GetCurrentPoint(this).Properties; if (buttons.IsXButton1Pressed) Back(); else if (buttons.IsXButton2Pressed) Forward(); };
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
         // double click) left the pointer captured by what remained: every turn of the wheel went there, never to the page.
@@ -404,7 +405,8 @@ public sealed partial class MainWindow : Window
         if (handler is null)
         {
             var session = Session;
-            void Changed() { _serverChanged.Stop(); _serverChanged.Start(); }
+            // A library change may be a new episode of a series this account follows (MainWindow.Notifications.cs).
+            void Changed() { _serverChanged.Stop(); _serverChanged.Start(); EpisodesMayHaveArrived(); }
             // Open again after a break: what changed meanwhile went unheard, and the group may have let this Mac go.
             var opened = false;
             void Listening(bool open) => Dispatcher.UIThread.Post(() =>
@@ -431,6 +433,7 @@ public sealed partial class MainWindow : Window
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
         ChoicesChanged();
+        StartEpisodeNotices();
     }
 
     /// <summary>
@@ -644,7 +647,7 @@ public sealed partial class MainWindow : Window
     }
     private async Task CloseSessionAsync()
     {
-        Group.Gone(); _listening = false; _choicesSoon.Stop();
+        Group.Gone(); _listening = false; _choicesSoon.Stop(); StopEpisodeNotices();
         ForgetOfflineState();
         if (Session is { } session) { Session = null; await session.DisposeAsync(); }
     }
