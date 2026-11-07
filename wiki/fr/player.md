@@ -21,16 +21,18 @@ La barre montre le titre et l’épisode à gauche, le chapitre et le temps à d
 | --- | --- | --- |
 | Lecture / pause | <kbd>Espace</kbd> ou <kbd>K</kbd> | <kbd>Espace</kbd> ou <kbd>K</kbd> |
 | Reculer / avancer de 10 secondes | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> |
-| Reculer / avancer d’une minute | <kbd>Maj</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | <kbd>Maj</kbd> + <kbd>←</kbd> / <kbd>→</kbd> |
+| Reculer / avancer d’une minute | <kbd>Maj</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | <kbd>⇧</kbd> + <kbd>←</kbd> / <kbd>→</kbd> |
 | Aller à 0 %, 10 %… 90 % | <kbd>0</kbd> à <kbd>9</kbd> | <kbd>0</kbd> à <kbd>9</kbd> |
 | Volume | <kbd>↑</kbd> / <kbd>↓</kbd>, molette | <kbd>↑</kbd> / <kbd>↓</kbd> |
 | Couper le son | <kbd>M</kbd> | <kbd>M</kbd> |
 | Sous-titres coupés / remis | <kbd>C</kbd> | <kbd>C</kbd> |
-| Plein écran | <kbd>F</kbd>, <kbd>F11</kbd>, double clic | <kbd>F</kbd>, double clic |
+| Plein écran | <kbd>F</kbd>, <kbd>F11</kbd>, double clic | <kbd>F</kbd>, <kbd>⌃</kbd> + <kbd>⌘</kbd> + <kbd>F</kbd>, double clic |
 | Mini-lecteur | <kbd>I</kbd> | <kbd>I</kbd>, <kbd>⌘</kbd> + <kbd>[</kbd> |
 | Passer l’intro, le récap ou le générique | <kbd>S</kbd> | <kbd>S</kbd> |
 | Épisode suivant | <kbd>N</kbd> | <kbd>N</kbd> |
 | Revenir, quitter le plein écran | <kbd>Échap</kbd> | <kbd>Échap</kbd> |
+
+Sur Mac, **Aide → Raccourcis clavier** (<kbd>⌘</kbd> + <kbd>/</kbd>) les montre tous, ceux de la bibliothèque aussi.
 
 ### Touches multimédias
 
