@@ -772,6 +772,8 @@ public static class SelfCheck
                 {
                     mock.StreamOverHttp = true;
                     int Opened() { lock (mock.Calls) return mock.Calls.Count(x => x.EndsWith("/PlaybackInfo", StringComparison.Ordinal)); }
+                    // What mpv is doing, said when a check fails (the Mac runner differs from Linux).
+                    string Mpv() { var m = window.Player?.Engine; return m is null ? "pas de mpv" : string.Join(" ", new[] { "pause", "paused-for-cache", "core-idle", "seeking", "eof-reached", "demuxer-cache-time", "cache-buffering-state", "time-pos" }.Select(x => $"{x}={m.Get(x)}")) + $" ; flux {streams.Streams}"; }
                     await window.PlayAsync(movie, fromStart: true);
                     var streamed = window.Player;
                     var playing = await Until(() => streamed is { IsFileLoaded: true, Position: > 3 }, 30);
@@ -790,27 +792,27 @@ public static class SelfCheck
                             $"pause avant {pausedBefore}, {Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}, chargé {streamed.IsFileLoaded}, pause {streamed.Engine?.Flag("pause")}");
                         // Asleep without a word from macOS: its clock alone says so.
                         streamed.Engine?.Set("pause", "no");
-                        await Until(() => streamed.Position > was + 2, 10);
+                        var played = await Until(() => streamed.Position > was + 2, 10); var afterSleep = played ? "" : " — après la veille, pas reparti : " + Mpv();
                         opened = Opened(); was = streamed.Position;
                         streams.Hang();
                         streamed.ClockJumpForCheck(40);
                         back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Engine?.Flag("pause") == true, 20);
-                        Check(back && Math.Abs(streamed.Position - was) < 2, "veille vue par l’horloge seule : rouvert au même endroit, en pause", $"{Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}");
+                        Check(back && Math.Abs(streamed.Position - was) < 2, "veille vue par l’horloge seule : rouvert au même endroit, en pause", $"{Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}{afterSleep}");
                         // The connection stops sending: mpv waits, Mira opens it again where it was after 15 s.
                         streamed.Engine?.Set("pause", "no");
-                        await Until(() => streamed.Position > was + 3, 10);
+                        var playedOn = await Until(() => streamed.Position > was + 3, 10); var afterClock = playedOn ? "" : " — pas reparti : " + Mpv();
                         opened = Opened();
                         streams.Hang();
                         var stalledAt = 0.0;
                         var waited = await Until(() => { if (streamed.Engine?.Flag("paused-for-cache") == true && stalledAt == 0) stalledAt = streamed.Position; return stalledAt > 0; }, 20);
                         var reopened = await Until(() => Opened() > opened, 30) && await Until(() => streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Position > stalledAt + 1, 20);
                         Check(waited && reopened && window.Player == streamed && !streamed.FailureShown, "flux bloqué : rouvert là où il était, la lecture continue",
-                            $"attente {waited} à {stalledAt:0.0}, {Opened() - opened} réouverture, lu {streamed.Position:0.0}{(streamed.FailureShown ? ", " + streamed.FailureText : "")}");
+                            $"attente {waited} à {stalledAt:0.0}, {Opened() - opened} réouverture, lu {streamed.Position:0.0}{(streamed.FailureShown ? ", " + streamed.FailureText : "")}{afterClock}{(waited && reopened ? "" : " — " + Mpv())}");
                         // Stuck again before it played on: Jellyfin answers, the video does not come, « Lecture impossible ».
                         await Until(() => streamed.Position > stalledAt + 3, 10);
                         streams.Hang();
                         var failed = await Until(() => streamed.FailureShown, 45);
-                        Check(failed && streamed.FailureText == StreamRecovery.StuckText, "flux bloqué de nouveau : « Lecture impossible »", streamed.FailureText ?? window.NoticeText ?? (window.Player is null ? "lecteur fermé" : $"lu {streamed.Position:0.0}"));
+                        Check(failed && streamed.FailureText == StreamRecovery.StuckText, "flux bloqué de nouveau : « Lecture impossible »", streamed.FailureText ?? window.NoticeText ?? (window.Player is null ? "lecteur fermé" : $"lu {streamed.Position:0.0} — {Mpv()}"));
                     }
                     mock.StreamOverHttp = false;
                     await window.StopPlaybackAsync();
