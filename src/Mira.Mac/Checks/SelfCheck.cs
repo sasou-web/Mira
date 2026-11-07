@@ -133,6 +133,24 @@ public static class SelfCheck
                 homeScroll.Offset = default;
             }
 
+            // —— Notifications of the Mac, as Windows': « Nouvel épisode » of a series followed, once; the first look only marks ——
+            if (mock is not null)
+            {
+                window.Settings.EpisodeNotices = true; window.Settings.EpisodesSeenFor = "";
+                var before = MacNotifications.Shown.Count;
+                await window.LookForNewEpisodesAsync();
+                Check(MacNotifications.Shown.Count == before && window.Settings.EpisodesSeenFor.Length > 0, "notifications : le premier regard ne fait que poser la marque", window.Settings.EpisodesSeenFor);
+                mock.NewEpisodeAt = DateTimeOffset.UtcNow;
+                await window.LookForNewEpisodesAsync();
+                var told = MacNotifications.Shown.Skip(before).ToList();
+                Check(told is [{ Title: "Petite série", Group: "episodes" } one] && one.Text == Lang.L("Nouvel épisode : S1 É4 · Le retour", "New episode: S1 E4 · Le retour"),
+                    "notifications : un nouvel épisode d’une série suivie", string.Join(" | ", told.Select(x => $"{x.Title} : {x.Text} ({x.Group})")));
+                await window.LookForNewEpisodesAsync();
+                Check(MacNotifications.Shown.Count == before + 1, "notifications : jamais deux fois le même épisode", $"{MacNotifications.Shown.Count - before}");
+                Check(!MacNotifications.Allowed, "notifications : rien de macOS pendant le contrôle");
+                mock.NewEpisodeAt = null;
+            }
+
             // —— A friend's party, on another Jellyfin ——
             // Its link opened here: the first name asked, then this Mac its guest (no account there), in the host's group;
             // left, this Mac's own account back. A link taken back since says the party is over.

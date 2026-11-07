@@ -83,6 +83,11 @@ public sealed partial class SettingsPage : Page
         // « Tailscale intégré »: how Mira reaches Jellyfin away from home without the Tailscale app.
         Tailnet = new TailnetSection(shell, Section);
         Tab("server").Children.Add(Tailnet.Section);
+        // « Prévenir des nouveaux épisodes », as on Windows: a notification of the Mac (MainWindow.Notifications.cs). Switched
+        // back on, the next look only sets the mark again: what came out meanwhile is not news.
+        Tab("server").Children.Add(Section(null, Toggle(L("Prévenir des nouveaux épisodes", "Notify me of new episodes"),
+            L("Une notification du Mac quand un épisode d’une série que tu suis arrive. Tant que Mira est ouvert, même dans le Dock.", "A Mac notification when an episode of a show you follow arrives. While Mira is open, even in the Dock."),
+            settings.EpisodeNotices, v => { if (v && !settings.EpisodeNotices) settings.EpisodesSeenFor = ""; settings.EpisodeNotices = v; if (v) shell.EpisodesMayHaveArrived(); })));
         // « En ce moment sur Jellyfin »: who plays what, as on Windows.
         Viewing = new ViewersSection(shell, Section);
         Tab("server").Children.Add(Viewing.Section);
