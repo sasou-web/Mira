@@ -1,0 +1,165 @@
+name: winget
+# Mira in winget (`winget install sasou-web.Mira`): the manifests of a published release (tools/winget/manifests.mjs),
+# checked by winget itself on a Windows runner (validate, then a real silent install and uninstall from them, as the
+# validation of microsoft/winget-pkgs does), then submitted as a pull request to microsoft/winget-pkgs by
+# wingetcreate (Microsoft's own tool, pinned by its SHA-256 and its signature). Runs when a release is published, by
+# hand for a version already published, and on a pull request that changes these files (no submission).
+# The submission needs the WINGET_TOKEN secret: a classic token of sasou-web with the public_repo scope (wingetcreate
+# forks winget-pkgs to that account and opens the pull request from it; fine-grained tokens are not supported). Without
+# the secret, everything runs but nothing is submitted. A failure here never touches the release: it is published.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to submit (x.y.z), already published
+        required: true
+      submit:
+        description: Submit to microsoft/winget-pkgs (needs WINGET_TOKEN)
+        type: boolean
+        default: true
+  pull_request:
+    paths: ["tools/winget/**", ".github/workflows/winget.yml", "installer/Mira.iss"]
+permissions:
+  contents: read
+concurrency:
+  group: winget-${{ github.event.release.tag_name || inputs.version || github.ref }}
+  cancel-in-progress: false
+env:
+  # wingetcreate 1.12.13.0 (2026-07-22), wingetcreate.exe of its GitHub release.
+  WINGETCREATE_URL: https://github.com/microsoft/winget-create/releases/download/v1.12.13.0/wingetcreate.exe
+  WINGETCREATE_SHA256: 24042bd37915805615e6cf969ac57c6439124c3fe85823327f5f3fb24bd9ffea
+jobs:
+  manifests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      skip: ${{ steps.release.outputs.skip }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Tests
+        if: github.event_name == 'pull_request'
+        run: node --test tools/winget/manifests.test.mjs
+      - name: Release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # A pull request checks the manifests of the latest published release.
+          TAG: ${{ github.event.release.tag_name || (inputs.version && format('v{0}', inputs.version)) || '' }}
+        run: |
+          if [ -n "$TAG" ]; then gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
+          else gh api "repos/$GITHUB_REPOSITORY/releases/latest" > "$RUNNER_TEMP/release.json"; fi
+          tag=$(jq -r .tag_name "$RUNNER_TEMP/release.json")
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::notice::$tag is not a version of Mira: nothing for winget."; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$(jq -r '.draft or .prerelease' "$RUNNER_TEMP/release.json")" = true ]; then echo "::error::$tag is not published."; exit 1; fi
+          version=${tag#v}
+          setup="Mira-$version-win-x64-setup.exe"
+          digest=$(jq -r --arg n "$setup" '.assets[] | select(.name == $n) | .digest // empty' "$RUNNER_TEMP/release.json")
+          [ -n "$digest" ] || { echo "::error::$setup is not in $tag."; exit 1; }
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$setup" "$base/$setup"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$setup.sha256" "$base/$setup.sha256"
+          # The same SHA-256 three ways: the bytes downloaded here, the .sha256 published beside them, GitHub's digest.
+          sum=$(sha256sum "$RUNNER_TEMP/$setup" | cut -d' ' -f1)
+          published=$(cut -d' ' -f1 < "$RUNNER_TEMP/$setup.sha256")
+          [ "$sum" = "$published" ] || { echo "::error::$setup: $sum, its .sha256 says $published."; exit 1; }
+          [ "sha256:$sum" = "$digest" ] || { echo "::error::$setup: $sum, GitHub says $digest."; exit 1; }
+          {
+            echo "version=$version"
+            echo "sha256=$sum"
+            echo "date=$(jq -r '.published_at[0:10]' "$RUNNER_TEMP/release.json")"
+          } >> "$GITHUB_OUTPUT"
+      - name: Manifests
+        if: steps.release.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA256: ${{ steps.release.outputs.sha256 }}
+          DATE: ${{ steps.release.outputs.date }}
+        # The script of this commit, the words and the installer script of the release's tag.
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            git show "v$VERSION:src/Mira.Core/WhatsNew.json" > src/Mira.Core/WhatsNew.json
+            git show "v$VERSION:installer/Mira.iss" > installer/Mira.iss
+          fi
+          node tools/winget/manifests.mjs "$VERSION" "$SHA256" "$DATE" "$RUNNER_TEMP/winget"
+          for f in "$RUNNER_TEMP/winget/manifests/s/sasou-web/Mira/$VERSION"/*.yaml; do echo "::group::$(basename "$f")"; cat "$f"; echo "::endgroup::"; done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.release.outputs.skip != 'true'
+        with:
+          name: winget-manifests
+          path: ${{ runner.temp }}/winget
+          overwrite: true
+
+  install:
+    needs: manifests
+    if: needs.manifests.outputs.skip != 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: winget-manifests
+          path: winget
+      - name: winget validate, install, uninstall
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.manifests.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $PWD "winget\manifests\s\sasou-web\Mira\$env:VERSION"
+          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'winget is not on this runner.' }
+          winget --version
+          winget validate --manifest $dir
+          if ($LASTEXITCODE -ne 0) { throw "winget validate: $LASTEXITCODE" }
+          winget settings --enable LocalManifestFiles
+          # As winget-pkgs' pipeline: the default mode (silent with progress), nothing to answer.
+          winget install --manifest $dir --accept-package-agreements --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "winget install: $LASTEXITCODE" }
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\Mira\Mira.exe'
+          if (-not (Test-Path $exe)) { throw "No $exe after the install." }
+          $key = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{7D5E2C41-9B8A-4F63-A1E7-3C5B9D2F8A64}_is1'
+          if ($key.DisplayVersion -ne $env:VERSION) { throw "Apps lists Mira $($key.DisplayVersion), not $env:VERSION." }
+          Write-Output "Installed: $exe, $($key.DisplayName) $($key.DisplayVersion) by $($key.Publisher)"
+          winget uninstall --manifest $dir --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "winget uninstall: $LASTEXITCODE" }
+          if (Test-Path $exe) { throw "$exe is still there after the uninstall." }
+          Write-Output 'Uninstalled.'
+
+  submit:
+    needs: [manifests, install]
+    if: needs.manifests.outputs.skip != 'true' && github.event_name != 'pull_request' && (github.event_name == 'release' || inputs.submit)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: winget-manifests
+          path: winget
+      - name: Submit to microsoft/winget-pkgs
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.manifests.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:WINGET_CREATE_GITHUB_TOKEN) { Write-Output '::notice::No WINGET_TOKEN secret: the manifests are checked, nothing is submitted.'; exit 0 }
+          $dir = Join-Path $PWD "winget\manifests\s\sasou-web\Mira\$env:VERSION"
+          # Already in winget-pkgs (a run again): nothing to do. The folder missing altogether = Mira's first version there.
+          $known = gh api repos/microsoft/winget-pkgs/contents/manifests/s/sasou-web/Mira --jq '.[].name' 2>$null
+          $first = $LASTEXITCODE -ne 0
+          if (-not $first -and ($known -contains $env:VERSION)) { Write-Output "::notice::sasou-web.Mira $env:VERSION is already in winget-pkgs."; exit 0 }
+          $tool = Join-Path $env:RUNNER_TEMP 'wingetcreate.exe'
+          Invoke-WebRequest -Uri $env:WINGETCREATE_URL -OutFile $tool -MaximumRetryCount 3
+          $sum = (Get-FileHash -Algorithm SHA256 $tool).Hash.ToLowerInvariant()
+          if ($sum -ne $env:WINGETCREATE_SHA256) { throw "wingetcreate.exe: $sum, expected $env:WINGETCREATE_SHA256." }
+          $signature = Get-AuthenticodeSignature $tool
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw "wingetcreate.exe is not signed by Microsoft: $($signature.Status) $($signature.SignerCertificate.Subject)" }
+          $title = if ($first) { "New package: sasou-web.Mira version $env:VERSION" } else { "New version: sasou-web.Mira version $env:VERSION" }
+          & $tool submit --prtitle $title --no-open $dir
+          if ($LASTEXITCODE -ne 0) { throw "wingetcreate submit: $LASTEXITCODE" }
