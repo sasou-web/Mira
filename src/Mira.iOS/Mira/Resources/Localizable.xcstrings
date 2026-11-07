@@ -6692,6 +6692,176 @@
           }
         }
       }
+    },
+    "No other device can play right now. Open Mira on your PC or Mac, signed in to this server, and it shows up here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun autre appareil ne peut lire pour l’instant. Ouvre Mira sur ton PC ou ton Mac, connecté à ce serveur : il apparaîtra ici."
+          }
+        }
+      }
+    },
+    "Jellyfin passes the title on: the other device plays it from its own copy or from the server.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin transmet le titre : l’autre appareil le lit depuis sa propre copie ou depuis le serveur."
+          }
+        }
+      }
+    },
+    "Looking for your devices…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche de tes appareils…"
+          }
+        }
+      }
+    },
+    "Play on": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire sur"
+          }
+        }
+      }
+    },
+    "Play on…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire sur…"
+          }
+        }
+      }
+    },
+    "Playing: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En lecture : %@"
+          }
+        }
+      }
+    },
+    "Ready to play": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prêt à lire"
+          }
+        }
+      }
+    },
+    "Play on %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire sur %@"
+          }
+        }
+      }
+    },
+    "Remote": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécommande"
+          }
+        }
+      }
+    },
+    "Steer %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Piloter %@"
+          }
+        }
+      }
+    },
+    "Jellyfin refused: this account can’t steer that device.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin a refusé : ce compte ne peut pas piloter cet appareil."
+          }
+        }
+      }
+    },
+    "Nothing playing on it right now.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien en lecture dessus pour l’instant."
+          }
+        }
+      }
+    },
+    "Turn the sound on": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remettre le son"
+          }
+        }
+      }
+    },
+    "Turn the sound off": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couper le son"
+          }
+        }
+      }
+    },
+    "Volume": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        }
+      }
+    },
+    "This device no longer answers: Mira was closed there, or the computer went to sleep.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet appareil ne répond plus : Mira y a été fermé, ou l’ordinateur s’est mis en veille."
+          }
+        }
+      }
+    },
+    "%@, paused": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, en pause"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -308,7 +308,7 @@ public partial class MainWindow : Window
         _sync.Changed += SyncChanged;
         _connectionLifetime = new(); _pageGenres.Clear(); _pageGenresAsked.Clear(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         // --smooth-check's Jellyfin has no WebSocket, and its new episodes would only add requests to what it measures.
-        if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
+        if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token, steered: !_demo);
         if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check")) { StartEpisodeNotices(); ChoicesChanged(); }
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
@@ -345,7 +345,8 @@ public partial class MainWindow : Window
         if (damaged) SetNotice(L("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.", "This account’s local cache couldn’t be read: it was rebuilt. Progress reports that hadn’t been sent yet are lost."), null, null, sticky: true);
         _ = RefreshTorLinkLibrariesAsync();
     }
-    private async Task ListenSafelyAsync(JellyfinClient client, CancellationToken ct)
+    /// <param name="steered">Jellyfin's remote control: this account's own session, never a party's guest (<see cref="Remote"/>).</param>
+    private async Task ListenSafelyAsync(JellyfinClient client, CancellationToken ct, bool steered = false)
     {
         void Changed() { _externalRefresh.Stop(); _externalRefresh.Start(); }
         // Open again after a break: what changed meanwhile went unheard.
@@ -358,7 +359,8 @@ public partial class MainWindow : Window
             if (!open && InParty) _ = CheckPartyAsync(client);
         });
         void SyncPlay(string type, JsonElement data) => Dispatcher.BeginInvoke(() => { if (!ct.IsCancellationRequested) GroupMessage(client, type, data); });
-        try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening, SyncPlay); }
+        void Steered(RemoteCommand command) => Dispatcher.BeginInvoke(() => { if (!ct.IsCancellationRequested) Remote(client, command); });
+        try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening, SyncPlay, steered ? Steered : null); }
         catch (OperationCanceledException) { }
     }
     /// <summary>Artwork decoded for the sharpest and widest of the screens connected now, and for the pages' zoom.</summary>

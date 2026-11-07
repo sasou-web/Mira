@@ -32,6 +32,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Tailscale intégré (sans l'app Tailscale, depuis un autre réseau) : se connecter, lire un film, se déconnecter
 - [ ] Mode canapé sur la télé (HDMI) : Réglages → Apparence → Mode canapé, plein écran lisible depuis le canapé ; flèches partout (rail compris), Entrée, Retour arrière ; une manette Xbox (A, B, Y, LB/RB, dans le lecteur A, X, LB/RB) ; la télécommande de la télé si un adaptateur HDMI-CEC est là
 - [ ] Bandes-annonces : un film avec un dossier `trailers` (ou `…-trailer.mkv`) : bouton « Bande-annonce » de la fiche, lue dans Mira ; un film sans : le bouton dit « sur YouTube, dans ton navigateur » et ouvre le navigateur ; Réglages → Lecture → « Bande-annonce avant le film » : elle passe d'abord, « Passer la bande-annonce » mène au film, rien en reprise
+- [ ] Télécommande : depuis l'iPhone, « … » d'un film → « Lire sur… » → ce PC : Mira s'ouvre et le lit (fenêtre réduite ou dans la zone de notification comprise) ; la télécommande de l'iPhone met en pause, ±10 s, volume, muet, Arrêter ; Jellyfin web (« Lire sur ») aussi ; Réglages → En ce moment sur Jellyfin d'un autre appareil : « Arrêter » arrête ce PC
 
 ## iPhone 📱
 - [ ] Installation par AltStore, rafraîchie après 7 jours sans rien faire
@@ -61,6 +62,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Tailscale intégré : connexion, trousseau gardé après une mise à jour
 - [ ] Touches multimédias, Mira derrière une autre fenêtre pendant un épisode : F8 met en pause et reprend, F7 recule de 10 s, F9 passe à l'épisode suivant ; le bouton des AirPods met en pause ; centre de contrôle et barre des menus → « À l'écoute » : titre, affiche, barre qui avance, ±10 s ; le lecteur fermé, F8 revient à Musique
 - [ ] Notifications : un nouvel épisode d'une série suivie (favori ou commencée) ajouté à Jellyfin, Mira ouvert ou dans le Dock : macOS demande d'abord « Mira souhaite envoyer des notifications » (Autoriser), puis la notification « Nouvel épisode » avec son image ; un clic ouvre la série ; dans un groupe Regarder ensemble, Mira derrière une autre fenêtre, « X a rejoint le groupe » ; refusé, plus rien ni plus de question
+- [ ] Télécommande : depuis l'iPhone, « Lire sur… » → le Mac : le film part, pause, ±10 s, volume, Arrêter depuis la télécommande de l'iPhone
 
 ## Regarder ensemble 👥
 - [ ] Ta party par le lien (Funnel) : Dafty Cute rejoint depuis Windows sans compte

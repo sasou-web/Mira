@@ -1685,7 +1685,10 @@ public sealed class JellyfinClient : IDisposable
     /// <param name="listening">Told true once the WebSocket is open, false when it closes: while it is closed, library
     /// changes go unheard and the page needs refreshing more often.</param>
     /// <param name="syncPlay">« Regarder ensemble »: Jellyfin's SyncPlayGroupUpdate and SyncPlayCommand, with their Data.</param>
-    public async Task ListenAsync(Action changed, CancellationToken ct, Action<bool>? listening = null, Action<string, JsonElement>? syncPlay = null)
+    /// <param name="remote">Jellyfin's remote control (<see cref="RemoteControl"/>): with it, the session says what it
+    /// takes each time the socket opens, and each command it is sent comes here; without it (a party's guest, the
+    /// checks), the session cannot be steered from elsewhere.</param>
+    public async Task ListenAsync(Action changed, CancellationToken ct, Action<bool>? listening = null, Action<string, JsonElement>? syncPlay = null, Action<RemoteCommand>? remote = null)
     {
         var delay = 2;
         while (!ct.IsCancellationRequested)
@@ -1706,6 +1709,8 @@ public sealed class JellyfinClient : IDisposable
                 try
                 {
                     listening?.Invoke(true);
+                    // Jellyfin forgets the capabilities when it restarts, which also closes the socket: told at each opening.
+                    if (remote is not null) _ = TellCapabilitiesAsync(ct);
                     while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
                     {
                         using var message = new MemoryStream();
@@ -1726,6 +1731,9 @@ public sealed class JellyfinClient : IDisposable
                         if (type.GetString() is "LibraryChanged" or "UserDataChanged") changed();
                         else if (type.GetString() is "SyncPlayGroupUpdate" or "SyncPlayCommand" && syncPlay is not null && doc.RootElement.TryGetProperty("Data", out var data))
                             syncPlay(type.GetString()!, data.Clone());
+                        else if (type.GetString() is "Play" or "Playstate" or "GeneralCommand" && remote is not null && doc.RootElement.TryGetProperty("Data", out var command)
+                            && RemoteControl.Read(type.GetString()!, command) is { } heard)
+                            remote(heard);
                     }
                 }
                 finally
@@ -1739,6 +1747,41 @@ public sealed class JellyfinClient : IDisposable
             await Task.Delay(TimeSpan.FromSeconds(delay), ct);
             delay = Math.Min(30, delay * 2);
         }
+    }
+    /// <summary>What this session takes from Jellyfin's remote control (<see cref="RemoteControl.Capabilities"/>); a refusal changes nothing else.</summary>
+    public async Task<bool> TellCapabilitiesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            using var content = new StringContent(RemoteControl.Capabilities().ToJsonString(), Encoding.UTF8, "application/json");
+            using var response = await _http.PostAsync("Sessions/Capabilities/Full", content, ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException && !ct.IsCancellationRequested) { return false; }
+    }
+    /// <summary>The devices this account can play on or steer (<see cref="RemoteControl.Targets"/>).</summary>
+    public async Task<List<RemoteTarget>> RemoteTargetsAsync(CancellationToken ct = default) =>
+        RemoteControl.Targets(await GetAsync<JsonElement>($"Sessions?controllableByUserId={Uri.EscapeDataString(Connection.UserId)}&activeWithinSeconds=960", ct), Connection.DeviceId);
+    /// <summary>« Lire sur… »: plays a title on another session, from <paramref name="startTicks"/>.</summary>
+    public async Task RemotePlayAsync(string sessionId, string itemId, long startTicks, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync($"Sessions/{Uri.EscapeDataString(sessionId)}/Playing?playCommand=PlayNow&itemIds={Uri.EscapeDataString(itemId)}&startPositionTicks={Math.Max(0, startTicks)}", null, ct);
+        await CheckAsync(response);
+    }
+    /// <summary>A Playstate command to another session: Pause, Unpause, PlayPause, Stop, NextTrack, PreviousTrack, Rewind, FastForward, Seek (with <paramref name="seekTicks"/>).</summary>
+    public async Task RemoteStateAsync(string sessionId, string command, long? seekTicks = null, CancellationToken ct = default)
+    {
+        var path = $"Sessions/{Uri.EscapeDataString(sessionId)}/Playing/{Uri.EscapeDataString(command)}" + (seekTicks is { } ticks ? $"?seekPositionTicks={Math.Max(0, ticks)}" : "");
+        using var response = await _http.PostAsync(path, null, ct);
+        await CheckAsync(response);
+    }
+    /// <summary>A general command to another session (SetVolume with { Volume }, ToggleMute, DisplayMessage with { Header, Text, TimeoutMs }…).</summary>
+    public async Task RemoteCommandAsync(string sessionId, string name, IReadOnlyDictionary<string, string>? arguments = null, CancellationToken ct = default)
+    {
+        var body = new JsonObject { ["Name"] = name, ["Arguments"] = new JsonObject((arguments ?? new Dictionary<string, string>()).Select(x => KeyValuePair.Create(x.Key, (JsonNode?)x.Value))) };
+        using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync($"Sessions/{Uri.EscapeDataString(sessionId)}/Command", content, ct);
+        await CheckAsync(response);
     }
     private static async Task KeepAliveAsync(ClientWebSocket socket, CancellationToken ct)
     {

@@ -25,6 +25,7 @@ struct TitleView: View {
     @State private var replacing: (item: Item, fromStart: Bool, current: String)?
     /// « Watch together » opened from « … ».
     @State private var showsTogether = false
+    @State private var showsPlayOn = false
     /// How far the title was watched when Favorite or Watched was touched, until Play: a progress line that goes then
     /// fades out keeping its room, so nothing under it moves (Watched takes it away).
     @State private var held: HeldProgress?
@@ -95,6 +96,9 @@ struct TitleView: View {
         .navigationDestination(for: GenreRoute.self) { route in LibraryView(kind: route.kind, genre: route.genre) }
         .navigationDestination(for: PersonRoute.self) { route in PersonView(route: route) }
         .sheet(isPresented: $showsTogether) { TogetherSheet() }
+        .sheet(isPresented: $showsPlayOn) {
+            if let playable { PlayOnSheet(item: playable) }
+        }
         .task(id: route.item.id) { await load() }
         // A title stopped or marked: read again in place, what is shown stays until the new answer.
         .onChange(of: app.playback) { Task { await load() } }
@@ -236,6 +240,15 @@ struct TitleView: View {
                 Label("Watch together", systemImage: "person.2.fill")
             }
             .accessibilityIdentifier("title.together")
+            // Jellyfin's remote control: on Mira for Windows or Mac, or a Jellyfin app on a TV (RemoteViews).
+            if playable != nil, app.party.guest == nil {
+                Button {
+                    showsPlayOn = true
+                } label: {
+                    Label("Play on…", systemImage: "tv.and.mediabox")
+                }
+                .accessibilityIdentifier("title.playOn")
+            }
         } label: {
             Image(systemName: "ellipsis").font(.body.weight(.bold)).foregroundStyle(Palette.ink).frame(width: side, height: side).contentShape(.circle)
         }
