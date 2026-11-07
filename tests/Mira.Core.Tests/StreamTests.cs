@@ -75,7 +75,7 @@ internal static class StreamTests
             Assert(PictureColours.Source(Mpv(("video-params/gamma", "pq"), ("video-params/colormatrix", "dolbyvision"), ("current-tracks/video/dolby-vision-profile", "5"))) == "Dolby Vision profil 5", "Dolby Vision profile 5");
             Assert(PictureColours.Source(Mpv(("video-params/gamma", "pq"), ("video-params/colormatrix", "bt.2020-ncl"), ("current-tracks/video/dolby-vision-profile", "8"), ("video-params/max-cll", "1200"))) == "Dolby Vision profil 8 · 1200 nits", "Dolby Vision profile 8 (HDR10 base)");
             Assert(PictureColours.Source(Mpv(("video-params/gamma", "pq"), ("video-params/colormatrix", "dolbyvision"))) == "Dolby Vision", "Dolby Vision without the container's profile");
-            Assert(PictureColours.MacLine("HDR10", "écran non géré") == "HDR10 · converti en SDR · écran non géré" && PictureColours.MacLine("SDR", "écran large gamme (P3)") == "SDR · écran large gamme (P3)" && PictureColours.MacLine(null, "écran non géré") == "écran non géré",
+            Assert(PictureColours.MacLine("HDR10", "écran non géré") == "HDR10 → SDR (limite du rendu) · écran non géré" && PictureColours.MacLine("Dolby Vision profil 8 · 1000 nits", "écran large gamme (P3)") == "Dolby Vision profil 8 · 1000 nits → SDR (limite du rendu) · écran large gamme (P3)" && PictureColours.MacLine("SDR", "écran large gamme (P3)") == "SDR · écran large gamme (P3)" && PictureColours.MacLine(null, "écran non géré") == "écran non géré",
                 "Mac: always SDR (Avalonia's OpenGL view), then the screen");
             return Task.CompletedTask;
         });

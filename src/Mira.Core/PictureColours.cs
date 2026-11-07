@@ -46,9 +46,13 @@ public static class PictureColours
         };
     }
 
-    /// <summary>The line of a Mac: the source, converted to SDR when it is HDR, then the screen's colours (<paramref name="screen"/>).</summary>
+    /// <summary>
+    /// The line of a Mac: the source, « → SDR (limite du rendu) » when it is HDR, then the screen's colours (<paramref name="screen"/>).
+    /// Mira draws mpv into Avalonia's 8-bit OpenGL view, which has no EDR: an HDR film is tone-mapped to SDR on every Mac,
+    /// an XDR screen included. Said as a limit of Mira's drawing, not of the file or the screen (the Mac guide of the wiki explains it).
+    /// </summary>
     public static string MacLine(string? source, string screen) =>
-        (source is null ? "" : source + (source != "SDR" ? L(" · converti en SDR", " · converted to SDR") : "") + " · ") + screen;
+        (source is null ? "" : source + (source != "SDR" ? L(" → SDR (limite du rendu)", " → SDR (rendering limit)") : "") + " · ") + screen;
 
     private static double Value(string? text) =>
         double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value) ? value : 0;
