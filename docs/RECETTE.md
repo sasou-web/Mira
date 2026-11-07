@@ -37,6 +37,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] QR code de « Mira sur ton iPhone » (Guide de Mira pour Windows, ou Réglages → serveur sur Mac) scanné par l'appareil photo : Mira s'ouvre, serveur rempli, puis code ou mot de passe ; ensuite Jellyfin joint à la maison et en 4G
 - [ ] Ouverture : le « m » puis l'Accueil, sans écran blanc
 - [ ] Un film et un épisode lus du début à la fin ; épisode suivant tout seul
+- [ ] Page d'une personne : sur la fiche d'un film, « Distribution et équipe » (réalisation d'abord, photos), toucher un acteur ouvre sa page (photo, naissance, biographie, ses films et séries de ta bibliothèque) ; Recherche trouve aussi un acteur par son nom
 - [ ] « Tu regardes toujours ? » : 3 épisodes courts enchaînés sans toucher l'iPhone, le 4e ne part pas et la carte le demande ; « Continuer » le lance (même essai sur le PC d'ogsas et le Mac de Rayro, sans toucher clavier, souris ni manette)
 - [ ] Lecteur : double toucher ±10 s, glisser luminosité et volume, pincer, réduire vers le bas
 - [ ] PiP d'Apple et AirPlay vers une télé

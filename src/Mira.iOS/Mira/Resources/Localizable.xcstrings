@@ -1791,16 +1791,6 @@
         }
       }
     },
-    "Find a movie, a show or an episode by its name.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trouve un film, une série ou un épisode par son nom."
-          }
-        }
-      }
-    },
     "forced": {
       "localizations": {
         "fr": {
@@ -2297,16 +2287,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Les films et séries ajoutés à Jellyfin apparaîtront ici."
-          }
-        }
-      }
-    },
-    "Movies, shows, episodes": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Films, séries, épisodes"
           }
         }
       }
@@ -6477,6 +6457,158 @@
           "stringUnit": {
             "state": "translated",
             "value": "Après 3 épisodes de suite sans rien toucher, Mira s’arrête et demande avant le suivant."
+          }
+        }
+      }
+    },
+    "%lld titles": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld title"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titles"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titre"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titres"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Born %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naissance : %@"
+          }
+        }
+      },
+      "comment": "Under a person's name: their birthday"
+    },
+    "Cast & crew": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribution et équipe"
+          }
+        }
+      }
+    },
+    "Died %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Décès : %@"
+          }
+        }
+      },
+      "comment": "Under a person's name: the day they died"
+    },
+    "Director": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réalisation"
+          }
+        }
+      }
+    },
+    "Find a movie, a show or an episode by its name, or an actor.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trouve un film, une série ou un épisode par son nom, ou un acteur."
+          }
+        }
+      }
+    },
+    "Guest star": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guest-star"
+          }
+        }
+      }
+    },
+    "Movies, shows, episodes, people": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Films, séries, épisodes, personnes"
+          }
+        }
+      }
+    },
+    "No titles here": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun titre ici"
+          }
+        }
+      }
+    },
+    "None of their movies or shows is in your library.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun de ses films ni aucune de ses séries n’est dans ta bibliothèque."
+          }
+        }
+      }
+    },
+    "Opens their movies and shows": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre ses films et séries"
+          }
+        }
+      }
+    },
+    "People": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personnes"
           }
         }
       }
