@@ -118,8 +118,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "winget validate: $LASTEXITCODE" }
           winget settings --enable LocalManifestFiles
           # As winget-pkgs' pipeline: the default mode (silent with progress), nothing to answer.
-          winget install --manifest $dir --accept-package-agreements --accept-source-agreements --disable-interactivity
-          if ($LASTEXITCODE -ne 0) { throw "winget install: $LASTEXITCODE" }
+          $log = Join-Path $env:RUNNER_TEMP 'winget-logs'
+          New-Item -ItemType Directory -Force $log | Out-Null
+          # Setup's own log beside winget's, read whatever happens; 10 minutes at most (winget waits on Setup forever).
+          $install = Start-Process winget -PassThru -NoNewWindow -ArgumentList @('install', '--manifest', $dir, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--verbose-logs', '--log', "$log\winget.log", '--custom', "/LOG=`"$log\setup.log`"")
+          $done = $install.WaitForExit(600000)
+          foreach ($f in Get-ChildItem $log -File) { Write-Output "::group::$($f.Name)"; Get-Content $f.FullName -Tail 80; Write-Output '::endgroup::' }
+          Get-Process | Where-Object { $_.ProcessName -match 'Mira|setup|\.tmp' } | Format-Table Id, ProcessName, StartTime -AutoSize | Out-String | Write-Output
+          if (-not $done) { throw 'winget install still running after 10 minutes.' }
+          if ($install.ExitCode -ne 0) { throw "winget install: $($install.ExitCode)" }
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\Mira\Mira.exe'
           if (-not (Test-Path $exe)) { throw "No $exe after the install." }
           $key = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{7D5E2C41-9B8A-4F63-A1E7-3C5B9D2F8A64}_is1'
