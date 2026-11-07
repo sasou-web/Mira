@@ -488,7 +488,7 @@ public partial class MainWindow
     private void BuildTrackMenu()
     {
         if (_mpv is null) return;
-        AudioTrackList.Children.Clear(); SubtitleTrackList.Children.Clear(); BuildAudioDeviceChoices();
+        AudioTrackList.Children.Clear(); SubtitleTrackList.Children.Clear(); BuildAudioDeviceChoices(); ShowNightSound();
         if (_converted is { } converted) { BuildConvertedTrackMenu(converted); _ = ShowSubtitleSearchAsync(); return; }
         var tracks = _mpv.Tracks(); var audio = _mpv.Get("aid") ?? ""; var subtitle = _mpv.Get("sid") ?? "no";
         foreach (var track in tracks.Where(t => t.Type == "audio"))

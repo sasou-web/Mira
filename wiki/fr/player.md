@@ -70,6 +70,7 @@ Dans le menu **⋮** du lecteur : pause dans 15 minutes, 30 minutes, 1 heure, ou
 
 - **Image** (Réglages → Lecture, Windows et Mac) : **Standard** (le rendu de mpv, le plus léger), **Cinéma** (par défaut : mouvement fluide sur tout écran, pas de bandes dans les dégradés) et **Maximale** (avec la mise à l’échelle la plus fine). Si l’ordinateur perd des images, Mira descend d’un niveau tout seul et te le dit.
 - **Sortie audio** (Windows et Mac, Réglages → Audio & sous-titres) : le périphérique, le nombre de canaux, et **Son envoyé à l’ampli tel quel** pour un ampli ou une barre de son qui décode le Dolby et le DTS. Sous Windows, en HDMI, aussi le Dolby TrueHD, l’Atmos et le DTS-HD ; sur Mac, seulement le Dolby Digital et le DTS (macOS n’envoie rien de plus gros tel quel), le reste décodé par Mira. **Tester la sortie audio** joue un son sur chaque haut-parleur. Dans le lecteur, **Audio** change de sortie, et **⋮ → Informations** dit où part le son et s’il arrive à l’ampli sans décodage.
+- **Son de nuit** (Windows et Mac, dans le menu **Audio et sous-titres** du lecteur, sous les pistes audio) : les passages forts baissent et les voix remontent, pour regarder le soir à volume bas. Effet immédiat, gardé pour les vidéos suivantes. Sans effet quand le son part à l’ampli tel quel, et pas sur iPhone.
 - **Décalage de l’audio** (menu ⋮) : si les lèvres et les voix ne collent pas, par pas de 0,1 s, jusqu’à la fermeture du lecteur.
 
 ## Loin de la maison : la qualité

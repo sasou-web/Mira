@@ -285,6 +285,8 @@ public sealed class PlayerSettings
     public string AudioChannels { get; set; } = AudioOutput.AutoChannels;
     /// <summary>« off », « optical » or « hdmi » (<see cref="AudioOutput.Codecs"/>).</summary>
     public string AudioPassthrough { get; set; } = AudioOutput.Off;
+    /// <summary>« Son de nuit » (<see cref="Mira.Core.NightSound"/>): loud passages brought down, quiet ones raised; kept for the next videos.</summary>
+    public bool NightSound { get; set; }
     public bool AutoNext { get; set; } = true;
     /// <summary>« Tu regardes toujours ? » (<see cref="Mira.Core.StillWatching"/>): after 3 episodes in a row untouched, the next one waits for an answer.</summary>
     public bool StillWatching { get; set; } = true;
