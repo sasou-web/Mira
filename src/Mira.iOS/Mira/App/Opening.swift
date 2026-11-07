@@ -2,8 +2,10 @@ import SwiftUI
 import UIKit
 
 /// When Mira's opening leaves (OpeningView): the screen between iOS's launch screen and the app, the launch screen's « m »
-/// written again and again while Home loads. It leaves as soon as Home is drawn, can't be, or isn't what opens (the
-/// sign-in, a friend's party), and never later than its limits: nothing holds it longer than what it waits for.
+/// written again and again while Home loads. It leaves once Jellyfin answered and Home is drawn, once Home says why it
+/// can't be (Jellyfin away, no way to it), or at once when Home isn't what opens (the sign-in, a friend's party); never
+/// later than its limit, so it never stays stuck. Home kept from the last time is not enough: Jellyfin is waited for,
+/// the library opens as it is now, never filling in under the eyes.
 enum OpeningPlan {
     /// Where Home is, as Home says it (HomeView).
     enum Home: Sendable, Hashable {
@@ -19,12 +21,13 @@ enum OpeningPlan {
         case failed
     }
 
-    /// Home kept from the last time is shown after this, rather than Jellyfin waited for on.
-    static let withKept: TimeInterval = 3
-    /// With nothing kept, Home's own loading after this.
-    static let withNothing: TimeInterval = 12
+    /// Never longer than this: Home then, as it is (kept from the last time, or loading), its own lines saying the rest.
+    static let longest: TimeInterval = 15
     /// Jellyfin answered: Home shown after this, even with pictures still coming.
     static let pictures: TimeInterval = 1.2
+    /// No way to Jellyfin said for this long (no network, Built-in Tailscale signed out…): Home says why. A moment, for a
+    /// way said lost while another is still being looked for (the network just changing as Mira opens).
+    static let noWay: TimeInterval = 1
     /// A line under the mark says what Mira waits for after this.
     static let status: TimeInterval = 2
 
@@ -34,22 +37,18 @@ enum OpeningPlan {
         case wait(until: Date)
     }
 
-    /// `noWay`: Mira looked for a way to Jellyfin and none reaches it (Way's hint: no network, Tailscale off…), so
-    /// nothing is coming in time.
-    static func decide(signedIn: Bool, party: Bool, home: Home, noWay: Bool, startedAt: Date, now: Date) -> Decision {
+    /// `noWaySince`: since when Mira found no way to Jellyfin and knows why (Way's hint: no network, Tailscale off…),
+    /// Built-in Tailscale still connecting aside (it is waited for); nil while a way is taken or still looked for.
+    static func decide(signedIn: Bool, party: Bool, home: Home, noWaySince: Date?, startedAt: Date, now: Date) -> Decision {
         if party || !signedIn { return .leave }
-        let limit: Date
+        var limit = startedAt.addingTimeInterval(longest)
         switch home {
         case .ready, .failed:
             return .leave
         case let .answered(at):
-            limit = min(at.addingTimeInterval(pictures), startedAt.addingTimeInterval(withNothing))
-        case .kept:
-            if noWay { return .leave }
-            limit = startedAt.addingTimeInterval(withKept)
-        case .waiting:
-            if noWay { return .leave }
-            limit = startedAt.addingTimeInterval(withNothing)
+            limit = min(limit, at.addingTimeInterval(pictures))
+        case .kept, .waiting:
+            if let noWaySince { limit = min(limit, noWaySince.addingTimeInterval(noWay)) }
         }
         return now >= limit ? .leave : .wait(until: limit)
     }
@@ -155,6 +154,8 @@ final class Opening {
     let startedAt = Date()
     private(set) var leftAt: Date?
     private(set) var home = OpeningPlan.Home.waiting
+    /// Since when no way reaches Jellyfin (OpeningPlan.decide).
+    private(set) var noWaySince: Date?
 
     /// Home waits to be said ready (HomeView): only while Mira opens.
     var waitsForHome: Bool { phase == .on }
@@ -163,6 +164,11 @@ final class Opening {
     func report(_ home: OpeningPlan.Home) {
         guard phase == .on, home != self.home else { return }
         self.home = home
+    }
+
+    /// Whether a way to Jellyfin is missing, and why is known (OpeningView).
+    func noWay(_ missing: Bool) {
+        if !missing { noWaySince = nil } else if noWaySince == nil { noWaySince = .now }
     }
 
     func leave() {
@@ -232,14 +238,21 @@ struct OpeningView: View {
     }
 
     private var facts: Facts {
-        Facts(signedIn: app.session != nil, party: app.party.shown, home: app.opening.home, noWay: app.way == nil && app.wayHint != nil)
+        Facts(signedIn: app.session != nil, party: app.party.shown, home: app.opening.home, noWay: noWay)
+    }
+
+    /// No way to Jellyfin, and Mira knows why; Built-in Tailscale still connecting is waited for (Way gives it time).
+    private var noWay: Bool {
+        guard app.way == nil, let hint = app.wayHint else { return false }
+        return hint != .starting
     }
 
     /// Leaves when the plan says so, looked at again at its next limit.
     private func decide(_ facts: Facts) async {
         let opening = app.opening
+        opening.noWay(facts.noWay)
         while !Task.isCancelled, opening.phase == .on {
-            switch OpeningPlan.decide(signedIn: facts.signedIn, party: facts.party, home: facts.home, noWay: facts.noWay,
+            switch OpeningPlan.decide(signedIn: facts.signedIn, party: facts.party, home: facts.home, noWaySince: opening.noWaySince,
                                       startedAt: opening.startedAt, now: .now) {
             case .leave:
                 opening.leave()
