@@ -37,10 +37,11 @@ public sealed class Session : IAsyncDisposable
     /// Calls <paramref name="changed"/> (on a worker thread) when the library changes on the server, <paramref name="listening"/>
     /// when the connection opens or closes, and <paramref name="syncPlay"/> with each message of « Regarder ensemble ».
     /// </summary>
-    public void Listen(Action changed, Action<bool>? listening = null, Action<string, JsonElement>? syncPlay = null) => _ = ListenSafelyAsync(changed, listening, syncPlay);
-    private async Task ListenSafelyAsync(Action changed, Action<bool>? listening, Action<string, JsonElement>? syncPlay)
+    /// <param name="remote">Jellyfin's remote control (RemoteControl): only for this Mac's own account, never a party's guest.</param>
+    public void Listen(Action changed, Action<bool>? listening = null, Action<string, JsonElement>? syncPlay = null, Action<RemoteCommand>? remote = null) => _ = ListenSafelyAsync(changed, listening, syncPlay, remote);
+    private async Task ListenSafelyAsync(Action changed, Action<bool>? listening, Action<string, JsonElement>? syncPlay, Action<RemoteCommand>? remote)
     {
-        try { await Client.ListenAsync(changed, Lifetime, listening, syncPlay); }
+        try { await Client.ListenAsync(changed, Lifetime, listening, syncPlay, remote); }
         catch (OperationCanceledException) { }
     }
 

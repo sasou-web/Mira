@@ -900,9 +900,11 @@ public sealed partial class PlayerPage : UserControl
     {
         if (FailureShown) return;
         var status = Group.Active && Group.Group is { } group && _shell.Session is { } session ? Together.GroupStatus(group, session.Connection.UserName, !_loaded || _groupReadyPending || _groupStallSince is not null) : null;
-        var said = status is not null && DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
-        if (status is not null) { _groupText.Text = said ?? status.Text; _groupPill.IsVisible = true; }
-        _groupPill.Opacity = !_mini && status is not null && (said is not null || status.Alert || _controlsShown) ? 1 : 0;
+        // A message from another device (Jellyfin's remote control) goes in the same pill, in or out of a group.
+        var said = DateTimeOffset.UtcNow < _remoteSaidUntil ? _remoteSaid : status is not null && DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
+        var text = said ?? status?.Text;
+        if (text is not null) { _groupText.Text = text; _groupPill.IsVisible = true; }
+        _groupPill.Opacity = !_mini && text is not null && (said is not null || status!.Alert || _controlsShown) ? 1 : 0;
     }
     public void ShowMember(string said) { _groupMember = said; _groupMemberUntil = DateTimeOffset.UtcNow.AddSeconds(4); ShowGroup(); }
     /// <summary>A command of the group, for the title playing here only: the Stop sent on joining names none.</summary>

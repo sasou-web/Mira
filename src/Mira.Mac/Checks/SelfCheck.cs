@@ -622,6 +622,27 @@ public static class SelfCheck
                     MacNowPlaying.Press(MediaKey.Next);
                     await Task.Delay(500);
                     Check(window.Player == player && player.Item?.Id == movie.Id, "touches média : F9 sans épisode suivant ne fait rien", player.Item?.Name ?? "");
+                    // Jellyfin's remote control (MainWindow.Remote.cs), as the WebSocket hands its commands in: another
+                    // device pauses, moves, turns down and mutes this Mac, and says something on its screen.
+                    var session = window.Session!;
+                    window.Remote(session, new RemoteCommand(RemoteAction.Pause));
+                    Check(await Until(() => engine.Flag("pause"), 3), "télécommande : Pause d’un autre appareil met en pause");
+                    window.Remote(session, new RemoteCommand(RemoteAction.Unpause));
+                    Check(await Until(() => !engine.Flag("pause"), 3), "télécommande : Lecture reprend");
+                    window.Remote(session, new RemoteCommand(RemoteAction.Seek) { Position = player.Duration / 2 });
+                    Check(await Until(() => Math.Abs(player.Position - player.Duration / 2) < 2, 6), "télécommande : la position demandée", $"{player.Position:0.0} sur {player.Duration:0.0}");
+                    var level = player.Sound.Level;
+                    window.Remote(session, new RemoteCommand(RemoteAction.SetVolume) { Volume = 35 });
+                    window.Remote(session, new RemoteCommand(RemoteAction.ToggleMute));
+                    Check(player.Sound is { Level: 35, Muted: true }, "télécommande : volume à 35 %, puis muet", player.Sound.ToString());
+                    window.Remote(session, new RemoteCommand(RemoteAction.Unmute));
+                    player.PutBackSound(level);
+                    Check(!player.Sound.Muted, "télécommande : le son revient", player.Sound.ToString());
+                    window.Remote(session, new RemoteCommand(RemoteAction.Message) { Header = "Mira", Text = "Check" });
+                    Check(await Until(() => player.PillText == "Mira · Check", 2), "télécommande : le message d’un autre appareil en haut du lecteur", player.PillText ?? "rien");
+                    window.Remote(session, new RemoteCommand(RemoteAction.Next));
+                    await Task.Delay(400);
+                    Check(window.Player == player && player.Item?.Id == movie.Id, "télécommande : « suivant » sans épisode suivant ne fait rien", player.Item?.Name ?? "");
                     // Two fingers sideways over the picture: about 6 s on, the bar at once, the film when the fingers rest.
                     var from = player.Position;
                     Swipe(player, new Point(player.Bounds.Width / 2, player.Bounds.Height / 2), .15, 0, 20);

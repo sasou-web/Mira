@@ -31,6 +31,7 @@ internal static class PortableTests
         await DiagnosticsTests.RunAsync(run);
         await PrivacyTests.RunAsync(run);
         await TrailerTests.RunAsync(run);
+        await RemoteTests.RunAsync(run);
         await AccessibilityTests.RunAsync(run.Test);
         await CouchTests.RunAsync(run.Test);
         await SupplyChainTests.RunAsync(run.Test, run.Root);

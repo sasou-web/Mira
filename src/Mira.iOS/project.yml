@@ -136,6 +136,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/trailers.json
         buildPhase: resources
+      - path: ../../tests/fixtures/remote.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

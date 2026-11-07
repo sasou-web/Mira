@@ -416,7 +416,8 @@ public sealed partial class MainWindow : Window
                 if (open && opened) Changed();
                 opened |= open; _listening = open; Group.Listening(session, open);
             });
-            session.Listen(() => Dispatcher.UIThread.Post(Changed), Listening, (type, data) => Dispatcher.UIThread.Post(() => Group.Message(session, type, data)));
+            session.Listen(() => Dispatcher.UIThread.Post(Changed), Listening, (type, data) => Dispatcher.UIThread.Post(() => Group.Message(session, type, data)),
+                command => Dispatcher.UIThread.Post(() => Remote(session, command)));
         }
         _avatar.Text = connection.UserName.Length > 0 ? connection.UserName[..1].ToUpperInvariant() : "?";
         SetPhoto(null); _ = ShowPhotoAsync();
