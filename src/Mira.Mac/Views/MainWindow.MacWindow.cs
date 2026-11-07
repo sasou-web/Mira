@@ -36,11 +36,9 @@ public sealed partial class MainWindow
     /// <summary>The window as the person left it; full screen is a passing state, not a place to reopen at.</summary>
     private void RememberWindow()
     {
-        if (WindowState is WindowState.Normal)
-        {
-            (Settings.WindowWidth, Settings.WindowHeight) = (Math.Round(Width), Math.Round(Height));
-            (Settings.WindowX, Settings.WindowY) = (Position.X, Position.Y);
-        }
+        if (WindowState is WindowState.Normal) (Settings.WindowWidth, Settings.WindowHeight) = (Math.Round(Width), Math.Round(Height));
+        // A zoomed window keeps its screen: it reopens there, zoomed again.
+        if (WindowState is WindowState.Normal or WindowState.Maximized) (Settings.WindowX, Settings.WindowY) = (Position.X, Position.Y);
         if (WindowState is not WindowState.FullScreen and not WindowState.Minimized) Settings.WindowMaximized = WindowState == WindowState.Maximized;
     }
 
@@ -60,7 +58,7 @@ public sealed partial class MainWindow
         Player?.Pip?.Hide();
         try { await StopPlaybackAsync(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); }
         // A full-screen window hidden would leave its empty Space behind: back in the desktop first, as macOS slides it.
-        if (WindowState == WindowState.FullScreen) { WindowState = WindowState.Normal; await Task.Delay(900); }
+        if (WindowState == WindowState.FullScreen) { WindowState = WindowState.Normal; await Task.Delay(900); RememberWindow(); }
         if (InDock && !_closing) Hide();
     }
     /// <summary>A click on the Dock icon, a mira:// link, a menu item while the window is closed: the window back, in front.</summary>
