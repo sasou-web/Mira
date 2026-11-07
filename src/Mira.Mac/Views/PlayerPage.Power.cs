@@ -104,6 +104,8 @@ public sealed partial class PlayerPage
     /// <summary>For the self-check: macOS's notices, in turn.</summary>
     public void SleepForCheck() => Suspending();
     public void WakeForCheck() => Woke();
+    /// <summary>For the self-check: a stream being opened again (woken, cut, or loading the new one), until its file is loaded.</summary>
+    public bool ReopeningForCheck => _waking || _reloading || _recovering;
     /// <summary>For the self-check: the Mac slept <paramref name="seconds"/> without a word from macOS (its clock alone says so).</summary>
     public void ClockJumpForCheck(double seconds) => _lastTick -= TimeSpan.FromSeconds(seconds);
 }

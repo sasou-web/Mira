@@ -785,7 +785,7 @@ public static class SelfCheck
                         streams.Hang();
                         await Task.Delay(1500);
                         streamed.WakeForCheck();
-                        var back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true } && streamed.Engine?.Flag("pause") == true, 20);
+                        var back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Engine?.Flag("pause") == true, 20);
                         Check(pausedBefore && back && Math.Abs(streamed.Position - was) < 2, "veille du Mac : en pause avant, rouvert au même endroit au réveil, toujours en pause",
                             $"pause avant {pausedBefore}, {Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}, chargé {streamed.IsFileLoaded}, pause {streamed.Engine?.Flag("pause")}");
                         // Asleep without a word from macOS: its clock alone says so.
@@ -794,7 +794,7 @@ public static class SelfCheck
                         opened = Opened(); was = streamed.Position;
                         streams.Hang();
                         streamed.ClockJumpForCheck(40);
-                        back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true } && streamed.Engine?.Flag("pause") == true, 20);
+                        back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Engine?.Flag("pause") == true, 20);
                         Check(back && Math.Abs(streamed.Position - was) < 2, "veille vue par l’horloge seule : rouvert au même endroit, en pause", $"{Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}");
                         // The connection stops sending: mpv waits, Mira opens it again where it was after 15 s.
                         streamed.Engine?.Set("pause", "no");
@@ -803,7 +803,7 @@ public static class SelfCheck
                         streams.Hang();
                         var stalledAt = 0.0;
                         var waited = await Until(() => { if (streamed.Engine?.Flag("paused-for-cache") == true && stalledAt == 0) stalledAt = streamed.Position; return stalledAt > 0; }, 20);
-                        var reopened = await Until(() => Opened() > opened, 30) && await Until(() => streamed is { IsFileLoaded: true } && streamed.Position > stalledAt + 1, 20);
+                        var reopened = await Until(() => Opened() > opened, 30) && await Until(() => streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Position > stalledAt + 1, 20);
                         Check(waited && reopened && window.Player == streamed && !streamed.FailureShown, "flux bloqué : rouvert là où il était, la lecture continue",
                             $"attente {waited} à {stalledAt:0.0}, {Opened() - opened} réouverture, lu {streamed.Position:0.0}{(streamed.FailureShown ? ", " + streamed.FailureText : "")}");
                         // Stuck again before it played on: Jellyfin answers, the video does not come, « Lecture impossible ».
