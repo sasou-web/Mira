@@ -285,11 +285,12 @@ public static class SelfCheck
             if (window.CurrentSheet is { } shortcuts) window.CloseSheet(shortcuts);
             // ⌘W as on a Mac (MainWindow.MacWindow.cs): the window goes to the Dock, Mira keeps running, the Dock icon brings it
             // back; its place remembered for the next opening. Called directly: on Linux closing still quits.
+            var state = window.WindowState;
             await window.CloseToDockAsync();
             var docked = window.InDock && !window.IsVisible && window.Settings.WindowX is not null;
             window.Reopen();
             Check(docked && await Until(() => window.IsVisible && !window.InDock, 3) && window.Current is DetailPage, "⌘W : fenêtre dans le Dock, rouverte au clic, place gardée",
-                $"x {window.Settings.WindowX}, y {window.Settings.WindowY}");
+                $"x {window.Settings.WindowX}, y {window.Settings.WindowY}, {state}");
             await Task.Delay(800);
             if (mock is not null && window.Current is DetailPage still)
             {
