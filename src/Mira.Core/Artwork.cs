@@ -10,20 +10,22 @@ public static class Artwork
     /// A wide card, such as "Continuer à regarder". For an episode it is art of its own season, never the series'
     /// when something closer exists: a series spans seasons that look nothing alike (another arc, another cast). In order:
     /// the episode's own landscape art, the season's thumbnail, the season's backdrop, the episode's own image (a still
-    /// of that episode), and only then the series' backdrop.
+    /// of that episode, not with <see cref="Spoilers"/> on for one not started), and only then the series' backdrop.
     /// </summary>
     public static ImageRef Landscape(MediaItem item)
     {
         if (item.Type == "Episode")
         {
-            if (Tag(item.ImageTags, "Thumb") is { } thumb) return new(item.Id, "Thumb", thumb);
+            // « Cacher les spoilers »: an episode not started yet shows its season's or series' art, never a still of its own.
+            var own = !Spoilers.Hides(item);
+            if (own && Tag(item.ImageTags, "Thumb") is { } thumb) return new(item.Id, "Thumb", thumb);
             if (item.SeasonId is { Length: > 0 } season)
             {
                 if (item.SeasonThumbImageTag is { Length: > 0 } seasonThumb) return new(season, "Thumb", seasonThumb);
                 // Jellyfin takes the closest parent with a backdrop: the season when it has one.
                 if (item.ParentBackdropItemId == season && item.ParentBackdropImageTags.Length > 0) return new(season, "Backdrop", item.ParentBackdropImageTags[0]);
             }
-            if (Tag(item.ImageTags, "Primary") is { } still) return new(item.Id, "Primary", still);
+            if (own && Tag(item.ImageTags, "Primary") is { } still) return new(item.Id, "Primary", still);
         }
         return Backdrop(item);
     }

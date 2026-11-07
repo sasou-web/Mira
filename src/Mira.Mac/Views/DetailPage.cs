@@ -879,7 +879,10 @@ public sealed class DetailPage : Page
     private Button EpisodeRow(Session session, MediaItem episode)
     {
         var isNext = _next?.Id == episode.Id;
+        // « Cacher les spoilers »: an episode not started shows Jellyfin's BlurHash of its still, the still never fetched.
+        var hidden = Spoilers.Hides(episode, Shell.Settings.HideSpoilers);
         var image = new Image { Stretch = Stretch.UniformToFill };
+        if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? Cards.Blur(hash, 16 / 9d) : null;
         var thumb = new Grid { Width = 176, Height = 99, ClipToBounds = true };
         thumb.Children.Add(new Border { Background = Ui.Brush("#222225") });
         thumb.Children.Add(image);
@@ -890,7 +893,7 @@ public sealed class DetailPage : Page
         var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
         var copy = Ui.Column(6,
             new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
-            new TextBlock { Text = OverviewText.Plain(episode.Overview, flat: true), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19 });
+            new TextBlock { Text = hidden ? Spoilers.HiddenSummary : OverviewText.Plain(episode.Overview, flat: true), FontSize = 13, FontStyle = hidden ? FontStyle.Italic : FontStyle.Normal, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19 });
         copy.VerticalAlignment = VerticalAlignment.Center; copy.Margin = new Thickness(20, 0);
         var state = episode.UserData.Played ? L("✓ Vu", "✓ Watched") : isNext ? episode.Progress > 0 ? L("En cours", "In progress") : L("À suivre", "Up next") : null;
         var status = Ui.Column(8, new TextBlock { Text = episode.DurationLabel, FontSize = 12.5, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Right });
@@ -905,7 +908,7 @@ public sealed class DetailPage : Page
         button.Click += (_, _) => _ = Shell.PlayAsync(episode);
         button.ContextMenu = Shell.Menu(episode);
         Avalonia.Automation.AutomationProperties.SetName(button, $"{L("Épisode", "Episode")} {episode.IndexNumber}, {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? L(", vu", ", watched") : isNext ? L(", à suivre", ", up next") : "")}");
-        Ui.LoadWhenVisible(button, image, () => session.Images.EpisodeAsync(episode, 352));
+        if (!hidden) Ui.LoadWhenVisible(button, image, () => session.Images.EpisodeAsync(episode, 352));
         return button;
     }
 

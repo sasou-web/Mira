@@ -338,7 +338,8 @@ struct Artwork: Sendable, Hashable {
     enum Kind { case poster, wide, backdrop, logo }
 
     /// Falls back as Mira web does (images.js artFor): an episode shows its own picture first, then its series'.
-    static func of(_ item: Item, _ kind: Kind) -> Artwork? {
+    /// `hidingSpoilers`: « Hide spoilers » (Spoilers), this iPhone's setting unless told.
+    static func of(_ item: Item, _ kind: Kind, hidingSpoilers: Bool = Spoilers.on) -> Artwork? {
         func make(_ id: String?, _ type: String, _ tag: String?) -> Artwork? {
             guard let id, let tag, !id.isEmpty, !tag.isEmpty else { return nil }
             let hashes = item.imageBlurHashes?.first { $0.key.caseInsensitiveCompare(type) == .orderedSame }?.value
@@ -351,6 +352,8 @@ struct Artwork: Sendable, Hashable {
             return make(item.id, "Primary", own("Primary")) ?? make(item.seriesId, "Primary", item.seriesPrimaryImageTag)
         case .wide:
             if item.isEpisode {
+                // « Hide spoilers »: an episode not started shows its season's or series' art, never its own still.
+                if Spoilers.hides(item, on: hidingSpoilers) { return make(item.parentThumbItemId, "Thumb", item.parentThumbImageTag) ?? backdrop() }
                 return make(item.id, "Primary", own("Primary")) ?? make(item.parentThumbItemId, "Thumb", item.parentThumbImageTag) ?? backdrop()
             }
             return make(item.id, "Thumb", own("Thumb")) ?? backdrop() ?? make(item.id, "Primary", own("Primary"))

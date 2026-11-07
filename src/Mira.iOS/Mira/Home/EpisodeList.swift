@@ -133,12 +133,16 @@ struct EpisodeRow: View {
 
     var body: some View {
         let width: CGFloat = 150
+        let hidden = Spoilers.hides(episode, on: app.preferences.hideSpoilers)
         HStack(alignment: .top, spacing: 12) {
             Button {
                 app.play(episode)
             } label: {
                 ZStack {
-                    if let client = app.client {
+                    if hidden {
+                        // Jellyfin's BlurHash of its still, the still itself never fetched.
+                        RemoteImage(url: nil, blurHash: Spoilers.stillBlurHash(episode), width: width)
+                    } else if let client = app.client {
                         let art = Artwork.of(episode, .wide)
                         RemoteImage(url: art.map { client.imageURL($0, width: width, scale: displayScale) }, blurHash: art?.blurHash, label: episode.name ?? "", width: width)
                     }
@@ -178,7 +182,9 @@ struct EpisodeRow: View {
                     if let detail {
                         Text(verbatim: detail).font(MiraFont.footnote).foregroundStyle(Palette.muted)
                     }
-                    if case let overview = OverviewText.plain(episode.overview, flat: true), !overview.isEmpty {
+                    if hidden {
+                        Text("Not watched yet: summary hidden.").font(MiraFont.footnote).italic().foregroundStyle(Palette.muted).lineLimit(2)
+                    } else if case let overview = OverviewText.plain(episode.overview, flat: true), !overview.isEmpty {
                         Text(verbatim: overview).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(2).multilineTextAlignment(.leading)
                     }
                 }

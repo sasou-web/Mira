@@ -289,7 +289,7 @@ public sealed class HomePage : Page
         _heroText.Children.Add(Ui.Row(12,
             Ui.Action(resume ? L("Reprendre", "Resume") : L("Lecture", "Play"), "play", "primary", () => _ = Shell.PlayAsync(item)),
             Ui.Action(L("Plus d’infos", "More info"), "info", "", () => Shell.Open(item)), heart));
-        if (!string.IsNullOrWhiteSpace(item.Overview))
+        if (!string.IsNullOrWhiteSpace(item.Overview) && !Spoilers.Hides(item))
             _heroSide.Children.Add(new TextBlock { Text = OverviewText.Plain(item.Overview, flat: true), FontSize = 14.5, LineHeight = 22, Foreground = Ui.Brush("#D8D8DD"), TextWrapping = TextWrapping.Wrap, MaxLines = 4, TextTrimming = TextTrimming.WordEllipsis });
         if (item.Genres.Length > 0)
         {

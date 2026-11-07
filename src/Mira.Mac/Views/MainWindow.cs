@@ -128,7 +128,7 @@ public sealed partial class MainWindow : Window
         // Before anything shows, and before the settings: each text is written in Mira's language as it is built, and the
         // defaults of a new profile (the audio and subtitle languages) follow it.
         Args = args; Profile = profile; SystemLanguage.Apply(profile.ChosenLanguage());
-        Settings = profile.LoadSettings();
+        Settings = profile.LoadSettings(); Spoilers.On = Settings.HideSpoilers;
         Group = new WatchGroup(this);
         Group.Changed += () => { ShowGroupRail(); Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); PartyGroupChanged(); };
         Group.Member += GroupMember;
