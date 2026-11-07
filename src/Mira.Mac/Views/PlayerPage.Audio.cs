@@ -27,6 +27,13 @@ public sealed partial class PlayerPage
         _audioMissingSaid = true;
         _shell.Notice(L($"« {UnpluggedName} » n’est pas branchée : le son passe par la sortie du Mac.", $"“{UnpluggedName}” isn’t plugged in: the sound plays on the Mac’s output."));
     }
+    /// <summary>« Sortie » of ⋮ → Informations, as on Windows: the device, and the channels it gets or « to the amplifier ».</summary>
+    private string AudioOutputInfo(Playback.MpvPlayer mpv)
+    {
+        var devices = mpv.AudioDevices(); var device = AudioOutput.Device(_shell.Settings.AudioDevice, devices);
+        var name = device == AudioOutput.Default ? MacDefault : devices.First(d => d.Name == device).Label;
+        return AudioOutput.Shown(name, mpv.Get("audio-out-params/format"), mpv.Get("audio-out-params/hr-channels"));
+    }
     /// <summary>« Sortie » under the audio tracks, when there is more than one device to choose.</summary>
     private void AddAudioDevices(StackPanel list)
     {

@@ -14,7 +14,7 @@ Les réglages s’ouvrent par la roue dentée de la barre de gauche (<kbd>⌘</k
 | Partie | Ce qu’on y trouve |
 | --- | --- |
 | **Lecture** | Passer les intros et les récaps, enchaîner les épisodes, reprendre là où tu t’es arrêté, image, qualité hors de chez toi, décodage matériel, le moteur mpv (Windows) |
-| **Audio & sous-titres** | Langues audio et de sous-titres préférées, taille et style des sous-titres, sortie audio et ampli (Windows) |
+| **Audio & sous-titres** | Langues audio et de sous-titres préférées, taille et style des sous-titres, sortie audio et ampli |
 | **Apparence** | Langue de Mira, mode canapé, rangées de l’accueil, densité de la bibliothèque, carrousel automatique, réduire les animations |
 | **Compte & serveur** | Ton compte Jellyfin et ta photo, se déconnecter, Tailscale intégré, notifications de nouveaux épisodes, qui regarde sur Jellyfin en ce moment |
 | **Mira sur ce PC / Mac** | Les mises à jour, et les titres gardés pour regarder sans connexion |

@@ -171,8 +171,9 @@ public sealed partial class PlayerPage
             _ => ""
         };
         var seenLine = look is null ? "" : L($"\nImage lue  {look}", $"\nFrame read  {look}");
-        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}",
-            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}");
+        var audio = PlayerText.Codec(mpv.Get("audio-codec-name")) ?? "—"; var output = AudioOutputInfo(mpv);
+        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nAudio  {audio}\nSortie  {output}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}",
+            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nAudio  {audio}\nOutput  {output}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}");
     }
     /// <summary>The level playing, said in « Informations ».</summary>
     private string PictureInfo => PictureQuality.Label(_picture) + (_picture != PictureQuality.Known(_shell.Settings.Picture) ? L(" (allégée)", " (lightened)") : "");
