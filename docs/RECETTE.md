@@ -46,6 +46,8 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Sous-titres d'un vrai animé (ASS) lisibles et calés
 - [ ] Tailscale intégré en 4G (sans l'app Tailscale) : lecture, puis arrière-plan et retour
 - [ ] Données mobiles : un film en 4G, ⋮ → Qualité dit « Données mobiles · 2 Mb/s » et l'image reste correcte ; quitter le Wi-Fi en pleine lecture : le film reprend au même endroit en 2 Mb/s, puis revient en qualité normale au retour du Wi-Fi
+- [ ] Épisodes manquants et à venir (extension TheTVDB installée par Mira pour Windows) : sur une série suivie, la ligne au-dessus des saisons (« 1 épisode manquant : … » ou « Prochain épisode : …, samedi »), touchée = la liste avec les jours
+- [ ] Collections : « … » d'un film → « Ajouter à une collection… » : coché dans une collection existante, puis une nouvelle nommée avec lui ; vues dans Mira pour Windows ; même chose par l'appui long sur une affiche
 - [ ] Bandes-annonces : « … » → « Bande-annonce » d'un film qui en a une sur le serveur, lue dans Mira ; « Bande-annonce sur YouTube » ouvre Safari
 - [ ] Ouverture avec le PC de Jellyfin éteint : message clair, puis l'Accueil quand il revient
 - [ ] Un titre qui échouait avant : noter l'erreur et les infos du média

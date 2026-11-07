@@ -48,6 +48,10 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var localTrailerCount: Int?
     /// Its trailers on the web (Items/{id} only, YouTube from TMDb): opened in Safari, never in Mira.
     var remoteTrailers: [RemoteTrailer]?
+    /// « Virtual » for an episode Jellyfin knows of without its file (TheTVDB's extension: EpisodeCalendar).
+    var locationType: String?
+    /// A collection's folder in Jellyfin's data (fields=Path): its name is taken (TitleCollections.nameProblem).
+    var path: String?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }

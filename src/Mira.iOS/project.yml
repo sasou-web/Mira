@@ -138,6 +138,10 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/remote.json
         buildPhase: resources
+      - path: ../../tests/fixtures/calendar.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/collections.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:
