@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 
 namespace Mira.Mac.Checks;
@@ -85,15 +86,19 @@ public sealed class StreamServer : IDisposable
             stream.Position = from;
             var buffer = new byte[Rate / 10];
             var left = to - from + 1;
+            // Paced by the clock, not by pauses between pieces: on the Mac runner, busy drawing the film in software,
+            // each pause took far longer than asked, and the film came at a tenth of its rate.
+            var started = Stopwatch.StartNew();
             while (left > 0)
             {
                 // Cut: nothing more on this connection, never closed either (mpv's own timeout aside).
                 if (Volatile.Read(ref _cut) != cut) { end = "coupé"; Note($"#{number} {asked.HttpMethod} {asking} {sent / 1000} ko coupé"); await Task.Delay(Timeout.Infinite, _closing.Token); return; }
-                var read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, left)), _closing.Token);
+                var due = (long)(Rate * started.Elapsed.TotalSeconds) + buffer.Length - sent;
+                if (due <= 0) { await Task.Delay(20, _closing.Token); continue; }
+                var read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(Math.Min(buffer.Length, due), left)), _closing.Token);
                 if (read == 0) break;
                 await answer.OutputStream.WriteAsync(buffer.AsMemory(0, read), _closing.Token);
                 left -= read; sent += read;
-                await Task.Delay(100, _closing.Token);
             }
         }
         // mpv closing a connection it no longer needs (a seek, the film stopped), or the check ending.

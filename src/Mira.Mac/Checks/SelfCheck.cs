@@ -773,7 +773,7 @@ public static class SelfCheck
                     mock.StreamOverHttp = true;
                     int Opened() { lock (mock.Calls) return mock.Calls.Count(x => x.EndsWith("/PlaybackInfo", StringComparison.Ordinal)); }
                     // What mpv is doing, said when a check fails (the Mac runner differs from Linux).
-                    string Mpv() { var m = window.Player?.Engine; return m is null ? "pas de mpv" : string.Join(" ", new[] { "hwdec-current", "cache", "demuxer-via-network", "pause", "paused-for-cache", "core-idle", "seeking", "eof-reached", "demuxer-cache-time", "cache-buffering-state", "time-pos" }.Select(x => $"{x}={m.Get(x)}")) + $" ; flux {streams.Streams} : {streams.Log()}"; }
+                    string Mpv() { var m = window.Player?.Engine; return m is null ? "pas de mpv" : string.Join(" ", new[] { "pause", "paused-for-cache", "core-idle", "seeking", "eof-reached", "demuxer-cache-time", "cache-buffering-state", "time-pos" }.Select(x => $"{x}={m.Get(x)}")) + $" ; flux {streams.Streams} : {streams.Log()}"; }
                     await window.PlayAsync(movie, fromStart: true);
                     var streamed = window.Player;
                     var playing = await Until(() => streamed is { IsFileLoaded: true, Position: > 3 }, 30);
@@ -782,8 +782,6 @@ public static class SelfCheck
                     {
                         // macOS says it sleeps, then wakes: paused where it was, opened again, still paused.
                         var opened = Opened(); var was = streamed.Position;
-                        // EXPERIMENT (to remove): decoding in software from here, to see whether the runner's videotoolbox holds a paused seek.
-                        streamed.Engine?.Set("hwdec", "no");
                         streamed.SleepForCheck();
                         var pausedBefore = streamed.Engine?.Flag("pause") == true;
                         streams.Hang();
@@ -799,7 +797,7 @@ public static class SelfCheck
                         streams.Hang();
                         streamed.ClockJumpForCheck(40);
                         back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Engine?.Flag("pause") == true, 20);
-                        Check(back && Math.Abs(streamed.Position - was) < 2, "veille vue par l’horloge seule : rouvert au même endroit, en pause", $"{Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}{afterSleep} — {streams.Log()}");
+                        Check(back && Math.Abs(streamed.Position - was) < 2, "veille vue par l’horloge seule : rouvert au même endroit, en pause", $"{Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}{afterSleep}");
                         // The connection stops sending: mpv waits, Mira opens it again where it was after 15 s.
                         streamed.Engine?.Set("pause", "no");
                         var playedOn = await Until(() => streamed.Position > was + 3, 10); var afterClock = playedOn ? "" : " — pas reparti : " + Mpv();
