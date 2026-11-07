@@ -123,6 +123,10 @@ struct SettingsView: View {
                         row("Ask if you’re still watching", "After 3 episodes in a row without touching anything, Mira stops and asks before the next one.")
                     }
                     .accessibilityIdentifier("settings.stillWatching")
+                    Toggle(isOn: $preferences.hideSpoilers) {
+                        row("Hide spoilers", "Episodes you haven’t started yet show a blurred picture and no summary.")
+                    }
+                    .accessibilityIdentifier("settings.hideSpoilers")
                     Toggle(isOn: $preferences.autoSkip) {
                         row("Skip intros and recaps", "When Jellyfin or the file’s chapters mark them, playback jumps over them. Otherwise, a button offers it.")
                     }

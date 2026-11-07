@@ -16,6 +16,8 @@ final class Preferences {
     var autoNext: Bool { didSet { defaults.set(autoNext, forKey: Keys.autoNext) } }
     /// « Are you still watching? » (StillWatching): after 3 episodes in a row untouched, the next one waits for an answer.
     var stillWatching: Bool { didSet { defaults.set(stillWatching, forKey: Keys.stillWatching) } }
+    /// « Hide spoilers » (Spoilers): episodes not started show a blurred picture and no summary.
+    var hideSpoilers: Bool { didSet { defaults.set(hideSpoilers, forKey: Keys.hideSpoilers); Spoilers.on = hideSpoilers } }
     /// Home's rows in order, « - » before one put away (HomeLayout); empty: as Mira shows them.
     var homeRows: String { didSet { defaults.set(homeRows, forKey: Keys.homeRows) } }
     /// The quality's cap on cellular, a personal hotspot or Low Data Mode: « saver » (by default), « standard », « max »
@@ -53,6 +55,8 @@ final class Preferences {
         resumeBack = defaults.object(forKey: Keys.resumeBack) as? Int ?? 5
         autoNext = defaults.object(forKey: Keys.autoNext) as? Bool ?? true
         stillWatching = defaults.object(forKey: Keys.stillWatching) as? Bool ?? true
+        hideSpoilers = defaults.bool(forKey: Keys.hideSpoilers)
+        Spoilers.on = hideSpoilers
         homeRows = defaults.string(forKey: Keys.homeRows) ?? ""
         mobileData = defaults.string(forKey: Keys.mobileData).flatMap { PlaybackPlan.mobileChoices.contains($0) ? $0 : nil } ?? "saver"
         quality = defaults.string(forKey: Keys.quality) ?? "auto"
@@ -148,6 +152,7 @@ final class Preferences {
         static let resumeBack = "mira.resumeBack"
         static let autoNext = "mira.autoNext"
         static let stillWatching = "mira.stillWatching"
+        static let hideSpoilers = "mira.hideSpoilers"
         static let homeRows = "mira.homeRows"
         static let mobileData = "mira.mobileData"
         static let quality = "mira.quality"

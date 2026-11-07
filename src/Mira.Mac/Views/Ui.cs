@@ -324,7 +324,7 @@ public static class Cards
     /// <summary>What a card shows of <paramref name="item"/>: the same key, the same card (title, line, marks, picture).</summary>
     public static string Key(MediaItem item) => string.Join('|', item.Id, item.Type, item.Name, item.SeriesName, item.ProductionYear, item.ParentIndexNumber, item.IndexNumber, item.RunTimeTicks,
         item.ExtraType, item.UserData.Played, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, item.EpisodesToWatchBadge, string.Join(',', item.ImageTags.Select(x => x.Key + ":" + x.Value)),
-        item.SeriesPrimaryImageTag, item.SeasonThumbImageTag, string.Join(',', item.BackdropImageTags), item.ParentLogoImageTag);
+        item.SeriesPrimaryImageTag, item.SeasonThumbImageTag, string.Join(',', item.BackdropImageTags), item.ParentLogoImageTag, Spoilers.On);
     /// <summary>
     /// The cards of <paramref name="panel"/> for <paramref name="items"/>, made by <paramref name="make"/> under
     /// <paramref name="kind"/> (its size, its picture's): a card that would show the same (<see cref="Key"/>) stays as it is,
@@ -404,7 +404,12 @@ public static class Cards
     private static Bitmap? Blur(MediaItem item, bool wide)
     {
         if (BlurHash.Of(item, wide ? Artwork.Landscape(item) : Artwork.Poster(item)) is not { } hash) return null;
-        var (width, height) = BlurHash.Size(wide ? 16 / 9d : 2 / 3d);
+        return Blur(hash, wide ? 16 / 9d : 2 / 3d);
+    }
+    /// <summary>A BlurHash decoded for a picture of this aspect (width over height), kept with the cards': also the hidden still of an episode (<see cref="Spoilers"/>).</summary>
+    public static Bitmap? Blur(string hash, double aspect)
+    {
+        var (width, height) = BlurHash.Size(aspect);
         var key = $"{hash}|{width}|{height}";
         if (Blurs.TryGetValue(key, out var known)) return known;
         if (BlurHash.Decode(hash, width, height) is not { } pixels) return null;

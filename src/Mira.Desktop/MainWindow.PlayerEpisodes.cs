@@ -70,7 +70,9 @@ public partial class MainWindow
         if (playing) row.Background = Palette.Get("Raised");
         var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
         var thumb = new Grid { Width = 112, Height = 63, Clip = new RectangleGeometry(new Rect(0, 0, 112, 63), 4, 4), Background = Palette.Get("Raised2") };
+        var hidden = Spoilers.Hides(episode, _settings.HideSpoilers) && !playing;
         var image = new Image { Stretch = Stretch.UniformToFill }; thumb.Children.Add(image);
+        if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
         if (episode.Progress > 0 && !episode.UserData.Played) thumb.Children.Add(new Border { Height = 3, Width = 112 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
         grid.Children.Add(thumb);
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; Grid.SetColumn(text, 1);
@@ -88,7 +90,7 @@ public partial class MainWindow
             PlayerOptionsPopup.IsOpen = false;
             if (!playing) await PlayAsync(episode, _miniPlayer);
         };
-        if (_images is not null) _ = LoadEpisodeImageAsync(image, episode);
+        if (_images is not null && !hidden) _ = LoadEpisodeImageAsync(image, episode);
         return row;
     }
     /// <summary>The episode playing, else the first of the page: what the keyboard starts from.</summary>

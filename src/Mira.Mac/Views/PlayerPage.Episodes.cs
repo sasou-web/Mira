@@ -98,7 +98,9 @@ public sealed partial class PlayerPage
     private Button EpisodeRow(MediaItem episode)
     {
         var playing = episode.Id == _session.Item?.Id;
+        var hidden = Spoilers.Hides(episode, _shell.Settings.HideSpoilers) && !playing;
         var image = new Image { Stretch = Stretch.UniformToFill };
+        if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? Cards.Blur(hash, 16 / 9d) : null;
         var thumb = new Grid { Width = 112, Height = 63 };
         thumb.Children.Add(new Border { Background = Ui.Brush("#222225") });
         thumb.Children.Add(image);
@@ -122,7 +124,7 @@ public sealed partial class PlayerPage
             (_episodesButton.Flyout as Flyout)?.Hide();
             if (!playing) _ = PlayNextAsync(episode);
         };
-        if (_shell.Session is { } session) Ui.LoadWhenVisible(row, image, () => session.Images.EpisodeAsync(episode, 224));
+        if (_shell.Session is { } session && !hidden) Ui.LoadWhenVisible(row, image, () => session.Images.EpisodeAsync(episode, 224));
         return row;
     }
     /// <summary>The episode playing, else the first of the page: brought into view when the menu opens.</summary>

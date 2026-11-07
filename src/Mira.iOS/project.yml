@@ -105,6 +105,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/still-watching.json
         buildPhase: resources
+      - path: ../../tests/fixtures/spoilers.json
+        buildPhase: resources
       - path: ../../tests/fixtures/syncplay.json
         buildPhase: resources
       - path: ../../tests/fixtures/choices.json

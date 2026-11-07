@@ -532,7 +532,10 @@ public partial class MainWindow
             var button = new Button { Background = Palette.Get(isNext || wanted ? "Raised" : "Surface"), BorderBrush = isNext || wanted ? Palette.Get("Line") : Brushes.Transparent, Padding = new Thickness(15), Margin = new Thickness(0, 0, 0, 9), HorizontalContentAlignment = HorizontalAlignment.Stretch };
             var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
             var thumb = new Grid { Width = 160, Height = 90, Clip = new RectangleGeometry(new Rect(0, 0, 160, 90), 4, 4), Background = Palette.Get("Raised2") };
+            // « Cacher les spoilers »: an episode not started shows Jellyfin's BlurHash of its still, the still never fetched.
+            var hidden = Spoilers.Hides(episode, _settings.HideSpoilers);
             var image = new Image { Stretch = Stretch.UniformToFill }; thumb.Children.Add(image);
+            if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
             thumb.Children.Add(new Border { Background = Brush("#44000000") });
             thumb.Children.Add(new Icon { Kind = "play", Width = 23, Height = 23, Foreground = Brushes.White });
             if (episode.Progress > 0 && !episode.UserData.Played) thumb.Children.Add(new Border { Height = 3, Width = 160 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
@@ -540,7 +543,7 @@ public partial class MainWindow
             var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(21, 0, 20, 0) }; Grid.SetColumn(copy, 1);
             var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
             copy.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            copy.Children.Add(new TextBlock { Text = OverviewText.Plain(episode.Overview, flat: true), FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 7, 0, 0) });
+            copy.Children.Add(new TextBlock { Text = hidden ? Spoilers.HiddenSummary : OverviewText.Plain(episode.Overview, flat: true), FontSize = 12, FontWeight = FontWeights.Normal, FontStyle = hidden ? FontStyles.Italic : FontStyles.Normal, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 7, 0, 0) });
             grid.Children.Add(copy);
             var status = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right }; Grid.SetColumn(status, 2);
             status.Children.Add(new TextBlock { Text = episode.DurationLabel, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Right });
@@ -554,7 +557,7 @@ public partial class MainWindow
             button.Click += async (_, _) => await PlayAsync(episode, chosen: true);
             button.ContextMenu = EpisodeMenu(episode);
             EpisodesPanel.Children.Add(button);
-            if (_images is not null) _ = LoadEpisodeImageAsync(image, episode);
+            if (_images is not null && !hidden) _ = LoadEpisodeImageAsync(image, episode);
             // The episode found by a search comes into view the first time its season shows.
             if (wanted && !_detailEpisodeShown)
             {

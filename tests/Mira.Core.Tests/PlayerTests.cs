@@ -178,6 +178,33 @@ internal static class PlayerTests
             Assert(StillWatching.Reason("S01 E04").EndsWith("S01 E04", StringComparison.Ordinal) && !StillWatching.Reason(null).Contains("suivre", StringComparison.Ordinal), StillWatching.Reason(null));
             return Task.CompletedTask;
         });
+        await Test("Spoilers : un épisode pas commencé sans son image ni son résumé, réglage éteint par défaut, comme l’iPhone (tests/fixtures/spoilers.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "spoilers.json")));
+            Assert(!new PlayerSettings().HideSpoilers, "Off by default");
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var item = new MediaItem { Id = "e", Type = row[0].GetString()!, UserData = new() { Played = row[1].GetBoolean(), PlaybackPositionTicks = row[2].GetInt64() } };
+                Assert(Spoilers.Hides(item, row[3].GetBoolean()) == row[4].GetBoolean(), $"{row}");
+            }
+            // A wide card of an episode not started: its season's art or the series', never a still of its own.
+            var next = new MediaItem
+            {
+                Id = "e", Type = "Episode", SeriesId = "series", SeasonId = "season", ImageTags = new() { ["Primary"] = "still", ["Thumb"] = "thumb" },
+                ParentBackdropItemId = "series", ParentBackdropImageTags = ["backdrop"], ImageBlurHashes = new() { ["Primary"] = new() { ["still"] = "LEHV6nWB2yk8pyo0adR*.7kCMdnj" } },
+            };
+            var started = next with { UserData = new() { PlaybackPositionTicks = 1 } };
+            try
+            {
+                Spoilers.On = true;
+                Assert(Artwork.Landscape(next) == new ImageRef("series", "Backdrop", "backdrop") && Artwork.Landscape(started) == new ImageRef("e", "Thumb", "thumb"), "Wide card with spoilers hidden");
+                Assert(Spoilers.Still(next) == new ImageRef("e", "Primary", "still") && BlurHash.Of(next, Spoilers.Still(next)) is not null, "The still's BlurHash stands in for it");
+            }
+            finally { Spoilers.On = false; }
+            Assert(Artwork.Landscape(next) == new ImageRef("e", "Thumb", "thumb"), "Off: as before");
+            return Task.CompletedTask;
+        });
         await Test("Touches média du Mac : « Now Playing » redit seulement ce qui change, touches comme sous Windows", () =>
         {
             var at = new DateTimeOffset(2026, 11, 7, 21, 0, 0, TimeSpan.FromHours(1));

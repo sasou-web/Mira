@@ -6741,6 +6741,36 @@
         }
       }
     },
+    "Hide spoilers": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cacher les spoilers"
+          }
+        }
+      }
+    },
+    "Episodes you haven’t started yet show a blurred picture and no summary.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les épisodes que tu n’as pas encore commencés montrent une image floutée et pas de résumé."
+          }
+        }
+      }
+    },
+    "Not watched yet: summary hidden.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas encore vu : résumé caché."
+          }
+        }
+      }
+    },
     "Ask if you’re still watching": {
       "localizations": {
         "fr": {

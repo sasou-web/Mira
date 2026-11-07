@@ -54,7 +54,7 @@ public partial class MainWindow : Window
         var dataArg = Array.IndexOf(args, "--data");
         _profile = new LocalProfile(dataArg >= 0 && dataArg + 1 < args.Length ? args[dataArg + 1] : null);
         _settings = _profile.LoadSettings();
-        Motion.Reduced = _settings.ReduceMotion; Motion.FollowsWindows = !ValidationRun;
+        Motion.Reduced = _settings.ReduceMotion; Motion.FollowsWindows = !ValidationRun; Spoilers.On = _settings.HideSpoilers;
         // Before the pages load: they read these colours once.
         FollowHighContrast(); _textScale = TextScale();
         InitializeComponent();

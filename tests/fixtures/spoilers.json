@@ -1,0 +1,13 @@
+{
+  "about": "« Hide spoilers » (Spoilers of Mira.Core, Spoilers.swift of the iPhone): both must agree. cases: [type, watched, position in ticks, setting on, picture and summary hidden]. Hidden: an episode, the setting on, not watched and not started.",
+  "cases": [
+    ["Episode", false, 0, true, true],
+    ["Episode", false, 0, false, false],
+    ["Episode", true, 0, true, false],
+    ["Episode", false, 6000000000, true, false],
+    ["Episode", true, 6000000000, true, false],
+    ["Movie", false, 0, true, false],
+    ["Series", false, 0, true, false],
+    ["Season", false, 0, true, false]
+  ]
+}

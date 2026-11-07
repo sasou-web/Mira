@@ -75,7 +75,7 @@ public partial class MainWindow
     private static string SettingsNotSaved => L("Réglages appliqués, mais pas enregistrés : le disque est plein ou le fichier des réglages est utilisé par un autre programme. Mira réessaiera en se fermant.",
         "Settings applied but not saved: the disk is full or the settings file is in use by another program. Mira will try again when it closes.");
     private bool SettingsChanged() =>
-        _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || PictureChoice.Items.Count > 0 && PictureQuality.Known(_settings.Picture) != Choice(PictureChoice) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.StillWatching != (StillWatchingCheck.IsChecked == true) || _settings.TrailerFirst != (TrailerFirstCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || ResumeShown() != Choice(ResumeBackChoice)
+        _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || PictureChoice.Items.Count > 0 && PictureQuality.Known(_settings.Picture) != Choice(PictureChoice) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.StillWatching != (StillWatchingCheck.IsChecked == true) || _settings.TrailerFirst != (TrailerFirstCheck.IsChecked == true) || _settings.HideSpoilers != (HideSpoilersCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || ResumeShown() != Choice(ResumeBackChoice)
         || QualityChoice.Items.Count > 0 && StreamQuality.Known(_settings.Quality) != Choice(QualityChoice)
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
@@ -101,7 +101,7 @@ public partial class MainWindow
         RememberFocus(ref _settingsOrigin, SettingsOverlay);
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
         _settingsBusy = true;
-        HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; StillWatchingCheck.IsChecked = _settings.StillWatching; TrailerFirstCheck.IsChecked = _settings.TrailerFirst; AutoSkipCheck.IsChecked = _settings.AutoSkip;
+        HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; StillWatchingCheck.IsChecked = _settings.StillWatching; TrailerFirstCheck.IsChecked = _settings.TrailerFirst; HideSpoilersCheck.IsChecked = _settings.HideSpoilers; AutoSkipCheck.IsChecked = _settings.AutoSkip;
         SelectChoice(ResumeBackChoice, ResumeShown());
         if (PictureChoice.Items.Count == 0) foreach (var (key, label, details) in PictureQuality.Choices) PictureChoice.Items.Add(new ComboBoxItem { Content = label, Tag = key, ToolTip = details });
         SelectChoice(PictureChoice, PictureQuality.Known(_settings.Picture));
@@ -267,6 +267,10 @@ public partial class MainWindow
     private bool ApplySettings()
     {
         _settings.HardwareDecoding = HardwareCheck.IsChecked == true; _settings.AutoNext = AutoNextCheck.IsChecked == true; _settings.StillWatching = StillWatchingCheck.IsChecked == true; _settings.TrailerFirst = TrailerFirstCheck.IsChecked == true; _settings.AutoSkip = AutoSkipCheck.IsChecked == true;
+        // Applied at once: the series' page and Home's cards drawn again without (or with) the episodes' own pictures.
+        var spoilers = _settings.HideSpoilers != (HideSpoilersCheck.IsChecked == true);
+        _settings.HideSpoilers = Spoilers.On = HideSpoilersCheck.IsChecked == true;
+        if (spoilers && _detail?.Type == "Series" && _episodes.Count > 0) RenderEpisodes();
         // « Reprendre là où tu t’es arrêté » holds both: off, or how far before. Off keeps the distance for when it comes back.
         _settings.RememberPosition = Choice(ResumeBackChoice) != ResumeOff;
         if (int.TryParse(Choice(ResumeBackChoice), NumberStyles.Integer, CultureInfo.InvariantCulture, out var back)) _settings.ResumeBack = back;

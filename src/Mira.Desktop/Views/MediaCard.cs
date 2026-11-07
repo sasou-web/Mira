@@ -230,7 +230,12 @@ public sealed class MediaCard : Button
     private static BitmapSource? Blur(MediaItem item, bool wide)
     {
         if (BlurHash.Of(item, wide ? Artwork.Landscape(item) : Artwork.Poster(item)) is not { } hash) return null;
-        var (width, height) = BlurHash.Size(wide ? 16 / 9d : 1 / 1.48);
+        return Blur(hash, wide ? 16 / 9d : 1 / 1.48);
+    }
+    /// <summary>A BlurHash decoded for a picture of this aspect (width over height), kept with the cards': also the hidden still of an episode (<see cref="Spoilers"/>).</summary>
+    public static BitmapSource? Blur(string hash, double aspect)
+    {
+        var (width, height) = BlurHash.Size(aspect);
         var key = $"{hash}|{width}|{height}";
         if (Blurs.TryGetValue(key, out var known)) return known;
         if (BlurHash.Decode(hash, width, height) is not { } pixels) return null;
@@ -238,5 +243,5 @@ public sealed class MediaCard : Button
         if (Blurs.Count >= 600) Blurs.Clear();
         return Blurs[key] = bitmap;
     }
-    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview, item.ProductionYear, item.Subtitle, item.UserData.Played, item.EpisodesToWatch, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress);
+    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview, item.ProductionYear, item.Subtitle, item.UserData.Played, item.EpisodesToWatch, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress, settings.HideSpoilers);
 }
