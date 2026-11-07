@@ -22,6 +22,10 @@ public sealed class StreamServer : IDisposable
     private int _streams;
     /// <summary>The connections mpv opened for a video.</summary>
     public int Streams => _streams;
+    private readonly List<string> _log = [];
+    /// <summary>The last requests: their range, the bytes sent and how each ended, said when a check fails.</summary>
+    public string Log(int last = 24) { lock (_log) return string.Join(" | ", _log.TakeLast(last)); }
+    private void Note(string line) { lock (_log) _log.Add(line); }
 
     private StreamServer(MockJellyfin mock)
     {
@@ -37,7 +41,7 @@ public sealed class StreamServer : IDisposable
         catch (Exception ex) when (ex is HttpListenerException or InvalidOperationException) { return null; }
     }
     /// <summary>Every connection open now stops sending, and stays open.</summary>
-    public void Hang() => Interlocked.Increment(ref _cut);
+    public void Hang() { Interlocked.Increment(ref _cut); Note("— coupure —"); }
 
     private async Task AcceptAsync()
     {
@@ -54,11 +58,13 @@ public sealed class StreamServer : IDisposable
     {
         var asked = context.Request; var answer = context.Response;
         var cut = Volatile.Read(ref _cut);
+        int number = 0; string asking = "", end = "fin"; long sent = 0;
         try
         {
             var parts = asked.Url!.AbsolutePath.Trim('/').Split('/');
             if (parts.Length != 3 || parts[0] != "Videos" || parts[2] != "stream") { answer.StatusCode = 404; return; }
-            Interlocked.Increment(ref _streams);
+            number = Interlocked.Increment(ref _streams);
+            asking = asked.Headers["Range"] ?? "-"; Note($"#{number} {asking} ouvert");
             var file = _mock.FileOf(parts[1]);
             var length = new FileInfo(file).Length;
             long from = 0, to = length - 1;
@@ -82,18 +88,19 @@ public sealed class StreamServer : IDisposable
             while (left > 0)
             {
                 // Cut: nothing more on this connection, never closed either (mpv's own timeout aside).
-                if (Volatile.Read(ref _cut) != cut) { await Task.Delay(Timeout.Infinite, _closing.Token); return; }
+                if (Volatile.Read(ref _cut) != cut) { end = "coupé"; Note($"#{number} {asked.HttpMethod} {asking} {sent / 1000} ko coupé"); await Task.Delay(Timeout.Infinite, _closing.Token); return; }
                 var read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, left)), _closing.Token);
                 if (read == 0) break;
                 await answer.OutputStream.WriteAsync(buffer.AsMemory(0, read), _closing.Token);
-                left -= read;
+                left -= read; sent += read;
                 await Task.Delay(100, _closing.Token);
             }
         }
         // mpv closing a connection it no longer needs (a seek, the film stopped), or the check ending.
-        catch (Exception ex) when (ex is HttpListenerException or IOException or ObjectDisposedException or InvalidOperationException or OperationCanceledException or FormatException) { }
+        catch (Exception ex) when (ex is HttpListenerException or IOException or ObjectDisposedException or InvalidOperationException or OperationCanceledException or FormatException) { end = ex.GetType().Name; }
         finally
         {
+            if (number > 0 && end != "coupé") Note($"#{number} {asked.HttpMethod} {asking} {sent / 1000} ko {end}");
             try { answer.Close(); }
             catch (Exception ex) when (ex is HttpListenerException or IOException or ObjectDisposedException or InvalidOperationException) { }
         }
