@@ -4,11 +4,11 @@ name: Mac build
 on:
   push:
     branches: [main]
-    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
+    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tools/perf/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
   # A pull request that changes only Mira.Core waits for main: ci.yml compiles Mira.Mac against it on Linux in a minute,
   # and every push to main builds and checks the whole Mac app as before (as does each release, from tools/release.ps1).
   pull_request:
-    paths: ["src/Mira.Mac/**", "src/Mira.Core/Tailscale/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
+    paths: ["src/Mira.Mac/**", "src/Mira.Core/Tailscale/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tools/perf/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
   # No "release: published": GitHub runs nothing for a draft, and an immutable release takes no file once published.
   workflow_dispatch:
     inputs:
@@ -224,7 +224,8 @@ jobs:
       # How smooth the pages are (src/Mira.Mac/Checks/SmoothCheck.cs), as ci.yml measures Mira for Windows: signed in to a
       # Jellyfin answered inside Mira, the trackpad down and up the pages, the rail's pages, a title's page and Réglages,
       # frame by frame, in the log and the job's summary. A hosted Mac in a virtual machine: its numbers compare one commit
-      # with another, never with a real Mac. Nothing fails on them; not in a release, which pull requests measured.
+      # with another, never with a real Mac. Only the budgets below fail on them; not in a release, which pull requests
+      # measured.
       - name: Smoothness of the pages
         if: inputs.release == ''
         continue-on-error: true
@@ -238,6 +239,22 @@ jobs:
           cat .artifacts/smooth/report.txt 2>/dev/null || tail -40 .artifacts/smooth.log
           if [ -f .artifacts/smooth/summary.md ]; then { echo "### Mira pour Mac : fluidité des pages"; echo; cat .artifacts/smooth/summary.md; } >> "$GITHUB_STEP_SUMMARY"; fi
           exit $status
+      # The clicks held to tools/perf/budgets.json (source "mac"): a budget's "fail" sits several times past what this
+      # runner measures; past one, the check runs once more and fails only when both runs are past it. A check that
+      # could not run (the step above) still only warns: a hosted Mac in a virtual machine.
+      - name: Smoothness budgets
+        if: inputs.release == '' && hashFiles('.artifacts/smooth/report.json') != ''
+        run: |
+          node tools/perf/budget.mjs mac .artifacts/smooth/report.json --title 'Smoothness budgets (Mac)' && exit 0
+          echo "Past a budget: measured once more."
+          app=dist/mac/Mira.app/Contents/MacOS/Mira
+          rm -rf .artifacts/smooth-again-profile
+          "$app" --data "$PWD/.artifacts/smooth-again-profile" --smooth-check "$PWD/.artifacts/smooth-again" > .artifacts/smooth-again.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 240); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+          if kill -0 $pid 2>/dev/null; then kill $pid; fi
+          cat .artifacts/smooth-again/report.txt 2>/dev/null || tail -40 .artifacts/smooth-again.log
+          node tools/perf/budget.mjs mac .artifacts/smooth/report.json .artifacts/smooth-again/report.json --title 'Smoothness budgets (Mac), measured again'
       # Built-in Tailscale: the node of Mira.app as it ships (signed with it, this version) joins mira-testnet's Tailscale
       # network and reaches its Jellyfin, as on Linux in ci.yml (tests/Mira.Core.Tests): sign-in through the login page,
       # requests, WebSocket and mpv (Homebrew's libmpv) through the node, then the PC off and the node's key expired.
@@ -319,6 +336,8 @@ jobs:
             .artifacts/check.log
             .artifacts/smooth
             .artifacts/smooth.log
+            .artifacts/smooth-again
+            .artifacts/smooth-again.log
             .artifacts/dmg
             .artifacts/icon
             .artifacts/tailnet
