@@ -510,6 +510,54 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 10), "Leaving the party did not bring the sign-in back")
     }
 
+    /// A person's page: from a title's cast and crew (its director first, an actor credited twice shown once), their
+    /// photo, birth and titles; one of them opens its page; Search finds the person by their name too.
+    @MainActor
+    func testPerson() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "No card for Tears of Steel")
+        tapCard(app, poster)
+        XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "The title page did not open")
+        let director = app.buttons["title.person.0"], actor = app.buttons["title.person.1"]
+        XCTAssertTrue(director.waitForExistence(timeout: 10), "The title page has no cast and crew")
+        for _ in 0..<5 where !actor.isHittable { app.swipeUp() }
+        XCTAssertTrue(director.label.hasPrefix("Ian Hubert"), "The director is not first: \(director.label)")
+        XCTAssertEqual(actor.label, "Derek de Lint, Thom")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Derek de Lint'")).count, 1, "An actor credited twice shows twice")
+        settle()
+        capture("55-title-credits")
+
+        actor.tap()
+        let name = app.staticTexts["person.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10), "The person's page did not open")
+        XCTAssertEqual(name.label, "Derek de Lint")
+        XCTAssertTrue(app.staticTexts["Born July 15, 1950 · The Hague, Netherlands"].waitForExistence(timeout: 10), "No birth under the name")
+        let title = app.descendants(matching: .any)["person.titles"].buttons["Tears of Steel, 2012"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "The person's page does not list their film")
+        settle()
+        capture("56-person")
+        title.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "A title of the person's page did not open")
+
+        // The tab bar folded by the scrolling: back up, it unfolds.
+        for _ in 0..<3 { app.swipeDown() }
+        app.buttons["tab.search"].tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "Search has no search field")
+        field.tap()
+        field.typeText("derek")
+        let found = app.descendants(matching: .any)["search.people"].buttons["Derek de Lint"]
+        XCTAssertTrue(found.waitForExistence(timeout: 15), "Search did not find Derek de Lint")
+        settle()
+        capture("57-search-people")
+        found.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 10), "The person found by Search did not open their page")
+    }
+
     /// The README's and the site's captures of the app (gallery.yml, never ios.yml: skipped without MIRA_GALLERY_SERVER):
     /// signed in to a real Jellyfin 12.1 whose library is the README's demonstration one (tools/banner/media.sh, set up
     /// by tools/gallery/setup.mjs), in the language asked for: Home, the films, a film's page, a series' episodes, and a

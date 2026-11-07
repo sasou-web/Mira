@@ -3,7 +3,7 @@ import UIKit
 
 /// A title's page, in the order it is used: the picture with the title on it, what it is in one line, Play beside
 /// Favorite, Watched and « … », the languages on one quiet line, the summary in three lines, then a series' seasons and
-/// episodes, and the genres at the end. A series plays its next episode.
+/// episodes, its cast and crew (each opening their page), and the genres at the end. A series plays its next episode.
 struct TitleView: View {
     let route: TitleRoute
     @Environment(AppModel.self) private var app
@@ -56,6 +56,8 @@ struct TitleView: View {
                     if item.isSeries {
                         EpisodeList(series: item, next: next).padding(.top, 6)
                     }
+                    let credits = Credits.of(item)
+                    if !credits.isEmpty { CreditsRow(credits: credits) }
                     genres
                 }
                 .padding(.horizontal, 20)
@@ -90,6 +92,7 @@ struct TitleView: View {
             }
         }
         .navigationDestination(for: GenreRoute.self) { route in LibraryView(kind: route.kind, genre: route.genre) }
+        .navigationDestination(for: PersonRoute.self) { route in PersonView(route: route) }
         .sheet(isPresented: $showsTogether) { TogetherSheet() }
         .task(id: route.item.id) { await load() }
         // A title stopped or marked: read again in place, what is shown stays until the new answer.

@@ -38,9 +38,24 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var chapters: [Chapter]?
     /// Jellyfin's trickplay pictures (Items/{id} only), by file and by width: the thumbnails over the timeline.
     var trickplay: [String: [String: TrickplayInfo]]?
+    /// Cast and crew (Items/{id} only): the actors under a title's summary, each opening their page (Credits).
+    var people: [Person]?
+    /// A person's birth and death (Items/{id} of a person), and where they were born.
+    var premiereDate: String?
+    var endDate: String?
+    var productionLocations: [String]?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }
+}
+
+/// Someone in a title's credits, as Jellyfin lists them: an actor and their role, a director.
+struct Person: Codable, Sendable, Hashable {
+    var id: String?
+    var name: String?
+    var role: String?
+    var type: String?
+    var primaryImageTag: String?
 }
 
 struct Chapter: Codable, Sendable, Hashable {

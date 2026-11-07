@@ -75,6 +75,22 @@ const films = [
   film('b8c7d0e9f2a31b4c5d6e7f8a9b0c1d2e', 'Sprite Fright', 2021, 10, ['Animation', 'Horror', 'Comedy'],
     'When a group of rowdy teenagers trek into an isolated forest, they discover peaceful mushroom creatures that turn out to be an unexpected force of nature.'),
 ];
+// Cast and crew, as Items/{id} gives them (a person's page: Items?personIds=, Items/{person}, Persons?searchTerm=).
+const person = (id, name, extra = {}) => ({ Id: id, Name: name, Type: 'Person', ...extra });
+const persons = [
+  person('a0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5', 'Derek de Lint', {
+    ImageTags: { Primary: 'p-derek' }, PremiereDate: '1950-07-15T00:00:00.0000000Z', ProductionLocations: ['The Hague, Netherlands'],
+    Overview: 'Dutch actor, on stage and in films since the 1970s.',
+  }),
+  person('b1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6', 'Vanja Rukavina'),
+  person('c2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7', 'Sergio Hasselbaink', { ImageTags: { Primary: 'p-sergio' } }),
+  person('d3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8', 'Ian Hubert', { ImageTags: { Primary: 'p-ian' } }),
+  person('e4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9', 'Colin Levy', { ImageTags: { Primary: 'p-colin' } }),
+  person('f5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0', 'Halina Reijn'),
+];
+const credit = (index, type, role) => ({ Id: persons[index].Id, Name: persons[index].Name, Type: type, Role: role, PrimaryImageTag: persons[index].ImageTags?.Primary });
+films[0].People = [credit(4, 'Director'), credit(5, 'Actor', 'Sintel')];
+films[1].People = [credit(3, 'Director'), credit(0, 'Actor', 'Thom'), credit(1, 'Actor', 'Celia'), credit(2, 'Actor', 'Barley'), credit(0, 'Actor', 'Old Thom')];
 const SERIES = 'c9d8e1f0a3b42c5d6e7f8a9b0c1d2e3f';
 const SEASON = 'd0e9f2a1b4c53d6e7f8a9b0c1d2e3f40';
 const MOVIES = 'f1e2d3c4b5a69788796a5b4c3d2e1f00', SHOWS = 'f2e3d4c5b6a7988796a5b4c3d2e1f011';
@@ -375,7 +391,11 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, item.UserData);
   }
   const one = /^\/Items\/([0-9a-f]+)$/.exec(path);
-  if (one) { const item = everything.find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
+  if (path === '/Persons') {
+    const term = (q.get('searchTerm') ?? '').toLowerCase();
+    return send(res, 200, list(persons.filter((x) => term && x.Name.toLowerCase().includes(term))));
+  }
+  if (one) { const item = [...everything, ...persons].find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
   if (path === '/UserViews') {
     return send(res, 200, list([
       { Id: MOVIES, Name: 'Movies', Type: 'CollectionFolder', CollectionType: 'movies' },
@@ -398,6 +418,7 @@ const server = http.createServer(async (req, res) => {
     const term = (q.get('searchTerm') ?? '').toLowerCase();
     let found = everything.filter((x) => kinds.includes(x.Type)
       && (!term || x.Name.toLowerCase().includes(term))
+      && (!q.get('personIds') || (x.People ?? []).some((p) => p.Id === q.get('personIds')))
       && (!q.get('genres') || (x.Genres ?? []).includes(q.get('genres')))
       && (!q.get('years') || String(x.ProductionYear) === q.get('years'))
       && (q.get('isPlayed') !== 'false' || !x.UserData?.Played)
