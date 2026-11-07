@@ -56,13 +56,13 @@ final class Preferences {
         autoNext = defaults.object(forKey: Keys.autoNext) as? Bool ?? true
         stillWatching = defaults.object(forKey: Keys.stillWatching) as? Bool ?? true
         hideSpoilers = defaults.bool(forKey: Keys.hideSpoilers)
-        Spoilers.on = hideSpoilers
         homeRows = defaults.string(forKey: Keys.homeRows) ?? ""
         mobileData = defaults.string(forKey: Keys.mobileData).flatMap { PlaybackPlan.mobileChoices.contains($0) ? $0 : nil } ?? "saver"
         quality = defaults.string(forKey: Keys.quality) ?? "auto"
         audioLanguages = defaults.string(forKey: Keys.audio)
         subtitleLanguages = defaults.string(forKey: Keys.subtitles)
         autoSkip = defaults.bool(forKey: Keys.autoSkip)
+        Spoilers.on = hideSpoilers
     }
 
     var audioOrder: String { audioLanguages ?? AccountChoices.defaultAudioLanguages(AccountChoices.language) }
