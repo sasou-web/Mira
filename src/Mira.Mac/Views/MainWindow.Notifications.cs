@@ -93,13 +93,8 @@ public sealed partial class MainWindow
         try { var series = await session.ItemAsync(seriesId); if (ReferenceEquals(session, Session) && !Watching) Open(series); }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
-    /// <summary>Back from the Dock (macOS brings the app forward, not a window put away).</summary>
-    private void BringForward()
-    {
-        if (_closing) return;
-        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
-        Activate();
-    }
+    /// <summary>Back from the Dock, minimized or closed with ⌘W (macOS brings the app forward, not a window put away).</summary>
+    private void BringForward() => Reopen();
     /// <summary>macOS moves a notice's picture into its own store; what it did not take goes after four days.</summary>
     private void ForgetOldNoticeImages()
     {
