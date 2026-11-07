@@ -117,6 +117,12 @@ jobs:
           winget validate --manifest $dir
           if ($LASTEXITCODE -ne 0) { throw "winget validate: $LASTEXITCODE" }
           winget settings --enable LocalManifestFiles
+          # winget's default downloader is Delivery Optimization, which never finishes on a runner: WinINet instead.
+          $settings = (winget settings export | ConvertFrom-Json).userSettingsFile
+          New-Item -ItemType Directory -Force (Split-Path $settings) | Out-Null
+          Set-Content -Path $settings -Value '{ "network": { "downloader": "wininet" }, "installBehavior": { "preferences": { "scope": "user" } } }'
+          Write-Output "winget settings: $settings"
+          Get-Content $settings
           # As winget-pkgs' pipeline: the default mode (silent with progress), nothing to answer.
           $log = Join-Path $env:RUNNER_TEMP 'winget-logs'
           New-Item -ItemType Directory -Force $log | Out-Null
