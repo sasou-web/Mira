@@ -54,6 +54,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Image ni grise ni noire ; sinon ⋮ → Informations, ligne « Réparé »
 - [ ] Trackpad : défiler (Accueil : un geste = la page ou la rangée), glisser à deux doigts entre les pages (la page suit les doigts, revient si lâchée tôt), pincer dans les grilles (affiches qui glissent), balayage à trois doigts, pincer dans le lecteur
 - [ ] Image dans l'image (petite fenêtre flottante)
+- [ ] Sortie audio : Réglages → Audio & sous-titres → « Tester » joue chaque haut-parleur (casque, puis enceintes ou AirPods) ; ⋮ → Informations dit la sortie ; Dolby Digital vers un ampli si Rayro en a un
 - [ ] Mode canapé : plein écran agrandi, flèches et Retour arrière, une manette appairée (PlayStation ou Xbox) : A ouvre, B revient
 - [ ] Tailscale intégré : connexion, trousseau gardé après une mise à jour
 

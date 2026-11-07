@@ -58,7 +58,7 @@ In the player's **⋮** menu: pause in 15 minutes, 30 minutes, 1 hour, or at the
 ## Picture and sound
 
 - **Picture** (Settings → Playback, Windows and Mac): **Standard** (mpv's own rendering, the lightest), **Cinema** (the default: smooth motion on any screen, no banding in gradients) and **Maximum** (with the finest scaling). If the computer drops frames, Mira steps down one level by itself and tells you.
-- **Audio output** (Windows, Settings → Audio & subtitles): the output device, the number of channels, and **Sound sent to the amplifier as is** for an amplifier or sound bar that decodes Dolby and DTS, Atmos included. **Test the audio output** plays a tone on each speaker.
+- **Audio output** (Windows and Mac, Settings → Audio & subtitles): the output device, the number of channels, and **Sound sent to the amplifier as is** for an amplifier or sound bar that decodes Dolby and DTS. On Windows, over HDMI, Dolby TrueHD, Atmos and DTS-HD too; on a Mac, Dolby Digital and DTS only (macOS sends nothing larger untouched), the rest decoded by Mira. **Test the audio output** plays a tone on each speaker. In the player, **Audio** switches the output, and **⋮ → Info** says where the sound goes and whether it reaches the amplifier undecoded.
 - **Audio delay** (⋮ menu): if lips and voices don't match, in steps of 0.1 s, until the player closes.
 
 ## Away from home: quality

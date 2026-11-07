@@ -139,8 +139,6 @@ public partial class MainWindow
         if (_mpv is null) return "—";
         var devices = _mpv.AudioDevices(); var device = AudioOutput.Device(_settings.AudioDevice, devices);
         var name = device == AudioOutput.Default ? WindowsDefault : devices.First(d => d.Name == device).Label;
-        var how = (_mpv.Get("audio-out-params/format") ?? "").StartsWith("spdif", StringComparison.Ordinal) ? L("vers l’ampli, sans décodage", "to the amplifier, undecoded")
-            : _mpv.Get("audio-out-params/hr-channels") is { Length: > 0 } channels ? channels == "stereo" ? L("stéréo", "stereo") : channels : null;
-        return how is null ? name : $"{name} · {how}";
+        return AudioOutput.Shown(name, _mpv.Get("audio-out-params/format"), _mpv.Get("audio-out-params/hr-channels"));
     }
 }

@@ -84,6 +84,8 @@ internal static class StreamTests
                 Assert(Sample(0, 0) == 0 && Enumerable.Range(0, count * step).Max(f => Math.Abs((int)Sample(f, f / step))) < short.MaxValue / 2, $"{channels}: starts from silence, never loud");
             }
             Assert(AudioOutput.TestSound("stereo").Speakers.SequenceEqual(["gauche", "droite"]) && AudioOutput.TestSound("5.1,stereo").Speakers[3] == "caisson de basses", "Speakers named in the order heard");
+            Assert(AudioOutput.Shown("Ampli", "spdif-ac3", "stereo") == "Ampli · vers l’ampli, sans décodage" && AudioOutput.Shown("Casque", "floatp", "stereo") == "Casque · stéréo"
+                && AudioOutput.Shown("TV", "s16", "5.1") == "TV · 5.1" && AudioOutput.Shown("Par défaut du Mac", null, null) == "Par défaut du Mac", "Informations: the device, then undecoded or its channels");
             return Task.CompletedTask;
         });
         await Test("Qualité : profil de mpv, demande à PlaybackInfo, adresses sans jeton", () =>
