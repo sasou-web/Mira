@@ -9,7 +9,7 @@ public sealed class PageMemory
 {
     /// <summary>The choices of « Filtrer » by their tags, what was typed in Recherche, the titles and where the list was scrolled to.</summary>
     public sealed record State(string Genre, string GenreLabel, string Year, string Watched, string Sort, string Library, bool Favorites, bool FiltersOpen, string Search,
-        List<MediaItem> Items, int TotalCount, double Offset);
+        List<MediaItem> Items, int TotalCount, double Offset, string Quality = "", string Rating = "", string Audio = "", string Subtitles = "");
 
     private readonly Dictionary<string, State> _pages = [];
 

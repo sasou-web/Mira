@@ -31,11 +31,13 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Snap Layouts au survol du bouton agrandir
 - [ ] Tailscale intégré (sans l'app Tailscale, depuis un autre réseau) : se connecter, lire un film, se déconnecter
 - [ ] Mode canapé sur la télé (HDMI) : Réglages → Apparence → Mode canapé, plein écran lisible depuis le canapé ; flèches partout (rail compris), Entrée, Retour arrière ; une manette Xbox (A, B, Y, LB/RB, dans le lecteur A, X, LB/RB) ; la télécommande de la télé si un adaptateur HDMI-CEC est là
+- [ ] Filtres de Films : Filtrer → Image 4K + Langue audio Français + Non vus : seulement tes films 4K pas vus avec une piste française ; « Filtres · 3 » ; Réinitialiser rend tout ; « Plus courts d'abord »
 - [ ] Bandes-annonces : un film avec un dossier `trailers` (ou `…-trailer.mkv`) : bouton « Bande-annonce » de la fiche, lue dans Mira ; un film sans : le bouton dit « sur YouTube, dans ton navigateur » et ouvre le navigateur ; Réglages → Lecture → « Bande-annonce avant le film » : elle passe d'abord, « Passer la bande-annonce » mène au film, rien en reprise
 - [ ] Télécommande : depuis l'iPhone, « … » d'un film → « Lire sur… » → ce PC : Mira s'ouvre et le lit (fenêtre réduite ou dans la zone de notification comprise) ; la télécommande de l'iPhone met en pause, ±10 s, volume, muet, Arrêter ; Jellyfin web (« Lire sur ») aussi ; Réglages → En ce moment sur Jellyfin d'un autre appareil : « Arrêter » arrête ce PC
 
 ## iPhone 📱
 - [ ] Installation par AltStore, rafraîchie après 7 jours sans rien faire
+- [ ] Filtres de Films : pastilles Image, Note, Audio, Sous-titres ; « 4K » + « Audio · Français » ensemble, puis Réinitialiser
 - [ ] QR code de « Mira sur ton iPhone » (Guide de Mira pour Windows, ou Réglages → serveur sur Mac) scanné par l'appareil photo : Mira s'ouvre, serveur rempli, puis code ou mot de passe ; ensuite Jellyfin joint à la maison et en 4G
 - [ ] Ouverture : le « m » puis l'Accueil, sans écran blanc
 - [ ] Un film et un épisode lus du début à la fin ; épisode suivant tout seul

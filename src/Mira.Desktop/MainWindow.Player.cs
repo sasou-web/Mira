@@ -551,7 +551,7 @@ public partial class MainWindow
         if (FromTorLinkTerminal(e) && !IsBackKey(e)) return;
         if (e.Key == Key.Escape)
         {
-            foreach (var combo in new[] { GenreFilter, YearFilter, WatchedFilter, SortFilter, LibraryFilter, SeasonSelector, AudioLanguageChoice, SubtitleLanguageChoice, DensityChoice })
+            foreach (var combo in new[] { GenreFilter, YearFilter, WatchedFilter, SortFilter, LibraryFilter, QualityFilter, RatingFilter, AudioFilter, SubtitleFilter, SeasonSelector, AudioLanguageChoice, SubtitleLanguageChoice, DensityChoice })
                 if (combo.IsDropDownOpen) { combo.IsDropDownOpen = false; combo.Focus(); e.Handled = true; return; }
             GoBack(); e.Handled = true; return;
         }

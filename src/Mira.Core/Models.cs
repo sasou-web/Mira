@@ -157,21 +157,30 @@ public sealed record CatalogFilters
     public int[] Years { get; init; } = [];
 }
 /// <summary>Catalog filters; <paramref name="PersonId"/>: only the titles with this actor or director; <paramref name="StudioId"/>: of this studio.</summary>
-public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? Played = null, string Sort = "recent", string? PersonId = null, string? StudioId = null)
+/// <param name="Quality">« 4k », « hd », « sd » or null (<see cref="LibraryFilters"/>, as the next three).</param>
+/// <param name="Audio">A language of <see cref="LibraryFilters.Languages"/> the title can be heard in.</param>
+/// <param name="Subtitles">« any », « none » or a language.</param>
+/// <param name="MinRating">The community rating at least, out of 10.</param>
+public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? Played = null, string Sort = "recent", string? PersonId = null, string? StudioId = null,
+    string? Quality = null, string? Audio = null, string? Subtitles = null, int? MinRating = null)
 {
-    public string CacheKey => $"{Genre}|{Year}|{Played}|{Sort}|{PersonId}|{StudioId}";
+    public string CacheKey => $"{Genre}|{Year}|{Played}|{Sort}|{PersonId}|{StudioId}|{Quality}|{Audio}|{Subtitles}|{MinRating}";
+    /// <summary>How many of the filters of <see cref="LibraryFilters"/> narrow the list.</summary>
+    public int MoreFilters => (Quality is null ? 0 : 1) + (Audio is null ? 0 : 1) + (Subtitles is null ? 0 : 1) + (MinRating is null ? 0 : 1);
     public string Parameters =>
         (string.IsNullOrWhiteSpace(Genre) ? "" : "&genres=" + Uri.EscapeDataString(Genre)) +
         (string.IsNullOrWhiteSpace(PersonId) ? "" : "&personIds=" + Uri.EscapeDataString(PersonId)) +
         (string.IsNullOrWhiteSpace(StudioId) ? "" : "&studioIds=" + Uri.EscapeDataString(StudioId)) +
         (Year is null ? "" : "&years=" + Year.Value) +
         (Played is null ? "" : "&isPlayed=" + Played.Value.ToString().ToLowerInvariant()) +
+        LibraryFilters.Parameters(Quality, Audio, Subtitles, MinRating) +
         (Sort switch
         {
             "title" => "&sortBy=SortName&sortOrder=Ascending",
             "year" => "&sortBy=ProductionYear,SortName&sortOrder=Descending",
             "rating" => "&sortBy=CommunityRating,SortName&sortOrder=Descending",
             "played" => "&sortBy=DatePlayed,SortName&sortOrder=Descending",
+            "runtime" => "&sortBy=Runtime,SortName&sortOrder=Ascending",
             // A saga's titles in the order they came out.
             "saga" => "&sortBy=ProductionYear,PremiereDate,SortName&sortOrder=Ascending",
             _ => "&sortBy=DateCreated,SortName&sortOrder=Descending"

@@ -15,6 +15,8 @@ struct LibraryView: View {
     @State private var libraries: [Library] = []
     @State private var genres: [String] = []
     @State private var years: [String] = []
+    /// Audio and subtitle languages offered: Jellyfin 12 or later (LibraryFilters.languagesSupported).
+    @State private var languages = false
     @State private var width: CGFloat = 402
     /// On screen: a change of progress or of a mark is read again at once; otherwise once the grid shows again.
     @State private var shown = false
@@ -129,6 +131,45 @@ struct LibraryView: View {
                 } label: {
                     chip(query.year.map { Text(verbatim: $0) } ?? Text("Year"), on: query.year != nil, menu: true)
                 }
+                Menu {
+                    Picker("Picture", selection: $query.quality) {
+                        Text("All").tag(String?.none)
+                        ForEach(LibraryFilters.qualities, id: \.self) { key in qualityText(key, short: false).tag(String?.some(key)) }
+                    }
+                } label: {
+                    chip(query.quality.map { qualityText($0, short: true) } ?? Text("Picture"), on: query.quality != nil, menu: true)
+                }
+                .accessibilityIdentifier("library.picture")
+                Menu {
+                    Picker("Rating", selection: $query.minRating) {
+                        Text("All").tag(Int?.none)
+                        ForEach(LibraryFilters.ratings, id: \.self) { rating in Text("\(rating) and up").tag(Int?.some(rating)) }
+                    }
+                } label: {
+                    chip(query.minRating.map { Text("\($0) and up") } ?? Text("Rating"), on: query.minRating != nil, menu: true)
+                }
+                if languages {
+                    Menu {
+                        Picker("Audio language", selection: $query.audio) {
+                            Text("All").tag(String?.none)
+                            ForEach(LibraryFilters.languages.map(\.key), id: \.self) { key in languageText(key).tag(String?.some(key)) }
+                        }
+                    } label: {
+                        chip(query.audio.map { Text("Audio · \(languageText($0))") } ?? Text("Audio language"), on: query.audio != nil, menu: true)
+                    }
+                }
+                Menu {
+                    Picker("Subtitles", selection: $query.subtitles) {
+                        Text("With or without").tag(String?.none)
+                        Text("With subtitles").tag(String?.some("any"))
+                        Text("Without subtitles").tag(String?.some("none"))
+                        if languages {
+                            ForEach(LibraryFilters.languages.map(\.key), id: \.self) { key in languageText(key).tag(String?.some(key)) }
+                        }
+                    }
+                } label: {
+                    chip(subtitlesChip, on: query.subtitles != nil, menu: true)
+                }
                 Button { query.unplayed.toggle() } label: { chip(Text("Unwatched"), on: query.unplayed) }
                     .accessibilityAddTraits(query.unplayed ? .isSelected : [])
                 Button { query.favorite.toggle() } label: { chip(Text("Favorites"), on: query.favorite) }
@@ -140,6 +181,10 @@ struct LibraryView: View {
                         query.year = nil
                         query.unplayed = false
                         query.favorite = false
+                        query.quality = nil
+                        query.audio = nil
+                        query.subtitles = nil
+                        query.minRating = nil
                     } label: {
                         chip(Text("Reset"), on: false, symbol: "xmark")
                     }
@@ -263,6 +308,39 @@ struct LibraryView: View {
         libraries = (try? await client.libraries())?.filter { $0.kind == collection } ?? []
         genres = (try? await client.genres(query.types)) ?? []
         years = (try? await client.years(query.types)) ?? []
+        languages = LibraryFilters.languagesSupported((try? await client.serverVersion()) ?? nil)
+    }
+
+    /// « 4K », « HD », « SD » on the chip; the list says what HD is.
+    private func qualityText(_ key: String, short: Bool) -> Text {
+        switch key {
+        case "4k": Text(verbatim: "4K")
+        case "hd": short ? Text(verbatim: "HD") : Text("HD (720p, 1080p)")
+        default: Text(verbatim: "SD")
+        }
+    }
+
+    private func languageText(_ key: String) -> Text {
+        switch key {
+        case "fr": Text("French")
+        case "en": Text("English")
+        case "ja": Text("Japanese")
+        case "es": Text("Spanish")
+        case "de": Text("German")
+        case "it": Text("Italian")
+        case "ko": Text("Korean")
+        case "zh": Text("Chinese")
+        default: Text(verbatim: key)
+        }
+    }
+
+    private var subtitlesChip: Text {
+        switch query.subtitles {
+        case nil: Text("Subtitles")
+        case "any": Text("With subtitles")
+        case "none": Text("Without subtitles")
+        case let key?: Text("Subtitles · \(languageText(key))")
+        }
     }
 
     private func sortName(_ sort: BrowseQuery.Sort) -> LocalizedStringKey {
@@ -272,6 +350,7 @@ struct LibraryView: View {
         case .year: "Year"
         case .rating: "Rating"
         case .played: "Recently watched"
+        case .runtime: "Shortest first"
         }
     }
 

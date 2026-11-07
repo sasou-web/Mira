@@ -16,7 +16,9 @@ public partial class MainWindow
     private static string Choice(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
     private CatalogQuery CurrentQuery() => new(Choice(GenreFilter) is { Length: > 0 } genre ? genre : null,
         int.TryParse(Choice(YearFilter), out var year) ? year : null,
-        Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, _catalog.Sort(Choice(SortFilter)), _catalog.Person?.Id, _catalog.Studio?.Id);
+        Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, _catalog.Sort(Choice(SortFilter)), _catalog.Person?.Id, _catalog.Studio?.Id,
+        Some(QualityFilter), Some(AudioFilter), Some(SubtitleFilter), int.TryParse(Choice(RatingFilter), out var rating) ? rating : null);
+    private static string? Some(ComboBox box) => Choice(box) is { Length: > 0 } key ? key : null;
     /// <summary>The title page a person's titles were chosen from (<see cref="Catalog.Person"/>).</summary>
     private MediaItem? _personFrom;
     /// <summary>Where that page was scrolled, and the pages it was itself reached from (<see cref="TitleTrail"/>): « Retour » gives them back.</summary>
@@ -103,19 +105,31 @@ public partial class MainWindow
         PopulateFilters(new CatalogFilters());
         LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
     }
-    private void PopulateFilters(CatalogFilters filters)
+    /// <param name="languages">Audio and subtitle languages offered: Jellyfin 12 or later (<see cref="LibraryFilters.LanguagesSupported"/>).</param>
+    private void PopulateFilters(CatalogFilters filters, bool languages = false)
     {
         _filterBusy = true;
+        Fill(QualityFilter, LibraryFilters.Qualities()); Fill(RatingFilter, LibraryFilters.Ratings());
+        Fill(AudioFilter, languages ? LibraryFilters.Audio() : [LibraryFilters.Audio()[0]]); Fill(SubtitleFilter, LibraryFilters.Subtitles(languages));
+        AudioField.Visibility = languages ? Visibility.Visible : Visibility.Collapsed;
         GenreFilter.Items.Clear(); GenreFilter.Items.Add(new ComboBoxItem { Content = L("Tous", "All"), Tag = "" });
         foreach (var genre in GenreGroups.FromNames(filters.Genres)) GenreFilter.Items.Add(new ComboBoxItem { Content = genre.Label, Tag = genre.Value });
         YearFilter.Items.Clear(); YearFilter.Items.Add(new ComboBoxItem { Content = L("Toutes", "All"), Tag = "" });
         foreach (var year in filters.Years.OrderDescending()) YearFilter.Items.Add(new ComboBoxItem { Content = year.ToString(), Tag = year.ToString() });
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = 0; _filterBusy = false;
     }
+    /// <summary>A list of choices of <see cref="LibraryFilters"/>, the one chosen kept when it is still there.</summary>
+    private static void Fill(ComboBox box, IEnumerable<FilterChoice> choices)
+    {
+        var kept = Choice(box); box.Items.Clear();
+        foreach (var choice in choices) box.Items.Add(new ComboBoxItem { Content = choice.Label, Tag = choice.Key });
+        box.SelectedItem = box.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == kept) ?? box.Items.OfType<ComboBoxItem>().FirstOrDefault();
+    }
     private void ResetFilters()
     {
         _filterBusy = true; SearchBox.Text = ""; _catalog.ParentId = null; _catalog.Favorites = false; _catalog.Person = null; _catalog.Studio = null; _catalog.Saga = null; _personFrom = null; _personSearch = null;
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = WatchedFilter.SelectedIndex = SortFilter.SelectedIndex = LibraryFilter.SelectedIndex = 0;
+        QualityFilter.SelectedIndex = RatingFilter.SelectedIndex = AudioFilter.SelectedIndex = SubtitleFilter.SelectedIndex = 0;
         _filterBusy = false; ShowFavoritesFilter(); ShowPersonFilter();
     }
     private async void Favorites_Click(object sender, RoutedEventArgs e) { _catalog.Favorites = !_catalog.Favorites; ShowFavoritesFilter(); await RefreshAsync(); }

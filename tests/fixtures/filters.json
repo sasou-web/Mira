@@ -1,0 +1,30 @@
+{
+  "comment": "Filters of Films, Séries and Ta bibliothèque beyond genre, year and progress: Mira.Core LibraryFilters (CatalogQuery, Windows and Mac) and Jellyfin/Browse.swift (iPhone). queries: the choices (null = all) and Jellyfin's Items parameters they add, nothing else of these names (checked on Jellyfin 12.1: a file tagged « fre » and a « .fr.srt » beside another, stored « fra », both found; is4K, isHd and the languages match a series by its episodes). sort: « runtime », shortest first. languages: the server version and whether audio and subtitle languages are offered (Jellyfin 12 on; 10.11 ignores them).",
+  "queries": [
+    { "choices": {}, "parameters": {} },
+    { "choices": { "quality": "4k" }, "parameters": { "is4K": "true" } },
+    { "choices": { "quality": "hd" }, "parameters": { "isHd": "true" } },
+    { "choices": { "quality": "sd" }, "parameters": { "isHd": "false", "is4K": "false" } },
+    { "choices": { "audio": "fr" }, "parameters": { "audioLanguages": "fre,fra" } },
+    { "choices": { "audio": "ja" }, "parameters": { "audioLanguages": "jpn" } },
+    { "choices": { "audio": "de" }, "parameters": { "audioLanguages": "ger,deu" } },
+    { "choices": { "subtitles": "any" }, "parameters": { "hasSubtitles": "true" } },
+    { "choices": { "subtitles": "none" }, "parameters": { "hasSubtitles": "false" } },
+    { "choices": { "subtitles": "en" }, "parameters": { "subtitleLanguages": "eng" } },
+    { "choices": { "rating": 7 }, "parameters": { "minCommunityRating": "7" } },
+    { "choices": { "quality": "4k", "audio": "fr", "subtitles": "fr", "rating": 8 },
+      "parameters": { "is4K": "true", "audioLanguages": "fre,fra", "subtitleLanguages": "fre,fra", "minCommunityRating": "8" } },
+    { "choices": { "audio": "xx", "subtitles": "xx", "quality": "xx" }, "parameters": {} }
+  ],
+  "sort": { "runtime": { "sortBy": "Runtime,SortName", "sortOrder": "Ascending" } },
+  "languages": [
+    ["12.1.0", true],
+    ["12.4.0", true],
+    ["10.11.0", false],
+    ["10.10.7", false],
+    ["10.9.11", false],
+    ["", false],
+    [null, false]
+  ],
+  "offered": { "audio": ["fr", "en", "ja", "es", "de", "it", "ko", "zh"], "ratings": [6, 7, 8] }
+}
