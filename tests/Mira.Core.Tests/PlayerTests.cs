@@ -261,6 +261,21 @@ internal static class PlayerTests
             Assert(VolumeBoost.Text(135.2) == "135 %" && VolumeBoost.Text(0) == "0 %", "The level beside the slider");
             return Task.CompletedTask;
         });
+        await Test("Son de nuit : un compresseur en tête de la chaîne, gardé, jamais avec le son envoyé à l’ampli (Windows et Mac)", () =>
+        {
+            Assert(!new PlayerSettings().NightSound, "Off by default");
+            Assert(NightSound.Filter == "@mira-night:lavfi=[acompressor=threshold=0.0625:ratio=4:attack=10:release=300:makeup=2.5:knee=4,alimiter=limit=0.95:level=disabled]",
+                "A compressor without look-ahead (no delay), +8 dB for what stays quiet, a limiter without gain of its own, under its own label");
+            Assert(NightSound.Filter.StartsWith('@' + NightSound.Label + ':') && NightSound.Label != VolumeBoost.Label, "Its own label: the boost and it come and go apart");
+            Assert(NightSound.Applies(true, AudioOutput.Off) && NightSound.Applies(true, null), "Chosen, sound decoded by Mira: on");
+            Assert(!NightSound.Applies(true, AudioOutput.Optical) && !NightSound.Applies(true, AudioOutput.Hdmi) && !NightSound.Applies(false, AudioOutput.Off), "Never with passthrough, never unchosen");
+            Assert(NightSound.Details(true, AudioOutput.Hdmi, refused: false) == "Pas avec le son envoyé à l’ampli", "Says why it does nothing with passthrough");
+            Assert(NightSound.Details(true, AudioOutput.Off, refused: true) == "Ce lecteur ne sait pas le faire.", "Says when mpv refused it");
+            Assert(NightSound.Details(false, AudioOutput.Off, refused: false) == "Explosions plus douces, voix plus claires", "Otherwise, what it does");
+            var kept = System.Text.Json.JsonSerializer.Deserialize<PlayerSettings>(System.Text.Json.JsonSerializer.Serialize(new PlayerSettings { NightSound = true }));
+            Assert(kept?.NightSound == true, "Kept with the settings");
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres : taille, fond sombre, couleur, gras et hauteur donnés à mpv, ses défauts sinon (Windows et Mac)", () =>
         {
             var plain = SubtitleStyle.Options(new PlayerSettings());
