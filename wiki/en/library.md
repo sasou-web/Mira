@@ -14,7 +14,9 @@ Home opens on a large banner of your titles, then **Continue watching**: the fil
 
 ## Movies and series
 
-**Movies** and **Shows & anime** each have their own page, with genre chips, filters (genre, year, progress, library) and sorting (added, title, year, rating, last played). **Favorites** is a filter too.
+**Movies** and **Shows & anime** each have their own page, with genre chips, filters (genre, year, progress, library, picture, rating, audio language, subtitles) and sorting (added, title, year, rating, last played, shortest first). **Favorites** is a filter too.
+
+Filters add up: "4K, not watched, French audio" is one list. **Picture** is 4K, HD (720p and 1080p) or SD; a show counts by its episodes. **Rating** is the community rating (TMDb's, out of 10) at least. **Audio language** and the languages under **Subtitles** need Jellyfin 12 or later (older versions can't filter by language, so Mira doesn't offer it); **With subtitles** and **Without subtitles** work everywhere, files beside the video included. A file whose audio has no language tag isn't found by a language.
 
 On a series' poster, a number says how many episodes are left to watch: a new episode of a series you follow shows up in the library.
 

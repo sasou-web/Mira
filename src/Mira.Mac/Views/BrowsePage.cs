@@ -45,6 +45,10 @@ public sealed class BrowsePage : Page
     private readonly TextBlock _count = new() { FontSize = 12, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
     private readonly TextBox _search = new() { Watermark = L("Un film, une série, un acteur…", "A movie, a show, an actor…"), FontSize = 18, Padding = new Thickness(18, 14) };
     private readonly ComboBox _genre = new(), _year = new(), _state = new(), _sort = new(), _library = new();
+    /// <summary>Picture, rating, audio and subtitles (<see cref="LibraryFilters"/>): their choices, in the order of their lists.</summary>
+    private readonly ComboBox _quality = new(), _rating = new(), _audio = new(), _subtitles = new();
+    private readonly Dictionary<ComboBox, IReadOnlyList<FilterChoice>> _choices = [];
+    private readonly Control _audioField;
     /// <summary>The libraries of this kind (Séries and Animes), when there are several: one at a time, or all of them.</summary>
     private List<LibrarySection> _libraries = [];
     private readonly Button _favorites, _reset, _filtersToggle;
@@ -101,12 +105,14 @@ public sealed class BrowsePage : Page
         _reset = Ui.Action(L("Réinitialiser", "Reset"), null, "quiet", Reset);
         _reset.VerticalAlignment = VerticalAlignment.Bottom;
         _filtersToggle = Ui.Action(L("Filtrer", "Filter"), "sliders", "quiet", ToggleFilters);
-        ToolTip.SetTip(_filtersToggle, L("Genre, année, progression, bibliothèque", "Genre, year, progress, library"));
+        ToolTip.SetTip(_filtersToggle, L("Genre, année, progression, bibliothèque, image, note, langues", "Genre, year, progress, library, picture, rating, languages"));
         var refresh = Ui.Action(L("Actualiser", "Refresh"), "refresh", "quiet", () => _ = ReloadAsync(keep: true));
         Fill(_state, L("Tout", "All"), L("Non vus", "Unwatched"), L("Déjà vus", "Watched"));
-        Fill(_sort, saga is not null ? L("Ordre de sortie", "Release order") : studio is not null ? L("Plus récents", "Newest") : L("Ajout récent", "Recently added"), L("Titre A → Z", "Title A → Z"), L("Année", "Year"), L("Note", "Rating"), L("Dernière lecture", "Last played"));
+        Fill(_sort, saga is not null ? L("Ordre de sortie", "Release order") : studio is not null ? L("Plus récents", "Newest") : L("Ajout récent", "Recently added"), L("Titre A → Z", "Title A → Z"), L("Année", "Year"), L("Note", "Rating"), L("Dernière lecture", "Last played"), L("Plus courts d’abord", "Shortest first"));
         _sort.Width = 190;
-        foreach (var (box, name) in new[] { (_library, L("Bibliothèque", "Library")), (_genre, L("Genre", "Genre")), (_year, L("Année", "Year")), (_state, L("Progression", "Progress")), (_sort, L("Trier par", "Sort by")) })
+        FillChoices(languages: false);
+        foreach (var (box, name) in new[] { (_library, L("Bibliothèque", "Library")), (_genre, L("Genre", "Genre")), (_year, L("Année", "Year")), (_state, L("Progression", "Progress")), (_sort, L("Trier par", "Sort by")),
+            (_quality, L("Image", "Picture")), (_rating, L("Note", "Rating")), (_audio, L("Langue audio", "Audio language")), (_subtitles, L("Sous-titres", "Subtitles")) })
         {
             Avalonia.Automation.AutomationProperties.SetName(box, name);
             box.SelectionChanged += (_, _) => { if (!_filling) { ShowTools(); _ = ReloadAsync(); } };
@@ -121,9 +127,18 @@ public sealed class BrowsePage : Page
             box.HorizontalAlignment = HorizontalAlignment.Stretch;
             return Ui.Column(9, new TextBlock { Text = label, FontSize = 13, Margin = new Thickness(1, 0, 0, 0) }, box);
         }
-        var fields = new Grid { ColumnDefinitions = new ColumnDefinitions("*,0.75*,*,1.25*,Auto") };
-        var cells = new[] { Labelled(L("Genre", "Genre"), _genre), Labelled(L("Année", "Year"), _year), Labelled(L("Progression", "Progress"), _state), _libraryField = Labelled(L("Bibliothèque", "Library"), _library), _reset };
-        for (var i = 0; i < cells.Length; i++) { Grid.SetColumn(cells[i], i); if (i < 4) cells[i].Margin = new Thickness(0, 0, 16, 0); fields.Children.Add(cells[i]); }
+        // As on Windows: genre, year, progress and library, then under them picture, rating, audio and subtitles.
+        var fields = new Grid { ColumnDefinitions = new ColumnDefinitions("*,0.75*,*,1.25*,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto") };
+        var cells = new[] { Labelled(L("Genre", "Genre"), _genre), Labelled(L("Année", "Year"), _year), Labelled(L("Progression", "Progress"), _state), _libraryField = Labelled(L("Bibliothèque", "Library"), _library),
+            Labelled(L("Image", "Picture"), _quality), Labelled(L("Note", "Rating"), _rating), _audioField = Labelled(L("Langue audio", "Audio language"), _audio), Labelled(L("Sous-titres", "Subtitles"), _subtitles), _reset };
+        for (var i = 0; i < cells.Length; i++)
+        {
+            var last = i == cells.Length - 1;
+            Grid.SetColumn(cells[i], last ? 4 : i % 4); Grid.SetRow(cells[i], last || i >= 4 ? 1 : 0);
+            if (!last) cells[i].Margin = new Thickness(0, i >= 4 ? 16 : 0, 16, 0);
+            fields.Children.Add(cells[i]);
+        }
+        _audioField.IsVisible = false;
         _filters = new Border
         {
             IsVisible = false, Background = Ui.Brush("#111112"), BorderBrush = Ui.Brush("#29292D"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
@@ -190,18 +205,38 @@ public sealed class BrowsePage : Page
         Content = _scroll;
     }
     private static void Fill(ComboBox box, params string[] items) { foreach (var item in items) box.Items.Add(item); box.SelectedIndex = 0; }
+    /// <summary>
+    /// The lists of <see cref="LibraryFilters"/>, the choice made kept when it is still there; audio and subtitle
+    /// languages only when Jellyfin can filter by them (12 or later).
+    /// </summary>
+    private void FillChoices(bool languages)
+    {
+        var filling = _filling; _filling = true;
+        foreach (var (box, choices) in new[] { (_quality, LibraryFilters.Qualities()), (_rating, LibraryFilters.Ratings()), (_audio, languages ? LibraryFilters.Audio() : [LibraryFilters.Audio()[0]]), (_subtitles, LibraryFilters.Subtitles(languages)) })
+        {
+            var kept = Chosen(box);
+            _choices[box] = choices; box.Items.Clear();
+            foreach (var choice in choices) box.Items.Add(choice.Label);
+            box.SelectedIndex = Math.Max(0, choices.ToList().FindIndex(x => x.Key == kept));
+        }
+        if (_audioField is not null) _audioField.IsVisible = languages;
+        _filling = filling;
+    }
+    /// <summary>The key of the choice made in one of those lists, null for « all ».</summary>
+    private string? Chosen(ComboBox box) => _choices.TryGetValue(box, out var choices) && box.SelectedIndex > 0 && box.SelectedIndex < choices.Count ? choices[box.SelectedIndex].Key : null;
 
     private string Types => _kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", _ => "Movie,Series" };
     private CatalogQuery Query => new(
         Genre: _genre.SelectedIndex > 0 ? _genre.SelectedItem as string : null,
         Year: _year.SelectedIndex > 0 && int.TryParse(_year.SelectedItem as string, out var year) ? year : null,
         Played: _state.SelectedIndex switch { 1 => false, 2 => true, _ => null },
-        Sort: _sort.SelectedIndex switch { 1 => "title", 2 => "year", 3 => "rating", 4 => "played", _ => _saga is not null ? "saga" : _studio is not null ? "year" : "recent" },
-        PersonId: _person?.Id, StudioId: _studio?.Id);
+        Sort: _sort.SelectedIndex switch { 1 => "title", 2 => "year", 3 => "rating", 4 => "played", 5 => "runtime", _ => _saga is not null ? "saga" : _studio is not null ? "year" : "recent" },
+        PersonId: _person?.Id, StudioId: _studio?.Id,
+        Quality: Chosen(_quality), Audio: Chosen(_audio), Subtitles: Chosen(_subtitles), MinRating: int.TryParse(Chosen(_rating), out var rating) ? rating : null);
     private string? Library => _saga?.Id ?? (_library.SelectedIndex > 0 && _library.SelectedIndex <= _libraries.Count ? _libraries[_library.SelectedIndex - 1].Id : null);
-    private bool Filtered => _library.SelectedIndex > 0 || _genre.SelectedIndex > 0 || _year.SelectedIndex > 0 || _state.SelectedIndex > 0 || _sort.SelectedIndex > 0 || _favoritesOnly;
+    private bool Filtered => _library.SelectedIndex > 0 || _genre.SelectedIndex > 0 || _year.SelectedIndex > 0 || _state.SelectedIndex > 0 || _sort.SelectedIndex > 0 || _favoritesOnly || Query.MoreFilters > 0;
     /// <summary>« Filtres · 2 » while two filters narrow the list (Catalog.FilterCount, as on Windows), Favoris and the card's state.</summary>
-    private int FilterCount => (_genre.SelectedIndex > 0 ? 1 : 0) + (_year.SelectedIndex > 0 ? 1 : 0) + (_state.SelectedIndex > 0 ? 1 : 0) + (_library.SelectedIndex > 0 ? 1 : 0);
+    private int FilterCount => (_genre.SelectedIndex > 0 ? 1 : 0) + (_year.SelectedIndex > 0 ? 1 : 0) + (_state.SelectedIndex > 0 ? 1 : 0) + (_library.SelectedIndex > 0 ? 1 : 0) + Query.MoreFilters;
     private string Description => _person is not null || _saga is not null || _studio is not null ? ""
         : _kind == BrowseKind.Search ? L("Un film, une série, un épisode, une collection, un acteur ou un studio de ta bibliothèque.", "A movie, a show, an episode, a collection, an actor or a studio from your library.")
         : L("Trouve ta prochaine séance dans ta bibliothèque.", "Find your next show in your library.");
@@ -226,6 +261,7 @@ public sealed class BrowsePage : Page
         _filling = true;
         if (_library.ItemCount > 0) _library.SelectedIndex = 0;
         _genre.SelectedIndex = 0; _year.SelectedIndex = 0; _state.SelectedIndex = 0; _sort.SelectedIndex = 0;
+        _quality.SelectedIndex = 0; _rating.SelectedIndex = 0; _audio.SelectedIndex = 0; _subtitles.SelectedIndex = 0;
         _filling = false; _favoritesOnly = false;
         ShowTools(); _ = ReloadAsync();
     }
@@ -238,6 +274,7 @@ public sealed class BrowsePage : Page
             // Asked together: the grid waits for both.
             var libraries = session.Client.LibrariesAsync();
             var options = session.Client.FiltersAsync();
+            var version = session.Client.ServerVersionAsync();
             try
             {
                 var kinds = _kind switch { BrowseKind.Movies => ["movies"], BrowseKind.Series => ["tvshows"], _ => new[] { "movies", "tvshows" } };
@@ -260,6 +297,8 @@ public sealed class BrowsePage : Page
                 BuildGenreChips();
             }
             catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; }
+            try { FillChoices(LibraryFilters.LanguagesSupported(await version)); }
+            catch (Exception ex) when (Errors.Expected(ex)) { }
         }
         await ReloadAsync();
         await LoadPickUpAsync();

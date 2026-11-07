@@ -37,7 +37,8 @@ public partial class MainWindow
         if (LoginOverlay.Visibility == Visibility.Visible) return;
         var genre = GenreFilter.SelectedItem as ComboBoxItem;
         _pages.Keep(PageMemory.KeyOf(_catalog), new(Choice(GenreFilter), genre?.Content?.ToString() ?? "", Choice(YearFilter), Choice(WatchedFilter), Choice(SortFilter), Choice(LibraryFilter),
-            _catalog.Favorites, _filtersOpen, SearchBox.Text, _catalog.Items, _catalog.TotalCount, LibraryScroll.VerticalOffset), _catalog.Loading);
+            _catalog.Favorites, _filtersOpen, SearchBox.Text, _catalog.Items, _catalog.TotalCount, LibraryScroll.VerticalOffset,
+            Choice(QualityFilter), Choice(RatingFilter), Choice(AudioFilter), Choice(SubtitleFilter)), _catalog.Loading);
     }
     private void Restore(PageMemory.State state)
     {
@@ -46,6 +47,7 @@ public partial class MainWindow
         if (state.Genre.Length > 0 && !GenreFilter.Items.OfType<ComboBoxItem>().Any(x => x.Tag?.ToString() == state.Genre))
             GenreFilter.Items.Add(new ComboBoxItem { Content = state.GenreLabel, Tag = state.Genre });
         Pick(GenreFilter, state.Genre); Pick(YearFilter, state.Year); Pick(WatchedFilter, state.Watched); Pick(SortFilter, state.Sort); Pick(LibraryFilter, state.Library);
+        Pick(QualityFilter, state.Quality); Pick(RatingFilter, state.Rating); Pick(AudioFilter, state.Audio); Pick(SubtitleFilter, state.Subtitles);
         _catalog.ParentId = state.Library.Length > 0 ? state.Library : null;
         _catalog.Favorites = state.Favorites; _filtersOpen = state.FiltersOpen; SearchBox.Text = state.Search;
         _filterBusy = false; ShowFavoritesFilter();

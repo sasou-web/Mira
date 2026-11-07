@@ -3,7 +3,7 @@ import Foundation
 /// What a grid of the library asks Jellyfin (api.js browse of Mira web): titles of one kind, sorted, filtered, a page
 /// at a time.
 struct BrowseQuery: Sendable, Hashable {
-    enum Sort: String, Sendable, CaseIterable { case recent, title, year, rating, played }
+    enum Sort: String, Sendable, CaseIterable { case recent, title, year, rating, played, runtime }
 
     var types = "Movie,Series"
     var sort = Sort.recent
@@ -16,8 +16,16 @@ struct BrowseQuery: Sendable, Hashable {
     var search: String?
     /// Only the titles of this actor or director (a person's page).
     var person: String?
+    /// « 4k », « hd » or « sd » (LibraryFilters, as the next three).
+    var quality: String?
+    /// A language the title can be heard in, a key of LibraryFilters.languages.
+    var audio: String?
+    /// « any », « none » or a language.
+    var subtitles: String?
+    /// The community rating at least, out of 10.
+    var minRating: Int?
 
-    var filtered: Bool { genre != nil || year != nil || unplayed || favorite }
+    var filtered: Bool { genre != nil || year != nil || unplayed || favorite || quality != nil || audio != nil || subtitles != nil || minRating != nil }
 
     var parameters: [String: String?] {
         let (sortBy, order): (String, String) = switch sort {
@@ -26,12 +34,53 @@ struct BrowseQuery: Sendable, Hashable {
         case .rating: ("CommunityRating,SortName", "Descending")
         case .played: ("DatePlayed,SortName", "Descending")
         case .recent: ("DateCreated,SortName", "Descending")
+        case .runtime: ("Runtime,SortName", "Ascending")
         }
-        return [
+        let base: [String: String?] = [
             "recursive": "true", "includeItemTypes": types, "sortBy": sortBy, "sortOrder": order,
             "genres": genre, "years": year, "isPlayed": unplayed ? "false" : nil, "isFavorite": favorite ? "true" : nil,
             "parentId": library, "searchTerm": search, "personIds": person,
         ]
+        return base.merging(LibraryFilters.parameters(quality: quality, audio: audio, subtitles: subtitles, minRating: minRating).mapValues { Optional($0) }) { $1 }
+    }
+}
+
+/// The filters beyond genre, year and progress, as Mira.Core's LibraryFilters (Windows and Mac): picture, audio and
+/// subtitle languages, community rating; every one a parameter of Jellyfin's Items request, combined with the others.
+/// Cases shared in tests/fixtures/filters.json.
+enum LibraryFilters {
+    /// The languages offered, with the ISO 639-2 codes Jellyfin may have stored: « fre » in a file's tag, « fra » for a
+    /// « .fr.srt » beside it; both are asked.
+    static let languages: [(key: String, codes: String)] = [
+        ("fr", "fre,fra"), ("en", "eng"), ("ja", "jpn"), ("es", "spa"), ("de", "ger,deu"), ("it", "ita"), ("ko", "kor"), ("zh", "chi,zho"),
+    ]
+    static let qualities = ["4k", "hd", "sd"]
+    static let ratings = [6, 7, 8]
+
+    static func codes(_ key: String?) -> String? { languages.first { $0.key == key }?.codes }
+
+    /// Jellyfin filters by audio and subtitle language from 12 on; 10.11 and before ignore it and would give everything.
+    static func languagesSupported(_ version: String?) -> Bool {
+        guard let version, let major = version.split(separator: ".").first.flatMap({ Int($0) }) else { return false }
+        return major >= 12
+    }
+
+    static func parameters(quality: String?, audio: String?, subtitles: String?, minRating: Int?) -> [String: String] {
+        var asked: [String: String] = [:]
+        switch quality {
+        case "4k": asked["is4K"] = "true"
+        case "hd": asked["isHd"] = "true"
+        case "sd": asked["isHd"] = "false"; asked["is4K"] = "false"
+        default: break
+        }
+        if let spoken = codes(audio) { asked["audioLanguages"] = spoken }
+        switch subtitles {
+        case "any": asked["hasSubtitles"] = "true"
+        case "none": asked["hasSubtitles"] = "false"
+        default: if let written = codes(subtitles) { asked["subtitleLanguages"] = written }
+        }
+        if let minRating { asked["minCommunityRating"] = String(minRating) }
+        return asked
     }
 }
 
@@ -65,6 +114,11 @@ extension JellyfinClient {
         struct Filters: Decodable, Sendable { struct Genre: Decodable, Sendable { var name: String? }; var genres: [Genre]? }
         let filters: Filters = try await get("Items/Filters2", ["userId": userId, "includeItemTypes": types, "recursive": "true"])
         return (filters.genres ?? []).compactMap(\.name)
+    }
+
+    /// Jellyfin's version (« 12.1.0 »): which filters it knows.
+    func serverVersion() async throws -> String? {
+        try await get("System/Info/Public", as: PublicInfo.self).version
     }
 
     /// The years titles of a kind came out, newest first.

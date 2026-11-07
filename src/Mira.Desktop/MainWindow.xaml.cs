@@ -334,8 +334,10 @@ public partial class MainWindow : Window
             foreach (var library in libraries.Where(x => !LibrarySection.Groups(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
             _filterBusy = false;
             var filters = await client.FiltersAsync();
+            string? version = null;
+            try { version = await client.ServerVersionAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
             if (!ReferenceEquals(_client, client)) return;
-            PopulateFilters(filters);
+            PopulateFilters(filters, LibraryFilters.LanguagesSupported(version));
         }
         // A client disposed by a sign-out meanwhile fails its request: nothing to say then.
         catch (Exception ex) when (IsExpected(ex) || (!ReferenceEquals(_client, client) && ex is ObjectDisposedException or OperationCanceledException)) { if (ReferenceEquals(_client, client)) SetError(Friendly(ex)); }

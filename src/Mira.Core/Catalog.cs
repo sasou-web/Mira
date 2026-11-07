@@ -59,10 +59,11 @@ public sealed class Catalog
     /// <summary>The search page before anything is typed: an invitation, not every title (Jellyfin is not asked).</summary>
     public bool AwaitsSearch(string search) => View == "search" && search.Length == 0 && Person is null && Studio is null && Saga is null;
     /// <summary>
-    /// The filters behind « Filtrer » that are not at « Tous »: genre, year, progress, library. The sort and the
+    /// The filters behind « Filtrer » that are not at « Tous »: genre, year, progress, library, picture, languages and
+    /// rating (<see cref="LibraryFilters"/>). The sort and the
     /// favourites stay in sight, beside it.
     /// </summary>
-    public int FilterCount(CatalogQuery query) => (query.Genre is null ? 0 : 1) + (query.Year is null ? 0 : 1) + (query.Played is null ? 0 : 1) + (ParentId is not null && Saga is null ? 1 : 0);
+    public int FilterCount(CatalogQuery query) => (query.Genre is null ? 0 : 1) + (query.Year is null ? 0 : 1) + (query.Played is null ? 0 : 1) + query.MoreFilters + (ParentId is not null && Saga is null ? 1 : 0);
     /// <summary>« Filtrer », or « Filtres · 2 » while two of them narrow the list.</summary>
     public static string FiltersLabel(int count) => count == 0 ? L("Filtrer", "Filter") : L($"Filtres · {count}", $"Filters · {count}");
     public string GridTitle(string search) => IsHome(search) ? L("Ajoutés récemment", "Recently added") : View == "offline" ? L("Prêts sans connexion", "Ready offline") : search.Length > 0 ? L($"Résultats pour « {search} »", $"Results for “{search}”")
@@ -158,7 +159,7 @@ public sealed class Catalog
     /// <summary>What an empty page says: a search, filters, the favourites, or an empty library (then where videos go).</summary>
     public CatalogEmpty Empty(string search, CatalogQuery query, bool demo)
     {
-        var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || ParentId is not null && Saga is null || query.PersonId is not null || query.StudioId is not null;
+        var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || query.MoreFilters > 0 || ParentId is not null && Saga is null || query.PersonId is not null || query.StudioId is not null;
         // Nothing at all in the library (not a search, a filter or the favourites): where videos go is what is missing.
         var emptyLibrary = !demo && search.Length == 0 && !filtered && !Favorites && View is "home" or "library" && Resume.Count == 0;
         var (icon, title, hint) = (search.Length, filtered) switch
@@ -184,13 +185,15 @@ public sealed class Catalog
             (search.Length == 0 || x.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase))).ToList();
         if (View != "home")
         {
-            items = items.Where(x => (query.Genre is null || GenreGroups.Has(x.Genres, query.Genre)) && (query.Year is null || x.ProductionYear == query.Year) && (query.Played is null || x.UserData.Played == query.Played)).ToList();
+            items = items.Where(x => (query.Genre is null || GenreGroups.Has(x.Genres, query.Genre)) && (query.Year is null || x.ProductionYear == query.Year) && (query.Played is null || x.UserData.Played == query.Played)
+                && (query.MinRating is null || x.CommunityRating >= query.MinRating)).ToList();
             items = query.Sort switch
             {
                 "title" => items.OrderBy(x => x.Name).ToList(),
                 "year" => items.OrderByDescending(x => x.ProductionYear).ToList(),
                 "rating" => items.OrderByDescending(x => x.CommunityRating).ToList(),
                 "played" => items.OrderByDescending(x => x.UserData.LastPlayedDate ?? DateTimeOffset.MinValue).ThenByDescending(x => x.Progress).ToList(),
+                "runtime" => items.OrderBy(x => x.RunTimeTicks ?? long.MaxValue).ToList(),
                 _ => items
             };
         }

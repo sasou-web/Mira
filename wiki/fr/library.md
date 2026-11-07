@@ -14,7 +14,9 @@ L’accueil s’ouvre sur un grand bandeau de tes titres, puis **Continuer à re
 
 ## Films et séries
 
-**Films** et **Séries & animes** ont chacun leur page, avec des pastilles de genres, des filtres (genre, année, progression, bibliothèque) et des tris (ajout, titre, année, note, dernière lecture). **Favoris** est un filtre aussi.
+**Films** et **Séries & animes** ont chacun leur page, avec des pastilles de genres, des filtres (genre, année, progression, bibliothèque, image, note, langue audio, sous-titres) et des tris (ajout, titre, année, note, dernière lecture, plus courts d’abord). **Favoris** est un filtre aussi.
+
+Les filtres s’additionnent : « 4K, pas vus, en VF » donne une seule liste. **Image** : 4K, HD (720p et 1080p) ou SD ; une série compte par ses épisodes. **Note** : la note du public (celle de TMDb, sur 10) au moins. **Langue audio** et les langues de **Sous-titres** demandent Jellyfin 12 ou plus (les versions d’avant ne savent pas filtrer par langue, Mira ne le propose donc pas) ; **Avec sous-titres** et **Sans sous-titres** marchent partout, fichiers à côté de la vidéo compris. Un fichier dont l’audio n’a pas d’étiquette de langue n’est trouvé par aucune langue.
 
 Sur l’affiche d’une série, un nombre dit combien d’épisodes restent à voir : un nouvel épisode d’une série que tu suis se voit dans la bibliothèque.
 

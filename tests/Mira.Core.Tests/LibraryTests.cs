@@ -222,6 +222,42 @@ internal static class LibraryTests
             store.Acknowledge(store.Peek()!.Id); Assert(store.MergeResume([], store.RecentPlayback()).Count == 0, "Acknowledged old history overrode the server");
             return Task.CompletedTask;
         });
+        await Test("Filtres : 4K, HD, langues, sous-titres et note dans la requête de Jellyfin, ensemble, comme l’iPhone (tests/fixtures/filters.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "filters.json")));
+            var root = fixture.RootElement;
+            string[] names = ["is4K", "isHd", "audioLanguages", "subtitleLanguages", "hasSubtitles", "minCommunityRating"];
+            static Dictionary<string, string> Read(string parameters) => parameters.Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Split('=', 2)).ToDictionary(x => x[0], x => Uri.UnescapeDataString(x[1]));
+            foreach (var row in root.GetProperty("queries").EnumerateArray())
+            {
+                var choices = row.GetProperty("choices");
+                string? Text(string name) => choices.TryGetProperty(name, out var value) ? value.GetString() : null;
+                var query = new CatalogQuery(Quality: Text("quality"), Audio: Text("audio"), Subtitles: Text("subtitles"), MinRating: choices.TryGetProperty("rating", out var rating) ? rating.GetInt32() : null);
+                var asked = Read(query.Parameters).Where(x => names.Contains(x.Key)).ToDictionary();
+                var wanted = row.GetProperty("parameters").EnumerateObject().ToDictionary(x => x.Name, x => x.Value.GetString()!);
+                Assert(asked.Count == wanted.Count && wanted.All(x => asked.GetValueOrDefault(x.Key) == x.Value), $"{choices}: {query.Parameters}");
+                Assert(query.CacheKey != new CatalogQuery().CacheKey || wanted.Count == 0 || choices.EnumerateObject().Any(x => x.Value.ToString() == "xx"), "Clé du cache : " + choices);
+            }
+            var sort = Read(new CatalogQuery(Sort: "runtime").Parameters);
+            foreach (var wanted in root.GetProperty("sort").GetProperty("runtime").EnumerateObject()) Assert(sort.GetValueOrDefault(wanted.Name) == wanted.Value.GetString(), "Tri par durée : " + wanted.Name);
+            foreach (var row in root.GetProperty("languages").EnumerateArray())
+                Assert(LibraryFilters.LanguagesSupported(row[0].GetString()) == row[1].GetBoolean(), "Langues offertes avec Jellyfin " + row[0]);
+            var offered = root.GetProperty("offered");
+            Assert(LibraryFilters.Audio().Skip(1).Select(x => x.Key).SequenceEqual(offered.GetProperty("audio").EnumerateArray().Select(x => x.GetString())), "Langues de l’audio.");
+            Assert(LibraryFilters.Ratings().Skip(1).Select(x => int.Parse(x.Key)).SequenceEqual(offered.GetProperty("ratings").EnumerateArray().Select(x => x.GetInt32())), "Notes.");
+            Assert(LibraryFilters.Subtitles(false).Count == 3 && LibraryFilters.Subtitles(true).Count == 3 + LibraryFilters.Languages.Count && LibraryFilters.Audio()[1].Label == "Français", "Sous-titres : langues seulement quand Jellyfin sait les filtrer.");
+            var catalog = new Catalog { View = "Movie" };
+            var all = new CatalogQuery(Quality: "4k", Audio: "fr", Subtitles: "any", MinRating: 7, Played: false);
+            Assert(catalog.FilterCount(all) == 5 && catalog.Empty("", new CatalogQuery(Audio: "fr"), demo: false) is { Title: "Aucun titre ne correspond à ces filtres", Reset: true }, "Comptés dans « Filtres · 5 » ; une liste vide propose « Réinitialiser ».");
+            Assert(catalog.PickUp("", new CatalogQuery(MinRating: 8)) is null, "Filtré : pas de titre à reprendre en tête.");
+            catalog.ShowDemo([new MediaItem { Id = "a", Name = "Long", Type = "Movie", RunTimeTicks = 2, CommunityRating = 8.1f }, new MediaItem { Id = "b", Name = "Court", Type = "Movie", RunTimeTicks = 1, CommunityRating = 6 }], "", new CatalogQuery(Sort: "runtime"));
+            Assert(catalog.Items.Select(x => x.Id).SequenceEqual(["b", "a"]), "Démo : plus courts d’abord.");
+            catalog.ShowDemo([new MediaItem { Id = "a", Name = "Long", Type = "Movie", CommunityRating = 8.1f }, new MediaItem { Id = "b", Name = "Court", Type = "Movie", CommunityRating = 6 }], "", new CatalogQuery(MinRating: 7));
+            Assert(catalog.Items.Select(x => x.Id).SequenceEqual(["a"]), "Démo : note.");
+            return Task.CompletedTask;
+        });
         await Test("Ton bilan : temps, films, épisodes, séries finies, genres et séries préférés, comme Mira web (tests/fixtures/report.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
