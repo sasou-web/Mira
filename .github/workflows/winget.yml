@@ -144,7 +144,7 @@ jobs:
           $key = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{7D5E2C41-9B8A-4F63-A1E7-3C5B9D2F8A64}_is1'
           if ($key.DisplayVersion -ne $env:VERSION) { throw "Apps lists Mira $($key.DisplayVersion), not $env:VERSION." }
           Write-Output "Installed: $exe, $($key.DisplayName) $($key.DisplayVersion) by $($key.Publisher)"
-          winget uninstall --manifest $dir --disable-interactivity
+          winget uninstall --manifest $dir --accept-source-agreements --disable-interactivity
           if ($LASTEXITCODE -ne 0) { throw "winget uninstall: $LASTEXITCODE" }
           if (Test-Path $exe) { throw "$exe is still there after the uninstall." }
           Write-Output 'Uninstalled.'
