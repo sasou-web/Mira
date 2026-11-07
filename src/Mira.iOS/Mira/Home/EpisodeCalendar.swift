@@ -161,6 +161,29 @@ extension JellyfinClient {
     }
 }
 
+extension EpisodeCalendar {
+    /// What a series' page shows above its episodes.
+    struct Schedule {
+        var missing: [Item] = []
+        var coming: [Item] = []
+    }
+
+    /// The schedule of a series, nothing when Jellyfin is out of reach (the episodes say it), as on Windows and Mac.
+    @MainActor
+    static func schedule(of series: Item, app: AppModel) async -> Schedule {
+        // A friend's party's guest reaches only what the party lets through.
+        guard let client = app.client, app.party.guest == nil else { return Schedule() }
+        do {
+            let episodes = try await VirtualEpisodes.of(series: series.id, client: client)
+            let (missing, coming) = read(episodes, today: .today())
+            return Schedule(missing: missing, coming: coming)
+        } catch JellyfinError.unauthorized {
+            app.sessionEnded()
+        } catch {}
+        return Schedule()
+    }
+}
+
 /// The virtual episodes, read once for the whole library and kept a minute, as Windows and Mac keep them: every
 /// series page opened in that minute reads them from here.
 @MainActor
@@ -183,14 +206,12 @@ enum VirtualEpisodes {
 /// Above a series' episodes: « 2 missing episodes: S1 · E3, S2 · E2 » or « Next episode: S2 · E3, Saturday », opened
 /// into their list (TheTVDB, through Jellyfin). Nothing without Jellyfin's TheTVDB extension.
 struct EpisodeCalendarLine: View {
-    let series: Item
-    @Environment(AppModel.self) private var app
-    @State private var schedule: (missing: [Item], coming: [Item]) = ([], [])
+    let schedule: EpisodeCalendar.Schedule
     @State private var open = false
 
     var body: some View {
         let today = EpisodeCalendar.Day.today()
-        let (missing, coming) = schedule
+        let missing = schedule.missing, coming = schedule.coming
         let first = missing.isEmpty ? EpisodeCalendar.nextText(coming, today: today) : EpisodeCalendar.missingText(missing)
         Group {
             if !first.isEmpty {
@@ -229,7 +250,6 @@ struct EpisodeCalendarLine: View {
                 .background(Palette.raised, in: .rect(cornerRadius: 14, style: .continuous))
             }
         }
-        .task(id: series.id) { await load() }
     }
 
     @ViewBuilder private func list(missing: [Item], coming: [Item], today: EpisodeCalendar.Day) -> some View {
@@ -271,17 +291,4 @@ struct EpisodeCalendarLine: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func load() async {
-        // A friend's party's guest reaches only what the party lets through.
-        guard let client = app.client, app.party.guest == nil else { return }
-        do {
-            let episodes = try await VirtualEpisodes.of(series: series.id, client: client)
-            schedule = EpisodeCalendar.read(episodes, today: .today())
-        } catch JellyfinError.unauthorized {
-            app.sessionEnded()
-        } catch {
-            // Optional, as on Windows and Mac: the episodes say it when Jellyfin is out of reach.
-            schedule = ([], [])
-        }
-    }
 }
