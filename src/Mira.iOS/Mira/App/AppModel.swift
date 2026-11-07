@@ -48,6 +48,9 @@ final class AppModel {
     let keeper = Keeper()
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
+    /// What this account may do with collections (TitleCollections), read once from Users/Me for the account signed in.
+    private(set) var collectionRights: (user: String, rights: TitleCollections.Rights)?
+    @ObservationIgnored private var collectionRightsAsked: String?
     /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.
     private(set) var playback = 0
     /// The last measure of the connection to Jellyfin (bits per second), kept an hour.
@@ -329,6 +332,26 @@ final class AppModel {
         }
     }
 
+    /// « Add to a collection… » for this account: an administrator, or an account allowed to manage collections; never a
+    /// friend's party's guest.
+    var managesCollections: Bool {
+        party.guest == nil && collectionRights?.user == session?.userId && collectionRights?.rights.manage == true
+    }
+
+    /// Reads once what this account may do with collections (Users/Me); asked again after a failure.
+    func collectionRightsNeeded() {
+        guard party.guest == nil, let client, let user = session?.userId, collectionRightsAsked != user else { return }
+        collectionRightsAsked = user
+        Task {
+            do {
+                let me = try await client.me()
+                if session?.userId == user { collectionRights = (user, TitleCollections.Rights.from(me.policy)) }
+            } catch {
+                if collectionRightsAsked == user { collectionRightsAsked = nil }
+            }
+        }
+    }
+
     /// Signed out on this iPhone at once, then on Jellyfin; the account's Home kept for a quick start goes too.
     func signOut() {
         let client = client
@@ -340,6 +363,9 @@ final class AppModel {
             preferences.forget(account: session.userId)
             NewEpisodesWatch.forget(account: session.userId)
         }
+        collectionRights = nil
+        collectionRightsAsked = nil
+        VirtualEpisodes.forget()
         newEpisodes.dismiss()
         choices.stop()
         // What was kept on this iPhone goes with the account.
@@ -369,6 +395,9 @@ final class AppModel {
         RecentSearches.clear(session.userId)
         preferences.forget(account: session.userId)
         NewEpisodesWatch.forget(account: session.userId)
+        collectionRights = nil
+        collectionRightsAsked = nil
+        VirtualEpisodes.forget()
         newEpisodes.dismiss()
         choices.stop()
         // The copies stay for the same account signed in again: nothing is fetched meanwhile.

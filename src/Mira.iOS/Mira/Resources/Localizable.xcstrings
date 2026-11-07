@@ -543,12 +543,42 @@
         }
       }
     },
+    "Add to a collection": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter à une collection"
+          }
+        }
+      }
+    },
+    "Add to a collection…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter à une collection…"
+          }
+        }
+      }
+    },
     "Add to favorites": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ajouter aux favoris"
+          }
+        }
+      }
+    },
+    "Added to “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouté à « %@ »."
           }
         }
       }
@@ -973,6 +1003,26 @@
         }
       }
     },
+    "Collection name": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom de la collection"
+          }
+        }
+      }
+    },
+    "Collection “%@” created with “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collection « %@ » créée avec « %@ »."
+          }
+        }
+      }
+    },
     "Connected to Tailscale": {
       "localizations": {
         "fr": {
@@ -1043,6 +1093,16 @@
         }
       }
     },
+    "Create": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créer"
+          }
+        }
+      }
+    },
     "Create a group": {
       "localizations": {
         "fr": {
@@ -1069,6 +1129,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Direct"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
           }
         }
       }
@@ -1126,6 +1196,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Plus tôt"
+          }
+        }
+      }
+    },
+    "Empty": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vide"
           }
         }
       }
@@ -1230,6 +1310,26 @@
         }
       }
     },
+    "Give the collection a name.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Donne un nom à la collection."
+          }
+        }
+      }
+    },
+    "Hides the list": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masque la liste"
+          }
+        }
+      }
+    },
     "In a group · %@ · %@": {
       "localizations": {
         "fr": {
@@ -1261,6 +1361,16 @@
         }
       }
     },
+    "It goes in the ticked collections: nothing is copied or moved.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il va dans les collections cochées : rien n’est copié ni déplacé."
+          }
+        }
+      }
+    },
     "It goes on in the background as long as iOS lets it, otherwise when you open Mira again.": {
       "localizations": {
         "fr": {
@@ -1287,6 +1397,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Jellyfin ne laisse pas ce compte télécharger ses vidéos. Dans Jellyfin, Tableau de bord → Utilisateurs → ce compte, autorise le téléchargement des médias, puis réessaie."
+          }
+        }
+      }
+    },
+    "Jellyfin is looking for your collections…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin cherche tes collections…"
           }
         }
       }
@@ -1461,12 +1581,32 @@
         }
       }
     },
+    "Movie nights, To show Léa…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soirées, À montrer à Léa…"
+          }
+        }
+      }
+    },
     "Movies and episodes kept here play without a connection.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Les films et épisodes gardés ici se lisent sans connexion."
+          }
+        }
+      }
+    },
+    "No collections yet: name the first one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune collection pour l’instant : nomme la première."
           }
         }
       }
@@ -1641,6 +1781,16 @@
         }
       }
     },
+    "Or a new collection with it": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ou une nouvelle collection avec lui"
+          }
+        }
+      }
+    },
     "Path to Jellyfin": {
       "localizations": {
         "fr": {
@@ -1741,6 +1891,16 @@
         }
       }
     },
+    "Removed from “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retiré de « %@ »."
+          }
+        }
+      }
+    },
     "Reset the subtitle delay": {
       "localizations": {
         "fr": {
@@ -1757,6 +1917,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Partager un rapport pour signaler un problème"
+          }
+        }
+      }
+    },
+    "Shows the list": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Montre la liste"
           }
         }
       }
@@ -3671,6 +3841,36 @@
         }
       }
     },
+    "This name can’t be used: put letters or numbers in it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce nom ne peut pas servir : mets-y des lettres ou des chiffres."
+          }
+        }
+      }
+    },
+    "This name is already taken by the collection “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce nom est déjà pris par la collection « %@ »."
+          }
+        }
+      }
+    },
+    "This name is too long: %lld characters at most.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce nom est trop long : %lld caractères au plus."
+          }
+        }
+      }
+    },
     "This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://192.168.1.20:8096.": {
       "localizations": {
         "fr": {
@@ -4157,6 +4357,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tes favoris"
+          }
+        }
+      }
+    },
+    "Your Jellyfin account isn’t allowed to manage collections: its administrator can allow it (Dashboard → Users).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton compte Jellyfin n’a pas le droit de gérer les collections : son administrateur peut le lui donner (Tableau de bord → Utilisateurs)."
+          }
+        }
+      }
+    },
+    "Your Jellyfin doesn’t say which collections it’s already in.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton Jellyfin ne dit pas dans quelles collections il est déjà."
           }
         }
       }

@@ -26,6 +26,8 @@ struct TitleView: View {
     /// « Watch together » opened from « … ».
     @State private var showsTogether = false
     @State private var showsPlayOn = false
+    /// « Add to a collection… » opened from « … ».
+    @State private var showsCollections = false
     /// How far the title was watched when Favorite or Watched was touched, until Play: a progress line that goes then
     /// fades out keeping its room, so nothing under it moves (Watched takes it away).
     @State private var held: HeldProgress?
@@ -99,6 +101,8 @@ struct TitleView: View {
         .sheet(isPresented: $showsPlayOn) {
             if let playable { PlayOnSheet(item: playable) }
         }
+        .sheet(isPresented: $showsCollections) { CollectionSheet(item: item) }
+        .task { app.collectionRightsNeeded() }
         .task(id: route.item.id) { await load() }
         // A title stopped or marked: read again in place, what is shown stays until the new answer.
         .onChange(of: app.playback) { Task { await load() } }
@@ -248,6 +252,14 @@ struct TitleView: View {
                     Label("Play on…", systemImage: "tv.and.mediabox")
                 }
                 .accessibilityIdentifier("title.playOn")
+            }
+            if TitleCollections.holds(item), app.managesCollections {
+                Button {
+                    showsCollections = true
+                } label: {
+                    Label("Add to a collection…", systemImage: "rectangle.stack.badge.plus")
+                }
+                .accessibilityIdentifier("title.collection")
             }
         } label: {
             Image(systemName: "ellipsis").font(.body.weight(.bold)).foregroundStyle(Palette.ink).frame(width: side, height: side).contentShape(.circle)

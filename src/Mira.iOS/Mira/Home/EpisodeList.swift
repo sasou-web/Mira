@@ -17,6 +17,8 @@ struct EpisodeList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // Missing and coming episodes (TheTVDB, through Jellyfin), above the seasons, as on Windows and Mac.
+            EpisodeCalendarLine(series: series)
             if seasons.count > 1 {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {

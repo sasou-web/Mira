@@ -419,7 +419,7 @@ struct ApproveDeviceSheet: View {
 
 /// Users/Me: what Settings shows of the account.
 struct AccountInfo: Codable, Sendable {
-    struct Policy: Codable, Sendable { var isAdministrator: Bool? }
+    struct Policy: Codable, Sendable { var isAdministrator: Bool?; var enableCollectionManagement: Bool? }
     var primaryImageTag: String?
     var policy: Policy?
     var isAdministrator: Bool { policy?.isAdministrator == true }

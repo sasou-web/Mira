@@ -558,6 +558,65 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 10), "The person found by Search did not open their page")
     }
 
+    /// A series' missing and coming episodes (TheTVDB's virtual episodes, from the stand-in Jellyfin), then a film put in
+    /// a collection there already and in a new one, from « … » of its page.
+    @MainActor
+    func testSeriesCalendarAndCollections() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let series = app.buttons["Pioneer One, 2010"].firstMatch
+        XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
+        tapCard(app, series)
+        let calendar = app.buttons["series.calendar"]
+        for _ in 0..<5 where !(calendar.exists && calendar.isHittable) { app.swipeUp() }
+        XCTAssertTrue(calendar.waitForExistence(timeout: 10), "The series page says nothing of its missing episode")
+        XCTAssertTrue(calendar.label.contains("1 missing episode: S1 · E4"), "Not the missing episode: \(calendar.label)")
+        XCTAssertTrue(calendar.label.contains("Next episode: S1 · E5"), "Not the next episode: \(calendar.label)")
+        calendar.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["series.calendar.list"].waitForExistence(timeout: 5), "The line did not open into its list")
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Triangle'")).firstMatch.exists, "The list does not name the missing episode")
+        settle()
+        capture("60-series-calendar")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        for _ in 0..<3 { app.swipeDown() }
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "No card for Tears of Steel")
+        tapCard(app, poster)
+        let more = app.buttons["title.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "The title page has no « … »")
+        more.tap()
+        let add = app.buttons.matching(NSPredicate(format: "identifier == 'title.collection' OR label == 'Add to a collection…'")).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "« … » has no Add to a collection")
+        add.tap()
+        let existing = app.buttons["collection.row.Movie nights"]
+        XCTAssertTrue(existing.waitForExistence(timeout: 10), "The sheet does not list the collection already there")
+        existing.tap()
+        let status = app.staticTexts["collection.status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 10), "Nothing said once the film was added")
+        XCTAssertEqual(status.label, "Added to “Movie nights”.")
+        let name = "Shorts \(Int(Date().timeIntervalSince1970))"
+        let field = app.textFields["collection.name"]
+        focus(field)
+        field.typeText(name)
+        app.buttons["collection.create"].tap()
+        XCTAssertTrue(app.buttons["collection.row.\(name)"].waitForExistence(timeout: 10), "The new collection is not in the list")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "Collection “\(name)” created with “Tears of Steel”.")).firstMatch.waitForExistence(timeout: 5),
+                      "The new collection is not said")
+        // The name of a collection there already is refused before Jellyfin sees it.
+        focus(field)
+        field.typeText("movie NIGHTS")
+        app.buttons["collection.create"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "This name is already taken by the collection “Movie nights”.")).firstMatch.waitForExistence(timeout: 5),
+                      "A name taken was not refused")
+        settle()
+        capture("61-collections")
+        app.buttons["collection.done"].tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 5), "Done did not close the sheet")
+    }
+
     /// The README's and the site's captures of the app (gallery.yml, never ios.yml: skipped without MIRA_GALLERY_SERVER):
     /// signed in to a real Jellyfin 12.1 whose library is the README's demonstration one (tools/banner/media.sh, set up
     /// by tools/gallery/setup.mjs), in the language asked for: Home, the films, a film's page, a series' episodes, and a

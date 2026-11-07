@@ -118,6 +118,15 @@ const episodes = [
   episode(3, 'Alone in the Night'),
 ];
 const everything = [...films, series, ...episodes];
+// What TheTVDB's extension adds to a series (virtual episodes with their air day): one aired 5 days ago that the
+// library lacks, one coming in 3 days (EpisodeCalendar).
+const virtualEpisodes = [
+  { ...episode(4, 'Triangle', { PremiereDate: days(5) }), LocationType: 'Virtual' },
+  { ...episode(5, 'The Sun Never Sets', { PremiereDate: days(-3) }), LocationType: 'Virtual' },
+];
+// Collections made by hand, kept until the mock stops: one there from the start, empty.
+const boxSets = [{ Id: 'b0c1d2e3f4a5968778695a4b3c2d1e0f', Name: 'Movie nights', Type: 'BoxSet', ChildCount: 0, Path: '/config/data/collections/Movie nights [boxset]', titles: [] }];
+const boxSet = (x) => ({ Id: x.Id, Name: x.Name, Type: x.Type, ChildCount: x.titles.length, Path: x.Path });
 // The title kept as Jellyfin's conversion, and the pieces of its stream.
 const converted = films[3];
 const pieces = [clip.subarray(0, 4096)];
@@ -311,6 +320,25 @@ const server = http.createServer(async (req, res) => {
   if (sync && req.method === 'POST') {
     if (guest && sync[1] === 'Join' && group && !group.Participants.includes(guestName)) group.Participants.push(guestName);
     syncPlay(sync[1], JSON.parse(raw || '{}'), guest ? 'Guest' + sync[1] : sync[1]);
+    return send(res, 204, undefined);
+  }
+  // The account's policy: allowed to manage collections, not an administrator.
+  if (path === '/Users/Me') return send(res, 200, { Id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f', Name: 'ogsas', Policy: { IsAdministrator: false, EnableCollectionManagement: true } });
+  if (path === '/Items' && q.get('locationTypes') === 'Virtual') return send(res, 200, list(virtualEpisodes));
+  if (path === '/Items' && q.get('includeItemTypes') === 'BoxSet') return send(res, 200, list(boxSets.map(boxSet)));
+  const holding = /^\/Items\/([0-9a-f]+)\/Collections$/.exec(path);
+  if (holding) return send(res, 200, list(boxSets.filter((x) => x.titles.includes(holding[1])).map(boxSet)));
+  if (path === '/Collections' && req.method === 'POST') {
+    const made = { Id: randomUUID().replaceAll('-', ''), Name: q.get('name') ?? '', Type: 'BoxSet', Path: `/config/data/collections/${q.get('name')} [boxset]`, titles: (q.get('ids') ?? '').split(',').filter(Boolean) };
+    boxSets.push(made);
+    return send(res, 200, { Id: made.Id });
+  }
+  const filling = /^\/Collections\/([0-9a-f]+)\/Items$/.exec(path);
+  if (filling) {
+    const box = boxSets.find((x) => x.Id === filling[1]);
+    if (!box) return send(res, 404, undefined);
+    const ids = (q.get('ids') ?? '').split(',').filter(Boolean);
+    box.titles = req.method === 'DELETE' ? box.titles.filter((x) => !ids.includes(x)) : [...new Set([...box.titles, ...ids])];
     return send(res, 204, undefined);
   }
   if (path === '/UserItems/Resume') return send(res, 200, list([episodes[1], films[0]]));
