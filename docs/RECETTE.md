@@ -59,6 +59,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Sortie audio : Réglages → Audio & sous-titres → « Tester » joue chaque haut-parleur (casque, puis enceintes ou AirPods) ; ⋮ → Informations dit la sortie ; Dolby Digital vers un ampli si Rayro en a un
 - [ ] Mode canapé : plein écran agrandi, flèches et Retour arrière, une manette appairée (PlayStation ou Xbox) : A ouvre, B revient
 - [ ] Tailscale intégré : connexion, trousseau gardé après une mise à jour
+- [ ] Touches multimédias, Mira derrière une autre fenêtre pendant un épisode : F8 met en pause et reprend, F7 recule de 10 s, F9 passe à l'épisode suivant ; le bouton des AirPods met en pause ; centre de contrôle et barre des menus → « À l'écoute » : titre, affiche, barre qui avance, ±10 s ; le lecteur fermé, F8 revient à Musique
 
 ## Regarder ensemble 👥
 - [ ] Ta party par le lien (Funnel) : Dafty Cute rejoint depuis Windows sans compte

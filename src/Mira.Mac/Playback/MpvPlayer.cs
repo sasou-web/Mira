@@ -44,6 +44,8 @@ public sealed class MpvPlayer : MpvClient
             // Frames go to Mira's own view through the render API; mpv opens no window.
             Option("vo", video && use != Use.Sound ? "libmpv" : "null");
             Option("input-vo-keyboard", "no");
+            // The media keys are Mira's (MacNowPlaying), never a second listener in mpv: off for libmpv already, said anyway.
+            TryOption("input-media-keys", "no");
             if (use == Use.Silent) Option("ao", "null");
             // A log of mpv's own messages, when asked for: MIRA_MPV_LOG=/path/to/mpv.log.
             if (Environment.GetEnvironmentVariable("MIRA_MPV_LOG") is { Length: > 0 } log) { Option("log-file", log); Option("msg-level", "all=v"); }
