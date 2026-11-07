@@ -196,6 +196,7 @@ public sealed partial class MainWindow : Window
         InitializeCouch();
         ListenToMediaKeys();
         InitializeNotifications();
+        InitializePower();
         PointerPressed += (_, e) => { var buttons = e.GetCurrentPoint(this).Properties; if (buttons.IsXButton1Pressed) Back(); else if (buttons.IsXButton2Pressed) Forward(); };
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
         // double click) left the pointer captured by what remained: every turn of the wheel went there, never to the page.

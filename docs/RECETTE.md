@@ -63,6 +63,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Touches multimédias, Mira derrière une autre fenêtre pendant un épisode : F8 met en pause et reprend, F7 recule de 10 s, F9 passe à l'épisode suivant ; le bouton des AirPods met en pause ; centre de contrôle et barre des menus → « À l'écoute » : titre, affiche, barre qui avance, ±10 s ; le lecteur fermé, F8 revient à Musique
 - [ ] Notifications : un nouvel épisode d'une série suivie (favori ou commencée) ajouté à Jellyfin, Mira ouvert ou dans le Dock : macOS demande d'abord « Mira souhaite envoyer des notifications » (Autoriser), puis la notification « Nouvel épisode » avec son image ; un clic ouvre la série ; dans un groupe Regarder ensemble, Mira derrière une autre fenêtre, « X a rejoint le groupe » ; refusé, plus rien ni plus de question
 - [ ] Télécommande : depuis l'iPhone, « Lire sur… » → le Mac : le film part, pause, ±10 s, volume, Arrêter depuis la télécommande de l'iPhone
+- [ ] Veille en plein film (depuis Jellyfin, pas une copie gardée) : capot refermé quelques minutes, puis rouvert : le film est en pause là où il était, Lecture le relance sans roue sans fin ; Wi-Fi coupé en pleine lecture : « Connexion au serveur perdue », puis le film reprend quand le Wi-Fi revient
 
 ## Regarder ensemble 👥
 - [ ] Ta party par le lien (Funnel) : Dafty Cute rejoint depuis Windows sans compte
