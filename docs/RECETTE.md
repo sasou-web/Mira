@@ -58,6 +58,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Installation du `.dmg` (« Ouvrir quand même ») et premier lancement
 - [ ] Mise à jour automatique vers la version suivante (« Redémarrer »)
 - [ ] Image ni grise ni noire ; sinon ⋮ → Informations, ligne « Réparé »
+- [ ] Un film HDR10 (ou Dolby Vision) : couleurs justes, pas délavées ; ⋮ → Informations, ligne « Couleurs » : « HDR10 → SDR (limite du rendu) »
 - [ ] Trackpad : défiler (Accueil : un geste = la page ou la rangée), glisser à deux doigts entre les pages (la page suit les doigts, revient si lâchée tôt), pincer dans les grilles (affiches qui glissent), balayage à trois doigts, pincer dans le lecteur
 - [ ] Image dans l'image (petite fenêtre flottante)
 - [ ] Sortie audio : Réglages → Audio & sous-titres → « Tester » joue chaque haut-parleur (casque, puis enceintes ou AirPods) ; ⋮ → Informations dit la sortie ; Dolby Digital vers un ampli si Rayro en a un

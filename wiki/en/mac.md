@@ -71,6 +71,15 @@ Mira follows your trackpad settings (natural scrolling, swipe between pages).
 - In the library: swipe with two fingers to go back and forward (the page follows your fingers, as in Safari; let go early to stay), pinch to change the size of the posters, force click a poster for its menu.
 - In the player: swipe left or right to seek, up or down for the volume; spread two fingers for full screen, pinch to leave it, then to shrink the player to the mini player.
 
+## HDR films
+
+On a Mac, Mira shows an HDR film (HDR10, HDR10+, HLG, Dolby Vision) in SDR: mpv converts it (tone mapping) to the ordinary range before it reaches the screen. The colours stay right and nothing is converted by Jellyfin, but the extra brightness of HDR is lost, even on a MacBook Pro or a Pro Display XDR.
+
+This is a limit of how Mira draws the video on a Mac (an 8-bit OpenGL view, without the Mac's extended range), not of your file or your screen. In the player, **⋮ → Info**, the **Colours** line says it: "HDR10 → SDR (rendering limit)".
+
+> [!NOTE]
+> On Windows, Mira sends HDR to the screen as it is when Windows' HDR is on. On iPhone, Apple's player shows HDR and Dolby Vision.
+
 ## Start over
 
 Sign out first (**Settings → Account & server**), quit Mira, then delete `~/Library/Application Support/Mira`.
