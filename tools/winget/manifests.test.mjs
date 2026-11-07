@@ -32,7 +32,7 @@ test('Quatre manifestes, dans le dossier de winget-pkgs', () => {
   for (const [name, text] of Object.entries(files)) {
     assert.equal(field(text, 'PackageIdentifier'), 'sasou-web.Mira', name);
     assert.equal(field(text, 'PackageVersion'), entry.version, name);
-    assert.equal(field(text, 'ManifestVersion'), '1.12.0', name);
+    assert.equal(field(text, 'ManifestVersion'), '1.10.0', name);
     assert.doesNotMatch(text, /\t|\r/, name);
   }
 });

@@ -1,5 +1,5 @@
 // Mira's manifests for winget (`winget install sasou-web.Mira`): the four files a version of a package needs in the
-// community repository microsoft/winget-pkgs (version, installer, en-US and fr-FR locales, schema 1.12.0), written
+// community repository microsoft/winget-pkgs (version, installer, en-US and fr-FR locales, schema 1.10.0: the newest the winget of GitHub's Windows runners, 1.11, reads without a warning), written
 // from a published release: its Windows installer (Mira-x.y.z-win-x64-setup.exe, Inno Setup, for the current user,
 // without administrator rights) and its SHA-256, and the words of WhatsNew.json for the release notes. Run by
 // winget.yml when a release is published; submitted only with the WINGET_TOKEN secret (wingetcreate submit).
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const identifier = 'sasou-web.Mira';
-export const manifestVersion = '1.12.0';
+export const manifestVersion = '1.10.0';
 const repository = 'https://github.com/sasou-web/Mira';
 const root = fileURLToPath(new URL('../..', import.meta.url));
 
