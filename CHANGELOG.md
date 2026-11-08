@@ -3,6 +3,7 @@
 ## Non publié
 
 - « Nouveautés » refaite (Windows, Mac) : les 6 dernières versions, badge de version et « Dernière », date et ancienneté, une ligne « Catégorie : texte » par changement ; rouverte par « Notes de version » (Réglages → Mira sur ce PC / ce Mac) et le menu Aide du Mac. `WhatsNew.json` gagne `date` et `changes`.
+- **Site miracinema.app refait, « Le mur »** : le titre en deux lignes (« Ta bibliothèque Jellyfin, projetée comme au cinéma. »), puis deux bandes de vrais écrans de Mira pour Windows et pour iPhone, coupées par les bords de la fenêtre ; chaque écran s’ouvre en grand d’un clic. Trois phrases ensuite, dont la vie privée dite en clair (« Rien ne quitte ton serveur »), puis le téléchargement en trois lignes, celle de ton appareil en premier. Anglais et français, téléphone à grand écran ; sans JavaScript, chaque écran est un lien vers sa capture ; rien de chargé ailleurs, toujours. Remplace « La phrase ».
 
 ## 0.9.5 — 2026-11-08
 

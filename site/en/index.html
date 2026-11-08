@@ -36,6 +36,7 @@
     <a class="brand" href="./" aria-label="Mira, home"><img src="../img/mark.svg" alt="" width="28" height="28">Mira</a>
     <nav aria-label="Site">
       <a href="#download">Download</a>
+      <a class="wide" href="https://wiki.miracinema.app/">Wiki</a>
       <a class="wide" href="https://discord.gg/Bh3F6PDUvB">Discord</a>
       <a class="wide" href="https://github.com/sasou-web/Mira">GitHub</a>
     </nav>
@@ -43,20 +44,10 @@
   </header>
 
   <main id="main">
-    <section class="wrap story" aria-labelledby="t-mira">
-      <h1 id="t-mira" class="sr">Mira, a Jellyfin client for Windows, Mac and iPhone</h1>
-      <p class="said">
-        Mira plays your Jellyfin library
-        <a class="chip c-home" data-view="window" href="../img/windows-home-2880.webp"><img src="../img/windows-home-960.webp" alt="Home on Windows: Arcane, then what you were watching" width="960" height="600"></a>
-        like at the movies, on Windows, Mac and <span class="keep">iPhone&nbsp;<a class="chip tall c-phone-home" data-view="phone" href="../img/iphone-home-1080.webp"><img src="../img/iphone-home-390.webp" alt="Home on iPhone" width="390" height="848"></a>.</span>
-        Every file plays as it is, in the right language
-        <a class="chip c-subtitles" data-view="window" href="../img/windows-subtitles-2880.webp"><img src="../img/windows-subtitles-960.webp" alt="Audio and subtitles: the right languages from the first episode" width="960" height="600"></a>
-        from the first episode, and the next <span class="keep">one&nbsp;<a class="chip c-series" data-view="window" href="../img/windows-series-2880.webp"><img src="../img/windows-series-960.webp" alt="A series: the episodes of Arcane, the third one in progress" width="960" height="600"></a></span>
-        is always waiting. Send a <span class="keep">link&nbsp;<a class="chip tall c-party" data-view="phone" href="../img/party-1080.webp"><img src="../img/party-390.webp" alt="Your friend’s iPhone: join the Mira party" width="390" height="848"></a></span>
-        and a friend watches the same film, at the same second, from anywhere.
-        <span class="quiet">No Mira account, no analytics: nothing leaves your server.</span>
-      </p>
-      <div class="under">
+    <section class="wrap lead" aria-labelledby="t-mira">
+      <h1 id="t-mira">Your Jellyfin library, <span>played like at the movies.</span></h1>
+      <div class="side">
+        <p>Mira is a free client for Windows, Mac and iPhone. It plays every file as it is, remembers where you were on each screen, and lets a friend watch with you from a link.</p>
         <div class="actions">
           <a class="btn primary" data-for="windows" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#download"/></svg>Download for Windows</a>
           <a class="btn primary" data-for="mac" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg" hidden><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#download"/></svg>Download for Mac</a>
@@ -65,6 +56,31 @@
         </div>
         <a class="tour" data-view="tour" href="../video/tour.mp4" data-poster="../img/film-still-1280.webp" data-caption="The tour of Mira, without sound"><span class="disc"><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#play"/></svg></span>Watch the tour <span class="num">1:20</span></a>
       </div>
+    </section>
+
+    <section class="wall" aria-label="Mira, screen by screen">
+        <div class="band">
+          <a class="shot pc" data-view="window" href="../img/windows-home-2400.webp"><img src="../img/windows-home-640.webp" srcset="../img/windows-home-640.webp 640w, ../img/windows-home-1280.webp 1280w" sizes="(min-width: 1417px) 544px, (max-width: 625px) 240px, 38.4vw" alt="Home on Windows: Arcane, then what you were watching" width="640" height="400"><span class="cap" aria-hidden="true">Home · Windows</span></a>
+          <a class="shot ph" data-view="phone" href="../img/iphone-home-1080.webp"><img src="../img/iphone-home-390.webp" srcset="../img/iphone-home-390.webp 390w, ../img/iphone-home-1080.webp 1080w" sizes="(min-width: 1417px) 157px, (max-width: 625px) 69px, 11.1vw" alt="Home on iPhone" width="390" height="848"><span class="cap" aria-hidden="true">Home · iPhone</span></a>
+          <a class="shot pc" data-view="window" href="../img/windows-series-2400.webp"><img src="../img/windows-series-640.webp" srcset="../img/windows-series-640.webp 640w, ../img/windows-series-1280.webp 1280w" sizes="(min-width: 1417px) 544px, (max-width: 625px) 240px, 38.4vw" alt="A series: the episodes of Arcane, the third one in progress" width="640" height="400"><span class="cap" aria-hidden="true">A series</span></a>
+          <a class="shot ph" data-view="phone" href="../img/iphone-together-1080.webp"><img src="../img/iphone-together-390.webp" srcset="../img/iphone-together-390.webp 390w, ../img/iphone-together-1080.webp 1080w" sizes="(min-width: 1417px) 157px, (max-width: 625px) 69px, 11.1vw" alt="Watching together on iPhone: Resume for the group at 57 min" width="390" height="848"><span class="cap" aria-hidden="true">Watch together</span></a>
+          <a class="shot pc" data-view="window" href="../img/windows-films-2400.webp"><img src="../img/windows-films-640.webp" srcset="../img/windows-films-640.webp 640w, ../img/windows-films-1280.webp 1280w" sizes="(min-width: 1417px) 544px, (max-width: 625px) 240px, 38.4vw" alt="Movies on Windows: genres, then the film to pick up" width="640" height="400"><span class="cap" aria-hidden="true">Movies</span></a>
+          <a class="shot ph" data-view="phone" href="../img/iphone-series-1080.webp"><img src="../img/iphone-series-390.webp" srcset="../img/iphone-series-390.webp 390w, ../img/iphone-series-1080.webp 1080w" sizes="(min-width: 1417px) 157px, (max-width: 625px) 69px, 11.1vw" alt="The episodes of Arcane on iPhone" width="390" height="848"><span class="cap" aria-hidden="true">Episodes · iPhone</span></a>
+        </div>
+        <div class="band two">
+          <a class="shot ph" data-view="phone" href="../img/iphone-film-1080.webp"><img src="../img/iphone-film-390.webp" srcset="../img/iphone-film-390.webp 390w, ../img/iphone-film-1080.webp 1080w" sizes="(min-width: 1417px) 157px, (max-width: 625px) 69px, 11.1vw" alt="Spider-Man: Across the Spider-Verse on iPhone" width="390" height="848" loading="lazy"><span class="cap" aria-hidden="true">A film · iPhone</span></a>
+          <a class="shot pc" data-view="window" href="../img/windows-film-2400.webp"><img src="../img/windows-film-640.webp" srcset="../img/windows-film-640.webp 640w, ../img/windows-film-1280.webp 1280w" sizes="(min-width: 1417px) 544px, (max-width: 625px) 240px, 38.4vw" alt="A film on Windows: Spider-Man: Across the Spider-Verse, 1 h 23 min left" width="640" height="400" loading="lazy"><span class="cap" aria-hidden="true">A film</span></a>
+          <a class="shot ph" data-view="phone" href="../img/iphone-movies-1080.webp"><img src="../img/iphone-movies-390.webp" srcset="../img/iphone-movies-390.webp 390w, ../img/iphone-movies-1080.webp 1080w" sizes="(min-width: 1417px) 157px, (max-width: 625px) 69px, 11.1vw" alt="Movies on iPhone" width="390" height="848" loading="lazy"><span class="cap" aria-hidden="true">Movies · iPhone</span></a>
+          <a class="shot pc" data-view="window" href="../img/windows-subtitles-2400.webp"><img src="../img/windows-subtitles-640.webp" srcset="../img/windows-subtitles-640.webp 640w, ../img/windows-subtitles-1280.webp 1280w" sizes="(min-width: 1417px) 544px, (max-width: 625px) 240px, 38.4vw" alt="Audio and subtitles: the right languages from the first episode" width="640" height="400" loading="lazy"><span class="cap" aria-hidden="true">Audio and subtitles</span></a>
+          <a class="shot ph" data-view="phone" href="../img/party-1080.webp"><img src="../img/party-390.webp" srcset="../img/party-390.webp 390w, ../img/party-1080.webp 1080w" sizes="(min-width: 1417px) 157px, (max-width: 625px) 69px, 11.1vw" alt="Your friend’s iPhone: join the Mira party" width="390" height="848" loading="lazy"><span class="cap" aria-hidden="true">The party link</span></a>
+          <a class="shot pc" data-view="window" href="../img/windows-home-2400.webp" tabindex="-1" aria-hidden="true"><img src="../img/windows-home-640.webp" srcset="../img/windows-home-640.webp 640w, ../img/windows-home-1280.webp 1280w" sizes="(min-width: 1417px) 544px, (max-width: 625px) 240px, 38.4vw" alt="" width="640" height="400" loading="lazy"><span class="cap" aria-hidden="true">Home · Windows</span></a>
+        </div>
+    </section>
+
+    <section class="wrap facts">
+      <div><h2>Every file, as it is.</h2><p>On Windows and Mac, mpv plays inside Mira: any format, the right audio and subtitles from the first episode. Your server converts only when it has to.</p></div>
+      <div><h2>Same film, same second.</h2><p>Send your party link. Your friend opens it, gives a first name and watches with you, from anywhere, without signing up.</p></div>
+      <div><h2>Nothing leaves your server.</h2><p>No Mira account, no analytics, no ads. Away from home, the built-in Tailscale reaches your server with nothing else to install.</p></div>
     </section>
 
     <section class="wrap download" id="download" aria-labelledby="t-download">

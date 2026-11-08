@@ -9,10 +9,12 @@ from PIL import Image
 
 SOURCE = Path("docs/screenshots/readme")
 OUT = Path("site/img")
-# The captures the sentence names: small in the line, at the capture's own width when opened (1440 points at twice their
-# pixels); Mira for iPhone opens inside a phone. The share cards take windows-home-2400.
-WINDOWS, PHONE = (960, 1600, 2400, 2880), (390, 720, 1080)
-SHOWN = {"windows-home": WINDOWS, "windows-series": WINDOWS, "windows-subtitles": WINDOWS, "iphone-home": PHONE}
+# The captures of the wall: two widths in a band (at most 544 points for Windows, 157 for an iPhone), a big one
+# when opened; Mira for iPhone opens inside a phone. The share cards take windows-home-2400; party-*.webp (the friend's
+# iPhone on the party page) comes from tools/site/party.mjs at the iPhone's widths.
+WINDOWS, PHONE = (640, 1280, 2400), (390, 1080)
+SHOWN = {f"windows-{n}": WINDOWS for n in ("home", "series", "films", "film", "subtitles")}
+SHOWN |= {f"iphone-{n}": PHONE for n in ("home", "together", "series", "film", "movies")}
 
 OUT.mkdir(parents=True, exist_ok=True)
 for name, widths in SHOWN.items():
