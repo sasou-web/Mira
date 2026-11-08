@@ -1,4 +1,4 @@
-// miracinema.app: the page is complete without this script (a screen of the sentence is then a link to its capture, the
+// miracinema.app: the page is complete without this script (a screen of the wall is then a link to its capture, the
 // tour a link to its file). It puts this device's download first, and opens a screen or the tour big over the page.
 const ua = navigator.userAgent;
 const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
