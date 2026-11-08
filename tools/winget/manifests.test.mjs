@@ -64,6 +64,7 @@ test('Notes et descriptions dans les limites de winget, en anglais et en frança
     assert.doesNotMatch(text, /torlink|torrent|qbittorrent/i);
   }
   assert.equal(notes({ en: { summary: 'S' }, items: [{ en: { title: 'T', text: 'X' } }] }, 'en'), 'S\n- T: X');
+  assert.equal(notes({ en: { summary: 'S' }, items: [{ en: { title: 'T', text: 'X' } }], changes: [{ category: 'Mac', text: 'Y', en: { category: 'Mac', text: 'Z' } }] }, 'en'), 'S\n- Mac: Z');
 });
 
 test('Refuse une version, une empreinte, une date ou une entrée qui ne vont pas', () => {

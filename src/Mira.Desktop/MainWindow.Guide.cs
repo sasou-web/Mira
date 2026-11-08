@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -38,12 +39,11 @@ public partial class MainWindow
     {
         var current = ReleaseFeed.ParseVersion(JellyfinClient.AppVersion);
         if (current is null || _args.Contains("--demo") || _args.Contains("--autoplay")) { AnnounceUpdateResult(whatsNewShown: false); return; }
-        var seen = ReleaseFeed.ParseVersion(_settings.SeenVersion);
         var screen = WhatsNew.Decide(_settings.SeenVersion, current, knownProfile: !_profile.IsNew);
         // Not written now (file held by another program, full disk): the opening goes on, and closing Mira writes it again.
         if (_settings.SeenVersion != current.ToString(3)) { _settings.SeenVersion = current.ToString(3); TrySaveSettings(); }
         if (screen == StartupScreen.Welcome && LoginOverlay.Visibility == Visibility.Visible) ShowWelcome();
-        else if (screen == StartupScreen.WhatsNew) ShowWhatsNew(WhatsNew.Since(seen, current));
+        else if (screen == StartupScreen.WhatsNew) ShowWhatsNew(WhatsNew.Recent(current));
         AnnounceUpdateResult(whatsNewShown: screen == StartupScreen.WhatsNew);
     }
 
@@ -57,38 +57,65 @@ public partial class MainWindow
     private async void WelcomeInstall_Click(object sender, RoutedEventArgs e) { await LeaveWelcomeAsync(); ShowServerSetup(true); }
     private async void WelcomeConnect_Click(object sender, RoutedEventArgs e) { await LeaveWelcomeAsync(); ShowSignInForm(); FocusLogin(); }
 
-    // What's new: the main points of the versions installed since the last one this profile saw.
+    // What's new, as a list of the last versions (WhatsNew.Recent): each its version, « LATEST » on the newest, its date,
+    // then one line per change, « Catégorie : texte ». Shown after an update, and from Settings → Mira on this PC.
     private void ShowWhatsNew(IReadOnlyList<ReleaseHighlights> releases)
     {
         if (releases.Count == 0) return;
-        var latest = releases[0];
-        WhatsNewTitle.Text = $"Mira {latest.Version}"; WhatsNewSummary.Text = latest.Summary;
+        var today = DateOnly.FromDateTime(DateTime.Now);
         WhatsNewItems.Children.Clear();
-        foreach (var item in latest.Items) WhatsNewItems.Children.Add(HighlightRow(item));
-        // Versions skipped by this update: one line each, never a long list.
-        foreach (var release in releases.Skip(1).Take(2))
-            WhatsNewItems.Children.Add(new TextBlock { Text = L($"Aussi en {release.Version} : {release.Summary}", $"Also in {release.Version}: {release.Summary}"), FontSize = 12, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 6) });
+        for (var i = 0; i < releases.Count; i++) WhatsNewItems.Children.Add(ReleaseBlock(releases[i], latest: i == 0, last: i == releases.Count - 1, today));
+        WhatsNewShowing.Text = releases.Count == 1 ? L("La dernière version", "Showing 1 release") : L($"Les {releases.Count} dernières versions", $"Showing {releases.Count} releases");
+        WhatsNewScroll.ScrollToTop();
         Motion.Reveal(WhatsNewOverlay, 260, 0); Motion.Reveal(WhatsNewCard, 360, 16);
         _ = Dispatcher.BeginInvoke(() => WhatsNewDone.Focus(), DispatcherPriority.Input);
     }
-    private UIElement HighlightRow(Highlight item)
+    private void WhatsNewOpen_Click(object sender, RoutedEventArgs e)
     {
-        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
-        var badge = new Border
+        if (ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) is { } current) ShowWhatsNew(WhatsNew.Recent(current));
+    }
+    private static UIElement ReleaseBlock(ReleaseHighlights release, bool latest, bool last, DateOnly today)
+    {
+        var block = new StackPanel { Margin = new Thickness(0, 26, 0, 24) };
+        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
+        if (release.Date is { } date)
         {
-            Width = 40, Height = 40, CornerRadius = Palette.Card, Background = Palette.Get("Raised"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 16, 0),
-            Child = new Icon { Kind = Views.Icon.Draws(item.Icon) ? item.Icon : "sparkle", Width = 20, Height = 20, Foreground = Palette.Get("Text") }
-        };
-        DockPanel.SetDock(badge, Dock.Left); row.Children.Add(badge);
-        var text = new StackPanel();
-        text.Children.Add(new TextBlock { Text = item.Title, FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
-        text.Children.Add(new TextBlock { Text = item.Text, FontSize = 12.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, LineHeight = 19, Margin = new Thickness(0, 4, 0, 0) });
-        row.Children.Add(text);
-        return row;
+            var when = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            when.Children.Add(new Icon { Kind = "calendar", Width = 15, Height = 15, Foreground = Palette.Get("Faint"), Margin = new Thickness(0, 0, 7, 0) });
+            when.Children.Add(new TextBlock { Text = WhatsNew.Day(date), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted") });
+            when.Children.Add(new TextBlock { Text = " · " + WhatsNew.Ago(date, today), FontSize = 13, Foreground = Palette.Get("Faint") });
+            DockPanel.SetDock(when, Dock.Right); head.Children.Add(when);
+        }
+        var badges = new StackPanel { Orientation = Orientation.Horizontal };
+        badges.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(7), Padding = new Thickness(11, 5, 11, 5), Background = Palette.Get(latest ? "Text" : "Raised2"), BorderBrush = Palette.Get(latest ? "Text" : "LineStrong"), BorderThickness = new Thickness(1),
+            Child = new TextBlock { Text = release.Version, FontSize = 13, FontWeight = FontWeights.ExtraBold, Foreground = Palette.Get(latest ? "OnAccent" : "Text") },
+        });
+        if (latest)
+            badges.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(7), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(8, 0, 0, 0), Background = Palette.Get("SuccessSurface"), BorderBrush = Palette.Get("SuccessLine"), BorderThickness = new Thickness(1),
+                Child = new TextBlock { Text = L("DERNIÈRE", "LATEST"), FontSize = 11, FontWeight = FontWeights.ExtraBold, Foreground = Palette.Get("Success"), Margin = new Thickness(0, 1, 0, 0) },
+            });
+        head.Children.Add(badges);
+        block.Children.Add(head);
+        foreach (var line in release.Lines)
+        {
+            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
+            var dot = new Ellipse { Width = 6, Height = 6, Fill = Palette.Get("Text"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(3, 9, 11, 0) };
+            DockPanel.SetDock(dot, Dock.Left); row.Children.Add(dot);
+            var text = new TextBlock { FontSize = 15, LineHeight = 22, TextWrapping = TextWrapping.Wrap, Foreground = Palette.Get("TextSecondary") };
+            text.Inlines.Add(new Run(line.Category + L(" : ", ": ")) { FontWeight = FontWeights.Bold, Foreground = Palette.Get("Text") });
+            text.Inlines.Add(new Run(line.Text));
+            row.Children.Add(text);
+            block.Children.Add(row);
+        }
+        return last ? block : new Border { BorderBrush = Palette.Get("Line"), BorderThickness = new Thickness(0, 0, 0, 1), Child = block };
     }
     private async void WhatsNewDone_Click(object sender, RoutedEventArgs e) => await CloseWhatsNewAsync();
     private async Task CloseWhatsNewAsync() { await Motion.HideAsync(WhatsNewOverlay); if (LoginOverlay.Visibility == Visibility.Visible) FocusLogin(); }
-    private void WhatsNewDetails_Click(object sender, RoutedEventArgs e) => OpenWebPage($"https://github.com/sasou-web/Mira/releases/tag/v{JellyfinClient.AppVersion}");
+    private void WhatsNewDetails_Click(object sender, RoutedEventArgs e) => OpenWebPage("https://github.com/sasou-web/Mira/releases");
 
     // The guide, from the ? of the rail, F1, an empty library, or once after the first connection.
     /// <summary>The ? of the rail and F1: the guide, or, already shown, back to its top without drawing it again.</summary>

@@ -34,10 +34,21 @@ public sealed class Sheet : Grid
         heading.Margin = new Thickness(0, 10, 0, 6); heading.TextWrapping = TextWrapping.Wrap;
         Body.Children.Add(head); Body.Children.Add(heading);
         if (lead is not null) Body.Children.Add(new TextBlock { Text = lead, FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap });
+        Place(Body, width, new Thickness(38, 34));
+    }
+    /// <summary>A sheet whose card is <paramref name="content"/> alone, edge to edge (« Nouveautés »: its own head, list and foot).</summary>
+    public Sheet(Control content, double width)
+    {
+        Background = Ui.Brush("#F4080808");
+        KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
+        Place(content, width, new Thickness(0));
+    }
+    private void Place(Control content, double width, Thickness padding)
+    {
         var card = new Border
         {
-            Width = width, Padding = new Thickness(38, 34), Background = Ui.Brush("#F0111111"), BorderBrush = Ui.Brush("#2A2A2A"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(20),
-            Child = Body,
+            Width = width, Padding = padding, Background = Ui.Brush("#F0111111"), BorderBrush = Ui.Brush("#2A2A2A"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(20),
+            ClipToBounds = true, Child = content,
         };
         Children.Add(new Viewbox { Margin = new Thickness(28, 44, 28, 24), Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = card });
     }

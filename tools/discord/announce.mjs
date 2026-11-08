@@ -23,7 +23,10 @@ export function bannerUrl(version) {
 export function payload(entry, { url, date, banner = true } = {}) {
   const version = entry.version;
   const page = url ?? `${repository}/releases/tag/v${version}`;
-  const lines = entry.items.map((item) => `• **${item.en.title}** — ${item.en.text}`);
+  // One line per change (« Catégorie : texte ») since 0.9.4, else the highlights.
+  const lines = entry.changes?.length
+    ? entry.changes.map((change) => `• **${change.en.category}:** ${change.en.text}`)
+    : entry.items.map((item) => `• **${item.en.title}** — ${item.en.text}`);
   const links = `**[Download Mira ${version}](${page})** · [What’s new in detail](${repository}/blob/v${version}/CHANGELOG.md) · [miracinema.app](https://miracinema.app)`;
   const description = [entry.en.summary, lines.join('\n'), links].join('\n\n');
   if (description.length > limits.description) throw new Error(`The announcement of ${version} is ${description.length} characters long: Discord takes ${limits.description}.`);

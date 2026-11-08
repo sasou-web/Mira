@@ -91,9 +91,9 @@ public static class SelfCheck
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
             home.ScrollToEnd(); await Task.Delay(800); Capture(window, output, "02b-home-grid"); home.ScrollToHome();
-            // « Nouveautés », as on Windows: after an update from 0.9.0, this version's points and a line for each one skipped;
+            // « Nouveautés », as on Windows: the last versions, the newest marked;
             // Escape closes it and gives the keys back to the page.
-            var missed = WhatsNew.Since(new Version(0, 9, 0), Updates.Current);
+            var missed = WhatsNew.Recent(Updates.Current);
             window.ShowWhatsNew(missed);
             var news = await Until(() => window.CurrentSheet is { IsVisible: true }, 5);
             await Task.Delay(500); Capture(window, output, "02c-whats-new");

@@ -173,7 +173,7 @@ public sealed partial class SettingsPage : Page
         dock.Children.Add(text);
         return dock;
     }
-    /// <summary>This version and « Rechercher », as Windows' card; what the search finds is said by a notice.</summary>
+    /// <summary>This version, « Rechercher » and « Notes de version », as Windows' card; what the search finds is said by a notice.</summary>
     private Control Version()
     {
         var check = Ui.Action(L("Rechercher", "Search"), "refresh", "", () => _ = Updates.CheckAsync(Shell, asked: true));
@@ -181,6 +181,11 @@ public sealed partial class SettingsPage : Page
         check.VerticalAlignment = VerticalAlignment.Top;
         var dock = new DockPanel();
         DockPanel.SetDock(check, Dock.Right); dock.Children.Add(check);
+        // « Notes de version »: « Nouveautés » again, the last versions (MainWindow.WhatsNew.cs).
+        var notes = Ui.Action(L("Notes de version", "Release notes"), null, "", () => Shell.ShowWhatsNew(WhatsNew.Recent(Updates.Current)));
+        Avalonia.Automation.AutomationProperties.SetName(notes, L("Voir les notes de version", "View release notes"));
+        notes.VerticalAlignment = VerticalAlignment.Top; notes.Margin = new Thickness(0, 0, 10, 0);
+        DockPanel.SetDock(notes, Dock.Right); dock.Children.Add(notes);
         var text = Ui.Column(0, new TextBlock { Text = $"Mira {Updates.Current}", FontSize = 18, FontWeight = FontWeight.SemiBold }, Description(L("Mira pour Mac (Apple Silicon).", "Mira for Mac (Apple silicon).")));
         text.Margin = new Thickness(0, 0, 16, 0);
         dock.Children.Add(text);

@@ -36,6 +36,8 @@
   <SolidColorBrush x:Key="WarningText" Color="#E9DCC3" po:Freeze="True"/>
   <SolidColorBrush x:Key="WarningSurface" Color="#F21C1A16" po:Freeze="True"/>
   <SolidColorBrush x:Key="WarningLine" Color="#4D8C7650" po:Freeze="True"/>
+  <SolidColorBrush x:Key="SuccessSurface" Color="#1F86C6A2" po:Freeze="True"/>
+  <SolidColorBrush x:Key="SuccessLine" Color="#5986C6A2" po:Freeze="True"/>
   <SolidColorBrush x:Key="Danger" Color="#F3AD99" po:Freeze="True"/>
   <!-- The window's close button, Windows' own red. -->
   <SolidColorBrush x:Key="CloseHover" Color="#C42B1C" po:Freeze="True"/>

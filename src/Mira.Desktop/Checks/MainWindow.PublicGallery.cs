@@ -4,6 +4,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using Mira.Core;
 using Mira.Core.TorLink;
+using Mira.Core.Updates;
 using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
@@ -121,7 +122,7 @@ public partial class MainWindow
                 SetupStatus.Text = L("Accepte l’autorisation de Windows. Si l’installateur affiche « Could not start the Jellyfin Server service », choisis Ignorer.", "Accept Windows’ permission prompt. If the installer shows “Could not start the Jellyfin Server service”, choose Ignore.");
                 await At(size, "17-jellyfin-setup", ServerSetupPanel);
                 ShowSignInForm(); LoginOverlay.Visibility = Visibility.Collapsed;
-                ShowWhatsNew(WhatsNew.All.Take(3).ToList()); await At(size, "18-whats-new", WhatsNewCard);
+                ShowWhatsNew(WhatsNew.Recent(ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) ?? new Version(0, 0, 0))); await At(size, "18-whats-new", WhatsNewCard);
                 WhatsNewOverlay.Visibility = Visibility.Collapsed;
             }
             OpenGuide(L($@"Jellyfin est prêt. Range tes vidéos dans C:\Users\{You}\Videos\Jellyfin.", $@"Jellyfin is ready. Put your videos in C:\Users\{You}\Videos\Jellyfin."));
