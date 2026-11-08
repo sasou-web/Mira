@@ -504,7 +504,7 @@ public partial class MainWindow
         // Absolute target from the last requested position: repeated presses add up, and the bar moves at once.
         var target = Math.Clamp(_session.Position + seconds, 0, _session.Duration > 0 ? Math.Max(0, _session.Duration - .5) : double.MaxValue);
         if (!TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
-        HoldPosition(target); ShowSeekPill(seconds);
+        HoldPosition(target); ShowSeekPill(seconds); SeekedForGroup();
     }
     /// <summary>mpv may report the pre-seek time for a poll or two; keep the requested time meanwhile.</summary>
     private void HoldPosition(double target)

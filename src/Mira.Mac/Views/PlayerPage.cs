@@ -67,8 +67,6 @@ public sealed partial class PlayerPage : UserControl
     private double _groupPlayAt;
     /// <summary>Loaded or moved for the group: Jellyfin hears « ready » once the picture is there.</summary>
     private bool _groupReadyPending;
-    /// <summary>Until then, a seek that ends is one the group asked for, not one to send it.</summary>
-    private DateTimeOffset _groupQuietUntil;
     private DateTimeOffset? _groupStallSince;
     private bool _groupStalled;
     private readonly Border _groupPill;
@@ -556,6 +554,8 @@ public sealed partial class PlayerPage : UserControl
         var target = Math.Clamp(seconds, 0, _session.Duration > 0 ? Math.Max(0, _session.Duration - .5) : double.MaxValue);
         if (!_mpv.TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), exact ? "absolute+exact" : "absolute+keyframes")) return;
         Hold(target);
+        // The bar or the trackpad let go (not while they move), « Passer l’intro »: the group follows.
+        if (!_timeline.Dragging && !_scrubbing) SeekedForGroup();
     }
     private void SeekBy(double seconds)
     {
@@ -563,7 +563,7 @@ public sealed partial class PlayerPage : UserControl
         // From the last requested position: repeated presses add up, and the bar moves at once.
         var target = Math.Clamp(_session.Position + seconds, 0, _session.Duration > 0 ? Math.Max(0, _session.Duration - .5) : double.MaxValue);
         if (!_mpv.TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
-        Hold(target); ShowControls();
+        Hold(target); ShowControls(); SeekedForGroup();
     }
     private void Hold(double target)
     {
@@ -950,20 +950,35 @@ public sealed partial class PlayerPage : UserControl
     private bool MoveForGroup(double seconds, bool ready = false)
     {
         if (_mpv is null || !_loaded || !Together.NeedsSeek(_mpv.Number("time-pos", _session.Position), seconds)) return false;
-        _groupQuietUntil = DateTimeOffset.UtcNow.AddSeconds(2);
         if (!_mpv.TryCommand("seek", seconds.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return false;
         _groupReadyPending |= ready; Hold(seconds);
         return true;
     }
-    /// <summary>mpv played again after a load or a seek: ready for the group, or a seek of this Mac's that the group follows.</summary>
+    /// <summary>
+    /// mpv played again after a load or a seek: ready for the group when it waits for this Mac. Never a seek to send: mpv
+    /// restarts too after a seek the group asked for (late on a slow stream), an audio track changed or the stream opened
+    /// again, and each one sent back would pause the whole group, move it, and start it again, in a loop when a device is
+    /// slow to seek (as on Windows). The group follows the seeks of this Mac's own controls only (<see cref="SeekedForGroup"/>).
+    /// </summary>
     private void GroupRestarted()
     {
-        if (!Group.PlaysFor(this) || _mpv is null) return;
-        if (_groupReadyPending) { _groupReadyPending = false; Group.Report("Ready", _mpv.Number("time-pos", _session.Position), !_mpv.Flag("pause")); return; }
-        // The bar dragged, the arrows, « Passer l’intro », a chapter: sent once the pointer is released.
-        if (_timeline.Dragging || DateTimeOffset.UtcNow < _groupQuietUntil) return;
+        if (!Group.PlaysFor(this) || _mpv is null || !_groupReadyPending) return;
+        _groupReadyPending = false; Group.Report("Ready", _mpv.Number("time-pos", _session.Position), !_mpv.Flag("pause"));
+    }
+    /// <summary>Moved here (the bar or the trackpad let go, the arrows, a tenth, « Passer l’intro »): the group follows, once the keys stop.</summary>
+    private void SeekedForGroup()
+    {
+        if (!Group.PlaysFor(this) || !_loaded) return;
         _groupSeekSoon.Stop(); _groupSeekSoon.Start();
     }
+    /// <summary>The stream opened again (another quality or track, the connection back): the others wait for this Mac on it.</summary>
+    private void ReopenedForGroup(double position, bool playing)
+    {
+        if (!Group.PlaysFor(this)) return;
+        _groupReadyPending = true; Group.Report("Buffering", position, playing);
+    }
+    /// <summary>Where this playback is now, and whether it is paused: a group made meanwhile takes it from there.</summary>
+    public (double Position, bool Paused)? Now => _mpv is { } mpv && _loaded && !_stopped ? (mpv.Number("time-pos", _session.Position), mpv.Flag("pause")) : null;
     /// <summary>Paused or played here otherwise than by the button (the timer): the group does it, at the same moment.</summary>
     private void GroupPauseChanged(bool paused)
     {
@@ -971,11 +986,14 @@ public sealed partial class PlayerPage : UserControl
         if (paused) { Group.Send("Pause"); return; }
         QuietPause(true); Group.Send("Unpause");
     }
-    /// <summary>Waiting for data more than a moment: the others wait too, then all go on together.</summary>
+    /// <summary>
+    /// Waiting for data more than a moment while it plays: the others wait too, then all go on together. Not while the
+    /// group already waits for this Mac (loaded or moved for it: its Ready comes with the picture), nor paused.
+    /// </summary>
     private void WatchGroupStall(MpvPlayer mpv)
     {
         if (!Group.PlaysFor(this)) return;
-        if (mpv.Flag("paused-for-cache"))
+        if (mpv.Flag("paused-for-cache") && (_groupStalled || !_groupReadyPending && !mpv.Flag("pause")))
         {
             _groupStallSince ??= DateTimeOffset.UtcNow;
             if (!_groupStalled && DateTimeOffset.UtcNow - _groupStallSince > TimeSpan.FromSeconds(1.5)) { _groupStalled = true; Group.Report("Buffering", _session.Position, true); }

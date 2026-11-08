@@ -76,6 +76,8 @@ final class PlayerSession: NSObject {
     private var readyPlaying = false
     private var groupPlay: Task<Void, Never>?
     private var groupSeek: Task<Void, Never>?
+    /// Where the group last sent this iPhone: the jump that lands there is the group's, however late it comes.
+    private var groupTarget: Double?
     private var waitingSince: Date?
     private var stallTold = false
     private var rateObserver: NSObjectProtocol?
@@ -980,6 +982,7 @@ final class PlayerSession: NSObject {
     /// Where the group is, then « ready » once there when the group waits for it.
     private func seekQuietly(_ seconds: Double) {
         quiet(3)
+        groupTarget = seconds
         player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
             Task { @MainActor in self?.checkReady() }
         }
@@ -1010,6 +1013,9 @@ final class PlayerSession: NSObject {
     /// Moved in the player: for the whole group, once the finger stops.
     private func jumped() {
         guard inGroup, !closed, pendingStart == nil, Date() >= quietUntil, !model.scrubbing else { return }
+        // A seek the group asked for that lands late (a slow stream): sent back, it would pause and move the whole group
+        // again, in a loop when a device is slow to seek.
+        if let groupTarget, abs(groupPosition - groupTarget) < 1 { return }
         groupSeek?.cancel()
         groupSeek = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
@@ -1021,7 +1027,8 @@ final class PlayerSession: NSObject {
     /// A stall of more than a moment while playing: the group waits for this iPhone, then goes on with it.
     private func watchGroupStall() {
         let stalled = player.timeControlStatus == .waitingToPlayAtSpecifiedRate && player.reasonForWaitingToPlay == .toMinimizeStalls
-        if stalled && Date() >= quietUntil {
+        // Not while the group already waits for this iPhone (opened or moved for it: its Ready comes once it is there).
+        if stalled && Date() >= quietUntil && (stallTold || !readyPending) {
             let since = waitingSince ?? Date()
             waitingSince = since
             if !stallTold && Date().timeIntervalSince(since) > 1.5 {
@@ -1199,6 +1206,7 @@ extension PlayerSession: PlayerActions {
     func seek(to seconds: Double) {
         guard !closed, player.currentItem?.status == .readyToPlay else { return }
         model.time = seconds
+        groupTarget = nil
         player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         model.touched()
     }
@@ -1333,6 +1341,7 @@ extension PlayerSession: PlayerActions {
         } else if let passage = Timeline.skippable(passages, at: at) {
             skipped.insert(passage)
             showPassage(nil)
+            groupTarget = nil
             player.seek(to: CMTime(seconds: passage.end, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         }
     }
@@ -1441,6 +1450,8 @@ extension PlayerSession: GroupPlayer {
         let seconds = pendingStart ?? player.currentTime().seconds
         return seconds.isFinite ? max(0, seconds) : 0
     }
+
+    var groupPaused: Bool { pendingStart != nil ? pendingPaused : player.timeControlStatus == .paused }
 
     func groupPrepare(_ startTicks: Int64) {
         guard !closed else { return }

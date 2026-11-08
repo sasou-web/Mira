@@ -74,6 +74,7 @@ public sealed class WatchGroup
                 _rejoined = again && Queue is not null; _away = false;
                 _session = session; Group = group; _joined?.TrySetResult(); _joined = null;
                 _clock.Start(); _ = SyncClockAsync(); Changed?.Invoke();
+                if (!again && _made) _ = ShareAsync(session);
                 break;
             case "UserJoined" or "UserLeft" when Group is not null:
                 if (body.ValueKind == JsonValueKind.String && body.GetString() is { Length: > 0 } name) Member?.Invoke(Together.MemberText(name, kind == "UserJoined"), kind == "UserJoined");
@@ -222,6 +223,24 @@ public sealed class WatchGroup
             else await _shell.PlayAsync(item, groupStart: next.StartTicks);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
+    }
+    /// <summary>
+    /// A group made while a title plays here (from its page, the mini-player under it): that title becomes the group's,
+    /// from where it is, paused if it was. Otherwise the group stays empty, and whoever joins gets nothing until the title
+    /// is started again (Jellyfin sends a newcomer the group's title only). Jellyfin answers with a PlayQueue of this
+    /// title, which waits here a moment for the group (QueueAsync), then goes on.
+    /// </summary>
+    private async Task ShareAsync(Session session)
+    {
+        if (!Active || Queue is not null || _shell.Player is not { Item: { } item } player || player.Now is not { } now) return;
+        try
+        {
+            await session.Client.SyncQueueAsync(item.Id, Ticks(now.Position), session.Lifetime);
+            // Jellyfin plays a new title for the group once everyone is ready: asked to wait paused instead.
+            if (now.Paused) Send("Pause");
+        }
+        catch (UnauthorizedAccessException) { _shell.Notice(NoSyncPlay); }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
     }
     /// <summary>
     /// Lecture in a group: Jellyfin puts the title on for every device, this one included (QueueAsync). True when the

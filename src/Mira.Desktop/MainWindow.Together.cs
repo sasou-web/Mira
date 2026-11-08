@@ -38,8 +38,6 @@ public partial class MainWindow
     private double _groupPlayAt;
     /// <summary>Loaded or moved for the group: Jellyfin hears « ready » once the picture is there.</summary>
     private bool _groupReadyPending;
-    /// <summary>Until then, a seek that ends is one the group asked for, not one to send it.</summary>
-    private DateTimeOffset _groupQuietUntil;
     private DateTimeOffset? _groupStallSince;
     private bool _groupStalled;
     /// <summary>The player closed here: Jellyfin is told not to wait for this PC, or every seek would hold the others.</summary>
@@ -89,6 +87,7 @@ public partial class MainWindow
                 _groupRejoined = again && _groupQueue is not null; _groupAway = false;
                 _group = group; _groupJoined?.TrySetResult(); _groupJoined = null;
                 _groupClock.Start(); _ = SyncGroupClockAsync(); GroupChanged();
+                if (!again && _groupMade) _ = ShareTitleAsync(client);
                 break;
             case "UserJoined" or "UserLeft" when _group is not null:
                 if (body.ValueKind == JsonValueKind.String && body.GetString() is { Length: > 0 } name) GroupMember(name, kind == "UserJoined");
@@ -283,6 +282,25 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
     /// <summary>
+    /// A group made while a title plays here (from its page, the mini-player under it): that title becomes the group's,
+    /// from where it is, paused if it was. Otherwise the group stays empty, and whoever joins gets nothing until the title
+    /// is started again (Jellyfin sends a newcomer the group's title only). Jellyfin answers with a PlayQueue of this
+    /// title, which waits here a moment for the group (GroupQueueAsync), then goes on.
+    /// </summary>
+    private async Task ShareTitleAsync(JellyfinClient client)
+    {
+        if (!InGroup || _groupQueue is not null || !_playing || !_loaded || _mpv is null || _session.Item is not { } item) return;
+        var paused = _mpv.Flag("pause");
+        try
+        {
+            await client.SyncQueueAsync(item.Id, Ticks(_mpv.Number("time-pos", _session.Position)), _connectionLifetime.Token);
+            // Jellyfin plays a new title for the group once everyone is ready: asked to wait paused instead.
+            if (paused) SendGroup("Pause");
+        }
+        catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); }
+        catch (Exception ex) when (IsExpected(ex)) { }
+    }
+    /// <summary>
     /// Lecture in a group: Jellyfin puts the title on for every device, this one included (GroupQueueAsync). True when
     /// the group took it, or when it asks first (<paramref name="chosen"/> on a page while the group has another title
     /// on); false when it plays here, at the group's title the player had left.
@@ -368,19 +386,26 @@ public partial class MainWindow
     private bool MoveForGroup(double seconds, bool ready = false)
     {
         if (_mpv is null || !_loaded || !Together.NeedsSeek(_mpv.Number("time-pos", _session.Position), seconds)) return false;
-        _groupQuietUntil = DateTimeOffset.UtcNow.AddSeconds(2);
         if (!TryCommand("seek", seconds.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return false;
         _groupReadyPending |= ready; HoldPosition(seconds);
         return true;
     }
 
-    /// <summary>mpv played again after a load or a seek: ready for the group, or a seek of this PC's that the group follows.</summary>
+    /// <summary>
+    /// mpv played again after a load or a seek: ready for the group when it waits for this PC. Never a seek to send: mpv
+    /// restarts too after a seek the group asked for (late on a slow stream), an audio track changed or the stream opened
+    /// again, and each one sent back would pause the whole group, move it, and start it again, in a loop when a device is
+    /// slow to seek. The group follows the seeks of this PC's own controls only (<see cref="SeekedForGroup"/>).
+    /// </summary>
     private void GroupRestarted()
     {
-        if (!PlayingForGroup || _mpv is null) return;
-        if (_groupReadyPending) { _groupReadyPending = false; GroupReport("Ready", _mpv.Number("time-pos", _session.Position), !_mpv.Flag("pause")); return; }
-        // The bar dragged, the keys, « Passer l’intro », a chapter: sent once the pointer is released.
-        if (_seeking || DateTimeOffset.UtcNow < _groupQuietUntil) return;
+        if (!PlayingForGroup || _mpv is null || !_groupReadyPending) return;
+        _groupReadyPending = false; GroupReport("Ready", _mpv.Number("time-pos", _session.Position), !_mpv.Flag("pause"));
+    }
+    /// <summary>Moved here (the bar released, the keys, « Passer l’intro », a tenth, Windows' media controls): the group follows, once the keys stop.</summary>
+    private void SeekedForGroup()
+    {
+        if (!PlayingForGroup || !_loaded) return;
         _groupSeekSoon.Stop(); _groupSeekSoon.Start();
     }
     /// <summary>Paused or played here (button, Espace, media keys, the timer): the group does it, at the same moment.</summary>
@@ -390,11 +415,14 @@ public partial class MainWindow
         if (paused) { SendGroup("Pause"); return; }
         QuietPause(true); SendGroup("Unpause");
     }
-    /// <summary>Waiting for data more than a moment: the others wait too, then all go on together.</summary>
+    /// <summary>
+    /// Waiting for data more than a moment while it plays: the others wait too, then all go on together. Not while the
+    /// group already waits for this PC (loaded or moved for it: its Ready comes with the picture), nor paused.
+    /// </summary>
     private void WatchGroupStall()
     {
         if (!PlayingForGroup || !_loaded || _mpv is null) return;
-        if (_mpv.Flag("paused-for-cache"))
+        if (_mpv.Flag("paused-for-cache") && (_groupStalled || !_groupReadyPending && !_mpv.Flag("pause")))
         {
             _groupStallSince ??= DateTimeOffset.UtcNow;
             if (!_groupStalled && DateTimeOffset.UtcNow - _groupStallSince > TimeSpan.FromSeconds(1.5)) { _groupStalled = true; GroupReport("Buffering", _session.Position, true); }

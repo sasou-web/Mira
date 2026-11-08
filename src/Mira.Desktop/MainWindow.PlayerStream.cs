@@ -93,6 +93,8 @@ public partial class MainWindow
         if (_fileOpen) _skipEnds++;
         _fileOpen = true; _loaded = false; SeekBar.IsEnabled = false; _wake = WakeState.Reloading;
         _playLocation = stream.Location; _playAuthorization = stream.Authorization;
+        // In a group, the others wait for this PC on its new stream, then all go on together (GroupRestarted).
+        if (PlayingForGroup) { _groupReadyPending = true; GroupReport("Buffering", position, !keepPaused); }
         _mpv.Load(stream.Location, position, stream.Authorization, keepPaused);
         return true;
     }

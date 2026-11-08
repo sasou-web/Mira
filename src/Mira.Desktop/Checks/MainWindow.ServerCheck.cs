@@ -167,16 +167,22 @@ public partial class MainWindow
             // Jellyfin answers its ping a moment before it signs anyone in (503 « Jellyfin démarre »): asked again until it does.
             friend = await UntilServer("the second device signs in", async () => await Friend.StartAsync(client.Connection.Server, user, password), 60);
             await Until("the second device listens", () => friend.Listening, 30);
+            // A title already playing here when the group is made: it becomes the group's, from where it is, so that the
+            // device that joins gets it (before, the group stayed empty until it was started again).
+            var signs = await FindFilm("Signes Test (2022)") ?? throw new InvalidOperationException("The film « Signes Test » is not in the library.");
+            await PlayAsync(signs, chosen: true);
+            await Until("the title plays here, alone", () => _playing && _loaded && _session.Item?.Id == signs.Id, 60);
+            var alone = await Advancing("the title plays here, alone");
             await EnterGroupAsync(c => c.SyncNewAsync(Together.GroupName(c.Connection.UserName)), invite: false, made: true);
             Require(_group is not null, "« Créer un groupe » makes a SyncPlay group on Jellyfin");
             await friend.JoinAsync(_group!.GroupId);
             await Until("the second device in the group", () => friend.Joined, 20);
+            await Until("the title playing here, put on for the group", () => friend.QueuedItem == signs.Id, 20);
+            Require(friend.QueuedAt >= alone - 1, $"a group made while a title plays: whoever joins gets that title, where it is ({friend.QueuedAt:0.0} s, it was at {alone:0.0} s)");
             // In sight on every page while in the group: the rail's button, above the Guide.
             await Until("the group's button in the rail", () => GroupNav.Visibility == Visibility.Visible && System.Windows.Automation.AutomationProperties.GetName(GroupNav).Contains(_group!.GroupName, StringComparison.Ordinal), 20);
             Require(GroupNavCountText.Text == Together.CountText(_group!), "in a group: the rail's button says so, with how many accounts are in it");
             await CaptureAsync(output, "server-group-rail");
-            var signs = await FindFilm("Signes Test (2022)") ?? throw new InvalidOperationException("The film « Signes Test » is not in the library.");
-            await PlayAsync(signs, chosen: true);
             await Until("the group's title loads here", () => PlayingForGroup && _loaded && _session.Item?.Id == signs.Id, 60);
             await Until("the group plays", () => _mpv is { } mpv && !mpv.Flag("pause"), 40);
             Require(friend.Readied > 0, "Lecture in a group: Jellyfin puts the title on for both devices and plays it once both are ready");
@@ -188,6 +194,15 @@ public partial class MainWindow
             await friend.SendAsync("Unpause");
             await Until("played again by the other device", () => _mpv?.Flag("pause") == false, 20);
             Require(true, "played on the other device: played here");
+            // The stream opened again here (another quality, an audio track of a conversion, the connection back): the
+            // group waits for this PC, then goes on, and is never sent a seek it did not ask for. Each one sent back paused
+            // and moved the whole group, in a loop when a device was slow to seek.
+            var seeks = friend.Seeks;
+            Require(await ReopenStreamAsync(always: true), "the stream opened again in the group");
+            await Until("the stream opened again plays", () => _loaded && _mpv is { } reopened && !reopened.Flag("pause") && !_groupReadyPending, 40);
+            await Advancing("the group plays on after the stream opened again");
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            Require(friend.Seeks == seeks, $"a stream opened again sends the group no seek ({friend.Seeks - seeks} sent)");
             await LeaveGroupAsync(); await StopPlaybackAsync(); ReturnToLibrary();
             Require(GroupNav.Visibility == Visibility.Collapsed, "out of the group: its button leaves the rail");
 
@@ -314,6 +329,11 @@ public partial class MainWindow
         public JellyfinClient Client => _client;
         public bool Joined { get; private set; }
         public int Readied { get; private set; }
+        /// <summary>The group's title, as Jellyfin put it on for this device, and where it starts.</summary>
+        public string? QueuedItem { get; private set; }
+        public double QueuedAt { get; private set; }
+        /// <summary>Seeks the group was asked for (each one comes to every device).</summary>
+        public int Seeks { get; private set; }
         private Friend(JellyfinClient client)
         {
             _client = client;
@@ -351,14 +371,14 @@ public partial class MainWindow
                     if (kind.GetString() == "GroupJoined") Joined = true;
                     else if (kind.GetString() == "PlayQueue" && Together.QueueItem(body) is { } entry && entry.PlaylistItemId != _playlistItem)
                     {
-                        _playlistItem = entry.PlaylistItemId;
+                        _playlistItem = entry.PlaylistItemId; QueuedItem = entry.ItemId; QueuedAt = entry.StartTicks / 1e7;
                         await SendAsync("Buffering", State(entry.StartTicks, entry.PlaylistItemId));
                         await SendAsync("Ready", State(entry.StartTicks, entry.PlaylistItemId)); Readied++;
                     }
                 }
                 else if (type == "SyncPlayCommand" && data.TryGetProperty("Command", out var command) && command.GetString() == "Seek" && _playlistItem is { } item
                     && data.TryGetProperty("PositionTicks", out var ticks) && ticks.TryGetInt64(out var position))
-                    await SendAsync("Ready", State(position, item));
+                { Seeks++; await SendAsync("Ready", State(position, item)); }
             }
             catch (Exception ex) when (ExpectedErrors.Are(ex) || ex is OperationCanceledException) { }
         }
