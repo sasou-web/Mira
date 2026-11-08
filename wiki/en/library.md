@@ -34,6 +34,14 @@ With **Settings → Playback → Trailer before the film** (Windows and Mac, off
 
 A title counts as watched when it ends, when you stop past 90 %, or when you go to the next episode from the credits. You can also mark it by hand, from its page or its menu (right-click, or long press). With several seasons, **Mark season as watched** marks them all at once.
 
+## Spoilers
+
+In **Settings → Playback**, **Hide spoilers** (off by default) blurs the picture of an episode you have not started and replaces its summary with "Not watched yet": its name and number stay. On the wide cards (**Continue watching**, **Up next**), an unstarted episode shows its season's picture. Started or watched: everything comes back. The hidden picture is not even downloaded.
+
+## Play on another device
+
+On iPhone, **…** on a title → **Play on…** lists the Jellyfin apps that can be controlled (Mira for Windows or Mac, a TV app): the title starts there, and a remote then pauses, seeks and sets the volume. Mira for Windows and Mac show up in that list on their own while they are open.
+
 ## Search
 
 <kbd>Ctrl</kbd> + <kbd>K</kbd> or <kbd>Ctrl</kbd> + <kbd>F</kbd> on Windows, <kbd>⌘</kbd> + <kbd>F</kbd> on Mac. From two letters, Mira shows the people (actors, directors) whose name matches, then titles, episodes and collections.

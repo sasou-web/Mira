@@ -13,7 +13,7 @@ Les réglages s’ouvrent par la roue dentée de la barre de gauche (<kbd>⌘</k
 
 | Partie | Ce qu’on y trouve |
 | --- | --- |
-| **Lecture** | Passer les intros et les récaps, enchaîner les épisodes, bande-annonce avant le film, reprendre là où tu t’es arrêté, image, qualité hors de chez toi, décodage matériel, le moteur mpv (Windows) |
+| **Lecture** | Passer les intros et les récaps, enchaîner les épisodes, bande-annonce avant le film, cacher les spoilers, « Tu regardes toujours ? », reprendre là où tu t’es arrêté, image, qualité hors de chez toi, décodage matériel, le moteur mpv (Windows) |
 | **Audio & sous-titres** | Langues audio et de sous-titres préférées, taille et style des sous-titres, sortie audio et ampli |
 | **Apparence** | Langue de Mira, mode canapé, rangées de l’accueil, densité de la bibliothèque, carrousel automatique, réduire les animations |
 | **Compte & serveur** | Ton compte Jellyfin et ta photo, se déconnecter, Tailscale intégré, notifications de nouveaux épisodes, qui regarde sur Jellyfin en ce moment |
@@ -35,7 +35,7 @@ Le guide (**?** dans la barre, <kbd>F1</kbd> sous Windows) est à part : où von
 L’onglet **Réglages** contient :
 
 - **Compte** : ton serveur, ton compte, ta photo, **Se déconnecter**.
-- **Lecture** : langues, intros et récaps, épisode suivant, reprendre un peu avant.
+- **Lecture** : langues, intros et récaps, épisode suivant, reprendre un peu avant, cacher les spoilers et **Données mobiles** (plafond de qualité en 4G, 2 Mb/s par défaut).
 - **Ailleurs qu’à la maison** : Tailscale intégré et le chemin que prend Mira vers Jellyfin.
 - **Administration** (administrateur de Jellyfin) : qui regarde sur Jellyfin en ce moment.
 - **Cet iPhone → Confidentialité** : tout ce que Mira envoie, à qui et quand, et l’interrupteur de Tailscale intégré.
