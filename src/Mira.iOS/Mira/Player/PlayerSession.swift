@@ -30,7 +30,9 @@ final class PlayerSession: NSObject {
     private var drawn: (key: String, cues: SubtitleCues)?
     /// AirPlay was on at the last look: the television draws Apple's subtitles, never Mira's.
     private var wasExternal = false
-    private let device: PlaybackProfile.Device
+    private var device: PlaybackProfile.Device
+    /// Jellyfin's version was read for `device.dolbyVision8`.
+    private var serverRead = false
 
     let player: AVPlayer
     /// What the controls draw.
@@ -195,6 +197,10 @@ final class PlayerSession: NSObject {
                 bitrate = await app?.bitrate(for: client, fileBitrate: fileBitrate) ?? PlaybackPlan.fullBitrate
             }
             if miraHls == nil { miraHls = await client.hasMiraExtension() }
+            if !serverRead {
+                serverRead = true
+                device.dolbyVision8 = PlaybackProfile.dolbyVision8(server: await client.serverVersion())
+            }
             if !tracksChosen {
                 tracksChosen = true
                 await chooseTracks()

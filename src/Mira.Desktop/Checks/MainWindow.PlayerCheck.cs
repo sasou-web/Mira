@@ -76,6 +76,16 @@ public partial class MainWindow
             VolumeSlider.Value = 150;
             Require(Math.Abs(_mpv.Level - 150) < .1 && Math.Abs(_mpv.Number("volume") - 100) < .1 && (_mpv.Get("af") ?? "").Contains(Mira.Core.VolumeBoost.Label) && VolumeText.Text == "150 %",
                 "above 100 %, mpv stays at 100 and the boost filter adds the rest");
+            // « Son de nuit »: its compressor at the head of the chain, before the boost, at once; gone again without touching the boost.
+            var nightBefore = _settings.NightSound;
+            NightSoundCheck.IsChecked = true; NightSound_Click(this, new());
+            var chain = _mpv.Get("af") ?? "";
+            Require(_mpv.NightSoundOn && chain.IndexOf(Mira.Core.NightSound.Label, StringComparison.Ordinal) is >= 0 and var night && night < chain.IndexOf(Mira.Core.VolumeBoost.Label, StringComparison.Ordinal) && _settings.NightSound,
+                $"« Son de nuit » goes before the boost and is kept: af {chain}");
+            NightSoundCheck.IsChecked = false; NightSound_Click(this, new());
+            chain = _mpv.Get("af") ?? "";
+            Require(!_mpv.NightSoundOn && !chain.Contains(Mira.Core.NightSound.Label, StringComparison.Ordinal) && chain.Contains(Mira.Core.VolumeBoost.Label, StringComparison.Ordinal), $"« Son de nuit » off leaves the boost: af {chain}");
+            _settings.NightSound = nightBefore; TrySaveSettings();
             VolumeSlider.Value = 0;
             More_Click(this, new()); UpdateLayout(); await Task.Delay(100);
             ChooseSpeed(1.25); Require(Math.Abs(_mpv.Number("speed") - 1.25) < .001, "speed menu selection reaches mpv");
@@ -151,6 +161,7 @@ public partial class MainWindow
             Require(!_playing && _mpv is null && LibraryShell.IsVisible && !PlayerOverlayLayer.IsOpen, "stop releases mpv and closes player overlays");
             await _engineReleased;
             Require(Playback.MpvEngine.ShaderFolder() is { } shaders && Directory.EnumerateFiles(shaders).Any(), "mpv keeps its compiled shaders for the next playback");
+            await RunColourChecksAsync(checks, Require);
             await RunCompletionChecksAsync(Require);
             await File.WriteAllLinesAsync(Path.Combine(output, "result.txt"), checks);
         }

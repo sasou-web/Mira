@@ -21,8 +21,8 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 ## PC d'ogsas 🖥
 - [ ] Mise à jour de Mira proposée et faite (à la prochaine version)
 - [ ] Lecteur : image « Cinéma » sans saccade sur un film 4K ; Informations dit « Cinéma »
-- [ ] Un film HDR10 avec le HDR de Windows allumé, puis éteint : couleurs justes les deux fois
-- [ ] Un film Dolby Vision (profil 5 ou 8) : pas de vert ni de violet
+- [ ] Un film HDR10 avec le HDR de Windows allumé, puis éteint : couleurs justes les deux fois ; ⋮ → Informations, ligne « Couleurs » : « envoyé en HDR à l’écran » puis « converti en SDR »
+- [ ] Un film Dolby Vision (profil 5 ou 8) : pas de vert ni de violet ; « Couleurs » dit « Dolby Vision profil 5 » ou « 8 »
 - [ ] Sortie audio : « Tester » joue chaque haut-parleur ; passthrough vers un ampli si tu en as un
 - [ ] Image dans l'image : la petite fenêtre reste au-dessus, sous-titres lisibles, retour sans image noire
 - [ ] Réduire et agrandir le lecteur : fluide, pas de noir aux deux bouts
@@ -44,6 +44,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Lecteur : double toucher ±10 s, glisser luminosité et volume, pincer, réduire vers le bas
 - [ ] PiP d'Apple et AirPlay vers une télé
 - [ ] Sous-titres d'un vrai animé (ASS) lisibles et calés
+- [ ] Un film Dolby Vision profil 8 (Jellyfin 12.2 ou plus) puis HDR10 : lus sans conversion, couleurs justes
 - [ ] Tailscale intégré en 4G (sans l'app Tailscale) : lecture, puis arrière-plan et retour
 - [ ] Données mobiles : un film en 4G, ⋮ → Qualité dit « Données mobiles · 2 Mb/s » et l'image reste correcte ; quitter le Wi-Fi en pleine lecture : le film reprend au même endroit en 2 Mb/s, puis revient en qualité normale au retour du Wi-Fi
 - [ ] Épisodes manquants et à venir (extension TheTVDB installée par Mira pour Windows) : sur une série suivie, la ligne au-dessus des saisons (« 1 épisode manquant : … » ou « Prochain épisode : …, samedi »), touchée = la liste avec les jours
@@ -57,6 +58,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Installation du `.dmg` (« Ouvrir quand même ») et premier lancement
 - [ ] Mise à jour automatique vers la version suivante (« Redémarrer »)
 - [ ] Image ni grise ni noire ; sinon ⋮ → Informations, ligne « Réparé »
+- [ ] Un film HDR10 (ou Dolby Vision) : couleurs justes, pas délavées ; ⋮ → Informations, ligne « Couleurs » : « HDR10 → SDR (limite du rendu) »
 - [ ] Trackpad : défiler (Accueil : un geste = la page ou la rangée), glisser à deux doigts entre les pages (la page suit les doigts, revient si lâchée tôt), pincer dans les grilles (affiches qui glissent), balayage à trois doigts, pincer dans le lecteur
 - [ ] Image dans l'image (petite fenêtre flottante)
 - [ ] Sortie audio : Réglages → Audio & sous-titres → « Tester » joue chaque haut-parleur (casque, puis enceintes ou AirPods) ; ⋮ → Informations dit la sortie ; Dolby Digital vers un ampli si Rayro en a un

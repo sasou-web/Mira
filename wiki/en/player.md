@@ -70,6 +70,8 @@ In the player's **⋮** menu: pause in 15 minutes, 30 minutes, 1 hour, or at the
 
 - **Picture** (Settings → Playback, Windows and Mac): **Standard** (mpv's own rendering, the lightest), **Cinema** (the default: smooth motion on any screen, no banding in gradients) and **Maximum** (with the finest scaling). If the computer drops frames, Mira steps down one level by itself and tells you.
 - **Audio output** (Windows and Mac, Settings → Audio & subtitles): the output device, the number of channels, and **Sound sent to the amplifier as is** for an amplifier or sound bar that decodes Dolby and DTS. On Windows, over HDMI, Dolby TrueHD, Atmos and DTS-HD too; on a Mac, Dolby Digital and DTS only (macOS sends nothing larger untouched), the rest decoded by Mira. **Test the audio output** plays a tone on each speaker. In the player, **Audio** switches the output, and **⋮ → Info** says where the sound goes and whether it reaches the amplifier undecoded.
+- **HDR** (Windows and Mac): **⋮ → Info**, line **Colours**, says the film's range (SDR, HDR10, HDR10+, HLG, Dolby Vision) and what reaches the screen. On Windows, HDR goes to the screen as it is when Windows' HDR is on, and is converted to SDR otherwise; on a Mac, it is always converted to SDR ([why](mac.md#hdr-films)).
+- **Night sound** (Windows and Mac, in the player's **Audio and subtitles** menu, under the audio tracks): loud passages come down and voices come up, to watch at a low volume late at night. It applies at once and stays on for the next videos. It does nothing while the sound goes to the amplifier as is, and isn't on iPhone.
 - **Audio delay** (⋮ menu): if lips and voices don't match, in steps of 0.1 s, until the player closes.
 
 ## Away from home: quality

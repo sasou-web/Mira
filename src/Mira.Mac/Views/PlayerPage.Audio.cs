@@ -1,3 +1,4 @@
+using System.IO;
 using Avalonia;
 using Avalonia.Controls;
 using Mira.Core;
@@ -33,6 +34,24 @@ public sealed partial class PlayerPage
         var devices = mpv.AudioDevices(); var device = AudioOutput.Device(_shell.Settings.AudioDevice, devices);
         var name = device == AudioOutput.Default ? MacDefault : devices.First(d => d.Name == device).Label;
         return AudioOutput.Shown(name, mpv.Get("audio-out-params/format"), mpv.Get("audio-out-params/hr-channels"));
+    }
+    /// <summary>
+    /// « Son de nuit » (<see cref="NightSound"/>) under the audio tracks, as on Windows: loud passages brought down, quiet
+    /// ones raised, at once; kept in the settings for the next videos. Its line says what it does, or why it does nothing.
+    /// </summary>
+    private void AddNightSound(StackPanel list)
+    {
+        var settings = _shell.Settings; var chosen = settings.NightSound;
+        list.Children.Add(new Border { Height = 1, Background = Ui.Brush("#24FFFFFF"), Margin = new Thickness(10, 6, 10, 2) });
+        list.Children.Add(Entry(NightSound.Name, NightSound.Details(chosen, settings.AudioPassthrough, refused: chosen && _mpv?.NightSoundRefused == true), chosen, () => ChooseNightSound(!chosen)));
+    }
+    /// <summary>For the self-check too: chosen as the menu does.</summary>
+    public void ChooseNightSound(bool on)
+    {
+        var settings = _shell.Settings;
+        settings.NightSound = on;
+        _shell.Profile.SaveSettings(settings);
+        _mpv?.NightSoundChosen(on);
     }
     /// <summary>« Sortie » under the audio tracks, when there is more than one device to choose.</summary>
     private void AddAudioDevices(StackPanel list)

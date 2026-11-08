@@ -656,7 +656,7 @@ public sealed partial class PlayerPage : UserControl
             foreach (var track in tracks.Where(x => x.Type == type))
                 list.Children.Add(Entry(track.Label, track.Details, selected == track.Id, () => ChooseTrack(type == "audio" ? "aid" : "sid", track.Id)));
             if (type == "sub") { list.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync())); AddSubtitleSearch(list); }
-            else AddAudioDevices(list);
+            else { AddNightSound(list); AddAudioDevices(list); }
             return list;
         }
         return Ui.Row(18, Column(L("AUDIO", "AUDIO"), "audio", current.Audio, false), Column(L("SOUS-TITRES", "SUBTITLES"), "sub", current.Sub, true));

@@ -584,6 +584,13 @@ public static class SelfCheck
                 var audio = engine.Get("current-ao");
                 if (string.IsNullOrEmpty(audio)) Check(true, $"volume à 150 % ({renderer})", "pas de sortie audio sur cette machine : non mesurable");
                 else Check((engine.Get("af") ?? "").Contains(VolumeBoost.Label) && Math.Abs(engine.Number("volume") - 100) < 0.5, $"volume à 150 % ({renderer})", $"{player.Volume}, sortie {audio}, af {engine.Get("af")}");
+                // « Son de nuit », as on Windows: the compressor at the head of mpv's chain, before the boost, and gone again.
+                player.ChooseNightSound(true);
+                var chain = engine.Get("af") ?? "";
+                if (string.IsNullOrEmpty(audio)) Check(true, $"son de nuit ({renderer})", "pas de sortie audio sur cette machine : non mesurable");
+                else Check(engine.NightSoundOn && chain.IndexOf(NightSound.Label, StringComparison.Ordinal) is >= 0 and var night && night < chain.IndexOf(VolumeBoost.Label, StringComparison.Ordinal) && window.Settings.NightSound, $"son de nuit avant l’amplification ({renderer})", chain);
+                player.ChooseNightSound(false);
+                Check(!engine.NightSoundOn && !(engine.Get("af") ?? "").Contains(NightSound.Label, StringComparison.Ordinal) && !window.Settings.NightSound, $"son de nuit coupé ({renderer})", engine.Get("af") ?? "");
                 var before = player.Position;
                 Key(window, Avalonia.Input.Key.Right);
                 Check(await Until(() => player.Position >= before + 8, 6), $"avance de 10 s ({renderer})", $"{before:0.0} → {player.Position:0.0}");
