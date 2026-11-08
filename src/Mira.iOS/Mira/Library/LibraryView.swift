@@ -308,7 +308,7 @@ struct LibraryView: View {
         libraries = (try? await client.libraries())?.filter { $0.kind == collection } ?? []
         genres = (try? await client.genres(query.types)) ?? []
         years = (try? await client.years(query.types)) ?? []
-        languages = LibraryFilters.languagesSupported((try? await client.serverVersion()) ?? nil)
+        languages = LibraryFilters.languagesSupported(await client.serverVersion())
     }
 
     /// « 4K », « HD », « SD » on the chip; the list says what HD is.
