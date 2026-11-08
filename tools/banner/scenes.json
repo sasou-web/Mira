@@ -1,4 +1,14 @@
 {
+  "0.9.5": {
+    "backdrop": "nimona",
+    "items": [
+      { "shot": "mac-film" },
+      { "shot": "windows-films" },
+      { "shot": "iphone-film" },
+      { "platform": "windows" },
+      { "platform": "server" }
+    ]
+  },
   "0.9.4": {
     "backdrop": "wild-robot",
     "items": [

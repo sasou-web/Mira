@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.9.5",
+    "summary": "Le Mac rattrape les flux bloqués, télécommande, plus de filtres, iPhone hors connexion.",
+    "en": { "summary": "Mac recovers stalled streams, Jellyfin remote control, more filters, the iPhone offline." },
+    "items": [
+      { "icon": "laptop", "title": "Le Mac, plus solide", "text": "Flux bloqué ou veille rattrapés, touches multimédias, notifications de nouveaux épisodes, fenêtre rouverte à sa place, ⌘W qui laisse Mira dans le Dock.",
+        "en": { "title": "A sturdier Mac", "text": "Stalled streams and sleep recovered, media keys, new-episode notifications, the window reopens where you left it, ⌘W leaves Mira in the Dock." } },
+      { "icon": "sliders", "title": "Plus de filtres, une télécommande", "text": "Filtrer par image (4K), note et langues ; Jellyfin peut piloter Mira, et l’iPhone peut lire sur un autre appareil.",
+        "en": { "title": "More filters, a remote", "text": "Filter by picture (4K), rating and languages; Jellyfin can control Mira, and the iPhone can play on another device." } },
+      { "icon": "download", "title": "L’iPhone : hors connexion, QR code, 4G", "text": "Garder un titre sur l’iPhone, se connecter en scannant un QR code, qualité plafonnée en 4G, bandes-annonces et page d’une personne.",
+        "en": { "title": "iPhone: offline, QR code, cellular", "text": "Keep a title on the iPhone, sign in by scanning a QR code, quality capped on cellular, trailers and a page for each person." } },
+      { "icon": "eye-off", "title": "Soirées plus tranquilles", "text": "Son de nuit, spoilers cachés, « Tu regardes toujours ? » et mode canapé pour la télé.",
+        "en": { "title": "Calmer evenings", "text": "Night sound, hidden spoilers, “Still watching?” and a couch mode for the TV." } },
+      { "icon": "shield", "title": "Confidentialité et rapport", "text": "Une page dit tout ce qui part sur le réseau, et un rapport se joint à un signalement de problème.",
+        "en": { "title": "Privacy and report", "text": "A page lists everything that leaves your device, and a report can be attached when you report a problem." } }
+    ]
+  },
+  {
     "version": "0.9.4",
     "summary": "Mira pour Mac comme Windows, Mira web retirée, groupe visible, pages plus fluides.",
     "en": { "summary": "Mira for Mac like Windows, the browser version retired, a visible group, smoother pages." },
