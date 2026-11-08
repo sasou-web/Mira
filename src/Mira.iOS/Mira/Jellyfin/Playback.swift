@@ -6,6 +6,8 @@ struct MediaSource: Codable, Sendable, Hashable {
     var id: String?
     var container: String?
     var bitrate: Int?
+    /// The file's size in bytes (what « Keep on this iPhone » needs room for).
+    var size: Int64?
     var runTimeTicks: Int64?
     var eTag: String?
     var supportsDirectPlay: Bool?
@@ -61,10 +63,12 @@ extension JellyfinClient {
         case start = "Sessions/Playing", progress = "Sessions/Playing/Progress", stop = "Sessions/Playing/Stopped"
     }
 
-    /// Where this iPhone is in a title, for Jellyfin's resume points and its dashboard; never throws.
-    func report(_ kind: Report, _ state: PlaybackState) async {
-        guard let body = try? JSONSerialization.data(withJSONObject: state.body) else { return }
-        _ = try? await send("POST", kind.rawValue, body: body, timeout: 10)
+    /// Where this iPhone is in a title, for Jellyfin's resume points and its dashboard; never throws. True when
+    /// Jellyfin heard it (a title kept on this iPhone tells it later otherwise).
+    @discardableResult
+    func report(_ kind: Report, _ state: PlaybackState) async -> Bool {
+        guard let body = try? JSONSerialization.data(withJSONObject: state.body) else { return false }
+        return (try? await send("POST", kind.rawValue, body: body, timeout: 10)) != nil
     }
 
     /// Ends Jellyfin's conversion for a session that no longer plays it (the PC stops converting at once).
@@ -118,6 +122,14 @@ extension JellyfinClient {
             text += (text.contains("?") ? "&" : "?") + "ApiKey=" + (token.addingPercentEncoding(withAllowedCharacters: allowed) ?? token)
         }
         return URL(string: text)
+    }
+
+    /// Jellyfin's version (« 12.2.0 »), from its public information; nil when it does not answer.
+    func serverVersion() async -> String? {
+        var request = URLRequest(url: await Way.shared.map(server.appending(path: "System/Info/Public")), timeoutInterval: 6)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let answer = try? await Self.session.data(for: request), (answer.1 as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return (try? JSON.decoder.decode(PublicInfo.self, from: answer.0))?.version
     }
 
     /// Jellyfin's Mira extension answers here (it serves Mira web): its HLS playlists then time the subtitles of a

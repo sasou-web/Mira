@@ -10,7 +10,8 @@ namespace Mira.Mac.Views;
 /// <summary>
 /// The trackpad over the picture, as in Apple's TV app and IINA: two fingers sideways move in the film (the bar follows,
 /// the film catches up as the fingers go), up and down change the volume (the wheel too, as on Windows), a pinch out goes
-/// full screen and a pinch in comes back, then shrinks to the mini-player. The fingers' direction, natural scrolling or not.
+/// full screen and a pinch in comes back, then shrinks to the mini-player. The fingers' direction, natural scrolling or not,
+/// and their travel alone: once they leave the trackpad, macOS's momentum moves neither the film nor the volume.
 /// </summary>
 public sealed partial class PlayerPage
 {
@@ -24,7 +25,14 @@ public sealed partial class PlayerPage
     private void ListenToTrackpad()
     {
         AddHandler(PointerWheelChangedEvent, ScrubWheel, RoutingStrategies.Bubble);
-        _scrubDone.Tick += (_, _) => { _scrubDone.Stop(); if (!_scrubbing) return; _scrubbing = false; SeekTo(_scrubTo, exact: true); };
+        _scrubDone.Tick += (_, _) => Land();
+    }
+    /// <summary>The fingers left or rested: the film goes exactly where the bar is.</summary>
+    private void Land()
+    {
+        _scrubDone.Stop();
+        if (!_scrubbing) return;
+        _scrubbing = false; SeekTo(_scrubTo, exact: true);
     }
     /// <summary>For the self-check: where a swipe has taken the film so far.</summary>
     public double ScrubTarget => _scrubTo;
@@ -34,11 +42,13 @@ public sealed partial class PlayerPage
         // The speaker's own wheel and the menus keep theirs; the mini-player leaves the library its gestures.
         if (e.Handled || _mini || !_loaded) return;
         var (x, y) = Trackpad.Finger(e.Delta.X, e.Delta.Y, MacTrackpad.Natural);
-        var time = (long)e.Timestamp;
+        var phase = MacTrackpad.Phase(e);
+        _scrub.Add(x, y, (long)e.Timestamp, phase);
         // A new gesture goes on from where the last one put the bar, even before the film got there.
-        if (_scrub.Ended(time)) _scrubFrom = _scrubbing ? _scrubTo : _session.Position;
-        _scrub.Add(x, y, time);
+        if (_scrub.Started) _scrubFrom = _scrubbing ? _scrubTo : _session.Position;
         e.Handled = true;
+        // The fingers left: the bar stays where they put it, and the film goes there at once.
+        if (phase == ScrollPhase.Momentum) { Land(); return; }
         if (_scrub.Axis == SwipeAxis.Horizontal)
         {
             _scrubbing = true;
@@ -48,7 +58,8 @@ public sealed partial class PlayerPage
             if (Environment.TickCount64 - _scrubSought > 120) { _scrubSought = Environment.TickCount64; SeekTo(_scrubTo); }
             else { _timeline.Hold(_scrubTo); ShowTime(_scrubTo); }
             ShowControls();
-            _scrubDone.Stop(); _scrubDone.Start();
+            if (phase == ScrollPhase.Ended) Land();
+            else { _scrubDone.Stop(); _scrubDone.Start(); }
         }
         // Up and down, or a mouse's wheel (too little at a time to decide a gesture): the volume.
         else if (Math.Abs(y) > Math.Abs(x)) ChangeVolume(Math.Clamp(y * Trackpad.VolumePerUnit, -5, 5));

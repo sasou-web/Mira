@@ -27,6 +27,39 @@ enum PlaybackPlan {
         return max(1_500_000, min(40_000_000, Int((speed * 0.7).rounded())))
     }
 
+    // MARK: Mobile data
+    // On a connection iOS calls expensive (cellular, a personal hotspot) or constrained (Low Data Mode), the quality is
+    // capped by Settings → Playback → Mobile data, « saver » by default: Netflix and Plex do the same. Nothing to set.
+
+    static let mobileChoices = ["saver", "standard", "max"]
+    /// About 0.9 GB an hour.
+    static let saverBitrate = 2_000_000
+    /// About 2.7 GB an hour.
+    static let standardBitrate = 6_000_000
+
+    /// The cap of this connection; nil: none (Wi-Fi or a cable, or « max » chosen). Low Data Mode keeps « saver ».
+    static func mobileCap(_ choice: String, expensive: Bool, constrained: Bool) -> Int? {
+        guard expensive || constrained, choice != "max" else { return nil }
+        return choice == "standard" && !constrained ? standardBitrate : saverBitrate
+    }
+
+    /// The bitrate asked, under the cap of this connection.
+    static func capped(_ bitrate: Int, by cap: Int?) -> Int { cap.map { min(bitrate, $0) } ?? bitrate }
+
+    /// No measure of the connection (2 MB of Playback/BitrateTest) under the saver's cap: it could only lower 2 Mb/s
+    /// to 1.5, for the data it costs.
+    static func measures(under cap: Int?) -> Bool { cap.map { $0 > saverBitrate } ?? true }
+
+    /// The connection changed while a title plays (Wi-Fi left for 4G, or back): whether its stream opens again at the
+    /// same place for the new cap. Lower always; higher only when the cap held it (a converted stream at the old cap),
+    /// never in a group (everyone would wait for this iPhone just for a better picture).
+    static func reopens(bitrate: Int, askedUnder old: Int?, now new: Int?, directPlay: Bool, inGroup: Bool) -> Bool {
+        if old == new { return false }
+        if let new, bitrate > new { return true }
+        guard let old, bitrate == old, !directPlay, !inGroup else { return false }
+        return (new ?? fullBitrate) > old
+    }
+
     // MARK: The cascade
     // Stage 0: as Jellyfin decides (the file as it is when it can, its video or audio copied into HLS); 1: its video
     // converted; 2: everything converted (PlaybackProfile.lastResort). Kept for the title, 0 for the next one.

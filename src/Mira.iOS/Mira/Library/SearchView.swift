@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Search, as on Mira web: movies and shows by their name as you type, then episodes by theirs; the last searches of
-/// this account stay on this iPhone to search again with a touch.
+/// Search, as on Mira web, Windows and Mac: the actors and directors of that name, movies and shows by their name as you
+/// type, then episodes by theirs; the last searches of this account stay on this iPhone to search again with a touch.
 struct SearchView: View {
     @Environment(AppModel.self) private var app
     @State private var text = ""
@@ -9,6 +9,7 @@ struct SearchView: View {
     /// How many movies and shows Jellyfin found: more than shown, « Show more » asks for the next ones.
     @State private var titlesTotal = 0
     @State private var episodes: [Item] = []
+    @State private var people: [Item] = []
     @State private var searched: String?
     @State private var searching = false
     @State private var failure: Error?
@@ -38,13 +39,14 @@ struct SearchView: View {
         .background(Palette.bg)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .navigationTitle("Search")
-        .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("Movies, shows, episodes"))
+        .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("Movies, shows, episodes, people"))
         .searchFocused($typing)
         .onSubmit(of: .search) { remember(term) }
         .task(id: term) {
             guard !term.isEmpty else {
                 titles = []
                 episodes = []
+                people = []
                 searched = nil
                 failure = nil
                 return
@@ -61,13 +63,14 @@ struct SearchView: View {
         .navigationDestination(for: TitleRoute.self) { route in
             TitleView(route: route).navigationTransition(.zoom(sourceID: route.source, in: zoom))
         }
+        .navigationDestination(for: PersonRoute.self) { route in PersonView(route: route) }
     }
 
     // MARK: Before typing
 
     @ViewBuilder private var recentSearches: some View {
         if recent.isEmpty {
-            EmptyState(symbol: "magnifyingglass", title: Text("Search your library"), text: Text("Find a movie, a show or an episode by its name."))
+            EmptyState(symbol: "magnifyingglass", title: Text("Search your library"), text: Text("Find a movie, a show or an episode by its name, or an actor."))
         } else {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -110,7 +113,7 @@ struct SearchView: View {
     }
 
     @ViewBuilder private func results(_ client: JellyfinClient) -> some View {
-        if titles.isEmpty && episodes.isEmpty {
+        if titles.isEmpty && episodes.isEmpty && people.isEmpty {
             if searching || searched != term {
                 ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
             } else if let failure {
@@ -131,6 +134,30 @@ struct SearchView: View {
 
     @ViewBuilder private func found(_ client: JellyfinClient) -> some View {
         Group {
+            if !people.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("People").font(MiraFont.section).foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
+                        .padding(.horizontal, 16)
+                    ScrollView(.horizontal) {
+                        LazyHStack(alignment: .top, spacing: 8) {
+                            ForEach(people) { person in
+                                let credit = Credits.Credit(id: person.id, name: person.name ?? "", imageTag: person.imageTags?["Primary"], role: nil)
+                                NavigationLink(value: PersonRoute(id: credit.id, name: credit.name, imageTag: credit.imageTag)) {
+                                    PersonCard(credit: credit)
+                                }
+                                .buttonStyle(.plain)
+                                .simultaneousGesture(TapGesture().onEnded { remember(term) })
+                            }
+                        }
+                        .scrollTargetLayout()
+                    }
+                    .scrollIndicators(.hidden)
+                    .contentMargins(.horizontal, 16, for: .scrollContent)
+                    .scrollTargetBehavior(.viewAligned)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("search.people")
+                }
+            }
             if !titles.isEmpty {
                 let layout = poster
                 VStack(alignment: .leading, spacing: 12) {
@@ -203,11 +230,16 @@ struct SearchView: View {
         do {
             async let found = client.browse(query, start: 0, limit: 48)
             async let parts = client.searchEpisodes(asked)
+            // People are a bonus: a Jellyfin that refuses them still finds the titles. Two letters at least, as on
+            // Windows and Mac.
+            async let named = Self.people(asked, client)
             let (page, list) = try await (found, parts)
+            let persons = await named
             guard asked == term else { return }
             titles = page.items ?? []
             titlesTotal = page.totalRecordCount ?? titles.count
             episodes = list
+            people = persons.filter { !($0.name ?? "").isEmpty }
             failure = nil
             searched = asked
         } catch JellyfinError.unauthorized {
@@ -217,9 +249,16 @@ struct SearchView: View {
             guard asked == term else { return }
             titles = []
             episodes = []
+            people = []
             failure = error
             searched = asked
         }
+    }
+
+    /// The actors and directors of that name; none rather than an error.
+    private static func people(_ asked: String, _ client: JellyfinClient) async -> [Item] {
+        guard asked.count >= 2 else { return [] }
+        return (try? await client.persons(asked)) ?? []
     }
 
     private func more() async {

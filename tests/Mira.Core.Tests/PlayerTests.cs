@@ -155,6 +155,59 @@ internal static class PlayerTests
             catch (OperationCanceledException) { stopped = true; }
             Assert(stopped, "Waiting stops when canceled");
         });
+        await Test("Toujours là : la question après 3 épisodes de suite sans rien toucher, allumée par défaut, comme l’iPhone (tests/fixtures/still-watching.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "still-watching.json")));
+            Assert(fixture.RootElement.GetProperty("episodes").GetInt32() == StillWatching.Episodes && new PlayerSettings().StillWatching, "3 episodes, on by default");
+            var start = new DateTimeOffset(2026, 11, 6, 23, 0, 0, TimeSpan.FromHours(1));
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var watch = new StillWatching();
+                foreach (var played in row[0].EnumerateArray()) watch.Started(start.AddSeconds(played[0].GetDouble()), played[1].GetBoolean());
+                var input = row[1].ValueKind == JsonValueKind.Null ? DateTimeOffset.MinValue : start.AddSeconds(row[1].GetDouble());
+                var asks = watch.Asks(input, row[2].GetBoolean());
+                Assert(asks == row[3].GetBoolean(), $"{row}: {asks}");
+            }
+            var pad = new StillWatching();
+            pad.Started(start, false); pad.Started(start.AddMinutes(25), true); pad.Started(start.AddMinutes(50), true);
+            Assert(pad.Asks(DateTimeOffset.MinValue, true), "Three untouched");
+            pad.Touched(start.AddMinutes(60));
+            Assert(!pad.Asks(DateTimeOffset.MinValue, true), "A controller press Mira read counts as someone there");
+            pad.Clear(); Assert(!pad.Asks(DateTimeOffset.MinValue, true) && pad.Untouched(DateTimeOffset.MinValue) == 0, "Cleared with the player");
+            Assert(StillWatching.Reason("S01 E04").EndsWith("S01 E04", StringComparison.Ordinal) && !StillWatching.Reason(null).Contains("suivre", StringComparison.Ordinal), StillWatching.Reason(null));
+            return Task.CompletedTask;
+        });
+        await Test("Touches média du Mac : « Now Playing » redit seulement ce qui change, touches comme sous Windows", () =>
+        {
+            var at = new DateTimeOffset(2026, 11, 7, 21, 0, 0, TimeSpan.FromHours(1));
+            var clock = new NowPlaying();
+            var playing = new NowPlayingState("Arcane", "S01 E02", true, false, true, 100, 2400, 1);
+            Assert(clock.Due(playing, at), "The first state is told");
+            clock.Tell(playing, at);
+            Assert(!clock.Due(playing with { Position = 110 }, at.AddSeconds(10)), "Playing on: the system moves the bar itself");
+            Assert(!clock.Due(playing with { Position = 111 }, at.AddSeconds(10)), "A second off: still the system's");
+            Assert(clock.Due(playing with { Position = 170 }, at.AddSeconds(10)), "A seek is told");
+            Assert(clock.Due(playing with { Position = 110, Paused = true }, at.AddSeconds(10)), "A pause is told");
+            Assert(clock.Due(playing with { Position = 120, Rate = 2 }, at.AddSeconds(10)), "Another speed is told");
+            Assert(clock.Due(playing with { Position = 110, CanNext = false }, at.AddSeconds(10)) && clock.Due(playing with { Title = "Dune" }, at), "The next episode gone, another title: told");
+            Assert(!clock.Due(playing with { Position = 110, Duration = 2400.4 }, at.AddSeconds(10)), "A length read again a little longer: not told");
+            clock.Tell(playing with { Paused = true }, at);
+            Assert(!clock.Due(playing with { Paused = true }, at.AddMinutes(5)) && clock.Due(playing with { Paused = true, Position = 103 }, at.AddMinutes(5)), "Paused, the bar stands still");
+            var tidy = new NowPlayingState("x", "", true, false, false, double.NaN, double.PositiveInfinity, double.NaN).Tidy();
+            Assert(tidy.Position == 0 && tidy.Duration == 0 && tidy.Rate == 1, $"Tidy: {tidy}");
+            Assert((playing with { Position = 3000 }).Tidy().Position == 2400 && (playing with { Position = -4 }).Tidy().Position == 0, "Within the title");
+            Assert(playing.Moving == 1 && (playing with { Paused = true }).Moving == 0 && (playing with { Ready = false }).Moving == 0, "Moving only while it plays");
+            clock.Clear();
+            Assert(clock.Told is null && clock.Due(playing, at), "Cleared: told from the start");
+            foreach (var key in Enum.GetValues<MediaKey>()) Assert(!NowPlaying.Enabled(key, null) && !NowPlaying.Enabled(key, playing with { Ready = false }), $"{key}: nothing before the file is open");
+            Assert(NowPlaying.Enabled(MediaKey.TogglePause, playing) && NowPlaying.Enabled(MediaKey.Seek, playing) && NowPlaying.Enabled(MediaKey.Next, playing), "Everything on an episode with a next one");
+            var film = playing with { CanNext = false, Duration = 0 };
+            Assert(!NowPlaying.Enabled(MediaKey.Next, film) && !NowPlaying.Enabled(MediaKey.Back, film) && !NowPlaying.Enabled(MediaKey.Seek, film) && NowPlaying.Enabled(MediaKey.Stop, film), "No next one, no length: no next track, no jumps");
+            Assert(NowPlaying.Changes(MediaKey.Play, paused: true) && !NowPlaying.Changes(MediaKey.Play, paused: false) && NowPlaying.Changes(MediaKey.Pause, paused: false) && !NowPlaying.Changes(MediaKey.Pause, paused: true)
+                && NowPlaying.Changes(MediaKey.TogglePause, paused: true) && NowPlaying.Changes(MediaKey.TogglePause, paused: false) && !NowPlaying.Changes(MediaKey.Seek, paused: true), "Play and Pause only when they change something");
+            return Task.CompletedTask;
+        });
         await Test("Minuterie : pause au bout des minutes, une seule fois, ou arrêt à la fin de l’épisode, comme Mira web (tests/fixtures/sleep.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
@@ -206,6 +259,21 @@ internal static class PlayerTests
             Assert(VolumeBoost.Filter(1.157625) == "@mira-boost:lavfi=[volume@gain=volume=1.1576:precision=float,alimiter=limit=0.95:level=disabled]", "Gain written with a dot, four decimals");
             Assert(VolumeBoost.Reported(150) == 100 && VolumeBoost.Reported(42.4) == 42, "Jellyfin's scale stops at 100");
             Assert(VolumeBoost.Text(135.2) == "135 %" && VolumeBoost.Text(0) == "0 %", "The level beside the slider");
+            return Task.CompletedTask;
+        });
+        await Test("Son de nuit : un compresseur en tête de la chaîne, gardé, jamais avec le son envoyé à l’ampli (Windows et Mac)", () =>
+        {
+            Assert(!new PlayerSettings().NightSound, "Off by default");
+            Assert(NightSound.Filter == "@mira-night:lavfi=[acompressor=threshold=0.0625:ratio=4:attack=10:release=300:makeup=2.5:knee=4,alimiter=limit=0.95:level=disabled]",
+                "A compressor without look-ahead (no delay), +8 dB for what stays quiet, a limiter without gain of its own, under its own label");
+            Assert(NightSound.Filter.StartsWith('@' + NightSound.Label + ':') && NightSound.Label != VolumeBoost.Label, "Its own label: the boost and it come and go apart");
+            Assert(NightSound.Applies(true, AudioOutput.Off) && NightSound.Applies(true, null), "Chosen, sound decoded by Mira: on");
+            Assert(!NightSound.Applies(true, AudioOutput.Optical) && !NightSound.Applies(true, AudioOutput.Hdmi) && !NightSound.Applies(false, AudioOutput.Off), "Never with passthrough, never unchosen");
+            Assert(NightSound.Details(true, AudioOutput.Hdmi, refused: false) == "Pas avec le son envoyé à l’ampli", "Says why it does nothing with passthrough");
+            Assert(NightSound.Details(true, AudioOutput.Off, refused: true) == "Ce lecteur ne sait pas le faire.", "Says when mpv refused it");
+            Assert(NightSound.Details(false, AudioOutput.Off, refused: false) == "Explosions plus douces, voix plus claires", "Otherwise, what it does");
+            var kept = System.Text.Json.JsonSerializer.Deserialize<PlayerSettings>(System.Text.Json.JsonSerializer.Serialize(new PlayerSettings { NightSound = true }));
+            Assert(kept?.NightSound == true, "Kept with the settings");
             return Task.CompletedTask;
         });
         await Test("Sous-titres : taille, fond sombre, couleur, gras et hauteur donnés à mpv, ses défauts sinon (Windows et Mac)", () =>
@@ -464,26 +532,39 @@ internal static class PlayerTests
         {
             // Natural scrolling: the content follows the fingers; without it, the wheel goes the other way.
             Assert(Trackpad.Finger(1, -1, natural: true) == (1, 1) && Trackpad.Finger(1, -1, natural: false) == (-1, -1), "Finger direction");
-            // Fingers to the right, in steps of 16 ms: back once, past the reach, and nothing more in the same gesture (momentum).
-            var swipe = new TrackpadSwipe(); long time = 1000; var ways = new List<int>();
-            for (var i = 0; i < 40; i++) { swipe.Add(.15, .01, time += 16); if (swipe.Swiped() is var way and not 0) ways.Add(way); }
-            Assert(swipe.Axis == SwipeAxis.Horizontal && ways.SequenceEqual([-1]), $"Back swipe: {swipe.Axis} {string.Join(",", ways)}");
+            // Fingers to the right, in steps of 16 ms: the page follows them, and letting go past the reach goes back, once.
+            var swipe = new TrackpadSwipe(); long time = 1000;
+            for (var i = 0; i < 40; i++) swipe.Add(.15, .01, time += 16);
+            Assert(swipe.Axis == SwipeAxis.Horizontal && swipe.Way == -1 && Math.Abs(swipe.Turn - 6) < 1e-9, $"Back swipe: {swipe.Axis} {swipe.Way} {swipe.Turn}");
+            Assert(swipe.Release(rested: true) == -1 && swipe.Release(rested: true) == 0 && swipe.Turn == 0, "Back swipe let go");
             // A pause ends the gesture: the next one, to the left, goes forward.
-            ways.Clear(); time += Trackpad.Gap + 1;
-            for (var i = 0; i < 30; i++) { swipe.Add(-.15, 0, time += 16); if (swipe.Swiped() is var way and not 0) ways.Add(way); }
-            Assert(ways.SequenceEqual([1]), "Forward swipe: " + string.Join(",", ways));
-            // Short of the reach: shown, never done.
+            time += Trackpad.Gap + 1;
+            for (var i = 0; i < 30; i++) swipe.Add(-.15, 0, time += 16);
+            Assert(swipe.Way == 1 && Math.Abs(swipe.Turn - 4.5) < 1e-9 && swipe.Release(rested: true) == 1, $"Forward swipe: {swipe.Way} {swipe.Turn}");
+            // Short of the reach, the fingers still before leaving: the page comes back. The same travel flicked: it turns.
             swipe = new TrackpadSwipe(); time = 0;
             for (var i = 0; i < 10; i++) swipe.Add(.2, 0, time += 16);
-            Assert(swipe.Progress is > .5 and < 1 && swipe.Swiped() == 0, $"Half a swipe: {swipe.Progress}");
+            Assert(swipe.Turn is > 1 and < Trackpad.Reach && swipe.Release(rested: true) == 0, $"Half a swipe: {swipe.Turn}");
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 10; i++) swipe.Add(.3, 0, time += 16);
+            Assert(swipe.Speed > Trackpad.Flick && swipe.Release(rested: false) == -1, $"A flick did not turn the page: {swipe.Speed}");
+            // Past the reach, then flicked back: the page comes back. Fingers back toward where they started: never below nothing.
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 30; i++) swipe.Add(.2, 0, time += 16);
+            for (var i = 0; i < 3; i++) swipe.Add(-.6, 0, time += 16);
+            Assert(swipe.Turn >= Trackpad.Reach && swipe.Release(rested: false) == 0, $"Flicked back, the page turned: {swipe.Turn} {swipe.Speed}");
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 10; i++) swipe.Add(.2, 0, time += 16);
+            for (var i = 0; i < 20; i++) swipe.Add(-.2, 0, time += 16);
+            Assert(swipe.Way == -1 && swipe.Turn == 0 && swipe.Release(rested: true) == 0, $"Fingers back past the start: {swipe.Way} {swipe.Turn}");
             // A scroll down a page that drifts sideways is vertical, whatever the drift adds up to later.
             swipe = new TrackpadSwipe(); time = 0;
             for (var i = 0; i < 60; i++) swipe.Add(.08, -.2, time += 16);
-            Assert(swipe.Axis == SwipeAxis.Vertical && swipe.Progress == 0 && swipe.Swiped() == 0, "Vertical drift went back");
+            Assert(swipe.Axis == SwipeAxis.Vertical && swipe.Way == 0 && swipe.Turn == 0 && swipe.Release(rested: true) == 0, "Vertical drift went back");
             // Claimed by a row that scrolls: no page change.
             swipe = new TrackpadSwipe(); time = 0;
             for (var i = 0; i < 40; i++) { if (swipe.Add(.15, 0, time += 16)) swipe.Claim(); }
-            Assert(swipe.Claimed && swipe.Swiped() == 0 && swipe.Progress == 0, "A claimed swipe changed the page");
+            Assert(swipe.Claimed && swipe.Turn == 0 && swipe.Release(rested: true) == 0, "A claimed swipe changed the page");
             // A clock that goes back starts a new gesture.
             swipe.Add(.1, 0, 5); Assert(!swipe.Claimed && swipe.Axis == SwipeAxis.Undecided, "Clock going back");
             // Pinch: once per gesture, either way; the grids' zoom stays within its bounds.
@@ -494,6 +575,41 @@ internal static class PlayerTests
             Assert(pinched.SequenceEqual([1, -1]), "Pinch: " + string.Join(",", pinched));
             Assert(Trackpad.Zoom(1, 5) == Trackpad.ZoomMax && Trackpad.Zoom(1, -.9) == Trackpad.ZoomMin && Math.Abs(Trackpad.Zoom(1, .1) - 1.1) < 1e-9, "Zoom bounds");
             Assert(new PlayerSettings().GridZoom == 1, "Grid zoom default");
+            return Task.CompletedTask;
+        });
+        await Test("Trackpad du Mac : l’élan de macOS ne compte pas dans le geste", () =>
+        {
+            // NSEventPhase and momentumPhase: a mouse's wheel says neither.
+            Assert(Trackpad.Phase(1, 0) == ScrollPhase.Began && Trackpad.Phase(32, 0) == ScrollPhase.Began && Trackpad.Phase(4, 0) == ScrollPhase.Moved && Trackpad.Phase(2, 0) == ScrollPhase.Moved
+                && Trackpad.Phase(8, 0) == ScrollPhase.Ended && Trackpad.Phase(16, 0) == ScrollPhase.Ended && Trackpad.Phase(0, 4) == ScrollPhase.Momentum && Trackpad.Phase(0, 0) == ScrollPhase.Unknown, "Phases");
+            // Two thirds of the reach by the fingers, slower than a flick, then macOS's momentum. Read as before (no phase), the
+            // momentum turned the page once it died out; with the phases, the fingers let go as the momentum began, short of
+            // the reach: the page comes back, and nothing after it moves it.
+            int Flick(bool phases)
+            {
+                var swipe = new TrackpadSwipe(); long time = 1000; var way = 0;
+                for (var i = 0; i < 13; i++) swipe.Add(.15, 0, time += 16, phases ? ScrollPhase.Moved : ScrollPhase.Unknown);
+                for (var i = 0; i < 30; i++)
+                {
+                    swipe.Add(.1, 0, time += 16, phases ? ScrollPhase.Momentum : ScrollPhase.Unknown);
+                    if (phases && swipe.Coasting && !swipe.Done) way = swipe.Release(rested: false);
+                }
+                Assert(!phases || swipe.Coasting && swipe.Turn == 0, "The page left turned during the momentum");
+                return phases ? way : swipe.Release(rested: true);
+            }
+            Assert(Flick(phases: false) == -1 && Flick(phases: true) == 0, "A flick's momentum turned the page");
+            // The scrub's travel stops with the fingers.
+            var scrub = new TrackpadSwipe(); long now = 0;
+            for (var i = 0; i < 10; i++) scrub.Add(.2, 0, now += 16, ScrollPhase.Moved);
+            var held = scrub.X;
+            for (var i = 0; i < 20; i++) scrub.Add(.2, 0, now += 16, ScrollPhase.Momentum);
+            Assert(Math.Abs(scrub.X - held) < 1e-9 && !scrub.Started, $"Momentum moved the scrub: {held} then {scrub.X}");
+            // Fingers back during the momentum, their « began » never seen (it carries no travel): a new gesture all the same.
+            scrub.Add(-.2, 0, now += 16, ScrollPhase.Moved);
+            Assert(scrub.Started && !scrub.Coasting && Math.Abs(scrub.X + .2) < 1e-9, "Fingers back after the momentum: not a new gesture");
+            // Within one gesture (fingers down), each event goes on with it.
+            scrub.Add(-.2, 0, now += 16, ScrollPhase.Moved);
+            Assert(!scrub.Started && Math.Abs(scrub.X + .4) < 1e-9, "One gesture cut in two");
             return Task.CompletedTask;
         });
         await Test("Défilement : même distance à 30, 60 et 144 images/s", () =>

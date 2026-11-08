@@ -21,6 +21,8 @@ final class PlayerSession: NSObject {
     private var playMethod = "DirectPlay"
     private var inband = false
     private var bitrate: Int?
+    /// The cap of mobile data when the bitrate was chosen (nil: none): the stream follows a new one (capChanged).
+    private var askedUnder: Int?
     private var miraHls: Bool?
     /// The subtitles' delay chosen in the player (seconds); kept from one episode to the next, until it closes.
     private var subtitleDelay: Double = 0
@@ -28,7 +30,9 @@ final class PlayerSession: NSObject {
     private var drawn: (key: String, cues: SubtitleCues)?
     /// AirPlay was on at the last look: the television draws Apple's subtitles, never Mira's.
     private var wasExternal = false
-    private let device: PlaybackProfile.Device
+    private var device: PlaybackProfile.Device
+    /// Jellyfin's version was read for `device.dolbyVision8`.
+    private var serverRead = false
 
     let player: AVPlayer
     /// What the controls draw.
@@ -82,9 +86,16 @@ final class PlayerSession: NSObject {
     private var startedAt: Double = 0
     private var nextItem: Item?
     private var nextAsked = false
+    /// « Are you still watching? » (StillWatching): the episodes of this run, and the one waiting for an answer.
+    private var stillWatching = StillWatching()
+    private var waitingNext: Item?
     private var trickplay: TrickplayTiles?
     /// The speed chosen in the menu (1 in a group); twice it while held down.
     private var speed: Float = 1
+    /// The copy kept on this iPhone being played (« Keep on this iPhone »): no Jellyfin needed but for the reports.
+    private var kept: KeptCopy?
+    /// The copy of this title did not play: Jellyfin's stream instead, until another title.
+    private var keptRefused = false
 
     init(item: Item, client: JellyfinClient, app: AppModel, audioIndex: Int?, subtitleIndex: Int?) {
         self.item = item
@@ -126,6 +137,8 @@ final class PlayerSession: NSObject {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
         present()
+        TouchWatch.install()
+        stillWatching.started(.now, byItself: false)
         setUpNowPlaying()
         loop = Task { [weak self] in
             while !Task.isCancelled {
@@ -171,10 +184,23 @@ final class PlayerSession: NSObject {
         opening += 1
         let attempt = opening
         if started { await report(.progress) }
+        // Kept on this iPhone: played from there, whatever the connection.
+        if !keptRefused, let copy = app?.keeper.playable(item.id) {
+            openKept(copy, at: ticks)
+            return
+        }
+        kept = nil
         do {
             let fileBitrate = source?.bitrate ?? item.mediaSources?.first?.bitrate ?? 0
-            if bitrate == nil { bitrate = await app?.bitrate(for: client, fileBitrate: fileBitrate) ?? PlaybackPlan.fullBitrate }
+            if bitrate == nil {
+                askedUnder = app?.mobileCap
+                bitrate = await app?.bitrate(for: client, fileBitrate: fileBitrate) ?? PlaybackPlan.fullBitrate
+            }
             if miraHls == nil { miraHls = await client.hasMiraExtension() }
+            if !serverRead {
+                serverRead = true
+                device.dolbyVision8 = PlaybackProfile.dolbyVision8(server: await client.serverVersion())
+            }
             if !tracksChosen {
                 tracksChosen = true
                 await chooseTracks()
@@ -221,6 +247,36 @@ final class PlayerSession: NSObject {
         }
     }
 
+    /// The copy kept on this iPhone: its video, the tracks it has (a conversion carries one audio track), its
+    /// subtitles drawn by Mira.
+    private func openKept(_ copy: KeptCopy, at ticks: Int64) {
+        if let previous = playSessionId, playMethod != "DirectPlay" { Task { await client.stopEncoding(previous) } }
+        kept = copy
+        source = copy.source ?? copy.item.mediaSources?.first
+        playSessionId = nil
+        playMethod = "DirectPlay"
+        inband = false
+        if !tracksChosen {
+            tracksChosen = true
+            if audioIndex == nil, subtitleIndex == nil, let preferences = app?.preferences,
+               let file = copy.source ?? copy.item.mediaSources?.first, file.mediaStreams?.isEmpty == false {
+                let chosen = TrackChoice.choose(file, memory: preferences.tracks(for: item.seriesId), audioOrder: preferences.audioOrder, subtitleOrder: preferences.subtitleOrder)
+                audioIndex = chosen.audio
+                subtitleIndex = chosen.subtitle
+            }
+        }
+        if copy.kind == .converted { audioIndex = copy.audioIndex ?? audioIndex }
+        audioIndex = audioIndex ?? source?.defaultAudioStreamIndex
+        // Only the subtitles kept with it.
+        if let index = subtitleIndex, index >= 0, !copy.subtitles.contains(where: { $0.index == index }) { subtitleIndex = -1 }
+        subtitleIndex = subtitleIndex ?? -1
+        if passagesFor != item.id { loadPassages() }
+        player.allowsExternalPlayback = true
+        Diagnostics.record(item, source: source, server: client.server, how: copy.kind == .converted ? "kept on this iPhone (converted)" : "kept on this iPhone")
+        describeTracks()
+        attach(app?.keeper.videoURL(copy) ?? URL.temporaryDirectory, startSeconds: Double(ticks) / Double(ItemText.ticksPerSecond))
+    }
+
     /// Nothing chosen on the title's page: the series' last tracks, else the languages of Settings (TrackChoice, as
     /// Mira web), from the file's tracks.
     private func chooseTracks() async {
@@ -259,7 +315,8 @@ final class PlayerSession: NSObject {
     private func tick() {
         refresh()
         guard !closed, !askingServer, !waitingForServer, let current = player.currentItem else { return }
-        watchStream()
+        // A copy on this iPhone never waits for the network.
+        if kept == nil { watchStream() }
         switch current.status {
         case .failed:
             streamFailed()
@@ -276,7 +333,7 @@ final class PlayerSession: NSObject {
                     if pendingPaused { player.pause() } else { player.play() }
                 }
                 pendingPaused = false
-                if inband { Task { await chooseSubtitles() } }
+                if kept != nil { Task { await showKept() } } else if inband { Task { await chooseSubtitles() } }
                 if !started {
                     started = true
                     Task { await report(.start) }
@@ -334,6 +391,10 @@ final class PlayerSession: NSObject {
 
     /// Text subtitles in the HLS stream: the one chosen shown, or none.
     private func chooseSubtitles() async {
+        if kept != nil {
+            await showKeptSubtitles()
+            return
+        }
         guard let current = player.currentItem else { return }
         let asset = current.asset
         guard let source, let group = try? await asset.loadMediaSelectionGroup(for: .legible), player.currentItem === current else { return }
@@ -373,10 +434,53 @@ final class PlayerSession: NSObject {
         return cues
     }
 
-    /// The subtitles chosen can be shifted: text ones, in the stream (Mira can read them whole).
+    /// The subtitles chosen can be shifted: text ones, in the stream (Mira can read them whole), or kept here.
     private func updateShiftable() {
+        if let kept {
+            model.canShiftSubtitles = kept.subtitles.contains { $0.index == subtitleIndex }
+            return
+        }
         let chosen = source?.subtitles.first { $0.index == subtitleIndex }
         model.canShiftSubtitles = inband && chosen?.isTextSubtitleStream == true
+    }
+
+    /// A copy kept here, ready: its audio track chosen among the file's, Mira's subtitles.
+    private func showKept() async {
+        guard let kept, let current = player.currentItem else { return }
+        if kept.kind == .file, let group = try? await current.asset.loadMediaSelectionGroup(for: .audible), player.currentItem === current,
+           let source, let index = audioIndex, let position = source.audio.firstIndex(where: { $0.index == index }) {
+            let stream = source.audio[position]
+            let language = String((stream.language ?? "").prefix(2)).lowercased()
+            let options = group.options
+            // The file's audio tracks in their order, else by language.
+            let option = options.count == source.audio.count ? options[position]
+                : options.first { !language.isEmpty && $0.extendedLanguageTag?.lowercased().hasPrefix(language) == true }
+            if let option { current.select(option, in: group) }
+        }
+        await showKeptSubtitles()
+    }
+
+    /// The subtitle chosen, read from this iPhone and drawn by Mira (the video carries none of its own); Apple's off.
+    private func showKeptSubtitles() async {
+        guard let kept, let current = player.currentItem else { return }
+        if let group = try? await current.asset.loadMediaSelectionGroup(for: .legible), group.allowsEmptySelection, player.currentItem === current {
+            current.select(nil, in: group)
+        }
+        guard let index = subtitleIndex, let subtitle = kept.subtitles.first(where: { $0.index == index }), let keeper = app?.keeper else {
+            model.drawnSubtitles = nil
+            return
+        }
+        let key = "kept/\(kept.id)/\(index)"
+        if let drawn, drawn.key == key {
+            model.drawnSubtitles = drawn.cues
+            return
+        }
+        let file = keeper.subtitleURL(kept, subtitle)
+        let text = await Task.detached(priority: .userInitiated) { try? String(contentsOf: file, encoding: .utf8) }.value
+        guard let text, subtitleIndex == index, self.kept?.id == kept.id else { return }
+        let cues = SubtitleCues(webVTT: text)
+        drawn = (key, cues)
+        model.drawnSubtitles = cues.cues.isEmpty ? nil : cues
     }
 
     // MARK: What the controls say
@@ -394,20 +498,34 @@ final class PlayerSession: NSObject {
 
     private func describeTracks() {
         guard let source else { return }
-        let audio = source.audio, subtitles = source.subtitles
+        var audio = source.audio, subtitles = source.subtitles
+        if let kept {
+            // What the copy has: a conversion one audio track, and the subtitles kept with it.
+            if kept.kind == .converted, let index = audioIndex { audio = audio.filter { $0.index == index } }
+            subtitles = subtitles.filter { stream in kept.subtitles.contains { $0.index == stream.index } }
+        }
         let audioNames = TrackNames.names(audio), subtitleNames = TrackNames.names(subtitles)
         model.audio = audio.map { PlayerTrack(index: $0.index, name: audioNames[$0.index] ?? "") }
         model.subtitles = subtitles.map { PlayerTrack(index: $0.index, name: subtitleNames[$0.index] ?? "") }
         model.audioIndex = audioIndex
         model.subtitleIndex = subtitleIndex ?? -1
         updateShiftable()
+        if kept != nil {
+            model.qualityNow = String(localized: "On this iPhone")
+            return
+        }
         switch playMethod {
         case "DirectPlay": model.qualityNow = String(localized: "Original file")
         case "DirectStream": model.qualityNow = String(localized: "Original quality")
         default:
             let rate = (Double(bitrate ?? PlaybackPlan.fullBitrate) / 1_000_000).formatted(.number.precision(.fractionLength(0...1)))
-            model.qualityNow = bitrate.map { $0 < PlaybackPlan.fullBitrate } == true
-                ? String(localized: "Converted · \(rate) Mb/s") : String(localized: "Converted")
+            model.qualityNow = if let askedUnder, bitrate == askedUnder {
+                String(localized: "Mobile data · \(rate) Mb/s")
+            } else if bitrate.map({ $0 < PlaybackPlan.fullBitrate }) == true {
+                String(localized: "Converted · \(rate) Mb/s")
+            } else {
+                String(localized: "Converted")
+            }
         }
     }
 
@@ -418,6 +536,17 @@ final class PlayerSession: NSObject {
     /// where it was, and after everything converted, « Can't play ».
     private func streamFailed() {
         guard !closed, !askingServer, let current = player.currentItem else { return }
+        if kept != nil {
+            // The copy does not play (cut, or a file AVPlayer refuses): Jellyfin's stream instead, from there.
+            Diagnostics.record(item, source: source, server: client.server, how: "kept on this iPhone", error: current.error.map { String(describing: type(of: $0)) } ?? "refused")
+            let at = resumeSeconds
+            kept = nil
+            keptRefused = true
+            pendingStart = nil
+            player.replaceCurrentItem(with: nil)
+            reopen(at)
+            return
+        }
         let error = current.error
         let cut = Self.cut(error)
         let refused = error.map { String(localized: "The player refused this video, even fully converted by Jellyfin. (\($0.localizedDescription))") }
@@ -551,21 +680,22 @@ final class PlayerSession: NSObject {
         guard !closed, !stopped, !askingServer, !waitingForServer else { return }
         let total = item.runTimeTicks ?? source?.runTimeTicks ?? position
         // Ended well before its end: the stream was cut, never watched nor followed by the next episode.
-        if StallWatch.cut(position: position, total: total) {
+        if kept == nil, StallWatch.cut(position: position, total: total) {
             stuck()
             return
         }
         stopped = true
         let finished = state(position: max(total, position))
         Task {
-            await client.report(.stop, finished)
+            await tell(.stop, finished)
             if playMethod != "DirectPlay", let id = playSessionId { await client.stopEncoding(id) }
             await nextEpisode()
         }
     }
 
-    /// `asked`: by the Next episode button, whatever Settings say.
-    private func nextEpisode(asked: Bool = false) async {
+    /// `asked`: by the Next episode button, whatever Settings say; `automatic`: by the countdown all the same.
+    private func nextEpisode(asked: Bool = false, automatic: Bool = false) async {
+        let byItself = !asked || automatic
         // « End of the episode » on the sleep timer: this one was the last.
         if app?.sleep.atEnd == true && !asked {
             close()
@@ -573,7 +703,10 @@ final class PlayerSession: NSObject {
         }
         // « Next episode automatically » off: the episode ends there (the group's choice in a group).
         var found = nextItem
+        // No way to Jellyfin: the next episode kept here.
+        if found == nil, item.isEpisode, app?.way == nil { found = app?.keeper.next(after: item)?.item }
         if found == nil, item.isEpisode { found = try? await client.episode(after: item) }
+        if found == nil, item.isEpisode { found = app?.keeper.next(after: item)?.item }
         guard item.isEpisode, asked || app?.preferences.autoNext != false || inGroup, let next = found, !closed else {
             close()
             return
@@ -583,13 +716,25 @@ final class PlayerSession: NSObject {
             if together.queue?.itemId == item.id { await together.start(next.id, startTicks: 0) }
             return
         }
-        let streams = (try? await client.item(next.id))?.mediaSources?.first?.mediaStreams ?? next.mediaSources?.first?.mediaStreams ?? []
+        // « Are you still watching? »: three episodes in a row with nothing touched, the next one waits for an answer.
+        if byItself, asksStillWatching {
+            askStillWatching(next)
+            return
+        }
+        let keptNext = app?.keeper.playable(next.id)
+        let streams: [MediaStream]
+        if let keptNext {
+            streams = keptNext.source?.mediaStreams ?? keptNext.item.mediaSources?.first?.mediaStreams ?? []
+        } else {
+            let fetched = try? await client.item(next.id)
+            streams = fetched?.mediaSources?.first?.mediaStreams ?? next.mediaSources?.first?.mediaStreams ?? []
+        }
         guard !closed else { return }
         let audio = source?.audio.first { $0.index == audioIndex }
         let subtitle = source?.subtitles.first { $0.index == subtitleIndex }
         audioIndex = TrackNames.same(audio, in: streams.filter { $0.type == "Audio" })?.index
         subtitleIndex = subtitleIndex == -1 ? -1 : TrackNames.same(subtitle, in: streams.filter { $0.type == "Subtitle" })?.index ?? -1
-        item = next
+        item = keptNext?.item ?? next
         newTitle(at: 0)
         reopenedAt = nil
         source = nil
@@ -599,13 +744,37 @@ final class PlayerSession: NSObject {
         started = false
         stopped = false
         app?.playbackChanged()
+        stillWatching.started(.now, byItself: byItself)
         await open(at: 0)
+    }
+
+    private var asksStillWatching: Bool {
+        !inGroup && stillWatching.asks(lastInput: TouchWatch.last, enabled: app?.preferences.stillWatching != false)
+    }
+
+    /// The episode ended, watched: the player stays on its last picture and asks before `next`.
+    private func askStillWatching(_ next: Item) {
+        waitingNext = next
+        player.pause()
+        showPassage(nil)
+        let code = ItemText.episodeCode(next)
+        model.stillWatching = [code, next.name ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Are you still watching?"))
+    }
+
+    /// « Keep watching »: the next episode, started by hand.
+    func keepWatching() {
+        guard waitingNext != nil, !closed else { return }
+        waitingNext = nil
+        model.stillWatching = nil
+        Task { await nextEpisode(asked: true) }
     }
 
     // MARK: Passages and the next episode
 
     /// Another title in the same player: its own timeline.
     private func newTitle(at seconds: Double) {
+        keptRefused = false
         passages = []
         passagesFor = nil
         skipped = []
@@ -619,7 +788,7 @@ final class PlayerSession: NSObject {
 
     /// Jellyfin's segments, filled by what the file's chapters name; its trickplay pictures; the next episode.
     private func loadPassages() {
-        let id = item.id, known = item
+        let id = item.id, known = kept?.item ?? item
         passagesFor = id
         Task {
             let server = await client.passages(id)
@@ -644,10 +813,15 @@ final class PlayerSession: NSObject {
             }
         }
         guard known.isEpisode else { return }
+        // No way to Jellyfin: the next episode kept here, at once.
+        if app?.way == nil, let copy = app?.keeper.next(after: known) {
+            nextItem = copy.item
+            model.hasNext = true
+        }
         Task {
             let next = try? await client.episode(after: known)
             guard item.id == id, !closed else { return }
-            if nextItem == nil { nextItem = next }
+            if nextItem == nil { nextItem = next ?? app?.keeper.next(after: known)?.item }
             model.hasNext = nextItem != nil
         }
     }
@@ -690,15 +864,15 @@ final class PlayerSession: NSObject {
             let id = item.id, current = item
             Task {
                 let next = try? await client.episode(after: current)
-                if item.id == id, let next { nextItem = next }
+                if item.id == id, let next, app?.way != nil || nextItem == nil { nextItem = next }
                 model.hasNext = nextItem != nil
             }
         }
         if nextItem != nil && at >= nextFrom {
-            let auto = !inGroup && app?.preferences.autoNext != false && app?.sleep.atEnd != true
+            let auto = !inGroup && app?.preferences.autoNext != false && app?.sleep.atEnd != true && !asksStillWatching
                 ? Timeline.nativeNextAt(passages, end: end, startedAt: startedAt) : nil
             showPassage(String(localized: "Next episode"), next: true, countdown: auto.map { 1 - max(0, $0 - at) / Timeline.countdown })
-            if let auto, at >= auto { goToNext() }
+            if let auto, at >= auto { goToNext(automatic: true) }
         } else {
             showPassage(passage.flatMap { Timeline.skipLabel($0.type) })
         }
@@ -714,7 +888,7 @@ final class PlayerSession: NSObject {
     // MARK: The end, Picture in Picture, the bar over the tabs
 
     /// The rest of the episode is credits: watched, and the next one now.
-    private func goToNext() {
+    private func goToNext(automatic: Bool = false) {
         guard !closed, !stopped, nextItem != nil else { return }
         stopped = true
         showPassage(nil)
@@ -722,9 +896,9 @@ final class PlayerSession: NSObject {
         let encoding = playMethod != "DirectPlay" ? playSessionId : nil
         player.pause()
         Task {
-            await client.report(.stop, finished)
+            await tell(.stop, finished)
             if let encoding { await client.stopEncoding(encoding) }
-            await nextEpisode(asked: true)
+            await nextEpisode(asked: true, automatic: automatic)
         }
     }
 
@@ -765,7 +939,7 @@ final class PlayerSession: NSObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         let client = client
         Task {
-            if report { await client.report(.stop, last) }
+            if report { await self.tell(.stop, last) }
             if let encoding { await client.stopEncoding(encoding) }
             self.app?.playerClosed(self)
         }
@@ -887,7 +1061,27 @@ final class PlayerSession: NSObject {
     private func report(_ kind: JellyfinClient.Report) async {
         guard started, !stopped else { return }
         lastReport = Date()
-        await client.report(kind, state(position: position))
+        await tell(kind, state(position: position))
+    }
+
+    /// Told to Jellyfin, and to the copy kept here: played from it, where it was is kept at once and Jellyfin told
+    /// without waiting (later, if it can't hear it now); played from Jellyfin, the copy follows what Jellyfin heard.
+    private func tell(_ kind: JellyfinClient.Report, _ state: PlaybackState) async {
+        guard let keeper = app?.keeper else {
+            await client.report(kind, state)
+            return
+        }
+        let finished = kind == .stop && KeptRules.finished(ticks: state.positionTicks, total: item.runTimeTicks ?? source?.runTimeTicks)
+        guard kept != nil else {
+            if await client.report(kind, state) { keeper.remember(state.itemId, ticks: state.positionTicks, finished: finished, heard: true) }
+            return
+        }
+        let at = Date()
+        keeper.remember(state.itemId, ticks: state.positionTicks, finished: finished, heard: false, at: at)
+        let client = client
+        Task {
+            if await client.report(kind, state) { keeper.heard(state.itemId, at: at) }
+        }
     }
 
     // MARK: What the Lock Screen and AirPlay show
@@ -913,6 +1107,15 @@ final class PlayerSession: NSObject {
     }
 
     private func loadArtwork() {
+        if let kept, let file = app?.keeper.pictureURL(kept) {
+            let id = item.id
+            Task {
+                let image = await Task.detached(priority: .utility) { UIImage(contentsOfFile: file.path) }.value
+                guard item.id == id, let image, let current = player.currentItem else { return }
+                current.nowPlayingInfo = nowPlayingInfo(artwork: image)
+            }
+            return
+        }
         guard let art = Artwork.of(item, .wide) ?? Artwork.of(item, .poster) else { return }
         let url = client.imageURL(art, width: 640, scale: 1)
         let id = item.id
@@ -930,31 +1133,31 @@ final class PlayerSession: NSObject {
         session.automaticallyPublishesNowPlayingInfo = true
         let commands = session.remoteCommandCenter
         commands.playCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.player.play() }
+            Task { @MainActor in TouchWatch.touched(); self?.player.play() }
             return .success
         }
         commands.pauseCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.player.pause() }
+            Task { @MainActor in TouchWatch.touched(); self?.player.pause() }
             return .success
         }
         commands.togglePlayPauseCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.togglePlay() }
+            Task { @MainActor in TouchWatch.touched(); self?.togglePlay() }
             return .success
         }
         commands.skipForwardCommand.preferredIntervals = [10]
         commands.skipForwardCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.skip(10) }
+            Task { @MainActor in TouchWatch.touched(); self?.skip(10) }
             return .success
         }
         commands.skipBackwardCommand.preferredIntervals = [10]
         commands.skipBackwardCommand.addTarget { @Sendable [weak self] _ in
-            Task { @MainActor in self?.skip(-10) }
+            Task { @MainActor in TouchWatch.touched(); self?.skip(-10) }
             return .success
         }
         commands.changePlaybackPositionCommand.addTarget { @Sendable [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             let seconds = event.positionTime
-            Task { @MainActor in self?.seek(to: seconds) }
+            Task { @MainActor in TouchWatch.touched(); self?.seek(to: seconds) }
             return .success
         }
         nowPlaying = session
@@ -1016,6 +1219,11 @@ extension PlayerSession: PlayerActions {
         audioIndex = index
         model.audioIndex = index
         rememberTracks()
+        // Kept here: another track of the file, without opening it again.
+        if kept != nil {
+            Task { await showKept() }
+            return
+        }
         // Another audio track: Jellyfin sends the file again with it (copied into HLS when it is not the first).
         let paused = player.timeControlStatus == .paused
         let at = resumeSeconds
@@ -1033,6 +1241,10 @@ extension PlayerSession: PlayerActions {
         model.subtitleIndex = index
         rememberTracks()
         updateShiftable()
+        if kept != nil {
+            Task { await showKeptSubtitles() }
+            return
+        }
         if inband && !burned && (index < 0 || target?.isTextSubtitleStream == true) {
             Task { await chooseSubtitles() }
             Task { await report(.progress) }
@@ -1086,6 +1298,21 @@ extension PlayerSession: PlayerActions {
         model.quality = quality
         // Asked again from scratch: the file as it is when the new quality allows it.
         bitrate = nil
+        stage = 0
+        let paused = player.timeControlStatus == .paused
+        let at = resumeSeconds
+        player.replaceCurrentItem(with: nil)
+        reopen(at, paused: paused)
+    }
+
+    /// Another connection, or Mobile data chosen in Settings: the stream opens again at the same place under the new
+    /// cap when it must (PlaybackPlan.reopens), from scratch, as for another quality.
+    func capChanged(_ cap: Int?) {
+        guard !closed, let bitrate else { askedUnder = cap; return }
+        let reopens = PlaybackPlan.reopens(bitrate: bitrate, askedUnder: askedUnder, now: cap, directPlay: playMethod == "DirectPlay", inGroup: inGroup)
+        askedUnder = cap
+        guard reopens else { return }
+        self.bitrate = nil
         stage = 0
         let paused = player.timeControlStatus == .paused
         let at = resumeSeconds

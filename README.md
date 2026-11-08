@@ -29,7 +29,7 @@
 - **Playback inside Mira.** The mpv engine plays almost any file as it is: subtitles, audio tracks, chapters, intros skipped in one gesture.
 - **Watch together.** A link is enough to start the same film at a friend's, at the same time, each at home.
 - **No complicated setup.** No Jellyfin yet? Mira installs and prepares it for you, firewall and Tailscale included.
-- **Your privacy stays at home.** No Mira account, no ads, nothing collected; only the update check contacts GitHub, and Tailscale only if you sign Mira in to it.
+- **Your privacy stays at home.** No Mira account, no ads, nothing collected; only the update check contacts GitHub, and Tailscale only if you sign Mira in to it. **Settings → Privacy** lists every connection, with its switch.
 
 ## On your iPhone too
 

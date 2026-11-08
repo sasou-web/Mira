@@ -204,7 +204,7 @@ public partial class MainWindow
     private void PlayerSurface_MouseUp(object sender, MouseButtonEventArgs e) { if (_miniPlayer) MiniPointerUp(e); }
     private void PlayerChrome_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource != PlayerWindowChrome || _fullscreen || _miniPlayer) return;
+        if (e.OriginalSource != PlayerWindowChrome || _fullscreen || _couchScreen || _miniPlayer) return;
         if (e.ClickCount == 2) Maximize_Click(sender, e); else DragMove();
         e.Handled = true;
     }
@@ -320,6 +320,8 @@ public partial class MainWindow
         {
             case "mira-motion": ShowPlayerControls(); break;
             case "mira-fullscreen": ToggleFullscreen(); break;
+            // In couch mode, as on a TV: back stops the film.
+            case "mira-back" or "mira-backspace" when InCouchMode && !_miniPlayer: _ = LeavePlayerAsync(); break;
             case "mira-back": if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayerSmoothly(true); break;
             case "mira-mini": SetMiniPlayerSmoothly(!_miniPlayer); break;
             case "mira-pause": Pause_Click(this, new()); break;
@@ -381,10 +383,10 @@ public partial class MainWindow
         LibraryShell.Visibility = NavigationRail.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
         if (!mini) { AutoSaveSettings(); if (!_morphing) LeavePagesForPlayer(); }
         TitleBar.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
-        PlayerWindowChrome.Visibility = mini || _fullscreen ? Visibility.Collapsed : Visibility.Visible;
+        PlayerWindowChrome.Visibility = mini || _fullscreen || _couchScreen ? Visibility.Collapsed : Visibility.Visible;
         // 42 above and 22 below the 44-unit back button: the header must stay at least 108 high.
         PlayerHeader.Height = mini ? 58 : 108; PlayerControls.Height = mini ? 84 : 210;
-        PlayerHeaderBody.Margin = mini ? new Thickness(14, 10, 8, 0) : new Thickness(24, _fullscreen ? 22 : 42, 24, 22);
+        PlayerHeaderBody.Margin = mini ? new Thickness(14, 10, 8, 0) : new Thickness(24, _fullscreen || _couchScreen ? 22 : 42, 24, 22);
         PlayerControlsBody.Margin = mini ? new Thickness(14, 0, 14, 8) : new Thickness(24, 0, 24, 14);
         // The mini-player shows its title at the top and keeps only play / pause, centred under the timeline.
         PlayerInfo.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
@@ -486,7 +488,7 @@ public partial class MainWindow
     private void BuildTrackMenu()
     {
         if (_mpv is null) return;
-        AudioTrackList.Children.Clear(); SubtitleTrackList.Children.Clear(); BuildAudioDeviceChoices();
+        AudioTrackList.Children.Clear(); SubtitleTrackList.Children.Clear(); BuildAudioDeviceChoices(); ShowNightSound();
         if (_converted is { } converted) { BuildConvertedTrackMenu(converted); _ = ShowSubtitleSearchAsync(); return; }
         var tracks = _mpv.Tracks(); var audio = _mpv.Get("aid") ?? ""; var subtitle = _mpv.Get("sid") ?? "no";
         foreach (var track in tracks.Where(t => t.Type == "audio"))
@@ -538,11 +540,21 @@ public partial class MainWindow
         SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay")); AudioDelayReset.Content = DelayLabel(_mpv.Number("audio-delay"));
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");
-        var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null }.Where(x => x is not null));
+        var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null, _mpv.Get("video-params/pixelformat") is { Length: > 0 } format && format.Contains("10") ? L("10 bits", "10-bit") : null }.Where(x => x is not null));
         var decoding = _mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? L($"matériel ({hwdec})", $"hardware ({hwdec})") : L("logiciel", "software");
         var shown = video.Length > 0 ? video : "—"; var audio = PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"; var dropped = _mpv.Get("frame-drop-count") ?? "0";
         var output = AudioOutputInfo();
-        PlaybackInfo.Text = L($"Vidéo  {shown}\nDécodage  {decoding}\nImage  {PictureInfo}\nAudio  {audio}\nSortie  {output}\nImages perdues  {dropped}", $"Video  {shown}\nDecoding  {decoding}\nPicture  {PictureInfo}\nAudio  {audio}\nOutput  {output}\nDropped frames  {dropped}");
+        var colours = ColoursInfo();
+        PlaybackInfo.Text = L($"Vidéo  {shown}\nDécodage  {decoding}\nCouleurs  {colours}\nImage  {PictureInfo}\nAudio  {audio}\nSortie  {output}\nImages perdues  {dropped}", $"Video  {shown}\nDecoding  {decoding}\nColours  {colours}\nPicture  {PictureInfo}\nAudio  {audio}\nOutput  {output}\nDropped frames  {dropped}");
+    }
+    /// <summary>
+    /// « Couleurs » of ⋮ → Informations: SDR, HDR10, HLG or Dolby Vision, and whether it reaches the screen in HDR (Windows'
+    /// HDR on) or tone-mapped to SDR (<see cref="PictureColours"/>).
+    /// </summary>
+    private string ColoursInfo()
+    {
+        if (_mpv is not { } mpv) return "—";
+        return PictureColours.Line(PictureColours.Source(mpv.Get), PictureColours.HdrOut(mpv.Get));
     }
     /// <summary>« Minuterie »: off, 15 min, 30 min, 1 h, or the end of an episode (<see cref="SleepTimer"/>).</summary>
     private void BuildSleepChoices()

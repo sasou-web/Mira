@@ -190,6 +190,31 @@ public partial class MainWindow
             Require(true, "played on the other device: played here");
             await LeaveGroupAsync(); await StopPlaybackAsync(); ReturnToLibrary();
             Require(GroupNav.Visibility == Visibility.Collapsed, "out of the group: its button leaves the rail");
+
+            // Jellyfin's remote control (MainWindow.Remote.cs): the other device plays a film here, as the iPhone's « Lire
+            // sur… » and Jellyfin's pages do, then pauses, moves, turns down and stops it; « Arrêter » of « En ce moment ».
+            var here = await UntilServer("this PC offered to play on", async () => (await friend.Client.RemoteTargetsAsync()).FirstOrDefault(x => x.DeviceId == client.Connection.DeviceId && x.Playing is null), 30);
+            // The group's film just stopped: Jellyfin forgets it a moment after, so idle is waited for, not required at once.
+            Require(here.Playing is null, $"Jellyfin offers this PC as a device to play on (« {here.Device} », its remote control declared)");
+            await friend.Client.RemotePlayAsync(here.SessionId, signs.Id, 0);
+            await Until("the film put on from the other device", () => _playing && _loaded && _session.Item?.Id == signs.Id, 60);
+            await Advancing("the film put on from the other device plays");
+            Require(true, "« Lire sur… » from another device: the film plays here");
+            await friend.Client.RemoteStateAsync(here.SessionId, "Pause");
+            await Until("paused from the other device", () => _mpv?.Flag("pause") == true, 15);
+            await friend.Client.RemoteStateAsync(here.SessionId, "Seek", TimeSpan.FromSeconds(30).Ticks);
+            await Until("moved from the other device", () => _mpv is { } m && Math.Abs(m.Number("time-pos") - 30) < 2, 15);
+            await friend.Client.RemoteCommandAsync(here.SessionId, "SetVolume", new Dictionary<string, string> { ["Volume"] = "35" });
+            await Until("the volume set from the other device", () => Math.Abs(VolumeSlider.Value - 35) < 0.5, 15);
+            Require(true, "paused, moved to 0:30 and turned down to 35 % from the other device");
+            await friend.Client.RemoteCommandAsync(here.SessionId, "DisplayMessage", new Dictionary<string, string> { ["Header"] = "Mira", ["Text"] = "Check", ["TimeoutMs"] = "5000" });
+            await Until("the message from the other device", () => GroupPillText.Text == "Mira · Check", 15);
+            await CaptureAsync(output, "server-remote");
+            var stoppable = await UntilServer("« Arrêter » offered for this PC", async () => (await friend.Client.ViewersAsync()).FirstOrDefault(x => x.SessionId == here.SessionId && x.CanStop), 30);
+            Require(await friend.Client.StopViewerAsync(stoppable.SessionId), "« Arrêter » accepted by Jellyfin");
+            await Until("stopped from « En ce moment »", () => !_playing, 20);
+            Require(true, "« Arrêter » of « En ce moment sur Jellyfin » stops this PC");
+            _settings.Volume = 0;
             await friend.DisposeAsync(); friend = null;
 
             // « Mettre à la Corbeille » on a film of the library: its folder goes, then Jellyfin forgets it.
@@ -285,6 +310,8 @@ public partial class MainWindow
         private readonly Task _listening;
         private string? _playlistItem;
         public bool Listening { get; private set; }
+        /// <summary>The device's client, as the iPhone's remote uses its own (« Lire sur… »).</summary>
+        public JellyfinClient Client => _client;
         public bool Joined { get; private set; }
         public int Readied { get; private set; }
         private Friend(JellyfinClient client)

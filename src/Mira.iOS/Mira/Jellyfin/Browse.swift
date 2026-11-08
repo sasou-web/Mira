@@ -14,6 +14,8 @@ struct BrowseQuery: Sendable, Hashable {
     /// One library of this kind (Shows or Anime), nil for all of them.
     var library: String?
     var search: String?
+    /// Only the titles of this actor or director (a person's page).
+    var person: String?
 
     var filtered: Bool { genre != nil || year != nil || unplayed || favorite }
 
@@ -28,7 +30,7 @@ struct BrowseQuery: Sendable, Hashable {
         return [
             "recursive": "true", "includeItemTypes": types, "sortBy": sortBy, "sortOrder": order,
             "genres": genre, "years": year, "isPlayed": unplayed ? "false" : nil, "isFavorite": favorite ? "true" : nil,
-            "parentId": library, "searchTerm": search,
+            "parentId": library, "searchTerm": search, "personIds": person,
         ]
     }
 }
@@ -71,6 +73,11 @@ extension JellyfinClient {
             "userId": userId, "includeItemTypes": types, "recursive": "true", "enableImages": "false", "sortBy": "SortName", "sortOrder": "Descending",
         ])
         return (list.items ?? []).compactMap(\.name)
+    }
+
+    /// Actors and directors by their name, for Search: those of the titles this account can see.
+    func persons(_ text: String) async throws -> [Item] {
+        try await get("Persons", ["userId": userId, "searchTerm": text, "limit": "12", "enableImageTypes": "Primary"], as: ItemList.self).items ?? []
     }
 
     /// Episodes by their own name, for Search (those Jellyfin lists as missing left out).

@@ -1,0 +1,47 @@
+{
+  "comment": "« Bande-annonce » of a title's page: Mira.Core Trailers (Windows, Mac) and Home/Trailers.swift (iPhone). links: what Jellyfin's RemoteTrailers may hold, and the address opened in the browser (null: never opened). sources: what the button does for a title as the single-item request describes it. site: how the button names the site. first: « Bande-annonce avant le film », Windows and Mac only.",
+  "links": [
+    ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"],
+    ["http://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"],
+    ["  https://youtu.be/dQw4w9WgXcQ  ", "https://youtu.be/dQw4w9WgXcQ"],
+    ["https://vimeo.com/123456", "https://vimeo.com/123456"],
+    ["javascript:alert(1)", null],
+    ["file:///C:/Windows/notepad.exe", null],
+    ["mira://party/abc?server=http://evil", null],
+    ["ftp://example.com/trailer.mp4", null],
+    ["https://user:secret@www.youtube.com/watch?v=x", null],
+    ["https://192.168.1.10/trailer.mp4", null],
+    ["https://localhost/trailer.mp4", null],
+    ["/Videos/abc/stream", null],
+    ["", null],
+    [null, null]
+  ],
+  "sites": [
+    ["https://www.youtube.com/watch?v=x", "YouTube"],
+    ["https://m.youtube.com/watch?v=x", "YouTube"],
+    ["https://youtu.be/x", "YouTube"],
+    ["https://player.vimeo.com/video/1", "Vimeo"],
+    ["https://www.dailymotion.com/video/x", "dailymotion.com"]
+  ],
+  "sources": [
+    { "item": { "Type": "Movie", "LocalTrailerCount": 1, "RemoteTrailers": [{ "Url": "https://www.youtube.com/watch?v=x" }] }, "source": "jellyfin" },
+    { "item": { "Type": "Movie", "LocalTrailerCount": 0, "RemoteTrailers": [{ "Url": "javascript:x" }, { "Url": "https://www.youtube.com/watch?v=y", "Name": "Trailer" }] }, "source": "web", "link": "https://www.youtube.com/watch?v=y" },
+    { "item": { "Type": "Series", "RemoteTrailers": [{ "Url": "https://youtu.be/z" }] }, "source": "web", "link": "https://youtu.be/z" },
+    { "item": { "Type": "Series", "LocalTrailerCount": 2 }, "source": "jellyfin" },
+    { "item": { "Type": "Movie", "LocalTrailerCount": 0, "RemoteTrailers": [] }, "source": "none" },
+    { "item": { "Type": "Movie" }, "source": "none" },
+    { "item": { "Type": "Episode", "LocalTrailerCount": 1, "RemoteTrailers": [{ "Url": "https://youtu.be/z" }] }, "source": "none" },
+    { "item": { "Type": "BoxSet", "RemoteTrailers": [{ "Url": "https://youtu.be/z" }] }, "source": "none" }
+  ],
+  "first": [
+    { "enabled": true, "item": { "Type": "Movie", "LocalTrailerCount": 1 }, "startAt": 0, "inGroup": false, "kept": false, "plays": true },
+    { "enabled": true, "item": { "Type": "Movie" }, "startAt": 0, "inGroup": false, "kept": false, "plays": true },
+    { "enabled": false, "item": { "Type": "Movie", "LocalTrailerCount": 1 }, "startAt": 0, "inGroup": false, "kept": false, "plays": false },
+    { "enabled": true, "item": { "Type": "Movie", "LocalTrailerCount": 0 }, "startAt": 0, "inGroup": false, "kept": false, "plays": false },
+    { "enabled": true, "item": { "Type": "Movie", "LocalTrailerCount": 1 }, "startAt": 1520.5, "inGroup": false, "kept": false, "plays": false },
+    { "enabled": true, "item": { "Type": "Movie", "LocalTrailerCount": 1 }, "startAt": 0, "inGroup": true, "kept": false, "plays": false },
+    { "enabled": true, "item": { "Type": "Movie", "LocalTrailerCount": 1 }, "startAt": 0, "inGroup": false, "kept": true, "plays": false },
+    { "enabled": true, "item": { "Type": "Episode", "LocalTrailerCount": 1 }, "startAt": 0, "inGroup": false, "kept": false, "plays": false },
+    { "enabled": true, "item": { "Type": "Trailer", "ExtraType": "Trailer" }, "startAt": 0, "inGroup": false, "kept": false, "plays": false }
+  ]
+}

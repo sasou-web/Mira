@@ -20,17 +20,28 @@ La barre montre le titre et l’épisode à gauche, le chapitre et le temps à d
 | Action | Windows | Mac |
 | --- | --- | --- |
 | Lecture / pause | <kbd>Espace</kbd> ou <kbd>K</kbd> | <kbd>Espace</kbd> ou <kbd>K</kbd> |
-| Reculer / avancer de 10 secondes | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> | <kbd>←</kbd> / <kbd>→</kbd> |
-| Reculer / avancer d’une minute | <kbd>Maj</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | |
-| Aller à 0 %, 10 %… 90 % | <kbd>0</kbd> à <kbd>9</kbd> | |
+| Reculer / avancer de 10 secondes | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>J</kbd> / <kbd>L</kbd> |
+| Reculer / avancer d’une minute | <kbd>Maj</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | <kbd>⇧</kbd> + <kbd>←</kbd> / <kbd>→</kbd> |
+| Aller à 0 %, 10 %… 90 % | <kbd>0</kbd> à <kbd>9</kbd> | <kbd>0</kbd> à <kbd>9</kbd> |
 | Volume | <kbd>↑</kbd> / <kbd>↓</kbd>, molette | <kbd>↑</kbd> / <kbd>↓</kbd> |
 | Couper le son | <kbd>M</kbd> | <kbd>M</kbd> |
-| Sous-titres coupés / remis | <kbd>C</kbd> | |
-| Plein écran | <kbd>F</kbd>, <kbd>F11</kbd>, double clic | <kbd>F</kbd>, double clic |
-| Mini-lecteur | <kbd>I</kbd> | |
+| Sous-titres coupés / remis | <kbd>C</kbd> | <kbd>C</kbd> |
+| Plein écran | <kbd>F</kbd>, <kbd>F11</kbd>, double clic | <kbd>F</kbd>, <kbd>⌃</kbd> + <kbd>⌘</kbd> + <kbd>F</kbd>, double clic |
+| Mini-lecteur | <kbd>I</kbd> | <kbd>I</kbd>, <kbd>⌘</kbd> + <kbd>[</kbd> |
 | Passer l’intro, le récap ou le générique | <kbd>S</kbd> | <kbd>S</kbd> |
 | Épisode suivant | <kbd>N</kbd> | <kbd>N</kbd> |
 | Revenir, quitter le plein écran | <kbd>Échap</kbd> | <kbd>Échap</kbd> |
+
+Sur Mac, **Aide → Raccourcis clavier** (<kbd>⌘</kbd> + <kbd>/</kbd>) les montre tous, ceux de la bibliothèque aussi.
+
+### Touches multimédias
+
+Les touches lecture et piste du clavier, le bouton d’un casque et les commandes du système pilotent le lecteur même quand Mira est derrière une autre fenêtre, mini-lecteur et image dans l’image compris :
+
+- **Windows** : les touches multimédias, le panneau qui s’affiche avec le volume, et les boutons lecture, ±10 s et épisode suivant de la miniature de Mira dans la barre des tâches et de son icône de la zone de notification.
+- **Mac** : <kbd>F8</kbd> (lecture / pause), <kbd>F7</kbd> (reculer de 10 secondes), <kbd>F9</kbd> (épisode suivant, quand il y en a un), le bouton des AirPods ou d’un casque, et **À l’écoute** dans le centre de contrôle et la barre des menus, avec le titre, son affiche, ±10 s et une barre pour te déplacer dans le film.
+
+Dans un groupe Regarder ensemble, elles agissent pour le groupe, comme les touches du lecteur. Le lecteur fermé, les touches reviennent à tes autres apps.
 
 ### Sur iPhone
 
@@ -41,6 +52,8 @@ Touche l’image pour afficher les commandes. Double toucher sur un côté pour 
 Les boutons **Passer l’intro**, **Passer le générique** et **Passer le récap** viennent des segments de Jellyfin (Jellyfin 10.10 ou plus récent, du serveur ou d’une extension comme Intro Skipper) ou des noms de chapitres du fichier. Avec **Réglages → Lecture → Passer les intros et les récaps**, Mira les passe sans demander, une fois chacun : revenir dedans les rejoue.
 
 **Épisode suivant** apparaît pendant le générique de fin ou dans les 20 dernières secondes. Avec **Enchaîner les épisodes**, un compte à rebours de 10 secondes démarre ; **Annuler** reste sur cet épisode.
+
+Après 3 épisodes de suite sans que rien ne soit touché (clavier, souris, trackpad, manette, ou l’écran sur iPhone), Mira ne lance pas le suivant : il s’arrête à la fin de l’épisode et demande **Tu regardes toujours ?**, pour qu’une nuit endormi devant une série ne marque pas dix épisodes comme vus. **Continuer** lance le suivant. Jamais dans une party. Pour l’éteindre : **Réglages → Lecture → Demander si tu regardes toujours**.
 
 Mira reprend un peu avant là où tu t’es arrêté, 5 secondes par défaut, pour retrouver le fil (**Réglages → Lecture**). **Depuis le début**, sur la fiche d’un titre, repart du début.
 
@@ -56,11 +69,13 @@ Dans le menu **⋮** du lecteur : pause dans 15 minutes, 30 minutes, 1 heure, ou
 ## Image et son
 
 - **Image** (Réglages → Lecture, Windows et Mac) : **Standard** (le rendu de mpv, le plus léger), **Cinéma** (par défaut : mouvement fluide sur tout écran, pas de bandes dans les dégradés) et **Maximale** (avec la mise à l’échelle la plus fine). Si l’ordinateur perd des images, Mira descend d’un niveau tout seul et te le dit.
-- **Sortie audio** (Windows, Réglages → Audio & sous-titres) : le périphérique, le nombre de canaux, et **Son envoyé à l’ampli tel quel** pour un ampli ou une barre de son qui décode le Dolby et le DTS, Atmos compris. **Tester la sortie audio** joue un son sur chaque haut-parleur.
+- **Sortie audio** (Windows et Mac, Réglages → Audio & sous-titres) : le périphérique, le nombre de canaux, et **Son envoyé à l’ampli tel quel** pour un ampli ou une barre de son qui décode le Dolby et le DTS. Sous Windows, en HDMI, aussi le Dolby TrueHD, l’Atmos et le DTS-HD ; sur Mac, seulement le Dolby Digital et le DTS (macOS n’envoie rien de plus gros tel quel), le reste décodé par Mira. **Tester la sortie audio** joue un son sur chaque haut-parleur. Dans le lecteur, **Audio** change de sortie, et **⋮ → Informations** dit où part le son et s’il arrive à l’ampli sans décodage.
+- **HDR** (Windows et Mac) : **⋮ → Informations**, ligne **Couleurs**, dit la plage du film (SDR, HDR10, HDR10+, HLG, Dolby Vision) et ce qui arrive à l’écran. Sous Windows, le HDR part tel quel à l’écran quand le HDR de Windows est allumé, sinon il est converti en SDR ; sur Mac, il est toujours converti en SDR ([pourquoi](mac.md#films-en-hdr)).
+- **Son de nuit** (Windows et Mac, dans le menu **Audio et sous-titres** du lecteur, sous les pistes audio) : les passages forts baissent et les voix remontent, pour regarder le soir à volume bas. Effet immédiat, gardé pour les vidéos suivantes. Sans effet quand le son part à l’ampli tel quel, et pas sur iPhone.
 - **Décalage de l’audio** (menu ⋮) : si les lèvres et les voix ne collent pas, par pas de 0,1 s, jusqu’à la fermeture du lecteur.
 
 ## Loin de la maison : la qualité
 
-À la maison, Mira lit le fichier tel quel. Ailleurs, un film en 4K peut ne pas passer par ta connexion : **Qualité** (Réglages → Lecture et menu **⋮** du lecteur) fixe une limite, ou **Auto** mesure la connexion jusqu’à Jellyfin. Sous la limite, Jellyfin convertit le fichier pendant que tu regardes. Si la connexion tombe, Mira attend Jellyfin, rouvre le flux une fois là où il en était, et seulement ensuite dit qu’il ne peut pas lire.
+À la maison, Mira lit le fichier tel quel. Ailleurs, un film en 4K peut ne pas passer par ta connexion : **Qualité** (Réglages → Lecture et menu **⋮** du lecteur) fixe une limite, ou **Auto** mesure la connexion jusqu’à Jellyfin. Sous la limite, Jellyfin convertit le fichier pendant que tu regardes. Si la connexion tombe, ou que la vidéo n’arrive plus pendant 15 secondes, Mira attend Jellyfin, rouvre le flux une fois là où il en était, et seulement ensuite dit qu’il ne peut pas lire. Quand l’ordinateur se met en veille (capot d’un portable refermé), le film se met en pause, et au réveil Mira le rouvre là où il en était, toujours en pause.
 
 Convertir est lourd pour le serveur. Sur le PC de Jellyfin, Mira peut le confier à la carte graphique : **Réglages → Entretien → Conversions par la carte graphique**, essayé d’abord sur un de tes titres.

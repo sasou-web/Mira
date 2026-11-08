@@ -91,6 +91,16 @@
         }
       }
     },
+    "%@ used by Mira · %@ free on this iPhone. Mira always leaves %@ free. Signing out removes these titles from this iPhone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ pris par Mira · %@ libres sur cet iPhone. Mira laisse toujours %@ libres. Se déconnecter retire ces titres de cet iPhone."
+          }
+        }
+      }
+    },
     "%@, then %@": {
       "localizations": {
         "fr": {
@@ -423,6 +433,86 @@
         }
       }
     },
+    "%lld titles · %@": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld title · %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titles · %@"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titre · %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titres · %@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "**Sends** · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "**Envoie** · %@"
+          }
+        }
+      }
+    },
+    "**To stop it** · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "**Pour l’arrêter** · %@"
+          }
+        }
+      }
+    },
+    "**To** · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "**Vers** · %@"
+          }
+        }
+      }
+    },
+    "**When** · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "**Quand** · %@"
+          }
+        }
+      }
+    },
     "10 seconds into the end credits when they are marked, otherwise at the end of the episode. A button offers it sooner.": {
       "localizations": {
         "fr": {
@@ -453,12 +543,42 @@
         }
       }
     },
+    "Add to a collection": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter à une collection"
+          }
+        }
+      }
+    },
+    "Add to a collection…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter à une collection…"
+          }
+        }
+      }
+    },
     "Add to favorites": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ajouter aux favoris"
+          }
+        }
+      }
+    },
+    "Added to “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouté à « %@ »."
           }
         }
       }
@@ -509,6 +629,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toutes les années"
+          }
+        }
+      }
+    },
+    "AltStore, installed by you": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore, installé par toi"
           }
         }
       }
@@ -659,6 +789,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Automatique"
+          }
+        }
+      }
+    },
+    "Automatic subtitles": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sous-titres automatiques"
           }
         }
       }
@@ -863,6 +1003,26 @@
         }
       }
     },
+    "Collection name": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom de la collection"
+          }
+        }
+      }
+    },
+    "Collection “%@” created with “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collection « %@ » créée avec « %@ »."
+          }
+        }
+      }
+    },
     "Connected to Tailscale": {
       "localizations": {
         "fr": {
@@ -923,6 +1083,26 @@
         }
       }
     },
+    "Couldn’t keep it": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de le garder"
+          }
+        }
+      }
+    },
+    "Create": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créer"
+          }
+        }
+      }
+    },
     "Create a group": {
       "localizations": {
         "fr": {
@@ -949,6 +1129,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Direct"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
           }
         }
       }
@@ -990,12 +1180,32 @@
       },
       "comment": "An episode's number: É5 in French"
     },
+    "Each series’ TheTVDB id, for its list of episodes. No name or picture from TheTVDB is kept.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’identifiant TheTVDB de chaque série, pour sa liste d’épisodes. Ni nom, ni image de TheTVDB ne sont gardés."
+          }
+        }
+      }
+    },
     "Earlier": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Plus tôt"
+          }
+        }
+      }
+    },
+    "Empty": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vide"
           }
         }
       }
@@ -1050,6 +1260,76 @@
         }
       }
     },
+    "Every detail (SECURITY.md)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tous les détails (SECURITY.md)"
+          }
+        }
+      }
+    },
+    "Everything that goes out on the network, and how to stop it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout ce qui part sur le réseau, et comment l’arrêter."
+          }
+        }
+      }
+    },
+    "From this device": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depuis cet appareil"
+          }
+        }
+      }
+    },
+    "From your Jellyfin server": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depuis ton serveur Jellyfin"
+          }
+        }
+      }
+    },
+    "GitHub, where Mira is published.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub, où Mira est publiée."
+          }
+        }
+      }
+    },
+    "Give the collection a name.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Donne un nom à la collection."
+          }
+        }
+      }
+    },
+    "Hides the list": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masque la liste"
+          }
+        }
+      }
+    },
     "In a group · %@ · %@": {
       "localizations": {
         "fr": {
@@ -1061,12 +1341,122 @@
       },
       "comment": "The group's button over the tabs: En groupe · Groupe de mira · mira et Marc"
     },
+    "In Jellyfin’s dashboard, Libraries.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans le tableau de bord de Jellyfin, Bibliothèques."
+          }
+        }
+      }
+    },
+    "In Jellyfin’s dashboard, Plugins, Repositories.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans le tableau de bord de Jellyfin, Extensions, Dépôts."
+          }
+        }
+      }
+    },
+    "It goes in the ticked collections: nothing is copied or moved.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il va dans les collections cochées : rien n’est copié ni déplacé."
+          }
+        }
+      }
+    },
+    "It goes on in the background as long as iOS lets it, otherwise when you open Mira again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ça continue en arrière-plan tant qu’iOS le permet, sinon quand tu rouvres Mira."
+          }
+        }
+      }
+    },
+    "It plays here without a connection. Removed, it leaves this iPhone only: it stays on Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il se lit ici sans connexion. Retiré, il ne quitte que cet iPhone : il reste sur Jellyfin."
+          }
+        }
+      }
+    },
+    "Jellyfin doesn’t let this account download its videos. In Jellyfin, Dashboard → Users → this account, allow media downloads, then try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne laisse pas ce compte télécharger ses vidéos. Dans Jellyfin, Tableau de bord → Utilisateurs → ce compte, autorise le téléchargement des médias, puis réessaie."
+          }
+        }
+      }
+    },
+    "Jellyfin is looking for your collections…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin cherche tes collections…"
+          }
+        }
+      }
+    },
     "Jellyfin on your Tailscale network": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Jellyfin sur ton réseau Tailscale"
+          }
+        }
+      }
+    },
+    "Keep on this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder sur cet iPhone"
+          }
+        }
+      }
+    },
+    "Keep the season on this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder la saison sur cet iPhone"
+          }
+        }
+      }
+    },
+    "Keeping on this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise sur cet iPhone en cours"
+          }
+        }
+      }
+    },
+    "Keeping… %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise sur l’iPhone… %@"
           }
         }
       }
@@ -1091,6 +1481,16 @@
         }
       }
     },
+    "Like the Tailscale app: your account, the device’s name, its system, its IP addresses and its public key. Videos stay end-to-end encrypted, no log is sent.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comme l’app Tailscale : ton compte, le nom de l’appareil, son système, ses adresses IP et sa clé publique. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé."
+          }
+        }
+      }
+    },
     "Look again": {
       "localizations": {
         "fr": {
@@ -1111,6 +1511,36 @@
         }
       }
     },
+    "Mira can’t reach Jellyfin: it goes on as soon as it can.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne joint pas Jellyfin : ça reprend dès que possible."
+          }
+        }
+      }
+    },
+    "Mira extension updates": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour de l’extension Mira"
+          }
+        }
+      }
+    },
+    "Mira has no account, no ads, no analytics and no crash report sent on its own. Here is everything that goes out on the network, and how to stop it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira n’a ni compte, ni publicité, ni mesure d’audience, ni rapport de plantage envoyé tout seul. Voici tout ce qui part sur le réseau, et comment l’arrêter."
+          }
+        }
+      }
+    },
     "Mira report": {
       "localizations": {
         "fr": {
@@ -1121,12 +1551,62 @@
         }
       }
     },
+    "miracinema.app (Mira’s list), GitHub (the app) and Apple.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "miracinema.app (la liste de Mira), GitHub (l’app) et Apple."
+          }
+        }
+      }
+    },
+    "Missing episodes (TheTVDB)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisodes manquants (TheTVDB)"
+          }
+        }
+      }
+    },
     "More": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Plus"
+          }
+        }
+      }
+    },
+    "Movie nights, To show Léa…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soirées, À montrer à Léa…"
+          }
+        }
+      }
+    },
+    "Movies and episodes kept here play without a connection.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les films et épisodes gardés ici se lisent sans connexion."
+          }
+        }
+      }
+    },
+    "No collections yet: name the first one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune collection pour l’instant : nomme la première."
           }
         }
       }
@@ -1151,12 +1631,72 @@
         }
       }
     },
+    "Not enough room on this iPhone: it needs %@ more. Remove a title kept here or free up some space, then try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas assez de place sur cet iPhone : il manque %@. Retire un titre gardé ici ou libère de la place, puis réessaie."
+          }
+        }
+      }
+    },
     "Not reachable now": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Injoignable pour l’instant"
+          }
+        }
+      }
+    },
+    "Nothing in Mira: it’s AltStore.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien dans Mira : c’est AltStore."
+          }
+        }
+      }
+    },
+    "Nothing on this iPhone yet": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien sur cet iPhone pour l’instant"
+          }
+        }
+      }
+    },
+    "Nothing to turn off: nothing goes without your touch.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien à couper : rien ne part sans ton toucher."
+          }
+        }
+      }
+    },
+    "On a movie or an episode, touch Keep on this iPhone: it plays here without a connection, even far from Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur un film ou un épisode, touche Garder sur cet iPhone : il se lit ici sans connexion, même loin de Jellyfin."
+          }
+        }
+      }
+    },
+    "On this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur cet iPhone"
           }
         }
       }
@@ -1171,12 +1711,82 @@
         }
       }
     },
+    "Only if you installed it, at each library scan.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement si tu l’as installée, à chaque analyse de la bibliothèque."
+          }
+        }
+      }
+    },
+    "Only once turned on, when a title arrives or when you search.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement une fois activés, quand un titre arrive ou quand tu cherches."
+          }
+        }
+      }
+    },
+    "Only once turned on, while Mira is on screen or a title still plays.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement une fois activé, tant que Mira est à l’écran ou qu’un titre joue encore."
+          }
+        }
+      }
+    },
+    "Only when you touch “Trailer on …” on a title that has none on your server.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement quand tu touches « Bande-annonce sur … » d’un titre qui n’en a pas sur ton serveur."
+          }
+        }
+      }
+    },
     "Open Tailscale’s admin console": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ouvrir la console de Tailscale"
+          }
+        }
+      }
+    },
+    "Opens in Safari": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S’ouvre dans Safari"
+          }
+        }
+      }
+    },
+    "OpenSubtitles and SubDL, through Jellyfin’s Mira extension.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenSubtitles et SubDL, par l’extension Mira de Jellyfin."
+          }
+        }
+      }
+    },
+    "Or a new collection with it": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ou une nouvelle collection avec lui"
           }
         }
       }
@@ -1211,6 +1821,36 @@
         }
       }
     },
+    "Plays it from this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le lit depuis cet iPhone"
+          }
+        }
+      }
+    },
+    "Posters and descriptions": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affiches et résumés"
+          }
+        }
+      }
+    },
+    "Privacy": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confidentialité"
+          }
+        }
+      }
+    },
     "Reach your Jellyfin away from home without the Tailscale app: Mira joins your Tailscale network itself, only while it’s open.": {
       "localizations": {
         "fr": {
@@ -1231,6 +1871,36 @@
         }
       }
     },
+    "Remove": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer"
+          }
+        }
+      }
+    },
+    "Remove from this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer de cet iPhone"
+          }
+        }
+      }
+    },
+    "Removed from “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retiré de « %@ »."
+          }
+        }
+      }
+    },
     "Reset the subtitle delay": {
       "localizations": {
         "fr": {
@@ -1247,6 +1917,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Partager un rapport pour signaler un problème"
+          }
+        }
+      }
+    },
+    "Shows the list": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Montre la liste"
           }
         }
       }
@@ -1307,16 +1987,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "À la une"
-          }
-        }
-      }
-    },
-    "Find a movie, a show or an episode by its name.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trouve un film, une série ou un épisode par son nom."
           }
         }
       }
@@ -1817,16 +2487,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Les films et séries ajoutés à Jellyfin apparaîtront ici."
-          }
-        }
-      }
-    },
-    "Movies, shows, episodes": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Films, séries, épisodes"
           }
         }
       }
@@ -2571,6 +3231,16 @@
         }
       }
     },
+    "Sign out, in Settings.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter, dans les Réglages."
+          }
+        }
+      }
+    },
     "Sign this iPhone out of your Tailscale network?": {
       "localizations": {
         "fr": {
@@ -2721,6 +3391,16 @@
         }
       }
     },
+    "Stop keeping it": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne plus le garder"
+          }
+        }
+      }
+    },
     "Subtitle delay": {
       "localizations": {
         "fr": {
@@ -2801,6 +3481,16 @@
         }
       }
     },
+    "Tailscale’s coordination server and its relays, then your Tailscale devices (16 at most are asked whether they run Jellyfin).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de coordination de Tailscale et ses relais, puis tes appareils Tailscale (16 au plus, à qui Mira demande s’ils font tourner Jellyfin)."
+          }
+        }
+      }
+    },
     "Tailscale’s servers see this device join your Tailscale network: its name, its system and its IP addresses (public and local, for direct connections). Your videos stay end-to-end encrypted, directly or through a Tailscale relay. Mira sends no logs to Tailscale.": {
       "localizations": {
         "fr": {
@@ -2821,12 +3511,32 @@
         }
       }
     },
+    "The address you signed in to, at home or through Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’adresse où tu t’es connecté, chez toi ou par Tailscale."
+          }
+        }
+      }
+    },
     "The code has 6 digits.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Le code a 6 chiffres."
+          }
+        }
+      }
+    },
+    "The file’s fingerprint and size (OpenSubtitles), its IMDb and TMDb ids, season, episode and language. Never the file name.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’empreinte et la taille du fichier (OpenSubtitles), ses identifiants IMDb et TMDb, la saison, l’épisode et la langue. Jamais le nom du fichier."
           }
         }
       }
@@ -2931,12 +3641,52 @@
         }
       }
     },
+    "The season is on this iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La saison est sur cet iPhone"
+          }
+        }
+      }
+    },
     "The server isn’t answering. Check the address and that Jellyfin is running.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Le serveur ne répond pas. Vérifie l’adresse et que Jellyfin est bien lancé."
+          }
+        }
+      }
+    },
+    "The switch here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’interrupteur ci-contre."
+          }
+        }
+      }
+    },
+    "The titles kept on this iPhone are removed from it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les titres gardés sur cet iPhone en sont retirés."
+          }
+        }
+      }
+    },
+    "The trailer’s site (often YouTube), in Safari, never in Mira.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le site de la bande-annonce (souvent YouTube), dans Safari, jamais dans Mira."
           }
         }
       }
@@ -2957,6 +3707,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Puis connecte-toi à Tailscale, une seule fois, avec ton compte Tailscale."
+          }
+        }
+      }
+    },
+    "These connections leave from Jellyfin’s PC, never from this device.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ces connexions partent du PC de Jellyfin, jamais de cet appareil."
+          }
+        }
+      }
+    },
+    "TheTVDB, through its official Jellyfin extension.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TheTVDB, par son extension officielle de Jellyfin."
           }
         }
       }
@@ -3071,12 +3841,52 @@
         }
       }
     },
+    "This name can’t be used: put letters or numbers in it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce nom ne peut pas servir : mets-y des lettres ou des chiffres."
+          }
+        }
+      }
+    },
+    "This name is already taken by the collection “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce nom est déjà pris par la collection « %@ »."
+          }
+        }
+      }
+    },
+    "This name is too long: %lld characters at most.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce nom est trop long : %lld caractères au plus."
+          }
+        }
+      }
+    },
     "This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://192.168.1.20:8096.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://192.168.1.20:8096."
+          }
+        }
+      }
+    },
+    "This title is no longer on Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce titre n’est plus sur Jellyfin."
           }
         }
       }
@@ -3141,6 +3951,26 @@
         }
       }
     },
+    "TMDb and Jellyfin’s other metadata sources.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TMDb et les autres sources de métadonnées de Jellyfin."
+          }
+        }
+      }
+    },
+    "To watch without a connection": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour regarder sans connexion"
+          }
+        }
+      }
+    },
     "Together · %@": {
       "localizations": {
         "fr": {
@@ -3171,6 +4001,36 @@
         }
       }
     },
+    "Trailer": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bande-annonce"
+          }
+        }
+      }
+    },
+    "Trailer on %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bande-annonce sur %@"
+          }
+        }
+      }
+    },
+    "Trailers from the web": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bandes-annonces du web"
+          }
+        }
+      }
+    },
     "Try again": {
       "localizations": {
         "fr": {
@@ -3187,6 +4047,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Activer Tailscale intégré"
+          }
+        }
+      }
+    },
+    "Turn them off in Mira for Windows or Mac, Maintenance.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les couper dans Mira pour Windows ou Mac, Entretien."
+          }
+        }
+      }
+    },
+    "Uninstall it from Mira for Windows or Jellyfin’s dashboard.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La désinstaller depuis Mira pour Windows ou le tableau de bord de Jellyfin."
           }
         }
       }
@@ -3241,6 +4121,16 @@
         }
       }
     },
+    "Waiting": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente"
+          }
+        }
+      }
+    },
     "Waiting for %@…": {
       "localizations": {
         "fr": {
@@ -3261,12 +4151,32 @@
         }
       }
     },
+    "Waiting for Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente de Jellyfin"
+          }
+        }
+      }
+    },
     "Waiting for someone in the group…": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "On attend quelqu’un du groupe…"
+          }
+        }
+      }
+    },
+    "Waiting its turn": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente de son tour"
           }
         }
       }
@@ -3311,6 +4221,26 @@
         }
       }
     },
+    "What Jellyfin sends: its IP address and its program name.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce qu’envoie Jellyfin : son adresse IP et son nom de programme."
+          }
+        }
+      }
+    },
+    "What Safari sends that site (your IP address, its cookies). Mira sends it nothing and loads nothing from it before your touch. A trailer kept on your server goes through it alone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce que Safari envoie à ce site (ton adresse IP, ses cookies). Mira ne lui envoie rien et n’en charge rien avant ton toucher. Une bande-annonce gardée sur ton serveur ne passe que par lui."
+          }
+        }
+      }
+    },
     "What you watched this month and this year.": {
       "localizations": {
         "fr": {
@@ -3321,12 +4251,52 @@
         }
       }
     },
+    "When Jellyfin looks for updates to its extensions.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand Jellyfin cherche les mises à jour de ses extensions."
+          }
+        }
+      }
+    },
     "When Jellyfin or the file’s chapters mark them, playback jumps over them. Otherwise, a button offers it.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Quand Jellyfin ou les chapitres du fichier les repèrent, la lecture saute par-dessus. Sinon, un bouton le propose."
+          }
+        }
+      }
+    },
+    "When Jellyfin scans your library, and when you fix a title.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand Jellyfin analyse ta bibliothèque, et quand tu corriges un titre."
+          }
+        }
+      }
+    },
+    "When you install Mira and at its weekly refresh.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand tu installes Mira, puis à son rafraîchissement de chaque semaine."
+          }
+        }
+      }
+    },
+    "While you’re signed in: library, pictures, playback, Watch together, titles kept on this iPhone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tant que tu es connecté : bibliothèque, images, lecture, Regarder ensemble, titres gardés sur cet iPhone."
           }
         }
       }
@@ -3371,12 +4341,52 @@
         }
       }
     },
+    "Your Apple ID, to Apple only, for the free certificate that signs the app. Mira itself never looks for updates.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton identifiant Apple, à Apple seulement, pour le certificat gratuit qui signe l’app. Mira elle-même ne cherche jamais de mise à jour."
+          }
+        }
+      }
+    },
     "Your favorites": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Tes favoris"
+          }
+        }
+      }
+    },
+    "Your Jellyfin account isn’t allowed to manage collections: its administrator can allow it (Dashboard → Users).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton compte Jellyfin n’a pas le droit de gérer les collections : son administrateur peut le lui donner (Tableau de bord → Utilisateurs)."
+          }
+        }
+      }
+    },
+    "Your Jellyfin doesn’t say which collections it’s already in.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton Jellyfin ne dit pas dans quelles collections il est déjà."
+          }
+        }
+      }
+    },
+    "Your Jellyfin server": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton serveur Jellyfin"
           }
         }
       }
@@ -3437,6 +4447,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fermer"
+          }
+        }
+      }
+    },
+    "Your session token in a header, and in the address of the video the player reads (Apple’s player can’t send a header). What you watch and where you stopped.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton jeton de session dans un en-tête, et dans l’adresse de la vidéo que lit le lecteur (le lecteur d’Apple ne sait pas envoyer d’en-tête). Ce que tu regardes et où tu t’es arrêté."
           }
         }
       }
@@ -3947,6 +4967,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitter la party"
+          }
+        }
+      }
+    },
+    "Your titles’ names and years, from your server.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les noms et les années de tes titres, depuis ton serveur."
           }
         }
       }
@@ -5627,6 +6657,428 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mira ne joint pas %@ pour l’instant. Chez toi, connecte-toi à ton Wi-Fi ; ailleurs, active Tailscale intégré plus bas."
+          }
+        }
+      }
+    },
+    "Mobile data · %@ Mb/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Données mobiles · %@ Mb/s"
+          }
+        }
+      }
+    },
+    "Mobile data": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Données mobiles"
+          }
+        }
+      }
+    },
+    "On cellular or a personal hotspot. Data saver uses about 0.9 GB an hour, and stays on with Low Data Mode.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En 4G ou en partage de connexion. L’économie de données consomme environ 0,9 Go par heure, et reste active en mode Données réduites."
+          }
+        }
+      }
+    },
+    "Data saver · 2 Mb/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Économie de données · 2 Mb/s"
+          }
+        }
+      }
+    },
+    "Standard · 6 Mb/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normale · 6 Mb/s"
+          }
+        }
+      }
+    },
+    "Are you still watching?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu regardes toujours ?"
+          }
+        }
+      }
+    },
+    "Mira stopped after 3 episodes in a row with nothing touched. Up next: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira s’est arrêté après 3 épisodes de suite sans que rien ne soit touché. À suivre : %@"
+          }
+        }
+      }
+    },
+    "Keep watching": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuer"
+          }
+        }
+      }
+    },
+    "Ask if you’re still watching": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demander si tu regardes toujours"
+          }
+        }
+      }
+    },
+    "After 3 episodes in a row without touching anything, Mira stops and asks before the next one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Après 3 épisodes de suite sans rien toucher, Mira s’arrête et demande avant le suivant."
+          }
+        }
+      }
+    },
+    "%lld titles": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld title"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titles"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titre"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld titres"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Born %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naissance : %@"
+          }
+        }
+      },
+      "comment": "Under a person's name: their birthday"
+    },
+    "Cast & crew": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribution et équipe"
+          }
+        }
+      }
+    },
+    "Died %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Décès : %@"
+          }
+        }
+      },
+      "comment": "Under a person's name: the day they died"
+    },
+    "Director": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réalisation"
+          }
+        }
+      }
+    },
+    "Find a movie, a show or an episode by its name, or an actor.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trouve un film, une série ou un épisode par son nom, ou un acteur."
+          }
+        }
+      }
+    },
+    "Guest star": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guest-star"
+          }
+        }
+      }
+    },
+    "Movies, shows, episodes, people": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Films, séries, épisodes, personnes"
+          }
+        }
+      }
+    },
+    "No titles here": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun titre ici"
+          }
+        }
+      }
+    },
+    "None of their movies or shows is in your library.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun de ses films ni aucune de ses séries n’est dans ta bibliothèque."
+          }
+        }
+      }
+    },
+    "Opens their movies and shows": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre ses films et séries"
+          }
+        }
+      }
+    },
+    "People": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personnes"
+          }
+        }
+      }
+    },
+    "No other device can play right now. Open Mira on your PC or Mac, signed in to this server, and it shows up here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun autre appareil ne peut lire pour l’instant. Ouvre Mira sur ton PC ou ton Mac, connecté à ce serveur : il apparaîtra ici."
+          }
+        }
+      }
+    },
+    "Jellyfin passes the title on: the other device plays it from its own copy or from the server.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin transmet le titre : l’autre appareil le lit depuis sa propre copie ou depuis le serveur."
+          }
+        }
+      }
+    },
+    "Looking for your devices…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche de tes appareils…"
+          }
+        }
+      }
+    },
+    "Play on": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire sur"
+          }
+        }
+      }
+    },
+    "Play on…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire sur…"
+          }
+        }
+      }
+    },
+    "Playing: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En lecture : %@"
+          }
+        }
+      }
+    },
+    "Ready to play": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prêt à lire"
+          }
+        }
+      }
+    },
+    "Play on %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire sur %@"
+          }
+        }
+      }
+    },
+    "Remote": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécommande"
+          }
+        }
+      }
+    },
+    "Steer %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Piloter %@"
+          }
+        }
+      }
+    },
+    "Jellyfin refused: this account can’t steer that device.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin a refusé : ce compte ne peut pas piloter cet appareil."
+          }
+        }
+      }
+    },
+    "Nothing playing on it right now.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien en lecture dessus pour l’instant."
+          }
+        }
+      }
+    },
+    "Turn the sound on": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remettre le son"
+          }
+        }
+      }
+    },
+    "Turn the sound off": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couper le son"
+          }
+        }
+      }
+    },
+    "Volume": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        }
+      }
+    },
+    "This device no longer answers: Mira was closed there, or the computer went to sleep.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet appareil ne répond plus : Mira y a été fermé, ou l’ordinateur s’est mis en veille."
+          }
+        }
+      }
+    },
+    "%@, paused": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, en pause"
           }
         }
       }

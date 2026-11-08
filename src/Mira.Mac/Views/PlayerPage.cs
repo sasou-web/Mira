@@ -143,6 +143,8 @@ public sealed partial class PlayerPage : UserControl
         _volume.ValueChanged += (_, e) => VolumeChanged(e.NewValue);
         var fullscreen = new Button { Content = _fullscreenIcon, Classes = { "player" } }; fullscreen.Click += (_, _) => ToggleFullscreen();
         ToolTip.SetTip(fullscreen, L("Plein écran · F", "Full screen · F"));
+        // In couch mode the window is always full screen.
+        fullscreen.IsVisible = !_shell.InCouchMode;
         // Their icons say what a click does: VoiceOver reads the same, with the shortcut as help.
         Speak(play, _pauseIcon, kind => kind == "play" ? L("Lecture", "Play") : L("Pause", "Pause"), L("Espace", "Space"));
         Speak(mute, _volumeIcon, kind => kind == "mute" ? L("Rétablir le son", "Unmute") : L("Couper le son", "Mute"), "M");
@@ -240,7 +242,8 @@ public sealed partial class PlayerPage : UserControl
     /// newer start), a start that fails saying why on its own screen (PlayerPage.Failure.cs). With
     /// <paramref name="groupStart"/>, for the group: there, paused until Jellyfin says when to play.
     /// </summary>
-    public async Task<bool> StartAsync(MediaItem item, bool fromStart = false, long? groupStart = null)
+    /// <param name="trailerDone">The film after its trailer (« Bande-annonce avant le film »): never its trailer again.</param>
+    public async Task<bool> StartAsync(MediaItem item, bool fromStart = false, long? groupStart = null, bool trailerDone = false)
     {
         if (_shell.Session is not { } session) return false;
         var generation = ++_generation;
@@ -253,13 +256,24 @@ public sealed partial class PlayerPage : UserControl
             // Jellyfin on this same Mac: its file directly; otherwise the file as it is, or Jellyfin's conversion under the
             // quality chosen (PlayerPage.Stream.cs).
             // Kept on this Mac (« Garder sur ce Mac »): its file, with or without Jellyfin; the progress goes as usual.
+            // « Bande-annonce avant le film »: its trailer kept on the server first, the film waiting behind the pill.
+            MediaItem? film = null;
+            if (!trailerDone && groupStart is null && Trailers.PlaysFirst(_shell.Settings.TrailerFirst, item, start, Group.Active, _shell.KeptCopy(item.Id) is not null)
+                && await TrailerOfAsync(session, item) is { } trailer)
+            {
+                if (generation != _generation) return false;
+                film = item; item = trailer; start = 0;
+            }
             var kept = _shell.KeptCopy(item.Id);
             var stream = kept is not null ? new ServerStream(kept.Source ?? new MediaSource(), Guid.NewGuid().ToString("N"), kept.VideoPath, null, false, null, null, 0, [])
                 : await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(session, item)), _shell.Settings.AudioLanguage, FileHere);
             if (generation != _generation) return false;
             UseStream(stream); _playingCopy = kept;
             _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
-            _title.Text = item.DisplayTitle; _subtitle.Text = PlayerText.Subtitle(item);
+            _stillWatching.Started(DateTimeOffset.Now, _nextByItself); _nextByItself = false;
+            _skips.Film = film;
+            _title.Text = (film ?? item).DisplayTitle; _subtitle.Text = film is not null ? Trailers.Playing : PlayerText.Subtitle(item);
+            TellTitle(film ?? item, _title.Text, _subtitle.Text);
             _next.IsEnabled = false; ShowEpisodeButtons(item);
 
             await OpenEngineAsync();
@@ -323,7 +337,9 @@ public sealed partial class PlayerPage : UserControl
             _fileOpen = false;
             // The stream opened again could not load: an end, never that of the title.
             var ended = eof && !_reloading;
-            Dispatcher.UIThread.Post(() => _ = EndedAsync(ended, generation));
+            // The Mac asleep or woken, a stuck stream being opened again: the old connection's end, nothing more.
+            var interrupted = _asleep || _waking || _recovering;
+            Dispatcher.UIThread.Post(() => _ = EndedAsync(ended, generation, interrupted));
         };
         player.Error += message => _session.Failure = message;
         // A Mac whose OpenGL drew the picture grey before: what brought it back (PlayerPage.Picture.cs).
@@ -386,20 +402,29 @@ public sealed partial class PlayerPage : UserControl
         }
         if (_mpv is not null) _shell.Settings.Volume = _mpv.Level;
         _loaded = false;
+        // « Now Playing » keeps the title, stopped, until the next one or the player closes.
+        TellNowPlaying();
         await ReleaseEngineAsync();
     }
-    private async Task EndedAsync(bool eof, int generation)
+    private async Task EndedAsync(bool eof, int generation, bool interrupted = false)
     {
         if (generation != _generation || _stopped) return;
+        if (interrupted) { _loaded = false; _session.Failure = null; _spinner.IsVisible = true; return; }
         // A stream from Jellyfin that stopped before the end of its title: the connection, as on Windows and Mira web.
         if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
-        var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay;
+        var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay; var film = _skips.Film;
         if (eof && _session.Duration > 0) _session.Position = _session.Duration;
         // « Arrêter à la fin de l’épisode »: this one was the last.
         var last = eof && _sleep.AtEnd;
         if (last) _sleep.Clear();
+        // The trailer over (or unreadable): its film, as at the cinema.
+        if (film is not null && (eof || error is not null) && !last) { await PlayFilmAsync(film); return; }
         if (eof && _shell.Settings.AutoNext && !last && !stay && _session.Item?.Type == "Episode" && (next ?? await NextAfterAsync(_session.Item)) is { } following)
-        { await PlayNextAsync(following, completed: true); return; }
+        {
+            // « Tu regardes toujours ? »: three episodes in a row with nothing touched, the next one waits for an answer.
+            if (AsksStillWatching()) { await AskStillWatchingAsync(following); return; }
+            _nextByItself = true; await PlayNextAsync(following, completed: true); return;
+        }
         if (error is not null) { await FailAsync(error, _session.Item); return; }
         await StopAsync(eof);
         await _shell.CloseOverlayPlayerAsync(this);
@@ -424,6 +449,21 @@ public sealed partial class PlayerPage : UserControl
         }
         if (!await StartAsync(next)) await _shell.CloseOverlayPlayerAsync(this);
     }
+    /// <summary>The film after its trailer, in this same player.</summary>
+    private async Task PlayFilmAsync(MediaItem film)
+    {
+        await StopAsync();
+        if (!await StartAsync(film, trailerDone: true)) await _shell.CloseOverlayPlayerAsync(this);
+    }
+    /// <summary>
+    /// The trailer kept on the server for <paramref name="film"/>; null when there is none, or Jellyfin did not answer in
+    /// time: the film starts as usual, never held up by its trailer.
+    /// </summary>
+    private static async Task<MediaItem?> TrailerOfAsync(Session session, MediaItem film)
+    {
+        try { return (await session.Client.LocalTrailersAsync(film.Id, session.Lifetime).WaitAsync(TimeSpan.FromSeconds(4))).FirstOrDefault(); }
+        catch (Exception ex) when (Errors.Expected(ex) || ex is TimeoutException) { return null; }
+    }
     /// <summary>The group's next title, in this same player.</summary>
     public async Task PlayForGroupAsync(MediaItem item, long start)
     {
@@ -446,6 +486,7 @@ public sealed partial class PlayerPage : UserControl
         _loaded = true; _spinner.IsVisible = false;
         SayAudioMissing();
         _session.Paused = mpv.Flag("pause"); _session.Duration = mpv.Number("duration", _session.Duration); _session.Position = mpv.Number("time-pos", _session.Position);
+        _stallFrom = _session.Position;
         _skips.FileChapters = mpv.Chapters(); Rebuild();
         ShowControls();
         // Opened again (another quality, the connection back): the same playback goes on for Jellyfin, told at the next
@@ -471,14 +512,17 @@ public sealed partial class PlayerPage : UserControl
     private bool _tickBusy;
     private async void Tick()
     {
-        if (_tickBusy || _mpv is not { } mpv) return;
+        if (_mpv is not { } mpv) return;
+        // Before mpv is asked anything, even while the previous tick still awaits its report: only a Mac asleep stops the ticks.
+        NoticeSleep();
+        if (_tickBusy) return;
         _tickBusy = true;
         try
         {
             mpv.Poll(); ShowGroup();
             // The video on its way to or from the small window, paused for that moment: never a pause for the group.
             if (_mpv is null || !_loaded || _stopped || _pipMoving) return;
-            ShowBuffering(mpv); KeepTracks(mpv);
+            ShowBuffering(mpv); WatchStall(); KeepTracks(mpv);
             _session.Position = Reported(mpv.Number("time-pos", _session.Position)); _session.Duration = mpv.Number("duration", _session.Duration);
             _recovery.Played(_session.Position);
             var paused = mpv.Flag("pause");
@@ -490,6 +534,7 @@ public sealed partial class PlayerPage : UserControl
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
+            TellNowPlaying();
             // « Minuterie »: the minutes are over, the film pauses where it is.
             if (_sleep.Due(DateTimeOffset.Now)) { if (!paused) { mpv.Set("pause", "yes"); _shell.Notice(L("Minuterie : lecture en pause.", "Sleep timer: playback paused.")); } RefreshMenus(); }
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
@@ -522,7 +567,7 @@ public sealed partial class PlayerPage : UserControl
     }
     private void Hold(double target)
     {
-        _session.Hold(target, DateTimeOffset.UtcNow);
+        _session.Hold(target, DateTimeOffset.UtcNow); _stallFrom = target;
         _timeline.Hold(target); ShowTime(target);
     }
     private void TogglePause()
@@ -568,6 +613,8 @@ public sealed partial class PlayerPage : UserControl
     /// <summary>F, ⌘F, ⌃⌘F and the menu bar's « Plein écran ».</summary>
     public void ToggleFullscreen()
     {
+        // In couch mode the window stays full screen: it is the TV's.
+        if (_shell.InCouchMode) { _fullscreenIcon.Kind = "collapse"; ShowControls(); return; }
         _shell.WindowState = _shell.WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
         _fullscreenIcon.Kind = _shell.WindowState == WindowState.FullScreen ? "collapse" : "fullscreen";
         ShowControls();
@@ -609,7 +656,7 @@ public sealed partial class PlayerPage : UserControl
             foreach (var track in tracks.Where(x => x.Type == type))
                 list.Children.Add(Entry(track.Label, track.Details, selected == track.Id, () => ChooseTrack(type == "audio" ? "aid" : "sid", track.Id)));
             if (type == "sub") { list.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync())); AddSubtitleSearch(list); }
-            else AddAudioDevices(list);
+            else { AddNightSound(list); AddAudioDevices(list); }
             return list;
         }
         return Ui.Row(18, Column(L("AUDIO", "AUDIO"), "audio", current.Audio, false), Column(L("SOUS-TITRES", "SUBTITLES"), "sub", current.Sub, true));
@@ -831,13 +878,13 @@ public sealed partial class PlayerPage : UserControl
         // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there.
         if (_loaded && !_stopped && !_timeline.Dragging && _skips.AutoSkip(_session.Position, _shell.Settings.AutoSkip && !Group.Active) is { } passage) SeekTo(passage.End, exact: true);
         // Without a credits marker, the next episode during the last seconds.
-        if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext && !_sleep.AtEnd) && _skips.Active is not null)
+        if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext && !_sleep.AtEnd && !AsksStillWatching()) && _skips.Active is not null)
         {
             _skipText.Text = _skips.Label(_session.Item?.Type == "Episode");
             ToolTip.SetTip(_skip, _skipText.Text + " · S");
         }
         // Playback time drives the countdown, so pausing pauses it too.
-        if (_skips.Due(_session.Position) is { } next) { _ = PlayNextAsync(next, completed: true); return; }
+        if (_skips.Due(_session.Position) is { } next) { _nextByItself = true; _ = PlayNextAsync(next, completed: true); return; }
         if (_skips.CountdownText(_session.Position) is { } label) _skipText.Text = label;
         _skipCancel.IsVisible = _skips.Counting && !_mini;
         _skip.IsVisible = !_mini && _skips.Active is not null && (_controlsShown || _skips.Counting || !_session.Paused);
@@ -845,6 +892,7 @@ public sealed partial class PlayerPage : UserControl
     private void Skip()
     {
         if (_skips.Active is not { } segment || _mpv is null || !_loaded) return;
+        if (_skips.Film is { } film) { _ = PlayFilmAsync(film); return; }
         if (_skips.ToNext && _skips.Next is { } next) { _ = PlayNextAsync(next, completed: true); return; }
         SeekTo(segment.End, exact: true); _skip.IsVisible = false;
     }
@@ -859,9 +907,11 @@ public sealed partial class PlayerPage : UserControl
     {
         if (FailureShown) return;
         var status = Group.Active && Group.Group is { } group && _shell.Session is { } session ? Together.GroupStatus(group, session.Connection.UserName, !_loaded || _groupReadyPending || _groupStallSince is not null) : null;
-        var said = status is not null && DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
-        if (status is not null) { _groupText.Text = said ?? status.Text; _groupPill.IsVisible = true; }
-        _groupPill.Opacity = !_mini && status is not null && (said is not null || status.Alert || _controlsShown) ? 1 : 0;
+        // A message from another device (Jellyfin's remote control) goes in the same pill, in or out of a group.
+        var said = DateTimeOffset.UtcNow < _remoteSaidUntil ? _remoteSaid : status is not null && DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
+        var text = said ?? status?.Text;
+        if (text is not null) { _groupText.Text = text; _groupPill.IsVisible = true; }
+        _groupPill.Opacity = !_mini && text is not null && (said is not null || status!.Alert || _controlsShown) ? 1 : 0;
     }
     public void ShowMember(string said) { _groupMember = said; _groupMemberUntil = DateTimeOffset.UtcNow.AddSeconds(4); ShowGroup(); }
     /// <summary>A command of the group, for the title playing here only: the Stop sent on joining names none.</summary>

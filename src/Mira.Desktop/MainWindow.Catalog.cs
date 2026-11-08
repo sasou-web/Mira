@@ -192,7 +192,7 @@ public partial class MainWindow
         var settings = !guide && SettingsOverlay.IsHitTestVisible && SettingsOverlay.Visibility == Visibility.Visible;
         var torlink = !guide && !settings && TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
         Button? shown = null;
-        foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, OfflineNav, TorLinkNav, GuideNav, SettingsNav })
+        foreach (var button in RailButtons)
         {
             var active = guide ? button == GuideNav : settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _catalog.View;
             if (active) shown = button;
@@ -202,6 +202,10 @@ public partial class MainWindow
         }
         MoveRailIndicator(shown);
     }
+    /// <summary>The rail's buttons, top to bottom.</summary>
+    private Button[] RailButtons => [HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, OfflineNav, TorLinkNav, GuideNav, SettingsNav];
+    /// <summary>The rail's button of the page shown (its tile), else null.</summary>
+    private Button? ShownRailButton() => _railActive is { IsVisible: true } active && RailButtons.Contains(active) ? active : null;
     private static bool HighContrast => SystemParameters.HighContrast;
     /// <summary>The icon's ink, turned in step with the tile sliding under it.</summary>
     private static void Ink(Button button, Brush target, bool animate)

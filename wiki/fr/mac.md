@@ -56,12 +56,29 @@ Mira ne peut pas se remplacer quand elle tourne depuis l’image disque, depuis 
 
 Pour arrêter la recherche automatique, désactive **Réglages → Mira sur ce Mac → Mettre à jour automatiquement**.
 
+## Fenêtre et menus
+
+Mira se comporte comme les apps du Mac :
+
+- La fenêtre revient où tu l’as laissée, sur le même écran, à la même taille (au centre si cet écran n’est plus là).
+- <kbd>⌘</kbd> + <kbd>W</kbd> ou le bouton rouge ferme la fenêtre, Mira reste dans le Dock : un clic sur son icône la ramène. Ce qui jouait s’arrête, et où tu en étais est gardé. <kbd>⌘</kbd> + <kbd>Q</kbd> quitte Mira.
+- **Aide** ouvre ce guide, **Raccourcis clavier** (<kbd>⌘</kbd> + <kbd>/</kbd>) et **Exporter un rapport…**, le fichier à joindre quand tu signales un problème.
+
 ## Trackpad
 
 Mira suit les réglages de ton trackpad (défilement naturel, balayer entre les pages).
 
-- Dans la bibliothèque : deux doigts sur le côté pour revenir et avancer, pincer pour changer la taille des affiches, clic forcé sur une affiche pour son menu.
+- Dans la bibliothèque : deux doigts sur le côté pour revenir et avancer (la page suit tes doigts, comme dans Safari ; lâche avant mi-chemin pour rester), pincer pour changer la taille des affiches, clic forcé sur une affiche pour son menu.
 - Dans le lecteur : à gauche ou à droite pour avancer et reculer, en haut ou en bas pour le volume ; écarter deux doigts passe en plein écran, pincer en sort, puis réduit le lecteur en mini-lecteur.
+
+## Films en HDR
+
+Sur Mac, Mira montre un film HDR (HDR10, HDR10+, HLG, Dolby Vision) en SDR : mpv le ramène (tone mapping) à la plage ordinaire avant l’écran. Les couleurs restent justes et Jellyfin ne convertit rien, mais la luminosité en plus du HDR est perdue, même sur un MacBook Pro ou un Pro Display XDR.
+
+C’est une limite de la façon dont Mira dessine la vidéo sur Mac (une vue OpenGL en 8 bits, sans la plage étendue du Mac), pas de ton fichier ni de ton écran. Dans le lecteur, **⋮ → Informations**, la ligne **Couleurs** le dit : « HDR10 → SDR (limite du rendu) ».
+
+> [!NOTE]
+> Sous Windows, Mira envoie le HDR tel quel à l’écran quand le HDR de Windows est allumé. Sur iPhone, le lecteur d’Apple montre le HDR et le Dolby Vision.
 
 ## Repartir de zéro
 

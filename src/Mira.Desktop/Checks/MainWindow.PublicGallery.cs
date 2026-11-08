@@ -81,6 +81,7 @@ public partial class MainWindow
             SelectSettingsTab("appearance"); await CaptureAsync(output, "09-appearance-settings");
             SelectSettingsTab("server"); await CaptureAsync(output, "10-server-settings");
             SelectSettingsTab("updates"); await CaptureAsync(output, "10b-this-pc-settings");
+            SelectSettingsTab("privacy"); await CaptureAsync(output, "10d-privacy-settings");
             // What a beginner needs first, the rest behind « Réglages avancés »: opened, it shows the picture and the decoding.
             SelectSettingsTab("playback"); PlaybackAdvanced.IsExpanded = true; await CaptureAsync(output, "10c-playback-advanced"); PlaybackAdvanced.IsExpanded = false;
             await Page("library", "11-hover");
@@ -165,6 +166,8 @@ public partial class MainWindow
             if (PlayerErrorShown || PlayerShell.IsVisible || !LibraryShell.IsVisible) throw new InvalidOperationException("« Retour » does not leave the player's error screen.");
             // A click on Favori or Vu moves nothing on the title page, during the change and after it.
             drawn.AddRange(await CheckTitleRowStillAsync(output));
+            // « Mode canapé »: full screen, zoomed, the arrows and a controller anywhere on the screen.
+            drawn.Add(await CheckCouchAsync(output));
             await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {16 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }

@@ -11,11 +11,15 @@ public static partial class MacMotion
     [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial IntPtr Send(IntPtr receiver, IntPtr selector);
     [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial byte SendBool(IntPtr receiver, IntPtr selector);
 
+    private static bool? _forced;
+    /// <summary>For the self-check: macOS's choice set aside (null gives it back). The Mac runner leaves out motion.</summary>
+    public static void Override(bool? reduced) => _forced = reduced;
     /// <summary>The motion to leave out (a pulse, a slide); false where it cannot be read (Linux, where the self-check runs).</summary>
     public static bool Reduced
     {
         get
         {
+            if (_forced is { } forced) return forced;
             if (!OperatingSystem.IsMacOS()) return false;
             try
             {

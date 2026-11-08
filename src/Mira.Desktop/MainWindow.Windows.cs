@@ -34,6 +34,8 @@ public partial class MainWindow
                 case DesktopCommand.Show: RestoreFromWindows(); break;
                 case DesktopCommand.Hide:
                     if (_fullscreen) ToggleFullscreen();
+                    // Couch mode comes back with the window (InitializeCouch).
+                    SetCouchScreen(false);
                     WindowState = WindowState.Minimized; Hide(); break;
                 case DesktopCommand.Quit: Close(); break;
                 case DesktopCommand.Play: SetWindowsPause(false); break;

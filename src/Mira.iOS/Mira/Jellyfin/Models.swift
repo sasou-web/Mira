@@ -38,9 +38,37 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var chapters: [Chapter]?
     /// Jellyfin's trickplay pictures (Items/{id} only), by file and by width: the thumbnails over the timeline.
     var trickplay: [String: [String: TrickplayInfo]]?
+    /// Cast and crew (Items/{id} only): the actors under a title's summary, each opening their page (Credits).
+    var people: [Person]?
+    /// A person's birth and death (Items/{id} of a person), and where they were born.
+    var premiereDate: String?
+    var endDate: String?
+    var productionLocations: [String]?
+    /// How many trailers its folder holds (Items/{id} only): « Trailer » plays the first one in Mira (Trailers).
+    var localTrailerCount: Int?
+    /// Its trailers on the web (Items/{id} only, YouTube from TMDb): opened in Safari, never in Mira.
+    var remoteTrailers: [RemoteTrailer]?
+    /// « Virtual » for an episode Jellyfin knows of without its file (TheTVDB's extension: EpisodeCalendar).
+    var locationType: String?
+    /// A collection's folder in Jellyfin's data (fields=Path): its name is taken (TitleCollections.nameProblem).
+    var path: String?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }
+}
+
+/// Someone in a title's credits, as Jellyfin lists them: an actor and their role, a director.
+struct Person: Codable, Sendable, Hashable {
+    var id: String?
+    var name: String?
+    var role: String?
+    var type: String?
+    var primaryImageTag: String?
+}
+
+struct RemoteTrailer: Codable, Sendable, Hashable {
+    var url: String?
+    var name: String?
 }
 
 struct Chapter: Codable, Sendable, Hashable {

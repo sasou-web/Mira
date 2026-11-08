@@ -9,9 +9,9 @@ name: iPhone build
 on:
   push:
     branches: [main]
-    paths: ["src/Mira.iOS/**", "src/Mira.Tailscale/**", "tools/ios/**", "tests/fixtures/**", ".github/workflows/ios.yml"]
+    paths: ["src/Mira.iOS/**", "src/Mira.Tailscale/**", "tools/ios/**", "tools/perf/**", "tests/fixtures/**", ".github/workflows/ios.yml"]
   pull_request:
-    paths: ["src/Mira.iOS/**", "src/Mira.Tailscale/**", "tools/ios/**", "tests/fixtures/**", ".github/workflows/ios.yml"]
+    paths: ["src/Mira.iOS/**", "src/Mira.Tailscale/**", "tools/ios/**", "tools/perf/**", "tests/fixtures/**", ".github/workflows/ios.yml"]
   # No "release: published": GitHub runs nothing for a draft, and an immutable release takes no file once published.
   workflow_dispatch:
     inputs:
@@ -163,6 +163,14 @@ jobs:
           [ $status -eq 0 ] || tail -60 .artifacts/tests.log
           xcrun xcresulttool get test-results summary --path .artifacts/tests.xcresult --compact 2>/dev/null | head -c 4000 || true
           exit $status
+      # Mira's opening as testOpening times it (MIRA-OPENING lines), held to tools/perf/budgets.json (source "iphone"):
+      # far past what this simulator measures, as Windows' and the Mac's smoothness. Not in a release, which pull
+      # requests measured.
+      - name: Opening budgets
+        if: always() && inputs.release == '' && hashFiles('.artifacts/tests.log') != ''
+        run: |
+          node tools/perf/ios-opening.mjs .artifacts/tests.log .artifacts/opening.json
+          if grep -q '"Name"' .artifacts/opening.json; then node tools/perf/budget.mjs iphone .artifacts/opening.json --title 'Opening budgets (iPhone simulator)'; else echo "testOpening did not run: nothing to hold."; fi
       # The log Built-in Tailscale kept in the app's folder (testTailscale runs last: no reset after it), and the stand-in
       # network's: on a failure, the end of each here, all of them in the artifact.
       - name: Tailscale logs

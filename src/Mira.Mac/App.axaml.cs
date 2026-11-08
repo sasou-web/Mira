@@ -15,8 +15,9 @@ public partial class App : Application
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
     private static MainWindow? Main => (Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow as MainWindow;
     private void About_Click(object? sender, EventArgs e) => Updates.Open(Updates.Project);
-    private void Settings_Click(object? sender, EventArgs e) => Main?.Go("settings");
-    private void Updates_Click(object? sender, EventArgs e) { if (Main is { } window) _ = Updates.CheckAsync(window, asked: true); }
+    // The window first, when it was closed to the Dock.
+    private void Settings_Click(object? sender, EventArgs e) { Main?.Reopen(); Main?.Go("settings"); }
+    private void Updates_Click(object? sender, EventArgs e) { if (Main is { } window) { window.Reopen(); _ = Updates.CheckAsync(window, asked: true); } }
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -35,9 +36,14 @@ public partial class App : Application
             desktop.MainWindow = window;
             NameMenu();
             // mira:// links (« Ouvrir dans Mira » of Mira web, CFBundleURLTypes in tools/mac/package.sh), given by macOS
-            // to the Mira already open, or to the one it starts for them.
+            // to the Mira already open, or to the one it starts for them. A click on the Dock icon (Reopen) brings back
+            // the window closed with ⌘W.
             if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime activation)
-                activation.Activated += (_, e) => { if (e is ProtocolActivatedEventArgs { Kind: ActivationKind.OpenUri } link) Dispatcher.UIThread.Post(() => window.OpenLink(link.Uri.OriginalString)); };
+                activation.Activated += (_, e) =>
+                {
+                    if (e is ProtocolActivatedEventArgs { Kind: ActivationKind.OpenUri } link) Dispatcher.UIThread.Post(() => { window.Reopen(); window.OpenLink(link.Uri.OriginalString); });
+                    else if (e.Kind == ActivationKind.Reopen) Dispatcher.UIThread.Post(window.Reopen);
+                };
             Dispatcher.UIThread.UnhandledException += (_, e) => Unhandled(desktop, e);
         }
         base.OnFrameworkInitializationCompleted();
@@ -59,7 +65,7 @@ public partial class App : Application
         if (window.Args.Contains("--self-check") || window.Args.Contains("--tailnet-check") || window.Args.Contains("--smooth-check")) return;
         e.Handled = true;
         // Closing, or not open yet: nothing is left to retry from, and a hidden window would keep Mira running. It ends.
-        if (window.IsClosing || !window.IsVisible) { desktop.Shutdown(1); return; }
+        if (window.IsClosing || !window.IsVisible && !window.InDock) { desktop.Shutdown(1); return; }
         window.Notice(L("Une opération n’a pas abouti. Tu peux réessayer ; la progression déjà enregistrée reste conservée.", "Something didn’t work. You can try again; the progress already saved is kept."));
     }
 }

@@ -183,6 +183,17 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings did not open")
         settle()
         capture("09-settings")
+        // Privacy: every connection out, with Built-in Tailscale's switch (PrivacyView).
+        let privacy = app.buttons["settings.privacy"]
+        for _ in 0..<5 where !(privacy.exists && privacy.isHittable) { app.swipeUp() }
+        XCTAssertTrue(privacy.waitForExistence(timeout: 5), "No Privacy row in Settings")
+        privacy.tap()
+        XCTAssertTrue(app.navigationBars["Privacy"].waitForExistence(timeout: 10), "Privacy did not open")
+        XCTAssertTrue(app.switches["privacy.tailscale"].waitForExistence(timeout: 5), "No Built-in Tailscale switch in Privacy")
+        settle()
+        capture("09c-privacy")
+        app.navigationBars["Privacy"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Privacy did not lead back to Settings")
         let signOut = signOutButton(app)
         XCTAssertTrue(signOut.exists, "No Sign out at the bottom of Settings")
         capture("09b-settings-bottom")
@@ -226,6 +237,60 @@ final class MiraUITests: XCTestCase {
         capture("14-reglages")
         XCTAssertTrue(signOutButton(app).exists, "Pas de Se déconnecter en bas des Réglages")
         capture("14b-reglages-bas")
+    }
+
+    /// « Keep on this iPhone »: a film kept as its file (Tears of Steel), another as Jellyfin's conversion (Cosmos
+    /// Laundromat, an MKV for the stand-in: its HLS segments put end to end); then Jellyfin away, « On this iPhone »
+    /// plays the copy; Jellyfin back, it hears where the copy was left.
+    @MainActor
+    func testKeep() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let movies = app.buttons["tab.movies"]
+        for (name, shot) in [("Tears of Steel, 2012", "61-keep-file"), ("Cosmos Laundromat, 2015", "62-keep-converted")] {
+            XCTAssertTrue(movies.waitForExistence(timeout: 5), "No Movies tab")
+            movies.tap()
+            let card = app.buttons[name].firstMatch
+            XCTAssertTrue(card.waitForExistence(timeout: 15), "No card for \(name)")
+            tapCard(app, card)
+            let keep = app.buttons["title.keep"]
+            XCTAssertTrue(keep.waitForExistence(timeout: 10), "\(name): no Keep on this iPhone")
+            XCTAssertEqual(keep.label, "Keep on this iPhone")
+            keep.tap()
+            XCTAssertTrue(waitForLabel(keep, "On this iPhone", timeout: 90), "\(name) was never kept: \(keep.label)")
+            settle()
+            capture(shot)
+        }
+
+        // Jellyfin away (a PC switched off, far from home): the copy plays from this iPhone.
+        mock("/Mock/Down")
+        let before = reports("/UserData", item: Self.tearsOfSteel)
+        app.buttons["tab.settings"].tap()
+        let kept = app.buttons["settings.kept"]
+        XCTAssertTrue(kept.waitForExistence(timeout: 10), "No On this iPhone row in Settings")
+        kept.tap()
+        XCTAssertTrue(app.navigationBars["On this iPhone"].waitForExistence(timeout: 10), "On this iPhone did not open")
+        let rows = app.buttons.matching(identifier: "kept.row")
+        XCTAssertTrue(rows.element(boundBy: 1).waitForExistence(timeout: 5), "On this iPhone does not list both films")
+        settle()
+        capture("63-kept-list")
+        rows.matching(NSPredicate(format: "label CONTAINS 'Tears of Steel'")).firstMatch.tap()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let play = app.buttons["player.play"]
+        XCTAssertTrue(reveal(play, app), "The copy opened no player")
+        XCTAssertTrue(waitForLabel(play, "Pause", timeout: 15), "The copy does not play without Jellyfin: \(play.label)")
+        Thread.sleep(forTimeInterval: 1.5)
+        capture("64-kept-player")
+        closePlayer(app)
+
+        // Jellyfin back: told where the copy was left, once Mira comes back on screen.
+        mock("/Mock/Up")
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 2)
+        app.activate()
+        XCTAssertTrue(waitForReport("/UserData", item: Self.tearsOfSteel, timeout: 40, after: before), "Jellyfin never heard where the copy was left")
     }
 
     /// The largest text a person may choose short of the accessibility sizes' last ones, in French (the longer
@@ -443,6 +508,113 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForSync("GuestLeave", timeout: 15), "The guest never left the group")
         XCTAssertTrue(waitForSync("GuestLogout", timeout: 15), "The guest's session was not ended")
         XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 10), "Leaving the party did not bring the sign-in back")
+    }
+
+    /// A person's page: from a title's cast and crew (its director first, an actor credited twice shown once), their
+    /// photo, birth and titles; one of them opens its page; Search finds the person by their name too.
+    @MainActor
+    func testPerson() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "No card for Tears of Steel")
+        tapCard(app, poster)
+        XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "The title page did not open")
+        let director = app.buttons["title.person.0"], actor = app.buttons["title.person.1"]
+        XCTAssertTrue(director.waitForExistence(timeout: 10), "The title page has no cast and crew")
+        for _ in 0..<5 where !actor.isHittable { app.swipeUp() }
+        XCTAssertTrue(director.label.hasPrefix("Ian Hubert"), "The director is not first: \(director.label)")
+        XCTAssertEqual(actor.label, "Derek de Lint, Thom")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Derek de Lint'")).count, 1, "An actor credited twice shows twice")
+        settle()
+        capture("55-title-credits")
+
+        actor.tap()
+        let name = app.staticTexts["person.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10), "The person's page did not open")
+        XCTAssertEqual(name.label, "Derek de Lint")
+        XCTAssertTrue(app.staticTexts["Born July 15, 1950 · The Hague, Netherlands"].waitForExistence(timeout: 10), "No birth under the name")
+        let title = app.descendants(matching: .any)["person.titles"].buttons["Tears of Steel, 2012"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "The person's page does not list their film")
+        settle()
+        capture("56-person")
+        title.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "A title of the person's page did not open")
+
+        // The tab bar folded by the scrolling: back up, it unfolds.
+        for _ in 0..<3 { app.swipeDown() }
+        app.buttons["tab.search"].tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "Search has no search field")
+        field.tap()
+        field.typeText("derek")
+        let found = app.descendants(matching: .any)["search.people"].buttons["Derek de Lint"]
+        XCTAssertTrue(found.waitForExistence(timeout: 15), "Search did not find Derek de Lint")
+        settle()
+        capture("57-search-people")
+        found.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 10), "The person found by Search did not open their page")
+    }
+
+    /// A series' missing and coming episodes (TheTVDB's virtual episodes, from the stand-in Jellyfin), then a film put in
+    /// a collection there already and in a new one, from « … » of its page.
+    @MainActor
+    func testSeriesCalendarAndCollections() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let series = app.buttons["Pioneer One, 2010"].firstMatch
+        XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
+        tapCard(app, series)
+        let calendar = app.buttons["series.calendar"]
+        for _ in 0..<5 where !(calendar.exists && calendar.isHittable) { app.swipeUp() }
+        XCTAssertTrue(calendar.waitForExistence(timeout: 10), "The series page says nothing of its missing episode")
+        XCTAssertTrue(calendar.label.contains("1 missing episode: S1 · E4"), "Not the missing episode: \(calendar.label)")
+        XCTAssertTrue(calendar.label.contains("Next episode: S1 · E5"), "Not the next episode: \(calendar.label)")
+        calendar.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["series.calendar.list"].waitForExistence(timeout: 5), "The line did not open into its list")
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Triangle'")).firstMatch.exists, "The list does not name the missing episode")
+        settle()
+        capture("60-series-calendar")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        for _ in 0..<3 { app.swipeDown() }
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "No card for Tears of Steel")
+        tapCard(app, poster)
+        let more = app.buttons["title.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "The title page has no « … »")
+        more.tap()
+        let add = app.buttons.matching(NSPredicate(format: "identifier == 'title.collection' OR label == 'Add to a collection…'")).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "« … » has no Add to a collection")
+        add.tap()
+        let existing = app.buttons["collection.row.Movie nights"]
+        XCTAssertTrue(existing.waitForExistence(timeout: 10), "The sheet does not list the collection already there")
+        existing.tap()
+        let status = app.staticTexts["collection.status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 10), "Nothing said once the film was added")
+        XCTAssertEqual(status.label, "Added to “Movie nights”.")
+        let name = "Shorts \(Int(Date().timeIntervalSince1970))"
+        let field = app.textFields["collection.name"]
+        focus(field)
+        field.typeText(name)
+        app.buttons["collection.create"].tap()
+        XCTAssertTrue(app.buttons["collection.row.\(name)"].waitForExistence(timeout: 10), "The new collection is not in the list")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "Collection “\(name)” created with “Tears of Steel”.")).firstMatch.waitForExistence(timeout: 5),
+                      "The new collection is not said")
+        // The name of a collection there already is refused before Jellyfin sees it.
+        focus(field)
+        field.typeText("movie NIGHTS")
+        app.buttons["collection.create"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "This name is already taken by the collection “Movie nights”.")).firstMatch.waitForExistence(timeout: 5),
+                      "A name taken was not refused")
+        settle()
+        capture("61-collections")
+        app.buttons["collection.done"].tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 5), "Done did not close the sheet")
     }
 
     /// The README's and the site's captures of the app (gallery.yml, never ios.yml: skipped without MIRA_GALLERY_SERVER):

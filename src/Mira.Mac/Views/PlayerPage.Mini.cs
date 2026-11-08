@@ -58,7 +58,7 @@ public sealed partial class PlayerPage
         // The video in the small window: expanding brings it back first (PlayerPage.Pip.cs), which comes here again.
         if (!mini && _pip is not null && !_pipMoving) { _ = ReturnFromPipAsync(); return; }
         if (mini == _mini || _stopped && mini) return;
-        if (mini && _shell.WindowState == WindowState.FullScreen) ToggleFullscreen();
+        if (mini && _shell.WindowState == WindowState.FullScreen && !_shell.InCouchMode) ToggleFullscreen();
         foreach (var button in new[] { _tracks, _more, _episodesButton }) (button.Flyout as Avalonia.Controls.Flyout)?.Hide();
         _mini = mini; _miniDragging = false; _miniPress = null; RenderTransform = null;
         _chrome.IsVisible = _skipHost.IsVisible = !mini;

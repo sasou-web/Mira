@@ -68,6 +68,12 @@ public sealed record MediaItem
     public string? ExtraType { get; init; }
     /// <summary>How many bonus videos a film or series has (<see cref="JellyfinClient.ExtrasAsync"/>), returned by the single-item request.</summary>
     public int? SpecialFeatureCount { get; init; }
+    /// <summary>How many trailers its folder holds (a « trailers » folder, « …-trailer.mkv »; <see cref="JellyfinClient.LocalTrailersAsync"/>), returned by the single-item request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LocalTrailerCount { get; init; }
+    /// <summary>Its trailers on the web (YouTube, from TMDb), returned by the single-item request: opened in the browser, never in Mira (<see cref="Trailers"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<RemoteTrailer>? RemoteTrailers { get; init; }
     /// <summary>
     /// The ids of the title on TMDb, IMDb, TVDb… as Jellyfin matched it (« Tmdb » → « 438631 »), asked for with
     /// Fields=ProviderIds; none when Jellyfin recognized nothing (<see cref="TitleIdentity"/>).
@@ -110,6 +116,13 @@ public sealed record MediaItem
     private PersonInfo[] Credited(string type, int count) => People.Where(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase))
         .Select(x => x with { Name = x.Name.Trim() }).Where(x => x.Name.Length > 0).DistinctBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Take(count).ToArray();
     public static string FormatDuration(TimeSpan span) => span.TotalHours >= 1 ? L($"{(int)span.TotalHours} h {span.Minutes:00}", $"{(int)span.TotalHours} hr {span.Minutes} min") : $"{Math.Max(1, span.Minutes)} min";
+}
+
+/// <summary>A trailer Jellyfin knows on the web (TMDb gives YouTube's): its address and its name.</summary>
+public sealed record RemoteTrailer
+{
+    public string? Url { get; init; }
+    public string? Name { get; init; }
 }
 
 public sealed record PersonInfo
@@ -272,7 +285,13 @@ public sealed class PlayerSettings
     public string AudioChannels { get; set; } = AudioOutput.AutoChannels;
     /// <summary>« off », « optical » or « hdmi » (<see cref="AudioOutput.Codecs"/>).</summary>
     public string AudioPassthrough { get; set; } = AudioOutput.Off;
+    /// <summary>« Son de nuit » (<see cref="Mira.Core.NightSound"/>): loud passages brought down, quiet ones raised; kept for the next videos.</summary>
+    public bool NightSound { get; set; }
     public bool AutoNext { get; set; } = true;
+    /// <summary>« Tu regardes toujours ? » (<see cref="Mira.Core.StillWatching"/>): after 3 episodes in a row untouched, the next one waits for an answer.</summary>
+    public bool StillWatching { get; set; } = true;
+    /// <summary>« Bande-annonce avant le film » (<see cref="Trailers.PlaysFirst"/>): a film started from the beginning plays its trailer kept on the server first.</summary>
+    public bool TrailerFirst { get; set; }
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
     public bool AutoSkip { get; set; }
     public int SubtitleSize { get; set; } = 40;
@@ -284,6 +303,8 @@ public sealed class PlayerSettings
     public int SubtitleHeight { get; set; } = 100;
     public bool ShowProgress { get; set; } = true;
     public bool ReduceMotion { get; set; }
+    /// <summary>« Mode canapé » (<see cref="Couch"/>): full screen, larger pages, the arrow keys and a controller everywhere. Mira for Windows and Mac.</summary>
+    public bool CouchMode { get; set; }
     public string PosterDensity { get; set; } = "Comfortable";
     public bool RememberPosition { get; set; } = true;
     /// <summary>« Reprendre un peu avant »: seconds a title resumes before where it was left (<see cref="PlaybackSession.ResumeBack"/>); 0: exactly there.</summary>
@@ -359,8 +380,9 @@ public sealed class PlayerSettings
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }
     public bool WindowMaximized { get; set; }
-    /// <summary>Windows: the top-left corner of the window outside maximized and minimized, in device pixels of the
-    /// virtual screen; null before 0.7.5 or when it was never saved. Checked against the screens present at startup.</summary>
+    /// <summary>The top-left corner of the window outside maximized and minimized: in device pixels of the virtual screen on
+    /// Windows, in points on the Mac; null before 0.7.5 (Mac: before 0.9.5) or when it was never saved. Checked against
+    /// the screens present at startup.</summary>
     public double? WindowX { get; set; }
     public double? WindowY { get; set; }
     /// <summary>« Image dans l’image » (<see cref="PictureInPicture"/>): where its window was left, its top-left corner in
@@ -391,4 +413,6 @@ public sealed class PlayerSettings
     public string JellyfinRelease { get; set; } = "";
     public DateTimeOffset? JellyfinReleaseCheckedAt { get; set; }
     public string JellyfinReleaseSaid { get; set; } = "";
+    /// <summary>Réglages → Confidentialité: winget's catalogue on GitHub asked once a day for a newer Jellyfin; false: never asked.</summary>
+    public bool JellyfinReleaseCheck { get; set; } = true;
 }

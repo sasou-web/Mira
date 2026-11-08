@@ -74,6 +74,7 @@ private struct TitleMenu: ViewModifier {
     let item: Item
     let inContinueWatching: Bool
     @Environment(AppModel.self) private var app
+    @State private var collecting = false
 
     func body(content: Content) -> some View {
         content.contextMenu {
@@ -99,7 +100,17 @@ private struct TitleMenu: ViewModifier {
                     Label(favorite ? "Remove from favorites" : "Add to favorites", systemImage: favorite ? "heart.slash" : "heart")
                 }
             }
+            // As on Windows and Mac: a film or a series in collections made by hand (TitleCollections).
+            if TitleCollections.holds(item), app.managesCollections {
+                Button {
+                    collecting = true
+                } label: {
+                    Label("Add to a collection…", systemImage: "rectangle.stack.badge.plus")
+                }
+            }
         }
+        .sheet(isPresented: $collecting) { CollectionSheet(item: item) }
+        .task { if TitleCollections.holds(item) { app.collectionRightsNeeded() } }
     }
 }
 
