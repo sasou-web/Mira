@@ -60,7 +60,10 @@ function yaml(kind, fields) {
 /** The release notes of one language: the summary, then a line per point of the version's entry in WhatsNew.json. */
 export function notes(entry, language) {
   const words = (item) => (language === 'en' ? item.en : item);
-  return [words(entry).summary, ...entry.items.map((item) => `- ${words(item).title}: ${words(item).text}`)].join('\n');
+  const lines = entry.changes?.length
+    ? entry.changes.map((change) => `- ${words(change).category}: ${words(change).text}`)
+    : entry.items.map((item) => `- ${words(item).title}: ${words(item).text}`);
+  return [words(entry).summary, ...lines].join('\n');
 }
 
 const texts = {

@@ -35,7 +35,7 @@ for (const release of releases) {
     version,
     buildVersion: version,
     date: release.published_at,
-    localizedDescription: entry ? [entry.summary, ...entry.items.map((x) => `• ${x.title} : ${x.text}`)].join('\n') : `Mira ${version}`,
+    localizedDescription: entry ? [entry.summary, ...(entry.changes?.length ? entry.changes.map((x) => `• ${x.category} : ${x.text}`) : entry.items.map((x) => `• ${x.title} : ${x.text}`))].join('\n') : `Mira ${version}`,
     downloadURL: ipa.browser_download_url,
     size: ipa.size,
     minOSVersion: '26.0',

@@ -51,6 +51,7 @@ public sealed partial class MainWindow
         var help = Menu(L("Aide", "Help"),
             Item(L("Guide de Mira pour Mac", "Mira for Mac Guide"), null, () => Updates.Open(Guide)),
             Item(L("Raccourcis clavier", "Keyboard Shortcuts"), new KeyGesture(Key.OemQuestion, command), () => { Reopen(); ShowShortcuts(); }),
+            Item(L("Nouveautés de Mira", "What’s New in Mira"), null, () => { Reopen(); ShowWhatsNew(Mira.Core.WhatsNew.Recent(Updates.Current)); }),
             null,
             Item(L("Exporter un rapport…", "Export a Report…"), null, () => { Reopen(); _ = ExportReportAsync(); }));
         NativeMenu.SetMenu(this, new NativeMenu { Items = { edit, view, go, window, help } });

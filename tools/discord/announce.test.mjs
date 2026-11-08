@@ -12,7 +12,8 @@ test('every version of WhatsNew.json makes an announcement Discord takes', () =>
     const [embed] = body.embeds;
     assert.equal(embed.title, `Mira ${entry.version} is out`);
     assert.ok(embed.description.startsWith(entry.en.summary));
-    for (const item of entry.items) assert.ok(embed.description.includes(`**${item.en.title}** — ${item.en.text}`));
+    if (entry.changes?.length) for (const change of entry.changes) assert.ok(embed.description.includes(`• **${change.en.category}:** ${change.en.text}`));
+    else for (const item of entry.items) assert.ok(embed.description.includes(`**${item.en.title}** — ${item.en.text}`));
     assert.ok(embed.description.length <= 4096);
     assert.ok(JSON.stringify(embed).length <= 6000);
     assert.equal(embed.image.url, bannerUrl(entry.version));

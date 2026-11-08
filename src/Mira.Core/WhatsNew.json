@@ -1,8 +1,18 @@
 [
   {
-    "version": "0.9.5",
+    "version": "0.9.5", "date": "2026-11-08",
     "summary": "Le Mac rattrape les flux bloqués, télécommande, plus de filtres, iPhone hors connexion.",
     "en": { "summary": "Mac recovers stalled streams, Jellyfin remote control, more filters, the iPhone offline." },
+    "changes": [
+      { "category": "Mac", "text": "Flux bloqué et veille rattrapés tout seuls, comme sous Windows.", "en": { "category": "Mac", "text": "Stalled streams and sleep are recovered on their own, like on Windows." } },
+      { "category": "Mac", "text": "Touches multimédias, notifications de nouveaux épisodes, et ⌘W garde Mira dans le Dock.", "en": { "category": "Mac", "text": "Media keys, new-episode notifications, and ⌘W keeps Mira in the Dock." } },
+      { "category": "Bibliothèque", "text": "Filtrer par image (4K), par note et par langue audio ou de sous-titres.", "en": { "category": "Library", "text": "Filter by picture (4K), rating and audio or subtitle language." } },
+      { "category": "Télécommande", "text": "Jellyfin peut piloter Mira, et l’iPhone peut lire sur un autre appareil.", "en": { "category": "Remote", "text": "Jellyfin can control Mira, and the iPhone can play on another device." } },
+      { "category": "iPhone", "text": "Garder un titre sur le téléphone, et se connecter en scannant un QR code.", "en": { "category": "iPhone", "text": "Keep a title on the phone, and sign in by scanning a QR code." } },
+      { "category": "iPhone", "text": "Qualité plafonnée en 4G, bandes-annonces et page de chaque personne.", "en": { "category": "iPhone", "text": "Quality capped on cellular, trailers, and a page for each person." } },
+      { "category": "Lecteur", "text": "Son de nuit, spoilers cachés et « Tu regardes toujours ? ».", "en": { "category": "Player", "text": "Night sound, hidden spoilers and “Still watching?”." } },
+      { "category": "Confidentialité", "text": "Une page liste tout ce qui part de ton appareil.", "en": { "category": "Privacy", "text": "A page lists everything that leaves your device." } }
+    ],
     "items": [
       { "icon": "laptop", "title": "Le Mac, plus solide", "text": "Flux bloqué ou veille rattrapés, touches multimédias, notifications de nouveaux épisodes, fenêtre rouverte à sa place, ⌘W qui laisse Mira dans le Dock.",
         "en": { "title": "A sturdier Mac", "text": "Stalled streams and sleep recovered, media keys, new-episode notifications, the window reopens where you left it, ⌘W leaves Mira in the Dock." } },
@@ -17,9 +27,16 @@
     ]
   },
   {
-    "version": "0.9.4",
+    "version": "0.9.4", "date": "2026-11-05",
     "summary": "Mira pour Mac comme Windows, Mira web retirée, groupe visible, pages plus fluides.",
     "en": { "summary": "Mira for Mac like Windows, the browser version retired, a visible group, smoother pages." },
+    "changes": [
+      { "category": "Mac", "text": "Fiche, Réglages, lecteur et menus comme sous Windows, avec une vraie barre des menus.", "en": { "category": "Mac", "text": "Title page, Settings, player and menus now match Windows, with a real menu bar." } },
+      { "category": "Apps", "text": "Mira web est retirée ; la party d’un ami s’ouvre dans Mira sur chaque appareil.", "en": { "category": "Apps", "text": "The browser version is retired; a friend’s party opens in Mira on every device." } },
+      { "category": "Regarder ensemble", "text": "Un bouton du groupe, avec le nombre de personnes, sur chaque page.", "en": { "category": "Watch together", "text": "A group button with the number of people shows on every page." } },
+      { "category": "Fluidité", "text": "Le défilement suit l’écran sous Windows ; revenir à une page est instantané sur Mac.", "en": { "category": "Performance", "text": "Scrolling keeps up with the screen on Windows; going back is instant on Mac." } },
+      { "category": "Fiche", "text": "Favori et Vu gardent leur forme quand tu cliques dessus.", "en": { "category": "Title page", "text": "Favorite and Watched keep their shape when you click them." } }
+    ],
     "items": [
       { "icon": "laptop", "title": "Mira pour Mac comme sous Windows", "text": "Fiche, Réglages, lecteur, avis, connexion, menus : le Mac reprend ce que Windows avait déjà, avec une vraie barre des menus.",
         "en": { "title": "Mira for Mac like Windows", "text": "Title page, Settings, player, notices, sign-in, menus: the Mac gets what Windows already had, with a real menu bar." } },
@@ -34,7 +51,7 @@
     ]
   },
   {
-    "version": "0.9.3",
+    "version": "0.9.3", "date": "2026-11-04",
     "summary": "Image dans l’image, lecteur plus doux sous Windows, Réglages plus simples, gestes du trackpad.",
     "en": { "summary": "Picture in picture, a smoother player on Windows, simpler Settings, trackpad gestures." },
     "items": [
@@ -49,7 +66,7 @@
     ]
   },
   {
-    "version": "0.9.2",
+    "version": "0.9.2", "date": "2026-11-02",
     "summary": "Correctifs : qBittorrent 5, boutons de la fiche sous Windows, image grise sur Mac.",
     "en": { "summary": "Fixes: qBittorrent 5, the title page buttons on Windows, the grey picture on Mac." },
     "items": [
@@ -62,7 +79,7 @@
     ]
   },
   {
-    "version": "0.9.1",
+    "version": "0.9.1", "date": "2026-11-02",
     "summary": "Trackers privés par qBittorrent, lecteur plus fluide, Mira pour Mac par Homebrew.",
     "en": { "summary": "Private trackers through qBittorrent, a smoother player, Mira for Mac with Homebrew." },
     "items": [
@@ -79,7 +96,7 @@
     ]
   },
   {
-    "version": "0.9.0",
+    "version": "0.9.0", "date": "2026-10-31",
     "summary": "Mira pour Windows plus soignée : fiche cinéma, pages qui gardent leur place, lecteur à raccourcis.",
     "en": { "summary": "A more polished Mira for Windows: cinema title page, pages that keep their place, player shortcuts." },
     "items": [
@@ -96,7 +113,7 @@
     ]
   },
   {
-    "version": "0.8.9",
+    "version": "0.8.9", "date": "2026-10-31",
     "summary": "Ta party : un lien pour regarder ensemble, un PC de Jellyfin qui se règle seul, Windows plus net.",
     "en": { "summary": "Your party: one link to watch together, a Jellyfin PC that sets itself up, a sharper Windows app." },
     "items": [
@@ -113,7 +130,7 @@
     ]
   },
   {
-    "version": "0.8.8",
+    "version": "0.8.8", "date": "2026-10-30",
     "summary": "Profils et photo, police Nunito, pages plus claires, et Mira pour Mac qui se met à jour seule.",
     "en": { "summary": "Profiles and photos, the Nunito font, clearer pages, and Mira for Mac that updates itself." },
     "items": [
@@ -130,7 +147,7 @@
     ]
   },
   {
-    "version": "0.8.7",
+    "version": "0.8.7", "date": "2026-10-30",
     "summary": "Mira pour Mac comme sous Windows, le lecteur de Mira sur iPhone et Tailscale intégré.",
     "en": { "summary": "Mira for Mac like on Windows, Mira’s own player on iPhone, and Built-in Tailscale." },
     "items": [
@@ -147,7 +164,7 @@
     ]
   },
   {
-    "version": "0.8.6",
+    "version": "0.8.6", "date": "2026-10-29",
     "summary": "L’app iPhone, sous-titres automatiques, collections, meilleures versions et épisodes à venir.",
     "en": { "summary": "The iPhone app, automatic subtitles, collections, better versions and upcoming episodes." },
     "items": [
@@ -164,7 +181,7 @@
     ]
   },
   {
-    "version": "0.8.5",
+    "version": "0.8.5", "date": "2026-10-27",
     "summary": "Suivre une série, corriger un titre, lire loin de chez toi ; Réglages et recherche plus clairs.",
     "en": { "summary": "Follow a series, fix a title, play away from home; clearer Settings and search." },
     "items": [
@@ -181,7 +198,7 @@
     ]
   },
   {
-    "version": "0.8.4",
+    "version": "0.8.4", "date": "2026-10-24",
     "summary": "Invite un ami par un simple lien, sans compte ni Tailscale ; fenêtre d’installation sur Mac.",
     "en": { "summary": "Invite a friend with a simple link, no account or Tailscale; a proper Mac install window." },
     "items": [
@@ -194,7 +211,7 @@
     ]
   },
   {
-    "version": "0.8.3",
+    "version": "0.8.3", "date": "2026-10-23",
     "summary": "Téléchargements plus clairs, plus de pause par erreur, commandes du lecteur visibles en partage.",
     "en": { "summary": "Simpler, clearer Downloads, no accidental pauses, and player controls visible when sharing." },
     "items": [
@@ -209,7 +226,7 @@
     ]
   },
   {
-    "version": "0.8.2",
+    "version": "0.8.2", "date": "2026-10-22",
     "summary": "Téléchargements sur le PC serveur, Corbeille depuis la fiche, titres supprimés et clé de secours.",
     "en": { "summary": "Downloads on the server PC, Recycle Bin from a title page, deleted titles, and a backup key." },
     "items": [
@@ -224,7 +241,7 @@
     ]
   },
   {
-    "version": "0.8.1",
+    "version": "0.8.1", "date": "2026-10-18",
     "summary": "Mira trouve ton serveur Jellyfin toute seule à la connexion, sur ce PC, la maison ou Tailscale.",
     "en": { "summary": "Mira finds your Jellyfin server by itself at sign-in: on this PC, at home or over Tailscale." },
     "items": [
@@ -235,7 +252,7 @@
     ]
   },
   {
-    "version": "0.8.0",
+    "version": "0.8.0", "date": "2026-10-16",
     "summary": "Mira en anglais par défaut, téléchargements du PC serveur partout et meilleure version d’abord.",
     "en": { "summary": "Mira in English by default, server PC downloads everywhere, and the best release first." },
     "items": [
@@ -248,7 +265,7 @@
     ]
   },
   {
-    "version": "0.7.9",
+    "version": "0.7.9", "date": "2026-10-16",
     "summary": "Regarder ensemble plus simple, lecture plus fiable, PC serveur joignable et recherche enrichie.",
     "en": { "summary": "Easier Watch together, more reliable playback, a server PC within reach, and richer search." },
     "items": [
@@ -265,7 +282,7 @@
     ]
   },
   {
-    "version": "0.7.8",
+    "version": "0.7.8", "date": "2026-10-14",
     "summary": "Regarder ensemble, minuterie, carte graphique pour les conversions et nouveaux épisodes notifiés.",
     "en": { "summary": "Watch together, sleep timer, the graphics card for conversions, and new episode notifications." },
     "items": [
@@ -282,7 +299,7 @@
     ]
   },
   {
-    "version": "0.7.7",
+    "version": "0.7.7", "date": "2026-10-13",
     "summary": "Connexion par code, sagas, intros passées toutes seules et une fiche plus complète.",
     "en": { "summary": "Sign in with a code, collections, intros skipped for you, and a fuller title page." },
     "items": [
@@ -299,7 +316,7 @@
     ]
   },
   {
-    "version": "0.7.6",
+    "version": "0.7.6", "date": "2026-10-13",
     "summary": "Icône lisible en mode sombre sur iPhone, et un vrai écran quand un titre ne peut pas être lu.",
     "en": { "summary": "An iPhone icon that reads in dark mode, and a real screen when a title can’t play." },
     "items": [
@@ -312,7 +329,7 @@
     ]
   },
   {
-    "version": "0.7.5",
+    "version": "0.7.5", "date": "2026-10-11",
     "summary": "Plus sûr et plus léger : pare-feu limité à la maison, mises à jour vérifiées, Narrateur et clavier.",
     "en": { "summary": "Safer and lighter: firewall limited to home, verified updates, Narrator and keyboard." },
     "items": [
@@ -327,7 +344,7 @@
     ]
   },
   {
-    "version": "0.7.4",
+    "version": "0.7.4", "date": "2026-10-10",
     "summary": "Mira sur ton téléphone en un clic : le guide prépare tout, et le QR code marche aussi ailleurs.",
     "en": { "summary": "Mira on your phone in one click: the guide sets it all up, and the QR code works away from home." },
     "items": [
@@ -342,7 +359,7 @@
     ]
   },
   {
-    "version": "0.7.3",
+    "version": "0.7.3", "date": "2026-10-10",
     "summary": "Sur iPhone, un titre refusé est redemandé converti, et les onglets passent en fondu.",
     "en": { "summary": "On iPhone, a refused title is asked for again, converted, and tabs fade in." },
     "items": [
@@ -355,7 +372,7 @@
     ]
   },
   {
-    "version": "0.7.2",
+    "version": "0.7.2", "date": "2026-10-10",
     "summary": "Sur iPhone, les sous-titres des animés arrivent dans le menu d’Apple, et Mira se comporte en app.",
     "en": { "summary": "On iPhone, anime subtitles reach Apple’s menu, and Mira behaves like an app." },
     "items": [
@@ -370,7 +387,7 @@
     ]
   },
   {
-    "version": "0.7.1",
+    "version": "0.7.1", "date": "2026-10-09",
     "summary": "Sur iPhone, la lecture passe par le lecteur d’Apple, et Mira attend ton PC quand il démarre.",
     "en": { "summary": "On iPhone, playback goes through Apple’s player, and Mira waits for your PC while it starts." },
     "items": [
@@ -385,7 +402,7 @@
     ]
   },
   {
-    "version": "0.7.0",
+    "version": "0.7.0", "date": "2026-10-09",
     "summary": "Mira arrive sur iPhone, iPad et Android, servie par ton serveur Jellyfin.",
     "en": { "summary": "Mira comes to iPhone, iPad and Android, served by your Jellyfin server." },
     "items": [
@@ -398,7 +415,7 @@
     ]
   },
   {
-    "version": "0.6.0",
+    "version": "0.6.0", "date": "2026-10-08",
     "summary": "Mira arrive sur Mac, le volume monte jusqu’à 200 %, et les très longues séries sont complètes.",
     "en": { "summary": "Mira comes to the Mac, the volume goes up to 200%, and very long shows are complete." },
     "items": [
@@ -413,7 +430,7 @@
     ]
   },
   {
-    "version": "0.5.9",
+    "version": "0.5.9", "date": "2026-10-07",
     "summary": "Une fenêtre qui tient dans l’écran, et Continuer à regarder que tu ranges toi-même.",
     "en": { "summary": "A window that fits your screen, and a Continue watching row you tidy yourself." },
     "items": [
@@ -424,7 +441,7 @@
     ]
   },
   {
-    "version": "0.5.8",
+    "version": "0.5.8", "date": "2026-10-05",
     "summary": "Une fenêtre à la taille de ton écran, et ta bibliothèque hors de chez toi.",
     "en": { "summary": "A window the size of your screen, and your library away from home." },
     "items": [
@@ -437,7 +454,7 @@
     ]
   },
   {
-    "version": "0.5.7",
+    "version": "0.5.7", "date": "2026-10-02",
     "summary": "Les téléchargements se déplacent sans doublon, et Actualiser trouve tes nouveaux fichiers.",
     "en": { "summary": "Downloads move without duplicates, and Refresh finds your new files." },
     "items": [
@@ -450,7 +467,7 @@
     ]
   },
   {
-    "version": "0.5.6",
+    "version": "0.5.6", "date": "2026-10-02",
     "summary": "TorLink s’installe d’un clic, et tout tient à l’écran.",
     "en": { "summary": "TorLink installs in one click, and everything fits on screen." },
     "items": [
@@ -465,7 +482,7 @@
     ]
   },
   {
-    "version": "0.5.5",
+    "version": "0.5.5", "date": "2026-10-01",
     "summary": "Un guide pour bien démarrer, et Jellyfin plus fiable.",
     "en": { "summary": "A guide to get started, and a more reliable Jellyfin." },
     "items": [
@@ -480,7 +497,7 @@
     ]
   },
   {
-    "version": "0.5.4",
+    "version": "0.5.4", "date": "2026-10-01",
     "summary": "Jellyfin et le moteur vidéo s’installent depuis Mira.",
     "en": { "summary": "Jellyfin and the video engine install from Mira." },
     "items": [

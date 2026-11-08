@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- « Nouveautés » refaite (Windows, Mac) : les 6 dernières versions, badge de version et « Dernière », date et ancienneté, une ligne « Catégorie : texte » par changement ; rouverte par « Notes de version » (Réglages → Mira sur ce PC / ce Mac) et le menu Aide du Mac. `WhatsNew.json` gagne `date` et `changes`.
+
 ## 0.9.5 — 2026-11-08
 
 - **Son de nuit (Windows, Mac)** : dans le menu Audio et sous-titres du lecteur, sous les pistes audio, « Son de nuit » rapproche les sons forts des sons faibles : les explosions et la musique baissent, les voix remontent, pour regarder le soir à volume bas sans réveiller personne (un compresseur de son, sans retard du son). Effet immédiat, gardé pour les vidéos suivantes, compatible avec le volume au-delà de 100 %. Rien avec « Son envoyé à l’ampli tel quel » (la ligne le dit), pas sur iPhone (le lecteur d’Apple ne permet pas de filtre audio). Rien n’est envoyé nulle part.

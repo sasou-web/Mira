@@ -133,6 +133,32 @@ internal static class UpdateTests
                     && release.Items.All(x => x.EnglishTitle.Length is > 3 and <= 50 && x.EnglishText.Length is > 10 and <= 200 && x.EnglishTitle != x.FrenchTitle && x.EnglishText != x.FrenchText)
                     && !System.Text.RegularExpressions.Regex.IsMatch(release.EnglishSummary + string.Concat(release.Items.Select(x => x.EnglishTitle + x.EnglishText)), "[éèêàùçôîœ«»]"),
                     "English highlights of " + release.Version + " are missing, French or not short");
+            // « Nouveautés » lists the last versions, each with its date (CHANGELOG.md's), and its changes one line each,
+            // « Catégorie : texte », short, in both languages; a version without changes shows its highlights as lines.
+            foreach (var release in all)
+            {
+                Assert(release.Date is not null, "WhatsNew.json: no date for " + release.Version);
+                Assert(release.Changes is null or { Count: 0 } or { Count: >= 2 and <= 12 } && (release.Changes ?? []).All(x => x.FrenchCategory.Length is > 1 and <= 24 && x.EnglishCategory.Length is > 1 and <= 24
+                    && x.FrenchText.Length is > 10 and <= 140 && x.EnglishText.Length is > 10 and <= 140 && x.EnglishText != x.FrenchText && !System.Text.RegularExpressions.Regex.IsMatch(x.EnglishCategory + x.EnglishText, "[éèêàùçôîœ«»]")),
+                    "Changes of " + release.Version + " are missing English, or not short");
+                Assert(release.Lines.Count > 0, "Nothing to list for " + release.Version);
+            }
+            var changelog = Path.Combine(Repository() ?? throw new Exception("Repository not found"), "CHANGELOG.md");
+            foreach (System.Text.RegularExpressions.Match dated in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(changelog), @"^## (\d+\.\d+\.\d+) — (\d{4}-\d\d-\d\d)", System.Text.RegularExpressions.RegexOptions.Multiline))
+                if (all.FirstOrDefault(x => x.Version == dated.Groups[1].Value) is { } entry)
+                    Assert(entry.Date?.ToString("yyyy-MM-dd") == dated.Groups[2].Value, $"WhatsNew.json dates {entry.Version} {entry.Date}, CHANGELOG.md {dated.Groups[2].Value}");
+            var listed = WhatsNew.Parse("""[{"version":"0.5.1","date":"2026-09-01","summary":"Un","items":[{"icon":"check","title":"Titre","text":"Texte","en":{"title":"Title","text":"Text"}}]},{"version":"0.5.2","summary":"Deux","items":[]},{"version":"0.5.3","summary":"Trois","items":[]},{"version":"0.5.4","summary":"Quatre","items":[]},{"version":"0.5.5","summary":"Cinq","items":[]},{"version":"0.5.6","summary":"Six","items":[]},{"version":"0.5.7","summary":"Sept","items":[]},{"version":"0.5.8","date":"2026-10-02","summary":"Huit","items":[],"changes":[{"category":"Lecteur","text":"Texte","en":{"category":"Player","text":"Text"}}]}]""");
+            Assert(WhatsNew.Recent(new Version(0, 5, 7), listed).Select(x => x.Version).SequenceEqual(["0.5.7", "0.5.6", "0.5.5", "0.5.4", "0.5.3", "0.5.2"]), "The last six versions up to the one running");
+            Assert(listed[0] is { Date: { Year: 2026, Month: 10, Day: 2 }, Lines: [{ FrenchCategory: "Lecteur", EnglishCategory: "Player", EnglishText: "Text" }] } && listed[^1] is { Lines: [{ FrenchCategory: "Titre", FrenchText: "Texte", EnglishCategory: "Title" }] } && listed[1].Date is null,
+                "Dates, changes, and highlights as lines");
+            var ago = new[] { 0, 1, 3, 13, 14, 59, 60, 400, 800 }.Select(days => WhatsNew.Ago(new DateOnly(2026, 11, 8).AddDays(-days), new DateOnly(2026, 11, 8))).ToArray();
+            Assert(string.Join(" | ", ago) == "aujourd’hui | hier | il y a 3 j | il y a 13 j | il y a 2 sem. | il y a 8 sem. | il y a 2 mois | il y a 1 an | il y a 2 ans", "Ago: " + string.Join(" | ", ago));
+            Assert(WhatsNew.Day(new DateOnly(2026, 11, 8)) == "8 nov. 2026", "Day in French: " + WhatsNew.Day(new DateOnly(2026, 11, 8)));
+            Lang.Use(Lang.English);
+            ago = new[] { 0, 1, 3, 14, 60, 400 }.Select(days => WhatsNew.Ago(new DateOnly(2026, 11, 8).AddDays(-days), new DateOnly(2026, 11, 8))).ToArray();
+            var day = WhatsNew.Day(new DateOnly(2026, 11, 8));
+            Lang.Use(Lang.French);
+            Assert(string.Join(" | ", ago) == "today | yesterday | 3d ago | 2w ago | 2mo ago | 1y ago" && day == "Nov 8, 2026", "Ago in English: " + string.Join(" | ", ago) + ", " + day);
             // The version being built has its main points: the screen after the update and the release page need them.
             var project = Path.Combine("src", "Mira.Desktop", "Mira.Desktop.csproj");
             if (File.Exists(project) && System.Text.RegularExpressions.Regex.Match(File.ReadAllText(project), "<Version>([^<]+)</Version>") is { Success: true } version)
@@ -162,7 +188,7 @@ internal static class UpdateTests
                 Assert(string.Join(" ", shown.Where(x => x.Items.Any(i => i.Web)).Select(x => x.Version)) == Names(row.GetProperty("phone")), $"Mira web, since {seen} up to {current}");
             }
             var notes = WhatsNew.ReleaseNotes(all[0]); var unsigned = WhatsNew.ReleaseNotes(all[0], signed: false);
-            Assert(notes.StartsWith("**Mira** is a cinema-style Jellyfin client") && notes.Contains("\n\n" + all[0].EnglishSummary + "\n\n") && all[0].Items.All(x => notes.Contains($"**{x.EnglishTitle}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains($"Mira-{all[0].Version}-ios.ipa") && notes.Contains("/docs/INSTALLATION-IOS.md") && !notes.Contains("Mira web") && !notes.Contains("Android")
+            Assert(notes.StartsWith("**Mira** is a cinema-style Jellyfin client") && notes.Contains("\n\n" + all[0].EnglishSummary + "\n\n") && (all[0].Changes is { Count: > 0 } changes ? changes.All(x => notes.Contains($"- **{x.EnglishCategory}:** {x.EnglishText}\n")) : all[0].Items.All(x => notes.Contains($"**{x.EnglishTitle}**"))) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains($"Mira-{all[0].Version}-ios.ipa") && notes.Contains("/docs/INSTALLATION-IOS.md") && !notes.Contains("Mira web") && !notes.Contains("Android")
                 && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Contains("**Code signing policy**") && notes.Contains("certificate by [SignPath Foundation]") && notes.Contains("#code-signing-policy") && notes.Length < 2000, "Release notes (" + notes.Length + "):\n" + notes);
             Assert(unsigned.Contains("**Code signing policy**") && unsigned.Contains("are not signed") && !unsigned.Contains("certificate by") && unsigned.Contains("#code-signing-policy"), "Release notes, unsigned:\n" + unsigned);
             // The banner on top, from the tag (tools/banner, docs/releases), the rest unchanged.
