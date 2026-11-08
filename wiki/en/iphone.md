@@ -47,7 +47,7 @@ On the PC that runs Jellyfin, with your usual Windows account:
 2. Open the **Mira** source → **Mira** → **FREE**. AltStore downloads the app, signs it and installs it.
 3. Open Mira and sign in to Jellyfin. The first time on your home Wi-Fi, iOS asks for access to the **local network**: tap **Allow**, or Mira cannot see Jellyfin at home.
 
-You can also sign in with a code: **Sign in with a code** shows six digits, which an administrator approves in Mira for Windows or Mac (**Settings → Friends & guests → Allow a device**) or in Jellyfin's web page. Quick Connect must be turned on in Jellyfin.
+On Windows, the **Mira on your iPhone** card of the guide (and on Mac, **Settings → Account & server**) shows a **QR code**: scan it with the iPhone camera and Mira opens with your server already found; you only type your account. You can also sign in with a code: **Sign in with a code** shows six digits, which an administrator approves in Mira for Windows or Mac (**Settings → Friends & guests → Allow a device**) or in Jellyfin's web page. Quick Connect must be turned on in Jellyfin.
 
 ## Every day
 

@@ -34,6 +34,14 @@ Avec **Réglages → Lecture → Bande-annonce avant le film** (Windows et Mac, 
 
 Un titre compte comme vu quand il se termine, quand tu t’arrêtes après 90 %, ou quand tu passes à l’épisode suivant depuis le générique. Tu peux aussi le marquer à la main, depuis sa fiche ou son menu (clic droit ou appui long). Avec plusieurs saisons, **Marquer la saison comme vue** les marque tous d’un coup.
 
+## Spoilers
+
+Dans **Réglages → Lecture**, **Cacher les spoilers** (coupé par défaut) floute l’image d’un épisode que tu n’as pas commencé et remplace son résumé par « Pas encore vu » : son nom et son numéro restent. Sur les cartes larges (**Continuer à regarder**, **À suivre**), un épisode pas commencé montre l’image de sa saison. Commencé ou vu : tout revient. L’image cachée n’est même pas téléchargée.
+
+## Lire sur un autre appareil
+
+Sur iPhone, **…** d’un titre → **Lire sur…** liste les apps Jellyfin qu’on peut piloter (Mira pour Windows ou Mac, une app de télé) : le titre y démarre, puis une télécommande met en pause, avance et règle le volume. Mira pour Windows et Mac apparaissent dans cette liste tout seuls tant qu’ils sont ouverts.
+
 ## Rechercher
 
 <kbd>Ctrl</kbd> + <kbd>K</kbd> ou <kbd>Ctrl</kbd> + <kbd>F</kbd> sous Windows, <kbd>⌘</kbd> + <kbd>F</kbd> sur Mac. Dès deux lettres, Mira montre les personnes (acteurs, réalisateurs) dont le nom correspond, puis les titres, les épisodes et les collections.
