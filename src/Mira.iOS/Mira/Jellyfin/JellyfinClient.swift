@@ -195,6 +195,11 @@ struct JellyfinClient: Sendable {
         try await get("Items/\(id)", ["userId": userId])
     }
 
+    /// A film's or a series' trailers kept beside it, played as any video: served by Jellyfin alone.
+    func localTrailers(_ id: String) async throws -> [Item] {
+        try await get("Items/\(id)/LocalTrailers", ["userId": userId], as: [Item].self)
+    }
+
     // MARK: Pictures
 
     /// A picture of Jellyfin at the width it is shown, `width` points on a screen of `scale` pixels per point, in steps

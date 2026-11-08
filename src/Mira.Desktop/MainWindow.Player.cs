@@ -36,9 +36,12 @@ public partial class MainWindow
 
     /// <param name="groupStart">Put on by « Regarder ensemble » (MainWindow.Together.cs): opened paused there, until the group plays.</param>
     /// <param name="chosen">Picked on a page (a title, a card, a menu), not by the player: in a group that has another title on, asked first.</param>
-    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null, bool chosen = false)
+    /// <param name="trailerDone">The film after its trailer (« Bande-annonce avant le film »): never its trailer again.</param>
+    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null, bool chosen = false, bool trailerDone = false)
     {
         ClosePreview(); var asked = item; Task? darkening = null;
+        // The countdown or the end of the previous episode: started by itself (« Tu regardes toujours ? »).
+        var byItself = _nextByItself; _nextByItself = false;
         if (_playBusy) return; _playBusy = true;
         // Back from the player, the title's page is laid out afresh (« Depuis le début », the progress line).
         _detailSettled = null;
@@ -70,11 +73,14 @@ public partial class MainWindow
                 if (await AskGroupAsync(item, fromStart, completePrevious, chosen)) return;
                 groupStart = _groupQueue?.StartTicks ?? 0;
             }
+            // « Bande-annonce avant le film »: its trailer kept on the server first, the film waiting behind the pill (MainWindow.Trailers.cs).
+            MediaItem? film = null;
+            if (!trailerDone && !_demo && groupStart is null && await TrailerBeforeAsync(item, fromStart) is { } trailer) { film = item; item = trailer; }
             // The page darkens while the stream opens: the player comes up behind black, not in one cut.
             if (!_playing && !keepMini && !(_demo && _testMedia is null) && Shade is { } shade) darkening = shade.DarkenAsync(DarkenMs);
             string location; string? authorization = null; MediaSource? source = null; string session = ""; OfflineCopy? kept = null; ServerStream? stream = null;
             // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
-            double StartAt() => groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack);
+            double StartAt() => groupStart is { } ticks ? ticks / 1e7 : film is not null ? 0 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack);
             if (_demo)
             {
                 if (_testMedia is null)
@@ -99,9 +105,10 @@ public partial class MainWindow
             _playingCopy = kept; UseStream(stream);
             // After the previous playback stopped: it may have been this title, now further on or watched.
             _session.Begin(item, source, session, StartAt(), stream?.PlayMethod ?? "DirectPlay"); _loaded = false;
+            _stillWatching.Started(DateTimeOffset.Now, byItself);
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
-            PlayingTitle.Content = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Content = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : PlayerText.Subtitle(item);
-            ShowPlayingLinks(item);
+            PlayingTitle.Content = MiniTitle.Text = (film ?? item).DisplayTitle; PlayingSubtitle.Content = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : film is not null ? Trailers.Playing : PlayerText.Subtitle(item);
+            ShowPlayingLinks(film ?? item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
             AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
             HidePlayerError();
@@ -119,7 +126,7 @@ public partial class MainWindow
                 _videoHost = new VideoHost(); _videoHost.Ready += hwnd => { _videoHandle = hwnd; ready.TrySetResult(hwnd); };
                 VideoContainer.Children.Add(_videoHost); _videoHandle = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
             }
-            ResetMarkers();
+            ResetMarkers(); _skips.Film = film;
             await _engineReleased;
             _mpv = new MpvEngine(_videoHandle, _settings, picture: PictureForPlayback());
             if (_audioDelay != 0) _mpv.Set("audio-delay", _audioDelay.ToString(CultureInfo.InvariantCulture));
@@ -282,7 +289,7 @@ public partial class MainWindow
             if (interrupted) { _loaded = false; _session.Failure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
             // A stream from Jellyfin that stopped before the end of its title: the connection, as on Mira web.
             if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
-            var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _skips.Stay; var following = _skips.Next;
+            var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _skips.Stay; var following = _skips.Next; var film = _skips.Film;
             if (eof && _session.Duration > 0) _session.Position = _session.Duration;
             await StopPlaybackAsync(eof);
             // Watched to the end: shown as seen right away, and the next play starts from the beginning.
@@ -291,11 +298,15 @@ public partial class MainWindow
             // « Arrêter à la fin de l’épisode »: this one was the last.
             var last = eof && _sleep.AtEnd;
             if (last) _sleep.Clear();
+            // The trailer over (or unreadable): its film, as at the cinema.
+            if (film is not null && (eof || error is not null) && !last) { await PlayAsync(film, keepMini, trailerDone: true); return; }
             if (eof && _settings.AutoNext && !last && !_demo && !stay && previous?.Type == "Episode")
             {
                 var next = following ?? await GetNextAsync(previous);
                 if (stoppedGeneration != _playGeneration || _playing) return;
-                if (next is not null) { await PlayAsync(next, keepMini); return; }
+                // « Tu regardes toujours ? »: three episodes in a row with nothing touched, the next one waits for an answer.
+                if (next is not null && AsksStillWatching()) { ShowStillWatching(next, keepMini); return; }
+                if (next is not null) { _nextByItself = true; await PlayAsync(next, keepMini); return; }
             }
             if (error is not null) { PlaybackFailed(error, previous, keepMini, RetryText, previous is null ? null : () => PlayAsync(previous, keepMini)); return; }
             ReturnToLibrary();
@@ -307,10 +318,17 @@ public partial class MainWindow
     /// A title that could not play. In the player, its own screen says so, with « Retour » and another try (as Mira
     /// web); in the mini-player, the person is browsing: the library stays, with a message that waits to be closed.
     /// </summary>
-    private void PlaybackFailed(string message, MediaItem? item, bool mini, string action, Func<Task>? onAction)
+    private void PlaybackFailed(string message, MediaItem? item, bool mini, string action, Func<Task>? onAction) =>
+        ShowPlayerScreen(L("Lecture impossible", "Can’t play this"), "warning", message, item, mini, action, onAction);
+    /// <summary>
+    /// The player's own screen once the video has stopped: a title that could not play, or « Tu regardes toujours ? »
+    /// (<paramref name="heading"/>, <paramref name="icon"/>), with « Retour » and one action.
+    /// </summary>
+    private void ShowPlayerScreen(string heading, string icon, string message, MediaItem? item, bool mini, string action, Func<Task>? onAction)
     {
         EndPip(show: false);
         if (mini) { ReturnToLibrary(); SetNotice(message, onAction is null ? null : action, onAction is null ? null : () => _ = onAction(), sticky: true); return; }
+        PlayerErrorHeading.Text = heading; PlayerErrorIcon.Kind = icon;
         if (_fullscreen) ToggleFullscreen();
         ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); ClosePreview();
         DetailOverlay.Visibility = SettingsOverlay.Visibility = Visibility.Collapsed;
@@ -345,6 +363,8 @@ public partial class MainWindow
     private async void PlayerErrorAction_Click(object sender, RoutedEventArgs e)
     {
         if (_playerErrorAction is not { } action) return;
+        // « Continuer » after « Tu regardes toujours ? »: the next episode opens in the player, which stays.
+        if (Equals(PlayerErrorAction.Content, StillWatching.Continue)) { HidePlayerError(); await action(); return; }
         // Another try keeps the screen until the player opens or fails again (which says why once more); settings leave it.
         if (!Equals(PlayerErrorAction.Content, RetryText)) { HidePlayerError(); ReturnToLibrary(); await action(); return; }
         PlayerErrorAction.IsEnabled = false; PlayerErrorText.Text = L("Nouvel essai…", "Trying again…"); Accessible.Say(PlayerErrorText);
@@ -497,6 +517,8 @@ public partial class MainWindow
     private void ToggleFullscreen()
     {
         if (!_playing && !_fullscreen) return;
+        // Couch mode keeps the window full screen: F and a double click only bring the controls back.
+        if (_couchScreen) { if (_miniPlayer) SetMiniPlayer(false); ShowPlayerControls(); return; }
         if (_miniPlayer) SetMiniPlayer(false);
         PlayerOptionsPopup.IsOpen = false;
         _changingPlayerLayout = true;

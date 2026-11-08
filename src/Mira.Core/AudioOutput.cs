@@ -89,6 +89,17 @@ public static class AudioOutput
     public static string Device(string? chosen, IEnumerable<(string Name, string Label)> present) =>
         chosen is { Length: > 0 } name && name != Default && present.Any(x => x.Name == name) ? name : Default;
 
+    /// <summary>
+    /// « Sortie » of the player's ⋮ → Informations: the device, then « to the amplifier » when mpv sends the sound
+    /// undecoded (its <c>audio-out-params/format</c> is « spdif-… »), else the channels it gets.
+    /// </summary>
+    public static string Shown(string device, string? format, string? channels)
+    {
+        var how = (format ?? "").StartsWith("spdif", StringComparison.Ordinal) ? L("vers l’ampli, sans décodage", "to the amplifier, undecoded")
+            : channels is { Length: > 0 } ? channels == "stereo" ? L("stéréo", "stereo") : channels : null;
+        return how is null ? device : $"{device} · {how}";
+    }
+
     // WAVE_FORMAT_EXTENSIBLE speaker bits, in the order of a frame's samples.
     private const int FrontLeft = 0x1, FrontRight = 0x2, Center = 0x4, Lfe = 0x8, BackLeft = 0x10, BackRight = 0x20, SideLeft = 0x200, SideRight = 0x400;
     private static IReadOnlyList<(int Bit, string Name)> Speakers(string? channels)

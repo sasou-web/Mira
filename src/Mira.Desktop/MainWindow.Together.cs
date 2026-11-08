@@ -161,9 +161,11 @@ public partial class MainWindow
     private void UpdateGroupPill()
     {
         var status = InGroup && _playing && !_miniPlayer ? Together.GroupStatus(_group!, _client!.Connection.UserName, !_loaded || _groupReadyPending || _groupStallSince is not null) : null;
-        var said = status is null ? null : DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
-        if (status is not null && GroupPillText.Text != (said ?? status.Text)) GroupPillText.Text = said ?? status.Text;
-        var show = status is not null && (said is not null || status.Alert || _controlsVisible);
+        // A message from another device (Jellyfin's remote control) goes in the same pill, in or out of a group.
+        var said = _playing && !_miniPlayer && DateTimeOffset.UtcNow < _remoteSaidUntil ? _remoteSaid : status is null ? null : DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
+        var text = said ?? status?.Text;
+        if (text is not null && GroupPillText.Text != text) GroupPillText.Text = text;
+        var show = text is not null && (said is not null || status!.Alert || _controlsVisible);
         if (show == _groupPillShown) return;
         _groupPillShown = show;
         if (show) Motion.Reveal(GroupPill, 200, 6); else _ = Motion.HideAsync(GroupPill, 160);

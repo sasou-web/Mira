@@ -8,9 +8,12 @@ import Testing
 struct OpeningTests {
     private let start = Date(timeIntervalSinceReferenceDate: 1_000_000)
 
+    /// `noWay`: seconds since no way to Jellyfin is found (nil: a way is taken or looked for).
     private func decide(_ home: OpeningPlan.Home, after seconds: TimeInterval, signedIn: Bool = true, party: Bool = false,
-                        noWay: Bool = false) -> OpeningPlan.Decision {
-        OpeningPlan.decide(signedIn: signedIn, party: party, home: home, noWay: noWay, startedAt: start, now: start.addingTimeInterval(seconds))
+                        noWay: TimeInterval? = nil) -> OpeningPlan.Decision {
+        let now = start.addingTimeInterval(seconds)
+        return OpeningPlan.decide(signedIn: signedIn, party: party, home: home, noWaySince: noWay.map { now.addingTimeInterval(-$0) },
+                                  startedAt: start, now: now)
     }
 
     private func close(_ a: MarkStroke.Frame, _ b: MarkStroke.Frame) -> Bool {
@@ -23,21 +26,28 @@ struct OpeningTests {
         #expect(decide(.failed, after: 0.2) == .leave)
     }
 
-    @Test("Rien à attendre : l'écran de connexion, une party, aucun chemin vers Jellyfin")
+    @Test("Rien à attendre : l'écran de connexion, une party")
     func leavesAtOnce() {
         #expect(decide(.waiting, after: 0, signedIn: false) == .leave)
         #expect(decide(.kept, after: 0, party: true) == .leave)
-        #expect(decide(.waiting, after: 0.5, noWay: true) == .leave)
-        #expect(decide(.kept, after: 0.5, noWay: true) == .leave)
     }
 
-    @Test("Attend Jellyfin, jamais au-delà de ses limites")
-    func waitsWithinItsLimits() {
-        #expect(decide(.waiting, after: 1) == .wait(until: start.addingTimeInterval(OpeningPlan.withNothing)))
-        #expect(decide(.waiting, after: OpeningPlan.withNothing) == .leave)
-        // The Home kept from the last time: shown sooner rather than Jellyfin waited for.
-        #expect(decide(.kept, after: 1) == .wait(until: start.addingTimeInterval(OpeningPlan.withKept)))
-        #expect(decide(.kept, after: OpeningPlan.withKept) == .leave)
+    @Test("Aucun chemin vers Jellyfin : l'Accueil dit pourquoi, après un instant")
+    func noWay() {
+        #expect(decide(.waiting, after: 0.5, noWay: 0) == .wait(until: start.addingTimeInterval(0.5 + OpeningPlan.noWay)))
+        #expect(decide(.waiting, after: 2, noWay: OpeningPlan.noWay) == .leave)
+        #expect(decide(.kept, after: 2, noWay: OpeningPlan.noWay) == .leave)
+        // Near the end, the opening's own limit stands.
+        #expect(decide(.kept, after: OpeningPlan.longest - 0.5, noWay: 0) == .wait(until: start.addingTimeInterval(OpeningPlan.longest)))
+    }
+
+    @Test("Attend la bibliothèque de Jellyfin, même avec l'Accueil gardé, jamais au-delà de sa limite")
+    func waitsForTheLibrary() {
+        #expect(decide(.waiting, after: 1) == .wait(until: start.addingTimeInterval(OpeningPlan.longest)))
+        #expect(decide(.waiting, after: OpeningPlan.longest) == .leave)
+        // The Home kept from the last time is not the library as it is now: Jellyfin is waited for all the same.
+        #expect(decide(.kept, after: 3.5) == .wait(until: start.addingTimeInterval(OpeningPlan.longest)))
+        #expect(decide(.kept, after: OpeningPlan.longest) == .leave)
     }
 
     @Test("Jellyfin a répondu : les images du haut de l'écran, un instant au plus")
@@ -46,10 +56,10 @@ struct OpeningTests {
         #expect(decide(.answered(answered), after: 2.3) == .wait(until: answered.addingTimeInterval(OpeningPlan.pictures)))
         #expect(decide(.answered(answered), after: 2 + OpeningPlan.pictures + 0.01) == .leave)
         // Answered late: the opening's own limit stands.
-        let late = start.addingTimeInterval(OpeningPlan.withNothing - 0.5)
-        #expect(decide(.answered(late), after: OpeningPlan.withNothing - 0.4) == .wait(until: start.addingTimeInterval(OpeningPlan.withNothing)))
+        let late = start.addingTimeInterval(OpeningPlan.longest - 0.5)
+        #expect(decide(.answered(late), after: OpeningPlan.longest - 0.4) == .wait(until: start.addingTimeInterval(OpeningPlan.longest)))
         // The way lost once Jellyfin answered: the pictures are still waited for, as long.
-        #expect(decide(.answered(answered), after: 2.3, noWay: true) == .wait(until: answered.addingTimeInterval(OpeningPlan.pictures)))
+        #expect(decide(.answered(answered), after: 2.3, noWay: 0.3) == .wait(until: answered.addingTimeInterval(OpeningPlan.pictures)))
     }
 
     @Test("Le « m » entier au départ, comme sur l'écran de lancement")

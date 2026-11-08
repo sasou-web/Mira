@@ -56,6 +56,14 @@ struct SettingsView: View {
                         row("Your recap", "What you watched this month and this year.", symbol: "clock.arrow.circlepath")
                     }
                     .accessibilityIdentifier("settings.report")
+                    if app.party.guest == nil {
+                        NavigationLink {
+                            KeptView()
+                        } label: {
+                            SettingsRow("On this iPhone", verbatim: keptLine, symbol: "arrow.down.circle")
+                        }
+                        .accessibilityIdentifier("settings.kept")
+                    }
                 }
                 .listRowBackground(Palette.surface)
 
@@ -88,6 +96,13 @@ struct SettingsView: View {
                         ForEach(Preferences.qualities, id: \.self) { value in Text(verbatim: qualityName(value)).tag(value) }
                     }
                     .accessibilityIdentifier("settings.quality")
+                    Picker(selection: $preferences.mobileData) {
+                        ForEach(PlaybackPlan.mobileChoices, id: \.self) { value in Text(verbatim: mobileDataName(value)).tag(value) }
+                    } label: {
+                        row("Mobile data", "On cellular or a personal hotspot. Data saver uses about 0.9 GB an hour, and stays on with Low Data Mode.")
+                    }
+                    .accessibilityIdentifier("settings.mobileData")
+                    .onChange(of: preferences.mobileData) { app.mobileDataChanged() }
                     Toggle(isOn: $preferences.resume) {
                         row("Resume where you left off", "Otherwise, every title starts from the beginning.")
                     }
@@ -104,6 +119,10 @@ struct SettingsView: View {
                         row("Next episode automatically", "10 seconds into the end credits when they are marked, otherwise at the end of the episode. A button offers it sooner.")
                     }
                     .accessibilityIdentifier("settings.autoNext")
+                    Toggle(isOn: $preferences.stillWatching) {
+                        row("Ask if you’re still watching", "After 3 episodes in a row without touching anything, Mira stops and asks before the next one.")
+                    }
+                    .accessibilityIdentifier("settings.stillWatching")
                     Toggle(isOn: $preferences.autoSkip) {
                         row("Skip intros and recaps", "When Jellyfin or the file’s chapters mark them, playback jumps over them. Otherwise, a button offers it.")
                     }
@@ -145,6 +164,12 @@ struct SettingsView: View {
                         row("Home rows", "Their order, and which show, on this iPhone.", symbol: "rectangle.grid.1x2")
                     }
                     .accessibilityIdentifier("settings.homeRows")
+                    NavigationLink {
+                        PrivacyView()
+                    } label: {
+                        row("Privacy", "Everything that goes out on the network, and how to stop it.", symbol: "hand.raised")
+                    }
+                    .accessibilityIdentifier("settings.privacy")
                 } header: {
                     Text("This iPhone")
                 }
@@ -196,6 +221,10 @@ struct SettingsView: View {
         .confirmationDialog("Sign out of Jellyfin on this iPhone?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { app.signOut() }
                 .accessibilityIdentifier("settings.signout.confirm")
+        } message: {
+            if !app.keeper.copies.isEmpty {
+                Text("The titles kept on this iPhone are removed from it.")
+            }
         }
         .sheet(isPresented: $approving) { ApproveDeviceSheet() }
         .task { await load() }
@@ -214,6 +243,8 @@ struct SettingsView: View {
         let facts: [(String, String?)] = [
             ("Signed in", app.session == nil ? "no" : "yes"),
             ("Quality", app.preferences.quality),
+            ("Mobile data", app.preferences.mobileData),
+            ("Connection", app.cost.constrained ? "low data mode" : app.cost.expensive ? "mobile data" : "unmetered"),
             ("Built-in Tailscale", String(describing: app.tailnet.phase)),
             ("System", "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"),
             ("Device", UIDevice.current.model),
@@ -253,6 +284,13 @@ struct SettingsView: View {
         }
     }
 
+    /// « 3 titles · 4.2 GB », or how to keep one.
+    private var keptLine: String {
+        let kept = app.keeper.kept
+        guard !kept.isEmpty else { return String(localized: "Movies and episodes kept here play without a connection.") }
+        return String(localized: "\(kept.count) titles · \(Keeper.size(kept.reduce(0) { $0 + $1.size }))")
+    }
+
     private func row(_ title: LocalizedStringKey, _ detail: LocalizedStringKey, symbol: String? = nil) -> some View {
         SettingsRow(title, detail, symbol: symbol)
     }
@@ -266,6 +304,14 @@ struct SettingsView: View {
         case "auto": String(localized: "Automatic")
         case "max": String(localized: "Maximum")
         default: String(localized: "\(((Double(value) ?? 0) / 1_000_000).formatted(.number.precision(.fractionLength(0...1)))) Mb/s")
+        }
+    }
+
+    private func mobileDataName(_ value: String) -> String {
+        switch value {
+        case "saver": String(localized: "Data saver · 2 Mb/s")
+        case "standard": String(localized: "Standard · 6 Mb/s")
+        default: String(localized: "Maximum")
         }
     }
 
@@ -373,7 +419,7 @@ struct ApproveDeviceSheet: View {
 
 /// Users/Me: what Settings shows of the account.
 struct AccountInfo: Codable, Sendable {
-    struct Policy: Codable, Sendable { var isAdministrator: Bool? }
+    struct Policy: Codable, Sendable { var isAdministrator: Bool?; var enableCollectionManagement: Bool? }
     var primaryImageTag: String?
     var policy: Policy?
     var isAdministrator: Bool { policy?.isAdministrator == true }

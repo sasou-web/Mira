@@ -12,11 +12,23 @@ enum PlaybackProfile {
         var hdr = true
         /// The highest HEVC level sent as it is, as Jellyfin writes it (level × 30).
         var hevcLevel = 156
+        /// Dolby Vision profile 8 asked as it is: Jellyfin tags its copy into HLS `hvc1`, as Apple's player wants it,
+        /// from 12.2 (`dvh1` before, which strict Apple players refuse). With an older Jellyfin, such a film comes as its
+        /// HDR10, HLG or SDR base, Jellyfin taking the Dolby Vision layer off (`dolbyVision8(server:)`).
+        var dolbyVision8 = true
 
         @MainActor static func read() -> Device {
             let av1 = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
             return Device(hevc: VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC), av1: av1, hdr: AVPlayer.eligibleForHDRPlayback, hevcLevel: av1 ? 186 : 156)
         }
+    }
+
+    /// Whether this Jellyfin (its version, « 12.2.0 ») tags a copied Dolby Vision profile 8 `hvc1`: 12.2 or later.
+    /// An unknown version is taken as older: the film then plays as its HDR10 base, never not at all.
+    static func dolbyVision8(server version: String?) -> Bool {
+        let parts = (version ?? "").split(whereSeparator: { $0 == "-" || $0 == "+" }).first?.split(separator: ".").compactMap { Int($0) } ?? []
+        guard parts.count >= 2 else { return false }
+        return parts[0] > 12 || parts[0] == 12 && parts[1] >= 2
     }
 
     private static func condition(_ condition: String, _ property: String, _ value: String, required: Bool = false) -> [String: Any] {
@@ -52,7 +64,10 @@ enum PlaybackProfile {
     static func make(bitrate: Int, device: Device) -> [String: Any] {
         let video = ["h264", device.hevc ? "hevc" : nil, device.av1 ? "av1" : nil].compactMap(\.self).joined(separator: ",")
         let audio = "aac,mp3,ac3,eac3,flac,alac"
-        let hevcRanges = ["SDR"] + (device.hdr ? ["HDR10", "HDR10Plus", "HLG", "DOVI", "DOVIWithHDR10", "DOVIWithHLG", "DOVIWithSDR", "DOVIWithHDR10Plus"] : [])
+        // DOVI = profile 5 (dvh1, as Apple wants it); the « DOVIWith… » ones are profile 8 (`Device.dolbyVision8`).
+        // Profile 7 (DOVIWithEL, two layers) is never asked: Jellyfin sends its HDR10 base.
+        let profile8 = device.dolbyVision8 ? ["DOVIWithHDR10", "DOVIWithHLG", "DOVIWithSDR", "DOVIWithHDR10Plus"] : []
+        let hevcRanges = ["SDR"] + (device.hdr ? ["HDR10", "HDR10Plus", "HLG", "DOVI"] + profile8 : [])
         var codecs: [[String: Any]] = [h264(maxLevel: 52)]
         if device.hevc {
             codecs.append(["Type": "Video", "Codec": "hevc", "Conditions": [

@@ -29,7 +29,7 @@
 - **La lecture se fait dans Mira.** Le moteur mpv lit presque tous les fichiers tels quels : sous-titres, pistes audio, chapitres, intros passées d’un geste.
 - **Regarder ensemble.** Un lien suffit pour lancer le même film chez un ami, en même temps, chacun chez soi.
 - **Aucune installation compliquée.** Pas encore de Jellyfin ? Mira l’installe et le prépare pour toi, pare-feu et Tailscale compris.
-- **Ta vie privée reste chez toi.** Pas de compte Mira, pas de publicité, rien de collecté ; seule la recherche de mises à jour contacte GitHub, et Tailscale seulement si tu y connectes Mira.
+- **Ta vie privée reste chez toi.** Pas de compte Mira, pas de publicité, rien de collecté ; seule la recherche de mises à jour contacte GitHub, et Tailscale seulement si tu y connectes Mira. **Réglages → Confidentialité** liste chaque connexion, avec son interrupteur.
 
 ## Sur ton iPhone aussi
 

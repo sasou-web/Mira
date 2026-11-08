@@ -3,11 +3,12 @@ import UIKit
 
 /// A title's page, in the order it is used: the picture with the title on it, what it is in one line, Play beside
 /// Favorite, Watched and « … », the languages on one quiet line, the summary in three lines, then a series' seasons and
-/// episodes, and the genres at the end. A series plays its next episode.
+/// episodes, its cast and crew (each opening their page), and the genres at the end. A series plays its next episode.
 struct TitleView: View {
     let route: TitleRoute
     @Environment(AppModel.self) private var app
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.openURL) private var openURL
     @State private var item: Item
     @State private var width: CGFloat = 402
     /// Scrolled past the picture: the bar then shows the title's name and its own edge, which over the picture
@@ -24,6 +25,9 @@ struct TitleView: View {
     @State private var replacing: (item: Item, fromStart: Bool, current: String)?
     /// « Watch together » opened from « … ».
     @State private var showsTogether = false
+    @State private var showsPlayOn = false
+    /// « Add to a collection… » opened from « … ».
+    @State private var showsCollections = false
     /// How far the title was watched when Favorite or Watched was touched, until Play: a progress line that goes then
     /// fades out keeping its room, so nothing under it moves (Watched takes it away).
     @State private var held: HeldProgress?
@@ -56,6 +60,8 @@ struct TitleView: View {
                     if item.isSeries {
                         EpisodeList(series: item, next: next).padding(.top, 6)
                     }
+                    let credits = Credits.of(item)
+                    if !credits.isEmpty { CreditsRow(credits: credits) }
                     genres
                 }
                 .padding(.horizontal, 20)
@@ -90,7 +96,13 @@ struct TitleView: View {
             }
         }
         .navigationDestination(for: GenreRoute.self) { route in LibraryView(kind: route.kind, genre: route.genre) }
+        .navigationDestination(for: PersonRoute.self) { route in PersonView(route: route) }
         .sheet(isPresented: $showsTogether) { TogetherSheet() }
+        .sheet(isPresented: $showsPlayOn) {
+            if let playable { PlayOnSheet(item: playable) }
+        }
+        .sheet(isPresented: $showsCollections) { CollectionSheet(item: item) }
+        .task { app.collectionRightsNeeded() }
         .task(id: route.item.id) { await load() }
         // A title stopped or marked: read again in place, what is shown stays until the new answer.
         .onChange(of: app.playback) { Task { await load() } }
@@ -161,8 +173,8 @@ struct TitleView: View {
     /// one row of what a title does. At the largest text sizes, Play alone on its line.
     @ViewBuilder private var actions: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { playButton.layoutPriority(1); TitleActions(item: $item, touching: hold); moreMenu }
-            VStack(alignment: .leading, spacing: 12) { playButton; HStack(spacing: 8) { TitleActions(item: $item, touching: hold); moreMenu } }
+            HStack(spacing: 8) { playButton.layoutPriority(1); TitleActions(item: $item, touching: hold); keepButton; moreMenu }
+            VStack(alignment: .leading, spacing: 12) { playButton; HStack(spacing: 8) { TitleActions(item: $item, touching: hold); keepButton; moreMenu } }
         }
         .confirmationDialog(Text("Watch together"), isPresented: Binding(get: { replacing != nil }, set: { if !$0 { replacing = nil } }), titleVisibility: .visible, presenting: replacing) { asked in
             Button("Replace for the group") {
@@ -208,6 +220,11 @@ struct TitleView: View {
         }
     }
 
+    /// « Keep on this iPhone », for a film or an episode (a series keeps its episodes, season by season).
+    @ViewBuilder private var keepButton: some View {
+        if !item.isSeries, item.isEpisode || item.type == "Movie", app.party.guest == nil { KeepButton(item: item) }
+    }
+
     /// « … »: what a title does less often, in one menu.
     private var moreMenu: some View {
         Menu {
@@ -219,6 +236,7 @@ struct TitleView: View {
                 }
                 .accessibilityIdentifier("title.fromStart")
             }
+            trailerButton
             SleepPicker(episode: playable?.isEpisode == true)
             Button {
                 showsTogether = true
@@ -226,6 +244,23 @@ struct TitleView: View {
                 Label("Watch together", systemImage: "person.2.fill")
             }
             .accessibilityIdentifier("title.together")
+            // Jellyfin's remote control: on Mira for Windows or Mac, or a Jellyfin app on a TV (RemoteViews).
+            if playable != nil, app.party.guest == nil {
+                Button {
+                    showsPlayOn = true
+                } label: {
+                    Label("Play on…", systemImage: "tv.and.mediabox")
+                }
+                .accessibilityIdentifier("title.playOn")
+            }
+            if TitleCollections.holds(item), app.managesCollections {
+                Button {
+                    showsCollections = true
+                } label: {
+                    Label("Add to a collection…", systemImage: "rectangle.stack.badge.plus")
+                }
+                .accessibilityIdentifier("title.collection")
+            }
         } label: {
             Image(systemName: "ellipsis").font(.body.weight(.bold)).foregroundStyle(Palette.ink).frame(width: side, height: side).contentShape(.circle)
         }
@@ -233,6 +268,41 @@ struct TitleView: View {
         .glassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel(Text("More"))
         .accessibilityIdentifier("title.more")
+    }
+
+    /// « Trailer » (Trailers): the one kept on the server in Mira's player; one on the web in Safari, its label saying so
+    /// before the touch.
+    @ViewBuilder private var trailerButton: some View {
+        switch Trailers.source(item) {
+        case .jellyfin:
+            Button {
+                Task { await playTrailer() }
+            } label: {
+                Label("Trailer", systemImage: "play.rectangle")
+            }
+            .accessibilityIdentifier("title.trailer")
+        case .web:
+            if let link = Trailers.webLink(item) {
+                Button {
+                    openURL(link)
+                } label: {
+                    Label("Trailer on \(Trailers.site(link))", systemImage: "safari")
+                }
+                .accessibilityHint(Text("Opens in Safari"))
+                .accessibilityIdentifier("title.trailer")
+            }
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private func playTrailer() async {
+        guard let client = app.client else { return }
+        do {
+            if let trailer = try await client.localTrailers(item.id).first { app.play(trailer, fromStart: true) }
+        } catch JellyfinError.unauthorized { app.sessionEnded() } catch {
+            app.actionMessage = Messages.text(error)
+        }
     }
 
     /// The genres, each opening Movies or Shows with only that genre, as on Mira web: at the end, after what to watch.

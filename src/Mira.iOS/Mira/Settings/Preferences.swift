@@ -3,7 +3,7 @@ import Observation
 
 /// What Settings changes, kept on this iPhone. The languages, the quality, the intros, the tracks of each series and the
 /// titles removed from Continue watching also go to the account's Jellyfin (« Tes choix gardés sur ton Jellyfin »,
-/// AccountChoices), as on Mira web, Windows and Mac; resuming, the next episode and Home's rows stay this iPhone's.
+/// AccountChoices), as on Mira web, Windows and Mac; resuming, the next episode, mobile data and Home's rows stay this iPhone's.
 @MainActor @Observable
 final class Preferences {
     // MARK: This iPhone
@@ -14,8 +14,13 @@ final class Preferences {
     var resumeBack: Int { didSet { defaults.set(resumeBack, forKey: Keys.resumeBack) } }
     /// The next episode starts by itself at the end of one.
     var autoNext: Bool { didSet { defaults.set(autoNext, forKey: Keys.autoNext) } }
+    /// « Are you still watching? » (StillWatching): after 3 episodes in a row untouched, the next one waits for an answer.
+    var stillWatching: Bool { didSet { defaults.set(stillWatching, forKey: Keys.stillWatching) } }
     /// Home's rows in order, « - » before one put away (HomeLayout); empty: as Mira shows them.
     var homeRows: String { didSet { defaults.set(homeRows, forKey: Keys.homeRows) } }
+    /// The quality's cap on cellular, a personal hotspot or Low Data Mode: « saver » (by default), « standard », « max »
+    /// (PlaybackPlan.mobileCap). This iPhone's: a computer has no mobile data.
+    var mobileData: String { didSet { defaults.set(mobileData, forKey: Keys.mobileData) } }
 
     // MARK: Kept on Jellyfin too
 
@@ -47,7 +52,9 @@ final class Preferences {
         resume = defaults.object(forKey: Keys.resume) as? Bool ?? true
         resumeBack = defaults.object(forKey: Keys.resumeBack) as? Int ?? 5
         autoNext = defaults.object(forKey: Keys.autoNext) as? Bool ?? true
+        stillWatching = defaults.object(forKey: Keys.stillWatching) as? Bool ?? true
         homeRows = defaults.string(forKey: Keys.homeRows) ?? ""
+        mobileData = defaults.string(forKey: Keys.mobileData).flatMap { PlaybackPlan.mobileChoices.contains($0) ? $0 : nil } ?? "saver"
         quality = defaults.string(forKey: Keys.quality) ?? "auto"
         audioLanguages = defaults.string(forKey: Keys.audio)
         subtitleLanguages = defaults.string(forKey: Keys.subtitles)
@@ -140,7 +147,9 @@ final class Preferences {
         static let resume = "mira.resume"
         static let resumeBack = "mira.resumeBack"
         static let autoNext = "mira.autoNext"
+        static let stillWatching = "mira.stillWatching"
         static let homeRows = "mira.homeRows"
+        static let mobileData = "mira.mobileData"
         static let quality = "mira.quality"
         static let audio = "mira.audioLanguages"
         static let subtitles = "mira.subtitleLanguages"

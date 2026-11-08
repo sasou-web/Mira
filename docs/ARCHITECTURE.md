@@ -113,6 +113,7 @@ Mira.iOS (SwiftUI)
   ├─ App : MiraApp et TabBar (onglets, barre d’onglets de Mira, messages d’erreur), AppModel (session, identifiant d’appareil, premier plan et arrière-plan), SessionStore (trousseau)
   ├─ Jellyfin : JellyfinClient (requêtes par le chemin vers Jellyfin, en-tête Authorization), ServerAddress, Models, Playback
   ├─ Home, Library, Login, Settings, Together (SyncPlay), Player (lecteur de Mira sur AVPlayer : PlayerSession, PlayerController, PlayerChrome, MiniPlayer, Trickplay ; cascade, passages, minuterie)
+  ├─ Kept : « Garder sur cet iPhone » (KeptCopy et KeptStore : `mira-copy.json` par titre ; KeptRules : règles testées ; Keeper : la file, le fichier par `Items/{id}/Download` ou la conversion HLS de Jellyfin mise bout à bout, l’arrière-plan d’iOS ; KeptViews)
   ├─ Tailscale : Tailnet (Tailscale intégré : marche, arrêt, connexion), TailscaleLibrary (le nœud en C), Way et WayPlan (chemin vers Jellyfin), NetworkWatch, TailscaleViews
   └─ Design : Palette (jetons de Mira web), Nunito, RemoteImage (images à la taille affichée, BlurHash en attendant)
 ```

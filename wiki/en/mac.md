@@ -56,12 +56,29 @@ Mira cannot replace itself when it runs from the disk image, from the Downloads 
 
 To stop the automatic check, turn off **Settings → Mira on this Mac → Update automatically**.
 
+## Window and menus
+
+Mira behaves like the Mac's own apps:
+
+- The window reopens where you left it, on the same screen, at the same size (centred when that screen is gone).
+- <kbd>⌘</kbd> + <kbd>W</kbd> or the red button closes the window, Mira stays in the Dock: a click on its icon brings it back. What was playing stops, and where you were is kept. <kbd>⌘</kbd> + <kbd>Q</kbd> quits Mira.
+- **Help** opens this guide, **Keyboard Shortcuts** (<kbd>⌘</kbd> + <kbd>/</kbd>) and **Export a Report…**, the file to attach when you report a problem.
+
 ## Trackpad
 
 Mira follows your trackpad settings (natural scrolling, swipe between pages).
 
-- In the library: swipe with two fingers to go back and forward, pinch to change the size of the posters, force click a poster for its menu.
+- In the library: swipe with two fingers to go back and forward (the page follows your fingers, as in Safari; let go early to stay), pinch to change the size of the posters, force click a poster for its menu.
 - In the player: swipe left or right to seek, up or down for the volume; spread two fingers for full screen, pinch to leave it, then to shrink the player to the mini player.
+
+## HDR films
+
+On a Mac, Mira shows an HDR film (HDR10, HDR10+, HLG, Dolby Vision) in SDR: mpv converts it (tone mapping) to the ordinary range before it reaches the screen. The colours stay right and nothing is converted by Jellyfin, but the extra brightness of HDR is lost, even on a MacBook Pro or a Pro Display XDR.
+
+This is a limit of how Mira draws the video on a Mac (an 8-bit OpenGL view, without the Mac's extended range), not of your file or your screen. In the player, **⋮ → Info**, the **Colours** line says it: "HDR10 → SDR (rendering limit)".
+
+> [!NOTE]
+> On Windows, Mira sends HDR to the screen as it is when Windows' HDR is on. On iPhone, Apple's player shows HDR and Dolby Vision.
 
 ## Start over
 

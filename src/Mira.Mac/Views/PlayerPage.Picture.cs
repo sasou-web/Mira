@@ -157,7 +157,9 @@ public sealed partial class PlayerPage
         var shownWidth = mpv.Number("osd-width"); var shownHeight = mpv.Number("osd-height");
         var drawing = _surface is VideoView gl ? $"OpenGL{(gl.Renderer.Length > 0 ? " · " + gl.Renderer : "")}" : L("logiciel (sans OpenGL)", "software (no OpenGL)");
         if (shownWidth > 0 && shownHeight > 0) drawing += $" · {shownWidth:0} × {shownHeight:0}";
-        var colours = _surface is VideoView { ColourProfile.Length: > 0 } view ? L($"écran large gamme ({view.ColourProfile})", $"wide-gamut screen ({view.ColourProfile})") : L("non gérées", "not managed");
+        // The film's range, « → SDR (limite du rendu) » when it is HDR (Avalonia's OpenGL view is 8-bit SDR, no EDR), then the screen's colours.
+        var screen = _surface is VideoView { ColourProfile.Length: > 0 } view ? L($"écran large gamme ({view.ColourProfile})", $"wide-gamut screen ({view.ColourProfile})") : L("écran non géré", "screen not managed");
+        var colours = PictureColours.MacLine(PictureColours.Source(mpv.Get), screen);
         // What the frame mpv drew holds, looked at once a second while it plays: « unie #BBBBBB » with a grey screen = mpv's
         // own picture is grey; « variée » = mpv draws the film and the grey comes after it, when macOS shows the window.
         var look = _surface is VideoView { LastLook: { Length: > 0 } seen } looked
@@ -171,8 +173,9 @@ public sealed partial class PlayerPage
             _ => ""
         };
         var seenLine = look is null ? "" : L($"\nImage lue  {look}", $"\nFrame read  {look}");
-        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}",
-            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}");
+        var audio = PlayerText.Codec(mpv.Get("audio-codec-name")) ?? "—"; var output = AudioOutputInfo(mpv);
+        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nAudio  {audio}\nSortie  {output}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}",
+            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nAudio  {audio}\nOutput  {output}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}");
     }
     /// <summary>The level playing, said in « Informations ».</summary>
     private string PictureInfo => PictureQuality.Label(_picture) + (_picture != PictureQuality.Known(_shell.Settings.Picture) ? L(" (allégée)", " (lightened)") : "");

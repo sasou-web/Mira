@@ -18,6 +18,7 @@ public sealed partial class SettingsPage
         ("appearance", L("Apparence", "Appearance"), "sparkle", L("La langue de Mira et ce que montre l’accueil.", "Mira’s language and what Home shows.")),
         ("server", L("Compte & serveur", "Account & server"), "server", L("Ton compte, ton serveur Jellyfin et le chemin jusqu’à lui.", "Your account, your Jellyfin server and the way to it.")),
         ("updates", L("Mira sur ce Mac", "Mira on this Mac"), "refresh", L("Mises à jour, titres gardés sur ce Mac et rapport pour signaler un problème.", "Updates, titles kept on this Mac and a report for a problem.")),
+        ("privacy", L("Confidentialité", "Privacy"), "shield", L("Tout ce qui part sur le réseau, et comment l’arrêter.", "Everything that goes out on the network, and how to stop it.")),
         ("report", L("Ton bilan", "Your recap"), "clock", L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices.")),
         ("sharing", L("Amis & invités", "Friends & guests"), "users", L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
         ("care", L("Entretien", "Maintenance"), "sliders", L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres.", "What keeps your library in shape: titles to fix, subtitles.")),
@@ -32,7 +33,7 @@ public sealed partial class SettingsPage
     private readonly TextBlock _tabTitle = new() { FontSize = 28, FontWeight = FontWeight.Bold };
     private readonly TextBlock _tabAbout = new() { FontSize = 14.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 26) };
 
-    /// <summary>The section shown: « playback », « audio », « appearance », « server », « updates », « report », « sharing » or « care ».</summary>
+    /// <summary>The section shown: « playback », « audio », « appearance », « server », « updates », « privacy », « report », « sharing » or « care ».</summary>
     public string CurrentTab { get; private set; } = _lastTab;
 
     private Control Layout(MainWindow shell)
@@ -101,6 +102,8 @@ public sealed partial class SettingsPage
             var words = (string)button.Tag!;
             Avalonia.Automation.AutomationProperties.SetName(button, name == key ? L($"{words}, affiché", $"{words}, shown") : words);
         }
+        // Drawn each time it opens: a switch changed in another section shows as it is (SettingsPage.Privacy.cs).
+        if (key == "privacy") DrawPrivacy();
         _tabBody.Content = tab;
         _tabScroll.Offset = default;
     }

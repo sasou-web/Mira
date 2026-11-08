@@ -443,7 +443,7 @@ public partial class MainWindow
         ShowDetailPlayLabel(item);
         DetailRestart.Content ??= ActionLabel("refresh", L("Depuis le début", "From the beginning"));
         ShowFavorite(item.UserData.IsFavorite); ShowWatched(item, item.UserData.Played);
-        ShowTogetherButton(); ShowOfflineButton(); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item);
+        ShowTogetherButton(); ShowOfflineButton(); ShowTrailerButton(item); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item);
     }
     private void ShowFavorite(bool favorite) => ShowState(FavoriteButton, "favorite", favorite, favorite ? L("Favori", "Favorite") : L("Ajouter aux favoris", "Add to favorites"),
         favorite ? L("Dans tes favoris. Clique pour le retirer", "In your favorites. Click to remove it") : L("Ajouter aux favoris", "Add to favorites"));

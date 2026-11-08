@@ -18,7 +18,8 @@ public sealed record ChapterInfo
     public string? Name { get; init; }
 }
 public readonly record struct ChapterMark(double Start, string? Title);
-public enum SkipKind { Intro, Outro, Recap, Preview, Commercial }
+/// <summary>Trailer: the whole of a trailer played before its film (<see cref="SkipPlanner.Film"/>), never from Jellyfin.</summary>
+public enum SkipKind { Intro, Outro, Recap, Preview, Commercial, Trailer }
 public readonly record struct SkipSegment(SkipKind Kind, double Start, double End);
 
 /// <summary>Turns Jellyfin segments and chapter titles into skippable passages.</summary>
@@ -125,6 +126,7 @@ public static class PlaybackMarkers
         SkipKind.Outro => episode ? L("Passer l’ending", "Skip credits") : L("Passer le générique", "Skip credits"),
         SkipKind.Recap => L("Passer le récap", "Skip recap"),
         SkipKind.Preview => L("Passer l’aperçu", "Skip preview"),
+        SkipKind.Trailer => Trailers.SkipLabel,
         _ => L("Passer la pub", "Skip ad")
     };
     private static SkipKind? Parse(string? type) => type switch

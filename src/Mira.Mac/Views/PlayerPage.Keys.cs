@@ -70,8 +70,11 @@ public sealed partial class PlayerPage
             case Key.I: if (!again) SetMini(!_mini); break;
             case Key.Escape when !_mini:
                 if (again) break;
-                if (_shell.WindowState == WindowState.FullScreen) ToggleFullscreen(); else SetMini(true);
+                // In couch mode, as on a TV: back to the title, the playback stopped.
+                if (_shell.InCouchMode) _ = _shell.StopPlaybackAsync();
+                else if (_shell.WindowState == WindowState.FullScreen) ToggleFullscreen(); else SetMini(true);
                 break;
+            case Key.Back when !_mini && _shell.InCouchMode: if (!again) _ = _shell.StopPlaybackAsync(); break;
             default: return;
         }
         e.Handled = true;
@@ -141,5 +144,8 @@ public sealed partial class PlayerPage
     /// <summary>The title's length, as mpv reads it: for the self-check.</summary>
     public double Duration => _session.Duration;
     /// <summary>What the pill says, while it shows: for the self-check.</summary>
+    /// <summary>For the self-check: the pill over the picture (« Passer la bande-annonce »…), and its press.</summary>
+    public string? SkipPillText => _skip.IsVisible ? _skipText.Text : null;
+    public void SkipForCheck() => Skip();
     public string? SeekPillText => _seekPill is { IsVisible: true } ? _seekText.Text : null;
 }

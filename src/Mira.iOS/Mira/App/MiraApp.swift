@@ -66,9 +66,10 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: app.session?.userId)
         .animation(.easeInOut(duration: 0.25), value: app.party.shown)
-        // A party link (mira://party/…): into the host's group, or as its guest when it is another Jellyfin's.
+        // A party link (mira://party/…): into the host's group, or as its guest when it is another Jellyfin's. The QR
+        // code of « Mira on your iPhone » (mira://connect): the sign-in screen filled in.
         .onOpenURL { url in
-            Task { await app.together.openParty(url) }
+            Task { await app.open(url) }
         }
         .onChange(of: phase) {
             switch phase {

@@ -20,6 +20,8 @@ final class AppModel {
     private(set) var session: Session?
     /// Said once on the sign-in screen when Jellyfin ended the session (401).
     var notice: String?
+    /// A QR code of « Mira on your iPhone » (Windows, Mac) opened while signed out: the sign-in screen fills it in.
+    var connectLink: ConnectLink?
     let device: DeviceIdentity
     /// The title playing, in Mira's player, reduced over the tabs, or in Picture in Picture.
     private(set) var player: PlayerSession?
@@ -42,8 +44,13 @@ final class AppModel {
     let newEpisodes = NewEpisodesWatch()
     /// Mira's opening, over everything until Home is drawn (OpeningView).
     let opening = Opening()
+    /// « Keep on this iPhone »: films and episodes to watch without Jellyfin.
+    let keeper = Keeper()
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
+    /// What this account may do with collections (TitleCollections), read once from Users/Me for the account signed in.
+    private(set) var collectionRights: (user: String, rights: TitleCollections.Rights)?
+    @ObservationIgnored private var collectionRightsAsked: String?
     /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.
     private(set) var playback = 0
     /// The last measure of the connection to Jellyfin (bits per second), kept an hour.
@@ -54,6 +61,9 @@ final class AppModel {
     private(set) var way: WayPlan.Route?
     private(set) var wayHint: WayPlan.Hint?
     @ObservationIgnored private let network = NetworkWatch()
+    /// What the connection costs now (cellular, a personal hotspot, Low Data Mode): the quality's cap.
+    private(set) var cost = NetworkWatch.Cost()
+    @ObservationIgnored private var costSettling: Task<Void, Never>?
     @ObservationIgnored private var inBackground = false
 
     init() {
@@ -69,6 +79,7 @@ final class AppModel {
             HomeCache.clearAll()
             Tailnet.reset()
             Way.forgetAll()
+            KeptStore.erase(keeping: nil)
             defaults.removeObject(forKey: "mira.tailnet.outageHidden")
         }
         // Once the UI tests' reset is done: it reads whether it is on.
@@ -83,6 +94,8 @@ final class AppModel {
         session = SessionStore.load()
         together.app = self
         party.app = self
+        keeper.app = self
+        keeper.use(session)
         preferences.use(account: session?.userId)
         preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.ownClient } }
         // The UI tests reach the stand-in Jellyfin only through Built-in Tailscale, though it is on this Mac.
@@ -97,14 +110,18 @@ final class AppModel {
             }, only: only)
             await Way.shared.wake()
         }
-        network.start { network, interface in
+        network.start { [weak self] network, interface, cost in
             Task { await Way.shared.network(network) }
             if let interface { Task { await TailscaleLibrary.network(interface) } }
+            // No connection says nothing of the next one's cost.
+            if network != .none { Task { @MainActor in self?.costChanged(cost) } }
         }
         Task { await tailnet.start() }
     }
 
     private func wayChanged(_ route: WayPlan.Route?, _ hint: WayPlan.Hint?) {
+        // A way to Jellyfin again: the copies that wait go on, what was watched here is told.
+        if route != nil, route != way { keeper.resume() }
         if route != way { way = route }
         if hint != wayHint { wayHint = hint }
     }
@@ -115,15 +132,23 @@ final class AppModel {
         inBackground = false
         guard wasAway else { return }
         Task {
-            await tailnet.foreground(playing: player != nil)
+            await tailnet.foreground(playing: player != nil || keeper.busy)
             await Way.shared.wake()
+            keeper.resume()
         }
     }
 
-    /// Mira off screen: Built-in Tailscale stops, unless a title plays on (Picture in Picture, AirPlay).
+    /// Mira off screen: Built-in Tailscale stops, unless a title plays on (Picture in Picture, AirPlay) or copies are
+    /// being kept on this iPhone.
     func background() {
         inBackground = true
-        tailnet.background(playing: player != nil)
+        keeper.background()
+        tailnet.background(playing: player != nil || keeper.busy)
+    }
+
+    /// The copies all fetched (or stopped) while Mira is off screen: Built-in Tailscale stops now.
+    func keepingEnded() {
+        if inBackground, player == nil { tailnet.background(playing: false) }
     }
 
     /// What is new in the series followed: at the start, and back after 15 minutes away.
@@ -154,14 +179,39 @@ final class AppModel {
         together.signedOut()
         choices.stop()
         newEpisodes.dismiss()
+        keeper.stop()
     }
 
     /// Out of a friend's party: this iPhone's own account again, every page read again.
     func leftGuest() {
         playback += 1
+        keeper.resume()
     }
 
     var lastServer: String { UserDefaults.standard.string(forKey: Keys.lastServer) ?? "" }
+
+    /// A mira:// link: a QR code of « Mira on your iPhone » (mira://connect), or a party.
+    func open(_ url: URL) async {
+        guard url.host()?.lowercased() == "connect" else {
+            await together.openParty(url)
+            return
+        }
+        guard let link = ConnectLink.parse(url) else {
+            if session == nil { notice = String(localized: "Mira can’t open this link.") } else { together.notice = String(localized: "Mira can’t open this link.") }
+            return
+        }
+        guard let session else {
+            connectLink = link
+            return
+        }
+        // Signed in: the same server's addresses are learnt; another server waits until this account signs out.
+        if let found = await link.find(), found.id.lowercased().filter({ $0 != "-" }) == session.serverId.lowercased().filter({ $0 != "-" }) {
+            await Way.shared.teach(link.addresses, id: session.serverId)
+            together.notice = String(localized: "Mira knows \(session.serverName)’s addresses now, at home and away.")
+        } else {
+            together.notice = String(localized: "You’re signed in to \(session.serverName). To use another server, sign out in Settings first.")
+        }
+    }
 
     func signedIn(_ session: Session, typed: String) {
         Way.select(session.server, id: session.serverId)
@@ -170,6 +220,9 @@ final class AppModel {
         notice = nil
         self.session = session
         preferences.use(account: session.userId)
+        // Another account's copies leave this iPhone; this one's go on.
+        keeper.use(session)
+        keeper.resume()
     }
 
     // MARK: Playing
@@ -242,17 +295,61 @@ final class AppModel {
 
     /// The bitrate to ask Jellyfin for (PlaybackInfo): the one chosen, full quality at home (Tailscale is not home),
     /// else what a measure of the connection allows for this file, kept an hour (knownBitrate of Mira web). Home is the
-    /// way taken now: the server signed in at its Tailscale address is at home on the home's Wi-Fi.
+    /// way taken now: the server signed in at its Tailscale address is at home on the home's Wi-Fi. Under the cap of
+    /// mobile data, whatever was chosen.
     func bitrate(for client: JellyfinClient, fileBitrate: Int) async -> Int {
         let taken = await Way.shared.current()?.kind
         let atHome = taken.map { $0 == .home } ?? ServerAddress.isHome(client.server)
         let known: (at: Date, speed: Double)? = measure.flatMap { $0.server == client.server && $0.way == taken ? (at: $0.at, speed: $0.speed) : nil }
+        let cap = mobileCap
         if let bitrate = PlaybackPlan.knownBitrate(quality, atHome: atHome, measure: known, fileBitrate: fileBitrate) {
-            return bitrate
+            return PlaybackPlan.capped(bitrate, by: cap)
         }
-        guard let speed = await client.measureSpeed() else { return PlaybackPlan.unmeasuredBitrate }
+        if let cap, !PlaybackPlan.measures(under: cap) { return cap }
+        guard let speed = await client.measureSpeed() else { return PlaybackPlan.capped(PlaybackPlan.unmeasuredBitrate, by: cap) }
         measure = (Date(), speed, client.server, taken)
-        return PlaybackPlan.autoBitrate(speed: speed, fileBitrate: fileBitrate)
+        return PlaybackPlan.capped(PlaybackPlan.autoBitrate(speed: speed, fileBitrate: fileBitrate), by: cap)
+    }
+
+    /// The cap of the connection now (Settings → Playback → Mobile data); nil on Wi-Fi or a cable.
+    var mobileCap: Int? { PlaybackPlan.mobileCap(preferences.mobileData, expensive: cost.expensive, constrained: cost.constrained) }
+
+    /// Another connection: the title playing follows its cap once it has held 4 s (leaving the home's Wi-Fi, the
+    /// iPhone goes back and forth for a moment).
+    private func costChanged(_ cost: NetworkWatch.Cost) {
+        guard cost != self.cost else { return }
+        self.cost = cost
+        mobileDataChanged(after: .seconds(4))
+    }
+
+    /// Mobile data chosen in Settings, or the connection changed: the title playing follows the new cap.
+    func mobileDataChanged(after delay: Duration = .zero) {
+        costSettling?.cancel()
+        costSettling = Task { [weak self] in
+            if delay > .zero { try? await Task.sleep(for: delay) }
+            guard !Task.isCancelled, let self else { return }
+            self.player?.capChanged(self.mobileCap)
+        }
+    }
+
+    /// « Add to a collection… » for this account: an administrator, or an account allowed to manage collections; never a
+    /// friend's party's guest.
+    var managesCollections: Bool {
+        party.guest == nil && collectionRights?.user == session?.userId && collectionRights?.rights.manage == true
+    }
+
+    /// Reads once what this account may do with collections (Users/Me); asked again after a failure.
+    func collectionRightsNeeded() {
+        guard party.guest == nil, let client, let user = session?.userId, collectionRightsAsked != user else { return }
+        collectionRightsAsked = user
+        Task {
+            do {
+                let me = try await client.me()
+                if session?.userId == user { collectionRights = (user, TitleCollections.Rights.from(me.policy)) }
+            } catch {
+                if collectionRightsAsked == user { collectionRightsAsked = nil }
+            }
+        }
     }
 
     /// Signed out on this iPhone at once, then on Jellyfin; the account's Home kept for a quick start goes too.
@@ -266,8 +363,13 @@ final class AppModel {
             preferences.forget(account: session.userId)
             NewEpisodesWatch.forget(account: session.userId)
         }
+        collectionRights = nil
+        collectionRightsAsked = nil
+        VirtualEpisodes.forget()
         newEpisodes.dismiss()
         choices.stop()
+        // What was kept on this iPhone goes with the account.
+        keeper.signedOut()
         SessionStore.delete()
         let serverId = session?.serverId
         session = nil
@@ -293,8 +395,13 @@ final class AppModel {
         RecentSearches.clear(session.userId)
         preferences.forget(account: session.userId)
         NewEpisodesWatch.forget(account: session.userId)
+        collectionRights = nil
+        collectionRightsAsked = nil
+        VirtualEpisodes.forget()
         newEpisodes.dismiss()
         choices.stop()
+        // The copies stay for the same account signed in again: nothing is fetched meanwhile.
+        keeper.stop()
         SessionStore.delete()
         notice = String(localized: "Your session on Jellyfin has ended. Sign in again.")
         self.session = nil

@@ -40,6 +40,38 @@ struct PlaybackTests {
         }
     }
 
+    @Test("Données mobiles : plafond en 4G, en partage de connexion et en mode Données réduites, rien en Wi-Fi")
+    func mobileCap() {
+        #expect(PlaybackPlan.mobileCap("saver", expensive: false, constrained: false) == nil)
+        #expect(PlaybackPlan.mobileCap("saver", expensive: true, constrained: false) == 2_000_000)
+        #expect(PlaybackPlan.mobileCap("standard", expensive: true, constrained: false) == 6_000_000)
+        #expect(PlaybackPlan.mobileCap("standard", expensive: true, constrained: true) == 2_000_000)
+        #expect(PlaybackPlan.mobileCap("standard", expensive: false, constrained: true) == 2_000_000)
+        #expect(PlaybackPlan.mobileCap("max", expensive: true, constrained: true) == nil)
+        #expect(PlaybackPlan.capped(PlaybackPlan.fullBitrate, by: 2_000_000) == 2_000_000)
+        #expect(PlaybackPlan.capped(1_500_000, by: 2_000_000) == 1_500_000)
+        #expect(PlaybackPlan.capped(20_000_000, by: nil) == 20_000_000)
+        #expect(!PlaybackPlan.measures(under: 2_000_000))
+        #expect(PlaybackPlan.measures(under: 6_000_000))
+        #expect(PlaybackPlan.measures(under: nil))
+    }
+
+    @Test("Données mobiles : la lecture suit le réseau qui change")
+    func mobileReopens() {
+        let full = PlaybackPlan.fullBitrate
+        // Wi-Fi quitté pour la 4G : plus bas, même en groupe et même pour le fichier tel quel.
+        #expect(PlaybackPlan.reopens(bitrate: full, askedUnder: nil, now: 2_000_000, directPlay: true, inGroup: true))
+        // Déjà sous le plafond : rien.
+        #expect(!PlaybackPlan.reopens(bitrate: 1_500_000, askedUnder: nil, now: 2_000_000, directPlay: false, inGroup: false))
+        // Retour au Wi-Fi : plus haut seulement si le plafond tenait la conversion, jamais en groupe.
+        #expect(PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: nil, directPlay: false, inGroup: false))
+        #expect(!PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: nil, directPlay: false, inGroup: true))
+        #expect(!PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: nil, directPlay: true, inGroup: false))
+        #expect(!PlaybackPlan.reopens(bitrate: 1_500_000, askedUnder: 2_000_000, now: nil, directPlay: false, inGroup: false))
+        #expect(PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: 6_000_000, directPlay: false, inGroup: false))
+        #expect(!PlaybackPlan.reopens(bitrate: 2_000_000, askedUnder: 2_000_000, now: 2_000_000, directPlay: false, inGroup: false))
+    }
+
     @Test("La cascade : tel quel, vidéo convertie, tout converti")
     func stages() {
         #expect(PlaybackPlan.stageRequest(0) == .init(lastResort: false, directPlay: true, directStream: true, videoCopy: true, audioCopy: true))
@@ -133,6 +165,45 @@ struct PlaybackTests {
         #expect(!subtitles.contains { $0["Method"] as? String == "External" })
         #expect(try JSONSerialization.data(withJSONObject: profile).count > 500)
         #expect(try JSONSerialization.data(withJSONObject: PlaybackProfile.lastResort(bitrate: 4_000_000)).count > 300)
+    }
+
+    @Test("HDR : HDR10, HLG et Dolby Vision 5 toujours, Dolby Vision 8 seulement avec Jellyfin 12.2 ou plus (étiquette hvc1)")
+    func dolbyVision() throws {
+        func ranges(_ device: PlaybackProfile.Device) throws -> [String] {
+            let codecs = try #require(PlaybackProfile.make(bitrate: 20_000_000, device: device)["CodecProfiles"] as? [[String: Any]])
+            let hevc = try #require(codecs.first { $0["Codec"] as? String == "hevc" })
+            let conditions = try #require(hevc["Conditions"] as? [[String: Any]])
+            let range = try #require(conditions.first { $0["Property"] as? String == "VideoRangeType" })
+            return (range["Value"] as? String ?? "").split(separator: "|").map(String.init)
+        }
+        let recent = try ranges(.init(hevc: true, av1: false, hdr: true, hevcLevel: 156, dolbyVision8: true))
+        #expect(["SDR", "HDR10", "HDR10Plus", "HLG", "DOVI", "DOVIWithHDR10", "DOVIWithHLG"].allSatisfy { recent.contains($0) })
+        #expect(!recent.contains("DOVIWithEL") && !recent.contains("DOVIInvalid"))
+        let older = try ranges(.init(hevc: true, av1: false, hdr: true, hevcLevel: 156, dolbyVision8: false))
+        #expect(older.contains("DOVI") && older.contains("HDR10") && !older.contains { $0.hasPrefix("DOVIWith") })
+        #expect(try ranges(.init(hevc: true, av1: false, hdr: false, hevcLevel: 156)) == ["SDR"])
+        #expect(PlaybackProfile.dolbyVision8(server: "12.2.0") && PlaybackProfile.dolbyVision8(server: "12.4.1") && PlaybackProfile.dolbyVision8(server: "13.0.0"))
+        #expect(!PlaybackProfile.dolbyVision8(server: "12.1.0") && !PlaybackProfile.dolbyVision8(server: "10.11.3") && !PlaybackProfile.dolbyVision8(server: nil) && !PlaybackProfile.dolbyVision8(server: ""))
+    }
+}
+
+@Suite("Toujours là")
+struct StillWatchingTests {
+    @Test("Les mêmes cas que Windows et Mac (still-watching.json)")
+    func shared() throws {
+        let fixture = try Fixtures.json("still-watching")
+        #expect(fixture["episodes"] as? Int == StillWatching.episodes)
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        for case let entry as [Any] in try #require(fixture["cases"] as? [Any]) {
+            var watch = StillWatching()
+            for case let played as [Any] in try #require(entry[0] as? [Any]) {
+                let seconds = try #require(played[0] as? Double)
+                watch.started(start.addingTimeInterval(seconds), byItself: try #require(played[1] as? Bool))
+            }
+            let input = (entry[1] as? Double).map { start.addingTimeInterval($0) }
+            let asks = watch.asks(lastInput: input, enabled: try #require(entry[2] as? Bool))
+            #expect(asks == (entry[3] as? Bool), "\(entry)")
+        }
     }
 }
 

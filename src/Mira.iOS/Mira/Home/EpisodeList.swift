@@ -14,9 +14,14 @@ struct EpisodeList: View {
     /// A season chosen by hand: the episode to watch next no longer moves the list.
     @State private var picked = false
     @State private var marking = false
+    /// Missing and coming episodes, loaded here: a line with nothing to say is no view at all, and a task on no view
+    /// never runs.
+    @State private var calendar = EpisodeCalendar.Schedule()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // Missing and coming episodes (TheTVDB, through Jellyfin), above the seasons, as on Windows and Mac.
+            EpisodeCalendarLine(schedule: calendar)
             if seasons.count > 1 {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
@@ -63,6 +68,7 @@ struct EpisodeList: View {
                 .disabled(marking)
                 .accessibilityIdentifier("series.markSeason")
             }
+            KeepSeasonButton(episodes: episodes)
             if failed && episodes.isEmpty {
                 Text(verbatim: Messages.text(JellyfinError.unreachable)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
             }
@@ -73,6 +79,7 @@ struct EpisodeList: View {
             }
         }
         .task(id: series.id) { await loadSeasons() }
+        .task(id: series.id) { calendar = await EpisodeCalendar.schedule(of: series, app: app) }
         .task(id: season) { await loadEpisodes() }
         // A title stopped or marked: the season shown is read again in place (same episodes, same rows).
         .onChange(of: app.playback) { Task { await loadEpisodes() } }
@@ -179,6 +186,7 @@ struct EpisodeRow: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            if app.party.guest == nil { KeepButton(item: episode, compact: true) }
         }
         .titleMenu(episode)
     }

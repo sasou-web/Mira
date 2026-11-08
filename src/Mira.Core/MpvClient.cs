@@ -30,6 +30,9 @@ public abstract unsafe class MpvClient : IDisposable
     private bool _open;
     /// <summary>Passthrough is on (<see cref="AudioOutput"/>): no boost filter.</summary>
     private bool _passthrough;
+    /// <summary>« Son de nuit » chosen (<see cref="NightSound"/>), and where its filter is in mpv's chain.</summary>
+    private bool _night;
+    private Boost _nightFilter;
     public event Action? FileLoaded;
     public event Action? PlaybackRestarted;
     /// <summary>A file ended: true when it played to its end.</summary>
@@ -129,6 +132,7 @@ public abstract unsafe class MpvClient : IDisposable
         foreach (var (name, value) in AudioOutput.Options(settings))
             if ((value ?? Get($"option-info/{name}/default-value")) is { } text && Get(name) != text) Set(name, text);
         _passthrough = AudioOutput.Codecs(settings.AudioPassthrough) is not null; ApplyLevel();
+        _night = settings.NightSound; ApplyNight();
         var device = AudioOutput.Device(settings.AudioDevice, AudioDevices());
         if (Get("audio-device") != device) Set("audio-device", device);
         return device == settings.AudioDevice || settings.AudioDevice is "" or AudioOutput.Default;
@@ -219,12 +223,40 @@ public abstract unsafe class MpvClient : IDisposable
         { if (TryCommand("af", "remove", "@" + VolumeBoost.Label)) _boost = Boost.None; }
         // Live while the audio plays; otherwise the filter's own settings are what the next file starts with.
         else if (_boost == Boost.Installed)
-        { if (!TryCommand("af-command", VolumeBoost.Label, "volume", VolumeBoost.Gain(gain), VolumeBoost.Target)) TryCommand("af", "set", VolumeBoost.Filter(gain)); }
+        { if (!TryCommand("af-command", VolumeBoost.Label, "volume", VolumeBoost.Gain(gain), VolumeBoost.Target)) PutBoost(gain); }
         else if (gain > 1 && _open)
         {
-            if (TryCommand("af", "set", VolumeBoost.Filter(gain))) _boost = Boost.Installed;
+            if (PutBoost(gain)) _boost = Boost.Installed;
             else { _boost = Boost.Unavailable; Set("volume", Format(_level)); }
         }
+    }
+    /// <summary>
+    /// The boost at the end of mpv's chain, in place of the one there: « set » would replace the whole chain, « Son de
+    /// nuit » with it, and « add » of a label already there is not sure to replace it.
+    /// </summary>
+    private bool PutBoost(double gain) { TryCommand("af", "remove", "@" + VolumeBoost.Label); return TryCommand("af", "add", VolumeBoost.Filter(gain)); }
+    /// <summary>« Son de nuit » chosen and the filter refused by this mpv (one without lavfi's acompressor): the menu says so.</summary>
+    public bool NightSoundRefused => _nightFilter == Boost.Unavailable;
+    /// <summary>« Son de nuit » chosen or not while a video plays: on or off at once.</summary>
+    public void NightSoundChosen(bool on) { _night = on; ApplyNight(); }
+    /// <summary>« Son de nuit » playing now: its filter is in mpv's chain.</summary>
+    public bool NightSoundOn => _nightFilter == Boost.Installed;
+    /// <summary>
+    /// « Son de nuit » on or off at once, without a gap. Added at the head of the chain (before the boost) while a file
+    /// is open, when mpv checks it, as the boost is; it stays there for the next files. Taken out for passthrough.
+    /// </summary>
+    private void ApplyNight()
+    {
+        if (_handle == IntPtr.Zero) return;
+        if (!_night || _passthrough)
+        {
+            if (_nightFilter == Boost.Installed && TryCommand("af", "remove", "@" + NightSound.Label)) _nightFilter = Boost.None;
+            // Chosen again later: this mpv is asked again.
+            else if (_nightFilter == Boost.Unavailable && !_night) _nightFilter = Boost.None;
+            return;
+        }
+        if (_nightFilter != Boost.None || !_open) return;
+        _nightFilter = TryCommand("af", "pre", NightSound.Filter) ? Boost.Installed : Boost.Unavailable;
     }
     private static string Format(double value) => value.ToString(CultureInfo.InvariantCulture);
     /// <summary>What <see cref="Error"/> says when mpv could not play the file.</summary>
@@ -249,7 +281,7 @@ public abstract unsafe class MpvClient : IDisposable
         {
             var p = _wait(_handle, 0); if (p == IntPtr.Zero) break;
             var ev = Marshal.PtrToStructure<MpvEvent>(p); if (ev.Id == 0) break;
-            if (ev.Id == 8) { _open = true; ApplyLevel(loading: true); FileLoaded?.Invoke(); }
+            if (ev.Id == 8) { _open = true; ApplyLevel(loading: true); ApplyNight(); FileLoaded?.Invoke(); }
             else if (ev.Id == 21) PlaybackRestarted?.Invoke();
             else if (ev.Id == 7 && ev.Data != IntPtr.Zero)
             {

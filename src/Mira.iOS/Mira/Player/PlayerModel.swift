@@ -21,6 +21,8 @@ protocol PlayerActions: AnyObject {
     func setSleep(_ minutes: Int?)
     func passageTapped()
     func playNext()
+    /// « Keep watching » after « Are you still watching? ».
+    func keepWatching()
     func pictureInPicture()
     func minimize()
     func close()
@@ -66,6 +68,8 @@ final class PlayerModel {
     var externalName: String?
     /// The episode after this one, offered at the bottom.
     var hasNext = false
+    /// « Are you still watching? »: the next episode waiting for an answer (« S01E04 · Its name »), nil otherwise.
+    var stillWatching: String?
 
     // MARK: The controls
 

@@ -133,6 +133,24 @@ public static class SelfCheck
                 homeScroll.Offset = default;
             }
 
+            // —— Notifications of the Mac, as Windows': « Nouvel épisode » of a series followed, once; the first look only marks ——
+            if (mock is not null)
+            {
+                window.Settings.EpisodeNotices = true; window.Settings.EpisodesSeenFor = "";
+                var before = MacNotifications.Shown.Count;
+                await window.LookForNewEpisodesAsync();
+                Check(MacNotifications.Shown.Count == before && window.Settings.EpisodesSeenFor.Length > 0, "notifications : le premier regard ne fait que poser la marque", window.Settings.EpisodesSeenFor);
+                mock.NewEpisodeAt = DateTimeOffset.UtcNow;
+                await window.LookForNewEpisodesAsync();
+                var told = MacNotifications.Shown.Skip(before).ToList();
+                Check(told is [{ Title: "Petite série", Group: "episodes" } one] && one.Text == Lang.L("Nouvel épisode : S1 É4 · Le retour", "New episode: S1 E4 · Le retour"),
+                    "notifications : un nouvel épisode d’une série suivie", string.Join(" | ", told.Select(x => $"{x.Title} : {x.Text} ({x.Group})")));
+                await window.LookForNewEpisodesAsync();
+                Check(MacNotifications.Shown.Count == before + 1, "notifications : jamais deux fois le même épisode", $"{MacNotifications.Shown.Count - before}");
+                Check(!MacNotifications.Allowed, "notifications : rien de macOS pendant le contrôle");
+                mock.NewEpisodeAt = null;
+            }
+
             // —— A friend's party, on another Jellyfin ——
             // Its link opened here: the first name asked, then this Mac its guest (no account there), in the host's group;
             // left, this Mac's own account back. A link taken back since says the party is over.
@@ -241,11 +259,11 @@ public static class SelfCheck
             var bar = window.MenuBar();
             var command = window.PlatformSettings?.HotkeyConfiguration.CommandModifiers ?? KeyModifiers.Meta;
             KeyGesture? KeysOf(string name) => bar.FirstOrDefault(x => x.Item == name).Keys;
-            Check(bar.Select(x => x.Menu).Distinct().SequenceEqual([Lang.L("Édition", "Edit"), Lang.L("Présentation", "View"), Lang.L("Aller", "Go"), Lang.L("Fenêtre", "Window")])
+            Check(bar.Select(x => x.Menu).Distinct().SequenceEqual([Lang.L("Édition", "Edit"), Lang.L("Présentation", "View"), Lang.L("Aller", "Go"), Lang.L("Fenêtre", "Window"), Lang.L("Aide", "Help")])
                 && Equals(KeysOf(Lang.L("Passer en mode plein écran", "Enter Full Screen")), new KeyGesture(Avalonia.Input.Key.F, KeyModifiers.Control | KeyModifiers.Meta)) && Equals(KeysOf(Lang.L("Placer dans le Dock", "Minimize")), new KeyGesture(Avalonia.Input.Key.M, command))
                 && Equals(KeysOf(Lang.L("Fermer la fenêtre", "Close Window")), new KeyGesture(Avalonia.Input.Key.W, command)) && Equals(KeysOf(Lang.L("Précédent", "Back")), new KeyGesture(Avalonia.Input.Key.OemOpenBrackets, command))
                 && KeysOf(Lang.L("Copier", "Copy")) is not null && KeysOf(Lang.L("Coller", "Paste")) is not null,
-                "barre des menus : Édition, Présentation, Aller, Fenêtre et leurs raccourcis", string.Join(", ", bar.Select(x => x.Keys is { } k ? $"{x.Item} {k}" : x.Item)));
+                "barre des menus : Édition, Présentation, Aller, Fenêtre, Aide et leurs raccourcis", string.Join(", ", bar.Select(x => x.Keys is { } k ? $"{x.Item} {k}" : x.Item)));
             window.ChooseInMenu(Lang.L("Précédent", "Back"));
             var backed = await Until(() => window.Current is not DetailPage, 3);
             window.ChooseInMenu(Lang.L("Suivant", "Forward"));
@@ -255,6 +273,24 @@ public static class SelfCheck
             await Task.Delay(1000);
             full = full && window.ChooseInMenu(Lang.L("Quitter le mode plein écran", "Exit Full Screen"));
             Check(full && await Until(() => window.WindowState != WindowState.FullScreen, 3), "barre des menus : plein écran (⌃⌘F) et retour", window.WindowState.ToString());
+            await Task.Delay(800);
+            // Aide (MainWindow.Shortcuts.cs): the shortcuts in a sheet (⌘/), the guide and the report beside them.
+            Check(Equals(KeysOf(Lang.L("Raccourcis clavier", "Keyboard Shortcuts")), new KeyGesture(Avalonia.Input.Key.OemQuestion, command))
+                && KeysOf(Lang.L("Guide de Mira pour Mac", "Mira for Mac Guide")) is null && bar.Any(x => x.Item == Lang.L("Exporter un rapport…", "Export a Report…"))
+                && MainWindow.Guide.Host == "wiki.miracinema.app", "barre des menus : Aide (guide, raccourcis ⌘/, rapport)", MainWindow.Guide.ToString());
+            window.ChooseInMenu(Lang.L("Raccourcis clavier", "Keyboard Shortcuts"));
+            var lines = MainWindow.Shortcuts.Sum(x => x.Lines.Count);
+            Check(await Until(() => window.CurrentSheet is { Tag: "shortcuts" }, 3), "Aide : raccourcis clavier", $"{lines} raccourcis");
+            await Task.Delay(500); Capture(window, output, "05h-shortcuts");
+            if (window.CurrentSheet is { } shortcuts) window.CloseSheet(shortcuts);
+            // ⌘W as on a Mac (MainWindow.MacWindow.cs): the window goes to the Dock, Mira keeps running, the Dock icon brings it
+            // back; its place remembered for the next opening. Called directly: on Linux closing still quits.
+            var state = window.WindowState;
+            await window.CloseToDockAsync();
+            var docked = window.InDock && !window.IsVisible && window.Settings.WindowX is not null;
+            window.Reopen();
+            Check(docked && await Until(() => window.IsVisible && !window.InDock, 3) && window.Current is DetailPage, "⌘W : fenêtre dans le Dock, rouverte au clic, place gardée",
+                $"x {window.Settings.WindowX}, y {window.Settings.WindowY}, {state}");
             await Task.Delay(800);
             if (mock is not null && window.Current is DetailPage still)
             {
@@ -340,28 +376,53 @@ public static class SelfCheck
                 await seriesPage.RefreshAsync(); await seriesPage.RefreshAsync();
                 Check(seriesPage.EpisodesShown, "fiche d’une série : épisodes gardés après une actualisation");
             }
-            // Two fingers to the right: the page before (the series grid); to the left: this page again.
+            // Two fingers to the right: the page follows them, the one before (the series grid) under it; let go short of
+            // the way, it comes back; past it, the page before; to the left: this page again.
+            const string swipeCheck = "trackpad : la page suit deux doigts, revient lâchée trop tôt ; vers la droite = Retour, vers la gauche = Avant";
+            // With motion, whatever this machine says (the Mac runner leaves it out): the page and the posters glide.
+            MacMotion.Override(reduced: false);
             var swipeAt = new Point(window.Bounds.Width / 2, 140);
             if (window.InputHitTest(swipeAt) is Avalonia.Interactivity.Interactive swipeTarget && window.Current is DetailPage swipedFrom)
             {
+                Swipe(swipeTarget, swipeAt, .15, 0, 8);
+                var followed = window.Sliding;
+                var cameBack = await Until(() => !window.Sliding, 3) && window.Current == swipedFrom;
                 Swipe(swipeTarget, swipeAt, .15, 0, 30);
-                var wentBack = window.Current is BrowsePage;
+                // Under the fingers, before they leave: the title page on top, the series grid coming under it.
+                Capture(window, output, "06b-swipe-back");
+                var wentBack = await Until(() => window.Current is BrowsePage && !window.Sliding, 3);
                 if (window.InputHitTest(swipeAt) is Avalonia.Interactivity.Interactive back) Swipe(back, swipeAt, -.15, 0, 30);
-                Check(wentBack && window.Current == swipedFrom, "trackpad : deux doigts vers la droite = Retour, vers la gauche = Avant", $"retour {wentBack}, puis {window.Current?.GetType().Name}");
+                var forward = await Until(() => window.Current == swipedFrom && !window.Sliding, 3);
+                Check(followed && cameBack && wentBack && forward, swipeCheck, $"suit {followed}, revenue {cameBack}, retour {wentBack}, avant {forward} ({window.Current?.GetType().Name})");
             }
-            else Check(false, "trackpad : deux doigts vers la droite = Retour, vers la gauche = Avant", "rien sous le pointeur");
+            else Check(false, swipeCheck, "rien sous le pointeur");
             // A pinch (or ⌘+) makes the grid's posters larger: fewer of them on a line.
             window.Go("Movie");
             if (await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15))
             {
                 await Task.Delay(500);
                 var grid = window.Current!.GetVisualDescendants().OfType<Mira.Mac.Views.CardGrid>().First();
-                var narrow = grid.Children[0].Bounds.Width;
-                window.ZoomGrids(Trackpad.ZoomMax); await Task.Delay(300);
-                var wide = grid.Children[0].Bounds.Width;
-                window.ZoomGrids(1); await Task.Delay(300);
-                Check(wide > narrow * 1.3 && Math.Abs(grid.Children[0].Bounds.Width - narrow) < 1, "trackpad : pincer agrandit les affiches de la grille", $"{narrow:0} → {wide:0} px, puis {grid.Children[0].Bounds.Width:0}");
+                var first = grid.Children[0];
+                var poster = MainWindow.Glided(first);
+                var narrow = first.Bounds.Width;
+                window.ZoomGrids(Trackpad.ZoomMax);
+                // The poster glides from its old size to its new one, frame by frame, then rests there; shown as it is set
+                // (a button's own transition would show it as none), the button itself left to its theme (its press).
+                var glided = poster.RenderTransform is Avalonia.Media.MatrixTransform { Value.IsIdentity: false } && first.RenderTransform is not Avalonia.Media.MatrixTransform;
+                var settled = await Until(() => poster.RenderTransform is null, 3);
+                var frames = MainWindow.GlideFrames;
+                var wide = first.Bounds.Width;
+                window.ZoomGrids(1); await Until(() => poster.RenderTransform is null, 3);
+                Check(wide > narrow * 1.3 && Math.Abs(first.Bounds.Width - narrow) < 1 && glided && settled && frames > 1, "trackpad : pincer agrandit les affiches de la grille, qui glissent à leur place", $"{narrow:0} → {wide:0} px, puis {first.Bounds.Width:0} ; glisse {glided}, posée {settled} en {frames} images");
+                // With macOS's « Réduire les animations »: the posters at their new size at once, nothing gliding.
+                MacMotion.Override(reduced: true);
+                window.ZoomGrids(Trackpad.ZoomMax);
+                var unmoved = poster.RenderTransform is null;
+                var placed = first.Bounds.Width;
+                window.ZoomGrids(1);
+                Check(unmoved && Math.Abs(placed - wide) < 1 && Math.Abs(first.Bounds.Width - narrow) < 1, "trackpad : pincer sans animations (Réduire les animations) : les affiches à leur taille d’un coup", $"{narrow:0} → {placed:0} px, puis {first.Bounds.Width:0} ; immobile {unmoved}");
             }
+            MacMotion.Override(null);
             SettingsPage.OpenAt("playback");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
@@ -398,6 +459,16 @@ public static class SelfCheck
             if (window.Current is SettingsPage others)
                 foreach (var (tab, shot) in new[] { ("server", "07e-settings-server"), ("updates", "07f-settings-updates"), ("appearance", "07g-settings-appearance"), ("audio", "07h-settings-subtitles") })
                 { others.Show(tab); await Task.Delay(500); Capture(window, output, shot); }
+            // Confidentialité: every connection, and the update check's switch the same as the one of « Mira sur ce Mac ».
+            if (window.Current is SettingsPage privacy)
+            {
+                privacy.Show("privacy"); await Task.Delay(500); Capture(window, output, "07i-settings-privacy");
+                var updates = window.Settings.AutoUpdate;
+                if (privacy.PrivacyUpdatesSwitch is { } privacySwitch) privacySwitch.IsChecked = !updates;
+                var followed = window.Settings.AutoUpdate == !updates;
+                if (privacy.PrivacyUpdatesSwitch is { } back) back.IsChecked = updates;
+                Check(privacy.PrivacyUpdatesSwitch is not null && followed && window.Settings.AutoUpdate == updates, "confidentialité : l’interrupteur des mises à jour est celui de « Mettre à jour automatiquement »");
+            }
 
             // —— Téléchargements: sent to the PC of Jellyfin ——
             if (mock is not null)
@@ -415,6 +486,62 @@ public static class SelfCheck
                     await Task.Delay(800); Capture(window, output, "07-downloads");
                 }
             }
+
+            // —— « Mode canapé »: the window full screen, the pages larger, the arrows anywhere, a controller as those keys ——
+            window.Go("home");
+            await Until(() => window.Current is HomePage { Latest.Count: > 0 }, 10);
+            window.SetCouchMode(true);
+            await Task.Delay(1200);
+            var couchZoom = Couch.Zoom(window.ClientSize.Width, window.ClientSize.Height);
+            Check(window.InCouchMode && window.Classes.Contains("couch") && window.CouchZoom == couchZoom && (couchZoom > 1 || window.ClientSize.Width <= 1280 || window.ClientSize.Height <= 720), "mode canapé : pages agrandies (écran du runner de 1024 × 768 : 1)", $"zoom {window.CouchZoom:0.00} pour {window.ClientSize.Width:0} × {window.ClientSize.Height:0}");
+            Control? Focused() => window.FocusManager?.GetFocusedElement() as Control;
+            Rect? Where(Control? control) => control?.TransformToVisual(window) is { } m ? new Rect(control.Bounds.Size).TransformToAABB(m) : null;
+            window.FocusFirst();
+            var start = Focused();
+            await Task.Delay(200);
+            Capture(window, output, "10-couch-home");
+            Check(window.CouchRing is { } ring && Where(start) is { } at && ring.Contains(at) && ring.Width < at.Width + 40, "mode canapé : l’anneau entoure le contrôle qui a le focus", $"{window.CouchRing} autour de {Where(start)}");
+            Press(window, Avalonia.Input.Key.Down); await Task.Delay(300);
+            var below = Focused();
+            Check(start is not null && below is not null && below != start && Where(below)?.Top > Where(start)?.Top, "mode canapé : ↓ va au contrôle d’en dessous", $"{start?.GetType().Name} → {below?.GetType().Name}");
+            var reachedRail = false;
+            for (var i = 0; i < 12 && !reachedRail; i++) { Press(window, Avalonia.Input.Key.Left); await Task.Delay(120); reachedRail = Focused()?.Classes.Contains("rail") == true; }
+            var railAt = Focused();
+            // Up the rail, or down from its top: the arrows stay in it.
+            Press(window, Avalonia.Input.Key.Up); await Task.Delay(150);
+            if (Focused() == railAt) { Press(window, Avalonia.Input.Key.Down); await Task.Delay(150); }
+            Check(reachedRail && Focused()?.Classes.Contains("rail") == true && Focused() != railAt, "mode canapé : ← mène au rail, ↑ ou ↓ le parcourt", $"{Avalonia.Automation.AutomationProperties.GetName(railAt!)} → {(Focused() is { } f ? Avalonia.Automation.AutomationProperties.GetName(f) : "rien")}");
+            Press(window, Avalonia.Input.Key.Right); await Task.Delay(300);
+            Check(Focused() is { } inPage && !inPage.Classes.Contains("rail") && window.Current?.IsVisualAncestorOf(inPage) == true, "mode canapé : → revient dans la page", Focused()?.GetType().Name ?? "rien");
+            window.Go("Movie");
+            await Until(() => window.Current is BrowsePage { Items.Count: > 1 }, 10); await Task.Delay(600);
+            var posters = window.Current!.GetVisualDescendants().OfType<Button>().Where(x => x.Classes.Contains("card") && x.IsEffectivelyVisible).ToList();
+            var firstPoster = posters.FirstOrDefault();
+            firstPoster?.Focus(NavigationMethod.Directional);
+            Press(window, Avalonia.Input.Key.Right); await Task.Delay(300);
+            var secondPoster = Focused();
+            await Task.Delay(300); Capture(window, output, "10b-couch-films");
+            Check(firstPoster is not null && secondPoster != firstPoster && Where(secondPoster)?.Left > Where(firstPoster)?.Left && Math.Abs((Where(secondPoster)?.Top ?? 0) - (Where(firstPoster)?.Top ?? 1)) < 2, "mode canapé : → passe à l’affiche voisine", $"{posters.Count} affiches");
+            Press(window, Avalonia.Input.Key.Enter);
+            Check(await Until(() => window.Current is DetailPage, 10), "mode canapé : Entrée ouvre la fiche", window.Current?.GetType().Name ?? "");
+            await Task.Delay(800); Capture(window, output, "10c-couch-film");
+            Press(window, Avalonia.Input.Key.Back);
+            Check(await Until(() => window.Current is BrowsePage, 5), "mode canapé : Retour arrière revient", window.Current?.GetType().Name ?? "");
+            // A controller (MacGamepad stood in for): offered while couch mode is off, then its cross and its A and B.
+            MacGamepad.Override(new PadState(Mira.Core.Pad.None));
+            var padSeen = await Until(() => window.PadConnected, 4);
+            firstPoster?.Focus(NavigationMethod.Directional);
+            async Task PadPress(Mira.Core.Pad button) { MacGamepad.Override(new PadState(button)); await Task.Delay(120); MacGamepad.Override(new PadState(Mira.Core.Pad.None)); await Task.Delay(120); }
+            await PadPress(Mira.Core.Pad.Right);
+            var padMoved = Focused() != firstPoster;
+            await PadPress(Mira.Core.Pad.A);
+            var padOpened = await Until(() => window.Current is DetailPage, 10);
+            await PadPress(Mira.Core.Pad.B);
+            Check(padSeen && padMoved && padOpened && await Until(() => window.Current is BrowsePage, 5), "mode canapé : la manette se déplace, ouvre (A) et revient (B)", $"vue {padSeen}, déplacée {padMoved}, fiche {padOpened}, revenue {window.Current is BrowsePage}");
+            MacGamepad.StopOverride();
+            window.SetCouchMode(false);
+            await Task.Delay(800);
+            Check(!window.InCouchMode && window.CouchZoom == 1 && !window.Classes.Contains("couch"), "mode canapé : coupé, la fenêtre comme avant", $"zoom {window.CouchZoom:0.00}");
 
             // —— Space over the button that started the film ——
             // Lecture clicked keeps the focus under the player, and Avalonia presses a focused button when Space is
@@ -453,10 +580,17 @@ public static class SelfCheck
                 Check(started, $"lecture ({renderer}) : images", $"{player?.Surface?.GetType().Name}, {player?.Surface?.Frames} images{(player?.Surface is Playback.VideoView { Renderer.Length: > 0 } gl ? ", " + gl.Renderer : "")}{(player?.VideoFallback is { } why ? " — repli : " + why : "")}");
                 if (player?.Engine is not { } engine) continue;
                 var info = player.InfoText() ?? "";
-                Check(info.Split('\n').Length == (player.Surface is Playback.VideoView { LastLook.Length: > 0 } ? 7 : 6) && info.Contains("OpenGL ·") == player.Surface is Playback.VideoView && PictureQuality.Choices.Any(x => info.Contains(PictureQuality.Label(x.Key))), $"informations de lecture ({renderer})", info.Replace('\n', ' '));
+                Check(info.Split('\n').Length == (player.Surface is Playback.VideoView { LastLook.Length: > 0 } ? 9 : 8) && info.Contains(Lang.L("\nSortie  Par défaut du Mac", "\nOutput  Mac default")) && info.Contains("OpenGL ·") == player.Surface is Playback.VideoView && PictureQuality.Choices.Any(x => info.Contains(PictureQuality.Label(x.Key))), $"informations de lecture ({renderer})", info.Replace('\n', ' '));
                 var audio = engine.Get("current-ao");
                 if (string.IsNullOrEmpty(audio)) Check(true, $"volume à 150 % ({renderer})", "pas de sortie audio sur cette machine : non mesurable");
                 else Check((engine.Get("af") ?? "").Contains(VolumeBoost.Label) && Math.Abs(engine.Number("volume") - 100) < 0.5, $"volume à 150 % ({renderer})", $"{player.Volume}, sortie {audio}, af {engine.Get("af")}");
+                // « Son de nuit », as on Windows: the compressor at the head of mpv's chain, before the boost, and gone again.
+                player.ChooseNightSound(true);
+                var chain = engine.Get("af") ?? "";
+                if (string.IsNullOrEmpty(audio)) Check(true, $"son de nuit ({renderer})", "pas de sortie audio sur cette machine : non mesurable");
+                else Check(engine.NightSoundOn && chain.IndexOf(NightSound.Label, StringComparison.Ordinal) is >= 0 and var night && night < chain.IndexOf(VolumeBoost.Label, StringComparison.Ordinal) && window.Settings.NightSound, $"son de nuit avant l’amplification ({renderer})", chain);
+                player.ChooseNightSound(false);
+                Check(!engine.NightSoundOn && !(engine.Get("af") ?? "").Contains(NightSound.Label, StringComparison.Ordinal) && !window.Settings.NightSound, $"son de nuit coupé ({renderer})", engine.Get("af") ?? "");
                 var before = player.Position;
                 Key(window, Avalonia.Input.Key.Right);
                 Check(await Until(() => player.Position >= before + 8, 6), $"avance de 10 s ({renderer})", $"{before:0.0} → {player.Position:0.0}");
@@ -474,6 +608,48 @@ public static class SelfCheck
                     var paused = engine.Flag("pause");
                     Key(window, Avalonia.Input.Key.Space);
                     Check(paused && await Until(() => !engine.Flag("pause"), 3), "lecteur : Espace tenu ne met en pause qu’une fois");
+                    // The Mac's media controls (F8, AirPods, Control Center), as the player's own keys: on a Mac through the
+                    // native method macOS calls, and « Now Playing » read back from macOS.
+                    var told = await Until(() => MacNowPlaying.Clock.Told is { Ready: true, Paused: false } now && now.Title == movie.DisplayTitle && now.Duration > 0, 3);
+                    Check(told, "touches média : « Now Playing » dit le titre qui joue", MacNowPlaying.Clock.Told?.ToString() ?? "rien");
+                    if (OperatingSystem.IsMacOS()) Check(MacNowPlaying.Listening && MacNowPlaying.ToldTitle() == movie.DisplayTitle, "touches média : macOS tient le titre", $"à l’écoute {MacNowPlaying.Listening}, « {MacNowPlaying.ToldTitle()} »");
+                    Check(await Until(() => MacNowPlaying.ArtworkFor == movie.DisplayTitle, 8), "touches média : l’affiche du titre à côté", MacNowPlaying.ArtworkFor ?? "aucune");
+                    MacNowPlaying.Press(MediaKey.TogglePause);
+                    Check(await Until(() => engine.Flag("pause"), 3) && await Until(() => MacNowPlaying.Clock.Told is { Paused: true }, 3), "touches média : F8 met en pause, « Now Playing » le dit");
+                    MacNowPlaying.Press(MediaKey.Pause);
+                    await Task.Delay(400);
+                    var stillPaused = engine.Flag("pause");
+                    MacNowPlaying.Press(MediaKey.Play);
+                    Check(stillPaused && await Until(() => !engine.Flag("pause"), 3), "touches média : Pause ne relance pas, Lecture reprend");
+                    var heard = player.Position;
+                    MacNowPlaying.Press(MediaKey.Back);
+                    Check(await Until(() => player.Position < heard - 7, 6), "touches média : F7 recule de 10 s", $"{heard:0.0} → {player.Position:0.0}");
+                    MacNowPlaying.Press(MediaKey.Seek, player.Duration / 4);
+                    Check(await Until(() => Math.Abs(player.Position - player.Duration / 4) < 2, 6), "touches média : la barre de « Now Playing » déplace le film", $"{player.Position:0.0} sur {player.Duration:0.0}");
+                    MacNowPlaying.Press(MediaKey.Next);
+                    await Task.Delay(500);
+                    Check(window.Player == player && player.Item?.Id == movie.Id, "touches média : F9 sans épisode suivant ne fait rien", player.Item?.Name ?? "");
+                    // Jellyfin's remote control (MainWindow.Remote.cs), as the WebSocket hands its commands in: another
+                    // device pauses, moves, turns down and mutes this Mac, and says something on its screen.
+                    var session = window.Session!;
+                    window.Remote(session, new RemoteCommand(RemoteAction.Pause));
+                    Check(await Until(() => engine.Flag("pause"), 3), "télécommande : Pause d’un autre appareil met en pause");
+                    window.Remote(session, new RemoteCommand(RemoteAction.Unpause));
+                    Check(await Until(() => !engine.Flag("pause"), 3), "télécommande : Lecture reprend");
+                    window.Remote(session, new RemoteCommand(RemoteAction.Seek) { Position = player.Duration / 2 });
+                    Check(await Until(() => Math.Abs(player.Position - player.Duration / 2) < 2, 6), "télécommande : la position demandée", $"{player.Position:0.0} sur {player.Duration:0.0}");
+                    var level = player.Sound.Level;
+                    window.Remote(session, new RemoteCommand(RemoteAction.SetVolume) { Volume = 35 });
+                    window.Remote(session, new RemoteCommand(RemoteAction.ToggleMute));
+                    Check(player.Sound is { Level: 35, Muted: true }, "télécommande : volume à 35 %, puis muet", player.Sound.ToString());
+                    window.Remote(session, new RemoteCommand(RemoteAction.Unmute));
+                    player.PutBackSound(level);
+                    Check(!player.Sound.Muted, "télécommande : le son revient", player.Sound.ToString());
+                    window.Remote(session, new RemoteCommand(RemoteAction.Message) { Header = "Mira", Text = "Check" });
+                    Check(await Until(() => player.PillText == "Mira · Check", 2), "télécommande : le message d’un autre appareil en haut du lecteur", player.PillText ?? "rien");
+                    window.Remote(session, new RemoteCommand(RemoteAction.Next));
+                    await Task.Delay(400);
+                    Check(window.Player == player && player.Item?.Id == movie.Id, "télécommande : « suivant » sans épisode suivant ne fait rien", player.Item?.Name ?? "");
                     // Two fingers sideways over the picture: about 6 s on, the bar at once, the film when the fingers rest.
                     var from = player.Position;
                     Swipe(player, new Point(player.Bounds.Width / 2, player.Bounds.Height / 2), .15, 0, 20);
@@ -555,6 +731,7 @@ public static class SelfCheck
                 Check(await Until(() => engine.Flag("pause"), 3), $"pause ({renderer})");
                 await window.StopPlaybackAsync();
                 Check(window.Player is null, $"retour à la bibliothèque ({renderer})");
+                Check(MacNowPlaying.Clock.Told is null && (!OperatingSystem.IsMacOS() || MacNowPlaying.ToldTitle() is null), $"touches média : « Now Playing » vidé à la fermeture ({renderer})", MacNowPlaying.Clock.Told?.Title ?? "");
                 if (pipLeft is not null) Check(!pipLeft.IsVisible && player.Pip is null, $"image dans l’image : partie avec la lecture ({renderer})");
             }
             Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);
@@ -589,6 +766,99 @@ public static class SelfCheck
                 Check(refusedShown && await Until(() => window.Player is null, 5), "lecture impossible : Échap revient à la bibliothèque", window.Player is null ? window.Current?.GetType().Name ?? "" : "lecteur encore là");
                 mock.RefusePlayback = false;
                 await window.StopPlaybackAsync();
+            }
+
+            // —— Over the network, as on Windows (MainWindow.Power.cs, WatchStall): the Mac asleep, said by macOS or only by its
+            // clock, then a connection that stops sending without closing (Jellyfin's PC gone): opened again where it was, then
+            // « Lecture impossible » when it stops again at once ——
+            if (mock is not null)
+            {
+                using var streams = StreamServer.TryStart(mock);
+                if (streams is null) Check(false, "réseau : le Jellyfin du contrôle sert ses vidéos", $"{StreamServer.Prefix} déjà pris");
+                else
+                {
+                    mock.StreamOverHttp = true;
+                    int Opened() { lock (mock.Calls) return mock.Calls.Count(x => x.EndsWith("/PlaybackInfo", StringComparison.Ordinal)); }
+                    // What mpv is doing, said when a check fails (the Mac runner differs from Linux).
+                    string Mpv() { var m = window.Player?.Engine; return m is null ? "pas de mpv" : string.Join(" ", new[] { "pause", "paused-for-cache", "core-idle", "seeking", "eof-reached", "demuxer-cache-time", "cache-buffering-state", "time-pos" }.Select(x => $"{x}={m.Get(x)}")) + $" ; flux {streams.Streams} : {streams.Log()}"; }
+                    await window.PlayAsync(movie, fromStart: true);
+                    var streamed = window.Player;
+                    var playing = await Until(() => streamed is { IsFileLoaded: true, Position: > 3 }, 30);
+                    Check(playing && streamed!.Location?.StartsWith(StreamServer.Prefix, StringComparison.Ordinal) == true, "réseau : le film arrive par une connexion", streamed?.Location ?? window.NoticeText ?? "lecteur fermé");
+                    if (playing && streamed?.Engine is not null)
+                    {
+                        // macOS says it sleeps, then wakes: paused where it was, opened again, still paused.
+                        var opened = Opened(); var was = streamed.Position;
+                        streamed.SleepForCheck();
+                        var pausedBefore = streamed.Engine?.Flag("pause") == true;
+                        streams.Hang();
+                        await Task.Delay(1500);
+                        streamed.WakeForCheck();
+                        var back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Engine?.Flag("pause") == true, 20);
+                        Check(pausedBefore && back && Math.Abs(streamed.Position - was) < 2, "veille du Mac : en pause avant, rouvert au même endroit au réveil, toujours en pause",
+                            $"pause avant {pausedBefore}, {Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}, chargé {streamed.IsFileLoaded}, pause {streamed.Engine?.Flag("pause")}");
+                        // Asleep without a word from macOS: its clock alone says so.
+                        streamed.Engine?.Set("pause", "no");
+                        var played = await Until(() => streamed.Position > was + 2, 10); var afterSleep = played ? "" : " — après la veille, pas reparti : " + Mpv();
+                        opened = Opened(); was = streamed.Position;
+                        streams.Hang();
+                        streamed.ClockJumpForCheck(40);
+                        back = await Until(() => Opened() > opened && streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Engine?.Flag("pause") == true, 20);
+                        Check(back && Math.Abs(streamed.Position - was) < 2, "veille vue par l’horloge seule : rouvert au même endroit, en pause", $"{Opened() - opened} réouverture, {was:0.0} → {streamed.Position:0.0}{afterSleep}");
+                        // The connection stops sending: mpv waits, Mira opens it again where it was after 15 s.
+                        streamed.Engine?.Set("pause", "no");
+                        var playedOn = await Until(() => streamed.Position > was + 3, 10); var afterClock = playedOn ? "" : " — pas reparti : " + Mpv();
+                        opened = Opened();
+                        streams.Hang();
+                        var stalledAt = 0.0;
+                        var waited = await Until(() => { if (streamed.Engine?.Flag("paused-for-cache") == true && stalledAt == 0) stalledAt = streamed.Position; return stalledAt > 0; }, 20);
+                        var reopened = await Until(() => Opened() > opened, 30) && await Until(() => streamed is { IsFileLoaded: true, ReopeningForCheck: false } && streamed.Position > stalledAt + 1, 20);
+                        Check(waited && reopened && window.Player == streamed && !streamed.FailureShown, "flux bloqué : rouvert là où il était, la lecture continue",
+                            $"attente {waited} à {stalledAt:0.0}, {Opened() - opened} réouverture, lu {streamed.Position:0.0}{(streamed.FailureShown ? ", " + streamed.FailureText : "")}{afterClock}{(waited && reopened ? "" : " — " + Mpv())}");
+                        // Stuck again before it played on: Jellyfin answers, the video does not come, « Lecture impossible ».
+                        await Until(() => streamed.Position > stalledAt + 3, 10);
+                        streams.Hang();
+                        var failed = await Until(() => streamed.FailureShown, 45);
+                        Check(failed && streamed.FailureText == StreamRecovery.StuckText, "flux bloqué de nouveau : « Lecture impossible »", streamed.FailureText ?? window.NoticeText ?? (window.Player is null ? "lecteur fermé" : $"lu {streamed.Position:0.0} — {Mpv()}"));
+                    }
+                    mock.StreamOverHttp = false;
+                    await window.StopPlaybackAsync();
+                }
+            }
+
+            // —— « Bande-annonce »: on the page when the title has one, and « Bande-annonce avant le film » ——
+            if (mock is not null)
+            {
+                var kept = await window.Session.Client.ItemAsync("movie-3");
+                var web = await window.Session.Client.ItemAsync("movie-2");
+                foreach (var titled in new[] { kept, web })
+                {
+                    window.Open(titled);
+                    var tip = Trailers.Tip(titled);
+                    Check(await Until(() => window.Current is DetailPage page && page.Item.Id == titled.Id && page.ActionButtons().Any(x => x.Name == tip), 15),
+                        $"fiche : « Bande-annonce » dit où il mène ({titled.Name})", string.Join(", ", (window.Current as DetailPage)?.ActionButtons().Select(x => x.Name) ?? []));
+                    if (titled == kept) { await Task.Delay(600); Capture(window, output, "05g-film-trailer"); }
+                }
+                window.Open(movie);
+                Check(await Until(() => window.Current is DetailPage page && page.Item.Id == movie.Id && page.ActionButtons().Any(), 15)
+                    && !(window.Current as DetailPage)!.ActionButtons().Any(x => x.Name.Contains(Trailers.Label, StringComparison.OrdinalIgnoreCase)), "fiche sans bande-annonce : pas de bouton");
+                window.Settings.TrailerFirst = true;
+                await window.PlayAsync(kept, fromStart: true);
+                var trailerPlayer = window.Player;
+                Check(await Until(() => trailerPlayer is { IsFileLoaded: true, Item.Id: "trailer-3" } && trailerPlayer.SkipPillText == Trailers.SkipLabel, 30),
+                    "bande-annonce avant le film : elle passe d’abord, « Passer la bande-annonce » au-dessus", $"{trailerPlayer?.Item?.Name}, « {trailerPlayer?.SkipPillText} »");
+                trailerPlayer?.SkipForCheck();
+                Check(await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "movie-3" }, 30), "bande-annonce avant le film : la pastille mène au film", window.Player?.Item?.Name ?? window.NoticeText ?? "lecteur fermé");
+                await window.StopPlaybackAsync();
+                await window.PlayAsync(kept, fromStart: true);
+                Check(await Until(() => window.Player is { Item.Id: "trailer-3" }, 30) && await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "movie-3" }, 60),
+                    "bande-annonce avant le film : le film suit la fin de la bande-annonce", window.Player?.Item?.Name ?? window.NoticeText ?? "lecteur fermé");
+                await window.StopPlaybackAsync();
+                // A film without one starts at once, its own.
+                await window.PlayAsync(movie);
+                Check(await Until(() => window.Player is { IsFileLoaded: true }, 30) && window.Player?.Item?.Id == movie.Id && window.Player.SkipPillText != Trailers.SkipLabel, "bande-annonce avant le film : un film sans bande-annonce part tout de suite", window.Player?.Item?.Name ?? "");
+                await window.StopPlaybackAsync();
+                window.Settings.TrailerFirst = false;
             }
 
             // —— Next episode at the end of one ——

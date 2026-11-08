@@ -88,6 +88,8 @@ public partial class MainWindow
     private async Task<string?> CheckJellyfinReleaseAsync(JellyfinClient client, CancellationToken ct)
     {
         if (JellyfinReleases.ParseVersion(await client.ServerVersionAsync(ct)) is not { } installed) return null;
+        // Réglages → Confidentialité: off, GitHub is never asked, and what an earlier look found is no longer offered.
+        if (!_settings.JellyfinReleaseCheck) return null;
         if (DateTimeOffset.Now - (_settings.JellyfinReleaseCheckedAt ?? DateTimeOffset.MinValue) >= JellyfinReleases.CheckEvery)
         {
             try

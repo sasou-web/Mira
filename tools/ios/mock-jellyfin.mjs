@@ -10,6 +10,10 @@
 // The tests switch it (POST): /Mock/Slow?ms=… answers the account's requests that much later (pictures and the server's
 // public answer stay quick), /Mock/Down cuts every connection but /Mock's (a PC switched off), /Mock/Up undoes both;
 // /Mock/Mark?name=… notes when a moment of a filmed test came (/Mock/Marks, read by ios.yml to cut the film).
+// « Keep on this iPhone »: Items/{id}/Download sends the file (ranges), and Cosmos Laundromat's PlaybackInfo, asked with
+// no subtitles from its start (as the app asks to keep a title), is a conversion of an MKV: its HLS playlists cut
+// media/clip.mp4 into an init segment and segments, put end to end again by the app; its subtitles as WebVTT; where a
+// title kept was watched without the mock, told by UserItems/{id}/UserData (listed with the reports, « /UserData »).
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
 import http from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
@@ -71,6 +75,22 @@ const films = [
   film('b8c7d0e9f2a31b4c5d6e7f8a9b0c1d2e', 'Sprite Fright', 2021, 10, ['Animation', 'Horror', 'Comedy'],
     'When a group of rowdy teenagers trek into an isolated forest, they discover peaceful mushroom creatures that turn out to be an unexpected force of nature.'),
 ];
+// Cast and crew, as Items/{id} gives them (a person's page: Items?personIds=, Items/{person}, Persons?searchTerm=).
+const person = (id, name, extra = {}) => ({ Id: id, Name: name, Type: 'Person', ...extra });
+const persons = [
+  person('a0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5', 'Derek de Lint', {
+    ImageTags: { Primary: 'p-derek' }, PremiereDate: '1950-07-15T00:00:00.0000000Z', ProductionLocations: ['The Hague, Netherlands'],
+    Overview: 'Dutch actor, on stage and in films since the 1970s.',
+  }),
+  person('b1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6', 'Vanja Rukavina'),
+  person('c2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7', 'Sergio Hasselbaink', { ImageTags: { Primary: 'p-sergio' } }),
+  person('d3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8', 'Ian Hubert', { ImageTags: { Primary: 'p-ian' } }),
+  person('e4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9', 'Colin Levy', { ImageTags: { Primary: 'p-colin' } }),
+  person('f5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0', 'Halina Reijn'),
+];
+const credit = (index, type, role) => ({ Id: persons[index].Id, Name: persons[index].Name, Type: type, Role: role, PrimaryImageTag: persons[index].ImageTags?.Primary });
+films[0].People = [credit(4, 'Director'), credit(5, 'Actor', 'Sintel')];
+films[1].People = [credit(3, 'Director'), credit(0, 'Actor', 'Thom'), credit(1, 'Actor', 'Celia'), credit(2, 'Actor', 'Barley'), credit(0, 'Actor', 'Old Thom')];
 const SERIES = 'c9d8e1f0a3b42c5d6e7f8a9b0c1d2e3f';
 const SEASON = 'd0e9f2a1b4c53d6e7f8a9b0c1d2e3f40';
 const MOVIES = 'f1e2d3c4b5a69788796a5b4c3d2e1f00', SHOWS = 'f2e3d4c5b6a7988796a5b4c3d2e1f011';
@@ -98,6 +118,19 @@ const episodes = [
   episode(3, 'Alone in the Night'),
 ];
 const everything = [...films, series, ...episodes];
+// What TheTVDB's extension adds to a series (virtual episodes with their air day): one aired 5 days ago that the
+// library lacks, one coming in 3 days (EpisodeCalendar).
+const virtualEpisodes = [
+  { ...episode(4, 'Triangle', { PremiereDate: days(5) }), LocationType: 'Virtual' },
+  { ...episode(5, 'The Sun Never Sets', { PremiereDate: days(-3) }), LocationType: 'Virtual' },
+];
+// Collections made by hand, kept until the mock stops: one there from the start, empty.
+const boxSets = [{ Id: 'b0c1d2e3f4a5968778695a4b3c2d1e0f', Name: 'Movie nights', Type: 'BoxSet', ChildCount: 0, Path: '/config/data/collections/Movie nights [boxset]', titles: [] }];
+const boxSet = (x) => ({ Id: x.Id, Name: x.Name, Type: x.Type, ChildCount: x.titles.length, Path: x.Path });
+// The title kept as Jellyfin's conversion, and the pieces of its stream.
+const converted = films[3];
+const pieces = [clip.subarray(0, 4096)];
+for (let at = 4096, size = Math.ceil((clip.length - 4096) / 4); at < clip.length; at += size) pieces.push(clip.subarray(at, Math.min(clip.length, at + size)));
 // Each playable title: one MP4 file, its tracks.
 const mediaSource = (item) => ({
   Id: item.Id, Container: 'mov,mp4,m4a', Bitrate: 30_000, RunTimeTicks: item.RunTimeTicks, SupportsDirectPlay: true, SupportsDirectStream: true,
@@ -289,6 +322,25 @@ const server = http.createServer(async (req, res) => {
     syncPlay(sync[1], JSON.parse(raw || '{}'), guest ? 'Guest' + sync[1] : sync[1]);
     return send(res, 204, undefined);
   }
+  // The account's policy: allowed to manage collections, not an administrator.
+  if (path === '/Users/Me') return send(res, 200, { Id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f', Name: 'ogsas', Policy: { IsAdministrator: false, EnableCollectionManagement: true } });
+  if (path === '/Items' && q.get('locationTypes') === 'Virtual') return send(res, 200, list(virtualEpisodes));
+  if (path === '/Items' && q.get('includeItemTypes') === 'BoxSet') return send(res, 200, list(boxSets.map(boxSet)));
+  const holding = /^\/Items\/([0-9a-f]+)\/Collections$/.exec(path);
+  if (holding) return send(res, 200, list(boxSets.filter((x) => x.titles.includes(holding[1])).map(boxSet)));
+  if (path === '/Collections' && req.method === 'POST') {
+    const made = { Id: randomUUID().replaceAll('-', ''), Name: q.get('name') ?? '', Type: 'BoxSet', Path: `/config/data/collections/${q.get('name')} [boxset]`, titles: (q.get('ids') ?? '').split(',').filter(Boolean) };
+    boxSets.push(made);
+    return send(res, 200, { Id: made.Id });
+  }
+  const filling = /^\/Collections\/([0-9a-f]+)\/Items$/.exec(path);
+  if (filling) {
+    const box = boxSets.find((x) => x.Id === filling[1]);
+    if (!box) return send(res, 404, undefined);
+    const ids = (q.get('ids') ?? '').split(',').filter(Boolean);
+    box.titles = req.method === 'DELETE' ? box.titles.filter((x) => !ids.includes(x)) : [...new Set([...box.titles, ...ids])];
+    return send(res, 204, undefined);
+  }
   if (path === '/UserItems/Resume') return send(res, 200, list([episodes[1], films[0]]));
   if (path === '/Shows/NextUp') return send(res, 200, list([q.get('seriesId') ? episodes[1] : episodes[2]]));
   if (path === `/Shows/${SERIES}/Seasons`) return send(res, 200, list([{ Id: SEASON, Name: 'Season 1', Type: 'Season', IndexNumber: 1, SeriesId: SERIES }]));
@@ -300,7 +352,57 @@ const server = http.createServer(async (req, res) => {
   if (playback && req.method === 'POST') {
     const item = everything.find((x) => x.Id === playback[1]);
     if (!item?.MediaSources) return send(res, 404, undefined);
-    return send(res, 200, { MediaSources: item.MediaSources, PlaySessionId: `play-${reports.length}` });
+    const body = JSON.parse(raw || '{}'), session = `play-${reports.length}`;
+    if (item === converted && body.SubtitleStreamIndex === -1 && !body.StartTimeTicks) {
+      const source = { ...item.MediaSources[0], Container: 'mkv', SupportsDirectPlay: false, SupportsDirectStream: false, TranscodingSubProtocol: 'hls',
+        TranscodingUrl: `/videos/${item.Id}/master.m3u8?MediaSourceId=${item.Id}&PlaySessionId=${session}&AudioStreamIndex=${body.AudioStreamIndex ?? 1}` };
+      return send(res, 200, { MediaSources: [source], PlaySessionId: session });
+    }
+    return send(res, 200, { MediaSources: item.MediaSources, PlaySessionId: session });
+  }
+  const download = /^\/Items\/([0-9a-f]+)\/Download$/.exec(path);
+  if (download) {
+    if (!everything.some((x) => x.Id === download[1] && x.MediaSources)) return send(res, 404, undefined);
+    const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
+    if (!range) {
+      res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': clip.length, 'Accept-Ranges': 'bytes' });
+      return res.end(clip);
+    }
+    const start = Number(range[1]), end = Math.min(clip.length - 1, range[2] ? Number(range[2]) : clip.length - 1);
+    res.writeHead(206, { 'Content-Type': 'video/mp4', 'Content-Length': end - start + 1, 'Content-Range': `bytes ${start}-${end}/${clip.length}`, 'Accept-Ranges': 'bytes' });
+    return res.end(clip.subarray(start, end + 1));
+  }
+  if (path === `/videos/${converted.Id}/master.m3u8`) {
+    res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl' });
+    return res.end(`#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=300000,CODECS="avc1.64001e,mp4a.40.2"\nmain.m3u8?${q}\n`);
+  }
+  if (path === `/videos/${converted.Id}/main.m3u8`) {
+    const lines = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-TARGETDURATION:3', '#EXT-X-MEDIA-SEQUENCE:0', '#EXT-X-PLAYLIST-TYPE:VOD',
+      `#EXT-X-MAP:URI="hls1/main/-1.mp4?${q}"`];
+    for (let n = 0; n < pieces.length - 1; n++) lines.push('#EXTINF:2.5,', `hls1/main/${n}.mp4?${q}`);
+    lines.push('#EXT-X-ENDLIST', '');
+    res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl' });
+    return res.end(lines.join('\n'));
+  }
+  const segment = new RegExp(`^/videos/${converted.Id}/hls1/main/(-?\\d+)\\.mp4$`).exec(path);
+  if (segment) {
+    const piece = pieces[Number(segment[1]) + 1];
+    if (!piece) return send(res, 404, undefined);
+    res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': piece.length });
+    return res.end(piece);
+  }
+  if (/^\/Videos\/[0-9a-f]+\/[0-9a-f]+\/Subtitles\/3\/0\/Stream\.vtt$/.test(path)) {
+    res.writeHead(200, { 'Content-Type': 'text/vtt' });
+    return res.end('WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nBonjour, tout le monde.\n\n00:00:05.000 --> 00:00:08.000\nOn regarde sans connexion.\n');
+  }
+  const userData = /^\/UserItems\/([0-9a-f]+)\/UserData$/.exec(path);
+  if (userData && req.method === 'POST') {
+    const item = everything.find((x) => x.Id === userData[1]);
+    if (!item) return send(res, 404, undefined);
+    const body = JSON.parse(raw || '{}');
+    item.UserData = { ...item.UserData, PlaybackPositionTicks: body.PlaybackPositionTicks ?? 0, ...(body.LastPlayedDate ? { LastPlayedDate: body.LastPlayedDate } : {}) };
+    reports.push({ kind: '/UserData', item: item.Id, position: body.PlaybackPositionTicks });
+    return send(res, 200, item.UserData);
   }
   if (path.startsWith('/Sessions/Playing')) {
     const body = JSON.parse(raw || '{}');
@@ -317,7 +419,11 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, item.UserData);
   }
   const one = /^\/Items\/([0-9a-f]+)$/.exec(path);
-  if (one) { const item = everything.find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
+  if (path === '/Persons') {
+    const term = (q.get('searchTerm') ?? '').toLowerCase();
+    return send(res, 200, list(persons.filter((x) => term && x.Name.toLowerCase().includes(term))));
+  }
+  if (one) { const item = [...everything, ...persons].find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
   if (path === '/UserViews') {
     return send(res, 200, list([
       { Id: MOVIES, Name: 'Movies', Type: 'CollectionFolder', CollectionType: 'movies' },
@@ -340,6 +446,7 @@ const server = http.createServer(async (req, res) => {
     const term = (q.get('searchTerm') ?? '').toLowerCase();
     let found = everything.filter((x) => kinds.includes(x.Type)
       && (!term || x.Name.toLowerCase().includes(term))
+      && (!q.get('personIds') || (x.People ?? []).some((p) => p.Id === q.get('personIds')))
       && (!q.get('genres') || (x.Genres ?? []).includes(q.get('genres')))
       && (!q.get('years') || String(x.ProductionYear) === q.get('years'))
       && (q.get('isPlayed') !== 'false' || !x.UserData?.Played)

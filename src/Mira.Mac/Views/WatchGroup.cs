@@ -44,8 +44,8 @@ public sealed class WatchGroup
     private Task? _recovering;
     /// <summary>The group changed (joined, left, someone came): the title page and the player's ⋮ show it again.</summary>
     public event Action? Changed;
-    /// <summary>Someone came or went (« Marc a rejoint le groupe »): the player's pill says it, a notice otherwise.</summary>
-    public event Action<string>? Member;
+    /// <summary>Someone came or went (« Marc a rejoint le groupe »): the player's pill says it, a notice otherwise (and a notification of the Mac for one who joined, Mira away).</summary>
+    public event Action<string, bool>? Member;
 
     public WatchGroup(MainWindow shell)
     {
@@ -77,7 +77,7 @@ public sealed class WatchGroup
                 if (!again && _made) _ = ShareAsync(session);
                 break;
             case "UserJoined" or "UserLeft" when Group is not null:
-                if (body.ValueKind == JsonValueKind.String && body.GetString() is { Length: > 0 } name) Member?.Invoke(Together.MemberText(name, kind == "UserJoined"));
+                if (body.ValueKind == JsonValueKind.String && body.GetString() is { Length: > 0 } name) Member?.Invoke(Together.MemberText(name, kind == "UserJoined"), kind == "UserJoined");
                 _ = RefreshAsync(session);
                 break;
             // Idle, Waiting (for a device to load), Paused or Playing: never who caused it (Together.GroupStatus).

@@ -256,7 +256,7 @@ public sealed class DetailPage : Page
     private bool _settled;
     /// <summary>The line of buttons, made once for the page and changed where it is, its buttons too: a click never rebuilds it.</summary>
     private ActionLine? _line;
-    private Button? _play, _restart, _together, _favorite, _watched, _followButton, _fix;
+    private Button? _play, _restart, _together, _favorite, _watched, _followButton, _trailer, _fix;
     /// <summary>What « Depuis le début » plays: the film, or the episode Lecture picks up.</summary>
     private MediaItem? _restartFrom;
     private string? _togetherShown;
@@ -351,6 +351,10 @@ public sealed class DetailPage : Page
         Button? follow = null;
         follow = _followButton = StateButton("follow", () => FollowMenu(follow!)); line.Children.Add(follow);
         _offlineButton = StateButton("offline", OfflineClicked); line.Children.Add(_offlineButton);
+        // « Bande-annonce »: kept on the server, it plays in Mira; on the web, it opens in the browser, its tooltip saying so before the click.
+        _trailer = Ui.IconButton("trailer", Trailers.Label, () => _ = TrailerAsync(), "state", 18, Trailers.Label);
+        _trailer.VerticalAlignment = VerticalAlignment.Center; _trailer.IsVisible = false;
+        line.Children.Add(_trailer);
         // « ⋮ » as on Windows: what an administrator rarely needs stays out of the row of buttons.
         Button? fix = null;
         fix = _fix = Ui.IconButton("more", L("Identifier le titre, actualiser ses informations", "Identify the title, refresh its details"), () => FixMenu(fix!), "state", 18, L("Plus d’actions sur ce titre", "More actions for this title"));
@@ -423,6 +427,9 @@ public sealed class DetailPage : Page
                 ? L("Suivre les nouveaux épisodes : le PC serveur les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: the server PC looks for them and downloads them on its own, with TorLink")
                 : string.Join(" · ", new[] { L("Suivie", "Following"), RemoteLines.FollowNote(_follow.Note), RemoteLines.Follow(_follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0)));
         ShowOffline();
+        var trailer = _trailer!;
+        trailer.IsVisible = Trailers.Source(_item) != TrailerSource.None;
+        if (trailer.IsVisible) { ToolTip.SetTip(trailer, Trailers.Tip(_item)); Avalonia.Automation.AutomationProperties.SetName(trailer, Trailers.Tip(_item)); }
         _fix!.IsVisible = _admin && _item.Type is "Movie" or "Series";
     }
     /// <summary>For the self-check: Lecture.</summary>
@@ -501,6 +508,31 @@ public sealed class DetailPage : Page
         var whole = _item.Type == "Series" ? L("la saison", "the season") : L("le film", "the movie");
         Add(copies.All(x => x.Complete) ? L($"Retirer {whole} de ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}", $"Remove {whole} from this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), () => _ = Shell.ForgetOfflineAsync(copies));
         Ui.OpenUnder(menu, button);
+    }
+
+    /// <summary>
+    /// « Bande-annonce » (<see cref="Trailers"/>): the trailer kept on the server in Mira's player, from Jellyfin alone;
+    /// one on the web in the browser, never in Mira.
+    /// </summary>
+    private async Task TrailerAsync()
+    {
+        var item = _item;
+        switch (Trailers.Source(item))
+        {
+            case TrailerSource.Jellyfin:
+                if (Shell.Session is not { } session) return;
+                try
+                {
+                    var trailers = await session.Client.LocalTrailersAsync(item.Id, session.Lifetime);
+                    if (trailers.FirstOrDefault() is { } trailer) await Shell.PlayAsync(trailer);
+                    else Shell.Notice(L("Jellyfin ne trouve plus la bande-annonce de ce titre.", "Jellyfin can no longer find this title’s trailer."));
+                }
+                catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
+                break;
+            case TrailerSource.Web when Trailers.WebLink(item) is { } link:
+                Updates.Open(link);
+                break;
+        }
     }
 
     /// <summary>« Nouveaux épisodes »: for an administrator, when the extension follows series.</summary>

@@ -37,6 +37,8 @@ public sealed partial class SettingsPage : Page
                 if (int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out var back)) settings.ResumeBack = back;
             }, L("Quelques secondes avant, pour retrouver le fil.", "A few seconds earlier, to pick up the thread.")),
             Toggle(L("Enchaîner les épisodes", "Play episodes back to back"), L("L’épisode suivant démarre tout seul à la fin.", "The next episode starts by itself at the end."), settings.AutoNext, v => settings.AutoNext = v),
+            Toggle(StillWatching.Setting, StillWatching.SettingHelp, settings.StillWatching, v => settings.StillWatching = v),
+            Toggle(Trailers.BeforeFilmLabel, Trailers.BeforeFilmHint, settings.TrailerFirst, v => settings.TrailerFirst = v),
             Toggle(L("Passer les intros et les récaps", "Skip intros and recaps"), L("Tout seul, quand Jellyfin les a repérés. Sinon, touche S.", "On its own, when Jellyfin has found them. Otherwise, press S."), settings.AutoSkip, v => settings.AutoSkip = v),
             Choice(L("Qualité", "Quality"), [.. StreamQuality.Choices.Select(x => (x.Label, x.Key))], StreamQuality.Known(settings.Quality), v => settings.Quality = v,
                 L("« Automatique » s’adapte à ta connexion, chez toi comme ailleurs. Aussi dans le lecteur, sous ⋮.", "“Automatic” adapts to your connection, at home or away. Also in the player, under ⋮."))));
@@ -56,7 +58,9 @@ public sealed partial class SettingsPage : Page
         Tab("audio").Children.Add(Advanced(L("Sortie audio et ampli", "Audio output and amplifier"), AudioRows(settings)));
 
         // —— Apparence: Mira's language and Home's rows ——
-        Tab("appearance").Children.Add(Section(null, AppLanguage(settings)));
+        Tab("appearance").Children.Add(Section(null, AppLanguage(settings),
+            // « Mode canapé »: applied at once, the window full screen (MainWindow.Couch.cs).
+            Toggle(Couch.Title, Couch.Description + " " + Couch.Keys, settings.CouchMode, shell.SetCouchMode)));
         // « Accueil à ta main »: the libraries come from Jellyfin, for their « Nouveau dans … ».
         Tab("appearance").Children.Add(_home);
         DrawHome();
@@ -73,9 +77,17 @@ public sealed partial class SettingsPage : Page
                     "Your library’s cache, the posters and any progress not yet sent to Jellyfin. Your settings stay."), erase)));
         // This account's photo, as on Windows: kept by Jellyfin, on every device.
         if (connection is not null) Tab("server").Children.Add(Section(null, PhotoRow()));
+        // « Mira sur ton iPhone »: the QR code the iPhone's camera reads, Mira opening there with this server filled in.
+        if (connection is not null && LocalNetwork.ForOtherDevices(connection.Server, LocalNetwork.ThisPc()) is { } phone && PhoneLink.Link(phone) is { } link)
+            Tab("server").Children.Add(Section(null, PhoneCard(link, phone)));
         // « Tailscale intégré »: how Mira reaches Jellyfin away from home without the Tailscale app.
         Tailnet = new TailnetSection(shell, Section);
         Tab("server").Children.Add(Tailnet.Section);
+        // « Prévenir des nouveaux épisodes », as on Windows: a notification of the Mac (MainWindow.Notifications.cs). Switched
+        // back on, the next look only sets the mark again: what came out meanwhile is not news.
+        Tab("server").Children.Add(Section(null, Toggle(L("Prévenir des nouveaux épisodes", "Notify me of new episodes"),
+            L("Une notification du Mac quand un épisode d’une série que tu suis arrive. Tant que Mira est ouvert, même dans le Dock.", "A Mac notification when an episode of a show you follow arrives. While Mira is open, even in the Dock."),
+            settings.EpisodeNotices, v => { if (v && !settings.EpisodeNotices) settings.EpisodesSeenFor = ""; settings.EpisodeNotices = v; if (v) shell.EpisodesMayHaveArrived(); })));
         // « En ce moment sur Jellyfin »: who plays what, as on Windows.
         Viewing = new ViewersSection(shell, Section);
         Tab("server").Children.Add(Viewing.Section);
@@ -85,7 +97,7 @@ public sealed partial class SettingsPage : Page
             Version(),
             // Switched back on: GitHub is asked now rather than at the next launch, as on Windows.
             Toggle(L("Mettre à jour automatiquement", "Update automatically"), L("Chaque version est vérifiée, puis installée quand tu quittes Mira. Tes données restent en place.", "Each version is checked, then installed when you quit Mira. Your data stays in place."),
-                settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }),
+                settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }, out _updatesSwitch),
             // « Sur ce Mac »: where the titles kept to watch offline go, and all of them removed at once.
             OfflineCard(),
             // « Exporter un rapport » (SettingsPage.Diagnostics.cs).
@@ -138,6 +150,28 @@ public sealed partial class SettingsPage : Page
         foreach (var button in buttons.Children) button.Margin = new Thickness(0, 0, 10, 8);
         return Ui.Column(0, name, Description(connection?.Server ?? "—"), buttons);
     }
+    /// <summary>
+    /// « Mira sur ton iPhone », as the card of Windows' guide: the QR code of mira://connect (<see cref="PhoneLink"/>), in
+    /// whole modules of one size (a camera reads them better), dark on light, and the address to type instead.
+    /// </summary>
+    private static Control PhoneCard(string link, string address)
+    {
+        var (size, path) = PhoneLink.Qr(link);
+        var module = Math.Max(3, Math.Round(136.0 / size));
+        var code = new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse(path), Fill = Ui.Brush("#070708"), Stretch = Stretch.Uniform, Width = module * size, Height = module * size };
+        RenderOptions.SetEdgeMode(code, EdgeMode.Aliased);
+        var qr = new Border { Background = Ui.Ink, CornerRadius = new CornerRadius(10), Padding = new Thickness(10), Margin = new Thickness(0, 0, 20, 0), VerticalAlignment = VerticalAlignment.Top, Child = code };
+        Avalonia.Automation.AutomationProperties.SetName(qr, L("QR code à scanner avec l’iPhone", "QR code to scan with the iPhone"));
+        var text = Ui.Column(0, CardTitle(L("Mira sur ton iPhone", "Mira on your iPhone")),
+            Description(L("Scanne ce code avec l’appareil photo de l’iPhone : une fois Mira installé, il s’ouvre avec ton serveur déjà rempli, il ne reste que ton compte. Le code ne contient que l’adresse, ni compte ni mot de passe.",
+                "Scan this code with the iPhone’s camera: once Mira is installed, it opens with your server filled in, only your account is left. The code holds only the address, no account or password.")),
+            Description(L($"Ou tape cette adresse : {address}", $"Or type this address: {address}"), top: 10));
+        text.VerticalAlignment = VerticalAlignment.Center;
+        var dock = new DockPanel();
+        DockPanel.SetDock(qr, Dock.Left); dock.Children.Add(qr);
+        dock.Children.Add(text);
+        return dock;
+    }
     /// <summary>This version and « Rechercher », as Windows' card; what the search finds is said by a notice.</summary>
     private Control Version()
     {
@@ -167,7 +201,7 @@ public sealed partial class SettingsPage : Page
             string Said(string french, string english) => chosen == French ? french : english;
             var text = Said("Mira passera en français à sa prochaine ouverture.", "Mira will be in English the next time it opens.");
             // Opened again once this Mira has quit, which saves the settings and closes the session as any quit does.
-            if (SystemLanguage.Bundle() is { } bundle) Shell.Notice(text, Said("Relancer", "Relaunch"), () => { if (Updates.RelaunchAfterInstall() || SystemLanguage.RelaunchAfterExit(bundle)) Shell.Close(); }, sticky: false);
+            if (SystemLanguage.Bundle() is { } bundle) Shell.Notice(text, Said("Relancer", "Relaunch"), () => { if (Updates.RelaunchAfterInstall() || SystemLanguage.RelaunchAfterExit(bundle)) Shell.Quit(); }, sticky: false);
             else Shell.Notice(text);
         }, L("Celle de Mira. Elle change à la prochaine ouverture de Mira.", "Mira’s own. It changes the next time Mira opens."));
     }
@@ -432,12 +466,13 @@ public sealed partial class SettingsPage : Page
         dock.Children.Add(text);
         return dock;
     }
-    private Control Toggle(string title, string detail, bool value, Action<bool> set)
+    private Control Toggle(string title, string detail, bool value, Action<bool> set) => Toggle(title, detail, value, set, out _);
+    private Control Toggle(string title, string detail, bool value, Action<bool> set, out ToggleSwitch toggle)
     {
-        var toggle = new ToggleSwitch { IsChecked = value, OnContent = null, OffContent = null, MinWidth = 0 };
-        Avalonia.Automation.AutomationProperties.SetName(toggle, title);
-        toggle.IsCheckedChanged += (_, _) => { set(toggle.IsChecked == true); Save(); };
-        return Row(title, detail, toggle);
+        var made = toggle = new ToggleSwitch { IsChecked = value, OnContent = null, OffContent = null, MinWidth = 0 };
+        Avalonia.Automation.AutomationProperties.SetName(made, title);
+        made.IsCheckedChanged += (_, _) => { set(made.IsChecked == true); Save(); };
+        return Row(title, detail, made);
     }
     /// <summary>
     /// « Taille et style des sous-titres », as on Windows (<see cref="SubtitleStyle"/>): a preview over a bright scene,

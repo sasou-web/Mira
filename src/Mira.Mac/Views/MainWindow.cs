@@ -131,11 +131,11 @@ public sealed partial class MainWindow : Window
         Settings = profile.LoadSettings();
         Group = new WatchGroup(this);
         Group.Changed += () => { ShowGroupRail(); Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); PartyGroupChanged(); };
-        Group.Member += said => { if (Player is { } player) player.ShowMember(said); else Notice(said + "."); };
+        Group.Member += GroupMember;
         Tailnet = new BuiltInTailscale(this);
         Title = "Mira"; MinWidth = 960; MinHeight = 600;
         Width = Settings.WindowWidth > 0 ? Settings.WindowWidth : 1440; Height = Settings.WindowHeight > 0 ? Settings.WindowHeight : 900;
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        PlaceWindow();
         if (Settings.WindowMaximized) WindowState = WindowState.Maximized;
         if (OperatingSystem.IsMacOS())
         {
@@ -193,6 +193,10 @@ public sealed partial class MainWindow : Window
         AddHandler(KeyUpEvent, (_, e) => Player?.HandleKeyUp(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         Deactivated += (_, _) => Player?.ForgetHeldKeys();
         KeyDown += OnKeyDown;
+        InitializeCouch();
+        ListenToMediaKeys();
+        InitializeNotifications();
+        InitializePower();
         PointerPressed += (_, e) => { var buttons = e.GetCurrentPoint(this).Properties; if (buttons.IsXButton1Pressed) Back(); else if (buttons.IsXButton2Pressed) Forward(); };
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
         // double click) left the pointer captured by what remained: every turn of the wheel went there, never to the page.
@@ -200,7 +204,8 @@ public sealed partial class MainWindow : Window
         AddHandler(PointerWheelChangedEvent, OnWheel, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         MenuBase.ClosedEvent.AddClassHandler<MenuBase>((_, _) => Dispatcher.UIThread.Post(ReleasePointer));
         Closing += OnClosing;
-        Opened += async (_, _) => await StartAsync();
+        // Once: Avalonia says Opened again each time the window comes back from the Dock (Reopen).
+        Opened += async (_, _) => { if (_started) return; _started = true; await StartAsync(); };
     }
 
     private Border BuildRail()
@@ -402,7 +407,8 @@ public sealed partial class MainWindow : Window
         if (handler is null)
         {
             var session = Session;
-            void Changed() { _serverChanged.Stop(); _serverChanged.Start(); }
+            // A library change may be a new episode of a series this account follows (MainWindow.Notifications.cs).
+            void Changed() { _serverChanged.Stop(); _serverChanged.Start(); EpisodesMayHaveArrived(); }
             // Open again after a break: what changed meanwhile went unheard, and the group may have let this Mac go.
             var opened = false;
             void Listening(bool open) => Dispatcher.UIThread.Post(() =>
@@ -411,7 +417,8 @@ public sealed partial class MainWindow : Window
                 if (open && opened) Changed();
                 opened |= open; _listening = open; Group.Listening(session, open);
             });
-            session.Listen(() => Dispatcher.UIThread.Post(Changed), Listening, (type, data) => Dispatcher.UIThread.Post(() => Group.Message(session, type, data)));
+            session.Listen(() => Dispatcher.UIThread.Post(Changed), Listening, (type, data) => Dispatcher.UIThread.Post(() => Group.Message(session, type, data)),
+                command => Dispatcher.UIThread.Post(() => Remote(session, command)));
         }
         _avatar.Text = connection.UserName.Length > 0 ? connection.UserName[..1].ToUpperInvariant() : "?";
         SetPhoto(null); _ = ShowPhotoAsync();
@@ -429,6 +436,7 @@ public sealed partial class MainWindow : Window
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
         ChoicesChanged();
+        StartEpisodeNotices();
     }
 
     /// <summary>
@@ -642,7 +650,7 @@ public sealed partial class MainWindow : Window
     }
     private async Task CloseSessionAsync()
     {
-        Group.Gone(); _listening = false; _choicesSoon.Stop();
+        Group.Gone(); _listening = false; _choicesSoon.Stop(); StopEpisodeNotices();
         ForgetOfflineState();
         if (Session is { } session) { Session = null; await session.DisposeAsync(); }
     }
@@ -691,6 +699,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void Host(Page? page)
     {
+        // A page turn under the fingers, stopped where it was: this page shows instead.
+        EndSlide(turn: false);
         var left = Current;
         if (page is not null && !_host.Children.Contains(page)) _host.Children.Add(page);
         Current = page;
@@ -836,13 +846,16 @@ public sealed partial class MainWindow : Window
     {
         if (Player != player) return;
         Player = null;
+        // « Now Playing » empty, the media keys back to the other apps.
+        MacNowPlaying.Clear();
         // « Image dans l’image »: its window goes with the playback (the video already let go by StopAsync).
         player.ClosePip();
         // The group plays on without this Mac.
         Group.SetAway(true);
         _overlay.Children.Remove(player);
         ReleasePointer();
-        if (WindowState == WindowState.FullScreen) WindowState = WindowState.Normal;
+        // In couch mode the window stays full screen: it is the TV's.
+        if (WindowState == WindowState.FullScreen && !InCouchMode) WindowState = WindowState.Normal;
         Profile.SaveSettings(Settings);
         Focus();
         await RefreshPagesAsync();
@@ -1022,19 +1035,21 @@ public sealed partial class MainWindow : Window
         // I brings the mini-player back over the window, as on Windows; never while typing.
         if (e.Key == Key.I && e.KeyModifiers == KeyModifiers.None && Player is { IsMini: true } mini && e.Source is not TextBox) { mini.SetMini(false); e.Handled = true; }
     }
-    private bool _closing;
+    private bool _closing, _started;
     /// <summary>From the first close request: the window is hidden and the session is being closed.</summary>
     public bool IsClosing => _closing;
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         if (_closing) return;
+        // ⌘W or the red button on a Mac: the window goes, Mira stays in the Dock (MainWindow.MacWindow.cs). ⌘Q quits.
+        if (StaysInDock && !_quitting && e.CloseReason == WindowCloseReason.WindowClosing) { e.Cancel = true; _ = CloseToDockAsync(); return; }
         e.Cancel = true; _closing = true;
         // Each step on its own and the close guaranteed: a full disk or a failing service must not skip the steps after
         // it, nor leave Mira running without a window. Failures are logged (errors.log).
         try
         {
-            if (WindowState is WindowState.Normal) (Settings.WindowWidth, Settings.WindowHeight) = (Math.Round(Width), Math.Round(Height));
-            Settings.WindowMaximized = WindowState == WindowState.Maximized;
+            // Hidden in the Dock, it was remembered as it went.
+            if (!InDock) RememberWindow();
             Hide();
             // « Image dans l’image » goes with it; closed once the playback has stopped (CloseOverlayPlayerAsync).
             Player?.Pip?.Hide();
