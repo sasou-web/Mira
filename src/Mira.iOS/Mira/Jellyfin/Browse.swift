@@ -116,11 +116,6 @@ extension JellyfinClient {
         return (filters.genres ?? []).compactMap(\.name)
     }
 
-    /// Jellyfin's version (« 12.1.0 »): which filters it knows.
-    func serverVersion() async throws -> String? {
-        try await get("System/Info/Public", as: PublicInfo.self).version
-    }
-
     /// The years titles of a kind came out, newest first.
     func years(_ types: String) async throws -> [String] {
         let list: ItemList = try await get("Years", [
