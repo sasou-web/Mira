@@ -30,7 +30,7 @@ Y publier demande un compte développeur Apple payant. AltStore Classic installe
 
 ## Pourquoi Windows ou macOS m’avertit ?
 
-Les fichiers de Mira ne sont pas encore signés par un certificat payant. Windows SmartScreen et Gatekeeper de macOS avertissent pour toute app non signée. Le SHA-256 de chaque fichier est publié à côté de lui, dans une version qui ne peut plus être modifiée. Voir [Installer sur Windows](windows.md#passer-smartscreen) et [Installer sur Mac](mac.md#autoriser-mira-la-premiere-fois).
+Les fichiers de Mira ne sont pas encore signés par un certificat payant. Windows SmartScreen et Gatekeeper de macOS avertissent pour toute app non signée. Le SHA-256 de chaque fichier est publié à côté de lui, dans une version qui ne peut plus être modifiée. Voir [Vérifier ton téléchargement](verify.md), [Installer sur Windows](windows.md#passer-smartscreen) et [Installer sur Mac](mac.md#autoriser-mira-la-premiere-fois).
 
 ## Mira convertit mes vidéos ?
 

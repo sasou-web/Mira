@@ -121,7 +121,8 @@ public static class WhatsNew
         text.Append("**Code signing policy**: ").Append(signed
             ? "Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org). This version's Windows files are signed; "
             : "this version's Windows files are not signed (application to SignPath Foundation not filed yet); ");
-        text.Append("the details are in the [code signing policy](https://github.com/sasou-web/Mira#code-signing-policy).\n");
+        text.Append("the details are in the [code signing policy](https://github.com/sasou-web/Mira#code-signing-policy). ")
+            .Append("[Verify your download](https://wiki.miracinema.app/verify/): SHA-256, build attestation, VirusTotal.\n");
         return text.ToString();
     }
     /// <summary>Where GitHub serves a version's banner: the file at its tag.</summary>

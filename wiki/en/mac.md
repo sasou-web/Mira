@@ -37,7 +37,7 @@ If macOS says Mira is "damaged", or the button does not appear, type this in Ter
 xattr -dr com.apple.quarantine /Applications/Mira.app
 ```
 
-It only removes the "downloaded from the Internet" mark from Mira. It changes no security setting of your Mac.
+It only removes the "downloaded from the Internet" mark from Mira. It changes no security setting of your Mac. To check the image before opening it: [Verify your download](verify.md).
 
 ## First sign-in
 

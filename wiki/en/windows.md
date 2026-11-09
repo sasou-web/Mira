@@ -25,7 +25,7 @@ Mira's Windows files are not code-signed yet, so Windows SmartScreen may say "Wi
 Get-FileHash .\Mira-__VERSION__-win-x64-setup.exe -Algorithm SHA256
 ```
 
-The value must match the one in the `.sha256` file.
+The value must match the one in the `.sha256` file. More ways to check, and why Windows warns: [Verify your download](verify.md).
 
 ## First start
 
