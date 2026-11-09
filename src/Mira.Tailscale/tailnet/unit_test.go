@@ -15,7 +15,7 @@ import (
 func TestHostname(t *testing.T) {
 	for in, want := range map[string]string{
 		"Mira-MacBook Air de Ogsas":              "mira-macbook-air-de-ogsas",
-		"Mira-SALON-PC":                          "mira-salon-pc",
+		"Mira-MAISON-PC":                         "mira-maison-pc",
 		"  Mira  --  PC  ":                       "mira-pc",
 		"Mira-Élodie’s Mac":                      "mira-elodie-s-mac",
 		"MacBook Air de Zoë":                     "macbook-air-de-zoe",
@@ -138,7 +138,7 @@ func TestLock(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	st := Status{Peers: []Device{
-		{ID: "a", DNSName: "salon-pc.tail1234.ts.net", IPs: []string{"100.88.12.34", "fd7a:115c:a1e0::1"}, Online: true},
+		{ID: "a", DNSName: "maison-pc.tail1234.ts.net", IPs: []string{"100.88.12.34", "fd7a:115c:a1e0::1"}, Online: true},
 		{ID: "b", DNSName: "nas.tail1234.ts.net", IPs: []string{"fd7a:115c:a1e0::2"}},
 	}, Self: &Device{ID: "self", DNSName: "mira-mac.tail1234.ts.net", IPs: []string{"100.64.0.9"}}}
 	for _, c := range []struct {
@@ -148,10 +148,10 @@ func TestResolve(t *testing.T) {
 		{"fd7a:115c:a1e0::1", "tcp", "fd7a:115c:a1e0::1", "a"},
 		{"[fd7a:115c:a1e0::1]", "tcp", "fd7a:115c:a1e0::1", "a"},
 		{"::ffff:100.88.12.34", "tcp", "100.88.12.34", "a"},
-		{"salon-pc.tail1234.ts.net", "tcp", "100.88.12.34", "a"},
-		{"SALON-PC.tail1234.ts.net.", "tcp", "100.88.12.34", "a"},
-		{"salon-pc", "tcp", "100.88.12.34", "a"},
-		{"salon-pc", "tcp6", "fd7a:115c:a1e0::1", "a"},
+		{"maison-pc.tail1234.ts.net", "tcp", "100.88.12.34", "a"},
+		{"MAISON-PC.tail1234.ts.net.", "tcp", "100.88.12.34", "a"},
+		{"maison-pc", "tcp", "100.88.12.34", "a"},
+		{"maison-pc", "tcp6", "fd7a:115c:a1e0::1", "a"},
 		{"nas", "tcp", "fd7a:115c:a1e0::2", "b"},
 		{"nas", "tcp4", "", ""},
 		{"100.64.0.9", "tcp", "", ""},   // this node
@@ -159,7 +159,7 @@ func TestResolve(t *testing.T) {
 		{"192.168.1.42", "tcp", "", ""}, // the home network
 		{"127.0.0.1", "tcp", "", ""},    // this computer
 		{"example.com", "tcp", "", ""},  // the Internet
-		{"salon-pc.local", "tcp", "", ""},
+		{"maison-pc.local", "tcp", "", ""},
 		{"", "tcp", "", ""},
 	} {
 		ip, d, ok := resolve(c.host, st, c.network)

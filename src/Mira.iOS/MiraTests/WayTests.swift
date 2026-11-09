@@ -8,9 +8,9 @@ private enum Home {
     static let server = URL(string: "http://192.168.1.42:8096")!
     static let id = "b6c2f1a0-d4e9-4c0a-9f3e-2d1c0b9a8f7e"
     static let relay = URL(string: "http://127.0.0.1:48096/relay-secret-0123456789")!
-    static let info = PublicInfo(id: "b6c2f1a0d4e94c0a9f3e2d1c0b9a8f7e", serverName: "SALON-PC", version: "12.1.0", productName: "Jellyfin Server",
+    static let info = PublicInfo(id: "b6c2f1a0d4e94c0a9f3e2d1c0b9a8f7e", serverName: "MAISON-PC", version: "12.1.0", productName: "Jellyfin Server",
                                  localAddress: "http://192.168.1.42:8096")
-    static let pc = WayPlan.Peer(id: "n1", hostName: "SALON-PC", dnsName: "salon-pc.tail1234.ts.net", ips: ["100.88.12.34", "fd7a:115c:a1e0::1"],
+    static let pc = WayPlan.Peer(id: "n1", hostName: "MAISON-PC", dnsName: "maison-pc.tail1234.ts.net", ips: ["100.88.12.34", "fd7a:115c:a1e0::1"],
                                  os: "windows", online: true)
     static let phone = WayPlan.Peer(id: "n2", hostName: "iPhone", dnsName: "iphone.tail1234.ts.net", ips: ["100.100.1.2"], os: "iOS", online: true)
     static let laptop = WayPlan.Peer(id: "n3", hostName: "laptop", dnsName: "laptop.tail1234.ts.net", ips: ["100.90.1.3"], os: "linux", online: false)
@@ -61,19 +61,19 @@ struct WayPlanTests {
 
     @Test("Nom MagicDNS : l'app Tailscale, puis Tailscale intégré par ce nom et par l'adresse de l'appareil")
     func magicDNS() {
-        let server = URL(string: "http://salon-pc.tail1234.ts.net:8096")!
+        let server = URL(string: "http://maison-pc.tail1234.ts.net:8096")!
         #expect(WayPlan.candidates(server: server, known: [], network: .cellular, tailnet: Home.running) == [
-            Home.route(.tailscaleApp, "http://salon-pc.tail1234.ts.net:8096"),
-            Home.route(.builtIn, "http://127.0.0.1:48096/relay-secret-0123456789/http/salon-pc.tail1234.ts.net:8096", "http://salon-pc.tail1234.ts.net:8096"),
+            Home.route(.tailscaleApp, "http://maison-pc.tail1234.ts.net:8096"),
+            Home.route(.builtIn, "http://127.0.0.1:48096/relay-secret-0123456789/http/maison-pc.tail1234.ts.net:8096", "http://maison-pc.tail1234.ts.net:8096"),
             Home.route(.builtIn, Home.pcBase, "http://100.88.12.34:8096"),
         ])
     }
 
     @Test("Nom court : la maison sur le Wi-Fi, l'app Tailscale ailleurs")
     func shortName() {
-        let server = URL(string: "http://salon-pc:8096")!
-        #expect(WayPlan.candidates(server: server, known: [], network: .local, tailnet: .off) == [Home.route(.home, "http://salon-pc:8096")])
-        #expect(WayPlan.candidates(server: server, known: [], network: .cellular, tailnet: .off) == [Home.route(.tailscaleApp, "http://salon-pc:8096")])
+        let server = URL(string: "http://maison-pc:8096")!
+        #expect(WayPlan.candidates(server: server, known: [], network: .local, tailnet: .off) == [Home.route(.home, "http://maison-pc:8096")])
+        #expect(WayPlan.candidates(server: server, known: [], network: .cellular, tailnet: .off) == [Home.route(.tailscaleApp, "http://maison-pc:8096")])
     }
 
     @Test("Internet : l'adresse telle quelle, partout")
@@ -94,7 +94,7 @@ struct WayPlanTests {
         let relayed = { (text: String) in WayPlan.relayed(URL(string: text)!, relay: Home.relay)?.absoluteString }
         #expect(relayed("http://100.88.12.34:8096") == Home.pcBase)
         #expect(relayed("http://[fd7a:115c:a1e0::1]:8096") == "http://127.0.0.1:48096/relay-secret-0123456789/http/%5Bfd7a:115c:a1e0::1%5D:8096")
-        #expect(relayed("https://salon-pc.tail1234.ts.net/jellyfin/") == "http://127.0.0.1:48096/relay-secret-0123456789/https/salon-pc.tail1234.ts.net:443/jellyfin")
+        #expect(relayed("https://maison-pc.tail1234.ts.net/jellyfin/") == "http://127.0.0.1:48096/relay-secret-0123456789/https/maison-pc.tail1234.ts.net:443/jellyfin")
         #expect(relayed("ftp://100.88.12.34") == nil)
         let slash = WayPlan.relayed(URL(string: "http://100.88.12.34:8096")!, relay: URL(string: "http://127.0.0.1:48096/relay-secret-0123456789/")!)
         #expect(slash?.absoluteString == Home.pcBase)
@@ -151,7 +151,7 @@ struct WayPlanTests {
         var offline = Home.pc
         offline.online = false
         tailnet.peers = [offline, Home.phone]
-        #expect(hint(.cellular, tailnet, Home.server, [tailscale]) == .serverOffline("salon-pc"))
+        #expect(hint(.cellular, tailnet, Home.server, [tailscale]) == .serverOffline("maison-pc"))
         #expect(hint(.cellular, tailnet, Home.server, []) == .serverNotFound)
         tailnet.peers = [Home.pc]
         #expect(hint(.cellular, tailnet, Home.server, [tailscale]) == .serverNotFound)
@@ -163,9 +163,9 @@ struct WayPlanTests {
         let device = { (text: String) in WayPlan.device(of: [URL(string: text)!], in: peers)?.id }
         #expect(device("http://100.88.12.34:8096") == "n1")
         #expect(device("http://[fd7a:115c:a1e0::1]:8096") == "n1")
-        #expect(device("http://salon-pc.tail1234.ts.net:8096") == "n1")
-        #expect(device("http://SALON-PC.tail1234.ts.net.:8096") == "n1")
-        #expect(device("http://salon-pc:8096") == "n1")
+        #expect(device("http://maison-pc.tail1234.ts.net:8096") == "n1")
+        #expect(device("http://MAISON-PC.tail1234.ts.net.:8096") == "n1")
+        #expect(device("http://maison-pc:8096") == "n1")
         #expect(device("http://192.168.1.42:8096") == nil)
         #expect(device("https://jellyfin.example.com") == nil)
     }
@@ -179,7 +179,7 @@ struct WayPlanTests {
         #expect(!tailnet("http://100.63.255.255"))
         #expect(tailnet("http://[fd7a:115c:a1e0::1]:8096"))
         #expect(!tailnet("http://[fd00::1]:8096"))
-        #expect(tailnet("http://salon-pc.tail1234.ts.net:8096"))
+        #expect(tailnet("http://maison-pc.tail1234.ts.net:8096"))
         #expect(!tailnet("http://192.168.1.42:8096"))
         let loopback = { (text: String) in WayPlan.isLoopback(URL(string: text)!) }
         #expect(loopback("http://127.0.0.1:18097") && loopback("http://[::1]:8096") && loopback("http://localhost:8096"))
@@ -213,7 +213,7 @@ struct WayPlanTests {
         let json = """
         {"state":"running","offline":false,"self":{"id":"n0","hostName":"mira-iphone","dnsName":"mira-iphone.tail1234.ts.net","ips":["100.101.1.1"],"os":"iOS","online":true},
          "user":"ogsas@example.com","tailnet":"example.com","magicDNSSuffix":"tail1234.ts.net",
-         "peers":[{"id":"n1","hostName":"SALON-PC","dnsName":"salon-pc.tail1234.ts.net","ips":["100.88.12.34","fd7a:115c:a1e0::1"],"os":"windows","online":true,
+         "peers":[{"id":"n1","hostName":"MAISON-PC","dnsName":"maison-pc.tail1234.ts.net","ips":["100.88.12.34","fd7a:115c:a1e0::1"],"os":"windows","online":true,
                    "keyExpiry":"2027-04-27T08:00:00Z","lastSeen":"2026-10-29T19:00:00Z"},{"id":"n4","hostName":"nas"}],
          "warnings":["…"],"relay":"http://127.0.0.1:48096/relay-secret-0123456789"}
         """

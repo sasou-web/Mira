@@ -130,8 +130,8 @@ func TestRelayDefaultPortsAndRoot(t *testing.T) {
 	_, tailnet, base := startRelay(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, path = r.Host, r.URL.Path
 	}))
-	get(t, base+"/http/salon-pc.tail1234.ts.net")
-	if got := tailnet.dialed(); got[0] != "salon-pc.tail1234.ts.net:80" || host != "salon-pc.tail1234.ts.net" || path != "/" {
+	get(t, base+"/http/maison-pc.tail1234.ts.net")
+	if got := tailnet.dialed(); got[0] != "maison-pc.tail1234.ts.net:80" || host != "maison-pc.tail1234.ts.net" || path != "/" {
 		t.Fatalf("dialed %v, Host %q, path %q", got, host, path)
 	}
 }
