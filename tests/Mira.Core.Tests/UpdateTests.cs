@@ -257,7 +257,7 @@ internal static class UpdateTests
             try { await client.DownloadAsync(offer!, folder); } catch (UpdateException) { refused = true; }
             Assert(refused && !File.Exists(Path.Combine(folder, dmgName)), "A disk image that does not match the signature was kept");
         });
-        await Test("Mises à jour Mac : le script remplace Mira.app après sa fermeture, et laisse l’ancienne quand la nouvelle manque", async () =>
+        await Test("Mises à jour Mac : le script remplace Mira.app après sa fermeture (même pendant l’extinction, ou depuis le Dock), et laisse l’ancienne quand la nouvelle manque", async () =>
         {
             if (OperatingSystem.IsWindows()) return;
             var root = Path.Combine(testRoot, "mac-install", "Applications"); Directory.CreateDirectory(root);
@@ -284,6 +284,26 @@ internal static class UpdateTests
             // Nothing staged: the bundle stays as it is.
             await Swap(mira.Id, "");
             Assert(File.ReadAllText(Path.Combine(app, "Contents", "version")) == "0.8.8" && MacInstall.ReadResult(root) is { Installed: false, Step: "missing" }, "A missing new version was not reported, or broke the bundle");
+            // From the Dock: opened again in the background, its window in the Dock; and the swap outlives the signals
+            // macOS sends a session's processes as it shuts down.
+            Bundle(MacInstall.Staging(app), "0.8.9");
+            var opener = Path.Combine(root, "..", "open"); var opened = Path.Combine(root, "..", "opened");
+            File.WriteAllText(opener, $"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{opened}'\n");
+            File.SetUnixFileMode(opener, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            using (var waiting = Process.Start(new ProcessStartInfo("/bin/sleep", "1.5") { UseShellExecute = false })!)
+            {
+                var start = new ProcessStartInfo("/bin/sh") { UseShellExecute = false };
+                foreach (var argument in MacInstall.Arguments(waiting.Id, app, Path.Combine(root, MacInstall.ResultName), new Version(0, 8, 9), opener, hidden: true)) start.ArgumentList.Add(argument);
+                using var shell = Process.Start(start)!;
+                await Task.Delay(300);
+                foreach (var signal in new[] { "HUP", "TERM", "INT" }) Process.Start("/bin/kill", ["-" + signal, shell.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)])!.WaitForExit();
+                await shell.WaitForExitAsync();
+            }
+            Assert(File.ReadAllText(Path.Combine(app, "Contents", "version")) == "0.8.9" && MacInstall.ReadResult(root) is { Installed: true }, "The swap did not outlive the signals of a shutdown");
+            Assert(File.Exists(opened) && File.ReadAllLines(opened) is ["-g", "-j", var path, "--args", MacInstall.InDockArgument] && path == app, "Not opened again hidden, in the Dock: " + (File.Exists(opened) ? string.Join(" ", File.ReadAllLines(opened)) : "not opened"));
+            // Swapped in from the Dock only after a while there, nothing going on.
+            Assert(!MacInstall.InstallsFromDock(TimeSpan.FromMinutes(1), waiting: true, busy: false) && MacInstall.InstallsFromDock(MacInstall.DockQuiet, waiting: true, busy: false)
+                && !MacInstall.InstallsFromDock(TimeSpan.FromHours(1), waiting: true, busy: true) && !MacInstall.InstallsFromDock(TimeSpan.FromHours(1), waiting: false, busy: false), "From the Dock: the wrong moment to install");
             // A folder this account can't write to (not for root, who writes anywhere).
             if (Environment.UserName != "root")
             {

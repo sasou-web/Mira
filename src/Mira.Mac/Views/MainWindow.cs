@@ -205,7 +205,8 @@ public sealed partial class MainWindow : Window
         MenuBase.ClosedEvent.AddClassHandler<MenuBase>((_, _) => Dispatcher.UIThread.Post(ReleasePointer));
         Closing += OnClosing;
         // Once: Avalonia says Opened again each time the window comes back from the Dock (Reopen).
-        Opened += async (_, _) => { if (_started) return; _started = true; await StartAsync(); };
+        // Opened again by an update while in the Dock (--in-dock): back there at once, the account signed in meanwhile.
+        Opened += async (_, _) => { if (_started) return; _started = true; StartInDock(); await StartAsync(); };
     }
 
     private Border BuildRail()
@@ -1083,8 +1084,17 @@ public sealed partial class MainWindow : Window
     private bool _closing, _started;
     /// <summary>From the first close request: the window is hidden and the session is being closed.</summary>
     public bool IsClosing => _closing;
+    /// <summary>
+    /// How long quitting may wait for Jellyfin, the party's server and « Tailscale intégré » (⌘Q, « Redémarrer »): an
+    /// unreachable server never keeps Mira in the Dock without a window. What was not sent waits in SQLite for the next launch.
+    /// </summary>
+    private static readonly TimeSpan QuitWait = TimeSpan.FromSeconds(4);
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        // macOS asks: shutting down, restarting, logging out, the Dock's « Quitter », an update of macOS. Refused, macOS
+        // would stop it all (« Mira a interrompu le redémarrage »); accepted, Mira ends as soon as this returns: nothing
+        // awaited here would ever run. What must not be lost is done now, synchronously, in two seconds at most.
+        if (AskedBySystem(e)) { QuitNow(); return; }
         if (_closing) return;
         // ⌘W or the red button on a Mac: the window goes, Mira stays in the Dock (MainWindow.MacWindow.cs). ⌘Q quits.
         if (StaysInDock && !_quitting && e.CloseReason == WindowCloseReason.WindowClosing) { e.Cancel = true; _ = CloseToDockAsync(); return; }
@@ -1098,6 +1108,18 @@ public sealed partial class MainWindow : Window
             Hide();
             // « Image dans l’image » goes with it; closed once the playback has stopped (CloseOverlayPlayerAsync).
             Player?.Pip?.Hide();
+            // What plays is stopped first, its last report queued: Jellyfin, the party's server and Tailscale are given
+            // QuitWait together, then Mira goes all the same.
+            var leaving = LeaveAsync();
+            await Task.WhenAny(leaving, Task.Delay(QuitWait));
+            if (!leaving.IsCompleted) ErrorLog.Append(Profile.DirectoryPath, new TimeoutException($"Quitting: still waiting for the network after {QuitWait.TotalSeconds} s, left behind."));
+            Attempt(() => Profile.SaveSettings(Settings));
+            // Last: the new version waiting beside this one replaces it once this process has ended.
+            Attempt(() => Updates.InstallAtQuit(this));
+        }
+        finally { Close(); }
+        async Task LeaveAsync()
+        {
             // The last progress report still leaves while the window is already gone.
             await AttemptAsync(StopPlaybackAsync);
             Attempt(() => Profile.SaveSettings(Settings));
@@ -1106,11 +1128,33 @@ public sealed partial class MainWindow : Window
             await AttemptAsync(CloseSessionAsync);
             // After the last reports to Jellyfin, which may go through it.
             await AttemptAsync(Tailnet.DisposeAsync);
-            // Last: the new version waiting beside this one replaces it once this process has ended.
-            Attempt(() => Updates.InstallAtQuit(this));
         }
-        finally { Close(); }
-        void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }
-        async Task AttemptAsync(Func<Task> step) { try { await step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }
     }
+    private void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }
+    private async Task AttemptAsync(Func<Task> step) { try { await step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }
+
+    /// <summary>
+    /// A close that macOS asked for (applicationShouldTerminate: of Avalonia's delegate, which waits for the answer), and
+    /// not Mira's own ⌘Q menu item or Close(), which may take their time.
+    /// </summary>
+    public static bool AskedBySystem(WindowClosingEventArgs e) => !e.IsProgrammatic && e.CloseReason is WindowCloseReason.ApplicationShutdown or WindowCloseReason.OSShutdown;
+
+    /// <summary>
+    /// Quitting at once, macOS waiting: where the window was, where the title playing was (queued for Jellyfin, sent now
+    /// or by the next launch, and in « Continuer à regarder »), the settings, and the new version waiting beside this
+    /// one, swapped in once Mira has ended. The rest (the session, Tailscale's node, the player's engine) ends with the
+    /// process: the node quits when its input closes, Jellyfin forgets the session's socket.
+    /// </summary>
+    public void QuitNow()
+    {
+        if (_quitNow) return;
+        _quitNow = _closing = _quitting = true;
+        Attempt(() => { if (!InDock && IsVisible) RememberWindow(); });
+        Attempt(() => Player?.KeepAtQuit());
+        Attempt(() => Profile.SaveSettings(Settings));
+        Attempt(() => Updates.InstallAtQuit(this));
+    }
+    private bool _quitNow;
+    /// <summary>Quit at once, as macOS asks: for the self-check, which then reads what it kept.</summary>
+    public bool QuitAtOnce => _quitNow;
 }

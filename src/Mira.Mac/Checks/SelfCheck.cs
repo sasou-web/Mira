@@ -1024,16 +1024,81 @@ public static class SelfCheck
                     finally { File.Delete(copy); }
                 }
             }
+
+            // —— macOS quitting Mira: shutting down, restarting, logging out (asked last, below: it ends this process) ——
+            // A film playing in « Image dans l’image », whose small window refuses a close of its own: both are asked.
+            if (mock is not null)
+            {
+                if (window.Session is null) await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
+                Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", "1");
+                await window.PlayAsync(movie, fromStart: true);
+                Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);
+                var quitting = window.Player;
+                Check(await Until(() => quitting is { IsFileLoaded: true, Position: > 2 }, 30), "quitter à la demande de macOS : un film en cours", $"{quitting?.Position:0.0} s");
+                if (quitting is not null) await quitting.EnterPipAsync();
+                Check(await Until(() => quitting?.Pip is { IsVisible: true }, 10), "quitter à la demande de macOS : dans l’image dans l’image");
+            }
             exit = results.All(x => x.Ok) ? 0 : 1;
         }
         catch (Exception ex)
         {
             Check(false, "contrôle interrompu", ex.GetType().Name + " : " + ex.Message);
         }
-        await File.WriteAllLinesAsync(Path.Combine(output, "results.txt"), results.Select(x => $"{(x.Ok ? "PASS" : "FAIL")}  {x.Name}{(x.Detail.Length > 0 ? " — " + x.Detail : "")}")
-            .Prepend($"Mira {Services.Updates.Current} — {RuntimeInformation.OSDescription} {RuntimeInformation.OSArchitecture} — {DateTimeOffset.Now:yyyy-MM-dd HH:mm}"));
-        Console.WriteLine($"{results.Count(x => x.Ok)}/{results.Count} contrôles réussis.");
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown(exit);
+        void Write()
+        {
+            File.WriteAllLines(Path.Combine(output, "results.txt"), results.Select(x => $"{(x.Ok ? "PASS" : "FAIL")}  {x.Name}{(x.Detail.Length > 0 ? " — " + x.Detail : "")}")
+                .Prepend($"Mira {Services.Updates.Current} — {RuntimeInformation.OSDescription} {RuntimeInformation.OSArchitecture} — {DateTimeOffset.Now:yyyy-MM-dd HH:mm}"));
+            Console.WriteLine($"{results.Count(x => x.Ok)}/{results.Count} contrôles réussis.");
+            Console.Out.Flush();
+        }
+        Write();
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
+        // Asked only when everything before passed: a failure is read in results.txt as it stands.
+        if (exit == 0 && QuitAsSystem(window, desktop, mock, Check, Write, () => results.All(x => x.Ok))) return;
+        desktop.Shutdown(results.All(x => x.Ok) ? exit : 1);
+    }
+
+    /// <summary>
+    /// Last: macOS asks Mira to quit, as it does to shut down, restart or log out (<see cref="SystemQuit"/>). Mira must
+    /// accept at once, its windows closed (the small one of « Image dans l’image » included), the film paused, where it
+    /// was queued for Jellyfin, the settings saved (the volume changed just before). Read as Avalonia ends: on a Mac,
+    /// AppKit ends the process right after, before anything else runs. True when the quit went through.
+    /// </summary>
+    private static bool QuitAsSystem(MainWindow window, IClassicDesktopStyleApplicationLifetime desktop, MockJellyfin? mock, Action<bool, string, string> check, Action write, Func<bool> passed)
+    {
+        const string Name = "quitter à la demande de macOS";
+        var player = window.Player; var engine = player?.Engine;
+        engine?.SetLevel(77);
+        var settings = Path.Combine(window.Profile.DirectoryPath, "settings.json");
+        var reports = 0; if (mock is not null) lock (mock.Reports) reports = mock.Reports.Count;
+        var ended = false;
+        desktop.Exit += (_, e) =>
+        {
+            if (ended) return;
+            ended = true;
+            check(window.QuitAtOnce, $"{Name} : accepté tout de suite (éteindre, redémarrer, fermer la session)", "");
+            check(desktop.Windows.Count == 0, $"{Name} : fenêtres fermées, image dans l’image comprise", string.Join(", ", desktop.Windows.Select(x => x.GetType().Name)));
+            if (engine is not null) check(engine.Flag("pause"), $"{Name} : le film mis en pause", "");
+            if (player is not null && mock is not null && window.Session is { } session)
+            {
+                bool sent; lock (mock.Reports) sent = mock.Reports.Skip(reports).Any(x => x.Kind == "stop");
+                check(session.Sync.PendingCount > 0 || sent, $"{Name} : sa position gardée pour Jellyfin", $"{session.Sync.PendingCount} en attente, envoyé : {sent}");
+            }
+            string? volume = null;
+            try
+            {
+                using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(settings));
+                volume = json.RootElement.EnumerateObject().FirstOrDefault(x => x.Name.Equals("Volume", StringComparison.OrdinalIgnoreCase)).Value.ToString();
+            }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException) { volume = ex.Message; }
+            check(engine is null || volume == "77", $"{Name} : réglages enregistrés", $"volume {volume}");
+            write();
+            e.ApplicationExitCode = passed() ? 0 : 1;
+        };
+        if (!SystemQuit.Ask(desktop)) return true;
+        check(false, $"{Name} : refusé, macOS arrêterait l’extinction ou le redémarrage", "");
+        write();
+        return false;
     }
 
     /// <summary>

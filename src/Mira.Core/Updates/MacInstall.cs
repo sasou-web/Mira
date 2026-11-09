@@ -67,16 +67,30 @@ public static class MacInstall
         _ => ""
     };
 
+    /// <summary>The argument of a Mira opened again by its update in the Dock, its window closed as the last one's was.</summary>
+    public const string InDockArgument = "--in-dock";
+    /// <summary>How long the window stays closed in the Dock, nothing going on, before a new version waiting is swapped in.</summary>
+    public static readonly TimeSpan DockQuiet = TimeSpan.FromMinutes(2);
+    /// <summary>
+    /// Whether the new version waiting replaces this one now, Mira opening again hidden: its window closed into the Dock
+    /// for <see cref="DockQuiet"/> at least, and nothing that quitting would cut (a playback, a friend's party, a title
+    /// being kept on this Mac).
+    /// </summary>
+    public static bool InstallsFromDock(TimeSpan inDock, bool waiting, bool busy) => waiting && !busy && inDock >= DockQuiet;
+
     /// <summary>
     /// The script that swaps the bundles, run by /bin/sh with its values as arguments, never written into it:
     /// $1 Mira's process, $2 the bundle, $3 the new one, $4 where the old one goes, $5 the result file, $6 the version,
-    /// $7 what opens the bundle again (/usr/bin/open), empty to leave Mira closed. It waits for Mira to quit (2 minutes at
+    /// $7 what opens the bundle again (/usr/bin/open), empty to leave Mira closed, $8 "hidden" to open it in the
+    /// background with its window in the Dock (<see cref="InDockArgument"/>). It waits for Mira to quit (2 minutes at
     /// most), moves the old bundle aside, the new one in its place, and puts the old one back if the second move fails.
-    /// The result file says how it ended, in one line (<see cref="ReadResult"/>).
+    /// The result file says how it ended, in one line (<see cref="ReadResult"/>). Started as macOS shuts down, it outlives
+    /// the end of the session's processes: the signals macOS sends them are ignored, and its two renames take an instant.
     /// </summary>
     // Line ends written as \n whatever the checkout made of this file (CRLF for .cs): /bin/sh reads a \r as text.
     public static readonly string Script = """
-        pid=$1 app=$2 new=$3 old=$4 result=$5 version=$6 open=$7
+        pid=$1 app=$2 new=$3 old=$4 result=$5 version=$6 open=$7 hidden=$8
+        trap '' HUP INT TERM
         i=0
         while kill -0 "$pid" 2>/dev/null; do
           i=$((i + 1))
@@ -92,12 +106,14 @@ public static class MacInstall
           echo "done $version" > "$result"
           rm -rf "$old" 2>/dev/null
         fi
+        if [ -n "$open" ] && [ -n "$hidden" ]; then exec "$open" -g -j "$app" --args --in-dock; fi
         if [ -n "$open" ]; then exec "$open" "$app"; fi
         """.ReplaceLineEndings("\n");
 
     /// <summary>The arguments of /bin/sh for <see cref="Script"/>.</summary>
-    public static string[] Arguments(int process, string bundle, string resultFile, Version version, string? opener) =>
-        ["-c", Script, "mira-update", process.ToString(System.Globalization.CultureInfo.InvariantCulture), bundle, Staging(bundle), Previous(bundle), resultFile, version.ToString(3), opener ?? ""];
+    /// <param name="hidden">Opened again in the background, its window in the Dock (with <paramref name="opener"/>).</param>
+    public static string[] Arguments(int process, string bundle, string resultFile, Version version, string? opener, bool hidden = false) =>
+        ["-c", Script, "mira-update", process.ToString(System.Globalization.CultureInfo.InvariantCulture), bundle, Staging(bundle), Previous(bundle), resultFile, version.ToString(3), opener ?? "", hidden ? "hidden" : ""];
 
     /// <summary>The last result, once: the file is deleted as it is read. Null when there is none, or it cannot be read.</summary>
     public static MacInstallResult? ReadResult(string folder)

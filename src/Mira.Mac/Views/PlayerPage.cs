@@ -406,6 +406,33 @@ public sealed partial class PlayerPage : UserControl
         TellNowPlaying();
         await ReleaseEngineAsync();
     }
+    /// <summary>
+    /// macOS quits Mira at once (shutting down, restarting, logging out): what <see cref="StopAsync"/> keeps, without
+    /// waiting for anything. Paused, so that nothing plays on while the Mac closes; where it was queued for Jellyfin (sent
+    /// now if Jellyfin answers in time, otherwise by the next launch) and kept for « Continuer à regarder ». The engine is
+    /// left to the process's end.
+    /// </summary>
+    public void KeepAtQuit()
+    {
+        if (_stopped) return;
+        _stopped = true; ++_generation;
+        _tick.Stop(); _hide.Stop(); _click.Stop(); _groupSeekSoon.Stop(); _groupPlaySoon.Stop();
+        SleepGuard.Set(false);
+        var session = _shell.Session;
+        if (_loaded && _mpv is { } mpv) { _session.Position = Reported(mpv.Number("time-pos", _session.Position)); mpv.Set("pause", "yes"); }
+        var completed = _session.Completes(_loaded, false);
+        // Written to SQLite on a worker thread, waited for here; its sending to Jellyfin is not.
+        if (_session.Reported && session is not null) { _session.Reported = false; session.Sync.RecordAsync(completed ? "complete" : "stop", Report()).Wait(TimeSpan.FromSeconds(1.5)); }
+        if (_loaded && _session.Item is { } item && session is not null)
+        {
+            item.UserData.Played = item.UserData.Played || completed;
+            item.UserData.PlaybackPositionTicks = completed ? 0 : TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
+            item.UserData.LastPlayedDate = DateTimeOffset.UtcNow;
+            var snapshot = item with { UserData = item.UserData with { } };
+            Errors.TryCache(() => session.Store.RememberPlayback(snapshot));
+        }
+        if (_mpv is not null) _shell.Settings.Volume = _mpv.Level;
+    }
     private async Task EndedAsync(bool eof, int generation, bool interrupted = false)
     {
         if (generation != _generation || _stopped) return;
