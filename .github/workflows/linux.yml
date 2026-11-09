@@ -1,0 +1,72 @@
+name: Linux preview
+# Mira for Mac built for Linux x64 (tools/linux/package.sh): not a release and never attached to one, an artifact to
+# try the Mac app's pages, player and settings on a Linux desktop (docs: tools/linux/README.txt). Started by the Linux
+# runner as a person would start it (./mira, libmpv2 of the system, a virtual display): still running after 30 s, a
+# window drawn (Mira-linux-preview-screen).
+on:
+  push:
+    branches: [main]
+    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/linux/**", "tools/tailscale/**", ".github/workflows/linux.yml"]
+  pull_request:
+    paths: ["src/Mira.Mac/Playback/**", "tools/linux/**", ".github/workflows/linux.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: linux-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: src/Mira.Tailscale/go.mod
+          cache-dependency-path: src/Mira.Tailscale/go.sum
+      - name: Package
+        run: |
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Mac/Mira.Mac.csproj | head -1)
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          tools/linux/package.sh "$version"
+      # As a person would: the archive unpacked elsewhere, ./mira with the system's libmpv, a profile of its own.
+      - name: Starts and draws a window
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libmpv2 xvfb x11-apps imagemagick
+          mkdir -p "$RUNNER_TEMP/try" .artifacts/linux
+          tar -C "$RUNNER_TEMP/try" -xzf "dist/linux/Mira-$VERSION-linux-x64-preview.tar.gz"
+          cd "$RUNNER_TEMP/try/Mira-$VERSION-linux-x64-preview"
+          LANG=en_US.UTF-8 xvfb-run -a -s "-screen 0 1600x1000x24" sh -c '
+            ./mira --data "$RUNNER_TEMP/profile" > "$RUNNER_TEMP/mira.log" 2>&1 &
+            pid=$!
+            sleep 30
+            xwd -root -silent | convert xwd:- "$GITHUB_WORKSPACE/.artifacts/linux/screen.png"
+            if kill -0 $pid 2>/dev/null; then kill $pid; echo running > "$RUNNER_TEMP/state"; else echo ended > "$RUNNER_TEMP/state"; fi'
+          cat "$RUNNER_TEMP/mira.log" | tail -40
+          [ "$(cat "$RUNNER_TEMP/state")" = running ] || { echo "::error::Mira ended within 30 s"; exit 1; }
+          colours=$(convert "$GITHUB_WORKSPACE/.artifacts/linux/screen.png" -format %k info:)
+          echo "Colours on screen: $colours"
+          [ "$colours" -gt 16 ] || { echo "::error::No window drawn ($colours colours)"; exit 1; }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Mira-linux-preview
+          path: |
+            dist/linux/*.tar.gz
+            dist/linux/*.sha256
+          compression-level: 0
+          retention-days: 30
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: Mira-linux-preview-screen
+          path: .artifacts/linux
+          retention-days: 7
