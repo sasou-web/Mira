@@ -68,6 +68,16 @@ public sealed class Catalog
     public static string FiltersLabel(int count) => count == 0 ? L("Filtrer", "Filter") : L($"Filtres · {count}", $"Filters · {count}");
     public string GridTitle(string search) => IsHome(search) ? L("Ajoutés récemment", "Recently added") : View == "offline" ? L("Prêts sans connexion", "Ready offline") : search.Length > 0 ? L($"Résultats pour « {search} »", $"Results for “{search}”")
         : Person is { } shown ? PersonText(shown.Name, shown.Directed) : Studio is { } studio ? studio.Name : Saga is { } saga ? saga.Name : Favorites ? L("Tes favoris", "Your favorites") : L("Tous les titres", "All titles");
+    /// <summary>
+    /// « Actualiser » done (Windows, Mac): what Jellyfin's scan found, <paramref name="added"/> titles more on the list it
+    /// started from; <paramref name="scanned"/> false: not an administrator, only the list was read again.
+    /// </summary>
+    public static string Scanned(bool scanned, int added) =>
+        !scanned ? L("Liste rechargée. Seul un administrateur de Jellyfin peut lui faire analyser les dossiers : un nouveau fichier apparaît après sa prochaine analyse.", "List reloaded. Only a Jellyfin administrator can have it scan the folders: a new file shows up after its next scan.")
+        : added > 0 ? L($"Bibliothèque à jour : {added} nouveau{(added > 1 ? "x" : "")} titre{(added > 1 ? "s" : "")}.", $"Library up to date: {added} new {(added == 1 ? "title" : "titles")}.")
+        : L("Bibliothèque à jour : Jellyfin a vérifié tous tes dossiers.", "Library up to date: Jellyfin checked all your folders.");
+    /// <summary>The words of « Actualiser » while Jellyfin scans, its progress from 0 to 1 when known.</summary>
+    public static string Scanning(double? share) => share is { } p ? L($"Analyse… {p * 100:0} %", $"Scanning… {p * 100:0}%") : L("Analyse…", "Scanning…");
     public static string PersonText(string name, bool? directed) => directed switch { true => L("Réalisés par ", "Directed by "), false => L("Avec ", "With "), null => "" } + name;
     /// <summary>
     /// A search of two letters or more looks for people, studios, episodes and sagas too, as Mira web does; not in a

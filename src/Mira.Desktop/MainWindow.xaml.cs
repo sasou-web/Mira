@@ -422,23 +422,20 @@ public partial class MainWindow : Window
         if (_scanning) return;
         _scanning = true; var before = _catalog.TotalCount; var view = (_catalog.View, _catalog.Favorites, _catalog.ParentId, SearchBox.Text); var shown = Task.Delay(700);
         var ct = _connectionLifetime.Token;
-        SpinRefresh(true); RefreshLabel.Text = L("Analyse…", "Scanning…");
+        SpinRefresh(true); RefreshLabel.Text = Catalog.Scanning(null);
         try
         {
             var scanned = false;
             if (!_demo && _client is { } client)
             {
-                var progress = new Progress<double?>(p => RefreshLabel.Text = p is { } share ? L($"Analyse… {share * 100:0} %", $"Scanning… {share * 100:0}%") : L("Analyse…", "Scanning…"));
+                var progress = new Progress<double?>(p => RefreshLabel.Text = Catalog.Scanning(p));
                 scanned = await client.ScanAndWaitAsync(progress, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), ct);
                 RefreshLabel.Text = L("Chargement…", "Loading…");
             }
             await RefreshAsync(quiet: true); await shown;
             // Counted only on the list it started from: another view has another total.
             var added = view == (_catalog.View, _catalog.Favorites, _catalog.ParentId, SearchBox.Text) ? _catalog.TotalCount - before : 0;
-            SetNotice(_demo ? L("Démo à jour.", "Demo up to date.")
-                : !scanned ? L("Liste rechargée. Seul un administrateur de Jellyfin peut lui faire analyser les dossiers : un nouveau fichier apparaît après sa prochaine analyse.", "List reloaded. Only a Jellyfin administrator can have it scan the folders: a new file shows up after its next scan.")
-                : added > 0 ? L($"Bibliothèque à jour : {added} nouveau{(added > 1 ? "x" : "")} titre{(added > 1 ? "s" : "")}.", $"Library up to date: {added} new {(added == 1 ? "title" : "titles")}.")
-                : L("Bibliothèque à jour : Jellyfin a vérifié tous tes dossiers.", "Library up to date: Jellyfin checked all your folders."));
+            SetNotice(_demo ? L("Démo à jour.", "Demo up to date.") : Catalog.Scanned(scanned, added));
         }
         // Only Mira's own cancellation (another account, closing): HttpClient's 12 s limit is one too, and must be said.
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }

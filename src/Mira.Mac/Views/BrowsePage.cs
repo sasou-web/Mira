@@ -106,7 +106,9 @@ public sealed class BrowsePage : Page
         _reset.VerticalAlignment = VerticalAlignment.Bottom;
         _filtersToggle = Ui.Action(L("Filtrer", "Filter"), "sliders", "quiet", ToggleFilters);
         ToolTip.SetTip(_filtersToggle, L("Genre, année, progression, bibliothèque, image, note, langues", "Genre, year, progress, library, picture, rating, languages"));
-        var refresh = Ui.Action(L("Actualiser", "Refresh"), "refresh", "quiet", () => _ = ReloadAsync(keep: true));
+        var refresh = _refresh = Ui.Action(L("Actualiser", "Refresh"), "refresh", "quiet", () => _ = ScanAsync());
+        ToolTip.SetTip(refresh, L("Jellyfin cherche les nouveaux fichiers dans tes dossiers, puis la liste se recharge", "Jellyfin looks for new files in your folders, then the list reloads"));
+        Avalonia.Automation.AutomationProperties.SetName(refresh, L("Actualiser la bibliothèque", "Refresh the library"));
         Fill(_state, L("Tout", "All"), L("Non vus", "Unwatched"), L("Déjà vus", "Watched"));
         Fill(_sort, saga is not null ? L("Ordre de sortie", "Release order") : studio is not null ? L("Plus récents", "Newest") : L("Ajout récent", "Recently added"), L("Titre A → Z", "Title A → Z"), L("Année", "Year"), L("Note", "Rating"), L("Dernière lecture", "Last played"), L("Plus courts d’abord", "Shortest first"));
         _sort.Width = 190;
@@ -370,6 +372,35 @@ public sealed class BrowsePage : Page
         image.Source = await session.Images.BackdropAsync(item, 1280);
     }
 
+    private readonly Button _refresh;
+    private bool _scanning;
+    /// <summary>
+    /// « Actualiser », as on Windows: Jellyfin looks through its folders (what a file just added needs), how far it is on
+    /// the button, then the list reloads and Mira says what changed. Without administrator rights, only the list is
+    /// reloaded, and Mira says why.
+    /// </summary>
+    public async Task ScanAsync()
+    {
+        if (_scanning || Shell.Session is not { } session) return;
+        _scanning = true; _refresh.IsEnabled = false;
+        var label = (_refresh.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault();
+        var before = (_search.Text, Query, _favoritesOnly, Library);
+        try
+        {
+            if (label is not null) label.Text = Catalog.Scanning(null);
+            var progress = new Progress<double?>(p => { if (label is not null) label.Text = Catalog.Scanning(p); });
+            var scanned = await session.Client.ScanAndWaitAsync(progress, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), session.Lifetime);
+            if (label is not null) label.Text = L("Chargement…", "Loading…");
+            var total = _total;
+            await ReloadAsync(keep: true);
+            // Counted only on the list it started from: another filter has another total.
+            var added = (_search.Text, Query, _favoritesOnly, Library) == before ? Math.Max(0, _total - total) : 0;
+            if (ReferenceEquals(session, Shell.Session)) Shell.Notice(Catalog.Scanned(scanned, added));
+        }
+        catch (OperationCanceledException) when (session.Lifetime.IsCancellationRequested) { }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
+        finally { _scanning = false; _refresh.IsEnabled = true; if (label is not null) label.Text = L("Actualiser", "Refresh"); }
+    }
     private async Task ReloadAsync(bool keep = false)
     {
         if (Shell.Session is not { } session) return;

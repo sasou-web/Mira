@@ -1345,6 +1345,17 @@ public sealed class JellyfinClient : IDisposable
     public async Task<WebAppInstall> InstallWebAppAsync(string repository, TimeSpan? restartLimit = null, CancellationToken ct = default)
     {
         if (await InstallFromAsync(repository, ct) is { } refused) return refused;
+        return await RestartForWebAppAsync(restartLimit, ct);
+    }
+    /// <summary>
+    /// The first half of <see cref="InstallWebAppAsync"/>: Mira web installed from <paramref name="repository"/> (checked
+    /// by Mira), Jellyfin not restarted, so that the caller restarts it only once nobody watches anything. Null once
+    /// Jellyfin has it (served after its next restart); otherwise why not.
+    /// </summary>
+    public Task<WebAppInstall?> AddWebAppAsync(string repository, CancellationToken ct = default) => InstallFromAsync(repository, ct);
+    /// <summary>The second half: Jellyfin restarted, then waited for until /Mira answers.</summary>
+    public async Task<WebAppInstall> RestartForWebAppAsync(TimeSpan? restartLimit = null, CancellationToken ct = default)
+    {
         await RestartAsync(ct);
         // Jellyfin stops answering while it restarts, then serves the plugin's pages.
         var limit = DateTime.UtcNow + (restartLimit ?? TimeSpan.FromSeconds(90));

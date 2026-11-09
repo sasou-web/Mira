@@ -108,6 +108,25 @@ public static class SelfCheck
             window.RaiseEvent(new KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = InputElement.KeyDownEvent, Source = window });
             Check(news && await Until(() => window.CurrentSheet is null, 3) && window.Current is HomePage, "nouveautés : montrées après une mise à jour, fermées par Échap",
                 missed.Count > 0 ? string.Join(", ", missed.Select(x => x.Version)) : "aucune version");
+            // « Retirer de Continuer à regarder », as on Windows: out of the row, its resume point taken back on Jellyfin too.
+            if (mock is not null && home.Continue.FirstOrDefault(x => x.Id == "movie-1") is { } resumed)
+            {
+                var group = ContinueWatching.Group(resumed);
+                await window.HideFromResumeAsync(resumed);
+                var gone = await Until(() => window.Current is HomePage { Continue: var shownRow } && shownRow.All(x => x.Id != "movie-1"), 10);
+                bool told; lock (mock.Calls) told = mock.Calls.Contains("POST UserItems/movie-1/UserData");
+                Check(gone && told, "accueil : retirer de continuer à regarder", $"retiré {gone}, Jellyfin prévenu {told}");
+                window.Session.Store.HideFromResume(group, null); await window.RefreshPagesAsync();
+                await Until(() => window.Current is HomePage { Continue: var back } && back.Any(x => x.Id == "movie-1"), 10);
+            }
+            // « Animer l’accueil » off: the banner stays on its title; on again, it turns.
+            if (mock is not null)
+            {
+                window.Settings.HeroAutoPlay = false; window.Go("search"); window.Go("home");
+                var bannerStill = await Until(() => window.Current is HomePage { Turning: false }, 3);
+                window.Settings.HeroAutoPlay = true; window.Go("search"); window.Go("home");
+                Check(bannerStill && await Until(() => window.Current is HomePage { Turning: true } || MacMotion.Reduced, 3), "accueil : animer l’accueil coupé, puis remis");
+            }
             // A row's arrows only when it goes past the window, and a press glides about three posters along, not a page.
             Check(home.GetVisualDescendants().OfType<CardRow>().All(x => x.GetVisualDescendants().OfType<ScrollViewer>().First() is var s && x.ArrowsShown == s.Extent.Width > s.Viewport.Width + 1), "accueil : flèches des rangées seulement si elles débordent");
             var row = new CardRow("Contrôle", Enumerable.Range(0, 24).Select(_ => (Control)new Border { Width = 176, Height = 40 }));
@@ -441,6 +460,30 @@ public static class SelfCheck
                 Check(await Until(() => window.Current is SettingsPage { Fix.Count: > 0, Fix.Section.IsVisible: true }, 10), "réglages : titres à corriger", $"{(window.Current as SettingsPage)?.Fix.Count} titres");
             if (mock is not null)
                 Check(await Until(() => window.Current is SettingsPage { Viewing.Count: > 0 }, 10), "réglages : en ce moment sur Jellyfin", $"{(window.Current as SettingsPage)?.Viewing.Count} lectures");
+            // « Extension Mira sur Jellyfin »: offered to an administrator of a Jellyfin without it, then installed from the
+            // release Mira checked (here the mock's), Jellyfin restarted only once nobody watches, and gone once served.
+            if (mock is not null && window.Current is SettingsPage withExtension)
+            {
+                var hidden = await Until(() => !withExtension.Extension.Section.IsVisible, 3);
+                mock.NoExtension = true; mock.Watching = true;
+                withExtension.Show("playback"); withExtension.Show("server");
+                var offered = await Until(() => withExtension.Extension.Section.IsVisible, 10);
+                if (hidden && offered)
+                {
+                    ExtensionSection.Verified = () => Task.FromResult(MiraWeb.RepositoryFor(Updates.Current)); ExtensionSection.Wait = TimeSpan.FromMilliseconds(300);
+                    withExtension.Extension.Section.BringIntoView(); await Task.Delay(400); Capture(window, output, "07j-settings-extension");
+                    withExtension.Extension.InstallForCheck();
+                    var waited = await Until(() => mock.PluginInstalled && withExtension.Extension.Status.Contains(Lang.L("dès que personne ne regarde", "as soon as nobody is watching")), 10);
+                    bool early; lock (mock.Calls) early = mock.Calls.Contains("POST System/Restart");
+                    mock.Watching = false;
+                    var restarted = await Until(() => { lock (mock.Calls) return mock.Calls.Contains("POST System/Restart"); }, 10);
+                    mock.NoExtension = false;
+                    var done = await Until(() => !withExtension.Extension.Section.IsVisible, 15);
+                    Check(waited && !early && restarted && done, "réglages : installer l’extension Mira depuis le Mac", $"installée {mock.PluginInstalled}, attendue {waited}, redémarrage avant {early}, après {restarted}, cachée {done} : {withExtension.Extension.Status}");
+                }
+                else Check(false, "réglages : installer l’extension Mira depuis le Mac", $"cachée avec l’extension {hidden}, proposée sans {offered}");
+                mock.NoExtension = false; mock.Watching = true; ExtensionSection.Verified = null; ExtensionSection.Wait = TimeSpan.FromMinutes(1);
+            }
             // « Ajouter un ami », as on Windows: the account sees only the library chosen and downloads nothing.
             if (mock is not null && await Until(() => window.Current is SettingsPage { Friend.Libraries: 2 }, 10) && window.Current is SettingsPage withFriend)
             {
@@ -604,6 +647,11 @@ public static class SelfCheck
                 else Check(engine.NightSoundOn && chain.IndexOf(NightSound.Label, StringComparison.Ordinal) is >= 0 and var night && night < chain.IndexOf(VolumeBoost.Label, StringComparison.Ordinal) && window.Settings.NightSound, $"son de nuit avant l’amplification ({renderer})", chain);
                 player.ChooseNightSound(false);
                 Check(!engine.NightSoundOn && !(engine.Get("af") ?? "").Contains(NightSound.Label, StringComparison.Ordinal) && !window.Settings.NightSound, $"son de nuit coupé ({renderer})", engine.Get("af") ?? "");
+                // « Décalage de l’audio », as on Windows: 0.1 s at a time, to mpv, kept for the next title until Mira quits.
+                player.ShiftAudio(0.1); player.ShiftAudio(0.1);
+                var delayed = engine.Number("audio-delay");
+                player.ShiftAudio(0);
+                Check(Math.Abs(delayed - .2) < .001 && Math.Abs(engine.Number("audio-delay")) < .001 && window.AudioDelay == 0, $"décalage de l’audio ({renderer})", $"{delayed:0.0} s, puis {engine.Number("audio-delay"):0.0} s");
                 var before = player.Position;
                 Key(window, Avalonia.Input.Key.Right);
                 Check(await Until(() => player.Position >= before + 8, 6), $"avance de 10 s ({renderer})", $"{before:0.0} → {player.Position:0.0}");

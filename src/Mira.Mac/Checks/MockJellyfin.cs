@@ -23,6 +23,10 @@ public sealed class MockJellyfin : HttpMessageHandler
     public bool PartyGone { get; set; }
     /// <summary>A Jellyfin without Mira's extension (most of them): every Mira/… path answers 404.</summary>
     public bool NoExtension { get; set; }
+    /// <summary>Someone plays something on this Jellyfin (« En ce moment sur Jellyfin »): a friend's iPhone.</summary>
+    public bool Watching { get; set; } = true;
+    /// <summary>« Extension Mira sur Jellyfin »: Jellyfin was asked to install the plugin from Mira's checked repository.</summary>
+    public bool PluginInstalled { get; private set; }
     /// <summary>Every request to the friend's Jellyfin, « POST Mira/guest/open ».</summary>
     public List<string> FriendCalls { get; } = [];
     private readonly string _media, _short;
@@ -135,9 +139,17 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path.StartsWith("Mira/") && NoExtension) return new HttpResponseMessage(HttpStatusCode.NotFound);
         if (path == "Mira/manifest.webmanifest") return Json(new { name = "Mira" });
         if (path.StartsWith("Mira/torlink")) return await RelayAsync(request, path, cancellationToken);
+        // « Extension Mira sur Jellyfin »: its repositories, the plugin installed from Mira's, a restart.
+        if (path == "Repositories" && request.Method == HttpMethod.Get) return Json(new object[] { new { Name = "Jellyfin Stable", Url = "https://repo.jellyfin.org/files/plugin/manifest.json", Enabled = true } });
+        if (path == "Repositories" && request.Method == HttpMethod.Post) return new HttpResponseMessage(HttpStatusCode.NoContent);
+        if (path == "Packages/Installed/Mira" && request.Method == HttpMethod.Post) { PluginInstalled = query["repositoryUrl"] == Mira.Core.MiraWeb.RepositoryFor(Mira.Mac.Services.Updates.Current); return new HttpResponseMessage(HttpStatusCode.NoContent); }
+        if (path == "System/Restart" && request.Method == HttpMethod.Post) return new HttpResponseMessage(HttpStatusCode.NoContent);
+        // « Retirer de Continuer à regarder »: the resume point taken back.
+        if (request.Method == HttpMethod.Post && path.StartsWith("UserItems/") && path.EndsWith("/UserData")) return Json(new { });
         if (path.StartsWith("UserPlayedItems/") || path.StartsWith("UserFavoriteItems/")) return Json(new { });
         if (request.Method == HttpMethod.Post && path == "Sessions/Logout") return new HttpResponseMessage(HttpStatusCode.NoContent);
         // « En ce moment sur Jellyfin »: a friend's iPhone, converted, that takes « Arrêter ».
+        if (path == "Sessions" && !Watching) return Json(Array.Empty<object>());
         if (path == "Sessions") return Json(new object[]
         {
             new
