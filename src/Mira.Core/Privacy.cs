@@ -67,7 +67,8 @@ public static class Privacy
                 L("Taper l’adresse de ton serveur.", "Type your server’s address."), PrivacyControl.None, false, ["7359"]),
             new("updates", L("Mises à jour de Mira", "Mira updates"),
                 L("GitHub (api.github.com, github.com), où Mira est publiée.", "GitHub (api.github.com, github.com), where Mira is published."),
-                windows ? L("20 s après l’ouverture, puis toutes les 6 h.", "20 s after opening, then every 6 hours.") : L("À l’ouverture, puis toutes les 6 h.", "At opening, then every 6 hours."),
+                windows ? L("20 s après l’ouverture, puis toutes les 6 h ; et pour vérifier l’extension Mira avant de l’installer.", "20 s after opening, then every 6 hours; and to check Mira’s extension before installing it.")
+                    : L("À l’ouverture, puis toutes les 6 h ; et pour vérifier l’extension Mira avant de l’installer.", "At opening, then every 6 hours; and to check Mira’s extension before installing it."),
                 L("La version de Mira et ton adresse IP, comme toute requête. Chaque version est vérifiée par sa signature avant d’être installée.",
                     "Mira’s version and your IP address, like any request. Each version is checked by its signature before it’s installed."),
                 L("L’interrupteur ci-contre : Mira ne cherche plus, tu mets à jour à la main.", "The switch here: Mira stops looking, you update by hand."), PrivacyControl.Updates, false, ["api.github.com"]),

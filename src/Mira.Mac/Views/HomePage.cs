@@ -50,8 +50,8 @@ public sealed class HomePage : Page
         _hero.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#00070708", 0.45), ("#C0070708", 0.82), ("#FF070708", 1)) });
         _hero.Children.Add(_heroText); _hero.Children.Add(_heroSide); _hero.Children.Add(_dots);
         _hero.PointerEntered += (_, _) => _rotate.Stop();
-        _hero.PointerExited += (_, _) => { if (_heroItems.Count > 1 && IsShowing) _rotate.Start(); };
-        _rotate.Tick += (_, _) => ShowHero(_heroIndex + 1);
+        _hero.PointerExited += (_, _) => { if (Turns && IsShowing) _rotate.Start(); };
+        _rotate.Tick += (_, _) => { if (Turns) ShowHero(_heroIndex + 1); else _rotate.Stop(); };
         _groupJoin = Ui.Action(L("Rejoindre", "Join"), null, "primary", () => _ = JoinGroupAsync());
         _groupJoin.Margin = new Thickness(18, 0, 0, 0);
         DockPanel.SetDock(_groupJoin, Dock.Right);
@@ -72,8 +72,15 @@ public sealed class HomePage : Page
         Content = _scroll;
         SizeChanged += (_, e) => _hero.Height = Math.Clamp(e.NewSize.Height * 0.7, 440, 760);
         // The banner turns only while Accueil shows (kept hidden behind another page, it waits).
-        Showing += shown => { if (!shown) _rotate.Stop(); else if (_heroItems.Count > 1) _rotate.Start(); };
+        Showing += shown => { if (!shown) _rotate.Stop(); else if (Turns) _rotate.Start(); };
     }
+    /// <summary>
+    /// The banner turns by itself: more than one title, « Animer l’accueil » on (Réglages → Apparence, as on Windows) and
+    /// the Mac's « Réduire les animations » off.
+    /// </summary>
+    private bool Turns => _heroItems.Count > 1 && Shell.Settings.HeroAutoPlay && !MacMotion.Reduced;
+    /// <summary>For the self-check: whether the banner is turning now.</summary>
+    public bool Turning => _rotate.IsEnabled;
     private static LinearGradientBrush Gradient(double x1, double y1, double x2, double y2, params (string Color, double Offset)[] stops)
     {
         var brush = new LinearGradientBrush { StartPoint = new RelativePoint(x1, y1, RelativeUnit.Relative), EndPoint = new RelativePoint(x2, y2, RelativeUnit.Relative) };
@@ -159,7 +166,7 @@ public sealed class HomePage : Page
             // « Ajoutés récemment » is the grid under the rows, as on Windows: it goes on with « Afficher plus ».
             if (items.Count == 0 || row.Key == HomeLayout.Latest) continue;
             Add(row.Key + "|" + row.Title + "|" + string.Join('\n', items.Select(Cards.Key)),
-                () => new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu)) : items.Select(Poster)));
+                () => new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, x => Shell.Menu(x, resume: true))) : items.Select(Poster)));
         }
         if (latest.Count > 0 && HomeLayout.Rows(Shell.Settings.HomeRows, libraries).Any(x => x.Key == HomeLayout.Latest && x.Shown))
             Add("latest|" + string.Join('\n', latest.Select(Cards.Key)), () => LatestGrid(session, latest));
@@ -173,7 +180,7 @@ public sealed class HomePage : Page
         var heroes = resume.Take(2).Concat(latest.Where(x => x.BackdropImageTags.Length > 0)).DistinctBy(x => ContinueWatching.Group(x)).Take(5).ToList();
         if (heroes.Select(x => x.Id).SequenceEqual(_heroItems.Select(x => x.Id)) && heroes.Count > 0) { _heroItems = heroes; ShowHero(_heroIndex, animate: false); return; }
         _heroItems = heroes; ShowHero(0);
-        _rotate.Stop(); if (heroes.Count > 1 && IsShowing) _rotate.Start();
+        _rotate.Stop(); if (Turns && IsShowing) _rotate.Start();
     }
     /// <summary>The latest titles in a grid of posters, 30 more at each « Afficher plus de titres » while Jellyfin has more.</summary>
     private Control LatestGrid(Session session, List<MediaItem> latest)
@@ -303,7 +310,7 @@ public sealed class HomePage : Page
             var dot = new Button { Width = 52, Height = 20, Padding = new Thickness(0), Background = Brushes.Transparent, Content = new Border { Height = 8, CornerRadius = new CornerRadius(4), Background = Ui.Brush(i == _heroIndex ? "#F5F5F7" : "#55FFFFFF") } };
             ToolTip.SetTip(dot, _heroItems[i].DisplayTitle);
             Avalonia.Automation.AutomationProperties.SetName(dot, L($"Afficher « {_heroItems[i].DisplayTitle} »{(i == _heroIndex ? ", affiché" : "")}", $"Show “{_heroItems[i].DisplayTitle}”{(i == _heroIndex ? ", shown" : "")}"));
-            dot.Click += (_, _) => { ShowHero(target); _rotate.Stop(); _rotate.Start(); };
+            dot.Click += (_, _) => { ShowHero(target); _rotate.Stop(); if (Turns) _rotate.Start(); };
             _dots.Children.Add(dot);
         }
     }

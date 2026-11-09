@@ -61,7 +61,9 @@ public sealed partial class SettingsPage : Page
         // —— Apparence: Mira's language and Home's rows ——
         Tab("appearance").Children.Add(Section(null, AppLanguage(settings),
             // « Mode canapé »: applied at once, the window full screen (MainWindow.Couch.cs).
-            Toggle(Couch.Title, Couch.Description + " " + Couch.Keys, settings.CouchMode, shell.SetCouchMode)));
+            Toggle(Couch.Title, Couch.Description + " " + Couch.Keys, settings.CouchMode, shell.SetCouchMode),
+            // « Animer l’accueil », as on Windows: the banner turns by itself, or stays on its title.
+            Toggle(L("Animer l’accueil", "Animate Home"), L("Le titre en vedette change toutes les 9 s.", "The featured title changes every 9 s."), settings.HeroAutoPlay, v => settings.HeroAutoPlay = v)));
         // « Accueil à ta main »: the libraries come from Jellyfin, for their « Nouveau dans … ».
         Tab("appearance").Children.Add(_home);
         DrawHome();
@@ -76,6 +78,9 @@ public sealed partial class SettingsPage : Page
             Row(L("En te déconnectant, effacer aussi ses données sur ce Mac", "When signing out, also erase its data on this Mac"),
                 L("Le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.",
                     "Your library’s cache, the posters and any progress not yet sent to Jellyfin. Your settings stay."), erase)));
+        // « Extension Mira sur Jellyfin »: installed from here by an administrator of a Jellyfin without it, as Windows' guide does.
+        Extension = new ExtensionSection(shell, Section);
+        Tab("server").Children.Add(Extension.Section);
         // This account's photo, as on Windows: kept by Jellyfin, on every device.
         if (connection is not null) Tab("server").Children.Add(Section(null, PhotoRow()));
         // « Mira sur ton iPhone »: the QR code the iPhone's camera reads, Mira opening there with this server filled in.
@@ -131,6 +136,7 @@ public sealed partial class SettingsPage : Page
     public FixTitlesSection Fix { get; }
     public FriendsSection Friend { get; }
     public ViewersSection Viewing { get; }
+    public ExtensionSection Extension { get; }
     private void Save() { Shell.Profile.SaveSettings(Shell.Settings); Shell.ChoicesChanged(); }
     private const string ResumeOff = "off";
     /// <summary>« Reprendre là où tu t’es arrêté », one choice as on Windows: how far back, or not at all.</summary>

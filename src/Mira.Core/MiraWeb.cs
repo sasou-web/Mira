@@ -58,6 +58,14 @@ public static class MiraWeb
         }
         return new(serving, waiting);
     }
+    /// <summary>Why Jellyfin did not take the extension (<see cref="JellyfinClient.AddWebAppAsync"/>), said to the person on a Mac.</summary>
+    public static string Problem(WebAppInstall result) => result switch
+    {
+        WebAppInstall.NotAllowed => Lang.L("Il faut le compte administrateur de Jellyfin pour installer l’extension Mira.", "Installing Mira’s extension needs Jellyfin’s administrator account."),
+        WebAppInstall.Unavailable => Lang.L("Jellyfin n’a pas pu télécharger l’extension Mira : vérifie que ton serveur a accès à Internet et qu’il est en version 10.9 ou plus, puis réessaie.",
+            "Jellyfin couldn’t download Mira’s extension: check that your server can reach the Internet and runs version 10.9 or later, then try again."),
+        _ => Lang.L("Jellyfin finit de redémarrer : l’extension Mira sert dès qu’il répond.", "Jellyfin is finishing its restart: Mira’s extension serves as soon as it answers."),
+    };
 }
 
 /// <summary>How installing Mira web on Jellyfin went.</summary>

@@ -325,6 +325,8 @@ public sealed partial class PlayerPage : UserControl
         await ReleaseEngineAsync();
         var player = new MpvPlayer(_shell.Settings, picture: PictureForPlayback());
         _mpv = player;
+        // « Décalage de l’audio », kept from one title to the next until Mira quits, as on Windows.
+        if (_shell.AudioDelay != 0) player.Set("audio-delay", _shell.AudioDelay.ToString(CultureInfo.InvariantCulture));
         player.FileLoaded += FileLoaded;
         player.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
         var generation = _generation;
@@ -721,7 +723,31 @@ public sealed partial class PlayerPage : UserControl
         DockPanel.SetDock(steps, Dock.Right); delayLine.Children.Add(steps);
         delayLine.Children.Add(new TextBlock { Text = L("Décalage des sous-titres", "Subtitle delay"), FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         menu.Children.Add(delayLine);
+        menu.Children.Add(AudioDelayLine());
         return menu;
+    }
+    /// <summary>
+    /// « Décalage de l’audio », as on Windows: the sound 0.1 s earlier or later (a sound bar, Bluetooth headphones), kept
+    /// for the next titles until Mira quits.
+    /// </summary>
+    private DockPanel AudioDelayLine()
+    {
+        Button? value = null;
+        value = Chip(PlayerText.Delay(_shell.AudioDelay), L("Réinitialiser le décalage de l’audio", "Reset the audio delay"), false, () => ShiftAudio(0));
+        value.MinWidth = 58;
+        Button Step(string sign, string tip, double change) { var step = Chip(sign, tip, false, () => ShiftAudio(change)); step.Width = 32; step.Margin = new Thickness(0); return step; }
+        var steps = Ui.Row(0, Step("−", L("Son 0,1 s plus tôt", "Sound 0.1 s earlier"), -0.1), value, Step("+", L("Son 0,1 s plus tard (casque Bluetooth)", "Sound 0.1 s later (Bluetooth headphones)"), 0.1));
+        var line = new DockPanel { Margin = new Thickness(10, 0, 6, 4) };
+        DockPanel.SetDock(steps, Dock.Right); line.Children.Add(steps);
+        line.Children.Add(new TextBlock { Text = L("Décalage de l’audio", "Audio delay"), FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        return line;
+    }
+    /// <summary>The audio delay moved by <paramref name="change"/> seconds, or back to 0 (also for the self-check).</summary>
+    public void ShiftAudio(double change)
+    {
+        var shifted = change == 0 ? 0 : Math.Round((_mpv?.Number("audio-delay", _shell.AudioDelay) ?? _shell.AudioDelay) + change, 1);
+        _shell.AudioDelay = shifted;
+        _mpv?.Set("audio-delay", shifted.ToString(CultureInfo.InvariantCulture));
     }
     /// <summary>A section's name in a menu, small capitals as on Windows (« VITESSE »).</summary>
     private static TextBlock MenuHeading(string text) => new() { Text = text, FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(10, 6, 10, 8) };

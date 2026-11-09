@@ -463,6 +463,10 @@ public sealed partial class MainWindow : Window
     /// <summary>The account's rights and the extension read again now (the self-check, after changing what its Jellyfin answers).</summary>
     public Task AskRightsAsync() => Session is { } session ? OfferDownloadsAsync(session) : Task.CompletedTask;
     private DateTimeOffset _rightsAsked;
+    /// <summary>« Décalage de l’audio » of the player, in seconds: kept from one title to the next until Mira quits, never saved.</summary>
+    public double AudioDelay { get; set; }
+    /// <summary>Mira's extension just installed from the settings: what it brings (Téléchargements) is offered at once.</summary>
+    public void ExtensionInstalled() { if (Session is { } session) _ = OfferDownloadsAsync(session); }
     /// <summary>
     /// « Chercher une meilleure version » of a film or an episode (an administrator): Téléchargements, its search made, only
     /// the versions better than its file; the one chosen replaces it on the PC of Jellyfin, never kept beside it.
@@ -945,8 +949,9 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
-    /// <summary>The right-click menu of a card.</summary>
-    public ContextMenu Menu(MediaItem item)
+    /// <summary>The right-click menu of a card; <paramref name="resume"/>: one of « Continuer à regarder », which it can leave.</summary>
+    public ContextMenu Menu(MediaItem item) => Menu(item, resume: false);
+    public ContextMenu Menu(MediaItem item, bool resume)
     {
         var menu = new ContextMenu();
         void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
@@ -964,6 +969,7 @@ public sealed partial class MainWindow : Window
         Add(L("Plus d’infos", "More info"), () => Open(item));
         Add(item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), () => _ = SetPlayedAsync(item, !item.UserData.Played));
         Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
+        if (resume) Add(L("Retirer de Continuer à regarder", "Remove from Continue watching"), () => _ = HideFromResumeAsync(item));
         if (TitleCollections.Holds(item) && CollectionRights.Manage)
         {
             Add(L("Ajouter à une collection…", "Add to collection…"), () => _ = CollectAsync(item));
@@ -972,6 +978,38 @@ public sealed partial class MainWindow : Window
         if (OfflineMenuItem(item) is { } offline) menu.Items.Add(offline);
         if (item.Type is "Movie" or "Episode" && Offers("downloads")) Add(L("Chercher une meilleure version", "Find a better version"), () => FindBetter(item));
         return menu;
+    }
+
+    /// <summary>
+    /// « Retirer de Continuer à regarder », as on Windows: the film or series leaves the row until it is played again; a
+    /// title in progress also loses its resume point, on Jellyfin too, so that no other device offers it. Kept with this
+    /// account's choices on Jellyfin (<see cref="AccountChoices"/>); « Annuler » puts both back.
+    /// </summary>
+    public async Task HideFromResumeAsync(MediaItem item)
+    {
+        if (Session is not { } session) return;
+        var group = ContinueWatching.Group(item); var ticks = item.UserData.PlaybackPositionTicks;
+        var resumable = ticks > 0 && !item.UserData.Played;
+        var change = Task.Run(() => Errors.TryCache(() => { session.Store.HideFromResume(group, DateTimeOffset.UtcNow); if (resumable) session.Store.ForgetProgress(item.Id); }));
+        _resumeChange = change;
+        await change;
+        Notice(L($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", $"“{item.DisplayTitle}” removed from Continue watching."), L("Annuler", "Undo"), () => _ = ShowInResumeAsync(session, item, group, resumable ? ticks : 0), sticky: false);
+        await RefreshPagesAsync();
+        try { if (resumable) await session.Client.SetPlaybackPositionAsync(item.Id, 0, session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex) + L(" Le titre est retiré de Mira seulement.", " The title is removed from Mira only."), tone: NoticeTone.Error); }
+        ChoicesChanged();
+    }
+    /// <summary>The last removal still being saved: « Annuler » waits for it, so that it cannot land after the undo.</summary>
+    private Task _resumeChange = Task.CompletedTask;
+    private async Task ShowInResumeAsync(Session session, MediaItem item, string group, long ticks)
+    {
+        await _resumeChange;
+        if (!ReferenceEquals(session, Session)) return;
+        await Task.Run(() => Errors.TryCache(() => session.Store.HideFromResume(group, null)));
+        try { if (ticks > 0) await session.Client.SetPlaybackPositionAsync(item.Id, ticks, session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
+        ChoicesChanged();
+        await RefreshPagesAsync(fromServer: true);
     }
 
     // Collections made by hand (TitleCollections), as Windows and Mira web make them; only for an account Jellyfin lets
