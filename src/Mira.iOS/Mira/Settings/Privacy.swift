@@ -23,7 +23,7 @@ struct PrivacyView: View {
                            stop: "Sign out, in Settings.")
                 Toggle(isOn: Binding(get: { tailnet.enabled }, set: { on in Task { await tailnet.turn(on) } })) {
                     PrivacyRow(title: "Built-in Tailscale",
-                               to: "Tailscale’s coordination server and its relays, then your Tailscale devices (16 at most are asked whether they run Jellyfin).",
+                               to: "Tailscale’s coordination server and its relays, your router (UPnP, NAT-PMP, PCP: a port opened for a direct connection rather than through a relay), then your Tailscale devices (16 at most are asked whether they run Jellyfin).",
                                when: "Only once turned on, while Mira is on screen or a title still plays.",
                                sends: "Like the Tailscale app: your account, the device’s name, its system, its IP addresses and its public key. Videos stay end-to-end encrypted, no log is sent.",
                                stop: "The switch here.")

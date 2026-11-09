@@ -30,13 +30,13 @@ struct DiagnosticsTests {
 
     @Test("Le rapport ne nomme ni le compte ni le serveur")
     func report() {
-        let text = Diagnostics.build(version: "0.9.5", server: "http://100.114.247.13:8096", jellyfin: "12.1.0",
+        let text = Diagnostics.build(version: "0.9.5", server: "http://100.88.12.34:8096", jellyfin: "12.1.0",
                                      facts: [("Device", "ogsas’s iPhone"), ("Quality", "auto")], playbacks: ["2026-11-06 20:00 Episode · mkv · file as it is · Tailscale"],
                                      now: Date(), names: ["ogsas", nil])
         #expect(text.contains("Reached by: Tailscale"))
         #expect(text.contains("Jellyfin: 12.1.0"))
         #expect(text.contains("Device: [name]’s iPhone"))
-        #expect(!text.contains("ogsas") && !text.contains("100.114"))
+        #expect(!text.contains("ogsas") && !text.contains("100.88"))
         #expect(Diagnostics.fileName(Date()).hasPrefix("mira-report-"))
     }
 }

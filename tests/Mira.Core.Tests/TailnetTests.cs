@@ -94,7 +94,7 @@ internal static class TailnetTests
             var credentials = new TailnetProxy("", "mira", "s3cret");
             await using var proxy = FakeProxy.Start(jellyfin.Port, credentials.Authorization, host => host switch
             {
-                "100.114.247.13" or "desktop-invefqh" or "desktop-invefqh.tail1234.ts.net" => (200, null),
+                "100.88.12.34" or "salon-pc" or "salon-pc.tail1234.ts.net" => (200, null),
                 "nas" => (502, TailnetCodes.PeerOffline),
                 "box.example.internal" => (502, "not-a-code"),
                 _ => (502, null),
@@ -105,32 +105,32 @@ internal static class TailnetTests
             using var http = new HttpClient(network.Handler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(30) };
 
             // The Jellyfin PC by its Tailscale address: through the node, Jellyfin's own headers as without it.
-            using (var request = new HttpRequestMessage(HttpMethod.Get, "http://100.114.247.13:8096/System/Info/Public"))
+            using (var request = new HttpRequestMessage(HttpMethod.Get, "http://100.88.12.34:8096/System/Info/Public"))
             {
                 request.Headers.TryAddWithoutValidation("Authorization", "MediaBrowser Token=\"t\"");
                 using var response = await http.SendAsync(request);
                 Assert(response.IsSuccessStatusCode && (await response.Content.ReadAsStringAsync()).Contains("Jellyfin de test"), "No answer through the node");
             }
             var seen = jellyfin.Requests.Last();
-            Assert(proxy.Targets.SequenceEqual(["100.114.247.13:8096"]), "Asked of the proxy: " + string.Join(", ", proxy.Targets));
-            Assert(seen.Headers["Host"] == "100.114.247.13:8096" && seen.Headers["Authorization"] == "MediaBrowser Token=\"t\"" && !seen.Headers.ContainsKey("Proxy-Authorization"),
+            Assert(proxy.Targets.SequenceEqual(["100.88.12.34:8096"]), "Asked of the proxy: " + string.Join(", ", proxy.Targets));
+            Assert(seen.Headers["Host"] == "100.88.12.34:8096" && seen.Headers["Authorization"] == "MediaBrowser Token=\"t\"" && !seen.Headers.ContainsKey("Proxy-Authorization"),
                 "Jellyfin got other headers: " + string.Join(", ", seen.Headers));
             // Its short name and its MagicDNS name: the node resolves them; the connection is kept for the next request.
-            Assert((await http.GetStringAsync("http://desktop-invefqh:8096/System/Info/Public")).Contains("Jellyfin de test") && proxy.Targets.Last() == "desktop-invefqh:8096", "Short name");
-            await http.GetStringAsync("http://desktop-invefqh:8096/System/Ping");
+            Assert((await http.GetStringAsync("http://salon-pc:8096/System/Info/Public")).Contains("Jellyfin de test") && proxy.Targets.Last() == "salon-pc:8096", "Short name");
+            await http.GetStringAsync("http://salon-pc:8096/System/Ping");
             Assert(proxy.Targets.Count == 2, "A kept connection asked the proxy again");
             // This computer: straight, the proxy never asked.
             Assert((await http.GetStringAsync($"http://127.0.0.1:{jellyfin.Port}/System/Info/Public")).Contains("Jellyfin de test") && proxy.Targets.Count == 2, "This computer went through the node");
             // The WebSocket, as JellyfinClient opens it: both ways.
             using (var socket = new ClientWebSocket())
             {
-                await socket.ConnectAsync(new Uri("ws://desktop-invefqh.tail1234.ts.net:8096/socket?deviceId=d"), network.Invoker, CancellationToken.None);
+                await socket.ConnectAsync(new Uri("ws://salon-pc.tail1234.ts.net:8096/socket?deviceId=d"), network.Invoker, CancellationToken.None);
                 var buffer = new byte[256];
                 var first = await socket.ReceiveAsync(buffer, CancellationToken.None);
                 Assert(Encoding.UTF8.GetString(buffer, 0, first.Count).Contains("LibraryChanged"), "Nothing from Jellyfin's WebSocket");
                 await socket.SendAsync("{\"MessageType\":\"KeepAlive\"}"u8.ToArray(), WebSocketMessageType.Text, true, CancellationToken.None);
                 var echo = await socket.ReceiveAsync(buffer, CancellationToken.None);
-                Assert(Encoding.UTF8.GetString(buffer, 0, echo.Count).Contains("KeepAlive") && proxy.Targets.Last() == "desktop-invefqh.tail1234.ts.net:8096", "WebSocket not through the node");
+                Assert(Encoding.UTF8.GetString(buffer, 0, echo.Count).Contains("KeepAlive") && proxy.Targets.Last() == "salon-pc.tail1234.ts.net:8096", "WebSocket not through the node");
                 await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
             }
 
@@ -145,24 +145,24 @@ internal static class TailnetTests
             Assert(await Failure("http://100.80.0.5:8096/") == TailnetCodes.Unreachable && await Failure("http://box.example.internal:8096/") == TailnetCodes.Unreachable, "A 502 without a known reason");
             // Other credentials (the helper started again since they were read): its proxy refuses them.
             node.Proxy = credentials with { Address = proxy.Address, Password = "old" };
-            Assert(await Failure("http://100.114.247.13:8097/") == TailnetCodes.Helper, "Credentials refused");
+            Assert(await Failure("http://100.88.12.34:8097/") == TailnetCodes.Helper, "Credentials refused");
             node.Proxy = credentials with { Address = proxy.Address };
             // Not signed in: nothing leaves, whatever the device.
             var asked = proxy.Targets.Count;
             node.Status = Running() with { State = TailnetStates.NeedsLogin };
             node.Change();
-            Assert(await Failure("http://100.114.247.13:8098/") == TailnetCodes.NeedsLogin && proxy.Targets.Count == asked, "Sent although not signed in");
+            Assert(await Failure("http://100.88.12.34:8098/") == TailnetCodes.NeedsLogin && proxy.Targets.Count == asked, "Sent although not signed in");
             // Its helper gone: closed at once, the home network still straight.
             node.Status = null; node.Proxy = null; node.Unavailable = TailnetCodes.Version;
             node.Change();
             var clock = Stopwatch.StartNew();
-            Assert(await Failure("http://100.114.247.13:8099/") == TailnetCodes.Version && clock.Elapsed < TimeSpan.FromSeconds(5), "Another version of the helper");
-            Assert(network.Choose("192.168.1.198") == TailnetChoice.Direct, "The home network through the node");
+            Assert(await Failure("http://100.88.12.34:8099/") == TailnetCodes.Version && clock.Elapsed < TimeSpan.FromSeconds(5), "Another version of the helper");
+            Assert(network.Choose("192.168.1.20") == TailnetChoice.Direct, "The home network through the node");
 
             // A node that starts: the request waits for it (TailnetNetwork.StartWait), then goes through it.
             node.Unavailable = TailnetCodes.Starting;
             node.Change();
-            var waiting = http.GetStringAsync("http://100.114.247.13:8100/System/Info/Public");
+            var waiting = http.GetStringAsync("http://100.88.12.34:8100/System/Info/Public");
             await Task.Delay(400);
             Assert(!waiting.IsCompleted, "Did not wait for the node: " + (waiting.IsFaulted ? waiting.Exception!.InnerException!.Message : "answered"));
             node.Status = Running(); node.Proxy = credentials with { Address = proxy.Address }; node.Unavailable = null;
@@ -171,20 +171,20 @@ internal static class TailnetTests
 
             // Off: back to the system's network, nothing asked of the node.
             network.Use(null);
-            Assert(network.Choose("100.114.247.13") == TailnetChoice.Direct && network.ForPlayer(new Uri("http://100.114.247.13:8096/Videos/1/stream")) is null, "The node still used once off");
+            Assert(network.Choose("100.88.12.34") == TailnetChoice.Direct && network.ForPlayer(new Uri("http://100.88.12.34:8096/Videos/1/stream")) is null, "The node still used once off");
         });
         await Test("Tailscale intégré : mpv reçoit le proxy du nœud et ses identifiants pour un appareil du tailnet, rien pour le reste", () =>
         {
             var node = new FakeNode { Status = Running(), Proxy = new TailnetProxy("127.0.0.1:41641", "mira", "p@ss:word/1") };
             var network = new TailnetNetwork(() => [IPAddress.Parse("192.168.1.20"), IPAddress.Loopback], "MacBook-Air");
-            Assert(network.ForPlayer(new Uri("http://100.114.247.13:8096/Videos/1/stream")) is null, "No node, yet a proxy");
+            Assert(network.ForPlayer(new Uri("http://100.88.12.34:8096/Videos/1/stream")) is null, "No node, yet a proxy");
             network.Follow(node);
-            var player = network.ForPlayer(new Uri("http://desktop-invefqh:8096/Videos/1/stream?static=true"));
+            var player = network.ForPlayer(new Uri("http://salon-pc:8096/Videos/1/stream?static=true"));
             Assert(player is { } given && given.Proxy == "http://mira:p%40ss%3Aword%2F1@127.0.0.1:41641" && given.Authorization == node.Proxy!.Authorization, "Proxy for mpv: " + player);
-            Assert(network.ForPlayer(new Uri("https://desktop-invefqh.tail1234.ts.net/Videos/1/stream")) is not null, "https:// goes through CONNECT");
-            Assert(network.ForPlayer(new Uri("http://192.168.1.198:8096/Videos/1/stream")) is null && network.ForPlayer(new Uri("file:///tmp/a.mkv")) is null, "Straight addresses got the proxy");
+            Assert(network.ForPlayer(new Uri("https://salon-pc.tail1234.ts.net/Videos/1/stream")) is not null, "https:// goes through CONNECT");
+            Assert(network.ForPlayer(new Uri("http://192.168.1.20:8096/Videos/1/stream")) is null && network.ForPlayer(new Uri("file:///tmp/a.mkv")) is null, "Straight addresses got the proxy");
             node.Status = Running() with { State = TailnetStates.Expired };
-            try { network.ForPlayer(new Uri("http://100.114.247.13:8096/Videos/1/stream")); throw new Exception("No failure"); }
+            try { network.ForPlayer(new Uri("http://100.88.12.34:8096/Videos/1/stream")); throw new Exception("No failure"); }
             catch (TailnetException ex) { Assert(ex.Code == TailnetCodes.Expired, ex.Code); }
             return Task.CompletedTask;
         });
@@ -198,11 +198,11 @@ internal static class TailnetTests
             var network = new TailnetNetwork(() => [IPAddress.Parse("192.168.1.20"), IPAddress.Loopback], "MacBook-Air");
             network.Follow(node);
             var timeout = new TaskCanceledException("timeout", new TimeoutException());
-            Assert(network.Explain(timeout, "nas") == TailnetCodes.PeerOffline && network.Explain(timeout, "desktop-invefqh") is null, "Out of time towards a device asleep, or awake");
-            Assert(network.Explain(new HttpRequestException("x", reason), "desktop-invefqh") == TailnetCodes.Closed && network.Explain(new IOException("x"), "nas") is null, "The node's own reason");
-            Assert(network.Explain(timeout, "192.168.1.198") is null, "The home network");
+            Assert(network.Explain(timeout, "nas") == TailnetCodes.PeerOffline && network.Explain(timeout, "salon-pc") is null, "Out of time towards a device asleep, or awake");
+            Assert(network.Explain(new HttpRequestException("x", reason), "salon-pc") == TailnetCodes.Closed && network.Explain(new IOException("x"), "nas") is null, "The node's own reason");
+            Assert(network.Explain(timeout, "192.168.1.20") is null, "The home network");
             node.Status = null; node.Proxy = null; node.Unavailable = TailnetCodes.Starting;
-            Assert(network.Explain(timeout, "100.114.247.13") == TailnetCodes.Starting, "Out of time while the node starts");
+            Assert(network.Explain(timeout, "100.88.12.34") == TailnetCodes.Starting, "Out of time while the node starts");
             return Task.CompletedTask;
         });
         if (Environment.GetEnvironmentVariable("MIRA_TAILNET_HELPER") is { Length: > 0 } helper && Environment.GetEnvironmentVariable("MIRA_TAILNET_TESTNET") is { Length: > 0 } testnet)
@@ -217,7 +217,7 @@ internal static class TailnetTests
         Self = new() { Id = "n0", HostName = "Mira-MacBook-Air", DnsName = "mira-macbook-air.tail1234.ts.net", Ips = ["100.64.0.9", "fd7a:115c:a1e0::9"], Online = true },
         Peers =
         [
-            new() { Id = "n1", HostName = "DESKTOP-INVEFQH", DnsName = "desktop-invefqh.tail1234.ts.net", Ips = ["100.114.247.13", "fd7a:115c:a1e0::1"], Os = "windows", Online = true },
+            new() { Id = "n1", HostName = "SALON-PC", DnsName = "salon-pc.tail1234.ts.net", Ips = ["100.88.12.34", "fd7a:115c:a1e0::1"], Os = "windows", Online = true },
             new() { Id = "n2", HostName = "nas", DnsName = "nas.tail1234.ts.net", Ips = ["100.100.1.2"], Os = "linux", LastSeen = DateTimeOffset.Parse("2026-10-29T10:00:00Z") },
             new() { Id = "n3", HostName = "box", DnsName = "box.example.internal", Ips = ["100.80.0.5"], Os = "linux", Online = true },
         ],

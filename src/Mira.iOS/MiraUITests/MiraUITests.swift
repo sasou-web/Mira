@@ -484,23 +484,23 @@ final class MiraUITests: XCTestCase {
     func testParty() throws {
         let app = launch(language: "en", locale: "en_US")
         XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 10), "No sign-in screen")
-        let link = "mira://party/dafty-party-link-00001?server=" + "http://\(Self.server)".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
+        let link = "mira://party/samsam-party-link-0001?server=" + "http://\(Self.server)".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
         app.open(URL(string: link)!)
         let heading = app.staticTexts["party.heading"]
         XCTAssertTrue(heading.waitForExistence(timeout: 15), "The party's screen did not open")
-        XCTAssertTrue(waitForLabel(heading, "Join Dafty’s party", timeout: 10), "The host is not named: \(heading.label)")
+        XCTAssertTrue(waitForLabel(heading, "Join Sam’s party", timeout: 10), "The host is not named: \(heading.label)")
         let name = app.textFields["party.name"]
         focus(name)
         name.typeText("Léa")
         settle()
         capture("47-party-name")
         app.buttons["party.join"].tap()
-        XCTAssertTrue(waitForLabel(heading, "Dafty hasn’t started movie night yet", timeout: 15), "Not waiting for the host: \(heading.label)")
+        XCTAssertTrue(waitForLabel(heading, "Sam hasn’t started movie night yet", timeout: 15), "Not waiting for the host: \(heading.label)")
         capture("48-party-waiting")
         // The host opens their group: this iPhone joins it within a few seconds.
         mock("/Mock/PartyGroup")
         XCTAssertTrue(waitForSync("GuestJoin", timeout: 20), "The guest never joined the host's group")
-        XCTAssertTrue(waitForLabel(heading, "You’re in Dafty’s party", timeout: 15), "Not in the group: \(heading.label)")
+        XCTAssertTrue(waitForLabel(heading, "You’re in Sam’s party", timeout: 15), "Not in the group: \(heading.label)")
         XCTAssertTrue(app.descendants(matching: .any)["party.members"].waitForExistence(timeout: 5), "The group's members are not shown")
         settle()
         capture("49-party-in")

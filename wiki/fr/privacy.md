@@ -23,7 +23,7 @@ Avant ta connexion, Mira cherche Jellyfin sur cet ordinateur, sur le réseau de 
 
 | Fonction | Contacte | Quoi |
 | --- | --- | --- |
-| **Tailscale intégré**, une fois connecté | serveurs de coordination et relais de Tailscale | comme l’app Tailscale : le compte choisi, le nom de l’appareil, son système et ses adresses IP, sa clé publique. Les vidéos restent chiffrées de bout en bout. Aucun journal envoyé |
+| **Tailscale intégré**, une fois connecté | serveurs de coordination et relais de Tailscale ; ton routeur (UPnP, NAT-PMP, PCP), à qui il demande d’ouvrir un port pour une connexion directe plutôt que par un relais | comme l’app Tailscale : le compte choisi, le nom de l’appareil, son système et ses adresses IP, sa clé publique. Les vidéos restent chiffrées de bout en bout. Aucun journal envoyé |
 | **Le moteur mpv** (Windows) | SourceForge | le téléchargement du moteur, SHA-256 vérifié |
 | **Installer ou mettre à jour Jellyfin** (Windows) | `repo.jellyfin.org`, GitHub (catalogue de winget, une fois par jour sur le PC de Jellyfin, coupé dans **Réglages → Confidentialité**) | le téléchargement, et s’il existe une version plus récente |
 | **Sous-titres automatiques** | OpenSubtitles, SubDL, depuis ton serveur | l’empreinte et la taille du fichier, les identifiants IMDb/TMDb, saison, épisode, titre, année, langue. Jamais le nom du fichier |

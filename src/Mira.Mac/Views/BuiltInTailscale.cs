@@ -252,7 +252,7 @@ public sealed class BuiltInTailscale
     /// knows. Without the Tailscale app here, only the node reaches it.
     /// </summary>
     public static bool OnTailnet(string? address) => HostOf(address) is { } host && TailnetNetwork.Default.IsTailnet(host);
-    /// <summary>The host of an address as typed (« desktop-invefqh », « 100.114.247.13:8096 », « http://pc.tail1234.ts.net »).</summary>
+    /// <summary>The host of an address as typed (« salon-pc », « 100.88.12.34:8096 », « http://pc.tail1234.ts.net »).</summary>
     private static string? HostOf(string? address)
     {
         if (string.IsNullOrWhiteSpace(address)) return null;

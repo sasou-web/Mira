@@ -255,7 +255,7 @@ internal static class GuestTests
             var invites = new GuestInvites(file, () => now);
             var party = invites.PartyOf("host-id", "ogsas");
             Assert(GuestRoutes.IsCode(party.Code) && invites.PartyOf("host-id", "ogsas").Code == party.Code, "The same link each time");
-            Assert(invites.PartyOf("other", "Rayro").Code != party.Code, "One per host");
+            Assert(invites.PartyOf("other", "Alex").Code != party.Code, "One per host");
             Assert(new GuestInvites(file, () => now).Party(party.Code) is { HostName: "ogsas" }, "Kept through a restart");
             Assert(invites.Party("x") is null && invites.Party(GuestRoutes.NewCode()) is null, "Any other code: none");
 
@@ -264,7 +264,7 @@ internal static class GuestTests
             Assert(invites.OpenParty(party.Code, "device-a", "1.2.3.4") is { Result: GuestInvites.Opening.Opened, Invite.Id: var id } && id == lea.Id, "The same device: its guest again");
             Assert(invites.OpenParty(party.Code, "device-b", "1.2.3.4").Result == GuestInvites.Opening.Join, "Another device: one more guest");
             Assert(invites.Opened(lea.Id, "device-b", "Chrome", "t") == false && invites.Opened(lea.Id, "device-a", "iPhone", "token-a"), "A guest stays its device's");
-            Assert(invites.Guests(party.Code).Count == 1 && invites.Guests(invites.PartyOf("other", "Rayro").Code).Count == 0, "Guests of each party");
+            Assert(invites.Guests(party.Code).Count == 1 && invites.Guests(invites.PartyOf("other", "Alex").Code).Count == 0, "Guests of each party");
             Assert(invites.OpenParty(GuestRoutes.NewCode(), "device-a", "1.2.3.4").Result == GuestInvites.Opening.Unknown, "Unknown party");
 
             for (var i = 1; i < GuestInvites.MaxPartyGuests; i++) invites.Add($"G{i}", Guid.NewGuid().ToString("N"), "s", "host-id", "ogsas", party.Code, $"device-{i}");
@@ -303,7 +303,7 @@ internal static class GuestTests
                 && PartyPage.Origin(true, null, "pc.tail.ts.net", "http", "127.0.0.1:8096", "") == "http://127.0.0.1:8096"
                 && PartyPage.Origin(true, "https", "a/b@c", "http", "127.0.0.1:8096", "") == "http://127.0.0.1:8096", "Anyone else's forwarded headers, or a strange name: the request's own address");
             Assert(PartyPage.Render("<p title=\"{{a}}\">{{a}} {{b}}</p>", new Dictionary<string, string?> { ["a"] = "<x\" & y>", ["b"] = null }) == "<p title=\"&lt;x&quot; &amp; y&gt;\">&lt;x&quot; &amp; y&gt; </p>", "Written for HTML");
-            Assert(PartyPage.TailnetAddress([IPAddress.Parse("192.168.1.2"), IPAddress.Parse("100.63.1.1"), IPAddress.Parse("100.114.247.13")]) == "100.114.247.13"
+            Assert(PartyPage.TailnetAddress([IPAddress.Parse("192.168.1.2"), IPAddress.Parse("100.63.1.1"), IPAddress.Parse("100.88.12.34")]) == "100.88.12.34"
                 && PartyPage.TailnetAddress([IPAddress.Parse("100.128.0.1")]) is null, "Tailscale's range only");
 
             var repository = new DirectoryInfo(AppContext.BaseDirectory);

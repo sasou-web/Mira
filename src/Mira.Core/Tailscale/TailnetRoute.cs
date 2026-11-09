@@ -49,7 +49,7 @@ public static class TailnetRoute
 
     /// <summary>
     /// Whether a host is a device of a tailnet: one of Tailscale's addresses, a MagicDNS name (« pc.tail1234.ts.net »,
-    /// or under the node's own suffix), or the name of one of the node's devices (« desktop-invefqh »).
+    /// or under the node's own suffix), or the name of one of the node's devices (« salon-pc »).
     /// </summary>
     public static bool IsTailnet(string host, TailnetStatus? node = null)
     {

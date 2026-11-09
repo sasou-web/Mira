@@ -23,7 +23,7 @@ Before you sign in, Mira looks for Jellyfin on this computer, on your home netwo
 
 | Feature | Contacts | What |
 | --- | --- | --- |
-| **Built-in Tailscale**, once you sign in to it | Tailscale's coordination servers and relays | like the Tailscale app: the account you chose, the device's name, its system and IP addresses, its public key. Videos stay end-to-end encrypted. No logs sent |
+| **Built-in Tailscale**, once you sign in to it | Tailscale's coordination servers and relays; your router (UPnP, NAT-PMP, PCP), asked to open a port for a direct connection rather than through a relay | like the Tailscale app: the account you chose, the device's name, its system and IP addresses, its public key. Videos stay end-to-end encrypted. No logs sent |
 | **The mpv engine** (Windows) | SourceForge | the download of the engine, SHA-256 checked |
 | **Installing or updating Jellyfin** (Windows) | `repo.jellyfin.org`, GitHub (winget's catalogue, once a day on the Jellyfin PC, off in **Settings → Privacy**) | the download, and whether a newer version exists |
 | **Automatic subtitles** | OpenSubtitles, SubDL, from your server | the file's fingerprint and size, IMDb/TMDb ids, season, episode, title, year, language. Never the file's name |

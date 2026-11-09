@@ -78,7 +78,8 @@ public static class Privacy
                 L("Rien d’autre que la requête : ni la version de ton Jellyfin, ni rien qui t’identifie.", "Nothing but the request: neither your Jellyfin’s version nor anything that identifies you."),
                 L("L’interrupteur ci-contre : Mira ne te dira plus qu’une version est sortie.", "The switch here: Mira won’t tell you a version is out any more."), PrivacyControl.JellyfinReleases, false, ["winget-pkgs"]));
         list.Add(new("tailscale", L("Tailscale intégré", "Built-in Tailscale"),
-            L("Le serveur de coordination de Tailscale et ses relais, puis tes appareils Tailscale.", "Tailscale’s coordination server and its relays, then your Tailscale devices."),
+            L("Le serveur de coordination de Tailscale et ses relais, ton routeur (UPnP, NAT-PMP, PCP : un port ouvert pour une connexion directe plutôt que par un relais), puis tes appareils Tailscale.",
+                "Tailscale’s coordination server and its relays, your router (UPnP, NAT-PMP, PCP: a port opened for a direct connection rather than through a relay), then your Tailscale devices."),
             L("Seulement après « Se connecter à Tailscale », à chaque ouverture de Mira.", "Only after “Sign in to Tailscale”, each time Mira opens."),
             L("Comme l’app Tailscale : ton compte, le nom de l’appareil, son système, ses adresses IP et sa clé publique. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé.",
                 "Like the Tailscale app: your account, the device’s name, its system, its IP addresses and its public key. Videos stay end-to-end encrypted, no log is sent."),

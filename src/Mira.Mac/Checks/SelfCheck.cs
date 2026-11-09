@@ -158,7 +158,7 @@ public static class SelfCheck
             {
                 var link = $"mira://party/{MockJellyfin.PartyCode}?server={Uri.EscapeDataString(MockJellyfin.FriendServer)}";
                 window.OpenLink(link);
-                Check(await Until(() => window.Party is { Parent: not null } party && party.Heading == Together.PartyAsk("Dafty"), 10), "party d’un ami : prénom demandé, hôte nommé", window.Party?.Heading ?? "pas de carte");
+                Check(await Until(() => window.Party is { Parent: not null } party && party.Heading == Together.PartyAsk("Sam"), 10), "party d’un ami : prénom demandé, hôte nommé", window.Party?.Heading ?? "pas de carte");
                 await Task.Delay(800); Capture(window, output, "02c-party-name");
                 window.Party!.FirstName = "Léa"; window.Party.ClickPrimary();
                 Check(await Until(() => window.InParty && window.Session is { } guest && Together.IsGuest(guest.Connection) && guest.Connection.UserName == "Léa", 10), "party d’un ami : invité sans compte", window.Party?.Error ?? window.Session?.Connection.Server ?? "");
@@ -166,9 +166,9 @@ public static class SelfCheck
                 bool Called(string call) { lock (mock.FriendCalls) return mock.FriendCalls.Contains(call); }
                 Check(await Until(() => Called("POST Mira/guest/SyncPlay/Join"), 25), "party d’un ami : groupe de l’hôte rejoint", string.Join(", ", mock.FriendCalls.TakeLast(6)));
                 // Jellyfin's answer, which its WebSocket would bring.
-                using (var joined = System.Text.Json.JsonDocument.Parse("""{"Type":"GroupJoined","Data":{"GroupId":"party-group","GroupName":"Dafty's group","Participants":["Dafty","Léa"],"State":"Idle"}}"""))
+                using (var joined = System.Text.Json.JsonDocument.Parse("""{"Type":"GroupJoined","Data":{"GroupId":"party-group","GroupName":"Sam's group","Participants":["Sam","Léa"],"State":"Idle"}}"""))
                     window.Group.Message(window.Session!, "SyncPlayGroupUpdate", joined.RootElement.Clone());
-                Check(await Until(() => window.Party?.Heading == Together.PartyIn("Dafty") && window.Party.Members.Contains("Léa"), 10), "party d’un ami : dans le groupe, ses membres", $"{window.Party?.Heading} — {window.Party?.Members}");
+                Check(await Until(() => window.Party?.Heading == Together.PartyIn("Sam") && window.Party.Members.Contains("Léa"), 10), "party d’un ami : dans le groupe, ses membres", $"{window.Party?.Heading} — {window.Party?.Members}");
                 Check(window.Current is null, "party d’un ami : rien de la bibliothèque de ce Mac", window.Current?.GetType().Name ?? "");
                 await Task.Delay(600); Capture(window, output, "02d-party-in");
                 await window.LeavePartyAsync();
