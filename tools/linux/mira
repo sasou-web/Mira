@@ -18,4 +18,16 @@ if [ -z "${MIRA_LIBMPV:-}" ]; then
   MIRA_LIBMPV=$lib
   export MIRA_LIBMPV
 fi
+# The X11 libraries Avalonia loads by name: on a desktop distribution already, not on WSL's Ubuntu or a server.
+if ! /sbin/ldconfig -p 2>/dev/null | grep -q 'libICE\.so\.6 .*x86-64' || ! /sbin/ldconfig -p 2>/dev/null | grep -q 'libSM\.so\.6 .*x86-64'; then
+  echo "The X11 libraries Mira draws with are missing. On Debian or Ubuntu (WSL too):" >&2
+  echo "  sudo apt install libice6 libsm6 libx11-6 libx11-xcb1 libxcursor1 libxrandr2 libxi6 libxext6 libfontconfig1 libgl1 libegl1 libgl1-mesa-dri" >&2
+  exit 1
+fi
+# WSL (Windows 11) tells Linux apps every screen is at scale 1: Mira would be drawn in raw pixels, a third of its size
+# on a 4K screen. A Mac's Retina screen is at 2, which WSL gets unless told otherwise.
+if [ -n "${WSL_DISTRO_NAME:-}" ] && [ -z "${AVALONIA_GLOBAL_SCALE_FACTOR:-}" ]; then
+  AVALONIA_GLOBAL_SCALE_FACTOR=2
+  export AVALONIA_GLOBAL_SCALE_FACTOR
+fi
 exec "$here/Mira" "$@"
