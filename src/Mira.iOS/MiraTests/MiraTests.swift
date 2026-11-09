@@ -40,7 +40,7 @@ struct ServerAddressTests {
         #expect(exposed("http://jellyfin.example.com:8096"))
         #expect(exposed("http://203.0.113.9:8096"))
         #expect(!exposed("https://jellyfin.example.com"))
-        #expect(!exposed("http://192.168.1.20:8096"))
+        #expect(!exposed("http://192.168.1.42:8096"))
         #expect(!exposed("http://10.0.0.2:8096"))
         #expect(!exposed("http://172.20.1.1:8096"))
         #expect(!exposed("http://100.88.12.34:8096"))

@@ -5,11 +5,11 @@ import Testing
 
 /// The PC with Jellyfin at ogsas's: its home address, its Tailscale device, and the relay of Built-in Tailscale.
 private enum Home {
-    static let server = URL(string: "http://192.168.1.20:8096")!
+    static let server = URL(string: "http://192.168.1.42:8096")!
     static let id = "b6c2f1a0-d4e9-4c0a-9f3e-2d1c0b9a8f7e"
     static let relay = URL(string: "http://127.0.0.1:48096/relay-secret-0123456789")!
     static let info = PublicInfo(id: "b6c2f1a0d4e94c0a9f3e2d1c0b9a8f7e", serverName: "SALON-PC", version: "12.1.0", productName: "Jellyfin Server",
-                                 localAddress: "http://192.168.1.20:8096")
+                                 localAddress: "http://192.168.1.42:8096")
     static let pc = WayPlan.Peer(id: "n1", hostName: "SALON-PC", dnsName: "salon-pc.tail1234.ts.net", ips: ["100.88.12.34", "fd7a:115c:a1e0::1"],
                                  os: "windows", online: true)
     static let phone = WayPlan.Peer(id: "n2", hostName: "iPhone", dnsName: "iphone.tail1234.ts.net", ips: ["100.100.1.2"], os: "iOS", online: true)
@@ -27,7 +27,7 @@ private enum Home {
 struct WayPlanTests {
     @Test("À la maison sur le Wi-Fi : l'adresse de la maison, rien d'autre sans Tailscale")
     func home() {
-        #expect(WayPlan.candidates(server: Home.server, known: [], network: .local, tailnet: .off) == [Home.route(.home, "http://192.168.1.20:8096")])
+        #expect(WayPlan.candidates(server: Home.server, known: [], network: .local, tailnet: .off) == [Home.route(.home, "http://192.168.1.42:8096")])
         // Away, a home address is someone else's: nothing to try without Tailscale.
         #expect(WayPlan.candidates(server: Home.server, known: [], network: .cellular, tailnet: .off).isEmpty)
     }
@@ -47,7 +47,7 @@ struct WayPlanTests {
         let tailscale = URL(string: "http://100.88.12.34:8096")!
         let routes = WayPlan.candidates(server: Home.server, known: [tailscale, Home.server], network: .local, tailnet: Home.running)
         #expect(routes == [
-            Home.route(.home, "http://192.168.1.20:8096"),
+            Home.route(.home, "http://192.168.1.42:8096"),
             Home.route(.tailscaleApp, "http://100.88.12.34:8096"),
             Home.route(.builtIn, Home.pcBase, "http://100.88.12.34:8096"),
         ])
@@ -55,7 +55,7 @@ struct WayPlanTests {
 
     @Test("Un autre port : celui de l'adresse, puis 8096")
     func port() {
-        let routes = WayPlan.candidates(server: URL(string: "http://192.168.1.20:8097")!, known: [], network: .cellular, tailnet: Home.running)
+        let routes = WayPlan.candidates(server: URL(string: "http://192.168.1.42:8097")!, known: [], network: .cellular, tailnet: Home.running)
         #expect(routes.map(\.address.absoluteString) == ["http://100.88.12.34:8097", "http://100.88.12.34:8096"])
     }
 
@@ -104,9 +104,9 @@ struct WayPlanTests {
     func map() {
         let base = URL(string: Home.pcBase)!
         let map = { (text: String, server: URL) in WayPlan.map(URL(string: text)!, from: server, to: base)?.absoluteString }
-        #expect(map("http://192.168.1.20:8096/Items/abc/Images/Primary?maxWidth=320&tag=t1", Home.server) == Home.pcBase + "/Items/abc/Images/Primary?maxWidth=320&tag=t1")
-        #expect(map("http://192.168.1.20:8096", Home.server) == Home.pcBase)
-        #expect(map("http://192.168.1.20:8096/Items/a%20b/x", Home.server) == Home.pcBase + "/Items/a%20b/x")
+        #expect(map("http://192.168.1.42:8096/Items/abc/Images/Primary?maxWidth=320&tag=t1", Home.server) == Home.pcBase + "/Items/abc/Images/Primary?maxWidth=320&tag=t1")
+        #expect(map("http://192.168.1.42:8096", Home.server) == Home.pcBase)
+        #expect(map("http://192.168.1.42:8096/Items/a%20b/x", Home.server) == Home.pcBase + "/Items/a%20b/x")
         let proxied = URL(string: "https://example.com/jellyfin")!
         #expect(map("https://example.com/jellyfin/Videos/1/master.m3u8?ApiKey=k#t", proxied) == Home.pcBase + "/Videos/1/master.m3u8?ApiKey=k#t")
         #expect(map("https://example.com/jellyfinX/a", proxied) == nil)
@@ -166,7 +166,7 @@ struct WayPlanTests {
         #expect(device("http://salon-pc.tail1234.ts.net:8096") == "n1")
         #expect(device("http://SALON-PC.tail1234.ts.net.:8096") == "n1")
         #expect(device("http://salon-pc:8096") == "n1")
-        #expect(device("http://192.168.1.20:8096") == nil)
+        #expect(device("http://192.168.1.42:8096") == nil)
         #expect(device("https://jellyfin.example.com") == nil)
     }
 
@@ -180,10 +180,10 @@ struct WayPlanTests {
         #expect(tailnet("http://[fd7a:115c:a1e0::1]:8096"))
         #expect(!tailnet("http://[fd00::1]:8096"))
         #expect(tailnet("http://salon-pc.tail1234.ts.net:8096"))
-        #expect(!tailnet("http://192.168.1.20:8096"))
+        #expect(!tailnet("http://192.168.1.42:8096"))
         let loopback = { (text: String) in WayPlan.isLoopback(URL(string: text)!) }
         #expect(loopback("http://127.0.0.1:18097") && loopback("http://[::1]:8096") && loopback("http://localhost:8096"))
-        #expect(!loopback("http://192.168.1.20:8096"))
+        #expect(!loopback("http://192.168.1.42:8096"))
         let same = { (a: String, b: String) in WayPlan.same(URL(string: a)!, URL(string: b)!) }
         #expect(same("http://NAS", "http://nas:80"))
         #expect(same("http://nas:8096/", "http://nas:8096"))
@@ -302,7 +302,7 @@ private final class TailnetState: Sendable {
 struct WayTests {
     private let timing = Way.Timing(grace: 0.2, afterLost: 0, afterNone: 0, tailnet: 1)
     private let suite = "mira.tests.way.\(UUID().uuidString)"
-    private let item = URL(string: "http://192.168.1.20:8096/Items/1?fields=Overview")!
+    private let item = URL(string: "http://192.168.1.42:8096/Items/1?fields=Overview")!
 
     private func way(_ answers: Answers) -> Way {
         Way(ask: answers.ask, timing: timing, suite: suite)
@@ -315,7 +315,7 @@ struct WayTests {
     @Test("À la maison : la maison répond, prise sans attendre, les adresses gardées telles quelles")
     func home() async {
         defer { clean() }
-        let answers = Answers(["http://192.168.1.20:8096": (0, Home.info)])
+        let answers = Answers(["http://192.168.1.42:8096": (0, Home.info)])
         let way = way(answers)
         await way.use(Home.server, id: Home.id)
         #expect(await way.map(item) == item)
@@ -360,7 +360,7 @@ struct WayTests {
     func otherServer() async {
         defer { clean() }
         let answers = Answers([
-            "http://192.168.1.20:8096": (0, PublicInfo(id: "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", productName: "Jellyfin Server")),
+            "http://192.168.1.42:8096": (0, PublicInfo(id: "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", productName: "Jellyfin Server")),
             Home.pcBase: (0.05, Home.info),
         ])
         let way = way(answers)
@@ -373,7 +373,7 @@ struct WayTests {
     @Test("Une adresse plus loin qui répond : prise après le délai de grâce, sans attendre celles d'avant")
     func grace() async {
         defer { clean() }
-        let answers = Answers(["http://192.168.1.20:8096": (5, Home.info), Home.pcBase: (0.05, Home.info)])
+        let answers = Answers(["http://192.168.1.42:8096": (5, Home.info), Home.pcBase: (0.05, Home.info)])
         let way = way(answers)
         await way.tailnet(Home.running)
         await way.use(Home.server, id: Home.id)
@@ -442,14 +442,14 @@ struct WayTests {
         #expect(await way.lost(sent))
         #expect(await way.current()?.kind == .builtIn)
         // A request that left on another way than the one taken says nothing of it.
-        #expect(await way.lost(URL(string: "http://192.168.1.20:8096/Items/1")!) == false)
+        #expect(await way.lost(URL(string: "http://192.168.1.42:8096/Items/1")!) == false)
         #expect(await way.current()?.kind == .builtIn)
     }
 
     @Test("De retour à la maison : le chemin pris reste pendant que la maison est cherchée, puis la maison")
     func backHome() async {
         defer { clean() }
-        let answers = Answers(["http://192.168.1.20:8096": (0.1, Home.info), Home.pcBase: (0, Home.info)])
+        let answers = Answers(["http://192.168.1.42:8096": (0.1, Home.info), Home.pcBase: (0, Home.info)])
         let way = way(answers)
         await way.network(.cellular)
         await way.tailnet(Home.running)
@@ -471,7 +471,7 @@ struct WayTests {
         defer { clean() }
         let other = URL(string: "http://192.168.1.50:8096")!
         let answers = Answers([
-            "http://192.168.1.20:8096": (0.4, Home.info),
+            "http://192.168.1.42:8096": (0.4, Home.info),
             "http://192.168.1.50:8096": (0, PublicInfo(id: "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", productName: "Jellyfin Server")),
         ])
         let way = way(answers)

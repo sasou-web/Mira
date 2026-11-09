@@ -135,16 +135,16 @@ internal static class ConnectionTests
         });
         await Test("Serveur trouvé sans le taper : réponse de Jellyfin sur le réseau, appareils Tailscale, ordre et adresse gardée", () =>
         {
-            var lan = IPAddress.Parse("192.168.1.20");
+            var lan = IPAddress.Parse("192.168.1.42");
             byte[] Bytes(string json) => Encoding.UTF8.GetBytes(json);
             // Jellyfin 12.1's answer, as read in its container: the address it is reached at from that network.
-            var reply = ServerSearch.Reply(Bytes("""{"Address":"http://192.168.1.20:8096","Id":"0d07f480c3c54c588da1d5ba7c7a1662","Name":"SALON-PC","EndpointAddress":null}"""), lan);
-            Assert(reply == new ServerSearch.Found("http://192.168.1.20:8096/", "SALON-PC", "0d07f480c3c54c588da1d5ba7c7a1662", ServerSearch.Place.Home), "Answer: " + reply);
+            var reply = ServerSearch.Reply(Bytes("""{"Address":"http://192.168.1.42:8096","Id":"0d07f480c3c54c588da1d5ba7c7a1662","Name":"SALON-PC","EndpointAddress":null}"""), lan);
+            Assert(reply == new ServerSearch.Found("http://192.168.1.42:8096/", "SALON-PC", "0d07f480c3c54c588da1d5ba7c7a1662", ServerSearch.Place.Home), "Answer: " + reply);
             // An address on no network is the one the answer came from; a published one is kept.
-            Assert(ServerSearch.Reply(Bytes("""{"Address":"http://127.0.0.1:8096","Id":"a","Name":"nas"}"""), lan)?.Address == "http://192.168.1.20:8096/"
-                && ServerSearch.Reply(Bytes("""{"Address":"http://0.0.0.0:8096/jellyfin","Id":"a"}"""), lan) is { Address: "http://192.168.1.20:8096/jellyfin/", Name: "Jellyfin" }
+            Assert(ServerSearch.Reply(Bytes("""{"Address":"http://127.0.0.1:8096","Id":"a","Name":"nas"}"""), lan)?.Address == "http://192.168.1.42:8096/"
+                && ServerSearch.Reply(Bytes("""{"Address":"http://0.0.0.0:8096/jellyfin","Id":"a"}"""), lan) is { Address: "http://192.168.1.42:8096/jellyfin/", Name: "Jellyfin" }
                 && ServerSearch.Reply(Bytes("""{"Address":"https://jellyfin.example.test","Id":"a","Name":"nas"}"""), lan)?.Address == "https://jellyfin.example.test/", "Address of the answer");
-            foreach (var bad in new[] { "", "Who is JellyfinServer?", "[]", """{"Address":"http://192.168.1.20:8096"}""", """{"Address":"ftp://nas","Id":"a"}""", """{"Address":"nas:8096","Id":"a"}""", """{"Address":"http://u:p@nas","Id":"a"}""", """{"Address":7,"Id":"a"}""" })
+            foreach (var bad in new[] { "", "Who is JellyfinServer?", "[]", """{"Address":"http://192.168.1.42:8096"}""", """{"Address":"ftp://nas","Id":"a"}""", """{"Address":"nas:8096","Id":"a"}""", """{"Address":"http://u:p@nas","Id":"a"}""", """{"Address":7,"Id":"a"}""" })
                 Assert(ServerSearch.Reply(Bytes(bad), lan) is null, "Accepted: " + bad);
 
             // Each server once, at the address that serves best: Tailscale's also works at home, and wherever either goes.
@@ -152,7 +152,7 @@ internal static class ConnectionTests
             var ranked = ServerSearch.Ranked([
                 At("far", "Chez Léa", "http://100.70.0.9:8096/", ServerSearch.Place.Tailnet),
                 At("nas", "Salon", "http://192.168.1.20:8096/", ServerSearch.Place.Home),
-                At("pc", "PC", "http://192.168.1.20:8096/", ServerSearch.Place.Home), At("PC", "PC", "http://100.88.12.34:8096/", ServerSearch.Place.Tailnet),
+                At("pc", "PC", "http://192.168.1.42:8096/", ServerSearch.Place.Home), At("PC", "PC", "http://100.88.12.34:8096/", ServerSearch.Place.Tailnet),
                 At("here", "Ici", "http://192.168.1.10:8096/", ServerSearch.Place.Home), At("here", "Ici", "http://127.0.0.1:8096/", ServerSearch.Place.ThisComputer),
             ]);
             Assert(ranked.Select(x => x.Address).SequenceEqual(["http://127.0.0.1:8096/", "http://100.88.12.34:8096/", "http://192.168.1.20:8096/", "http://100.70.0.9:8096/"]), "Ranked: " + string.Join(" ; ", ranked));
@@ -215,7 +215,7 @@ internal static class ConnectionTests
                 };
             });
             var home = (CancellationToken _) => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([
-                new("http://192.168.1.20:8096/", "SALON-PC", "pc", ServerSearch.Place.Home), new("http://192.168.1.20:8096/", "Salon", "nas", ServerSearch.Place.Home)]);
+                new("http://192.168.1.42:8096/", "SALON-PC", "pc", ServerSearch.Place.Home), new("http://192.168.1.20:8096/", "Salon", "nas", ServerSearch.Place.Home)]);
             var clock = Stopwatch.StartNew();
             var found = await ServerSearch.FindAsync(["100.88.12.34", "100.80.0.5", "100.80.0.6"], handler, home);
             Assert(clock.Elapsed < ServerSearch.Wait + TimeSpan.FromSeconds(2), $"Waited {clock.Elapsed}");

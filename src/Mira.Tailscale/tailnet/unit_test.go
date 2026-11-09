@@ -156,7 +156,7 @@ func TestResolve(t *testing.T) {
 		{"nas", "tcp4", "", ""},
 		{"100.64.0.9", "tcp", "", ""},   // this node
 		{"mira-mac", "tcp", "", ""},     // this node
-		{"192.168.1.20", "tcp", "", ""}, // the home network
+		{"192.168.1.42", "tcp", "", ""}, // the home network
 		{"127.0.0.1", "tcp", "", ""},    // this computer
 		{"example.com", "tcp", "", ""},  // the Internet
 		{"salon-pc.local", "tcp", "", ""},

@@ -157,7 +157,7 @@ internal static class TailnetTests
             node.Change();
             var clock = Stopwatch.StartNew();
             Assert(await Failure("http://100.88.12.34:8099/") == TailnetCodes.Version && clock.Elapsed < TimeSpan.FromSeconds(5), "Another version of the helper");
-            Assert(network.Choose("192.168.1.20") == TailnetChoice.Direct, "The home network through the node");
+            Assert(network.Choose("192.168.1.42") == TailnetChoice.Direct, "The home network through the node");
 
             // A node that starts: the request waits for it (TailnetNetwork.StartWait), then goes through it.
             node.Unavailable = TailnetCodes.Starting;
@@ -182,7 +182,7 @@ internal static class TailnetTests
             var player = network.ForPlayer(new Uri("http://salon-pc:8096/Videos/1/stream?static=true"));
             Assert(player is { } given && given.Proxy == "http://mira:p%40ss%3Aword%2F1@127.0.0.1:41641" && given.Authorization == node.Proxy!.Authorization, "Proxy for mpv: " + player);
             Assert(network.ForPlayer(new Uri("https://salon-pc.tail1234.ts.net/Videos/1/stream")) is not null, "https:// goes through CONNECT");
-            Assert(network.ForPlayer(new Uri("http://192.168.1.20:8096/Videos/1/stream")) is null && network.ForPlayer(new Uri("file:///tmp/a.mkv")) is null, "Straight addresses got the proxy");
+            Assert(network.ForPlayer(new Uri("http://192.168.1.42:8096/Videos/1/stream")) is null && network.ForPlayer(new Uri("file:///tmp/a.mkv")) is null, "Straight addresses got the proxy");
             node.Status = Running() with { State = TailnetStates.Expired };
             try { network.ForPlayer(new Uri("http://100.88.12.34:8096/Videos/1/stream")); throw new Exception("No failure"); }
             catch (TailnetException ex) { Assert(ex.Code == TailnetCodes.Expired, ex.Code); }
@@ -200,7 +200,7 @@ internal static class TailnetTests
             var timeout = new TaskCanceledException("timeout", new TimeoutException());
             Assert(network.Explain(timeout, "nas") == TailnetCodes.PeerOffline && network.Explain(timeout, "salon-pc") is null, "Out of time towards a device asleep, or awake");
             Assert(network.Explain(new HttpRequestException("x", reason), "salon-pc") == TailnetCodes.Closed && network.Explain(new IOException("x"), "nas") is null, "The node's own reason");
-            Assert(network.Explain(timeout, "192.168.1.20") is null, "The home network");
+            Assert(network.Explain(timeout, "192.168.1.42") is null, "The home network");
             node.Status = null; node.Proxy = null; node.Unavailable = TailnetCodes.Starting;
             Assert(network.Explain(timeout, "100.88.12.34") == TailnetCodes.Starting, "Out of time while the node starts");
             return Task.CompletedTask;

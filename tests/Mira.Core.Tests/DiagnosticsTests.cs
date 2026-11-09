@@ -37,7 +37,7 @@ internal static class DiagnosticsTests
             var item = new MediaItem { Id = "i", Name = "Arcane", Type = "Episode", SeriesName = "Arcane" };
             for (var i = 0; i < RecentPlaybacks.Kept + 2; i++)
                 RecentPlaybacks.Add(PlaybackTrace.Of(item, source, "http://100.88.12.34:8096", new DateTimeOffset(2026, 11, 6, 20, i, 0, TimeSpan.Zero), i == 0 ? "first" : "file as it is"));
-            RecentPlaybacks.Add(PlaybackTrace.Of(item, null, "http://192.168.1.20:8096", new DateTimeOffset(2026, 11, 6, 21, 0, 0, TimeSpan.Zero), "not opened", "HttpRequestException"));
+            RecentPlaybacks.Add(PlaybackTrace.Of(item, null, "http://192.168.1.42:8096", new DateTimeOffset(2026, 11, 6, 21, 0, 0, TimeSpan.Zero), "not opened", "HttpRequestException"));
             Assert(RecentPlaybacks.All.Count == RecentPlaybacks.Kept && RecentPlaybacks.All.All(x => x.How != "first"), "Ten kept, the oldest dropped");
 
             var profile = Path.Combine(run.Root, "diagnostics");
