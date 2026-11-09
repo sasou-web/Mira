@@ -23,7 +23,7 @@ public sealed class MpvPlayer : MpvClient
             Path.GetFullPath(Path.Combine(app, "..", "Frameworks", "libmpv.2.dylib")),
             Path.Combine(app, "libmpv.2.dylib"),
             "/opt/homebrew/lib/libmpv.2.dylib", "/usr/local/lib/libmpv.2.dylib",
-            "/usr/lib/x86_64-linux-gnu/libmpv.so.2", "/usr/lib/aarch64-linux-gnu/libmpv.so.2", "/usr/lib/libmpv.so.2"
+            "/usr/lib/x86_64-linux-gnu/libmpv.so.2", "/usr/lib/aarch64-linux-gnu/libmpv.so.2", "/usr/lib64/libmpv.so.2", "/usr/lib/libmpv.so.2"
         };
         return candidates.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p) && File.Exists(p));
     }

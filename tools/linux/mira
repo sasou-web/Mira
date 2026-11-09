@@ -1,0 +1,21 @@
+#!/bin/sh
+# Starts the Linux preview of Mira for Mac from its folder. mpv comes from the system: libmpv.so.2, found here wherever
+# the distribution keeps it and handed to Mira (MIRA_LIBMPV), which otherwise looks only in Debian's and Arch's places.
+here=$(cd "$(dirname "$0")" && pwd)
+if [ -z "${MIRA_LIBMPV:-}" ]; then
+  lib=$(/sbin/ldconfig -p 2>/dev/null | awk '/libmpv\.so\.2 .*x86-64/ { print $NF; exit }')
+  [ -z "$lib" ] && for p in /usr/lib/x86_64-linux-gnu/libmpv.so.2 /usr/lib64/libmpv.so.2 /usr/lib/libmpv.so.2; do
+    [ -f "$p" ] && lib=$p && break
+  done
+  if [ -z "$lib" ]; then
+    echo "libmpv.so.2 not found: install mpv's library, then start Mira again." >&2
+    echo "  Debian, Ubuntu, Mint:  sudo apt install libmpv2" >&2
+    echo "  Fedora (RPM Fusion):   sudo dnf install mpv-libs" >&2
+    echo "  Arch, Manjaro:         sudo pacman -S mpv" >&2
+    echo "  openSUSE:              sudo zypper install libmpv2" >&2
+    exit 1
+  fi
+  MIRA_LIBMPV=$lib
+  export MIRA_LIBMPV
+fi
+exec "$here/Mira" "$@"
