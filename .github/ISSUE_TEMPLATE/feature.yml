@@ -1,17 +1,33 @@
-name: Proposer une amélioration
-description: Décrire un besoin ou une amélioration de l’expérience
-title: "[Idée] "
+name: Suggest an improvement
+description: A need, or something Mira could do better
+title: "[Idea] "
 body:
+  - type: markdown
+    attributes:
+      value: English or French, as you like.
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Windows
+        - Mac
+        - iPhone or iPad
+        - All of them
+        - The Jellyfin extension
+    validations:
+      required: false
   - type: textarea
     id: need
     attributes:
-      label: Quel problème rencontres-tu ?
+      label: What's the problem?
+      description: What you were trying to do, and what got in the way.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Comportement souhaité
-      description: Un exemple concret ou un croquis peut aider.
+      label: What would you like?
+      description: A concrete example or a sketch helps.
     validations:
       required: true

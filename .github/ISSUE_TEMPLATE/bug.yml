@@ -1,33 +1,58 @@
-name: Signaler un bug
-description: Un problème de lecture, de synchronisation ou d’interface
+name: Report a bug
+description: Something wrong with playback, watching together, the interface or the Jellyfin extension
 title: "[Bug] "
 body:
   - type: markdown
     attributes:
-      value: "Merci de ne joindre aucun jeton, mot de passe, dossier data ou média personnel. Pour une vulnérabilité, voir SECURITY.md."
+      value: |
+        Thanks for taking the time. Please attach no token, password, `data` folder or personal media. For a security issue, use **Security → Report a vulnerability** instead (see [SECURITY.md](https://github.com/sasou-web/Mira/blob/main/SECURITY.md)).
+        English or French, as you like.
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Windows
+        - Mac
+        - iPhone or iPad
+        - The Jellyfin extension (party page, /Mira)
+        - More than one
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
-      label: Version de Mira
-      placeholder: "0.5.1"
+      label: Mira version
+      description: Settings → Mira on this PC / Mac, or Settings on iPhone.
+      placeholder: "0.9.5"
     validations:
       required: true
   - type: input
     id: environment
     attributes:
-      label: Environnement
-      description: Version de Windows, version Jellyfin et moteur mpv utilisé. Ne pas mettre l’adresse privée du serveur.
+      label: System and Jellyfin
+      description: Windows, macOS or iOS version, and Jellyfin's version (and how it runs, e.g. Docker, NAS, Windows). Not your server's address.
+      placeholder: "Windows 11 24H2, Jellyfin 10.11.3 in Docker"
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Étapes pour reproduire
-      description: Préciser le résultat observé et celui attendu.
+      label: What happened
+      description: The steps that lead to it, what you saw, and what you expected instead.
+      placeholder: |
+        1. Open a film from Movies
+        2. Press Play
+        3. …
     validations:
       required: true
   - type: textarea
+    id: report
+    attributes:
+      label: Mira's report
+      description: "Settings → Mira on this PC (or Mac) → Export a report, or Settings → Share a report for a problem on iPhone: a text file with versions, the kind of network and Mira's last playbacks and errors, without passwords, addresses or file names. Drop it here."
+  - type: textarea
     id: evidence
     attributes:
-      label: Captures et informations utiles
-      description: Masquer les informations personnelles avant de joindre une capture.
+      label: Screenshots and anything else
+      description: Hide personal information before attaching a screenshot.

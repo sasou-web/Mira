@@ -193,7 +193,7 @@ function page({ lang, slug, fields, html, headings, nav, groupTitle, previous, n
   const other = languages.find(code => code !== lang);
   const otherHref = relative(here, folder(other, slug));
   const asset = path => `${root}${path}`;
-  const home = `${site}/${lang === 'en' ? 'en/' : ''}`;
+  const home = `${site}/${lang === 'en' ? '' : 'fr/'}`;
   const contents = headings.filter(h => h.level === 2);
   const title = slug === 'index' ? `${fields.title} · Mira` : `${fields.title} · Mira wiki`;
   const alternates = languages.map(code => `  <link rel="alternate" hreflang="${code}" href="${origin}/${folder(code, slug)}">`).join('\n');

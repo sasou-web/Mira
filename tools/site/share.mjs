@@ -40,7 +40,7 @@ await browser.close();
 rmSync(scratch, { recursive: true, force: true });
 // Discord, Slack and the others keep a card by its address, for weeks: each page names its card with the card's own
 // fingerprint, a new address as soon as the card changes.
-for (const [page, file] of [['site/index.html', 'share.jpg'], ['site/en/index.html', 'share-en.jpg']]) {
+for (const [page, file] of [['site/fr/index.html', 'share.jpg'], ['site/index.html', 'share-en.jpg']]) {
   const version = createHash('sha256').update(readFileSync(`site/img/${file}`)).digest('hex').slice(0, 10);
   const before = readFileSync(page, 'utf8');
   const after = before.replace(new RegExp(`/img/${file.replace('.', '\\.')}(\\?v=[0-9a-f]+)?"`), `/img/${file}?v=${version}"`);

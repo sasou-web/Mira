@@ -87,7 +87,7 @@ The .NET runtime is included. The mpv player engine (31 MB) is downloaded on req
 Mira is a preview: it is used every day, but some things are still missing (signed Windows and Mac files) and HDR, multichannel audio and multiple monitors have not been tried everywhere.
 
 - [Guides for every app: features, shortcuts, help](https://wiki.miracinema.app/)
-- [Release history](CHANGELOG.md)
+- [Release history](https://github.com/sasou-web/Mira/releases)
 - [Report a bug](https://github.com/sasou-web/Mira/issues/new/choose) or [a vulnerability](SECURITY.md)
 - [Talk about Mira on Discord](https://discord.gg/Bh3F6PDUvB): help, ideas, new releases
 
