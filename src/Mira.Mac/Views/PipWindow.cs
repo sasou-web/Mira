@@ -189,7 +189,9 @@ public sealed class PipWindow : Window
     }
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        if (!_closable) { e.Cancel = true; Dispatcher.UIThread.Post(() => Stop?.Invoke()); }
+        // macOS quitting Mira (shutting down, restarting): never refused, or macOS would stop it all; Mira's window has
+        // already kept the playback (MainWindow.QuitNow).
+        if (!_closable && !MainWindow.AskedBySystem(e)) { e.Cancel = true; Dispatcher.UIThread.Post(() => Stop?.Invoke()); }
         base.OnClosing(e);
     }
 

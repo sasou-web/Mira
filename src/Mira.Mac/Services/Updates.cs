@@ -26,7 +26,7 @@ public static class Updates
 
     public static Version Current => typeof(Updates).Assembly.GetName().Version is { } v ? new Version(v.Major, v.Minor, Math.Max(0, v.Build)) : new Version(0, 0, 0);
 
-    private static bool _busy, _relaunch;
+    private static bool _busy, _relaunch, _hidden, _installing;
     /// <summary>The version whose Mira.app waits beside this one, swapped in when Mira quits.</summary>
     private static Version? _ready;
     private static string? _image;
@@ -129,8 +129,23 @@ public static class Updates
     }
 
     private static void Ready(MainWindow window, Version version) =>
-        window.Notice(L($"Mira {version.ToString(3)} est prête : elle s’installera quand tu quitteras Mira.", $"Mira {version.ToString(3)} is ready: it’ll install when you quit Mira."),
+        window.Notice(L($"Mira {version.ToString(3)} est prête : elle s’installera quand tu quitteras Mira ou fermeras sa fenêtre.", $"Mira {version.ToString(3)} is ready: it’ll install when you quit Mira or close its window."),
             L("Redémarrer", "Restart"), () => { _relaunch = true; window.Quit(); }, sticky: true, tone: NoticeTone.Done);
+
+    /// <summary>A new version waits beside this one, ready to be swapped in.</summary>
+    public static bool Waiting => _ready is not null && SystemLanguage.Bundle() is { } bundle && Directory.Exists(MacInstall.Staging(bundle));
+
+    /// <summary>
+    /// The window closed into the Dock a while ago, nothing going on (<see cref="MacInstall.InstallsFromDock"/>): Mira quits,
+    /// the new version takes its place and opens again hidden, its window in the Dock as this one's was (--in-dock). Since
+    /// ⌘W keeps Mira running, a Mac would otherwise wait for a restart of macOS to be up to date.
+    /// </summary>
+    public static void InstallFromDock(MainWindow window)
+    {
+        if (!Waiting) return;
+        _relaunch = _hidden = true;
+        window.Quit();
+    }
 
     /// <summary>
     /// Copies Mira.app out of the verified disk image beside the running bundle and checks the copy: the same bundle
@@ -184,9 +199,10 @@ public static class Updates
     /// Mira after « Redémarrer ». Nothing when no new version waits.</summary>
     public static void InstallAtQuit(MainWindow window)
     {
-        if (_ready is not { } version || SystemLanguage.Bundle() is not { } bundle || !Directory.Exists(MacInstall.Staging(bundle))) return;
+        if (_installing || _ready is not { } version || SystemLanguage.Bundle() is not { } bundle || !Directory.Exists(MacInstall.Staging(bundle))) return;
+        _installing = true;
         var start = new ProcessStartInfo("/bin/sh") { UseShellExecute = false };
-        foreach (var argument in MacInstall.Arguments(Environment.ProcessId, bundle, Path.Combine(Folder(window), MacInstall.ResultName), version, _relaunch ? "/usr/bin/open" : null))
+        foreach (var argument in MacInstall.Arguments(Environment.ProcessId, bundle, Path.Combine(Folder(window), MacInstall.ResultName), version, _relaunch ? "/usr/bin/open" : null, hidden: _relaunch && _hidden))
             start.ArgumentList.Add(argument);
         // The keychain trusts this copy only: the session and the key of « Tailscale intégré » go to the next one, which
         // would otherwise wait for the Mac's password at its first launch. A swap that fails gives them back to this one.

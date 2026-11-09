@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
 using Mira.Core;
+using Mira.Core.Updates;
+using Mira.Mac.Services;
 
 namespace Mira.Mac.Views;
 
@@ -59,7 +61,32 @@ public sealed partial class MainWindow
         try { await StopPlaybackAsync(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); }
         // A full-screen window hidden would leave its empty Space behind: back in the desktop first, as macOS slides it.
         if (WindowState == WindowState.FullScreen) { WindowState = WindowState.Normal; await Task.Delay(900); RememberWindow(); }
-        if (InDock && !_closing) Hide();
+        if (InDock && !_closing) { Hide(); _ = UpdateFromDockAsync(); }
+    }
+    /// <summary>Each stay in the Dock, so that a wait left from an earlier one ends.</summary>
+    private int _dockStay;
+    /// <summary>
+    /// The window closed into the Dock: a new version waiting (downloaded now or later) is swapped in once it has stayed
+    /// closed a while with nothing going on, Mira opening again hidden (<see cref="Updates.InstallFromDock"/>). Without
+    /// it, ⌘W keeping Mira running, a Mac would stay on its version until macOS restarts.
+    /// </summary>
+    private async Task UpdateFromDockAsync()
+    {
+        var stay = ++_dockStay; var since = DateTime.UtcNow;
+        while (InDock && stay == _dockStay && !_closing)
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1));
+            if (!InDock || stay != _dockStay || _closing) return;
+            if (MacInstall.InstallsFromDock(DateTime.UtcNow - since, Updates.Waiting, busy: Player is not null || InParty || _offlineRunning)) { Updates.InstallFromDock(this); return; }
+        }
+    }
+    /// <summary>Opened again by its update while its window was in the Dock (--in-dock): the window goes back there.</summary>
+    private bool StartsInDock => StaysInDock && Args.Contains(MacInstall.InDockArgument);
+    private void StartInDock()
+    {
+        if (!StartsInDock || InDock) return;
+        InDock = true;
+        Hide();
     }
     /// <summary>A click on the Dock icon, a mira:// link, a menu item while the window is closed: the window back, in front.</summary>
     public void Reopen()

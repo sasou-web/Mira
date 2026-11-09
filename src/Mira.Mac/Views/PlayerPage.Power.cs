@@ -95,9 +95,9 @@ public sealed partial class PlayerPage
         {
             if (generation != _generation || _stopped) return;
             _waking = false;
-            await StopAsync();
-            await _shell.CloseOverlayPlayerAsync(this);
-            _shell.Notice(L("La lecture n’a pas pu reprendre après la mise en veille. Relance-la depuis « Continuer à regarder ».", "Playback couldn’t resume after sleep. Start it again from “Continue watching”."));
+            // Jellyfin still out of reach (« Tailscale intégré » can take longer than a minute after a long sleep): the
+            // player stays, where it was, with « Réessayer », rather than closing on the person.
+            await FailAsync(L("La lecture n’a pas pu reprendre après la mise en veille : Jellyfin ne répond pas encore.", "Playback couldn’t resume after sleep: Jellyfin isn’t answering yet."), _session.Item);
         }
     }
 

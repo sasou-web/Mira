@@ -47,7 +47,7 @@ Your password is never stored: Mira keeps only the session Jellyfin opens, in yo
 
 ## Updates
 
-Mira updates itself. When it opens, then every 6 hours, it asks GitHub for a new version, downloads the disk image and keeps it only if its size and SHA-256 match the release's signed manifest. It installs it when you quit Mira, or right away with **Restart** in the notice.
+Mira updates itself. When it opens, then every 6 hours, it asks GitHub for a new version, downloads the disk image and keeps it only if its size and SHA-256 match the release's signed manifest. It installs it when you quit Mira, when the Mac shuts down or restarts, or right away with **Restart** in the notice. With the window closed (Mira in the Dock), it installs a couple of minutes later, when nothing is playing: Mira quits and opens again in the Dock, hidden.
 
 > [!NOTE]
 > When Mira updates itself, the old version hands your session over to the new one as it quits, so macOS does not ask for anything (from the version after 0.9.4: the update to it still asks once). After an update made another way (Homebrew, or the disk image dragged by hand), macOS asks once for your login password so that Mira can read its own keychain item: choose **Always Allow**. This happens because Mira is not signed by an Apple developer account. If you refuse, Mira simply asks you to sign in to Jellyfin again.
@@ -61,7 +61,7 @@ To stop the automatic check, turn off **Settings → Mira on this Mac → Update
 Mira behaves like the Mac's own apps:
 
 - The window reopens where you left it, on the same screen, at the same size (centred when that screen is gone).
-- <kbd>⌘</kbd> + <kbd>W</kbd> or the red button closes the window, Mira stays in the Dock: a click on its icon brings it back. What was playing stops, and where you were is kept. <kbd>⌘</kbd> + <kbd>Q</kbd> quits Mira.
+- <kbd>⌘</kbd> + <kbd>W</kbd> or the red button closes the window, Mira stays in the Dock: a click on its icon brings it back. What was playing stops, and where you were is kept. <kbd>⌘</kbd> + <kbd>Q</kbd> quits Mira. Mira never holds up a shutdown, restart or logout of the Mac: what was playing is paused and kept, and sent to Jellyfin then or the next time Mira opens.
 - **Help** opens this guide, **Keyboard Shortcuts** (<kbd>⌘</kbd> + <kbd>/</kbd>) and **Export a Report…**, the file to attach when you report a problem.
 
 ## Trackpad
