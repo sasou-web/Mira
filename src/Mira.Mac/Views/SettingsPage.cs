@@ -15,12 +15,12 @@ public sealed partial class SettingsPage : Page
     public override string Rail => "settings";
     /// <summary>Again while shown: the tab a notice asked for (<see cref="OpenAt"/>), else this one back to its top, nothing filled again.</summary>
     public override void ShowAgain() { if (_lastTab != CurrentTab) Show(_lastTab); else GlideUp.Start(_tabScroll); }
-    // Built with the page: the language is set once Mira opens.
-    private static (string Label, string Value)[] Audio =>
-        [(L("Japonais, puis français", "Japanese, then French"), "jpn,ja,fre,fra,fr,eng,en"), (L("Japonais, puis anglais", "Japanese, then English"), "jpn,ja,eng,en,fre,fra,fr"),
-            (L("Français, puis anglais", "French, then English"), "fre,fra,fr,eng,en"), (L("Anglais, puis français", "English, then French"), "eng,en,fre,fra,fr")];
-    private static (string Label, string Value)[] Subtitles =>
-        [(L("Français, puis anglais", "French, then English"), "fre,fra,fr,eng,en"), (L("Anglais, puis français", "English, then French"), "eng,en,fre,fra,fr"), (L("Anglais", "English"), "eng,en"), (L("Japonais", "Japanese"), "jpn,ja")];
+    // Built with the page: the language is set once Mira opens. This Mac's language first, then by name (TrackLanguages).
+    private static (string Label, string Value)[] TrackChoices => [.. TrackLanguages.Choices().Select(x => (x.Name, x.Two))];
+    /// <summary>What the languages' lists show of an order: its language, else the order itself (« Personnalisé : … »).</summary>
+    private static string Shown(string order) => TrackLanguages.FirstOf(order) ?? order;
+    /// <summary>A language chosen in a list, as its order; the custom entry keeps its order as it is.</summary>
+    private static string Order(string chosen, Func<string, string> compose) => TrackLanguages.Known.Any(x => x.Two == chosen) ? compose(chosen) : chosen;
 
     public SettingsPage(MainWindow shell) : base(shell)
     {
@@ -51,9 +51,14 @@ public sealed partial class SettingsPage : Page
 
         // —— Audio & sous-titres: the languages, the subtitles' look; the output under « Sortie audio et ampli » ——
         Tab("audio").Children.Add(Section(null,
-            Choice(L("Langue audio préférée", "Preferred audio language"), Audio, settings.AudioLanguage, v => settings.AudioLanguage = v, ""),
-            Choice(L("Langue des sous-titres", "Subtitle language"), Subtitles, settings.SubtitleLanguage, v => settings.SubtitleLanguage = v,
-                L("Choisies parmi les pistes du fichier. Tu peux en changer pendant la lecture.", "Picked from the file’s tracks. You can change them during playback.")),
+            Choice(L("Langue audio préférée", "Preferred audio language"), TrackChoices, Shown(settings.AudioLanguage),
+                v => settings.AudioLanguage = Order(v, x => TrackLanguages.Audio(x, TrackLanguages.JapaneseFirst(settings.AudioLanguage))),
+                L("Puis l’anglais quand le fichier ne l’a pas (après l’anglais, le français).", "Then English when the file doesn’t have it (after English, French).")),
+            Toggle(L("Le japonais d’abord", "Japanese first"), L("Quand un titre a une piste japonaise, comme la plupart des animes.", "When a title has a Japanese track, as most anime do."),
+                TrackLanguages.JapaneseFirst(settings.AudioLanguage),
+                v => { if (TrackLanguages.FirstOf(settings.AudioLanguage) is { } first) settings.AudioLanguage = TrackLanguages.Audio(first, v); }),
+            Choice(L("Langue des sous-titres", "Subtitle language"), TrackChoices, Shown(settings.SubtitleLanguage), v => settings.SubtitleLanguage = Order(v, TrackLanguages.Subtitles),
+                L("Puis l’anglais. Choisies parmi les pistes du fichier ; tu peux en changer pendant la lecture.", "Then English. Picked from the file’s tracks; you can change them during playback.")),
             SubtitleStyleCard(settings)));
         // « Sortie audio », as on Windows: the device, its channels, the amplifier, and « Tester ».
         Tab("audio").Children.Add(Advanced(L("Sortie audio et ampli", "Audio output and amplifier"), AudioRows(settings)));

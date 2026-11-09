@@ -7,7 +7,7 @@ platforms: Windows, Mac, iPhone
 
 ## Tes langues, série par série
 
-Dans **Réglages → Audio & sous-titres**, liste tes langues audio et tes langues de sous-titres préférées, dans l’ordre. Mira choisit parmi les pistes de chaque fichier.
+Dans **Réglages → Audio & sous-titres**, choisis ta langue audio et ta langue de sous-titres parmi 30. Mira choisit parmi les pistes de chaque fichier : ta langue d’abord, puis l’anglais. **Le japonais d’abord** fait passer une piste japonaise devant les autres, comme il vaut mieux pour la plupart des animes. Tant que tu n’as rien choisi, Mira part de la langue de ton appareil (Windows, Mac ou iPhone). Sous Windows, **Ordre personnalisé** prend des codes de langues dans ton ordre (`ger,deu,de,eng,en`).
 
 Change l’audio ou les sous-titres d’un épisode, et Mira s’en souvient pour toute la série : les épisodes suivants reçoivent le même choix, reconnu par la langue et le nom de la piste (« Full » plutôt que « Signs », sous-titres coupés…). Un épisode sans piste semblable revient à tes langues préférées. Ces choix suivent ton compte sur tes autres appareils.
 

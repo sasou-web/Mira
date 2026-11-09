@@ -146,6 +146,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/collections.json
         buildPhase: resources
+      - path: ../../tests/fixtures/languages.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

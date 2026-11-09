@@ -279,11 +279,12 @@ public sealed class PlayerSettings
     public string AudioLanguage { get; set; } = DefaultAudioLanguage;
     public string SubtitleLanguage { get; set; } = DefaultSubtitleLanguage;
     /// <summary>
-    /// The tracks preferred before any choice: an anime's original Japanese first, then Mira's language, then the other one.
+    /// The tracks preferred before any choice: an anime's original Japanese first, then the device's language, then English
+    /// (an English or French device: Mira's language, then the other one; <see cref="TrackLanguages"/>).
     /// A profile keeps what it saved: only a new one, or a device that never chose, takes the order of its language.
     /// </summary>
-    public static string DefaultAudioLanguage => L("jpn,ja,fre,fra,fr,eng,en", "jpn,ja,eng,en,fre,fra,fr");
-    public static string DefaultSubtitleLanguage => L("fre,fra,fr,eng,en", "eng,en,fre,fra,fr");
+    public static string DefaultAudioLanguage => TrackLanguages.DefaultAudio;
+    public static string DefaultSubtitleLanguage => TrackLanguages.DefaultSubtitles;
     public bool HardwareDecoding { get; set; } = true;
     /// <summary>« Image » of Mira for Windows and Mac (<see cref="PictureQuality"/>): « standard », « cinema » or « max ».</summary>
     public string Picture { get; set; } = PictureQuality.Cinema;

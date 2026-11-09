@@ -156,6 +156,50 @@ internal static class LanguageTests
             Assert(old.Language == "", "A profile from before keeps no choice");
             return Task.CompletedTask;
         });
+        await Test("Langues des pistes : celle de l’appareil d’abord, puis l’anglais, et chaque langue proposée (cas de languages.json)", () =>
+        {
+            var fixture = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(Repository()!, "tests", "fixtures", "languages.json")))!;
+            var listed = fixture["languages"]!.AsArray().Select(x => (x![0]!.GetValue<string>(), x[1]!.GetValue<string>())).ToList();
+            Assert(listed.SequenceEqual(TrackLanguages.Known), "The same languages as the iPhone, in the same order");
+            foreach (var (two, codes) in TrackLanguages.Known)
+            {
+                Assert(codes.Split(',').All(x => TrackLanguages.Two(x) == two), "Each code of " + two);
+                Assert(PlayerText.Language(two) is not null && codes.Split(',').All(x => PlayerText.Language(x) == PlayerText.Language(two)), "Named in the menus: " + two);
+            }
+            foreach (var row in fixture["start"]!.AsArray())
+            {
+                var (device, mira) = (row!["device"]!.GetValue<string>(), row["mira"]!.GetValue<string>());
+                Assert(TrackLanguages.StartFor(device, mira) == row["start"]!.GetValue<string>(), $"Start of {device} in {mira}: " + TrackLanguages.StartFor(device, mira));
+            }
+            foreach (var row in fixture["compose"]!.AsArray())
+            {
+                var (first, japanese) = (row!["first"]!.GetValue<string>(), row["japaneseFirst"]!.GetValue<bool>());
+                Assert(TrackLanguages.Audio(first, japanese) == row["audio"]!.GetValue<string>(), $"Audio {first} {japanese}: " + TrackLanguages.Audio(first, japanese));
+                Assert(TrackLanguages.Subtitles(first) == row["subtitles"]!.GetValue<string>(), $"Subtitles {first}: " + TrackLanguages.Subtitles(first));
+                Assert(TrackLanguages.IsAudioChoice(TrackLanguages.Audio(first, japanese)) && TrackLanguages.IsSubtitleChoice(TrackLanguages.Subtitles(first)), "Read back as a choice: " + first);
+            }
+            foreach (var row in fixture["read"]!.AsArray())
+            {
+                var order = row!["order"]!.GetValue<string>();
+                Assert(TrackLanguages.FirstOf(order) == row["first"]?.GetValue<string>(), $"First of « {order} »: " + TrackLanguages.FirstOf(order));
+                Assert(TrackLanguages.JapaneseFirst(order) == row["japaneseFirst"]!.GetValue<bool>(), $"Japanese first in « {order} »");
+            }
+            Assert(!TrackLanguages.IsSubtitleChoice("eng,en") && !TrackLanguages.IsAudioChoice("jpn,ja,ger,deu,de"), "An order no choice writes stays custom on Windows");
+            // A German Windows in English: German first, then English; the order of an English device unchanged.
+            Lang.Use("en", Us);
+            try
+            {
+                TrackLanguages.Device = "de-DE";
+                Assert(new PlayerSettings() is { AudioLanguage: "jpn,ja,ger,deu,de,eng,en", SubtitleLanguage: "ger,deu,de,eng,en" }, "German device: " + PlayerSettings.DefaultAudioLanguage);
+                Assert(TrackLanguages.Choices()[0] is ("de", "German") && TrackLanguages.Choices().Count == TrackLanguages.Known.Count, "Its language first in Settings");
+                var german = AccountChoices.Capture(null, new System.Text.Json.Nodes.JsonObject { ["settings"] = new System.Text.Json.Nodes.JsonObject { ["audioLanguages"] = "jpn,ja,ger,deu,de,eng,en" } }, 5);
+                Assert(german["settings"] is System.Text.Json.Nodes.JsonObject { Count: 0 }, "A German device left as it is writes nothing: " + german.ToJsonString());
+                TrackLanguages.Device = "fr-FR";
+                Assert(new PlayerSettings() is { AudioLanguage: "jpn,ja,eng,en,fre,fra,fr", SubtitleLanguage: "eng,en,fre,fra,fr" }, "French Windows, Mira in English: as before");
+            }
+            finally { TrackLanguages.Device = ""; Lang.Use("fr", France); }
+            return Task.CompletedTask;
+        });
         await Test("Langue : Mira dit la sienne à Jellyfin, pour que le relais de TorLink réponde dans celle-ci", async () =>
         {
             var said = new List<string>();

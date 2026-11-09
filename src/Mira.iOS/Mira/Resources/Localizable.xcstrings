@@ -101,16 +101,6 @@
         }
       }
     },
-    "%@, then %@": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@, puis %2$@"
-          }
-        }
-      }
-    },
     "%@’s group": {
       "localizations": {
         "fr": {
@@ -7309,6 +7299,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Plus courts d’abord"
+          }
+        }
+      }
+    },
+    "Custom order": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordre personnalisé"
+          }
+        }
+      }
+    },
+    "Japanese first": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le japonais d’abord"
+          }
+        }
+      }
+    },
+    "When a title has a Japanese track, as most anime do.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand un titre a une piste japonaise, comme la plupart des animes."
           }
         }
       }

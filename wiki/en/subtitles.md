@@ -7,7 +7,7 @@ platforms: Windows, Mac, iPhone
 
 ## Your languages, series by series
 
-In **Settings → Audio & subtitles**, list your preferred audio languages and subtitle languages, in order. Mira picks from the tracks of each file.
+In **Settings → Audio & subtitles**, choose your audio language and your subtitle language among 30. Mira picks from the tracks of each file: your language first, then English. **Japanese first** puts a Japanese track ahead of the others, as most anime are best in their original language. Until you choose, Mira starts with your device’s language (Windows, Mac or iPhone). On Windows, **Custom order** takes language codes in your own order (`ger,deu,de,eng,en`).
 
 Change the audio or subtitles of an episode, and Mira remembers it for the whole series: the next episodes get the same choice, matched by language and track name ("Full" rather than "Signs", subtitles off…). An episode without a similar track falls back on your preferred languages. These choices follow your account to your other devices.
 
