@@ -36,6 +36,18 @@ public static partial class RemoteDownloads
         return clean.Length == 0 ? null : clean;
     }
 
+    /// <summary>
+    /// Whether « Téléchargements » is offered: on the PC of Jellyfin, always (its own TorLink); elsewhere only where the
+    /// page can work, the relay of Mira's extension, which only an administrator may use. Without the extension (most
+    /// servers) or for another account, never a page that cannot work. <paramref name="administrator"/> and
+    /// <paramref name="extension"/> are null when Jellyfin did not say: <paramref name="before"/> stays.
+    /// </summary>
+    public static bool Offered(bool thisPc, bool? administrator, bool? extension, bool before)
+    {
+        if (thisPc) return true;
+        if (administrator == false || extension == false) return false;
+        return administrator == true && extension == true || before;
+    }
     public static bool IsCategory(string? category) => category is not null && Categories.Contains(category);
     /// <summary>What Mira web or Mira for Windows or Mac may ask for: one category, or <see cref="All"/>.</summary>
     public static bool IsSearchCategory(string? category) => category == All || IsCategory(category);

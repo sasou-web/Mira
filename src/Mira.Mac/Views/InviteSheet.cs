@@ -9,8 +9,8 @@ namespace Mira.Mac.Views;
 
 /// <summary>
 /// « Inviter quelqu'un » in a group of « Regarder ensemble », a sheet over the window as on Windows: your party link, or
-/// the link that opens Mira web on the group (#/ensemble/…), to send to a friend, with what the friend needs (an account
-/// of this Jellyfin, Tailscale away from home). The same words as Windows and Mira web (<see cref="Together.InviteSteps"/>).
+/// without Mira's extension the group's mira:// link, to send to a friend, with what the friend needs (an account of this
+/// Jellyfin, Tailscale away from home). The same words as Windows (<see cref="Together.InviteSteps"/>).
 /// </summary>
 public static class InviteSheet
 {

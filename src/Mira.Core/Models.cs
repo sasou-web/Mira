@@ -193,6 +193,13 @@ public sealed record LibrarySection(string Id, string Name, string? CollectionTy
     /// not listed among the libraries, as on Mac and in Mira web.
     /// </summary>
     public static bool Groups(string? collectionType) => collectionType is "boxsets" or "playlists";
+    /// <summary>
+    /// The libraries Mira shows films and series of: Films, Séries and mixed ones (no type, or « mixed »). Music, home
+    /// videos, photos, books and live TV hold neither (Mira asks for Movie and Series): never listed, never an empty page.
+    /// </summary>
+    public static bool Browsed(string? collectionType) => collectionType is null or "movies" or "tvshows" or "mixed";
+    /// <summary>A library to list on the page of films (<paramref name="series"/> false) or of series: its own kind, or mixed.</summary>
+    public static bool Holds(string? collectionType, bool series) => Browsed(collectionType) && collectionType != (series ? "movies" : "tvshows");
 }
 /// <summary>A server library with its folders, as returned by Library/VirtualFolders (ItemId: what a policy names).</summary>
 public sealed record VirtualFolder(string Name, string? CollectionType, string[] Locations, string? ItemId = null);

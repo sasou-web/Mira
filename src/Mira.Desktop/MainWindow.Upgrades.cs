@@ -171,7 +171,7 @@ public partial class MainWindow
     // —— « Chercher une meilleure version », from a title's menu ——
 
     /// <summary>The menu's entry of a film or an episode, for an administrator, where TorLink is offered.</summary>
-    private MenuItem? UpgradeMenuItem(MediaItem item) => _torlinkEnabled && !_demo && item.Type is "Movie" or "Episode"
+    private MenuItem? UpgradeMenuItem(MediaItem item) => _torlinkEnabled && _downloadsOffered && !_demo && item.Type is "Movie" or "Episode"
         ? MenuAction(L("Chercher une meilleure version", "Find a better version"), "sparkle", () => ShowUpgradeAsync(item)) : null;
 
     /// <summary>The Downloads page, its search made for this title, its results only those better than its file.</summary>

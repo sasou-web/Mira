@@ -190,8 +190,12 @@ final class AppModel {
 
     var lastServer: String { UserDefaults.standard.string(forKey: Keys.lastServer) ?? "" }
 
-    /// A mira:// link: a QR code of « Mira on your iPhone » (mira://connect), or a party.
+    /// A mira:// link: a QR code of « Mira on your iPhone » (mira://connect), a group (mira://ensemble), or a party.
     func open(_ url: URL) async {
+        if url.host()?.lowercased() == "ensemble" {
+            await together.openGroup(url)
+            return
+        }
         guard url.host()?.lowercased() == "connect" else {
             await together.openParty(url)
             return

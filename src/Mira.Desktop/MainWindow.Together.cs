@@ -507,18 +507,19 @@ public partial class MainWindow
         GroupGone();
     }
     /// <summary>
-    /// « Inviter quelqu'un »: the link that opens Mira web on the group (#/ensemble/…), with what the friend needs. A
-    /// Jellyfin on this PC is given at its Tailscale address when there is one: a friend reaches it at home and away.
+    /// « Inviter quelqu'un »: until the extension gives the party link (<see cref="ShowPartyAsync"/>), and on a Jellyfin
+    /// without it, the group's mira:// link and how a friend joins from Mira with an account of this Jellyfin. A Jellyfin
+    /// on this PC is given at its Tailscale address when there is one: a friend reaches it at home and away.
     /// </summary>
     private void ShowInvite()
     {
         // A friend's party guest invites nobody: the party's link is its host's.
         if (InParty || _group is not { } group || _client is not { } client) return;
-        var link = Together.InviteLink(ReachableServer(client), group.GroupId, Together.GroupHost(group.GroupName));
-        InviteLead.Text = L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”.");
-        InviteLink.Text = link;
+        var server = ReachableServer(client);
+        InviteLead.Text = L($"Ton ami rejoint « {group.GroupName} » depuis Mira, avec son compte de ce Jellyfin.", $"Your friend joins “{group.GroupName}” from Mira, with their account on this Jellyfin.");
+        InviteLink.Text = Together.AppLink(server, group.GroupId, Together.GroupHost(group.GroupName));
         InviteSteps.Children.Clear();
-        var steps = Together.InviteSteps(link);
+        var steps = Together.InviteSteps(server);
         for (var i = 0; i < steps.Count; i++)
             InviteSteps.Children.Add(new TextBlock { Text = $"{i + 1}. {steps[i]}", FontSize = 13, LineHeight = 19, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
         InviteCopy.Content = ActionLabel("link", L("Copier le lien", "Copy link"));
@@ -613,8 +614,6 @@ public partial class MainWindow
         RestoreFromWindows();
         if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
             SetNotice(answer.Text, L("Rejoindre", "Join"), () => _ = EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false));
-        else if (answer.Kind == Together.InviteKind.OtherServer)
-            SetNotice(answer.Text, L("Ouvrir dans le navigateur", "Open in browser"), () => OpenInBrowser(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)));
         else if (answer.Kind == Together.InviteKind.Waiting)
             SetNotice(answer.Text, L("Attendre", "Wait"), () => WaitForInvite(client, invite));
         else SetNotice(answer.Text);
@@ -684,11 +683,6 @@ public partial class MainWindow
             catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); wait.Cancel(); return null; }
             catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested) { return null; }
         }
-    }
-    private void OpenInBrowser(string link)
-    {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(link) { UseShellExecute = true })?.Dispose(); }
-        catch (System.ComponentModel.Win32Exception) { SetNotice(L("Windows n’a pas pu ouvrir le navigateur : ", "Windows couldn’t open the browser: ") + link); }
     }
     /// <summary>Jellyfin's groups as Home last read them, for the account that read them.</summary>
     private (JellyfinClient? Client, List<Together.Group> Groups) _homeGroups = (null, []);

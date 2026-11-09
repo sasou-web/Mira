@@ -2671,12 +2671,42 @@
         }
       }
     },
-    "Open this link and sign in with your own Jellyfin account: you’ll be in my group on Mira.": {
+    "Open this link where you have Mira, signed in to my Jellyfin with your own account: you’ll be in my group. Or open Mira: the group is on your Home.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ouvre ce lien et connecte-toi avec ton propre compte Jellyfin : tu seras dans mon groupe sur Mira."
+            "value": "Ouvre ce lien là où tu as Mira, connecté à mon Jellyfin avec ton propre compte : tu seras dans mon groupe. Ou ouvre Mira : le groupe est sur ton accueil."
+          }
+        }
+      }
+    },
+    "Sign in with your Jellyfin account: the group is then on your Home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecte-toi avec ton compte Jellyfin : le groupe est alors sur ton accueil."
+          }
+        }
+      }
+    },
+    "This group is on another Jellyfin server (%@) than Mira’s: to join it, sign Mira in to that server, or ask for their party link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce groupe est sur un autre serveur Jellyfin (%@) que celui de Mira : pour le rejoindre, connecte Mira à ce serveur, ou demande le lien de sa party."
+          }
+        }
+      }
+    },
+    "This group no longer exists: ask the person who invited you for a new link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce groupe n’existe plus : demande un nouveau lien à la personne qui t’a invité."
           }
         }
       }

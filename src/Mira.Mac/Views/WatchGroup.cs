@@ -308,8 +308,8 @@ public sealed class WatchGroup
         finally { if (ReferenceEquals(_joined, joined)) _joined = null; }
     }
     /// <summary>
-    /// « Inviter quelqu'un »: your party link (one link, anyone who opens it joins you), or with an older extension the
-    /// link that opens Mira web on the group. A Jellyfin on this Mac is given at its
+    /// « Inviter quelqu'un »: your party link (one link, anyone who opens it joins you), or without Mira's extension the
+    /// group's mira:// link, opened by Mira. A Jellyfin on this Mac is given at its
     /// Tailscale address when there is one; another keeps the address this Mac reaches it at.
     /// </summary>
     public async Task InviteAsync()
@@ -329,8 +329,10 @@ public sealed class WatchGroup
             await InviteSheet.ShowAsync(_shell, lead, party.Link, Together.PartySteps(party.Note), warnLast: party.Reach != "internet");
             return;
         }
-        var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId, Together.GroupHost(group.GroupName));
-        await InviteSheet.ShowAsync(_shell, L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”."), link, Together.InviteSteps(link));
+        // No party link (a Jellyfin without Mira's extension): the group's mira:// link, and how to join it from Mira.
+        var reached = Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null);
+        await InviteSheet.ShowAsync(_shell, L($"Ton ami rejoint « {group.GroupName} » depuis Mira, avec son compte de ce Jellyfin.", $"Your friend joins “{group.GroupName}” from Mira, with their account on this Jellyfin."),
+            Together.AppLink(reached, group.GroupId, Together.GroupHost(group.GroupName)), Together.InviteSteps(reached));
     }
     /// <summary>The account Jellyfin does not let watch together (403 on its groups): Home asks no more.</summary>
     private Session? _refused;

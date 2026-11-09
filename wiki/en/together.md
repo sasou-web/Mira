@@ -12,7 +12,7 @@ Watch together keeps several devices on the same film, at the same second: when 
 For people who already have an account on your Jellyfin (your household, a friend you added):
 
 1. On a title's page, **Watch together → Create a group and invite…**.
-2. The others see the group on their Home, under the banner, and **Join**. Or send them the link Mira gives.
+2. The others see the group on their Home, under the banner, and **Join**. Or send them the link Mira gives: opened where they have Mira, it brings them into the group. Without Mira's extension on your Jellyfin, it is a `mira://` link, which opens only on a device with Mira; with the extension, it is your party link.
 3. **Play** becomes **Play for the group**: it starts for everyone, from your progress. Pick another title while in the group and Mira asks before replacing the group's title.
 
 While you are in a group, the player says what the group is doing ("Waiting for someone in the group…", "Paused for the group"), and an icon shows how many are in it. **Leave the group** when you are done.
@@ -42,6 +42,6 @@ Without Funnel, the link still works at home, and for friends on your Tailscale 
 
 ## Good to know
 
-- Use the latest Mira on every device, and Mira's extension must be on the host's Jellyfin (see [Set up Jellyfin](jellyfin.md#get-the-server-ready)).
+- Use the latest Mira on every device. Groups between your own accounts work on any Jellyfin; the party link and its guests need Mira's extension on the host's Jellyfin (see [Set up Jellyfin](jellyfin.md#get-the-server-ready)).
 - Each device plays from Jellyfin on its own. A friend far away needs a connection fast enough for the file, or a lower **Quality** in their player (see [The player](player.md#away-from-home-quality)).
 - Someone who loads more slowly holds the group for a moment: Mira says "Loading for the group…" rather than leaving them behind.

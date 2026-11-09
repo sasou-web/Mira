@@ -105,13 +105,61 @@ final class Together {
         party = URL(string: answer.link)
     }
 
-    /// What « Invite » sends for a group: the party link, or the group's link with an older extension.
+    /// What « Invite » sends for a group: the party link, or without Mira's extension on Jellyfin (or an older one) the
+    /// group's mira:// link, which a friend opens in Mira with their own account on this Jellyfin (`openGroup`).
     func invitation(_ group: SyncGroup) -> (url: URL, party: Bool)? {
         if let party { return (party, true) }
         guard let server = app?.session?.server,
-              let url = URL(string: SyncRules.inviteLink(server: server, groupId: group.groupId,
-                                                         host: SyncRules.groupHost(group.groupName) ?? app?.session?.userName)) else { return nil }
+              let url = URL(string: SyncRules.appLink(server: server, groupId: group.groupId,
+                                                      host: SyncRules.groupHost(group.groupName) ?? app?.session?.userName)) else { return nil }
         return (url, false)
+    }
+
+    /// A group's link opened in Mira (mira://ensemble/…, Invite on a Jellyfin without Mira's extension): the group on
+    /// this iPhone's Jellyfin, joined at once, whatever address each one reaches it at; made again since by its host,
+    /// that one; not open yet, waited for a few minutes. On another Jellyfin, or signed out, said. As Together.Answer of Core.
+    func openGroup(_ url: URL) async {
+        guard let app else { return }
+        guard let link = SyncRules.groupLink(url) else {
+            notice = String(localized: "Mira can’t open this link.")
+            return
+        }
+        guard app.party.guest == nil, let client = app.client, let session = app.session else {
+            app.notice = String(localized: "Sign in with your Jellyfin account: the group is then on your Home.")
+            return
+        }
+        partyAsked += 1
+        let asked = partyAsked
+        let sameServer = link.server.host()?.lowercased() == session.server.host()?.lowercased()
+        // Ten minutes at most, a look every 4 seconds, while the host opens their group again.
+        for attempt in 0..<150 {
+            guard asked == partyAsked, app.client != nil else { return }
+            let groups: [SyncGroup]
+            do {
+                groups = try await client.syncGroups()
+            } catch JellyfinError.forbidden {
+                notice = String(localized: "Jellyfin doesn’t let this account watch together.")
+                return
+            } catch {
+                groups = []
+            }
+            if let found = SyncRules.findGroup(groups, id: link.groupId, host: link.host) {
+                if SyncRules.sameGroup(group?.groupId, found.groupId) { return }
+                do { try await join(found.groupId) } catch { notice = Messages.text(error) }
+                return
+            }
+            guard sameServer else {
+                notice = String(localized: "This group is on another Jellyfin server (\(link.server.host() ?? "")) than Mira’s: to join it, sign Mira in to that server, or ask for their party link.")
+                return
+            }
+            guard let host = link.host else {
+                notice = String(localized: "This group no longer exists: ask the person who invited you for a new link.")
+                return
+            }
+            if attempt == 0 { notice = String(localized: "Waiting for \(host) to open their group…") }
+            try? await Task.sleep(for: .seconds(4))
+        }
+        if asked == partyAsked, let host = link.host { notice = String(localized: "\(host) hasn’t opened their group yet: open the link again once they have.") }
     }
 
     /// Whose party a code is, as its Jellyfin says it (GET Mira/party/<code>, JSON).

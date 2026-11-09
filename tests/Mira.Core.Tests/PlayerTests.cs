@@ -75,10 +75,13 @@ internal static class PlayerTests
             // Home's line: the first group open on Jellyfin, none while this device is in one.
             List<Together.Group> open = [new("a", "Groupe de Marc", ["Marc"], "Playing"), new("b", "Groupe de Léa", [], "Idle")];
             Assert(Together.HomeGroup(open, null)?.GroupId == "a" && Together.HomeGroup(open, "b") is null && Together.HomeGroup([], null) is null, "Home group");
+            // Without a party link (no Mira extension on Jellyfin): the group's mira:// link, read back as the same group.
             foreach (var row in root.GetProperty("invites").EnumerateArray())
             {
-                var link = Together.InviteLink(row[0].GetString()!, row[1].GetString()!, row[2].GetString());
-                Assert(link == row[3].GetString() && Together.InviteSteps(link).SequenceEqual(row[4].EnumerateArray().Select(x => x.GetString())), $"Invite: {link}");
+                var link = Together.AppLink(row[0].GetString()!, row[1].GetString()!, row[2].GetString());
+                Assert(link == row[3].GetString() && Together.ParseAppLink(link)?.GroupId == row[1].GetString()
+                    && Together.InviteSteps(row[0].GetString()!).SequenceEqual(row[4].EnumerateArray().Select(x => x.GetString())), $"Invite: {link} · {string.Join(" | ", Together.InviteSteps(row[0].GetString()!))}");
+                Assert(!link.Contains("/Mira/"), "Never Mira web's page, gone with it");
             }
             // « Ouvrir dans Mira »: built by Mira web, read back by Mira for Windows and Mac, which refuse anything else.
             foreach (var row in root.GetProperty("appLinks").EnumerateArray())

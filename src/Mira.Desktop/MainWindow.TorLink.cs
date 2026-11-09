@@ -61,6 +61,44 @@ public partial class MainWindow
         StartTorLinkRemote();
         InitializeServerDownloads();
     }
+    /// <summary>
+    /// « Téléchargements » in the rail: on the PC of Jellyfin always (its own TorLink); elsewhere only where the page can
+    /// work, through the relay of Mira's extension, for an administrator (<see cref="RemoteDownloads.Offered"/>). A
+    /// Jellyfin on Linux, a NAS or in Docker has no extension: no entry, rather than a page that could never work.
+    /// </summary>
+    private bool _downloadsOffered = true;
+    /// <summary>The account whose answer is known (null: ask again when Mira comes in front), and when it was last asked.</summary>
+    private JellyfinClient? _downloadsKnownFor;
+    private DateTimeOffset _downloadsAskedAt;
+
+    private async Task OfferDownloadsAsync()
+    {
+        if (!_torlinkEnabled) return;
+        // Signed out or the demo: this PC's own TorLink.
+        if (_demo || _client is not { } client) { ShowDownloadsEntry(true); return; }
+        if (ReferenceEquals(_downloadsKnownFor, client)) return;
+        _downloadsAskedAt = DateTimeOffset.UtcNow;
+        bool here = false; bool? admin = null, extension = null;
+        try
+        {
+            here = await JellyfinOnThisPcAsync(client);
+            if (!here && (admin = await client.IsAdministratorAsync(_connectionLifetime.Token)) == true) extension = await client.HasExtensionAsync(_connectionLifetime.Token);
+        }
+        catch (Exception ex) when (IsExpected(ex)) { }
+        if (!ReferenceEquals(client, _client)) return;
+        if (here || admin == false || extension is not null) _downloadsKnownFor = client;
+        // Another account than the one shown: nothing to keep from it.
+        ShowDownloadsEntry(RemoteDownloads.Offered(here, admin, extension, _downloadsOffered && ReferenceEquals(_downloadsShownFor, client)));
+        _downloadsShownFor = client;
+    }
+    private JellyfinClient? _downloadsShownFor;
+    private void ShowDownloadsEntry(bool offered)
+    {
+        _downloadsOffered = offered;
+        TorLinkNav.Visibility = offered ? Visibility.Visible : Visibility.Collapsed;
+        if (!offered && TorLinkOverlay.Visibility == Visibility.Visible) _ = CloseTorLinkAsync();
+    }
+
     /// <summary>The TorLink check only works inside its output folder: demo mode, and both --data and TORLINK_STATE_DIR in it.</summary>
     private bool TorLinkCheckIsolated()
     {
@@ -149,7 +187,7 @@ public partial class MainWindow
 
     private async Task ShowTorLinkAsync()
     {
-        if (!_torlinkEnabled) return;
+        if (!_torlinkEnabled || !_downloadsOffered) return;
         // Away from the PC of Jellyfin, TorLink is not offered: it would download next to the wrong library. The page
         // sends searches and downloads to that PC instead, as Mira web does (MainWindow.ServerDownloads.cs).
         var elsewhere = await JellyfinElsewhereAsync();

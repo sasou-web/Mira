@@ -144,7 +144,7 @@ struct GroupSheet: View {
                 }
                 if let invitation = app.together.invitation(group) {
                     ShareLink(item: invitation.url, message: invitation.party ? Text("Open this link to watch with me on Mira, with no account to make.")
-                                                                            : Text("Open this link and sign in with your own Jellyfin account: you’ll be in my group on Mira.")) {
+                                                                            : Text("Open this link where you have Mira, signed in to my Jellyfin with your own account: you’ll be in my group. Or open Mira: the group is on your Home.")) {
                         wide("Invite", "link")
                     }
                     .buttonStyle(.glass)
