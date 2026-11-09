@@ -67,6 +67,14 @@ public abstract unsafe class MpvClient : IDisposable
             _handle = create(); if (_handle == IntPtr.Zero) throw new IOException(L("mpv n’a pas pu démarrer.", "mpv couldn’t start."));
             Option("config", "no"); Option("terminal", "no"); Option("osc", "no"); Option("idle", "yes");
             Option("keep-open", "no"); Option("input-default-bindings", "no");
+            // https://: the server's certificate checked before anything is sent, the token first (mpv checks nothing by
+            // default). The authorities trusted are those .NET accepted for the server (ServerTrust, set by Load).
+            Option("tls-verify", "yes");
+            // A stream that fails is Jellyfin's, never a web page for yt-dlp: mpv would run any found in the PATH.
+            TryOption("ytdl", "no");
+            // In the audio's language, forced subtitles only (signs, a line in another language), as Mira chooses them
+            // for a conversion and on iPhone; mpv 0.37 and older know only yes or no.
+            if (!TryOption("subs-with-matching-audio", "forced")) TryOption("subs-with-matching-audio", "no");
         }
         catch { Dispose(); throw; }
     }
@@ -183,6 +191,7 @@ public abstract unsafe class MpvClient : IDisposable
         var url = Uri.TryCreate(location, UriKind.Absolute, out var parsed) && parsed.Scheme is "http" or "https" ? parsed : null;
         var node = url is null ? null : Network.ForPlayer(url);
         Set("http-proxy", node?.Proxy ?? "");
+        if (url?.Scheme == "https") Set("tls-ca-file", Network.Trust.File());
         _proxyAuthorization = url?.Scheme == "http" ? node?.Authorization : null;
         SetAuthorization(authorization);
         Set("start", Format(startSeconds)); Set("pause", paused ? "yes" : "no");

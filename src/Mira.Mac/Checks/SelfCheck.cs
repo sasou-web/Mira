@@ -47,6 +47,14 @@ public static class SelfCheck
         try
         {
             Check(Playback.MpvPlayer.FindLibrary(window.Settings.MpvPath) is not null, "libmpv trouvé", Playback.MpvPlayer.FindLibrary(window.Settings.MpvPath) ?? "introuvable");
+            // The player's own safety with this libmpv: https:// checked before the token goes, yt-dlp never run, and
+            // the subtitles a film starts with (--track-media: the films of mac.yml).
+            var engineSettings = new PlayerSettings { MpvPath = window.Settings.MpvPath, AudioLanguage = "jpn,ja,eng,en,fre,fra,fr", SubtitleLanguage = "eng,en,fre,fra,fr" };
+            foreach (var line in await Mira.Checks.PlayerSafety.HttpsAsync(network => Playback.MpvPlayer.Probe(engineSettings, network)))
+                Check(line.Passed, (line.Info ? "(info) " : "") + "lecteur : " + line.Message);
+            if (Arg("--track-media") is { Length: > 0 } tracks)
+                foreach (var line in await Mira.Checks.PlayerSafety.TracksAsync(() => Playback.MpvPlayer.Probe(engineSettings), tracks))
+                    Check(line.Passed, "lecteur : " + line.Message);
             window.Settings.AutoNext = true; window.Settings.RememberPosition = true; window.Settings.Volume = 150;
             // The trackpad read as a Mac's out of the box (natural scrolling, two fingers between pages), whatever this machine says.
             MacTrackpad.Override(natural: true, swipes: true);

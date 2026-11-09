@@ -28,5 +28,6 @@
     <AvaloniaResource Include="Assets/**" />
     <!-- The Jellyfin answered inside Mira by the smoothness check, the Windows app's (its pictures drawn by Skia here). -->
     <Compile Include="../Mira.Desktop/Checks/StandInJellyfin.cs" Link="Checks/StandInJellyfin.cs" />
+    <Compile Include="../Mira.Desktop/Checks/PlayerSafety.cs" Link="Checks/PlayerSafety.cs" />
   </ItemGroup>
 </Project>

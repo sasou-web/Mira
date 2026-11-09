@@ -70,6 +70,7 @@ jobs:
   # compiled out): its tests start a whole Tailscale network in the process (control, relay, the Jellyfin PC) and sign
   # a node in as the apps do; then the helper is built for Windows and Mac. Last, Mira.Core against the real helper on
   # mira-testnet's network: sign-in, discovery, requests, WebSocket and mpv through the node, the PC off, a key expired.
+  # And the player's own safety with Ubuntu's libmpv (https:// certificates, yt-dlp, subtitles at the start).
   tailscale:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -103,8 +104,8 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
-      - name: libmpv, for the player through the node
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libmpv2
+      - name: libmpv, for the player through the node and its own safety (ffmpeg makes the films with subtitles)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libmpv2 ffmpeg
       - name: Mira's network through the real helper (tests/Mira.Core.Tests)
         env:
           MIRA_TAILNET_HELPER: ${{ runner.temp }}/mira-tailscale
@@ -116,6 +117,11 @@ jobs:
           cd ../..
           dotnet restore tests/Mira.Core.Tests/Mira.Core.Tests.csproj --configfile NuGet.Config
           dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore -- --filter "Tailscale intégré"
+      - name: The player's https:// and subtitles with a real libmpv (tests/Mira.Core.Tests)
+        working-directory: .
+        env:
+          MIRA_MPV: /usr/lib/x86_64-linux-gnu/libmpv.so.2
+        run: dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore -- --filter "avec le vrai mpv"
   build:
     runs-on: windows-latest
     # About 8 minutes, a few more when Go's cache is cold (a new go.sum).

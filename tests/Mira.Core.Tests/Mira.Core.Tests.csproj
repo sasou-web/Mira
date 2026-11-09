@@ -11,6 +11,8 @@
     <Compile Include="../../src/Mira.Desktop/Services/MetadataCache.cs" Link="Desktop/MetadataCache.cs" />
     <Compile Include="../../src/Mira.Desktop/Services/ShellRegistration.cs" Link="Desktop/ShellRegistration.cs" />
     <Compile Include="../../src/Mira.Desktop/Services/TailnetExecutable.cs" Link="Desktop/TailnetExecutable.cs" />
+    <!-- The player's https:// and subtitles with a real libmpv, as the Windows and Mac checks run them (MIRA_MPV). -->
+    <Compile Include="../../src/Mira.Desktop/Checks/PlayerSafety.cs" Link="Desktop/PlayerSafety.cs" />
   </ItemGroup>
   <!-- The plugin's playlist rewriting, security policy and web files have no Jellyfin dependency. -->
   <ItemGroup>
