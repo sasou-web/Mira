@@ -58,7 +58,7 @@ internal static class BuiltInTailnetTests
             Assert(tailnet.Update(now) == TailnetNews.None, "The sign-in done is told twice");
             Assert(tailnet.Line() == "Connecté : ogsas@example.com." && Volatile.Read(ref changes) > 0, "Signed in, not shown as such");
             Assert(network.Choose("100.64.0.2").Path == TailnetPath.Node && network.Choose("desktop-jellyfin").Path == TailnetPath.Node, "Jellyfin's PC is not reached through the node");
-            Assert(network.Choose("192.168.1.20").Path == TailnetPath.Direct && network.Choose("mira-pc").Path == TailnetPath.Direct, "The home network or this computer goes through the node");
+            Assert(network.Choose("192.168.1.42").Path == TailnetPath.Direct && network.Choose("mira-pc").Path == TailnetPath.Direct, "The home network or this computer goes through the node");
 
             Assert(await tailnet.SignOutAsync() == TailnetText.SignedOut, "Signed out, not said as told to Tailscale");
             Assert(!tailnet.SignedIn && tailnet.Node is null && tailnet.Line() == "Pas connecté." && !Directory.Exists(Path.Combine(run.Root, "builtin-signin", "tailscale")), "Signed out, the node stays on, or its state on this device");

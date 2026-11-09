@@ -26,9 +26,9 @@ internal static class PhoneTests
                 var link = PhoneLink.Link(row.GetProperty("server").GetString()!, row.GetProperty("home").GetString());
                 Assert(link == row.GetProperty("link").GetString(), "Link: " + link);
             }
-            Assert(PhoneLink.Link("file:///etc") is null && PhoneLink.Link(null) is null && PhoneLink.Link("192.168.1.20") is null, "A link to no server");
+            Assert(PhoneLink.Link("file:///etc") is null && PhoneLink.Link(null) is null && PhoneLink.Link("192.168.1.42") is null, "A link to no server");
             // Version 4 at most for a long address (33 modules): small enough to read from across a desk.
-            var (size, path) = PhoneLink.Qr(PhoneLink.Link("http://jellyfin-pc.tail1234.ts.net:8096", "http://192.168.1.20:8096")!);
+            var (size, path) = PhoneLink.Qr(PhoneLink.Link("http://jellyfin-pc.tail1234.ts.net:8096", "http://192.168.1.42:8096")!);
             Assert(size >= 21 && size <= 41 && (size - 17) % 4 == 0 && path.StartsWith("M0,0h7v1h-7z", StringComparison.Ordinal) && !path.Contains(".", StringComparison.Ordinal), $"QR: {size} {path[..Math.Min(40, path.Length)]}");
             return Task.CompletedTask;
         });

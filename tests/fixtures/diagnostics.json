@@ -3,8 +3,8 @@
   "redact": [
     ["2026-11-06T18:00:39.1234567+01:00 HttpRequestException Mira.Core.JellyfinClient.GetAsync", "2026-11-06T18:00:39.1234567+01:00 HttpRequestException Mira.Core.JellyfinClient.GetAsync"],
     ["mpv 20260927-git-a1bf4b6559", "mpv 20260927-git-a1bf4b6559"],
-    ["Server http://192.168.1.20:8096/web said no", "Server [address] said no"],
-    ["at 192.168.1.20:8096 and 100.88.12.34", "at [address] and [address]"],
+    ["Server http://192.168.1.42:8096/web said no", "Server [address] said no"],
+    ["at 192.168.1.42:8096 and 100.88.12.34", "at [address] and [address]"],
     ["over fd7a:115c:a1e0::1 or fe80::1c2b:3a4f:fe5d:6e7f", "over [address] or [address]"],
     ["token=5f2a9c1e8b7d4a3f6e0c9b8a7d6e5f4a&x=1", "token=[hidden]&x=1"],
     ["Authorization: MediaBrowser Token=\"abc\"", "Authorization: MediaBrowser Token=\"[hidden]\""],
@@ -20,7 +20,7 @@
   "network": [
     ["http://127.0.0.1:8096", "this computer"],
     ["http://localhost:8096", "this computer"],
-    ["http://192.168.1.20:8096", "home network"],
+    ["http://192.168.1.42:8096", "home network"],
     ["http://jellyfin.local:8096", "home network"],
     ["http://100.88.12.34:8096", "Tailscale"],
     ["https://salon-pc.tail1234.ts.net", "Tailscale"],

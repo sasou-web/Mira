@@ -1,27 +1,27 @@
 {
   "_": "mira://connect: the QR code of « Mira sur ton iPhone » (Windows' guide, Mac's Settings), read by Mira on the iPhone. Core: PhoneLink; iPhone: ConnectLink.",
   "links": [
-    { "server": "http://100.88.12.34:8096", "home": "http://192.168.1.20:8096", "link": "mira://connect?server=http%3A%2F%2F100.88.12.34%3A8096&home=http%3A%2F%2F192.168.1.20%3A8096" },
-    { "server": "http://192.168.1.20:8096/", "home": null, "link": "mira://connect?server=http%3A%2F%2F192.168.1.20%3A8096" },
-    { "server": "http://192.168.1.20:8096", "home": "http://192.168.1.20:8096/", "link": "mira://connect?server=http%3A%2F%2F192.168.1.20%3A8096" },
+    { "server": "http://100.88.12.34:8096", "home": "http://192.168.1.42:8096", "link": "mira://connect?server=http%3A%2F%2F100.88.12.34%3A8096&home=http%3A%2F%2F192.168.1.42%3A8096" },
+    { "server": "http://192.168.1.42:8096/", "home": null, "link": "mira://connect?server=http%3A%2F%2F192.168.1.42%3A8096" },
+    { "server": "http://192.168.1.42:8096", "home": "http://192.168.1.42:8096/", "link": "mira://connect?server=http%3A%2F%2F192.168.1.42%3A8096" },
     { "server": "https://jellyfin.example.org/jellyfin/", "home": "not an address", "link": "mira://connect?server=https%3A%2F%2Fjellyfin.example.org%2Fjellyfin" },
-    { "server": "http://Jellyfin-PC.tail1234.ts.net:8096", "home": "http://192.168.1.20:8096", "link": "mira://connect?server=http%3A%2F%2Fjellyfin-pc.tail1234.ts.net%3A8096&home=http%3A%2F%2F192.168.1.20%3A8096" }
+    { "server": "http://Jellyfin-PC.tail1234.ts.net:8096", "home": "http://192.168.1.42:8096", "link": "mira://connect?server=http%3A%2F%2Fjellyfin-pc.tail1234.ts.net%3A8096&home=http%3A%2F%2F192.168.1.42%3A8096" }
   ],
   "read": [
-    { "link": "mira://connect?server=http%3A%2F%2F100.88.12.34%3A8096&home=http%3A%2F%2F192.168.1.20%3A8096", "server": "http://100.88.12.34:8096", "home": "http://192.168.1.20:8096" },
-    { "link": "mira://connect?server=http%3A%2F%2F192.168.1.20%3A8096", "server": "http://192.168.1.20:8096", "home": null },
+    { "link": "mira://connect?server=http%3A%2F%2F100.88.12.34%3A8096&home=http%3A%2F%2F192.168.1.42%3A8096", "server": "http://100.88.12.34:8096", "home": "http://192.168.1.42:8096" },
+    { "link": "mira://connect?server=http%3A%2F%2F192.168.1.42%3A8096", "server": "http://192.168.1.42:8096", "home": null },
     { "link": "mira://CONNECT?server=https%3A%2F%2Fjellyfin.example.org%2Fjellyfin%2F", "server": "https://jellyfin.example.org/jellyfin", "home": null },
-    { "link": "mira://connect?server=http%3A%2F%2F192.168.1.20%3A8096&home=file%3A%2F%2F%2Fetc", "server": "http://192.168.1.20:8096", "home": null },
-    { "link": "mira://connect?server=http%3A%2F%2F192.168.1.20%3A8096&home=http%3A%2F%2F192.168.1.20%3A8096%2F", "server": "http://192.168.1.20:8096", "home": null }
+    { "link": "mira://connect?server=http%3A%2F%2F192.168.1.42%3A8096&home=file%3A%2F%2F%2Fetc", "server": "http://192.168.1.42:8096", "home": null },
+    { "link": "mira://connect?server=http%3A%2F%2F192.168.1.42%3A8096&home=http%3A%2F%2F192.168.1.42%3A8096%2F", "server": "http://192.168.1.42:8096", "home": null }
   ],
   "refused": [
     "mira://connect",
-    "mira://connect?home=http%3A%2F%2F192.168.1.20%3A8096",
+    "mira://connect?home=http%3A%2F%2F192.168.1.42%3A8096",
     "mira://connect?server=file%3A%2F%2F%2Fetc",
-    "mira://connect?server=http%3A%2F%2Fuser%3Apass%40192.168.1.20%3A8096",
-    "mira://connect?server=http%3A%2F%2F192.168.1.20%3A8096%3Fa%3D1",
+    "mira://connect?server=http%3A%2F%2Fuser%3Apass%40192.168.1.42%3A8096",
+    "mira://connect?server=http%3A%2F%2F192.168.1.42%3A8096%3Fa%3D1",
     "mira://connect?server=http%3A%2F%2F",
-    "mira://party/AbCdEfGhIjKlMnOpQr_-12?server=http%3A%2F%2F192.168.1.20%3A8096",
-    "https://connect?server=http%3A%2F%2F192.168.1.20%3A8096"
+    "mira://party/AbCdEfGhIjKlMnOpQr_-12?server=http%3A%2F%2F192.168.1.42%3A8096",
+    "https://connect?server=http%3A%2F%2F192.168.1.42%3A8096"
   ]
 }
