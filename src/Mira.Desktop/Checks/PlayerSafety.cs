@@ -159,7 +159,8 @@ public static class PlayerSafety
         names.AddDnsName(name);
         request.CertificateExtensions.Add(names.Build());
         request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
-        var from = DateTimeOffset.UtcNow.AddDays(-1); var to = DateTimeOffset.UtcNow.AddDays(7);
+        // Within the authority's own dates: a second between the two would make .NET refuse the leaf.
+        var from = DateTimeOffset.UtcNow.AddDays(-1); var to = DateTimeOffset.UtcNow.AddDays(6);
         X509Certificate2 made;
         if (issuer is null) made = request.CreateSelfSigned(from, to);
         else
