@@ -26,9 +26,9 @@ internal static class PhoneTests
                 var link = PhoneLink.Link(row.GetProperty("server").GetString()!, row.GetProperty("home").GetString());
                 Assert(link == row.GetProperty("link").GetString(), "Link: " + link);
             }
-            Assert(PhoneLink.Link("file:///etc") is null && PhoneLink.Link(null) is null && PhoneLink.Link("192.168.1.198") is null, "A link to no server");
+            Assert(PhoneLink.Link("file:///etc") is null && PhoneLink.Link(null) is null && PhoneLink.Link("192.168.1.20") is null, "A link to no server");
             // Version 4 at most for a long address (33 modules): small enough to read from across a desk.
-            var (size, path) = PhoneLink.Qr(PhoneLink.Link("http://jellyfin-pc.tail1234.ts.net:8096", "http://192.168.1.198:8096")!);
+            var (size, path) = PhoneLink.Qr(PhoneLink.Link("http://jellyfin-pc.tail1234.ts.net:8096", "http://192.168.1.20:8096")!);
             Assert(size >= 21 && size <= 41 && (size - 17) % 4 == 0 && path.StartsWith("M0,0h7v1h-7z", StringComparison.Ordinal) && !path.Contains(".", StringComparison.Ordinal), $"QR: {size} {path[..Math.Min(40, path.Length)]}");
             return Task.CompletedTask;
         });
@@ -301,11 +301,11 @@ internal static class PhoneTests
         await Test("Tailscale sur ce PC : connecté sans ta session, et sa connexion qui expire dite deux semaines avant", () =>
         {
             var now = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
-            static string Status(string self) => """{"Version":"1.90.4","BackendState":"Running","Self":{"ID":"n1","HostName":"DESKTOP-INVEFQH","TailscaleIPs":["100.101.102.103"]""" + self + "}}";
+            static string Status(string self) => """{"Version":"1.90.4","BackendState":"Running","Self":{"ID":"n1","HostName":"SALON-PC","TailscaleIPs":["100.101.102.103"]""" + self + "}}";
             const string unattended = """{"ControlURL":"https://controlplane.tailscale.com","WantRunning":true,"ForceDaemon":true}""", attended = """{"ControlURL":"https://controlplane.tailscale.com","WantRunning":true}""";
             // Its command line: « Run unattended » (ForceDaemon, left out when false), and its key's expiry (left out when disabled).
             var kept = TailscaleNode.Parse(Status(""","KeyExpiry":"2027-03-20T08:30:00Z" """), unattended, now);
-            Assert(kept is { Readable: true, Unattended: true, Expired: false, Name: "DESKTOP-INVEFQH" } && kept.KeyExpiry == new DateTimeOffset(2027, 3, 20, 8, 30, 0, TimeSpan.Zero)
+            Assert(kept is { Readable: true, Unattended: true, Expired: false, Name: "SALON-PC" } && kept.KeyExpiry == new DateTimeOffset(2027, 3, 20, 8, 30, 0, TimeSpan.Zero)
                 && !TailscaleNode.ExpiresSoon(kept) && TailscaleNode.Warning(kept) is null, "Unattended, expiring in five months");
             var never = TailscaleNode.Parse(Status(""), attended, now);
             Assert(never is { Readable: true, Unattended: false, KeyExpiry: null } && !TailscaleNode.ExpiresSoon(never), "Attended, never expiring");
@@ -337,7 +337,7 @@ internal static class PhoneTests
                 && !PhoneSetup.CanPrepare(PhoneSetup.Steps(ready with { Node = never, UnattendedKept = true })) && steps.Single(x => x.Key == "boot") is { Mark: PhoneSetup.Mark.Done } boot && !boot.Title.StartsWith("Disponible"), "Attended: " + Marks(steps));
             Assert(Step(ready with { Node = TailscaleNode.Unreadable }, "unattended") is { Mark: PhoneSetup.Mark.Note, Action: null } note && note.Text.Contains("Run unattended"), "Its command line missing");
             Assert(Step(ready with { Node = soon }, "keyexpiry") is { Mark: PhoneSetup.Mark.Yours, Action: "Ouvrir la page de Tailscale" } expiring && expiring.Title.EndsWith("expire le 28 octobre")
-                && expiring.Text.Contains("« DESKTOP-INVEFQH »") && expiring.Text.Contains("Disable key expiry")
+                && expiring.Text.Contains("« SALON-PC »") && expiring.Text.Contains("Disable key expiry")
                 && Step(ready with { Node = expired }, "keyexpiry").Title.Contains("a expiré") && !PhoneSetup.CanPrepare(PhoneSetup.Steps(ready with { Node = soon })), "Expiring");
             // Without Tailscale's address (not installed, or not connected), or Jellyfin on another computer: nothing about it.
             Assert(Marks(PhoneSetup.Steps(ready with { Tailnet = null, TailnetAllowed = null, Node = never })) == "web:Done firewall:Done tailscale:Yours boot:Done"

@@ -59,8 +59,8 @@
       {"Id": "s-mac", "UserName": "ogsas", "Client": "Mira", "DeviceName": "MacBook Air", "DeviceId": "mac-1", "SupportsRemoteControl": true, "PlayableMediaTypes": ["Video"],
        "NowPlayingItem": {"Id": "b5e7c1a2d3f4e5a6b7c8d9e0f1a2b3c4", "Name": "Welcome to the Playground", "Type": "Episode", "SeriesName": "Arcane", "ParentIndexNumber": 1, "IndexNumber": 1, "RunTimeTicks": 24000000000},
        "PlayState": {"PositionTicks": 6000000000, "IsPaused": true, "VolumeLevel": 65, "IsMuted": false}},
-      {"Id": "s-pc", "UserName": "ogsas", "Client": "Mira", "DeviceName": "DESKTOP-DVT6D20", "DeviceId": "pc-1", "SupportsRemoteControl": true, "PlayableMediaTypes": ["Video"], "PlayState": {"VolumeLevel": 140, "IsMuted": true}},
-      {"Id": "s-pc-old", "UserName": "ogsas", "Client": "Mira", "DeviceName": "DESKTOP-DVT6D20", "DeviceId": "pc-1", "SupportsRemoteControl": true, "PlayableMediaTypes": ["Video"]},
+      {"Id": "s-pc", "UserName": "ogsas", "Client": "Mira", "DeviceName": "BUREAU-PC", "DeviceId": "pc-1", "SupportsRemoteControl": true, "PlayableMediaTypes": ["Video"], "PlayState": {"VolumeLevel": 140, "IsMuted": true}},
+      {"Id": "s-pc-old", "UserName": "ogsas", "Client": "Mira", "DeviceName": "BUREAU-PC", "DeviceId": "pc-1", "SupportsRemoteControl": true, "PlayableMediaTypes": ["Video"]},
       {"Id": "s-web", "UserName": "ogsas", "Client": "Jellyfin Web", "DeviceName": "Firefox", "DeviceId": "web-1", "SupportsRemoteControl": false, "PlayableMediaTypes": ["Audio", "Video"]},
       {"Id": "s-music", "UserName": "ogsas", "Client": "Finamp", "DeviceName": "Pixel", "DeviceId": "music-1", "SupportsRemoteControl": true, "PlayableMediaTypes": ["Audio"]},
       {"Id": "s-tv", "UserName": "ogsas", "Client": "Jellyfin Android TV", "DeviceName": "Salon", "DeviceId": "tv-1", "SupportsRemoteControl": true, "PlayableMediaTypes": ["Audio", "Video"],
@@ -69,7 +69,7 @@
     ],
     "expect": [
       {"id": "s-mac", "deviceId": "mac-1", "device": "MacBook Air", "client": "Mira", "playing": "Welcome to the Playground", "playingId": "b5e7c1a2d3f4e5a6b7c8d9e0f1a2b3c4", "series": "Arcane", "season": 1, "episode": 1, "paused": true, "position": 600, "duration": 2400, "volume": 65, "muted": false},
-      {"id": "s-pc", "deviceId": "pc-1", "device": "DESKTOP-DVT6D20", "client": "Mira", "playing": null, "playingId": null, "series": null, "season": null, "episode": null, "paused": false, "position": 0, "duration": 0, "volume": 100, "muted": true},
+      {"id": "s-pc", "deviceId": "pc-1", "device": "BUREAU-PC", "client": "Mira", "playing": null, "playingId": null, "series": null, "season": null, "episode": null, "paused": false, "position": 0, "duration": 0, "volume": 100, "muted": true},
       {"id": "s-tv", "deviceId": "tv-1", "device": "Salon", "client": "Jellyfin Android TV", "playing": "Spider-Man: Across the Spider-Verse", "playingId": "90892981f28a0ccb86a6e55a3a0039c6", "series": null, "season": null, "episode": null, "paused": false, "position": 1200, "duration": 8400, "volume": 100, "muted": false}
     ]
   }

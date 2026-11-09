@@ -37,7 +37,7 @@ Sur le PC où tourne Jellyfin, avec ton compte Windows habituel :
 1. Ouvre **AltStore** → onglet **Sources** → **+** → colle l’adresse suivante, puis valide :
    `https://miracinema.app/altstore.json`
 2. Ouvre la source **Mira** → **Mira** → **FREE**. AltStore télécharge l’app, la signe avec ton identifiant Apple et l’installe.
-3. Ouvre **Mira**, tape l’adresse de ton serveur (`192.168.1.198` à la maison, `100.114.247.13` avec Tailscale), ton nom d’utilisateur et ton mot de passe. Loin de la maison sans l’app Tailscale, passe d’abord par **Ailleurs : Tailscale intégré** (étape 4). À la première connexion au réseau de la maison, iOS demande l’accès au **réseau local** : touche **Autoriser** (sinon Mira ne voit pas Jellyfin en Wi-Fi).
+3. Ouvre **Mira**, tape l’adresse de ton serveur (`192.168.1.20` à la maison, `100.88.12.34` avec Tailscale), ton nom d’utilisateur et ton mot de passe. Loin de la maison sans l’app Tailscale, passe d’abord par **Ailleurs : Tailscale intégré** (étape 4). À la première connexion au réseau de la maison, iOS demande l’accès au **réseau local** : touche **Autoriser** (sinon Mira ne voit pas Jellyfin en Wi-Fi).
 
 La source propose Mira depuis la 0.8.6, la première version publiée avec l’app iPhone. Pour essayer une version pas encore publiée :
 

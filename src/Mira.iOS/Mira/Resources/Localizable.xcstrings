@@ -3481,12 +3481,12 @@
         }
       }
     },
-    "Tailscale’s coordination server and its relays, then your Tailscale devices (16 at most are asked whether they run Jellyfin).": {
+    "Tailscale’s coordination server and its relays, your router (UPnP, NAT-PMP, PCP: a port opened for a direct connection rather than through a relay), then your Tailscale devices (16 at most are asked whether they run Jellyfin).": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le serveur de coordination de Tailscale et ses relais, puis tes appareils Tailscale (16 au plus, à qui Mira demande s’ils font tourner Jellyfin)."
+            "value": "Le serveur de coordination de Tailscale et ses relais, ton routeur (UPnP, NAT-PMP, PCP : un port ouvert pour une connexion directe plutôt que par un relais), puis tes appareils Tailscale (16 au plus, à qui Mira demande s’ils font tourner Jellyfin)."
           }
         }
       }

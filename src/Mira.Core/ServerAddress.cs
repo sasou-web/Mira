@@ -125,7 +125,7 @@ public static partial class ServerAddress
         if (uri.Scheme != Uri.UriSchemeHttp) return false;
         var host = uri.IdnHost.Trim('[', ']').TrimEnd('.');
         // Tailscale's names and the home network's own (mDNS) are answered by those networks, never by the Internet; so is
-        // a device that Mira's own Tailscale node knows by its short name (« desktop-invefqh »).
+        // a device that Mira's own Tailscale node knows by its short name (« salon-pc »).
         if (host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
             || TailnetNetwork.Default.IsTailnet(host)) return false;
         if (InternetName(host)) return true;

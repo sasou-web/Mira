@@ -2,9 +2,9 @@
 
 Ce que la CI ne peut pas prouver : chaque case est une fonction qui n'a jamais tourné sur un vrai appareil. Coche quand tu l'as vue marcher ; si ça rate, dis-le au fil avec une capture (et, dès qu'il existe, le rapport de Réglages → « Exporter un rapport »). Chaque échec devient une PR. Pas besoin de tout faire d'un coup.
 
-Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · 🍎 Mac de Rayro · 👥 avec Dafty Cute
+Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un ami · 👥 avec Sam
 
-## PC de Jellyfin (Latitude) 🗄
+## PC de Jellyfin 🗄
 - [ ] « Tout préparer » : une seule autorisation de Windows, puis toutes les étapes de la carte du téléphone cochées
 - [ ] Après « Tout préparer » : le téléphone joint Jellyfin à la maison (Wi-Fi) et en 4G par Tailscale
 - [ ] Avis « Jellyfin convertit maintenant avec ta … » (carte Intel), puis une conversion qui ne saccade pas
@@ -18,7 +18,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Épisodes à venir (TheTVDB) activés : une ligne « manquant » ou « sort … » sur une série
 - [ ] « Chercher une meilleure version » : l'ancien fichier part à la Corbeille, le titre garde sa progression
 
-## PC d'ogsas 🖥
+## Ton PC 🖥
 - [ ] Mise à jour de Mira proposée et faite (à la prochaine version)
 - [ ] Lecteur : image « Cinéma » sans saccade sur un film 4K ; Informations dit « Cinéma »
 - [ ] Un film HDR10 avec le HDR de Windows allumé, puis éteint : couleurs justes les deux fois ; ⋮ → Informations, ligne « Couleurs » : « envoyé en HDR à l’écran » puis « converti en SDR »
@@ -42,7 +42,7 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Ouverture : le « m » puis l'Accueil, sans écran blanc
 - [ ] Un film et un épisode lus du début à la fin ; épisode suivant tout seul
 - [ ] Page d'une personne : sur la fiche d'un film, « Distribution et équipe » (réalisation d'abord, photos), toucher un acteur ouvre sa page (photo, naissance, biographie, ses films et séries de ta bibliothèque) ; Recherche trouve aussi un acteur par son nom
-- [ ] « Tu regardes toujours ? » : 3 épisodes courts enchaînés sans toucher l'iPhone, le 4e ne part pas et la carte le demande ; « Continuer » le lance (même essai sur le PC d'ogsas et le Mac de Rayro, sans toucher clavier, souris ni manette)
+- [ ] « Tu regardes toujours ? » : 3 épisodes courts enchaînés sans toucher l'iPhone, le 4e ne part pas et la carte le demande ; « Continuer » le lance (même essai sur ton PC et le Mac d’un ami, sans toucher clavier, souris ni manette)
 - [ ] Lecteur : double toucher ±10 s, glisser luminosité et volume, pincer, réduire vers le bas
 - [ ] PiP d'Apple et AirPlay vers une télé
 - [ ] Sous-titres d'un vrai animé (ASS) lisibles et calés
@@ -56,14 +56,14 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Un titre qui échouait avant : noter l'erreur et les infos du média
 - [ ] « Garder sur cet iPhone » : un film MP4 et un MKV (converti), puis une saison ; Mira en arrière-plan pendant la copie (progression d'iOS, reprise au retour) ; en mode Avion, lus depuis Réglages → Sur cet iPhone et l'Accueil (pistes, sous-titres, épisode suivant, avance rapide dans le MKV converti) ; de retour à la maison, la reprise est la même sur le PC ; déconnexion = copies retirées
 
-## Mac de Rayro 🍎
+## Mac d’un ami 🍎
 - [ ] Installation du `.dmg` (« Ouvrir quand même ») et premier lancement
 - [ ] Mise à jour automatique vers la version suivante (« Redémarrer »)
 - [ ] Image ni grise ni noire ; sinon ⋮ → Informations, ligne « Réparé »
 - [ ] Un film HDR10 (ou Dolby Vision) : couleurs justes, pas délavées ; ⋮ → Informations, ligne « Couleurs » : « HDR10 → SDR (limite du rendu) »
 - [ ] Trackpad : défiler (Accueil : un geste = la page ou la rangée), glisser à deux doigts entre les pages (la page suit les doigts, revient si lâchée tôt), pincer dans les grilles (affiches qui glissent), balayage à trois doigts, pincer dans le lecteur
 - [ ] Image dans l'image (petite fenêtre flottante)
-- [ ] Sortie audio : Réglages → Audio & sous-titres → « Tester » joue chaque haut-parleur (casque, puis enceintes ou AirPods) ; ⋮ → Informations dit la sortie ; Dolby Digital vers un ampli si Rayro en a un
+- [ ] Sortie audio : Réglages → Audio & sous-titres → « Tester » joue chaque haut-parleur (casque, puis enceintes ou AirPods) ; ⋮ → Informations dit la sortie ; Dolby Digital vers un ampli si Alex en a un
 - [ ] Mode canapé : plein écran agrandi, flèches et Retour arrière, une manette appairée (PlayStation ou Xbox) : A ouvre, B revient
 - [ ] Tailscale intégré : connexion, trousseau gardé après une mise à jour
 - [ ] Touches multimédias, Mira derrière une autre fenêtre pendant un épisode : F8 met en pause et reprend, F7 recule de 10 s, F9 passe à l'épisode suivant ; le bouton des AirPods met en pause ; centre de contrôle et barre des menus → « À l'écoute » : titre, affiche, barre qui avance, ±10 s ; le lecteur fermé, F8 revient à Musique
@@ -72,10 +72,10 @@ Légende : 🖥 PC d'ogsas · 🗄 Latitude (PC de Jellyfin) · 📱 iPhone · �
 - [ ] Veille en plein film (depuis Jellyfin, pas une copie gardée) : capot refermé quelques minutes, puis rouvert : le film est en pause là où il était, Lecture le relance sans roue sans fin ; Wi-Fi coupé en pleine lecture : « Connexion au serveur perdue », puis le film reprend quand le Wi-Fi revient
 
 ## Regarder ensemble 👥
-- [ ] Ta party par le lien (Funnel) : Dafty Cute rejoint depuis Windows sans compte
+- [ ] Ta party par le lien (Funnel) : Sam rejoint depuis Windows sans compte
 - [ ] Même chose depuis un iPhone, puis depuis le Mac
 - [ ] Pause, saut et épisode suivant suivis par tout le monde
 - [ ] Déjà en lecture, créer le groupe puis inviter : l'invité arrive à la même minute, sans relancer
 - [ ] 20 min ensemble par Funnel sans pause ni lecture en boucle (sauts, changement de piste audio)
-- [ ] Toi dans la party de Dafty Cute (son Jellyfin), depuis Mira pour Windows
+- [ ] Toi dans la party de Sam (son Jellyfin), depuis Mira pour Windows
 - [ ] Lien refait : l'ancien ne marche plus

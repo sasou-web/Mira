@@ -40,7 +40,7 @@ const marks = [];
 const port = Number(process.argv[2] ?? 18097);
 const TOKEN = 'mock-token';
 // A friend's party on this Jellyfin (Mira's extension): its link's code, and the session of the guest it opens.
-const PARTY = 'dafty-party-link-00001';
+const PARTY = 'samsam-party-link-0001';
 const GUEST_TOKEN = 'mock-guest-token', GUEST_ID = 'c0ffee00c0ffee00c0ffee00c0ffee00';
 let guestName = '';
 const SERVER_ID = 'b6c2f1a0d4e94c0a9f3e2d1c0b9a8f7e';
@@ -252,16 +252,16 @@ const server = http.createServer(async (req, res) => {
   if (path === '/Mock/Mark' && req.method === 'POST') { marks.push({ name: q.get('name') ?? '', at: Date.now() }); return send(res, 204, undefined); }
   if (path === '/Mock/Marks') return send(res, 200, marks);
   if (down && !path.startsWith('/Mock/')) { req.socket.destroy(); return; }
-  if (url.pathname === `/Mira/party/${PARTY}`) return send(res, 200, { host: 'Dafty' });
+  if (url.pathname === `/Mira/party/${PARTY}`) return send(res, 200, { host: 'Sam' });
   if (url.pathname === '/Mira/guest/open' && req.method === 'POST') {
     const body = JSON.parse(raw || '{}');
     if (body.party !== PARTY || !/^[A-Za-z0-9_-]{16,64}$/.test(body.device ?? '')) return send(res, 404, { error: 'This party link no longer exists.' });
     guestName = body.guest || 'Guest';
-    return send(res, 200, { token: GUEST_TOKEN, userId: GUEST_ID, userName: guestName, serverId: SERVER_ID, host: 'Dafty' });
+    return send(res, 200, { token: GUEST_TOKEN, userId: GUEST_ID, userName: guestName, serverId: SERVER_ID, host: 'Sam' });
   }
-  // The host, Dafty, opens their group (the test says when).
+  // The host, Sam, opens their group (the test says when).
   if (path === '/Mock/PartyGroup' && req.method === 'POST') {
-    group = { GroupId: randomUUID().replaceAll('-', ''), GroupName: "Dafty's group", State: 'Idle', Participants: ['Dafty'], LastUpdatedAt: jellyfinDate(Date.now()) };
+    group = { GroupId: randomUUID().replaceAll('-', ''), GroupName: "Sam's group", State: 'Idle', Participants: ['Sam'], LastUpdatedAt: jellyfinDate(Date.now()) };
     queue = null;
     return send(res, 204, undefined);
   }

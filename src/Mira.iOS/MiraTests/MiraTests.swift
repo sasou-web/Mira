@@ -21,8 +21,8 @@ struct ServerAddressTests {
 
     @Test("Une adresse copiée de Jellyfin ou de la page de Mira mène au serveur")
     func copiedPages() throws {
-        #expect(try ServerAddress.candidates("http://100.114.247.13:8096/web/#/home.html").map(\.absoluteString) == ["http://100.114.247.13:8096"])
-        #expect(try ServerAddress.candidates("http://100.114.247.13:8096/Mira/#/titre/abc").map(\.absoluteString) == ["http://100.114.247.13:8096"])
+        #expect(try ServerAddress.candidates("http://100.88.12.34:8096/web/#/home.html").map(\.absoluteString) == ["http://100.88.12.34:8096"])
+        #expect(try ServerAddress.candidates("http://100.88.12.34:8096/Mira/#/titre/abc").map(\.absoluteString) == ["http://100.88.12.34:8096"])
         #expect(try ServerAddress.candidates("https://example.com/jellyfin/web/index.html").map(\.absoluteString) == ["https://example.com/jellyfin"])
         #expect(try ServerAddress.candidates("HTTP://Example.com:8096/").map(\.absoluteString) == ["http://Example.com:8096"])
     }
@@ -40,11 +40,11 @@ struct ServerAddressTests {
         #expect(exposed("http://jellyfin.example.com:8096"))
         #expect(exposed("http://203.0.113.9:8096"))
         #expect(!exposed("https://jellyfin.example.com"))
-        #expect(!exposed("http://192.168.1.198:8096"))
+        #expect(!exposed("http://192.168.1.20:8096"))
         #expect(!exposed("http://10.0.0.2:8096"))
         #expect(!exposed("http://172.20.1.1:8096"))
-        #expect(!exposed("http://100.114.247.13:8096"))
-        #expect(!exposed("http://desktop-invefqh.tail1234.ts.net:8096"))
+        #expect(!exposed("http://100.88.12.34:8096"))
+        #expect(!exposed("http://salon-pc.tail1234.ts.net:8096"))
         #expect(!exposed("http://nas:8096"))
         #expect(!exposed("http://nas.local:8096"))
         #expect(exposed("http://100.200.1.1:8096"))

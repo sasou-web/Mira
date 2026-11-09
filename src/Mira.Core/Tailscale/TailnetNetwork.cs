@@ -99,7 +99,7 @@ public sealed class TailnetNetwork
         Pulse();
     }
 
-    /// <summary>Whether a host is a device of the tailnet, the node's devices included (« desktop-invefqh »).</summary>
+    /// <summary>Whether a host is a device of the tailnet, the node's devices included (« salon-pc »).</summary>
     public bool IsTailnet(string host) => TailnetRoute.IsTailnet(host, Volatile.Read(ref _node)?.Status ?? Volatile.Read(ref _known));
 
     /// <summary>The device of the tailnet a host names, as the node last saw it (its name, whether it is online, when it was last).</summary>

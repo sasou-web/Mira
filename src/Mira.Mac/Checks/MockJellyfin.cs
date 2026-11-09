@@ -17,8 +17,8 @@ namespace Mira.Mac.Checks;
 public sealed class MockJellyfin : HttpMessageHandler
 {
     public const string Server = "http://127.0.0.1:8096/", UserId = "check-user";
-    /// <summary>A friend's Jellyfin, with Mira's extension: its party (<see cref="PartyCode"/>, Dafty's) and the gateway of its guests.</summary>
-    public const string FriendServer = "http://127.0.0.1:8097/", PartyCode = "dafty-party-link-00001";
+    /// <summary>A friend's Jellyfin, with Mira's extension: its party (<see cref="PartyCode"/>, Sam's) and the gateway of its guests.</summary>
+    public const string FriendServer = "http://127.0.0.1:8097/", PartyCode = "samsam-party-link-0001";
     /// <summary>The friend's party link was taken back: its page and its gateway answer 404.</summary>
     public bool PartyGone { get; set; }
     /// <summary>Every request to the friend's Jellyfin, « POST Mira/guest/open ».</summary>
@@ -79,20 +79,20 @@ public sealed class MockJellyfin : HttpMessageHandler
 
     /// <summary>
     /// The friend's Jellyfin as its extension answers a guest: the party's page names its host, Mira/guest/open makes the
-    /// guest, its gateway gives the host's group (« Dafty's group »), joined or left; its WebSocket is the check's to play.
+    /// guest, its gateway gives the host's group (« Sam's group »), joined or left; its WebSocket is the check's to play.
     /// </summary>
     private async Task<HttpResponseMessage> FriendAsync(HttpRequestMessage request, string path, CancellationToken ct)
     {
         lock (FriendCalls) FriendCalls.Add($"{request.Method} {path}");
         if (PartyGone) return path == "Mira/guest/open" ? Json(new { error = "Ce lien de party n’existe plus." }, HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.NotFound);
-        if (path == "Mira/party/" + PartyCode) return Json(new { host = "Dafty" });
+        if (path == "Mira/party/" + PartyCode) return Json(new { host = "Sam" });
         if (request.Method == HttpMethod.Post && path == "Mira/guest/open")
         {
             using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
             var name = body.RootElement.GetProperty("guest").GetString();
-            return Json(new { token = "guest-token", userId = "guest-1", userName = name, serverId = "friend-server", host = "Dafty" });
+            return Json(new { token = "guest-token", userId = "guest-1", userName = name, serverId = "friend-server", host = "Sam" });
         }
-        if (path == "Mira/guest/SyncPlay/List") return Json(new object[] { new { GroupId = "party-group", GroupName = "Dafty's group", Participants = new[] { "Dafty" }, State = "Idle" } });
+        if (path == "Mira/guest/SyncPlay/List") return Json(new object[] { new { GroupId = "party-group", GroupName = "Sam's group", Participants = new[] { "Sam" }, State = "Idle" } });
         if (request.Method == HttpMethod.Post && (path.StartsWith("Mira/guest/SyncPlay/") || path == "Mira/guest/Sessions/Logout")) return new HttpResponseMessage(HttpStatusCode.NoContent);
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }

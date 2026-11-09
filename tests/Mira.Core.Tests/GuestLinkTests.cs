@@ -14,7 +14,7 @@ internal static class GuestLinkTests
         var Test = run.Test;
         await Test("Inviter par lien : l’adresse de Funnel et son état lus dans Tailscale", () =>
         {
-            Assert(GuestLinks.FunnelAddress("""{"Self":{"DNSName":"desktop-invefqh.tail1234.ts.net.","HostName":"DESKTOP"}}""") == "https://desktop-invefqh.tail1234.ts.net", "adresse");
+            Assert(GuestLinks.FunnelAddress("""{"Self":{"DNSName":"salon-pc.tail1234.ts.net.","HostName":"DESKTOP"}}""") == "https://salon-pc.tail1234.ts.net", "adresse");
             Assert(GuestLinks.FunnelAddress("""{"Self":{"DNSName":""}}""") is null && GuestLinks.FunnelAddress("""{"Self":{"DNSName":"pc."}}""") is null, "sans nom");
             Assert(GuestLinks.FunnelAddress("{") is null && GuestLinks.FunnelAddress(null) is null && GuestLinks.FunnelAddress("""{"BackendState":"Stopped"}""") is null, "illisible");
             // tailscale funnel status --json (ipn.ServeConfig): /Mira served and open to the Internet on 443.
