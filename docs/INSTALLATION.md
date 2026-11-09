@@ -118,7 +118,7 @@ Ensuite, Mira rejoint ton réseau Tailscale à chaque ouverture, avant de demand
   ```
 
   Un appareil déjà connecté une fois redémarre alors depuis la liste gardée sur lui et joint ton Jellyfin malgré la panne ; une toute première connexion attend que Tailscale revienne. La liste (noms, adresses et clés publiques des appareils) reste dans le dossier de Tailscale intégré, sur l’appareil. Détails : [Client-side netmap caching](https://tailscale.com/docs/reference/client-side-netmap-caching).
-- Vie privée : rien ne part vers Tailscale avant **Se connecter à Tailscale**. Ensuite, comme pour l’app Tailscale, ses serveurs voient le compte choisi, le nom de l’appareil, son système et ses adresses IP (publique et locales, pour la connexion directe) ; tes vidéos restent chiffrées de bout en bout, en direct ou par un relais de Tailscale. Mira n’envoie aucun journal à Tailscale ; le sien, `data\tailscale\mira-tailscale.log`, ne garde aucune page de connexion. Détails dans [SECURITY.md](../SECURITY.md#tailscale-intégré-windows).
+- Vie privée : rien ne part vers Tailscale avant **Se connecter à Tailscale**. Ensuite, comme pour l’app Tailscale, ses serveurs voient le compte choisi, le nom de l’appareil, son système et ses adresses IP (publique et locales, pour la connexion directe) ; tes vidéos restent chiffrées de bout en bout, en direct ou par un relais de Tailscale. Mira n’envoie aucun journal à Tailscale ; le sien, `data\tailscale\mira-tailscale.log`, ne garde aucune page de connexion. Détails dans [SECURITY.md](SECURITY.fr.md#tailscale-intégré-windows).
 
 ## TorLink
 

@@ -289,7 +289,7 @@ ${body}
       <a href="${repository}">${escape(w.links.code)}</a>
       <a href="https://discord.gg/Bh3F6PDUvB">${escape(w.links.discord)}</a>
       <a href="${repository}/releases">${escape(w.links.releases)}</a>
-      <a href="${repository}/blob/main/SECURITY.md">${escape(w.links.security)}</a>
+      <a href="${repository}/blob/main/${lang === 'en' ? '' : 'docs/'}SECURITY${lang === 'en' ? '' : '.fr'}.md">${escape(w.links.security)}</a>
       <a href="${otherHref}" hreflang="${other}" lang="${other}">${escape(w.other)}</a>
     </nav>
   </footer>

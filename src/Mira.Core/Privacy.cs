@@ -34,11 +34,12 @@ public sealed record PrivacyConnection(string Key, string Title, string To, stri
 /// <summary>
 /// Réglages → Confidentialité (Windows and Mac): every connection that leaves this device, and those the Jellyfin
 /// server opens for Mira's features, each with what it sends and its switch where there is one. No telemetry, no
-/// analytics, no crash report: nothing else goes anywhere. The details are SECURITY.md's « Ce qui part sur le réseau ».
+/// analytics, no crash report: nothing else goes anywhere. The details are SECURITY.md's « What goes out on the network » (docs/SECURITY.fr.md in French).
 /// </summary>
 public static class Privacy
 {
-    public const string Document = "https://github.com/sasou-web/Mira/blob/main/SECURITY.md#ce-qui-part-sur-le-réseau";
+    public static string Document => L("https://github.com/sasou-web/Mira/blob/main/docs/SECURITY.fr.md#ce-qui-part-sur-le-réseau",
+        "https://github.com/sasou-web/Mira/blob/main/SECURITY.md#what-goes-out-on-the-network");
 
     public static string Summary => L("Mira n’a ni compte, ni publicité, ni mesure d’audience, ni rapport de plantage envoyé tout seul. Voici tout ce qui part sur le réseau, et comment l’arrêter.",
         "Mira has no account, no ads, no analytics and no crash report sent on its own. Here is everything that goes out on the network, and how to stop it.");
