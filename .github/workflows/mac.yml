@@ -227,10 +227,19 @@ jobs:
           cat .artifacts/check/results.txt 2>/dev/null || tail -40 .artifacts/check.log
           # Its last check asks Mira to quit as macOS does to shut down ([NSApp terminate:]): accepted, AppKit ends the process
           # with 0 whatever was found. The verdict is results.txt, written just before.
-          if [ ! -f .artifacts/check/results.txt ] || grep -q "^FAIL" .artifacts/check/results.txt; then status=1; fi
+          if [ "$status" -eq 0 ] && { [ ! -f .artifacts/check/results.txt ] || grep -q "^FAIL" .artifacts/check/results.txt; }; then status=1; fi
           echo "— Avalonia et OpenGL :"; grep -a -i -E "opengl|gpu|metal|render|exception" .artifacts/check.log | head -30 || true
           # A crash (139 = segmentation fault) says nothing in results.txt: the end of the log at least.
-          if [ "$status" -gt 128 ]; then echo "— fin du journal :"; tail -60 .artifacts/check.log; fi
+          if [ "$status" -gt 128 ]; then
+            echo "— fin du journal :"; tail -60 .artifacts/check.log
+            # The report macOS writes for a crash: the native thread that crashed and its frames.
+            # Written by ReportCrash a few seconds after the end.
+            for i in $(seq 1 20); do
+              report=$(ls -t ~/Library/Logs/DiagnosticReports/Mira*.ips /Library/Logs/DiagnosticReports/Mira*.ips 2>/dev/null | head -1)
+              [ -n "$report" ] && break; sleep 1
+            done
+            if [ -n "$report" ]; then echo "— rapport de plantage $report :"; head -c 60000 "$report"; else echo "— aucun rapport de plantage de macOS"; fi
+          fi
           exit $status
       # How smooth the pages are (src/Mira.Mac/Checks/SmoothCheck.cs), as ci.yml measures Mira for Windows: signed in to a
       # Jellyfin answered inside Mira, the trackpad down and up the pages, the rail's pages, a title's page and Réglages,
