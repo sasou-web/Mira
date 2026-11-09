@@ -23,7 +23,7 @@
     ["http://192.168.1.42:8096", "home network"],
     ["http://jellyfin.local:8096", "home network"],
     ["http://100.88.12.34:8096", "Tailscale"],
-    ["https://salon-pc.tail1234.ts.net", "Tailscale"],
+    ["https://maison-pc.tail1234.ts.net", "Tailscale"],
     ["http://[fd7a:115c:a1e0::1]:8096", "Tailscale"],
     ["https://jellyfin.example.org", "Internet"],
     ["http://8.8.8.8:8096", "Internet"],

@@ -15,8 +15,8 @@
  ],
  "agents": [
   {"agent": null, "text": "Mira n’a pas encore été ouvert sur le PC serveur : c’est lui qui cherche et télécharge, avec TorLink. Ouvre-le là-bas, connecté avec un compte administrateur.", "ready": false},
-  {"agent": {"name": "SALON-PC", "online": false, "seen": "2026-10-15T09:00:00Z", "accepting": false}, "text": "Mira n’est pas ouvert sur SALON-PC (vu il y a 3 h) : tes demandes l’attendent, il les fera à son retour.", "ready": false},
-  {"agent": {"name": "SALON-PC", "online": false, "seen": "2026-10-15T11:59:30Z", "accepting": false}, "text": "Mira n’est pas ouvert sur SALON-PC (vu à l’instant) : tes demandes l’attendent, il les fera à son retour.", "ready": false},
+  {"agent": {"name": "MAISON-PC", "online": false, "seen": "2026-10-15T09:00:00Z", "accepting": false}, "text": "Mira n’est pas ouvert sur MAISON-PC (vu il y a 3 h) : tes demandes l’attendent, il les fera à son retour.", "ready": false},
+  {"agent": {"name": "MAISON-PC", "online": false, "seen": "2026-10-15T11:59:30Z", "accepting": false}, "text": "Mira n’est pas ouvert sur MAISON-PC (vu à l’instant) : tes demandes l’attendent, il les fera à son retour.", "ready": false},
   {"agent": {"name": "PC", "online": true, "seen": "2026-10-15T12:00:00Z", "accepting": false, "problem": "TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page."}, "text": "TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page.", "ready": true},
   {"agent": {"name": "PC", "online": true, "seen": "2026-10-15T12:00:00Z", "accepting": true}, "text": "PC est prêt : TorLink y télécharge, puis Mira range le titre dans ta bibliothèque.", "ready": true}
  ],

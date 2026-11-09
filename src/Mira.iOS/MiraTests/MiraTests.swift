@@ -44,7 +44,7 @@ struct ServerAddressTests {
         #expect(!exposed("http://10.0.0.2:8096"))
         #expect(!exposed("http://172.20.1.1:8096"))
         #expect(!exposed("http://100.88.12.34:8096"))
-        #expect(!exposed("http://salon-pc.tail1234.ts.net:8096"))
+        #expect(!exposed("http://maison-pc.tail1234.ts.net:8096"))
         #expect(!exposed("http://nas:8096"))
         #expect(!exposed("http://nas.local:8096"))
         #expect(exposed("http://100.200.1.1:8096"))
