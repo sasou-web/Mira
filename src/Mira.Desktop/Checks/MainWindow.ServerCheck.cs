@@ -208,8 +208,10 @@ public partial class MainWindow
 
             // Jellyfin's remote control (MainWindow.Remote.cs): the other device plays a film here, as the iPhone's « Lire
             // sur… » and Jellyfin's pages do, then pauses, moves, turns down and stops it; « Arrêter » of « En ce moment ».
-            var here = await UntilServer("this PC offered to play on", async () => (await friend.Client.RemoteTargetsAsync()).FirstOrDefault(x => x.DeviceId == client.Connection.DeviceId && x.Playing is null), 30);
+            // Two waits, so that a failure names its cause: listed (its capabilities told and kept by Jellyfin), then idle.
+            await UntilServer("this PC listed to play on (its remote control declared)", async () => (await friend.Client.RemoteTargetsAsync()).FirstOrDefault(x => x.DeviceId == client.Connection.DeviceId), 30);
             // The group's film just stopped: Jellyfin forgets it a moment after, so idle is waited for, not required at once.
+            var here = await UntilServer("this PC idle on Jellyfin (the group's film forgotten)", async () => (await friend.Client.RemoteTargetsAsync()).FirstOrDefault(x => x.DeviceId == client.Connection.DeviceId && x.Playing is null), 30);
             Require(here.Playing is null, $"Jellyfin offers this PC as a device to play on (« {here.Device} », its remote control declared)");
             await friend.Client.RemotePlayAsync(here.SessionId, signs.Id, 0);
             await Until("the film put on from the other device", () => _playing && _loaded && _session.Item?.Id == signs.Id, 60);

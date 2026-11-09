@@ -385,7 +385,7 @@ jobs:
     if: ${{ !cancelled() && inputs.release != '' && needs.build.result == 'success' }}
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       contents: write
       id-token: write
@@ -410,10 +410,6 @@ jobs:
         with:
           subject-path: |
             mac/Mira-*-mac-arm64.dmg
-      - name: Send to VirusTotal
-        env:
-          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
-        run: tools/virustotal.sh mac/Mira-*-mac-arm64.dmg
       - name: Attach to the draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -426,3 +422,11 @@ jobs:
           (cd mac && sha256sum --strict -c -- "$dmg.sha256")
           # Only the draft made for this very commit; again safe on a re-run (tools/attach-to-draft.sh).
           tools/attach-to-draft.sh "$RELEASE" "$COMMIT" "mac/$dmg" "mac/$dmg.sha256"
+      # After the files are attached, never in their way: VirusTotal's free API is slow and counted by the minute, and
+      # whatever it answers the release goes on (tools/virustotal.sh ends in 0; audit of 2026-11-09, point 5).
+      - name: Send to VirusTotal
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: tools/virustotal.sh mac/Mira-*-mac-arm64.dmg

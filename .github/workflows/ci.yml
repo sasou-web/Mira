@@ -57,6 +57,9 @@ jobs:
       # The performance budgets' rules (tools/perf/budget.mjs, budgets.json), held by the jobs smooth and build.
       - name: Performance budgets' rules
         run: node --test tools/perf/budget.test.mjs
+      # The release jobs' VirusTotal step against a fake curl: whatever VirusTotal answers, it never fails the release.
+      - name: VirusTotal script
+        run: node --test tools/virustotal.test.mjs
       - name: Tests free of WPF (Linux)
         env:
           MIRA_QBITTORRENT: /usr/bin/qbittorrent-nox
