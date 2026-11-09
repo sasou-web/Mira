@@ -388,18 +388,32 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       # The script that attaches the files, from the draft's commit.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.commit }}
           persist-credentials: false
-          sparse-checkout: tools/attach-to-draft.sh
+          sparse-checkout: |
+            tools/attach-to-draft.sh
+            tools/virustotal.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: Mira-mac-arm64
           path: mac
+      # A build attestation for each file: anyone can check, with `gh attestation verify <file> -R sasou-web/Mira`, that
+      # it was built by this workflow from this commit (wiki: Verify your download).
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            mac/Mira-*-mac-arm64.dmg
+      - name: Send to VirusTotal
+        env:
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: tools/virustotal.sh mac/Mira-*-mac-arm64.dmg
       - name: Attach to the draft
         env:
           GH_TOKEN: ${{ github.token }}

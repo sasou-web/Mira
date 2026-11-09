@@ -25,7 +25,7 @@ Les fichiers Windows de Mira ne sont pas encore signés : Windows SmartScreen pe
 Get-FileHash .\Mira-__VERSION__-win-x64-setup.exe -Algorithm SHA256
 ```
 
-La valeur doit être celle du fichier `.sha256`.
+La valeur doit être celle du fichier `.sha256`. D’autres façons de vérifier, et pourquoi Windows prévient : [Vérifier ton téléchargement](verify.md).
 
 ## Premier lancement
 

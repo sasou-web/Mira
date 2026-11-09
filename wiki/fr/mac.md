@@ -37,7 +37,7 @@ Si macOS dit que Mira est « endommagée », ou si le bouton n’apparaît pas, 
 xattr -dr com.apple.quarantine /Applications/Mira.app
 ```
 
-Elle retire seulement de Mira la marque « téléchargé depuis Internet ». Elle ne change aucun réglage de sécurité de ton Mac.
+Elle retire seulement de Mira la marque « téléchargé depuis Internet ». Elle ne change aucun réglage de sécurité de ton Mac. Pour vérifier l’image avant de l’ouvrir : [Vérifier ton téléchargement](verify.md).
 
 ## Première connexion
 
