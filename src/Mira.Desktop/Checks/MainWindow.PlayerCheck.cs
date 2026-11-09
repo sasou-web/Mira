@@ -162,6 +162,7 @@ public partial class MainWindow
             await _engineReleased;
             Require(Playback.MpvEngine.ShaderFolder() is { } shaders && Directory.EnumerateFiles(shaders).Any(), "mpv keeps its compiled shaders for the next playback");
             await RunColourChecksAsync(checks, Require);
+            await RunPlayerSafetyChecksAsync(checks, Require);
             await RunCompletionChecksAsync(Require);
             await File.WriteAllLinesAsync(Path.Combine(output, "result.txt"), checks);
         }

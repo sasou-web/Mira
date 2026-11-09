@@ -53,10 +53,26 @@ foreach ($made in $hdr) {
     if ($LASTEXITCODE -ne 0) { throw "ffmpeg could not make $($made[0]) ($LASTEXITCODE)" }
 }
 
+# The subtitles a film starts with (PlayerSafety.TracksAsync): audio and subtitles in English, the same with forced
+# subtitles in English after them, audio in Japanese with subtitles in English.
+$tracks = Join-Path $Work 'tracks'
+New-Item -ItemType Directory -Force -Path $tracks | Out-Null
+$srt = Join-Path $tracks 'lines.srt'
+Set-Content -LiteralPath $srt -Encoding ASCII -Value @('1', '00:00:00,000 --> 00:00:02,500', 'A line', '')
+foreach ($made in @(@('english.mkv', 'eng', $false), @('forced.mkv', 'eng', $true), @('japanese.mkv', 'jpn', $false))) {
+    $arguments = @('-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=duration=3:size=320x240:rate=24', '-f', 'lavfi', '-i', 'sine=duration=3', '-i', $srt)
+    if ($made[2]) { $arguments += '-i', $srt }
+    $arguments += '-map', '0:v', '-map', '1:a', '-map', '2:s'
+    if ($made[2]) { $arguments += '-map', '3:s', '-metadata:s:s:1', 'language=eng', '-disposition:s:1', 'forced' }
+    $arguments += '-c:v', 'mpeg4', '-c:a', 'mp2', '-c:s', 'srt', '-metadata:s:a:0', "language=$($made[1])", '-metadata:s:s:0', 'language=eng', '-disposition:s:0', '0', (Join-Path $tracks $made[0])
+    & $ffmpeg.FullName @arguments
+    if ($LASTEXITCODE -ne 0) { throw "ffmpeg could not make $($made[0]) ($LASTEXITCODE)" }
+}
+
 # The check itself: the window is placed off screen, the result written to result.txt.
 $result = Join-Path $Output 'result.txt'
 if (Test-Path -LiteralPath $result) { Remove-Item -LiteralPath $result -Force }
-$run = Start-Process -FilePath ([IO.Path]::GetFullPath($Executable)) -PassThru -ArgumentList @('--demo', '--data', "`"$profilePath`"", '--test-media', "`"$clip`"", '--colour-media', "`"$colours`"", '--player-check', "`"$Output`"", '--perf-probe')
+$run = Start-Process -FilePath ([IO.Path]::GetFullPath($Executable)) -PassThru -ArgumentList @('--demo', '--data', "`"$profilePath`"", '--test-media', "`"$clip`"", '--colour-media', "`"$colours`"", '--track-media', "`"$tracks`"", '--player-check', "`"$Output`"", '--perf-probe')
 if (-not $run.WaitForExit(300000)) { $run.Kill(); throw 'The player check did not finish within 5 minutes.' }
 if (-not (Test-Path -LiteralPath $result)) { throw "The player check wrote no result (exit code $($run.ExitCode))." }
 $lines = Get-Content -LiteralPath $result

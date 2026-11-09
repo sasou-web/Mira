@@ -34,6 +34,8 @@ public sealed class MpvPlayer : MpvClient
     public static MpvPlayer Sound(PlayerSettings settings) => new(settings, Use.Sound, null, FindLibrary(settings.MpvPath));
     /// <summary>Neither picture nor sound: the devices of « Sortie audio » read while nothing plays.</summary>
     public static MpvPlayer Probe(PlayerSettings settings) => new(settings, Use.Silent, null, FindLibrary(settings.MpvPath), video: false);
+    /// <summary>As <see cref="Probe"/>, on another network (the self-check's https:// servers, PlayerSafety).</summary>
+    public static MpvPlayer Probe(PlayerSettings settings, Core.Tailscale.TailnetNetwork network) => new(settings, Use.Silent, null, FindLibrary(settings.MpvPath), video: false) { Network = network };
     private enum Use { Video, Silent, Sound }
     // The library stays loaded after the playback: unloading a dylib that registered Objective-C classes is unsafe.
     private MpvPlayer(PlayerSettings settings, Use use, string? picture, string? path, bool video = true)

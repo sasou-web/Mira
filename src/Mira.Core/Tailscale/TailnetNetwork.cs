@@ -65,10 +65,14 @@ public sealed class TailnetNetwork
             UseCookies = false,
             // A pooled connection follows the way chosen when it opened: chosen again now and then.
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            // .NET's verdict on each certificate, unchanged; those it accepts give mpv their authorities (ServerTrust).
+            SslOptions = new() { RemoteCertificateValidationCallback = Trust.Check },
         };
         Invoker = new HttpMessageInvoker(Handler, disposeHandler: false);
     }
 
+    /// <summary>The authorities of the certificates .NET accepted on these connections, for mpv's https:// (<see cref="ForPlayer"/>).</summary>
+    public ServerTrust Trust { get; } = new();
     /// <summary>For HttpClient: <c>new HttpClient(Handler, disposeHandler: false)</c>.</summary>
     public SocketsHttpHandler Handler { get; }
     /// <summary>For ClientWebSocket.ConnectAsync, which then connects the way requests do.</summary>
