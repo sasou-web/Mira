@@ -31,6 +31,8 @@ public static class SelfCheck
         var output = Path.GetFullPath(Arg("--self-check") is { Length: > 0 } folder && !folder.StartsWith("--") ? folder : "mira-check");
         Directory.CreateDirectory(output);
         var results = new List<Result>();
+        // « apart »: everything but quitting; « only »: signed in, then straight to quitting (mac.yml runs both).
+        var quit = Environment.GetEnvironmentVariable("MIRA_CHECK_QUIT");
         void Check(bool ok, string name, string detail = "") { results.Add(new(ok, name, detail)); Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {name}{(detail.Length > 0 ? " — " + detail : "")}"); }
         // Each screen captured is also read as VoiceOver would: no button, field or list it can reach without a name.
         void Capture(Window shown, string folder, string name)
@@ -96,6 +98,11 @@ public static class SelfCheck
             // —— Home ——
             Check(await Until(() => window.Current is HomePage { Latest.Count: > 0 }, 20), "accueil : ajouts récents", $"{(window.Current as HomePage)?.Latest.Count} titres");
             var home = (HomePage)window.Current!;
+            if (mock is not null && quit == "only")
+            {
+                await PrepareQuitAsync(home.Continue.First(x => x.Id == "movie-1"));
+                goto Checked;
+            }
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
             home.ScrollToEnd(); await Task.Delay(800); Capture(window, output, "02b-home-grid"); home.ScrollToHome();
@@ -1026,29 +1033,33 @@ public static class SelfCheck
             }
 
             // —— macOS quitting Mira: shutting down, restarting, logging out (asked last, below: it ends this process) ——
-            // A film playing in « Image dans l’image », whose small window refuses a close of its own: both are asked.
-            if (mock is not null)
-            {
-                // Each step said as it starts: a crash of the process here leaves only this log.
-                static void Step(string what) { Console.WriteLine($"…  quitter à la demande de macOS : {what}"); Console.Out.Flush(); }
-                Step("reconnexion");
-                if (window.Session is null) await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
-                Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", "1");
-                Step("lecture");
-                await window.PlayAsync(movie, fromStart: true);
-                Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);
-                var quitting = window.Player;
-                Step("film ouvert");
-                Check(await Until(() => quitting is { IsFileLoaded: true, Position: > 2 }, 30), "quitter à la demande de macOS : un film en cours", $"{quitting?.Position:0.0} s");
-                Step("image dans l’image");
-                if (quitting is not null) await quitting.EnterPipAsync();
-                Check(await Until(() => quitting?.Pip is { IsVisible: true }, 10), "quitter à la demande de macOS : dans l’image dans l’image");
-            }
+            // On the runner of mac.yml, apart in a Mira of its own (MIRA_CHECK_QUIT): one more film this late in the run
+            // crashed the process there (segmentation fault, no report from macOS), as an OpenGL view once did.
+            if (mock is not null && quit != "apart") await PrepareQuitAsync(movie);
+            Checked:
             exit = results.All(x => x.Ok) ? 0 : 1;
         }
         catch (Exception ex)
         {
             Check(false, "contrôle interrompu", ex.GetType().Name + " : " + ex.Message);
+        }
+        // A film playing in « Image dans l’image », whose small window refuses a close of its own: both are asked.
+        async Task PrepareQuitAsync(MediaItem movie)
+        {
+            // Each step said as it starts: a crash of the process here leaves only this log.
+            static void Step(string what) { Console.WriteLine($"…  quitter à la demande de macOS : {what}"); Console.Out.Flush(); }
+            Step("reconnexion");
+            if (window.Session is null) await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
+            Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", "1");
+            Step("lecture");
+            await window.PlayAsync(movie, fromStart: true);
+            Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);
+            var quitting = window.Player;
+            Step("film ouvert");
+            Check(await Until(() => quitting is { IsFileLoaded: true, Position: > 2 }, 30), "quitter à la demande de macOS : un film en cours", $"{quitting?.Position:0.0} s");
+            Step("image dans l’image");
+            if (quitting is not null) await quitting.EnterPipAsync();
+            Check(await Until(() => quitting?.Pip is { IsVisible: true }, 10), "quitter à la demande de macOS : dans l’image dans l’image");
         }
         void Write()
         {
@@ -1060,7 +1071,7 @@ public static class SelfCheck
         Write();
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
         // Asked only when everything before passed: a failure is read in results.txt as it stands.
-        if (exit == 0 && QuitAsSystem(window, desktop, mock, Check, Write, () => results.All(x => x.Ok))) return;
+        if (exit == 0 && quit != "apart" && QuitAsSystem(window, desktop, mock, Check, Write, () => results.All(x => x.Ok))) return;
         desktop.Shutdown(results.All(x => x.Ok) ? exit : 1);
     }
 

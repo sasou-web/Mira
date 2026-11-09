@@ -220,18 +220,28 @@ jobs:
           made -map 0:v -map 1:a -map 2:s "${common[@]}" -metadata:s:a:0 language=jpn .artifacts/media/tracks/japanese.mkv
           app=dist/mac/Mira.app/Contents/MacOS/Mira
           status=0
-          "$app" --data "$PWD/.artifacts/profile" --self-check "$PWD/.artifacts/check" --mock --media "$PWD/.artifacts/media/test.mkv" --short "$PWD/.artifacts/media/short.mkv" --track-media "$PWD/.artifacts/media/tracks" > .artifacts/check.log 2>&1 &
+          # Quitting as macOS asks it to ends the process: checked apart below, in a Mira of its own.
+          MIRA_CHECK_QUIT=apart "$app" --data "$PWD/.artifacts/profile" --self-check "$PWD/.artifacts/check" --mock --media "$PWD/.artifacts/media/test.mkv" --short "$PWD/.artifacts/media/short.mkv" --track-media "$PWD/.artifacts/media/tracks" > .artifacts/check.log 2>&1 &
           pid=$!
           for i in $(seq 1 420); do kill -0 $pid 2>/dev/null || break; sleep 1; done
           if kill -0 $pid 2>/dev/null; then echo "self-check still running after 7 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
           cat .artifacts/check/results.txt 2>/dev/null || tail -40 .artifacts/check.log
-          # Its last check asks Mira to quit as macOS does to shut down ([NSApp terminate:]): accepted, AppKit ends the process
-          # with 0 whatever was found. The verdict is results.txt, written just before.
           if [ "$status" -eq 0 ] && { [ ! -f .artifacts/check/results.txt ] || grep -q "^FAIL" .artifacts/check/results.txt; }; then status=1; fi
+          # Then a film in « Image dans l’image » and Mira asked to quit as macOS does to shut down ([NSApp terminate:]):
+          # accepted, AppKit ends the process with 0 whatever was found. The verdict is results.txt, written just before.
+          if [ "$status" -eq 0 ]; then
+            MIRA_CHECK_QUIT=only "$app" --data "$PWD/.artifacts/profile-quit" --self-check "$PWD/.artifacts/check-quit" --mock --media "$PWD/.artifacts/media/test.mkv" --short "$PWD/.artifacts/media/short.mkv" > .artifacts/check-quit.log 2>&1 &
+            pid=$!
+            for i in $(seq 1 180); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+            if kill -0 $pid 2>/dev/null; then echo "quit check still running after 3 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
+            echo "— quitter à la demande de macOS :"
+            cat .artifacts/check-quit/results.txt 2>/dev/null || tail -40 .artifacts/check-quit.log
+            if [ "$status" -eq 0 ] && { [ ! -f .artifacts/check-quit/results.txt ] || grep -q "^FAIL" .artifacts/check-quit/results.txt; }; then status=1; fi
+          fi
           echo "— Avalonia et OpenGL :"; grep -a -i -E "opengl|gpu|metal|render|exception" .artifacts/check.log | head -30 || true
           # A crash (139 = segmentation fault) says nothing in results.txt: the end of the log at least.
           if [ "$status" -gt 128 ]; then
-            echo "— fin du journal :"; tail -60 .artifacts/check.log
+            echo "— fin du journal :"; tail -60 .artifacts/check-quit.log 2>/dev/null || tail -60 .artifacts/check.log
             # The report macOS writes for a crash: the native thread that crashed and its frames.
             # Written by ReportCrash a few seconds after the end.
             for i in $(seq 1 20); do
@@ -354,6 +364,8 @@ jobs:
           path: |
             .artifacts/check
             .artifacts/check.log
+            .artifacts/check-quit
+            .artifacts/check-quit.log
             .artifacts/smooth
             .artifacts/smooth.log
             .artifacts/smooth-again
