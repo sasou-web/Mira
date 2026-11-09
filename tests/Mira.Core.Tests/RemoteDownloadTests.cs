@@ -20,6 +20,16 @@ internal static class RemoteDownloadTests
     public static async Task RunAsync(TestRun run)
     {
         var Test = run.Test;
+        await Test("Téléchargements : proposés sur le PC de Jellyfin, ailleurs seulement avec l’extension de Mira et pour un administrateur", () =>
+        {
+            Assert(RemoteDownloads.Offered(thisPc: true, null, null, before: false) && RemoteDownloads.Offered(true, false, false, false), "Sur le PC de Jellyfin : son propre TorLink, toujours.");
+            Assert(RemoteDownloads.Offered(false, true, true, false), "Ailleurs, un administrateur avec l’extension : le relais.");
+            Assert(!RemoteDownloads.Offered(false, true, false, true), "Jellyfin sans l’extension (Linux, NAS, Docker) : jamais une page qui ne peut pas marcher.");
+            Assert(!RemoteDownloads.Offered(false, false, null, true) && !RemoteDownloads.Offered(false, false, true, true), "Un compte qui n’administre pas : rien.");
+            Assert(RemoteDownloads.Offered(false, true, null, true) && !RemoteDownloads.Offered(false, true, null, false) && !RemoteDownloads.Offered(false, null, null, false),
+                "Jellyfin n’a pas répondu : l’entrée reste comme elle était.");
+            return Task.CompletedTask;
+        });
         await Test("Télécharger sur le PC serveur : liens magnet, recherches et noms vérifiés comme Mira web (tests/fixtures/torlink-remote.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

@@ -208,14 +208,10 @@ public static class Together
         return (host is null ? uri : new UriBuilder(uri) { Host = host }.Uri).GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/');
     }
     /// <summary>
-    /// The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it. Its
-    /// host (who made the group) keeps it valid when the group is made again, or not open yet (<see cref="FindGroup"/>).
-    /// </summary>
-    public static string InviteLink(string server, string groupId, string? host = null) =>
-        server.TrimEnd('/') + "/Mira/#/ensemble/" + Uri.EscapeDataString(groupId) + (string.IsNullOrEmpty(host) ? "" : "?hote=" + Uri.EscapeDataString(host));
-    /// <summary>
-    /// The same invitation for Mira on a computer (« Ouvrir dans Mira » of Mira web): mira://ensemble/&lt;group&gt;?server=…,
-    /// opened by Mira for Windows or Mac, which offers to join the group (<see cref="Answer"/>).
+    /// The invitation to a group without a party link (a Jellyfin without Mira's extension, or one older than 0.8.9):
+    /// mira://ensemble/&lt;group&gt;?server=…, opened by Mira for Windows, Mac or iPhone, which offers to join the group
+    /// with the friend's own account on that Jellyfin (<see cref="Answer"/>). Its host (who made the group) keeps it
+    /// valid when the group is made again, or not open yet (<see cref="FindGroup"/>).
     /// </summary>
     public static string AppLink(string server, string groupId, string? host = null) =>
         "mira://ensemble/" + Uri.EscapeDataString(groupId) + "?server=" + Uri.EscapeDataString(server.TrimEnd('/')) + (string.IsNullOrEmpty(host) ? "" : "&hote=" + Uri.EscapeDataString(host));
@@ -318,7 +314,7 @@ public static class Together
         }
         var host = Uri.TryCreate(invite.Server, UriKind.Absolute, out var a) ? a.Host : invite.Server;
         if (!Uri.TryCreate(server, UriKind.Absolute, out var b) || !b.Host.Equals(host, StringComparison.OrdinalIgnoreCase))
-            return new(InviteKind.OtherServer, L($"Ce groupe est sur un autre serveur Jellyfin ({host}) que celui de Mira : ouvre-le dans ton navigateur.", $"This group is on another Jellyfin server ({host}) than Mira’s: open it in your browser."));
+            return new(InviteKind.OtherServer, L($"Ce groupe est sur un autre serveur Jellyfin ({host}) que celui de Mira : pour le rejoindre, connecte Mira à ce serveur, ou demande le lien de sa party.", $"This group is on another Jellyfin server ({host}) than Mira’s: to join it, sign Mira in to that server, or ask for their party link."));
         if (invite.Host is { Length: > 0 } who) return new(InviteKind.Waiting, WaitingText(who) + L(" : Mira peut t’y faire entrer dès que le groupe est ouvert.", ": Mira can bring you in as soon as the group opens."));
         return new(InviteKind.Gone, L("Ce groupe n’existe plus : demande un nouveau lien à la personne qui t’a invité.", "This group no longer exists: ask the person who invited you for a new link."));
     }
@@ -336,24 +332,28 @@ public static class Together
             await Task.Delay(every, ct);
         }
     }
-    /// <summary>What the invitation says under its link: who may follow it, and from where (Tailscale, the home network).</summary>
-    public static List<string> InviteSteps(string link)
+    /// <summary>
+    /// What the invitation says under its link (<see cref="AppLink"/>), for a group of <paramref name="server"/>: the
+    /// friend joins from Mira with an account of this Jellyfin, from where (Tailscale, the home network), and how to get
+    /// a link anyone can open (Mira's extension, which makes the party link).
+    /// </summary>
+    public static List<string> InviteSteps(string server)
     {
-        var host = Uri.TryCreate(link, UriKind.Absolute, out var uri) ? uri.Host : "";
+        var host = Uri.TryCreate(server, UriKind.Absolute, out var uri) ? uri.Host : "";
         var steps = new List<string>
         {
-            L("Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.",
-                "Your friend opens this link on their phone or computer and signs in with their own Jellyfin account: they’re then in the group. If they have Mira on their computer, “Open in Mira” brings them in there."),
-            L("Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).",
-                "No account yet? Create one for them in Mira for Windows: Settings → Jellyfin → Add a friend, with only the libraries you choose (or in Jellyfin: Dashboard → Users → +)."),
+            L("Ton ami ouvre Mira (Windows, Mac ou iPhone), connecté à ce Jellyfin avec son propre compte : le groupe est sur son accueil, « Rejoindre ». Ce lien l’y amène aussi, ouvert là où il a Mira.",
+                "Your friend opens Mira (Windows, Mac or iPhone), signed in to this Jellyfin with their own account: the group is on their Home, under “Join”. This link takes them there too, opened where they have Mira."),
+            L("Pas encore de compte ? Crée-le-lui dans Mira pour Windows ou Mac : Réglages → Amis & invités → Ajouter un ami (ou dans Jellyfin : tableau de bord → Utilisateurs → +).",
+                "No account yet? Create one for them in Mira for Windows or Mac: Settings → Friends & guests → Add a friend (or in Jellyfin: Dashboard → Users → +)."),
         };
         var reach = Reach(host);
         if (reach == "tailnet") steps.Add(L("Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.",
             "Outside your home, they need Tailscale: share Jellyfin’s computer with them (login.tailscale.com → Machines → … → Share), and they accept with their free Tailscale account."));
-        else if (reach == "home") steps.Add(L("Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton iPhone).",
-            "This link only works on your Wi-Fi. For a friend elsewhere, install Tailscale on Jellyfin’s computer (Mira for Windows: Guide → Mira on your iPhone)."));
-        steps.Add(L("Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment.",
-            "Once they’re in, the group counts one more person: start the title and it plays for both of you at the same moment."));
+        else if (reach == "home") steps.Add(L("Ce Jellyfin n’est joignable que chez toi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton iPhone).",
+            "This Jellyfin can only be reached at your home. For a friend elsewhere, install Tailscale on Jellyfin’s computer (Mira for Windows: Guide → Mira on your iPhone)."));
+        steps.Add(L("Un lien que n’importe qui ouvre, même sans compte : ajoute l’extension de Mira à Jellyfin (wiki.miracinema.app/fr/jellyfin/#preparer-le-serveur), Inviter donne alors le lien de ta party.",
+            "A link anyone can open, even without an account: add Mira’s extension to Jellyfin (wiki.miracinema.app/jellyfin/#get-the-server-ready), and Invite then gives your party link."));
         return steps;
     }
     /// <summary>Where a host is reached from: Tailscale, the home network only, or the Internet.</summary>

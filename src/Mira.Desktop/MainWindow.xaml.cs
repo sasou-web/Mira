@@ -77,7 +77,12 @@ public partial class MainWindow : Window
         InitializeSmoothness();
         InitializeCouch();
         // Windows' text size is read again each time Mira comes back to the front: changed in Settings meanwhile.
-        Activated += (_, _) => { UpdateHeroClock(); _textScale = TextScale(); if (UpdateZoom()) FitPages(); }; Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); Accessible.SetFocusRingShown(this, false); };
+        Activated += (_, _) =>
+        {
+            UpdateHeroClock(); _textScale = TextScale(); if (UpdateZoom()) FitPages();
+            // Jellyfin did not say whether Downloads can work for this account: asked again, at most once a minute.
+            if (_client is { } client && !ReferenceEquals(_downloadsKnownFor, client) && DateTimeOffset.UtcNow - _downloadsAskedAt > TimeSpan.FromMinutes(1)) _ = OfferDownloadsAsync();
+        }; Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); Accessible.SetFocusRingShown(this, false); };
         // Windows' animation effects turned on or off: the banner's rotation follows at once.
         SystemParameters.StaticPropertyChanged += (_, e) => { if (e.PropertyName == nameof(SystemParameters.ClientAreaAnimation)) UpdateHeroClock(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Tab) { _keyboardNavigation = true; Accessible.SetFocusRingShown(this, true); } };
@@ -315,6 +320,7 @@ public partial class MainWindow : Window
         _ = LoadOfflineAsync(client);
         if (!_args.Contains("--visual-check")) _ = MarkLibraryFoldersAsync(client, _connectionLifetime.Token);
         if (!_args.Any(x => x.EndsWith("-check", StringComparison.Ordinal))) _ = KeepFunnelOpenAsync(client, _connectionLifetime.Token);
+        _ = OfferDownloadsAsync();
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant(); SetPhoto(null); _ = ShowPhotoAsync();
         SettingsServerAddress.Text = connection.Server;
         LoginOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
@@ -331,7 +337,8 @@ public partial class MainWindow : Window
             if (!ReferenceEquals(_client, client)) return;
             LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
             _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
-            foreach (var library in libraries.Where(x => !LibrarySection.Groups(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
+            // Films, series and mixed libraries only: Musique, Photos or Vidéos perso would open an empty page.
+            foreach (var library in libraries.Where(x => LibrarySection.Browsed(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
             _filterBusy = false;
             var filters = await client.FiltersAsync();
             string? version = null;
@@ -382,7 +389,7 @@ public partial class MainWindow : Window
         _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
         _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); _choicesSoon.Stop(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
-        _client?.Dispose(); _client = null; SetPhoto(null); _images = null; _store = null; _listening = false;
+        _client?.Dispose(); _client = null; _downloadsKnownFor = null; ShowDownloadsEntry(_torlinkEnabled); SetPhoto(null); _images = null; _store = null; _listening = false;
         _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _homeLibraries = []; _pages.Clear();
         // Another account, the demo or none: this one's offline state is not theirs.
         _offlineShown = false; OfflineBadge.Visibility = Visibility.Collapsed;

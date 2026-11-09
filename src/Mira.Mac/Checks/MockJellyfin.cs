@@ -21,6 +21,8 @@ public sealed class MockJellyfin : HttpMessageHandler
     public const string FriendServer = "http://127.0.0.1:8097/", PartyCode = "samsam-party-link-0001";
     /// <summary>The friend's party link was taken back: its page and its gateway answer 404.</summary>
     public bool PartyGone { get; set; }
+    /// <summary>A Jellyfin without Mira's extension (most of them): every Mira/… path answers 404.</summary>
+    public bool NoExtension { get; set; }
     /// <summary>Every request to the friend's Jellyfin, « POST Mira/guest/open ».</summary>
     public List<string> FriendCalls { get; } = [];
     private readonly string _media, _short;
@@ -130,6 +132,8 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "Users/friend-1") return Json(new { Id = "friend-1", Name = "Marc", Policy = new { IsAdministrator = false, EnableAllFolders = true, EnableContentDownloading = true } });
         if (request.Method == HttpMethod.Post && path == "Users/friend-1/Policy") { FriendPolicy = await request.Content!.ReadAsStringAsync(cancellationToken); return new HttpResponseMessage(HttpStatusCode.NoContent); }
         if (path == "QuickConnect/Enabled") return Json(true);
+        if (path.StartsWith("Mira/") && NoExtension) return new HttpResponseMessage(HttpStatusCode.NotFound);
+        if (path == "Mira/manifest.webmanifest") return Json(new { name = "Mira" });
         if (path.StartsWith("Mira/torlink")) return await RelayAsync(request, path, cancellationToken);
         if (path.StartsWith("UserPlayedItems/") || path.StartsWith("UserFavoriteItems/")) return Json(new { });
         if (request.Method == HttpMethod.Post && path == "Sessions/Logout") return new HttpResponseMessage(HttpStatusCode.NoContent);

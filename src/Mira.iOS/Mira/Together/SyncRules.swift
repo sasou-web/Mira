@@ -273,13 +273,31 @@ enum SyncRules {
         return resumeAt > 0 ? String(localized: "Resume for the group at \(atText(resumeAt))") : String(localized: "Start for the group")
     }
 
-    /// The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it.
-    static func inviteLink(server: URL, groupId: String, host: String?) -> String {
+    /// The invitation to a group without a party link (a Jellyfin without Mira's extension, or older than 0.8.9):
+    /// mira://ensemble/<group>?server=…&hote=…, opened by Mira for iPhone, Windows or Mac, which joins the group with
+    /// the friend's own account on that Jellyfin. As Together.AppLink of Core (tests/fixtures/syncplay.json).
+    static func appLink(server: URL, groupId: String, host: String?) -> String {
         var base = server.absoluteString
         while base.hasSuffix("/") { base.removeLast() }
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_.!~*'()"))
-        let id = groupId.addingPercentEncoding(withAllowedCharacters: allowed) ?? groupId
-        let hostPart = host.flatMap { $0.addingPercentEncoding(withAllowedCharacters: allowed) }.map { "?hote=\($0)" } ?? ""
-        return "\(base)/Mira/#/ensemble/\(id)\(hostPart)"
+        func escaped(_ text: String) -> String { text.addingPercentEncoding(withAllowedCharacters: unreserved) ?? text }
+        return "mira://ensemble/\(escaped(groupId))?server=\(escaped(base))" + (host.map { "&hote=\(escaped($0))" } ?? "")
+    }
+    /// RFC 3986's unreserved characters, the only ones Core's Uri.EscapeDataString leaves as they are.
+    private static let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+
+    /// A group's link (`appLink`): its id (a GUID, with or without dashes), its Jellyfin at an http(s) address, and who
+    /// made the group when it says; nil for anything else. As Together.ParseAppLink of Core.
+    static func groupLink(_ url: URL) -> (groupId: String, server: URL, host: String?)? {
+        guard url.scheme == "mira", url.host()?.lowercased() == "ensemble" else { return nil }
+        let id = url.path().trimmingCharacters(in: CharacterSet(charactersIn: "/")).removingPercentEncoding ?? ""
+        let hex = id.replacingOccurrences(of: "-", with: "")
+        guard hex.count == 32, hex.allSatisfy(\.isHexDigit), id.count == 32 || (id.count == 36 && UUID(uuidString: id) != nil) else { return nil }
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        guard let value = items.first(where: { $0.name == "server" })?.value,
+              let server = URL(string: value), ["http", "https"].contains(server.scheme ?? ""), server.host() != nil,
+              server.user() == nil, server.query() == nil, server.fragment() == nil else { return nil }
+        let host = items.first(where: { $0.name == "hote" })?.value
+        if let host, host.isEmpty || host.count > 128 || host.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) { return nil }
+        return (id, server, host)
     }
 }

@@ -12,7 +12,7 @@ public static class HomeLayout
     public sealed record Row(string Key, string Title, bool Shown, string? LibraryId = null);
 
     /// <summary>The libraries that get a row of their own: films, series and mixed ones, not Jellyfin's collections.</summary>
-    public static bool Offered(LibrarySection library) => library.CollectionType is null or "movies" or "tvshows" or "mixed";
+    public static bool Offered(LibrarySection library) => LibrarySection.Browsed(library.CollectionType);
     public static List<Row> Rows(string? saved, IEnumerable<LibrarySection> libraries)
     {
         var all = new List<Row> { new(Continue, L("Continuer à regarder", "Continue watching"), true), new(Latest, L("Ajouts récents", "Recently added"), true), new(Favorites, L("Tes favoris", "Your favorites"), true),

@@ -1313,6 +1313,19 @@ public sealed class JellyfinClient : IDisposable
         }
         catch (HttpRequestException) { return false; }
     }
+    /// <summary>
+    /// Whether Mira's extension is on this Jellyfin: true when it answers, false when Jellyfin says it has no such page
+    /// (404: most Jellyfin servers, on Linux, a NAS or in Docker), null when Jellyfin did not answer as it should.
+    /// </summary>
+    public async Task<bool?> HasExtensionAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await _http.GetAsync("Mira/manifest.webmanifest", ct);
+            return response.IsSuccessStatusCode ? true : response.StatusCode == HttpStatusCode.NotFound ? false : null;
+        }
+        catch (HttpRequestException) { return null; }
+    }
     /// <summary>Whether this server serves Mira web at /Mira (its plugin installed and loaded).</summary>
     public async Task<bool> WebAppAvailableAsync(CancellationToken ct = default)
     {

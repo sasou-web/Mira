@@ -80,13 +80,23 @@ struct TogetherTests {
         }
     }
 
-    @Test("Le lien d'invitation")
+    @Test("Le lien d'invitation sans lien de party : mira://ensemble, relu comme Windows et Mac le relisent")
     func invites() throws {
         let fixture = try SyncFixture.load()
-        for case let entry as [Any] in try #require(fixture["invites"] as? [Any]) {
+        let invites = try #require(fixture["invites"] as? [Any])
+        let appLinks = try #require(fixture["appLinks"] as? [Any])
+        for case let entry as [Any] in invites + appLinks {
             let address = try #require(entry[0] as? String)
             let server = try #require(URL(string: address))
-            #expect(SyncRules.inviteLink(server: server, groupId: entry[1] as! String, host: entry[2] as? String) == entry[3] as? String, "\(entry)")
+            let link = SyncRules.appLink(server: server, groupId: entry[1] as! String, host: entry[2] as? String)
+            #expect(link == entry[3] as? String, "\(entry)")
+            let read = SyncRules.groupLink(try #require(URL(string: link)))
+            var trimmed = address
+            while trimmed.hasSuffix("/") { trimmed.removeLast() }
+            #expect(read?.groupId == entry[1] as? String && read?.host == entry[2] as? String && read?.server.absoluteString == trimmed, "\(entry)")
+        }
+        for case let bad as String in try #require(fixture["badAppLinks"] as? [Any]) {
+            if let url = URL(string: bad) { #expect(SyncRules.groupLink(url) == nil, "\(bad)") }
         }
     }
 

@@ -18,6 +18,16 @@ internal static class LibraryTests
         var Test = run.Test;
         var testRoot = run.Root;
         LibraryStore Store(string name) => new(testRoot, name);
+        await Test("Bibliothèques : films, séries et mixtes listées ; musique, photos, vidéos perso, livres, TV en direct jamais (pages vides)", () =>
+        {
+            // CollectionType as Jellyfin 12.1 gives it in UserViews: none for a mixed library.
+            string?[] shown = [null, "movies", "tvshows", "mixed"], hidden = ["music", "homevideos", "photos", "books", "livetv", "musicvideos", "boxsets", "playlists"];
+            Assert(shown.All(LibrarySection.Browsed) && !hidden.Any(LibrarySection.Browsed), "Listées : " + string.Join(", ", shown.Concat(hidden).Where(LibrarySection.Browsed)));
+            Assert(LibrarySection.Holds("movies", series: false) && !LibrarySection.Holds("movies", series: true) && LibrarySection.Holds("tvshows", true) && !LibrarySection.Holds("tvshows", false)
+                && LibrarySection.Holds(null, false) && LibrarySection.Holds("mixed", true) && !LibrarySection.Holds("music", false), "Page des films, page des séries : leur type, ou mixte.");
+            Assert(HomeLayout.Rows(null, [new("m", "Musique", "music"), new("f", "Films", "movies")]).Count(x => x.LibraryId is not null) == 1, "Pas de rangée « Nouveau dans Musique ».");
+            return Task.CompletedTask;
+        });
         await Test("Genres : français et anglais de Jellyfin réunis, les plus fréquents d’abord, filtre par chacun de leurs noms", () =>
         {
             var groups = GenreGroups.FromTitles([["Comédie", "Drame"], ["Comedy"], ["Drama", "Science-Fiction"], ["Sci-Fi"], ["Comedy", "Animation"], ["Action & Adventure"], ["Action"]]);

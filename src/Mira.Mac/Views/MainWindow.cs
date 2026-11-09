@@ -441,18 +441,27 @@ public sealed partial class MainWindow : Window
 
     /// <summary>
     /// « Téléchargements »: searches and downloads sent to the PC of Jellyfin, where TorLink runs (Mira for Windows), by
-    /// its administrators only, as the relay of the extension.
+    /// its administrators only, through the relay of Mira's extension. A Jellyfin without the extension (most of them, on
+    /// Linux, a NAS or in Docker) never gets the entry: the page could not work there (<see cref="Mira.Core.TorLink.RemoteDownloads.Offered"/>).
     /// </summary>
     private async Task OfferDownloadsAsync(Session session)
     {
         _rightsAsked = DateTimeOffset.UtcNow;
-        bool? admin;
+        bool? admin = null, extension = null;
+        try
+        {
+            admin = await session.Client.IsAdministratorAsync(session.Lifetime);
+            if (admin == true) extension = await session.Client.HasExtensionAsync(session.Lifetime);
+        }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
         // Unreachable or unread: the entry stays as it was, asked again the next time Mira comes in front.
-        try { admin = await session.Client.IsAdministratorAsync(session.Lifetime); }
-        catch (Exception ex) when (Errors.Expected(ex)) { _rightsAsked = DateTimeOffset.MinValue; return; }
-        if (admin is null) _rightsAsked = DateTimeOffset.MinValue;
-        else if (ReferenceEquals(session, Session)) _railButtons["downloads"].IsVisible = admin == true;
+        if (admin is null || admin == true && extension is null) _rightsAsked = DateTimeOffset.MinValue;
+        if (!ReferenceEquals(session, Session)) return;
+        var button = _railButtons["downloads"];
+        button.IsVisible = Mira.Core.TorLink.RemoteDownloads.Offered(thisPc: false, admin, extension, button.IsVisible);
     }
+    /// <summary>The account's rights and the extension read again now (the self-check, after changing what its Jellyfin answers).</summary>
+    public Task AskRightsAsync() => Session is { } session ? OfferDownloadsAsync(session) : Task.CompletedTask;
     private DateTimeOffset _rightsAsked;
     /// <summary>
     /// « Chercher une meilleure version » of a film or an episode (an administrator): Téléchargements, its search made, only
@@ -549,8 +558,6 @@ public sealed partial class MainWindow : Window
         Activate();
         if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
             Notice(answer.Text, L("Rejoindre", "Join"), () => _ = Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct)), sticky: true);
-        else if (answer.Kind == Together.InviteKind.OtherServer)
-            Notice(answer.Text, L("Ouvrir dans le navigateur", "Open in the browser"), () => Updates.Open(new Uri(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)), plainHttp: true), sticky: true);
         else if (answer.Kind == Together.InviteKind.Waiting)
             Notice(answer.Text, L("Attendre", "Wait"), () => WaitForInvite(session, invite), sticky: true);
         else Notice(answer.Text);

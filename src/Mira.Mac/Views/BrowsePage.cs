@@ -277,8 +277,13 @@ public sealed class BrowsePage : Page
             var version = session.Client.ServerVersionAsync();
             try
             {
-                var kinds = _kind switch { BrowseKind.Movies => ["movies"], BrowseKind.Series => ["tvshows"], _ => new[] { "movies", "tvshows" } };
-                _libraries = (await libraries).Where(x => kinds.Contains(x.CollectionType)).ToList();
+                // A mixed library holds both: offered on each page; music, photos or home videos on none.
+                _libraries = (await libraries).Where(x => _kind switch
+                {
+                    BrowseKind.Movies => LibrarySection.Holds(x.CollectionType, series: false),
+                    BrowseKind.Series => LibrarySection.Holds(x.CollectionType, series: true),
+                    _ => LibrarySection.Browsed(x.CollectionType)
+                }).ToList();
                 _filling = true;
                 _library.Items.Add(L("Toutes les bibliothèques", "All libraries")); foreach (var library in _libraries) _library.Items.Add(library.Name);
                 _library.SelectedIndex = 0; _libraryField.IsVisible = _person is null && _saga is null && _studio is null && _libraries.Count > 1;

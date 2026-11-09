@@ -474,6 +474,11 @@ public static class SelfCheck
             if (mock is not null)
             {
                 Check(await Until(() => window.Offers("downloads"), 5), "téléchargements : proposés à un administrateur");
+                // Most Jellyfin servers have no Mira extension: the page could not work there, so it is not offered.
+                mock.NoExtension = true; await window.AskRightsAsync();
+                var withoutExtension = window.Offers("downloads");
+                mock.NoExtension = false; await window.AskRightsAsync();
+                Check(!withoutExtension && window.Offers("downloads"), "téléchargements : pas proposés sans l’extension de Mira sur Jellyfin, de nouveau avec elle");
                 window.Go("downloads");
                 Check(await Until(() => window.Current is DownloadsPage { Ready: true, QueueCount: > 1 }, 10), "téléchargements : le PC serveur et sa file", $"{(window.Current as DownloadsPage)?.QueueCount} lignes");
                 if (window.Current is DownloadsPage downloads)

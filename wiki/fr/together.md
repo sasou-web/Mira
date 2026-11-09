@@ -12,7 +12,7 @@ Regarder ensemble garde plusieurs appareils sur le même film, à la même secon
 Pour ceux qui ont déjà un compte sur ton Jellyfin (ta maison, un ami que tu as ajouté) :
 
 1. Sur la fiche d’un titre, **Regarder ensemble → Créer un groupe et inviter…**.
-2. Les autres voient le groupe sur leur accueil, sous le bandeau, et **Rejoindre**. Ou envoie-leur le lien que donne Mira.
+2. Les autres voient le groupe sur leur accueil, sous le bandeau, et **Rejoindre**. Ou envoie-leur le lien que donne Mira : ouvert là où ils ont Mira, il les fait entrer dans le groupe. Sans l’extension de Mira sur ton Jellyfin, c’est un lien `mira://`, qui ne s’ouvre que sur un appareil qui a Mira ; avec elle, c’est le lien de ta party.
 3. **Lecture** devient **Lancer pour le groupe** : il démarre pour tout le monde, depuis ta progression. Choisis un autre titre pendant que tu es dans le groupe et Mira demande avant de remplacer celui du groupe.
 
 Dans un groupe, le lecteur dit ce que fait le groupe (« On attend quelqu’un du groupe… », « En pause pour le groupe »), et une icône montre combien vous êtes. **Quitter le groupe** quand c’est fini.
@@ -42,6 +42,6 @@ Sans Funnel, le lien marche quand même à la maison, et pour les amis sur ton r
 
 ## Bon à savoir
 
-- Prends la dernière Mira sur chaque appareil, et l’extension de Mira doit être sur le Jellyfin de l’hôte (voir [Préparer Jellyfin](jellyfin.md#preparer-le-serveur)).
+- Prends la dernière Mira sur chaque appareil. Un groupe entre vos propres comptes marche sur n’importe quel Jellyfin ; le lien de party et ses invités demandent l’extension de Mira sur le Jellyfin de l’hôte (voir [Préparer Jellyfin](jellyfin.md#preparer-le-serveur)).
 - Chaque appareil lit depuis Jellyfin de son côté. Un ami loin doit avoir une connexion assez rapide pour le fichier, ou baisser la **Qualité** dans son lecteur (voir [Le lecteur](player.md#loin-de-la-maison-la-qualite)).
 - Quelqu’un qui charge plus lentement retient le groupe un instant : Mira dit « Chargement pour le groupe… » plutôt que de le laisser derrière.
