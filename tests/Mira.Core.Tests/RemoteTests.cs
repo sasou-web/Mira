@@ -74,6 +74,26 @@ internal static class RemoteTests
             return Task.CompletedTask;
         });
 
+        await Test("Télécommande : capacités refusées (Jellyfin qui redémarre) redites jusqu’à être prises, plus après", async () =>
+        {
+            var posts = 0;
+            using var client = new JellyfinClient(new("http://localhost:8096/", "user-1", "Admin", "secret", "device"), new Handler(request =>
+            {
+                Assert(request.RequestUri!.AbsolutePath == "/Sessions/Capabilities/Full", request.RequestUri.ToString());
+                posts++;
+                if (posts == 2) throw new HttpRequestException("connection refused");
+                return Task.FromResult(new HttpResponseMessage(posts < 4 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.NoContent));
+            }));
+            Assert(await client.TellCapabilitiesWhileOpenAsync(CancellationToken.None, [TimeSpan.Zero]), "pas prises");
+            Assert(posts == 4, $"{posts} envois");
+            // The WebSocket closed: no more tries, and nothing thrown.
+            posts = -100;
+            using var closed = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+            Assert(!await client.TellCapabilitiesWhileOpenAsync(closed.Token, [TimeSpan.FromMilliseconds(20)]), "prises par un Jellyfin qui refuse");
+            Assert(posts > -100 && posts < -70, $"{posts + 100} envois en 200 ms");
+            Assert(JellyfinClient.CapabilityRetries[0] >= TimeSpan.FromSeconds(1) && JellyfinClient.CapabilityRetries[^1] <= TimeSpan.FromMinutes(2), "attentes");
+        });
+
         await Test("Télécommande : capacités envoyées à l’ouverture du WebSocket, commandes reçues par lui", async () =>
         {
             using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0); listener.Start();

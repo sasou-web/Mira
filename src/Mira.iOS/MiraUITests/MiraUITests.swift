@@ -737,8 +737,14 @@ final class MiraUITests: XCTestCase {
         let play = app.buttons["title.play"]
         XCTAssertTrue(play.waitForExistence(timeout: 15), "The title page did not open")
         play.tap()
-        XCTAssertTrue(waitForReport("/Start", item: Self.tearsOfSteel, timeout: 45, after: started), "The player never played through Built-in Tailscale")
-        Thread.sleep(forTimeInterval: 1.5)
+        // Paused as soon as it plays: the stand-in's clip lasts 10 s for a title of 12 min, and through the relay the
+        // Start report could come late enough that the clip ended first (a cut: « Can't play this title », no Reduce
+        // button; main, 2026-11-08). Jellyfin is told Start once the item is ready, paused or not.
+        let pause = app.buttons["player.play"]
+        let playing = NSPredicate(format: "label == %@", "Pause")
+        XCTAssertTrue(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: playing, object: pause)], timeout: 45) == .completed, "The player never played through Built-in Tailscale")
+        pause.tap()
+        XCTAssertTrue(waitForReport("/Start", item: Self.tearsOfSteel, timeout: 45, after: started), "Jellyfin never heard through Built-in Tailscale that playback started")
         capture("44-tailscale-player")
         closePlayer(app)
         XCTAssertTrue(waitForReport("/Stopped", item: Self.tearsOfSteel, timeout: 20, after: stopped), "Jellyfin never heard through Built-in Tailscale that playback stopped")

@@ -1709,8 +1709,9 @@ public sealed class JellyfinClient : IDisposable
                 try
                 {
                     listening?.Invoke(true);
-                    // Jellyfin forgets the capabilities when it restarts, which also closes the socket: told at each opening.
-                    if (remote is not null) _ = TellCapabilitiesAsync(ct);
+                    // Jellyfin forgets the capabilities when it restarts, which also closes the socket: told at each opening,
+                    // and told again until Jellyfin takes them (a Jellyfin still starting answers 503 to all but a few routes).
+                    if (remote is not null) _ = TellCapabilitiesWhileOpenAsync(heartbeatStop.Token);
                     while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
                     {
                         using var message = new MemoryStream();
@@ -1747,6 +1748,26 @@ public sealed class JellyfinClient : IDisposable
             await Task.Delay(TimeSpan.FromSeconds(delay), ct);
             delay = Math.Min(30, delay * 2);
         }
+    }
+    /// <summary>The waits between two tries of <see cref="TellCapabilitiesAsync"/> while the WebSocket stays open: once told
+    /// and refused (Jellyfin restarting), the session was no longer offered to play on, and nothing said so.</summary>
+    public static readonly TimeSpan[] CapabilityRetries = [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)];
+    /// <summary>Tells the capabilities, then again after each wait of <see cref="CapabilityRetries"/> (the last one repeating)
+    /// until Jellyfin takes them or <paramref name="open"/> ends with the WebSocket. Never throws.</summary>
+    public async Task<bool> TellCapabilitiesWhileOpenAsync(CancellationToken open, TimeSpan[]? waits = null)
+    {
+        waits ??= CapabilityRetries;
+        try
+        {
+            for (var attempt = 0; !open.IsCancellationRequested; attempt++)
+            {
+                if (await TellCapabilitiesAsync(open)) return true;
+                await Task.Delay(waits[Math.Min(attempt, waits.Length - 1)], open);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException) { }
+        return false;
     }
     /// <summary>What this session takes from Jellyfin's remote control (<see cref="RemoteControl.Capabilities"/>); a refusal changes nothing else.</summary>
     public async Task<bool> TellCapabilitiesAsync(CancellationToken ct = default)

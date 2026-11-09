@@ -163,16 +163,8 @@ jobs:
           [ $status -eq 0 ] || tail -60 .artifacts/tests.log
           xcrun xcresulttool get test-results summary --path .artifacts/tests.xcresult --compact 2>/dev/null | head -c 4000 || true
           exit $status
-      # Mira's opening as testOpening times it (MIRA-OPENING lines), held to tools/perf/budgets.json (source "iphone"):
-      # far past what this simulator measures, as Windows' and the Mac's smoothness. Not in a release, which pull
-      # requests measured.
-      - name: Opening budgets
-        if: always() && inputs.release == '' && hashFiles('.artifacts/tests.log') != ''
-        run: |
-          node tools/perf/ios-opening.mjs .artifacts/tests.log .artifacts/opening.json
-          if grep -q '"Name"' .artifacts/opening.json; then node tools/perf/budget.mjs iphone .artifacts/opening.json --title 'Opening budgets (iPhone simulator)'; else echo "testOpening did not run: nothing to hold."; fi
-      # The log Built-in Tailscale kept in the app's folder (testTailscale runs last: no reset after it), and the stand-in
-      # network's: on a failure, the end of each here, all of them in the artifact.
+      # The log Built-in Tailscale kept in the app's folder (testTailscale runs last: no reset after it; read before
+      # testOpening may run again), and the stand-in network's: on a failure, the end of each here, all in the artifact.
       - name: Tailscale logs
         if: always()
         env:
@@ -185,6 +177,32 @@ jobs:
             echo "::group::mira-tailscale.log (the app's node)"; tail -150 .artifacts/mira-tailscale.log; echo "::endgroup::"
             echo "::group::mira-testnet.log (the stand-in network)"; tail -150 .artifacts/mira-testnet.log; echo "::endgroup::"
           fi
+      # Mira's opening as testOpening times it (MIRA-OPENING lines), held to tools/perf/budgets.json (source "iphone"):
+      # far past what this simulator measures, as Windows' and the Mac's smoothness. Past a budget, testOpening runs
+      # once more and the step fails only when both runs are past it (one run at 9.6 s on main, 2026-11-08, against
+      # 1.4-2.1 s otherwise: the simulator, not Mira). Not in a release, which pull requests measured.
+      - name: Opening budgets
+        if: always() && inputs.release == '' && hashFiles('.artifacts/tests.log') != ''
+        env:
+          UDID: ${{ steps.simulator.outputs.udid }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node tools/perf/ios-opening.mjs .artifacts/tests.log .artifacts/opening.json
+          grep -q '"Name"' .artifacts/opening.json || { echo "testOpening did not run: nothing to hold."; exit 0; }
+          node tools/perf/budget.mjs iphone .artifacts/opening.json --title 'Opening budgets (iPhone simulator)' && exit 0
+          echo "Past a budget: testOpening measured once more."
+          # The stand-in Jellyfin of the tests, started again if it is gone.
+          if ! curl -fs http://127.0.0.1:18097/System/Info/Public > /dev/null; then
+            node tools/ios/mock-jellyfin.mjs >> .artifacts/mock-jellyfin.log 2>&1 &
+            for i in $(seq 1 20); do curl -fs http://127.0.0.1:18097/System/Info/Public > /dev/null && break; sleep 0.5; done
+          fi
+          curl -fs -X POST http://127.0.0.1:18097/Mock/Up > /dev/null || true
+          xcodebuild test-without-building -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" \
+            -resultBundlePath .artifacts/opening-again.xcresult -only-testing:MiraUITests/MiraUITests/testOpening \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$VERSION" > .artifacts/opening-again.log 2>&1 || true
+          grep -E "MIRA-OPENING|Test Case .* (passed|failed)" .artifacts/opening-again.log || true
+          node tools/perf/ios-opening.mjs .artifacts/opening-again.log .artifacts/opening-again.json
+          node tools/perf/budget.mjs iphone .artifacts/opening.json .artifacts/opening-again.json --title 'Opening budgets (iPhone simulator), measured again'
       # A UI test filmed on the simulator (film: testOpeningFilm), for what captures can't show: the screen recorded while
       # it runs, cut between the moments it marked on the stand-in Jellyfin (/Mock/Marks), 540 points wide, by the ffmpeg
       # of the player's captures (imageio-ffmpeg from PyPI, pinned by its hash). After Tailscale logs: it starts from
