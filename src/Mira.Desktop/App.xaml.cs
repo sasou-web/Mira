@@ -185,6 +185,8 @@ public partial class App : Application
     {
         var forced = Array.IndexOf(args, "--language") is var at and >= 0 && at + 1 < args.Length && isolated ? args[at + 1] : null;
         if (forced is null && args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--server-check" or "--tailnet-check" or "--smooth-check" or "--qa-window" or "--perf-probe")) forced = Lang.French;
+        // Windows' own language, for the tracks' order of a device that never chose: read before Mira's takes its place.
+        TrackLanguages.UseDevice(CultureInfo.CurrentUICulture);
         Lang.Use(Lang.Resolve(forced ?? ChosenLanguage(AppFiles.ProfileDirectory), installed ? InstalledLanguage() : null, CultureInfo.CurrentUICulture));
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = Lang.Culture;
         // Dates, numbers and hyphenation that WPF formats itself (bindings, StringFormat).

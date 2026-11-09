@@ -64,9 +64,10 @@ enum AccountChoices {
     static let limits = ["tracks": 100, "hidden": 200]
     private static let sections = ["settings", "tracks", "hidden"]
 
-    /// The orders of the tracks before any choice, in Mira's language (PlayerSettings.DefaultAudioLanguage in Core).
-    static func defaultAudioLanguages(_ language: String) -> String { language == "fr" ? "jpn,ja,fre,fra,fr,eng,en" : "jpn,ja,eng,en,fre,fra,fr" }
-    static func defaultSubtitleLanguages(_ language: String) -> String { language == "fr" ? "fre,fra,fr,eng,en" : "eng,en,fre,fra,fr" }
+    /// The orders of the tracks before any choice, from the first language of this iPhone (TrackLanguages.start; « en » or
+    /// « fr » as Mira's): PlayerSettings.DefaultAudioLanguage in Core.
+    static func defaultAudioLanguages(_ language: String) -> String { TrackLanguages.audio(language, japaneseFirst: true) }
+    static func defaultSubtitleLanguages(_ language: String) -> String { TrackLanguages.subtitles(language) }
 
     /// Mira's language on this iPhone: French when Mira is shown in French, English otherwise.
     static var language: String { Bundle.main.preferredLocalizations.first?.hasPrefix("fr") == true ? "fr" : "en" }
@@ -78,7 +79,7 @@ enum AccountChoices {
     }
 
     /// A value this version of Mira can use for a setting it keeps on Jellyfin.
-    static func fits(_ key: String, _ value: JSONValue?, language: String = AccountChoices.language) -> Bool {
+    static func fits(_ key: String, _ value: JSONValue?, language: String = TrackLanguages.start) -> Bool {
         guard let value, let base = defaults(language)[key] else { return false }
         if key == "quality" {
             if case let .string(text) = value { return text == "auto" || text == "max" }
@@ -137,7 +138,7 @@ enum AccountChoices {
     /// The document of this iPhone with what changed here since it was last kept: a change made here takes `now`; the
     /// first time (a document never kept), what this iPhone had before is the oldest choice (0), so what Jellyfin
     /// already keeps wins over it, and a setting left as Mira's default is not written at all.
-    static func capture(_ doc: JSONValue?, _ local: Local, now: Double, language: String = AccountChoices.language) -> Document {
+    static func capture(_ doc: JSONValue?, _ local: Local, now: Double, language: String = TrackLanguages.start) -> Document {
         var doc = read(doc)
         let first = !truthy(doc["seen"])
         var settings = doc["settings"]?.object ?? [:], tracks = doc["tracks"]?.object ?? [:], hidden = doc["hidden"]?.object ?? [:]
@@ -214,7 +215,7 @@ enum AccountChoices {
         }
     }
 
-    static func apply(_ value: JSONValue?, language: String = AccountChoices.language) -> Applied {
+    static func apply(_ value: JSONValue?, language: String = TrackLanguages.start) -> Applied {
         let doc = read(value)
         var applied = Applied()
         for (key, entry) in doc["settings"]?.object ?? [:] {

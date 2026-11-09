@@ -53,12 +53,12 @@ public partial class MainWindow
             _settingsBusy = true;
             if (update.AudioLanguage is { } audio)
             {
-                if (page && AudioLanguageBox.Text.Trim() == _settings.AudioLanguage) { AudioLanguageBox.Text = audio; SelectChoice(AudioLanguageChoice, audio); }
+                if (page && AudioLanguageBox.Text.Trim() == _settings.AudioLanguage) AudioLanguageBox.Text = audio;
                 _settings.AudioLanguage = audio;
             }
             if (update.SubtitleLanguage is { } subtitles)
             {
-                if (page && SubtitleLanguageBox.Text.Trim() == _settings.SubtitleLanguage) { SubtitleLanguageBox.Text = subtitles; SelectChoice(SubtitleLanguageChoice, subtitles); }
+                if (page && SubtitleLanguageBox.Text.Trim() == _settings.SubtitleLanguage) SubtitleLanguageBox.Text = subtitles;
                 _settings.SubtitleLanguage = subtitles;
             }
             if (update.AutoSkip is { } skip)
@@ -66,6 +66,7 @@ public partial class MainWindow
                 if (page && (AutoSkipCheck.IsChecked == true) == _settings.AutoSkip) AutoSkipCheck.IsChecked = skip;
                 _settings.AutoSkip = skip;
             }
+            if (page) ShowLanguageChoices();
             _settingsBusy = false;
             if (page) LanguageChoice_Changed(this, null!);
             TrySaveSettings();

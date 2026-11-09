@@ -110,7 +110,7 @@ public partial class MainWindow
         ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion; CouchModeCheck.IsChecked = _settings.CouchMode;
         HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting(); SelectChoice(MiraLanguageChoice, ShownLanguage);
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
-        SelectChoice(AudioLanguageChoice, _settings.AudioLanguage); SelectChoice(SubtitleLanguageChoice, _settings.SubtitleLanguage); SelectChoice(DensityChoice, _settings.PosterDensity);
+        ShowLanguageChoices(); SelectChoice(DensityChoice, _settings.PosterDensity);
         SubtitleSizeSlider.Value = _settings.SubtitleSize; ShowSubtitleStyle(); MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;
         ShowEngineState();
         SubtitlePreviewImage.Source = HeroImage.Source;
@@ -216,12 +216,39 @@ public partial class MainWindow
         if (tab == "report") _ = ShowReportAsync();
         if (tab == "privacy") ShowPrivacy();
     }
-    private void LanguageChoice_Changed(object sender, SelectionChangedEventArgs e)
+    private const string CustomOrder = "custom";
+    private bool _showingLanguages;
+    /// <summary>
+    /// The languages' lists (<see cref="TrackLanguages"/>), filled once, then the orders of the boxes shown in them: an
+    /// order no choice writes stays « Ordre personnalisé », its codes in the boxes.
+    /// </summary>
+    private void ShowLanguageChoices()
     {
-        if (_initializing || _settingsBusy || CustomLanguages is null) return;
-        if (Choice(AudioLanguageChoice) is { Length: > 0 } audio && audio != "custom") AudioLanguageBox.Text = audio;
-        if (Choice(SubtitleLanguageChoice) is { Length: > 0 } subs && subs != "custom") SubtitleLanguageBox.Text = subs;
-        CustomLanguages.Visibility = Choice(AudioLanguageChoice) == "custom" || Choice(SubtitleLanguageChoice) == "custom" ? Visibility.Visible : Visibility.Collapsed;
+        if (AudioLanguageChoice.Items.Count == 0)
+            foreach (var box in new[] { AudioLanguageChoice, SubtitleLanguageChoice })
+            {
+                foreach (var (two, name) in TrackLanguages.Choices()) box.Items.Add(new ComboBoxItem { Content = name, Tag = two });
+                box.Items.Add(new ComboBoxItem { Content = L("Ordre personnalisé", "Custom order"), Tag = CustomOrder });
+            }
+        string audio = AudioLanguageBox.Text, subtitles = SubtitleLanguageBox.Text;
+        _showingLanguages = true;
+        try
+        {
+            JapaneseFirstCheck.IsChecked = TrackLanguages.JapaneseFirst(audio);
+            SelectChoice(AudioLanguageChoice, TrackLanguages.IsAudioChoice(audio) ? TrackLanguages.FirstOf(audio)! : CustomOrder);
+            SelectChoice(SubtitleLanguageChoice, TrackLanguages.IsSubtitleChoice(subtitles) ? TrackLanguages.FirstOf(subtitles)! : CustomOrder);
+        }
+        finally { _showingLanguages = false; }
+    }
+    /// <summary>A language chosen, or « Le japonais d’abord »: its order written in the box; « Ordre personnalisé » shows the boxes.</summary>
+    private void LanguageChoice_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_initializing || _settingsBusy || _showingLanguages || CustomLanguages is null) return;
+        var audio = Choice(AudioLanguageChoice); var subtitles = Choice(SubtitleLanguageChoice);
+        if (audio is { Length: > 0 } && audio != CustomOrder) AudioLanguageBox.Text = TrackLanguages.Audio(audio, JapaneseFirstCheck.IsChecked == true);
+        if (subtitles is { Length: > 0 } && subtitles != CustomOrder) SubtitleLanguageBox.Text = TrackLanguages.Subtitles(subtitles);
+        JapaneseFirstCheck.IsEnabled = audio != CustomOrder;
+        CustomLanguages.Visibility = audio == CustomOrder || subtitles == CustomOrder ? Visibility.Visible : Visibility.Collapsed;
     }
     private void SubtitleSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     { if (SubtitleSizeLabel is null) return; SubtitleSizeLabel.Text = $"{e.NewValue:0}"; PreviewSubtitles(); }

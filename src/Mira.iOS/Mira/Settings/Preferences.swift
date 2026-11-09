@@ -28,7 +28,7 @@ final class Preferences {
 
     /// « auto », « max », or a bitrate in bits per second.
     var quality: String { didSet { defaults.set(quality, forKey: Keys.quality); changed() } }
-    /// The audio languages in order (« jpn,ja,fre,fra,fr… »); nil: Mira's order for its language.
+    /// The audio languages in order (« jpn,ja,fre,fra,fr… »); nil: the order of this iPhone's language (TrackLanguages).
     var audioLanguages: String? { didSet { defaults.set(audioLanguages, forKey: Keys.audio); changed() } }
     var subtitleLanguages: String? { didSet { defaults.set(subtitleLanguages, forKey: Keys.subtitles); changed() } }
     /// Openings and recaps skipped without a touch.
@@ -46,9 +46,6 @@ final class Preferences {
 
     static let resumeBackChoices = [0, 5, 10, 15]
     static let qualities = ["auto", "max", "20000000", "10000000", "6000000", "3000000", "1500000"]
-    /// Mira web's orders (AUDIO_LANGUAGES, SUBTITLE_LANGUAGES of tracks.js).
-    static let audioOrders = ["jpn,ja,fre,fra,fr,eng,en", "jpn,ja,eng,en,fre,fra,fr", "fre,fra,fr,eng,en", "eng,en,fre,fra,fr"]
-    static let subtitleOrders = ["fre,fra,fr,eng,en", "eng,en,fre,fra,fr", "eng,en", "jpn,ja"]
 
     init() {
         resume = defaults.object(forKey: Keys.resume) as? Bool ?? true
@@ -65,8 +62,8 @@ final class Preferences {
         Spoilers.on = hideSpoilers
     }
 
-    var audioOrder: String { audioLanguages ?? AccountChoices.defaultAudioLanguages(AccountChoices.language) }
-    var subtitleOrder: String { subtitleLanguages ?? AccountChoices.defaultSubtitleLanguages(AccountChoices.language) }
+    var audioOrder: String { audioLanguages ?? AccountChoices.defaultAudioLanguages(TrackLanguages.start) }
+    var subtitleOrder: String { subtitleLanguages ?? AccountChoices.defaultSubtitleLanguages(TrackLanguages.start) }
 
     private func changed() { if !applying { onChange?() } }
 

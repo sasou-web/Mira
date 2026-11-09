@@ -22,7 +22,13 @@ public static partial class SystemLanguage
     [LibraryImport(CoreFoundation)] private static partial void CFRelease(IntPtr value);
 
     /// <summary>Sets Mira's language from the one chosen in its settings and the Mac's, before any window shows.</summary>
-    public static void Apply(string? chosen) => Lang.Use(Lang.Resolve(chosen, null, Preferred()), CultureInfo.CurrentCulture);
+    public static void Apply(string? chosen)
+    {
+        var preferred = Preferred();
+        // The Mac's own language, for the tracks' order of a device that never chose (TrackLanguages).
+        TrackLanguages.UseDevice(preferred);
+        Lang.Use(Lang.Resolve(chosen, null, preferred), CultureInfo.CurrentCulture);
+    }
 
     /// <summary>The first of the Mac's preferred languages (« fr-FR », « en-GB »…); elsewhere, or unreadable, .NET's own.</summary>
     public static CultureInfo Preferred()
