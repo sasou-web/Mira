@@ -1,7 +1,7 @@
-## Changement
+## Change
 
-Quel problème est résolu ? Décrire le comportement avant/après.
+What does it fix or add? Describe the behaviour before and after.
 
-## Vérification
+## Checks
 
-Indiquer les tests effectués et joindre des captures pour une modification visible. Utiliser des données fictives et ne pas joindre de secrets, cache ou média personnel.
+The tests you ran, and screenshots for a visible change. Use made-up data: no secrets, cache or personal media.

@@ -72,7 +72,7 @@ const texts = {
     description: 'Mira plays your Jellyfin library in a native Windows app with mpv: direct play of almost any file, '
       + 'skip intros, watch together with friends, subtitles kept on your server, and, on the PC that runs Jellyfin, '
       + 'its setup in a few clicks. Also for Mac and iPhone. Free and open source, no account but your Jellyfin.',
-    url: 'https://miracinema.app/en/',
+    url: 'https://miracinema.app/',
     guide: { label: 'Guide', url: 'https://wiki.miracinema.app/windows/' },
     privacy: 'https://wiki.miracinema.app/privacy/',
   },
@@ -82,7 +82,7 @@ const texts = {
       + 'tous les fichiers, intros passées, regarder ensemble avec des amis, sous-titres gardés sur ton serveur et, sur le '
       + 'PC de Jellyfin, son installation en quelques clics. Aussi pour Mac et iPhone. Libre et gratuit, aucun compte à '
       + 'part ton Jellyfin.',
-    url: 'https://miracinema.app/',
+    url: 'https://miracinema.app/fr/',
     guide: { label: 'Guide', url: 'https://wiki.miracinema.app/fr/windows/' },
     privacy: 'https://wiki.miracinema.app/fr/privacy/',
   },

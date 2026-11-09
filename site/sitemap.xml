@@ -2,12 +2,14 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://miracinema.app/</loc>
-    <xhtml:link rel="alternate" hreflang="fr" href="https://miracinema.app/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://miracinema.app/en/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://miracinema.app/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://miracinema.app/fr/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://miracinema.app/"/>
   </url>
   <url>
-    <loc>https://miracinema.app/en/</loc>
-    <xhtml:link rel="alternate" hreflang="fr" href="https://miracinema.app/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://miracinema.app/en/"/>
+    <loc>https://miracinema.app/fr/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://miracinema.app/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://miracinema.app/fr/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://miracinema.app/"/>
   </url>
 </urlset>

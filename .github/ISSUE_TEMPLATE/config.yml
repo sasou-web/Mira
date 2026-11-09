@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Documentation et installation
-    url: https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION.md
-    about: Vérifier les prérequis et les solutions aux problèmes courants.
+  - name: Guides and troubleshooting
+    url: https://wiki.miracinema.app/troubleshooting/
+    about: Installing Mira on Windows, Mac and iPhone, and fixes for common problems.
   - name: Question or help
     url: https://github.com/sasou-web/Mira/discussions/categories/q-a
     about: Ask in Discussions (Q&A). Issues are for bugs and feature requests.
