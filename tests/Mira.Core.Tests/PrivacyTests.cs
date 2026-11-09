@@ -38,17 +38,28 @@ internal static class PrivacyTests
             return Task.CompletedTask;
         });
 
-        await Test("Confidentialité : chaque connexion de la page est dans SECURITY.md (« Ce qui part sur le réseau »)", () =>
+        await Test("Confidentialité : chaque connexion de la page est dans SECURITY.md et sa traduction (« What goes out on the network »)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
-            var security = File.ReadAllText(Path.Combine(repository, "SECURITY.md"));
-            var start = security.IndexOf("## Ce qui part sur le réseau", StringComparison.Ordinal);
-            Assert(start >= 0, "SECURITY.md : section « Ce qui part sur le réseau »");
-            var end = security.IndexOf("\n## ", start + 4, StringComparison.Ordinal);
-            var table = security[start..(end < 0 ? security.Length : end)];
-            Assert(Privacy.Document.EndsWith("#ce-qui-part-sur-le-réseau", StringComparison.Ordinal), "lien vers la section");
-            foreach (var connection in Privacy.Connections(PrivacyApp.Windows).Concat(Privacy.Connections(PrivacyApp.Mac)))
-                foreach (var host in connection.Hosts) Assert(table.Contains(host, StringComparison.Ordinal), $"{connection.Key} : « {host} » absent de SECURITY.md");
+            foreach (var (file, heading, anchor, language) in new[]
+            {
+                ("SECURITY.md", "## What goes out on the network", "#what-goes-out-on-the-network", Lang.English),
+                (Path.Combine("docs", "SECURITY.fr.md"), "## Ce qui part sur le réseau", "#ce-qui-part-sur-le-réseau", Lang.French),
+            })
+            {
+                var security = File.ReadAllText(Path.Combine(repository, file));
+                var start = security.IndexOf(heading, StringComparison.Ordinal);
+                Assert(start >= 0, $"{file} : section « {heading[3..]} »");
+                var end = security.IndexOf("\n## ", start + 4, StringComparison.Ordinal);
+                var table = security[start..(end < 0 ? security.Length : end)];
+                var was = Lang.Code;
+                try { Lang.Use(language); Assert(Privacy.Document.EndsWith(anchor, StringComparison.Ordinal), $"{file} : lien vers la section"); }
+                finally { Lang.Use(was); }
+                foreach (var connection in Privacy.Connections(PrivacyApp.Windows).Concat(Privacy.Connections(PrivacyApp.Mac)))
+                    foreach (var host in connection.Hosts) Assert(table.Contains(host, StringComparison.Ordinal), $"{connection.Key} : « {host} » absent de {file}");
+            }
+            // The French heading's anchor stays in the English file: the apps published before it link there.
+            Assert(File.ReadAllText(Path.Combine(repository, "SECURITY.md")).Contains("<a id=\"ce-qui-part-sur-le-réseau\"></a>", StringComparison.Ordinal), "ancre des anciennes versions");
             return Task.CompletedTask;
         });
     }

@@ -38,7 +38,7 @@ Avant ta connexion, Mira cherche Jellyfin sur cet ordinateur, sur le réseau de 
 - Les clés et l’état de Tailscale intégré sont chiffrés sur l’appareil. Son journal y reste et ne contient aucune page de connexion.
 - Rien sur toi ni sur ta bibliothèque n’est jamais collecté.
 
-Tous les détails, requête par requête : [SECURITY.md](https://github.com/sasou-web/Mira/blob/main/SECURITY.md).
+Tous les détails, requête par requête : [SECURITY.md en français](https://github.com/sasou-web/Mira/blob/main/docs/SECURITY.fr.md).
 
 ## Signaler un problème
 

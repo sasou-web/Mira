@@ -38,7 +38,7 @@ Before you sign in, Mira looks for Jellyfin on this computer, on your home netwo
 - Built-in Tailscale's keys and state are encrypted on the device. Its log stays there and holds no sign-in page.
 - Nothing about you or your library is ever collected.
 
-Full details, for each request: [SECURITY.md](https://github.com/sasou-web/Mira/blob/main/SECURITY.md) (in French).
+Full details, for each request: [SECURITY.md](https://github.com/sasou-web/Mira/blob/main/SECURITY.md).
 
 ## Report a problem
 
