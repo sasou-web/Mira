@@ -1029,12 +1029,18 @@ public static class SelfCheck
             // A film playing in « Image dans l’image », whose small window refuses a close of its own: both are asked.
             if (mock is not null)
             {
+                // Each step said as it starts: a crash of the process here leaves only this log.
+                static void Step(string what) { Console.WriteLine($"…  quitter à la demande de macOS : {what}"); Console.Out.Flush(); }
+                Step("reconnexion");
                 if (window.Session is null) await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
                 Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", "1");
+                Step("lecture");
                 await window.PlayAsync(movie, fromStart: true);
                 Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);
                 var quitting = window.Player;
+                Step("film ouvert");
                 Check(await Until(() => quitting is { IsFileLoaded: true, Position: > 2 }, 30), "quitter à la demande de macOS : un film en cours", $"{quitting?.Position:0.0} s");
+                Step("image dans l’image");
                 if (quitting is not null) await quitting.EnterPipAsync();
                 Check(await Until(() => quitting?.Pip is { IsVisible: true }, 10), "quitter à la demande de macOS : dans l’image dans l’image");
             }
@@ -1095,6 +1101,7 @@ public static class SelfCheck
             write();
             e.ApplicationExitCode = passed() ? 0 : 1;
         };
+        Console.WriteLine($"…  {Name} : [NSApp terminate:]"); Console.Out.Flush();
         if (!SystemQuit.Ask(desktop)) return true;
         check(false, $"{Name} : refusé, macOS arrêterait l’extinction ou le redémarrage", "");
         write();
