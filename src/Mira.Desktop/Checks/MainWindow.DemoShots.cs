@@ -172,6 +172,25 @@ public partial class MainWindow
                 return shot;
             });
 
+            await Extra("couch", async () =>
+            {
+                SettingsOverlay.Visibility = DetailOverlay.Visibility = GuideOverlay.Visibility = WhatsNewOverlay.Visibility = Visibility.Collapsed;
+                await BrowseAsync("home"); await Task.Delay(800); UpdateLibraryCover();
+                SetCouchMode(true); await Task.Delay(1800); HideNotice(); await ArtworkAsync(); UpdateLayout(); UpdateLibraryCover(); await Task.Delay(500);
+                var shots = new List<string>(); var screen = (FrameworkElement)Content;
+                FocusFirst(); await Task.Delay(600);
+                var state = $"library {LibraryShell.Opacity:0.##} {LibraryShell.Visibility}, covered {_libraryCovered}, playing {_playing}, couch screen {_couchScreen}, covers {string.Join(' ', _libraryCovers.Where(x => x.IsVisible).Select(x => (x as FrameworkElement)?.Name + ":" + x.Opacity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)))}";
+                shots.Add(SaveShot(output, "couch-00.jpg", RenderArea(screen, Box(screen, screen), Background)));
+                for (var i = 1; i <= 4; i++)
+                {
+                    Do(i <= 2 ? Couch.Action.Down : Couch.Action.Right); await Task.Delay(700); await ArtworkAsync();
+                    shots.Add(SaveShot(output, $"couch-{i:00}.jpg", RenderArea(screen, Box(screen, screen), Background)));
+                }
+                object shot = new { files = shots, zoom = _zoom, width = screen.ActualWidth, height = screen.ActualHeight, state };
+                SetCouchMode(false); await Task.Delay(1200); HideNotice();
+                return shot;
+            });
+
             manifest["player"] = await PlayerShotsAsync(output, spring, Extra);
             // After the film: a group made on its page (the invitation), then « Mode canapé » on the Home page.
             await Extra("together", async () =>
@@ -193,24 +212,6 @@ public partial class MainWindow
                 shot["page"] = SaveShot(output, "spring-group-window.jpg", RenderArea(root, Box(root, root), Background));
                 shot["row"] = SaveShot(output, "spring-group-row.jpg", RenderArea(page, row, Background)); shot["rowRect"] = Rounded(row);
                 await LeaveGroupAsync(); await Task.Delay(800);
-                return shot;
-            });
-            await Extra("couch", async () =>
-            {
-                if (_playing) await StopPlaybackAsync();
-                if (DetailOverlay.Visibility == Visibility.Visible) await CloseDetailsAsync();
-                await BrowseAsync("home");
-                SetCouchMode(true); await Task.Delay(1500); await ArtworkAsync(); UpdateLayout();
-                var shots = new List<string>(); var screen = (FrameworkElement)Content;
-                FocusFirst(); await Task.Delay(500);
-                shots.Add(SaveShot(output, "couch-00.jpg", RenderArea(screen, Box(screen, screen), Background)));
-                for (var i = 1; i <= 4; i++)
-                {
-                    Do(i <= 2 ? Couch.Action.Down : Couch.Action.Right); await Task.Delay(700); await ArtworkAsync();
-                    shots.Add(SaveShot(output, $"couch-{i:00}.jpg", RenderArea(screen, Box(screen, screen), Background)));
-                }
-                object shot = new { files = shots, zoom = _zoom, width = screen.ActualWidth, height = screen.ActualHeight };
-                SetCouchMode(false); await Task.Delay(900);
                 return shot;
             });
             if (failed.Count > 0) await File.WriteAllLinesAsync(Path.Combine(output, "demo-shots-failed.txt"), failed);
@@ -332,8 +333,15 @@ public partial class MainWindow
             {
                 SetCursorPos(960, 400); await Controls($"player-{key}-under.png");
                 TogglePlayerMenu(button); await Task.Delay(900); PlayerMenu.UpdateLayout();
-                var anchor = Box(button, overlay);
-                object shot = new { file = SaveShot(output, $"player-{key}.png", RenderArea(PlayerMenu, Box(PlayerMenu, PlayerMenu), null)), under = $"player-{key}-under.png", size = new { w = PlayerMenu.ActualWidth, h = PlayerMenu.ActualHeight }, anchor = Rounded(anchor) };
+                Rect OnScreen(FrameworkElement element)
+                {
+                    var from = root.PointToScreen(new Point(0, 0)); var at = element.PointToScreen(new Point(0, 0)); var dpi = VisualTreeHelper.GetDpi(root);
+                    return new Rect((at.X - from.X) / dpi.DpiScaleX, (at.Y - from.Y) / dpi.DpiScaleY, element.ActualWidth, element.ActualHeight);
+                }
+                object anchor = ""; object place = "";
+                try { anchor = Rounded(OnScreen(button)); } catch (InvalidOperationException) { }
+                try { place = Rounded(OnScreen(PlayerMenu)); } catch (InvalidOperationException) { }
+                object shot = new { file = SaveShot(output, $"player-{key}.png", RenderArea(PlayerMenu, new Rect(PlayerMenu.RenderSize), null)), under = $"player-{key}-under.png", size = new { w = PlayerMenu.ActualWidth, h = PlayerMenu.ActualHeight }, anchor, place };
                 PlayerOptionsPopup.IsOpen = false; await Task.Delay(400);
                 return shot;
             });
