@@ -233,8 +233,8 @@ public sealed class DownloadsPage : Page
 
     private async Task TickAsync()
     {
-        // Not under the player, nor while Mira is in the Dock.
-        if (Shell.Watching || Shell.WindowState == WindowState.Minimized) return;
+        // Not under the player, nor while the window is in the Dock or minimized (the timer stops then too: Page.IsShowing).
+        if (Shell.Watching || Shell.Away) return;
         await LoadStatusAsync();
     }
 

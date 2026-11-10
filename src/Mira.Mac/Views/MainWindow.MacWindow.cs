@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Core.Updates;
 using Mira.Mac.Services;
@@ -17,6 +18,28 @@ public sealed partial class MainWindow
     /// <summary>The window closed with ⌘W or its red button, Mira still running in the Dock.</summary>
     public bool InDock { get; private set; }
     private bool _quitting;
+    /// <summary>
+    /// The window cannot be seen: closed into the Dock or minimized. Its pages count as put away (<see cref="Page.IsShowing"/>):
+    /// « Téléchargements » every 3 s, « En ce moment » every 5 s, the banner's turns, what loads as it scrolls into view,
+    /// all stop asking Jellyfin while nobody looks, and start again with the window.
+    /// </summary>
+    public bool Away => InDock || WindowState == WindowState.Minimized;
+    private bool _wasAway;
+    /// <summary>
+    /// What the pages show is to be read again from Jellyfin when the window comes back: it was in the Dock (perhaps for
+    /// hours: progress from other devices, what was added), or Jellyfin said something changed while nobody looked
+    /// (<see cref="RefreshPagesAsync"/> waits for the window then).
+    /// </summary>
+    private bool _refreshOnReturn;
+    /// <summary>The window went away or came back: each page told (<see cref="Page.Recheck"/>).</summary>
+    private void PresenceChanged()
+    {
+        if (Away == _wasAway) return;
+        _wasAway = Away;
+        foreach (var page in this.GetVisualDescendants().OfType<Page>().ToList()) page.Recheck();
+        if (!Away && _refreshOnReturn) { _refreshOnReturn = false; _ = RefreshPagesAsync(fromServer: true); }
+    }
+    private void WatchPresence() => PropertyChanged += (_, e) => { if (e.Property == WindowStateProperty) PresenceChanged(); };
 
     /// <summary>
     /// Where the window was left (its top-left corner in the units of the windows' positions: points on a Mac), when
@@ -54,7 +77,7 @@ public sealed partial class MainWindow
     public async Task CloseToDockAsync()
     {
         if (InDock || _closing) return;
-        InDock = true;
+        InDock = true; _refreshOnReturn = true; PresenceChanged();
         RememberWindow();
         try { Profile.SaveSettings(Settings); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); }
         Player?.Pip?.Hide();
@@ -85,7 +108,7 @@ public sealed partial class MainWindow
     private void StartInDock()
     {
         if (!StartsInDock || InDock) return;
-        InDock = true;
+        InDock = true; _refreshOnReturn = true; PresenceChanged();
         Hide();
     }
     /// <summary>A click on the Dock icon, a mira:// link, a menu item while the window is closed: the window back, in front.</summary>
@@ -94,6 +117,7 @@ public sealed partial class MainWindow
         if (_closing) return;
         if (InDock) { InDock = false; Show(); }
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        PresenceChanged();
         Activate();
     }
 }

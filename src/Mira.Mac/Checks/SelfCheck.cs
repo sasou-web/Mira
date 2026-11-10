@@ -549,6 +549,22 @@ public static class SelfCheck
                     bool sent; lock (mock.Requests) sent = mock.Requests.Contains("Brume.Basse.2024.MULTI.1080p.BluRay.x264-NOTAG");
                     Check(sent && await Until(() => downloads.QueueCount > 2, 6), "téléchargements : la meilleure version envoyée", string.Join(", ", mock.Requests));
                     await Task.Delay(800); Capture(window, output, "07-downloads");
+                    // Closed into the Dock, the page asks Jellyfin nothing more (it asked every 3 s): nobody looks. Back from the
+                    // Dock, it asks again, and the page is read again.
+                    int Asked() { lock (mock.Calls) return mock.Calls.Count; }
+                    List<string> AskedSince(int from) { lock (mock.Calls) return mock.Calls.Skip(from).ToList(); }
+                    var polled = await Until(() => AskedSince(0).Count(x => x == "GET Mira/torlink") > 0, 4);
+                    await window.CloseToDockAsync();
+                    await Task.Delay(300);
+                    var before = Asked();
+                    await Task.Delay(7500);
+                    var whileDocked = AskedSince(before);
+                    var asleep = !downloads.IsShowing && window.Away;
+                    var after = Asked();
+                    window.Reopen();
+                    var awake = await Until(() => AskedSince(after).Contains("GET Mira/torlink"), 6) && downloads.IsShowing;
+                    Check(polled && asleep && whileDocked.Count == 0 && awake, "Dock : rien demandé à Jellyfin pendant 7,5 s, de nouveau au retour",
+                        whileDocked.Count == 0 ? $"au retour : {string.Join(", ", AskedSince(after).Distinct())}" : string.Join(", ", whileDocked));
                 }
             }
 

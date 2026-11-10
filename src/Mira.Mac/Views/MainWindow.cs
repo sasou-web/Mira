@@ -43,9 +43,13 @@ public abstract class Page : UserControl
     /// </summary>
     public event Action<bool>? Showing;
     public bool IsShowing { get; private set; }
+    /// <summary>
+    /// A page in a window that cannot be seen (closed into the Dock, minimized) does not show either: its timers stop
+    /// asking Jellyfin for what nobody looks at, and start again when the window comes back (<see cref="MainWindow.Away"/>).
+    /// </summary>
     private void UpdateShowing(bool attached)
     {
-        var showing = attached && IsVisible;
+        var showing = attached && IsVisible && !Shell.Away;
         if (showing == IsShowing) return;
         IsShowing = showing; Showing?.Invoke(showing);
     }
@@ -56,6 +60,8 @@ public abstract class Page : UserControl
         base.OnPropertyChanged(change);
         if (change.Property == IsVisibleProperty) UpdateShowing(this.GetVisualRoot() is not null);
     }
+    /// <summary>The window went away or came back: on screen again, or not.</summary>
+    internal void Recheck() => UpdateShowing(this.GetVisualRoot() is not null);
     /// <summary>
     /// <paramref name="changed"/> with true once <paramref name="part"/> is on screen with its page, false once that page is
     /// put away or the part leaves it: a section's timer runs only while it can be seen.
@@ -204,6 +210,7 @@ public sealed partial class MainWindow : Window
         AddHandler(PointerWheelChangedEvent, OnWheel, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         MenuBase.ClosedEvent.AddClassHandler<MenuBase>((_, _) => Dispatcher.UIThread.Post(ReleasePointer));
         Closing += OnClosing;
+        WatchPresence();
         // Once: Avalonia says Opened again each time the window comes back from the Dock (Reopen).
         // Opened again by an update while in the Dock (--in-dock): back there at once, the account signed in meanwhile.
         Opened += async (_, _) => { if (_started) return; _started = true; StartInDock(); await StartAsync(); };
@@ -895,6 +902,7 @@ public sealed partial class MainWindow : Window
     public async Task RefreshPagesAsync(bool fromServer = false)
     {
         if (Watching && fromServer) return;
+        if (fromServer && Away) { _refreshOnReturn = true; return; }
         Session?.Forget();
         if (Current is { } page)
         {
