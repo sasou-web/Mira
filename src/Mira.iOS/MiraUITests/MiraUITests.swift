@@ -1020,7 +1020,17 @@ extension MiraUITests {
         shot("login-01")
         app.buttons["login.continue"].tap()
         let username = app.textFields["login.username"]
-        guard username.waitForExistence(timeout: 25) else { XCTFail("The server was not found"); return }
+        var found = username.waitForExistence(timeout: 25)
+        // Not found: what the screen says, then again (the button, then Return in the field).
+        for attempt in 0..<3 where !found {
+            shot("login-stuck-\(attempt)")
+            let said = app.descendants(matching: .any)["login.message"]
+            let button = app.buttons["login.continue"]
+            print("MIRA-TEXT attempt \(attempt): message « \(said.exists ? said.label : "none") », button \(button.exists ? (button.isEnabled ? "enabled" : "disabled") : "gone"), address « \(address.exists ? (address.value as? String ?? "") : "gone") »")
+            if attempt == 1, address.exists { focus(address); address.typeText("\n") } else if button.exists, button.isHittable { button.tap() }
+            found = username.waitForExistence(timeout: 30)
+        }
+        guard found else { XCTFail("The server was not found"); return }
         focus(username)
         username.typeText("Sam\n")
         let password = app.secureTextFields["login.password"]

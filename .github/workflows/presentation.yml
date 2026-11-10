@@ -203,11 +203,23 @@ jobs:
         run: |
           mkdir -p .artifacts/out .artifacts/attachments
           status=0
+          # Jellyfin, still there after the simulator's ten minutes? Started again otherwise.
+          alive() { curl -fsS -m 8 http://127.0.0.1:8096/System/Info/Public; }
+          if ! alive; then
+            echo "::warning::Jellyfin no longer answered: started again"; tail -8 .artifacts/jellyfin.log || true
+            j="$PWD/.artifacts/jf-data"
+            nohup dotnet .artifacts/jf/jellyfin.dll --datadir "$j/data" --cachedir "$j/cache" --configdir "$j/config" --logdir "$j/log" \
+              --nowebclient --ffmpeg "$(command -v ffmpeg)" >> .artifacts/jellyfin.log 2>&1 &
+            for i in $(seq 90); do alive > /dev/null 2>&1 && break; sleep 2; done
+            alive || true
+          fi
+          echo
           TEST_RUNNER_MIRA_SHOTS_SERVER=127.0.0.1:8096 xcodebuild test -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" \
             -resultBundlePath .artifacts/shots.xcresult -only-testing:MiraUITests/MiraUITests/testShots > .artifacts/shots.log 2>&1 || status=$?
           grep -o "MIRA-SHOT .*" .artifacts/shots.log | sort -u -k3n > .artifacts/out/iphone-steps.txt || true
           grep -E "error:|Test Case .* (passed|failed|skipped)|\*\* TEST" .artifacts/shots.log | tail -60 || true
-          [ $status -eq 0 ] || tail -40 .artifacts/shots.log
+          grep -o "MIRA-TEXT .*" .artifacts/shots.log | cut -c 1-400 || true
+          [ $status -eq 0 ] || tail -25 .artifacts/shots.log | cut -c 1-300
           xcrun xcresulttool export attachments --path .artifacts/shots.xcresult --output-path .artifacts/attachments || true
           python3 - <<'PY'
           import json, os, re, subprocess
@@ -244,14 +256,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.ref_name }}
+      # One artifact, one folder: a pattern that matches a single artifact unpacks it without its folder.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
         with:
-          pattern: shots-*
-          path: .artifacts/new
+          name: shots-windows
+          path: .artifacts/new/shots-windows
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
         with:
-          pattern: export
-          path: .artifacts/new
+          name: shots-iphone
+          path: .artifacts/new/shots-iphone
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: export
+          path: .artifacts/new/export
       - name: Commit
         env:
           BRANCH: ${{ github.ref_name }}
@@ -259,7 +279,7 @@ jobs:
           ls .artifacts/new || exit 0
           # Each part replaced whole by what this run made (git mv keeps nothing of the old one); the parts it did not run stay.
           for part in shots-windows shots-iphone export; do
-            [ -d ".artifacts/new/$part" ] || continue
+            [ -n "$(ls -A ".artifacts/new/$part" 2>/dev/null)" ] || continue
             target="presentation/shots/$part"; [ "$part" = export ] && target="presentation/export"
             git rm -r -q --ignore-unmatch "$target" > /dev/null
             mkdir -p "$(dirname "$target")"; mv ".artifacts/new/$part" "$target"
