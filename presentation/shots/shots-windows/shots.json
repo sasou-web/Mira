@@ -684,7 +684,7 @@
           }
         },
         {
-          "name": "INVINCIBLE",
+          "name": "BLUE EYE SAMURAI",
           "type": "Series",
           "rect": {
             "x": 112,
@@ -694,7 +694,7 @@
           }
         },
         {
-          "name": "BLUE EYE SAMURAI",
+          "name": "INVINCIBLE",
           "type": "Series",
           "rect": {
             "x": 332,
@@ -793,7 +793,7 @@
           "file": "arcane-hover-06.jpg"
         },
         {
-          "name": "INVINCIBLE",
+          "name": "BLUE EYE SAMURAI",
           "rect": {
             "x": 100,
             "y": 2928,
@@ -804,7 +804,7 @@
           "file": "arcane-hover-07.jpg"
         },
         {
-          "name": "BLUE EYE SAMURAI",
+          "name": "INVINCIBLE",
           "rect": {
             "x": 320,
             "y": 2928,
@@ -1898,9 +1898,62 @@
         "h": 148
       }
     },
+    "couch": {
+      "files": [
+        "couch-00.jpg",
+        "couch-01.jpg",
+        "couch-02.jpg",
+        "couch-03.jpg",
+        "couch-04.jpg"
+      ],
+      "zoom": 1.5,
+      "width": 1920,
+      "height": 1080,
+      "state": "library 1 Visible, covered False, playing False, couch screen True, covers "
+    },
+    "moreMenu": {
+      "file": "player-moreMenu.png",
+      "under": "player-moreMenu-under.png",
+      "size": {
+        "w": 314,
+        "h": 533
+      },
+      "anchor": {
+        "x": 1680,
+        "y": 1024,
+        "w": 40,
+        "h": 40
+      },
+      "place": {
+        "x": 1406,
+        "y": 491,
+        "w": 314,
+        "h": 533
+      }
+    },
+    "tracksMenu": {
+      "file": "player-tracksMenu.png",
+      "under": "player-tracksMenu-under.png",
+      "size": {
+        "w": 426,
+        "h": 156
+      },
+      "anchor": {
+        "x": 1726,
+        "y": 1024,
+        "w": 40,
+        "h": 40
+      },
+      "place": {
+        "x": 1340,
+        "y": 868,
+        "w": 426,
+        "h": 156
+      }
+    },
     "paused": {
       "file": "player-paused.png",
-      "position": 388.166667,
+      "position": 388.375,
       "fraction": null
     },
     "mini": {
@@ -1916,7 +1969,7 @@
         "w": 384,
         "h": 216
       },
-      "position": 391.125
+      "position": 391.375
     },
     "pip": {
       "controls": "pip-controls.png",
@@ -1931,7 +1984,7 @@
         "h": 201
       },
       "window": "pip-behind.jpg",
-      "position": 392.791667
+      "position": 393.041667
     },
     "together": {
       "window": "invite-window.jpg",
@@ -1951,24 +2004,9 @@
         "w": 1792,
         "h": 103
       }
-    },
-    "couch": {
-      "files": [
-        "couch-00.jpg",
-        "couch-01.jpg",
-        "couch-02.jpg",
-        "couch-03.jpg",
-        "couch-04.jpg"
-      ],
-      "zoom": 1.5,
-      "width": 1920,
-      "height": 1080
     }
   },
-  "failed": [
-    "moreMenu: InvalidOperationException: The specified Visual is not an ancestor of this Visual.",
-    "tracksMenu: InvalidOperationException: The specified Visual is not an ancestor of this Visual."
-  ],
+  "failed": [],
   "window": {
     "width": 1920,
     "height": 1080,
@@ -2011,7 +2049,7 @@
     "playing": [
       {
         "file": "player-00.png",
-        "position": 46.375,
+        "position": 46.458333,
         "fraction": null
       },
       {
@@ -2021,7 +2059,7 @@
       },
       {
         "file": "player-02.png",
-        "position": 47.083333,
+        "position": 47.125,
         "fraction": null
       },
       {
@@ -2031,7 +2069,7 @@
       },
       {
         "file": "player-04.png",
-        "position": 47.75,
+        "position": 47.833333,
         "fraction": null
       },
       {
@@ -2041,7 +2079,7 @@
       },
       {
         "file": "player-06.png",
-        "position": 48.458333,
+        "position": 48.5,
         "fraction": null
       }
     ],
@@ -2053,12 +2091,12 @@
       },
       {
         "file": "player-scrub-01.png",
-        "position": 49.208333,
+        "position": 49.25,
         "fraction": 0.145625
       },
       {
         "file": "player-scrub-02.png",
-        "position": 49.458333,
+        "position": 49.5,
         "fraction": 0.19125
       },
       {
@@ -2078,12 +2116,12 @@
       },
       {
         "file": "player-scrub-06.png",
-        "position": 50.5,
+        "position": 50.541667,
         "fraction": 0.37375
       },
       {
         "file": "player-scrub-07.png",
-        "position": 50.75,
+        "position": 50.833333,
         "fraction": 0.41937499999999994
       },
       {
@@ -2118,7 +2156,7 @@
       },
       {
         "file": "player-scrub-14.png",
-        "position": 52.708333,
+        "position": 52.625,
         "fraction": 0.7387499999999999
       },
       {
@@ -2140,7 +2178,7 @@
       },
       {
         "file": "player-after-01.png",
-        "position": 386.125,
+        "position": 386.041667,
         "fraction": null
       },
       {
@@ -2150,7 +2188,7 @@
       },
       {
         "file": "player-after-03.png",
-        "position": 386.75,
+        "position": 386.791667,
         "fraction": null
       },
       {
