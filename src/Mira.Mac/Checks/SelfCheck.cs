@@ -101,7 +101,9 @@ public static class SelfCheck
             if (mock is not null && quit == "only")
             {
                 await PrepareQuitAsync(home.Continue.First(x => x.Id == "movie-1"));
-                goto Checked;
+                exit = results.All(x => x.Ok) ? 0 : 1;
+                Finish();
+                return;
             }
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
@@ -1036,7 +1038,6 @@ public static class SelfCheck
             // On the runner of mac.yml, apart in a Mira of its own (MIRA_CHECK_QUIT): one more film this late in the run
             // crashed the process there (segmentation fault, no report from macOS), as an OpenGL view once did.
             if (mock is not null && quit != "apart") await PrepareQuitAsync(movie);
-            Checked:
             exit = results.All(x => x.Ok) ? 0 : 1;
         }
         catch (Exception ex)
@@ -1068,11 +1069,15 @@ public static class SelfCheck
             Console.WriteLine($"{results.Count(x => x.Ok)}/{results.Count} contrôles réussis.");
             Console.Out.Flush();
         }
-        Write();
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
-        // Asked only when everything before passed: a failure is read in results.txt as it stands.
-        if (exit == 0 && quit != "apart" && QuitAsSystem(window, desktop, mock, Check, Write, () => results.All(x => x.Ok))) return;
-        desktop.Shutdown(results.All(x => x.Ok) ? exit : 1);
+        void Finish()
+        {
+            Write();
+            if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
+            // Asked only when everything before passed: a failure is read in results.txt as it stands.
+            if (exit == 0 && quit != "apart" && QuitAsSystem(window, desktop, mock, Check, Write, () => results.All(x => x.Ok))) return;
+            desktop.Shutdown(results.All(x => x.Ok) ? exit : 1);
+        }
+        Finish();
     }
 
     /// <summary>
