@@ -1,0 +1,2 @@
+moreMenu: InvalidOperationException: The specified Visual is not an ancestor of this Visual.
+tracksMenu: InvalidOperationException: The specified Visual is not an ancestor of this Visual.
