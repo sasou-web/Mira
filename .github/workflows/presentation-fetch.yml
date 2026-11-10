@@ -1,0 +1,48 @@
+name: Presentation video pictures (fetch)
+# TEMPORARY (never merged): commits to this branch the pictures a run of presentation.yml has already uploaded, without
+# waiting for its slower jobs (the iPhone's simulator takes an hour).
+on:
+  push:
+    branches: [claude/project-thread-rh3c2j]
+    paths: [.github/workflows/presentation-fetch.yml]
+  workflow_dispatch:
+    inputs:
+      run:
+        description: The run of presentation.yml
+        default: "42750428366"
+      names:
+        description: Artifacts to commit
+        default: shots-windows export
+permissions:
+  contents: read
+concurrency:
+  group: presentation-fetch-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+      - name: The pictures
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ inputs.run || '42750428366' }}
+          NAMES: ${{ inputs.names || 'shots-windows' }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          for name in $NAMES; do
+            to=presentation/shots/$name; [ "$name" = export ] && to=presentation/export
+            mkdir -p .artifacts/fetched/$name
+            gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n "$name" -D ".artifacts/fetched/$name" || { echo "::warning::$name is not there yet"; continue; }
+            git rm -r -q --ignore-unmatch "$to" > /dev/null
+            mkdir -p "$(dirname "$to")"; mv ".artifacts/fetched/$name" "$to"
+            git add -f "$to"
+          done
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Presentation: the pictures (fetched)" || exit 0
+          for attempt in 1 2 3; do git pull -q --rebase origin "$BRANCH" && git push -q origin "HEAD:$BRANCH" && break; sleep 5; done
