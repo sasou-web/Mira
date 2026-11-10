@@ -39,8 +39,8 @@ public sealed class ViewersSection
     private async Task LoadAsync()
     {
         if (_busy || _shell.Session is not { } session) return;
-        // Not under the player, nor while Mira is in the Dock.
-        if (_shell.Watching || _shell.WindowState == WindowState.Minimized) return;
+        // Not under the player, nor while the window is in the Dock or minimized (the timer stops then too: Page.IsShowing).
+        if (_shell.Watching || _shell.Away) return;
         _busy = true;
         try
         {
