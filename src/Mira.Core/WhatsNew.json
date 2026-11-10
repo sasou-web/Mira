@@ -11,9 +11,7 @@
       { "category": "Lecteur", "text": "Le certificat https:// du serveur est vérifié avant d’envoyer le jeton.", "en": { "category": "Player", "text": "The server’s https:// certificate is checked before the token is sent." } },
       { "category": "Lecteur", "text": "Sous-titres : seulement les forcés quand l’audio est dans ta langue.", "en": { "category": "Player", "text": "Subtitles: only forced ones when the audio is in your language." } },
       { "category": "Langues", "text": "30 langues pour l’audio et les sous-titres, celle de l’appareil en premier.", "en": { "category": "Languages", "text": "30 languages for audio and subtitles, the device’s own first." } },
-      { "category": "Sécurité", "text": "Attestations GitHub, VirusTotal et une page du wiki pour vérifier un fichier.", "en": { "category": "Security", "text": "GitHub attestations, VirusTotal and a wiki page to verify a file." } },
-      { "category": "Nouveautés", "text": "Les 6 dernières versions, une ligne par changement, rouvertes depuis Réglages.", "en": { "category": "What’s new", "text": "The last 6 versions, one line per change, reopened from Settings." } },
-      { "category": "Site", "text": "miracinema.app s’ouvre en anglais, le français est dans /fr/.", "en": { "category": "Site", "text": "miracinema.app opens in English, French lives under /fr/." } }
+      { "category": "Sécurité", "text": "Attestations GitHub, VirusTotal et une page du wiki pour vérifier un fichier.", "en": { "category": "Security", "text": "GitHub attestations, VirusTotal and a wiki page to verify a file." } }
     ],
     "items": [
       { "icon": "laptop", "title": "Un Mac qui s’éteint sans accroc", "text": "Éteindre ou redémarrer ne bute plus sur Mira, la mise à jour passe depuis le Dock, et Mira cachée ne demande plus rien à Jellyfin.",
