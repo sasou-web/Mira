@@ -1000,6 +1000,213 @@ final class MiraUITests: XCTestCase {
     }
 }
 
+/// The presentation video's pictures (presentation.yml, never merged), for a montage that scrolls and zooms them at 60
+/// frames a second: each page from its top, then after each slow drag held still (no momentum), so that the montage can
+/// join them; a film kept and played sideways, its controls and menus; the search typed letter by letter; Settings.
+/// On a real Jellyfin of this Mac (presentation/library.mjs), the banner of Home held still (-mira-still). Attachments
+/// named shot-<page>-<n>. Nothing here stops the test: a screen that does not come is one picture less.
+extension MiraUITests {
+    @MainActor
+    func testShots() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let server = environment["MIRA_SHOTS_SERVER"], !server.isEmpty else { throw XCTSkip("Only for presentation.yml") }
+        continueAfterFailure = true
+        let app = launch(language: "en", locale: "en_US", extra: ["-mira-still"])
+        let address = app.textFields["login.address"]
+        guard address.waitForExistence(timeout: 20) else { XCTFail("No sign-in screen"); return }
+        rest(1.5); shot("login-00")
+        focus(address)
+        address.typeText(server)
+        shot("login-01")
+        app.buttons["login.continue"].tap()
+        let username = app.textFields["login.username"]
+        guard username.waitForExistence(timeout: 25) else { XCTFail("The server was not found"); return }
+        focus(username)
+        username.typeText("Sam\n")
+        let password = app.secureTextFields["login.password"]
+        focus(password)
+        password.typeText("mira-demo")
+        shot("login-02")
+        app.buttons["login.signin"].tap()
+        _ = app.staticTexts["Continue watching"].waitForExistence(timeout: 40)
+        dismissSavePassword(app, timeout: 25)
+        _ = waitForSharpBanner(timeout: 60)
+        rest(5)
+
+        shot("home-00"); drags(app, "home", 9)
+        top(app)
+
+        shotTab(app, "tab.shows"); rest(4); shot("shows-00"); drags(app, "shows", 2)
+        top(app)
+        let arcane = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Arcane'")).firstMatch
+        if arcane.waitForExistence(timeout: 10) {
+            tapCard(app, arcane); rest(5); shot("arcane-00"); drags(app, "arcane", 8)
+            top(app)
+        }
+
+        shotTab(app, "tab.movies"); rest(4); shot("movies-00"); drags(app, "movies", 6)
+        top(app)
+        let verse = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Spider-Man: Across'")).firstMatch
+        for _ in 0..<6 where !(verse.exists && verse.isHittable) { nudge(app, by: 0.3); rest(0.8) }
+        if verse.exists {
+            tapCard(app, verse); rest(5); shot("verse-00"); drags(app, "verse", 4)
+            top(app); rest(1)
+            // Its state buttons: Favorite on, then as it was.
+            let favorite = app.buttons["title.favorite"]
+            if favorite.waitForExistence(timeout: 5), favorite.isHittable {
+                favorite.tap(); rest(1.5); shot("verse-favorite")
+                favorite.tap(); rest(1.2)
+            }
+            // « … », then a group made from it: its card on the film's page.
+            let more = app.buttons["title.more"]
+            if more.waitForExistence(timeout: 5), more.isHittable {
+                more.tap(); rest(1.5); shot("verse-more")
+                let together = app.buttons.matching(NSPredicate(format: "identifier == 'title.together' OR label == 'Watch together'")).firstMatch
+                if together.waitForExistence(timeout: 5) {
+                    together.tap(); rest(1.5); shot("verse-together-sheet")
+                    let create = app.buttons["together.create"]
+                    if create.waitForExistence(timeout: 5) {
+                        create.tap()
+                        if app.descendants(matching: .any)["together.group"].waitForExistence(timeout: 15) { rest(2.5); shot("verse-together") }
+                        let leave = app.buttons["together.leave"]
+                        for _ in 0..<4 where !(leave.exists && leave.isHittable) { app.swipeUp() }
+                        if leave.exists { shot("verse-together-2"); leave.tap(); rest(1.5) }
+                    } else { app.swipeDown() }
+                } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap() }
+            }
+            top(app)
+        }
+
+        // Spring, a real film: kept on this iPhone, then played sideways.
+        shotTab(app, "tab.movies"); rest(2)
+        let spring = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Spring'")).firstMatch
+        for _ in 0..<10 where !(spring.exists && spring.isHittable) { nudge(app, by: 0.3); rest(0.8) }
+        if spring.exists {
+            tapCard(app, spring); rest(5); shot("spring-00"); drags(app, "spring", 2)
+            top(app); rest(1)
+            let keep = app.buttons["title.keep"]
+            if keep.waitForExistence(timeout: 8), keep.isHittable {
+                keep.tap()
+                for i in 0..<3 { rest(0.6); shot("spring-keeping-\(i)") }
+                if waitForLabel(keep, "On this iPhone", timeout: 150) { rest(1.5); shot("spring-kept") }
+            }
+            let start = app.buttons["title.play"]
+            if start.waitForExistence(timeout: 10) {
+                start.tap()
+                XCUIDevice.shared.orientation = .landscapeLeft
+                rest(8)
+                let play = app.buttons["player.play"]
+                if reveal(play, app) {
+                    shot("player-00"); rest(1); shot("player-01")
+                    if play.label == "Pause" { play.tap() }
+                    rest(2.5); shot("player-paused")
+                    for (button, name) in [("player.more", "player-more"), ("player.tracks", "player-tracks")] {
+                        let menu = app.buttons[button]
+                        if menu.waitForExistence(timeout: 5) {
+                            menu.tap(); rest(1.5); shot(name)
+                            app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).tap(); rest(1)
+                        }
+                    }
+                    app.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).doubleTap()
+                    shot("player-skip"); rest(1.5)
+                    let showcase = app.buttons["player.showcase"]
+                    if showcase.exists {
+                        for name in ["player-scrub", "player-volume", "player-fast", "player-locked"] {
+                            showcase.tap(); rest(name == "player-scrub" ? 3 : 1.2); shot(name)
+                        }
+                        showcase.tap(); rest(1)
+                    }
+                    let minimize = app.buttons["player.minimize"]
+                    if reveal(minimize, app) {
+                        minimize.tap()
+                        XCUIDevice.shared.orientation = .portrait
+                        rest(3.5); shot("mini-00")
+                        if app.buttons["tab.home"].waitForExistence(timeout: 5) {
+                            app.buttons["tab.home"].tap(); rest(2.5); shot("mini-home")
+                            nudge(app, by: 0.5); rest(2.5); shot("mini-folded")
+                            top(app)
+                        }
+                        let close = app.buttons["mini.close"]
+                        for _ in 0..<3 where !close.waitForExistence(timeout: 3) { app.swipeDown() }
+                        if close.exists { close.tap() }
+                        rest(2)
+                    }
+                }
+                XCUIDevice.shared.orientation = .portrait
+                rest(2)
+            }
+        }
+
+        shotTab(app, "tab.search"); rest(2.5); shot("search-00")
+        for (i, c) in "spider".enumerated() { app.typeText(String(c)); shot(String(format: "search-%02d", i + 1)) }
+        rest(5); shot("search-final")
+        // Return puts the keyboard away: the tab bar comes back.
+        app.typeText("\n"); rest(2); shot("search-final2")
+
+        // Settings: the page, then what it opens.
+        shotTab(app, "tab.settings"); rest(3); shot("settings-00"); drags(app, "settings", 8)
+        for (row, name) in [("settings.privacy", "privacy"), ("settings.tailscale", "tailscale"), ("settings.kept", "kept"), ("settings.homeRows", "homerows")] {
+            top(app); top(app)
+            let button = app.buttons[row]
+            for _ in 0..<10 where !(button.exists && button.isHittable) { nudge(app, by: 0.35); rest(0.6) }
+            guard button.exists, button.isHittable else { continue }
+            button.tap(); rest(3); shot("\(name)-00")
+            if name == "privacy" { drags(app, name, 3) }
+            let back = app.navigationBars.buttons.firstMatch
+            if back.exists { back.tap(); rest(1.5) }
+        }
+    }
+
+    /// Slow drags toward the end of the page, held still before the finger lifts, a picture after each.
+    @MainActor
+    private func drags(_ app: XCUIApplication, _ page: String, _ count: Int) {
+        for i in 1...count {
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            let to = from.withOffset(CGVector(dx: 0, dy: -0.28 * app.frame.height))
+            from.press(forDuration: 0.08, thenDragTo: to, withVelocity: XCUIGestureVelocity(220), thenHoldForDuration: 0.7)
+            rest(1.6)
+            shot(String(format: "%@-%02d", page, i))
+        }
+    }
+
+    @MainActor
+    private func shot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "shot-" + name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        print("MIRA-SHOT \(name) \(Int(Date().timeIntervalSince1970 * 1000))")
+    }
+
+    /// A tab, the bar unfolded first (a scrolled page folds it to the current tab) and a sheet closed.
+    @MainActor
+    private func shotTab(_ app: XCUIApplication, _ id: String) {
+        let button = app.buttons[id]
+        for _ in 0..<5 where !(button.exists && button.isHittable) {
+            if app.sheets.count > 0 || app.buttons["together.create"].exists { app.swipeDown() } else { nudge(app, by: -1.4, fast: true) }
+            rest(0.6)
+        }
+        if button.exists { button.tap() }
+    }
+
+    /// Back at the top of the page.
+    @MainActor
+    private func top(_ app: XCUIApplication) {
+        for _ in 0..<3 { nudge(app, by: -1.4, fast: true) }
+        rest(0.8)
+    }
+
+    private func rest(_ seconds: Double) { Thread.sleep(forTimeInterval: seconds) }
+
+    /// A finger's drag: positive = toward the end of the page.
+    @MainActor
+    private func nudge(_ app: XCUIApplication, by fraction: Double, fast: Bool = false) {
+        let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: fraction > 0 ? 0.78 : 0.3))
+        let to = from.withOffset(CGVector(dx: 0, dy: -fraction * app.frame.height * 0.6))
+        from.press(forDuration: 0.05, thenDragTo: to, withVelocity: fast ? .fast : XCUIGestureVelocity(600), thenHoldForDuration: 0.05)
+    }
+}
+
 /// What a request answered, written from URLSession's queue.
 private final class Answer: Sendable {
     let status = Mutex(0)

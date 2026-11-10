@@ -1,0 +1,270 @@
+name: Presentation video pictures
+# TEMPORARY (never merged): the presentation video's pictures. Mira for Windows and the iPhone app on a real Jellyfin
+# 12.1 holding the README's library with its TMDb artwork (presentation/media.sh, library.mjs) and two real films
+# (Spring and Sprite Fright, Blender Studio, CC BY 4.0): each page of the window drawn whole at twice its size
+# (--demo-shots), the iPhone's screen after each slow drag (testShots), and the library's own pictures (export.mjs),
+# all committed to this branch for a montage at 60 frames a second (the runners film at 3 to 15).
+on:
+  push:
+    branches: [claude/project-thread-rh3c2j]
+    paths: [presentation/*.sh, presentation/*.mjs, .github/workflows/presentation.yml, src/Mira.Desktop/Checks/MainWindow.DemoShots.cs, src/Mira.iOS/MiraUITests/MiraUITests.swift]
+  workflow_dispatch:
+    inputs:
+      only:
+        description: One job only
+        default: all
+        type: choice
+        options: [all, windows, iphone, library]
+permissions:
+  contents: read
+concurrency:
+  group: presentation-${{ github.ref }}-${{ inputs.only || 'all' }}
+  cancel-in-progress: true
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  FILMS: https://github.com/lakson-llc/kyte-demo-media/releases/download/v1
+jobs:
+  library:
+    if: ${{ !inputs.only || inputs.only == 'all' || inputs.only == 'library' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The library
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          presentation/media.sh "$PWD/.artifacts/media"
+          echo "TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+      - name: Jellyfin 12.1, then its titles and their pictures
+        run: |
+          mkdir -p .artifacts/jf/config .artifacts/jf/cache .artifacts/export
+          docker run -d --name jellyfin --network host --user "$(id -u):$(id -g)" -v "$PWD/.artifacts/jf/config:/config" -v "$PWD/.artifacts/jf/cache:/cache" \
+            -v "$PWD/.artifacts/media:/media:ro" jellyfin/jellyfin:12.1.20260915-010956
+          node presentation/export.mjs http://127.0.0.1:8096 "$PWD/.artifacts/export"
+          du -sh .artifacts/export; ls .artifacts/export/img | wc -l
+      - name: Jellyfin log
+        if: failure()
+        run: docker logs --tail 80 jellyfin
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: export
+          path: .artifacts/export/*
+          retention-days: 3
+
+  windows:
+    if: ${{ !inputs.only || inputs.only == 'all' || inputs.only == 'windows' }}
+    runs-on: windows-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jellyfin/jellyfin
+          ref: v12.1
+          path: .artifacts/jellyfin-src
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: ffmpeg
+        run: choco install ffmpeg -y --no-progress
+      - name: Jellyfin 12.1 from its sources
+        working-directory: .artifacts/jellyfin-src
+        run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
+      - name: The library, Spring and Sprite Fright for real
+        shell: bash
+        run: |
+          presentation/media.sh "$PWD/.artifacts/media"
+          for f in "Spring (2019)/spring" "Sprite Fright (2021)/sprite-fright"; do
+            name="${f%/*}"; dir=".artifacts/media/Films/$name"
+            mkdir -p .artifacts/placeholders; mv "$dir/$name.mkv" ".artifacts/placeholders/${f#*/}.mkv"
+            curl -fsSL --retry 3 -o "$dir/$name.mp4" "$FILMS/${f#*/}.mp4"
+          done
+          echo "TITLES=$(( $(find .artifacts/media -name '*.mkv' -o -name '*.mp4' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+      - name: Jellyfin, its library and a viewer's traces
+        shell: pwsh
+        run: |
+          $j = Join-Path $PWD '.artifacts/jf-data'
+          foreach ($d in 'data', 'cache', 'config', 'log') { New-Item -ItemType Directory -Force -Path (Join-Path $j $d) | Out-Null }
+          $ffmpeg = (Get-Command ffmpeg).Source
+          Start-Process -FilePath dotnet -ArgumentList @('.artifacts/jf/jellyfin.dll', '--datadir', "$j/data", '--cachedir', "$j/cache", '--configdir', "$j/config", '--logdir', "$j/log", '--nowebclient', '--ffmpeg', $ffmpeg) -WindowStyle Hidden
+          node presentation/library.mjs http://127.0.0.1:8096 (Join-Path $PWD '.artifacts/media/Films') (Join-Path $PWD '.artifacts/media/Séries')
+          if ($LASTEXITCODE -ne 0) { throw 'Jellyfin setup failed.' }
+      # The runner's screen is 1024 × 768, smaller than the window drawn: Windows would shrink it to fit.
+      - name: Screen of 1920 × 1080
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+      - name: Build Mira for Windows
+        run: |
+          dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
+          dotnet build src/Mira.Desktop/Mira.Desktop.csproj -c Release --no-restore
+      - name: The pictures
+        shell: pwsh
+        env:
+          MIRA_GALLERY_SERVER: http://127.0.0.1:8096
+          MIRA_GALLERY_USER: Sam
+          MIRA_GALLERY_PASSWORD: mira-demo
+        run: |
+          $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
+          $out = Join-Path $PWD '.artifacts/out'; New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $profile = Join-Path $PWD '.artifacts/shots-profile'
+          & ./tools/mpv-engine.ps1 -Work .artifacts/mpv -ProfileFolder $profile
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', 'en', '--demo-shots', "`"$out`"") -PassThru
+          if (-not $run.WaitForExit(1800000)) { $run.Kill() }
+          Get-ChildItem $out | Format-Table Name, Length
+          foreach ($f in 'demo-shots-result.txt', 'demo-shots-failed.txt') { if (Test-Path (Join-Path $out $f)) { Get-Content (Join-Path $out $f) -Raw } }
+          if (Test-Path (Join-Path $profile 'errors.log')) { Get-Content (Join-Path $profile 'errors.log') -Tail 60 }
+          if (-not (Test-Path (Join-Path $out 'demo-shots-result.txt')) -or -not (Select-String -Path (Join-Path $out 'demo-shots-result.txt') -Pattern '^PASS' -Quiet)) { exit 1 }
+      - name: Jellyfin log
+        if: failure()
+        shell: pwsh
+        run: Get-ChildItem .artifacts/jf-data/log -Filter *.log | ForEach-Object { Get-Content $_.FullName -Tail 60 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: shots-windows
+          path: .artifacts/out/*
+          retention-days: 3
+
+  iphone:
+    if: ${{ !inputs.only || inputs.only == 'all' || inputs.only == 'iphone' }}
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jellyfin/jellyfin
+          ref: v12.1
+          path: .artifacts/jellyfin-src
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: src/Mira.Tailscale/go.mod
+          cache-dependency-path: src/Mira.Tailscale/go.sum
+      - name: XcodeGen and ffmpeg
+        run: |
+          for attempt in 1 2 3; do brew install xcodegen ffmpeg && break; [ "$attempt" = 3 ] && exit 1; sleep 30; done
+      - name: Jellyfin 12.1 from its sources
+        working-directory: .artifacts/jellyfin-src
+        run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
+      - name: The library, Spring and Sprite Fright for real
+        run: |
+          presentation/media.sh "$PWD/.artifacts/media"
+          for f in "Spring (2019)/spring" "Sprite Fright (2021)/sprite-fright"; do
+            name="${f%/*}"; dir=".artifacts/media/Films/$name"
+            mkdir -p .artifacts/placeholders; mv "$dir/$name.mkv" ".artifacts/placeholders/${f#*/}.mkv"
+            curl -fsSL --retry 3 -o "$dir/$name.mp4" "$FILMS/${f#*/}.mp4"
+          done
+          echo "TITLES=$(( $(find .artifacts/media -name '*.mkv' -o -name '*.mp4' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+      - name: Jellyfin, its library and a viewer's traces
+        run: |
+          j="$PWD/.artifacts/jf-data"; mkdir -p "$j/data" "$j/cache" "$j/config" "$j/log"
+          nohup dotnet .artifacts/jf/jellyfin.dll --datadir "$j/data" --cachedir "$j/cache" --configdir "$j/config" --logdir "$j/log" \
+            --nowebclient --ffmpeg "$(command -v ffmpeg)" > .artifacts/jellyfin.log 2>&1 &
+          node presentation/library.mjs http://127.0.0.1:8096 "$PWD/.artifacts/media/Films" "$PWD/.artifacts/media/Séries"
+      - name: Built-in Tailscale
+        run: tools/ios/tailscale.sh
+      - name: Generate the Xcode project
+        working-directory: src/Mira.iOS
+        run: xcodegen generate
+      - name: Simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          found = []
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              if "iOS" not in runtime: continue
+              version = tuple(int(x) for x in runtime.rsplit("iOS-", 1)[1].split("-"))
+              found += [(version, d["udid"]) for d in devices if d["name"] == "iPhone 17 Pro"]
+          print(max(found)[1])')
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid"
+          xcrun simctl ui "$udid" appearance dark
+          xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+      - name: The pictures
+        env:
+          UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          mkdir -p .artifacts/out .artifacts/attachments
+          status=0
+          TEST_RUNNER_MIRA_SHOTS_SERVER=127.0.0.1:8096 xcodebuild test -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" \
+            -resultBundlePath .artifacts/shots.xcresult -only-testing:MiraUITests/MiraUITests/testShots > .artifacts/shots.log 2>&1 || status=$?
+          grep -o "MIRA-SHOT .*" .artifacts/shots.log | sort -u -k3n > .artifacts/out/iphone-steps.txt || true
+          grep -E "error:|Test Case .* (passed|failed|skipped)|\*\* TEST" .artifacts/shots.log | tail -60 || true
+          [ $status -eq 0 ] || tail -40 .artifacts/shots.log
+          xcrun xcresulttool export attachments --path .artifacts/shots.xcresult --output-path .artifacts/attachments || true
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          root = ".artifacts/attachments"
+          for test in json.load(open(os.path.join(root, "manifest.json"))):
+              for attachment in test.get("attachments", []):
+                  name = attachment.get("suggestedHumanReadableName", "").split("_")[0]
+                  if re.fullmatch(r"shot-[a-z0-9-]+", name) and attachment["exportedFileName"].endswith(".png"):
+                      subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "95", os.path.join(root, attachment["exportedFileName"]), "--out", os.path.join(".artifacts/out", name[5:] + ".jpg")], check=True, capture_output=True)
+          PY
+          ls -la .artifacts/out
+          # The pictures count, not the test's verdict: a screen that did not come is one picture less.
+          [ "$(ls .artifacts/out/*.jpg 2>/dev/null | wc -l)" -ge 20 ]
+      - name: Jellyfin log
+        if: failure()
+        run: |
+          tail -60 .artifacts/jellyfin.log
+          tail -80 .artifacts/jf-data/log/*.log 2>/dev/null || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: shots-iphone
+          path: .artifacts/out/*
+          retention-days: 3
+
+  commit:
+    needs: [library, windows, iphone]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: shots-*
+          path: .artifacts/new
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: export
+          path: .artifacts/new
+      - name: Commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          ls .artifacts/new || exit 0
+          # Each part replaced whole by what this run made (git mv keeps nothing of the old one); the parts it did not run stay.
+          for part in shots-windows shots-iphone export; do
+            [ -d ".artifacts/new/$part" ] || continue
+            target="presentation/shots/$part"; [ "$part" = export ] && target="presentation/export"
+            git rm -r -q --ignore-unmatch "$target" > /dev/null
+            mkdir -p "$(dirname "$target")"; mv ".artifacts/new/$part" "$target"
+            git add -f "$target"
+          done
+          du -sh presentation/shots/* presentation/export 2>/dev/null || true
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Presentation: the pictures" || exit 0
+          for attempt in 1 2 3; do git pull -q --rebase origin "$BRANCH" && git push -q origin "HEAD:$BRANCH" && break; sleep 5; done

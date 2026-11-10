@@ -461,7 +461,7 @@ struct BannerView: View {
         // Its pictures are fetched meanwhile, and it waits for them: turned to, a slide never shows its blurred
         // placeholder (a slow way to Jellyfin only makes the banner turn later).
         .task(id: "\(current ?? "")-\(shown)-\(scenePhase == .active)") {
-            guard shown, scenePhase == .active, !reduceMotion, !voiceOver, entries.count > 1 else { return }
+            guard shown, scenePhase == .active, !reduceMotion, !voiceOver, entries.count > 1, !ProcessInfo.processInfo.arguments.contains("-mira-still") else { return }
             let index = entries.firstIndex { $0.id == (current ?? entries.first?.id) } ?? 0
             let next = entries[(index + 1) % entries.count]
             let turn = ContinuousClock.now + .seconds(9)
