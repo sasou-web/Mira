@@ -1,5 +1,34 @@
 [
   {
+    "version": "0.9.6", "date": "2026-11-10",
+    "summary": "Le Mac s’éteint sans accroc, Jellyfin sans extension, lecteur plus sûr, 30 langues.",
+    "en": { "summary": "The Mac shuts down cleanly, Jellyfin without the extension, a safer player, 30 languages." },
+    "changes": [
+      { "category": "Mac", "text": "Éteindre, redémarrer ou fermer la session n’est plus interrompu par Mira.", "en": { "category": "Mac", "text": "Shutting down, restarting or logging out is no longer interrupted by Mira." } },
+      { "category": "Mac", "text": "Mise à jour depuis le Dock, et rien demandé à Jellyfin fenêtre cachée.", "en": { "category": "Mac", "text": "Updates install from the Dock, and a hidden window asks Jellyfin nothing." } },
+      { "category": "Mac", "text": "Installer l’extension Mira sur Jellyfin depuis le Mac, comme sous Windows.", "en": { "category": "Mac", "text": "Install Mira’s extension on Jellyfin from the Mac, like on Windows." } },
+      { "category": "Jellyfin", "text": "Sans l’extension : plus de Téléchargements vide, de bibliothèques vides ni de lien mort.", "en": { "category": "Jellyfin", "text": "Without the extension: no empty Downloads, empty libraries or dead invite link." } },
+      { "category": "Lecteur", "text": "Le certificat https:// du serveur est vérifié avant d’envoyer le jeton.", "en": { "category": "Player", "text": "The server’s https:// certificate is checked before the token is sent." } },
+      { "category": "Lecteur", "text": "Sous-titres : seulement les forcés quand l’audio est dans ta langue.", "en": { "category": "Player", "text": "Subtitles: only forced ones when the audio is in your language." } },
+      { "category": "Langues", "text": "30 langues pour l’audio et les sous-titres, celle de l’appareil en premier.", "en": { "category": "Languages", "text": "30 languages for audio and subtitles, the device’s own first." } },
+      { "category": "Sécurité", "text": "Attestations GitHub, VirusTotal et une page du wiki pour vérifier un fichier.", "en": { "category": "Security", "text": "GitHub attestations, VirusTotal and a wiki page to verify a file." } },
+      { "category": "Nouveautés", "text": "Les 6 dernières versions, une ligne par changement, rouvertes depuis Réglages.", "en": { "category": "What’s new", "text": "The last 6 versions, one line per change, reopened from Settings." } },
+      { "category": "Site", "text": "miracinema.app s’ouvre en anglais, le français est dans /fr/.", "en": { "category": "Site", "text": "miracinema.app opens in English, French lives under /fr/." } }
+    ],
+    "items": [
+      { "icon": "laptop", "title": "Un Mac qui s’éteint sans accroc", "text": "Éteindre ou redémarrer ne bute plus sur Mira, la mise à jour passe depuis le Dock, et Mira cachée ne demande plus rien à Jellyfin.",
+        "en": { "title": "A Mac that shuts down cleanly", "text": "Shutdown and restart no longer stall on Mira, updates install from the Dock, and a hidden Mira stops asking Jellyfin anything." } },
+      { "icon": "server", "title": "Jellyfin sans l’extension", "text": "Mira ne montre plus de page qui ne peut pas marcher sur un serveur ordinaire, et le Mac installe l’extension lui-même.",
+        "en": { "title": "Jellyfin without the extension", "text": "Mira no longer shows pages that can’t work on a plain server, and the Mac can install the extension itself." } },
+      { "icon": "shield", "title": "Un lecteur plus sûr", "text": "Avec un Jellyfin en https://, le lecteur vérifie le certificat avant d’envoyer le jeton de ton compte, et ne lance plus yt-dlp.",
+        "en": { "title": "A safer player", "text": "With an https:// Jellyfin, the player checks the certificate before sending your account token, and never runs yt-dlp." } },
+      { "icon": "subtitles", "title": "Les langues des pistes pour tous", "text": "30 langues au choix pour l’audio et les sous-titres, et un appareil qui n’a rien choisi démarre dans la sienne.",
+        "en": { "title": "Track languages for everyone", "text": "30 languages to choose from for audio and subtitles, and a device that chose nothing starts in its own." } },
+      { "icon": "check", "title": "Vérifier un téléchargement", "text": "Attestations de construction GitHub, VirusTotal et une page du wiki pour vérifier chaque fichier d’une release.",
+        "en": { "title": "Verify a download", "text": "GitHub build attestations, VirusTotal and a wiki page to check every file of a release." } }
+    ]
+  },
+  {
     "version": "0.9.5", "date": "2026-11-08",
     "summary": "Le Mac rattrape les flux bloqués, télécommande, plus de filtres, iPhone hors connexion.",
     "en": { "summary": "Mac recovers stalled streams, Jellyfin remote control, more filters, the iPhone offline." },

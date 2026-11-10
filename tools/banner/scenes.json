@@ -1,4 +1,14 @@
 {
+  "0.9.6": {
+    "backdrop": "your-name",
+    "items": [
+      { "shot": "mac-home" },
+      { "shot": "mac-settings" },
+      { "platform": "windows" },
+      { "platform": "iphone" },
+      { "platform": "server" }
+    ]
+  },
   "0.9.5": {
     "backdrop": "nimona",
     "items": [
