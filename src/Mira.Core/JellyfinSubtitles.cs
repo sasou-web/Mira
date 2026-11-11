@@ -27,17 +27,27 @@ public static class JellyfinSubtitles
     public static readonly IReadOnlyList<string> Formats = ["srt", "ass", "ssa", "vtt", "sub"];
     /// <summary>A file bigger than this is no subtitle file.</summary>
     public const int MaxSize = 4 * 1024 * 1024;
-    /// <summary>The languages searched and guessed, by the code Jellyfin understands (ISO 639-2, as its own dashboard sends).</summary>
-    private static readonly (string Code, string[] Names)[] Known =
-    [
-        ("fre", ["fre", "fra", "fr", "french", "francais", "français", "vf", "vff", "vfq", "vostfr"]),
-        ("eng", ["eng", "en", "english", "anglais", "vosta"]),
-        ("jpn", ["jpn", "ja", "jp", "japanese", "japonais"]),
-        ("spa", ["spa", "es", "spanish", "espanol", "español"]),
-        ("ger", ["ger", "deu", "de", "german", "deutsch", "allemand"]),
-        ("ita", ["ita", "it", "italian", "italiano"]),
-        ("por", ["por", "pt", "portuguese", "portugues", "português"]),
-    ];
+    /// <summary>The words a file's name uses for a language besides its codes (declared before <see cref="Known"/>, which is made with them).</summary>
+    private static readonly Dictionary<string, string[]> Words = new()
+    {
+        ["fr"] = ["french", "francais", "français", "vf", "vff", "vfq", "vostfr"],
+        ["en"] = ["english", "anglais", "vosta"],
+        ["ja"] = ["jp", "japanese", "japonais"],
+        ["es"] = ["spanish", "espanol", "español"],
+        ["de"] = ["german", "deutsch", "allemand"],
+        ["it"] = ["italian", "italiano"],
+        ["pt"] = ["portuguese", "portugues", "português"],
+    };
+    /// <summary>
+    /// The languages searched and guessed, by the code Jellyfin understands (ISO 639-2 B, as its own dashboard sends):
+    /// each one Réglages offers for the tracks (<see cref="TrackLanguages.Known"/>), by its codes, plus the words a
+    /// file's name uses for the most common ones.
+    /// </summary>
+    private static readonly (string Code, string[] Names)[] Known = [.. TrackLanguages.Known.Select(x =>
+    {
+        var codes = x.Codes.Split(',');
+        return (codes[0], codes.Concat(Words.TryGetValue(x.Two, out var words) ? words : []).ToArray());
+    })];
     private static readonly string[] ForcedNames = ["forced", "force", "forces", "forcé", "forcés"];
     private static readonly string[] HearingNames = ["sdh", "cc", "hi"];
 
