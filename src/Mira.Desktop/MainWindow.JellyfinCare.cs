@@ -34,6 +34,16 @@ public partial class MainWindow
     }
 
     /// <summary>
+    /// The timeline's previews, once per server, the light way (key frames only, idle priority): made by Jellyfin's
+    /// nightly task and after each scan, never started now. Previews someone turned on in Jellyfin are left as they are.
+    /// </summary>
+    private async Task MakePreviewsAsync(JellyfinClient client, CancellationToken ct)
+    {
+        if (_settings.TrickplayAutoFor == client.Connection.Server || await client.TrickplayEnabledAsync(ct) is not { } previews) return;
+        if (previews || await client.EnableTrickplayAsync(now: false, ct)) { _settings.TrickplayAutoFor = client.Connection.Server; TrySaveSettings(); }
+    }
+
+    /// <summary>
     /// Once a backup is due (<see cref="JellyfinBackups.Reminds"/>), Jellyfin backed up by Mira itself while nobody
     /// watches (looked at again every 6 hours otherwise), its own folder then kept to its newest archives; the reminder
     /// only when that failed. Else the notice of a newer Jellyfin, once per version; never over another notice on
@@ -46,12 +56,7 @@ public partial class MainWindow
         try
         {
             if (!await JellyfinOnThisPcAsync(client) || await client.IsAdministratorAsync(ct) != true) return;
-            // The timeline's previews, once per server, the light way (key frames only, idle priority): made by Jellyfin's
-            // nightly task and after each scan, never started now.
-            if (_settings.TrickplayAutoFor != client.Connection.Server && await client.TrickplayEnabledAsync(ct) is { } previews)
-            {
-                if (previews || await client.EnableTrickplayAsync(now: false, ct)) { _settings.TrickplayAutoFor = client.Connection.Server; TrySaveSettings(); }
-            }
+            await MakePreviewsAsync(client, ct);
             var now = DateTimeOffset.Now;
             if (await client.BackupsAsync(ct) is { } backups && ReferenceEquals(client, _client))
             {
