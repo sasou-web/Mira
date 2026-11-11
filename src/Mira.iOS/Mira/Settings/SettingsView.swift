@@ -456,8 +456,9 @@ extension JellyfinClient {
         try await send("POST", "Users/\(userId)/Images/Primary", body: jpeg.base64EncodedData(), contentType: "image/jpeg", timeout: 30)
     }
 
+    /// Quick Connect turned off answers 401 too: asked first (quickConnectEnabled), turned off just then, this session stays.
     func approveCode(_ code: String) async throws {
-        try await send("POST", "QuickConnect/Authorize", ["code": code, "userId": userId])
+        try await send("POST", "QuickConnect/Authorize", ["code": code, "userId": userId], refusalEndsSession: false)
     }
 }
 

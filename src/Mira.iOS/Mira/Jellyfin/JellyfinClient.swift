@@ -74,10 +74,17 @@ struct JellyfinClient: Sendable {
         do { return try JSON.decoder.decode(T.self, from: data) } catch { throw JellyfinError.notJellyfin }
     }
 
+    /// Told of a token Jellyfin refused (401): the session it was given to has ended (signed out from Jellyfin's
+    /// dashboard, its device removed, its account deleted or disabled), whichever screen asked. AppModel ends it, or the
+    /// friend's party whose guest it was; a token of before is let go.
+    @MainActor static var refused: (@MainActor (String) -> Void)?
+
     /// Sent on the way to the server taken now (Way); found cut, another way is looked for, and a request that may be
-    /// sent twice (reading, deleting) goes once more on it.
+    /// sent twice (reading, deleting) goes once more on it. A 401 to a session's token ends that session (`refused`),
+    /// unless `refusalEndsSession` is false: a request Jellyfin also refuses for another reason.
     @discardableResult
-    func send(_ method: String, _ path: String, _ query: [String: String?] = [:], body: Data? = nil, contentType: String = "application/json", timeout: TimeInterval? = nil) async throws -> Data {
+    func send(_ method: String, _ path: String, _ query: [String: String?] = [:], body: Data? = nil, contentType: String = "application/json", timeout: TimeInterval? = nil,
+              refusalEndsSession: Bool = true) async throws -> Data {
         var again = ["GET", "HEAD", "DELETE"].contains(method)
         while true {
             var request = URLRequest(url: await Way.shared.map(url(path, query)))
@@ -109,7 +116,9 @@ struct JellyfinClient: Sendable {
             }
             switch http.statusCode {
             case 200..<300: return data
-            case 401: throw JellyfinError.unauthorized
+            case 401:
+                if refusalEndsSession, let token { await MainActor.run { Self.refused?(token) } }
+                throw JellyfinError.unauthorized
             case 403: throw JellyfinError.forbidden
             case 400:
                 if let words = Self.refusal(data) { throw JellyfinError.refused(words) }

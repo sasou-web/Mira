@@ -95,6 +95,7 @@ final class AppModel {
         together.app = self
         party.app = self
         keeper.app = self
+        JellyfinClient.refused = { [weak self] token in self?.refused(token) }
         keeper.use(session)
         preferences.use(account: session?.userId)
         preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.ownClient } }
@@ -383,6 +384,17 @@ final class AppModel {
             await client?.signOut()
             if let serverId { await Way.shared.forget(serverId) }
             Way.select(nil, id: nil)
+        }
+    }
+
+    /// Jellyfin refused this token (401) to any request: its session has ended, from whichever screen asked (before,
+    /// a recap, Now on Jellyfin, Downloads or joining a group said « Wrong username or password. » and kept the session).
+    /// The guest's token of a friend's party: the party is over. A token of before (signed in again since) changes nothing.
+    func refused(_ token: String) {
+        if let guest = party.guest {
+            if guest.token == token { sessionEnded() }
+        } else if session?.token == token {
+            sessionEnded()
         }
     }
 

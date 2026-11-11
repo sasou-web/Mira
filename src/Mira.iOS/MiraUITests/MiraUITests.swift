@@ -439,6 +439,39 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(retry.waitForNonExistence(timeout: 20), "Retry did not bring Home back from Jellyfin")
     }
 
+    /// Jellyfin forgets the session (signed out from its dashboard, the device removed): the next screen that asks it
+    /// something, here the recap in Settings, brings back the sign-in screen saying why, never « Wrong username or
+    /// password. » under a screen that keeps a dead session; signing in again brings Home back.
+    @MainActor
+    func testSessionEnded() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let settings = app.buttons["tab.settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5), "No Settings tab")
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings did not open")
+        mock("/Mock/Revoke")
+        let recap = app.buttons["settings.report"].firstMatch
+        XCTAssertTrue(recap.waitForExistence(timeout: 5), "No Your recap in Settings")
+        recap.tap()
+        let address = app.textFields["login.address"]
+        if !address.waitForExistence(timeout: 15) {
+            capture("53-session-ended-kept")
+            XCTFail("A request refused for the session did not end it: \(app.staticTexts.allElementsBoundByIndex.map(\.label))")
+            return
+        }
+        let why = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'session on Jellyfin has ended'")).firstMatch
+        XCTAssertTrue(why.waitForExistence(timeout: 5), "The sign-in screen does not say the session ended")
+        XCTAssertFalse(app.staticTexts["Wrong username or password."].exists, "An ended session is said as a wrong password")
+        settle()
+        capture("53-session-ended")
+        app.buttons["login.continue"].tap()
+        signInAccount(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Signing in again did not bring Home back")
+    }
+
     /// The film of Mira's opening (ios.yml's film: testOpeningFilm records the simulator meanwhile; skipped otherwise):
     /// opened with Jellyfin slow, quick, then away and back, between the marks ios.yml cuts the film at.
     @MainActor
