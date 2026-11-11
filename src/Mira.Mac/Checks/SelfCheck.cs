@@ -1013,11 +1013,15 @@ public static class SelfCheck
             // —— « Lire sur… » from another device while the window is in the Dock: back as from the Dock icon ——
             if (mock is not null)
             {
+                // Refused by Jellyfin: the player's own screen, no film. Another film this late in the self-check made the
+                // process crash on the runner (mpv_render_context_create, as the quit check found: SystemQuit.cs).
                 await window.CloseToDockAsync();
+                mock.RefusePlayback = true;
                 window.Remote(window.Session!, new RemoteCommand(RemoteAction.Play) { ItemId = "movie-1", Start = 0 });
-                var played = await Until(() => window.Player is { IsFileLoaded: true }, 20);
-                Check(played && window.IsVisible && !window.InDock && !window.Away, "télécommande : « Lire sur… » ramène la fenêtre du Dock",
-                    $"lu {played}, visible {window.IsVisible}, Dock {window.InDock}");
+                var asked = await Until(() => window.Player is { FailureShown: true }, 15);
+                Check(asked && window.IsVisible && !window.InDock && !window.Away, "télécommande : « Lire sur… » ramène la fenêtre du Dock",
+                    $"lecteur {asked}, visible {window.IsVisible}, Dock {window.InDock}");
+                mock.RefusePlayback = false;
                 await window.StopPlaybackAsync();
             }
 
