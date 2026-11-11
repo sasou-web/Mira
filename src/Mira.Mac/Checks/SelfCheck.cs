@@ -830,6 +830,9 @@ public static class SelfCheck
                     "rapports envoyés à Jellyfin", $"{string.Join(", ", kinds.Distinct())} ; volume signalé {(stop.ValueKind == System.Text.Json.JsonValueKind.Undefined ? "?" : stop.GetProperty("VolumeLevel").ToString())}");
             }
 
+            // —— A start overtaken before its picture: stopped, or another title asked for, while the view waits for OpenGL ——
+            await OvertakenStartsAsync(window, movie, Check);
+
             // —— « Lecture impossible », as on Windows: its screen, another try in the same player, Échap back to the library ——
             if (mock is not null)
             {
@@ -983,12 +986,10 @@ public static class SelfCheck
                     window.Go("offline");
                     Check(await Until(() => window.Current is OfflinePage { Count: 1 }, 5), "garder sur ce Mac : la page « Sur ce Mac »", $"{(window.Current as OfflinePage)?.Count} titres");
                     await Task.Delay(800); Capture(window, output, "09-offline");
-                    // In software, as the « logiciel » playback above: on the runner of mac.yml, without GPU interop, the OpenGL
-                    // view tried and given up here, after those of the episodes, crashed the process (segmentation fault,
-                    // cause not found: no crash report there); the fall back from OpenGL is checked by the playback above.
-                    Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", "1");
+                    // The OpenGL view first, as everywhere: on the runner of mac.yml, without GPU interop, the process crashed
+                    // here until the engine of the episode stopped above before its picture was no longer handed to the
+                    // software view (OvertakenStartsAsync).
                     await window.PlayAsync(movie);
-                    Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);
                     Check(await Until(() => window.Player is { IsFileLoaded: true }, 20) && window.Player?.Location == copy.VideoPath, "garder sur ce Mac : lu depuis ce Mac", window.Player?.Location ?? "lecteur fermé");
                     await window.StopPlaybackAsync();
                     await window.ForgetOfflineAsync([copy]);
@@ -1013,8 +1014,7 @@ public static class SelfCheck
             // —— « Lire sur… » from another device while the window is in the Dock: back as from the Dock icon ——
             if (mock is not null)
             {
-                // Refused by Jellyfin: the player's own screen, no film. Another film this late in the self-check made the
-                // process crash on the runner (mpv_render_context_create, as the quit check found: SystemQuit.cs).
+                // Refused by Jellyfin: the player's own screen, no film (enough to see the window come back).
                 await window.CloseToDockAsync();
                 mock.RefusePlayback = true;
                 window.Remote(window.Session!, new RemoteCommand(RemoteAction.Play) { ItemId = "movie-1", Start = 0 });
@@ -1167,6 +1167,38 @@ public static class SelfCheck
         check(false, $"{Name} : refusé, macOS arrêterait l’extinction ou le redémarrage", "");
         write();
         return false;
+    }
+
+    /// <summary>
+    /// A start overtaken while mpv's view waits for its first OpenGL frame (on the runner of mac.yml, without GPU interop,
+    /// four seconds before the software view): stopped there, or another title asked for in the same player. The engine
+    /// let go meanwhile was once handed to the software view, which gave mpv no handle: the process crashed a film or
+    /// two later (SIGSEGV in mpv_render_context_create), and the start overtaken closed the player that played the
+    /// newer title, its sound going on with no player to stop it.
+    /// </summary>
+    private static async Task OvertakenStartsAsync(MainWindow window, MediaItem movie, Action<bool, string, string> check)
+    {
+        var opening = window.PlayAsync(movie, fromStart: true);
+        var first = await Until(() => window.Player is { Engine: not null }, 15) ? window.Player : null;
+        await window.StopPlaybackAsync();
+        await opening;
+        // Past the four seconds the view waits for OpenGL.
+        await Task.Delay(5500);
+        check(first is not null && window.Player is null && first.Surface is null && first.Engine is null, "lecteur : arrêté avant sa première image",
+            $"lecteur {window.Player is not null}, vue {first?.Surface?.GetType().Name ?? "aucune"}, moteur {first?.Engine is not null}");
+
+        opening = window.PlayAsync(movie, fromStart: true);
+        var player = await Until(() => window.Player is { Engine: not null }, 15) ? window.Player : null;
+        var engine = player?.Engine;
+        var newer = player?.PlayAgainForCheck(movie);
+        await opening;
+        if (newer is not null) await newer;
+        var playing = await Until(() => window.Player == player && player is { IsFileLoaded: true, Surface.Frames: > 6 } && player.Engine != engine, 30);
+        await Task.Delay(5500);
+        check(player is not null && playing && window.Player == player && player.IsFileLoaded && !player.IsStopped,
+            "lecteur : un autre titre demandé avant la première image du premier, le lecteur le garde",
+            $"lecteur {(window.Player == player ? "gardé" : "fermé")}, chargé {player?.IsFileLoaded}, {player?.Surface?.GetType().Name} {player?.Surface?.Frames} images");
+        await window.StopPlaybackAsync();
     }
 
     /// <summary>

@@ -122,4 +122,6 @@ public sealed partial class PlayerPage
     }
     /// <summary>« Réessayer » of the screen: for the self-check.</summary>
     public void RetryForCheck() { if (FailureShown && _failureAction.IsEnabled) _failureAct?.Invoke(); }
+    /// <summary>Another title in this same player, as the episodes menu starts one: for the self-check.</summary>
+    public Task PlayAgainForCheck(MediaItem item) => PlayNextAsync(item);
 }
