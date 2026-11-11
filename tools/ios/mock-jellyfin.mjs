@@ -93,6 +93,8 @@ films[0].People = [credit(4, 'Director'), credit(5, 'Actor', 'Sintel')];
 films[1].People = [credit(3, 'Director'), credit(0, 'Actor', 'Thom'), credit(1, 'Actor', 'Celia'), credit(2, 'Actor', 'Barley'), credit(0, 'Actor', 'Old Thom')];
 const SERIES = 'c9d8e1f0a3b42c5d6e7f8a9b0c1d2e3f';
 const SEASON = 'd0e9f2a1b4c53d6e7f8a9b0c1d2e3f40';
+// A season announced by TheTVDB that the library has no episode of (virtual).
+const MISSING_SEASON = 'd1e0f3a2b5c64d7e8f9a0b1c2d3e4f51';
 const MOVIES = 'f1e2d3c4b5a69788796a5b4c3d2e1f00', SHOWS = 'f2e3d4c5b6a7988796a5b4c3d2e1f011';
 const series = {
   Id: SERIES, Name: 'Pioneer One', Type: 'Series', ProductionYear: 2010, ChildCount: 1, Genres: ['Drama', 'Science Fiction'],
@@ -343,10 +345,17 @@ const server = http.createServer(async (req, res) => {
   }
   if (path === '/UserItems/Resume') return send(res, 200, list([episodes[1], films[0]]));
   if (path === '/Shows/NextUp') return send(res, 200, list([q.get('seriesId') ? episodes[1] : episodes[2]]));
-  if (path === `/Shows/${SERIES}/Seasons`) return send(res, 200, list([{ Id: SEASON, Name: 'Season 1', Type: 'Season', IndexNumber: 1, SeriesId: SERIES }]));
+  // An account that shows missing episodes (Jellyfin's « Display missing episodes within seasons »): as Jellyfin 12.1,
+  // its episodes and seasons come with the virtual ones (and a season of missing episodes only) unless isMissing=false.
+  const missingToo = q.get('isMissing') !== 'false';
+  if (path === `/Shows/${SERIES}/Seasons`) {
+    return send(res, 200, list([{ Id: SEASON, Name: 'Season 1', Type: 'Season', IndexNumber: 1, SeriesId: SERIES },
+      ...(missingToo ? [{ Id: MISSING_SEASON, Name: 'Season 2', Type: 'Season', IndexNumber: 2, SeriesId: SERIES, LocationType: 'Virtual' }] : [])]));
+  }
   if (path === `/Shows/${SERIES}/Episodes`) {
-    const from = Math.max(0, episodes.findIndex((x) => x.Id === q.get('startItemId')));
-    return send(res, 200, list(episodes.slice(from, from + Number(q.get('limit') ?? 100))));
+    const shown = missingToo ? [...episodes, ...virtualEpisodes] : episodes;
+    const from = Math.max(0, shown.findIndex((x) => x.Id === q.get('startItemId')));
+    return send(res, 200, list(shown.slice(from, from + Number(q.get('limit') ?? 100))));
   }
   const playback = /^\/Items\/([0-9a-f]+)\/PlaybackInfo$/.exec(path);
   if (playback && req.method === 'POST') {
