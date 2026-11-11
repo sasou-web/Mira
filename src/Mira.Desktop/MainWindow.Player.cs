@@ -69,7 +69,7 @@ public partial class MainWindow
                 {
                     var episodes = _metadata is { } metadata ? await metadata.EpisodesAsync(item.Id) : await _client.EpisodesAsync(item.Id);
                     if (_store is { } store) await Task.Run(() => store.ApplyLocalProgress(episodes.Items));
-                    next = episodes.Items.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? episodes.Items.FirstOrDefault(x => !x.UserData.Played) ?? episodes.Items.FirstOrDefault();
+                    next = episodes.Items.FirstOrDefault(x => x.Resumable) ?? episodes.Items.FirstOrDefault(x => !x.UserData.Played) ?? episodes.Items.FirstOrDefault();
                 }
                 item = next ?? throw new IOException(L("Aucun épisode disponible.", "No episodes available."));
             }

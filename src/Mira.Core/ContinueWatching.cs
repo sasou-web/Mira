@@ -23,9 +23,9 @@ public static class ContinueWatching
     public static List<MediaItem> Order(IEnumerable<MediaItem> resume, IEnumerable<MediaItem> next, IEnumerable<MediaItem> history)
     {
         var activity = history.GroupBy(Group).ToDictionary(x => x.Key, x => x.Max(i => i.UserData.LastPlayedDate) ?? DateTimeOffset.MinValue);
-        // A real resume point wins over NextUp's not-yet-started episode of the same series.
-        // Among several resumed episodes, the most recently watched one wins.
-        var candidates = resume.Where(x => !x.UserData.Played && x.UserData.PlaybackPositionTicks > 0)
+        // A real resume point wins over NextUp's not-yet-started episode of the same series (a title watched again too:
+        // Jellyfin 12 keeps it watched, with its position). Among several resumed episodes, the most recently watched one wins.
+        var candidates = resume.Where(x => x.Resumable)
             .OrderByDescending(x => x.UserData.LastPlayedDate).Concat(next.Where(x => !x.UserData.Played))
             .DistinctBy(Group);
         return candidates.OrderByDescending(x =>

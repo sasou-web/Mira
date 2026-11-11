@@ -113,6 +113,13 @@ public sealed record MediaItem
     [JsonIgnore] public string? EpisodesToWatchText => EpisodesToWatch is { } count ? count == 1 ? L("1 épisode à voir", "1 episode to watch") : L($"{count} épisodes à voir", $"{count} episodes to watch") : null;
     [JsonIgnore] public string DurationLabel => RunTimeTicks is > 0 ? FormatDuration(TimeSpan.FromTicks(RunTimeTicks.Value)) : "";
     [JsonIgnore] public double Progress => RunTimeTicks is > 0 ? Math.Clamp((double)UserData.PlaybackPositionTicks / RunTimeTicks.Value, 0, 1) : 0;
+    /// <summary>
+    /// Left partway: « Reprendre », its progress line, « Continuer à regarder ». Jellyfin zeroes the position of what is
+    /// watched to its end or marked watched, so a position means a viewing in progress, even on a title already watched:
+    /// Jellyfin 12 keeps it watched when it is watched again, with the position of this new viewing (10.x made it unwatched
+    /// as it started; checked on 12.1). Not on its last 10 % (<see cref="LibraryStore.WatchedThreshold"/>): it starts over.
+    /// </summary>
+    [JsonIgnore] public bool Resumable => UserData.PlaybackPositionTicks > 0 && Progress < LibraryStore.WatchedThreshold;
     /// <summary>The leading actors, in the order Jellyfin credits them.</summary>
     [JsonIgnore] public string[] Cast => CastPeople.Select(x => x.Name).ToArray();
     [JsonIgnore] public string[] Directors => DirectorPeople.Select(x => x.Name).ToArray();

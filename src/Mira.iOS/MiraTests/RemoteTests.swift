@@ -52,12 +52,14 @@ struct RemoteTests {
         }
     }
 
-    @Test("Lire ailleurs : depuis où ce compte en était, du début pour un titre vu ou demandé du début")
+    @Test("Lire ailleurs : depuis où ce compte en était (un titre revu aussi), du début pour un titre vu ou demandé du début")
     func start() throws {
         var item = try JSON.decoder.decode(Item.self, from: Data(#"{"Id":"a1","RunTimeTicks":60000000000,"UserData":{"PlaybackPositionTicks":12000000000}}"#.utf8))
         #expect(RemoteRules.startTicks(item, fromStart: false) == 12_000_000_000)
         #expect(RemoteRules.startTicks(item, fromStart: true) == 0)
         item.userData?.played = true
+        #expect(RemoteRules.startTicks(item, fromStart: false) == 12_000_000_000)
+        item.userData?.playbackPositionTicks = 0
         #expect(RemoteRules.startTicks(item, fromStart: false) == 0)
         #expect(RemoteRules.plainId("90892981-F28A-0CCB-86A6-E55A3A0039C6") == "90892981f28a0ccb86a6e55a3a0039c6")
         #expect(RemoteRules.plainId("../Users") == nil)

@@ -92,10 +92,11 @@ enum RemoteRules {
         [target.device, target.client].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
-    /// Where to start a title elsewhere, in Jellyfin's ticks: where this account left it, 0 from the start (another Mira
-    /// then starts it over rather than where it was).
+    /// Where to start a title elsewhere, in Jellyfin's ticks: where this account left it (a title watched again too:
+    /// Jellyfin 12 keeps it watched, with its new position), 0 from the start (another Mira then starts it over rather
+    /// than where it was).
     static func startTicks(_ item: Item, fromStart: Bool) -> Int64 {
-        guard !fromStart, item.userData?.played != true, let done = item.userData?.playbackPositionTicks, done > 0 else { return 0 }
+        guard !fromStart, let done = item.userData?.playbackPositionTicks, done > 0 else { return 0 }
         if let total = item.runTimeTicks, total > 0, done >= total { return 0 }
         return done
     }

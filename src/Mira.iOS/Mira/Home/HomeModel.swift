@@ -45,13 +45,14 @@ struct HomeContent: Codable, Sendable, Equatable {
     }
 
     /// Continue watching as Mira orders it everywhere: a real resume point wins over the next episode of the same
-    /// series, and each film or series stands where its last activity puts it (orderContinue of Mira web).
+    /// series, and each film or series stands where its last activity puts it (orderContinue of Mira web). A title
+    /// watched again and left halfway is resumed too: Jellyfin 12 keeps it watched, with its position (ItemText.progress).
     static func orderContinue(resume: [Item], next: [Item], history: [Item]) -> [Item] {
         func group(_ item: Item) -> String { item.seriesId ?? item.id }
         func played(_ item: Item) -> Date { item.userData?.lastPlayedDate.flatMap(parseDate) ?? .distantPast }
         var activity: [String: Date] = [:]
         for item in history { activity[group(item)] = max(activity[group(item)] ?? .distantPast, played(item)) }
-        let resumed = resume.filter { $0.userData?.played != true && ($0.userData?.playbackPositionTicks ?? 0) > 0 }
+        let resumed = resume.filter { ($0.userData?.playbackPositionTicks ?? 0) > 0 }
             .enumerated().sorted { played($0.element) > played($1.element) || played($0.element) == played($1.element) && $0.offset < $1.offset }.map(\.element)
         var seen = Set<String>(), candidates: [Item] = []
         for item in resumed + next.filter({ $0.userData?.played != true }) where seen.insert(group(item)).inserted {

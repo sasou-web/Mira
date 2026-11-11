@@ -73,7 +73,7 @@ public partial class MainWindow
         var hidden = Spoilers.Hides(episode, _settings.HideSpoilers) && !playing;
         var image = new Image { Stretch = Stretch.UniformToFill }; thumb.Children.Add(image);
         if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
-        if (episode.Progress > 0 && !episode.UserData.Played) thumb.Children.Add(new Border { Height = 3, Width = 112 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
+        if (episode.Resumable) thumb.Children.Add(new Border { Height = 3, Width = 112 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
         grid.Children.Add(thumb);
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; Grid.SetColumn(text, 1);
         var title = episode.IndexNumber is { } number ? $"{number}. {episode.Name}" : episode.Name;

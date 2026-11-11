@@ -136,7 +136,7 @@ public sealed class Catalog
     {
         RecentPlayback = ContinueWatching.History(RecentPlayback.Append(snapshot));
         Resume.RemoveAll(x => x.Id == snapshot.Id);
-        if (!snapshot.UserData.Played && snapshot.UserData.PlaybackPositionTicks > 0) Resume.Insert(0, snapshot);
+        if (snapshot.Resumable) Resume.Insert(0, snapshot);
     }
     /// <summary>
     /// Seen or not seen, in every list holding a copy (and in <paramref name="others"/>, the title page's): from the

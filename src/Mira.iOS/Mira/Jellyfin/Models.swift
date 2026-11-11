@@ -170,9 +170,11 @@ enum ItemText {
         return String(localized: "\(duration(seconds: (total - done) / ticksPerSecond)) left")
     }
 
-    /// How far it was watched, 0 to 1; 0 when not started or already watched.
+    /// How far it was watched, 0 to 1; 0 when not started, or watched to its end (Jellyfin then zeroes the position).
+    /// A title watched before and started again has one: Jellyfin 12 keeps it watched, with the position of this new
+    /// viewing (Jellyfin 10 made it unwatched as it started; checked on 12.1, Resumable of Core).
     static func progress(_ item: Item) -> Double {
-        guard item.userData?.played != true, let total = item.runTimeTicks, let done = item.userData?.playbackPositionTicks, total > 0, done > 0 else { return 0 }
+        guard let total = item.runTimeTicks, let done = item.userData?.playbackPositionTicks, total > 0, done > 0 else { return 0 }
         return min(1, Double(done) / Double(total))
     }
 

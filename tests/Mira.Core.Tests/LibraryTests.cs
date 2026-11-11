@@ -206,6 +206,9 @@ internal static class LibraryTests
             latest.UserData.Played = true; latest.UserData.PlaybackPositionTicks = 0;
             list = ContinueWatching.Order([old], [next], [latest]);
             Assert(list[0].Id == "next", "A just-finished series must keep its next episode at the front");
+            var again = Episode("again", "again-series", recent.AddHours(-1)); again.UserData.Played = true;
+            list = ContinueWatching.Order([old, again], [], []);
+            Assert(list.Count == 2 && list[0].Id == "again", "Watched again and left halfway (still watched on Jellyfin 12): in « Continuer à regarder »");
             return Task.CompletedTask;
         });
         await Test("Reprise : ordre persistant et réponse serveur retardée après une lecture locale", () =>
@@ -221,6 +224,10 @@ internal static class LibraryTests
             var newerRemote = current with { UserData = current.UserData with { LastPlayedDate = now.AddSeconds(10), PlaybackPositionTicks = 500 } };
             Assert(reopened.MergeResume([newerRemote], history).Single().UserData.PlaybackPositionTicks == 500, "Local history replaced a newer remote playback");
             reopened.ForgetProgress("local"); Assert(reopened.RecentPlayback().Count == 0 && reopened.Load<List<MediaItem>>("resume")!.Count == 0, "Manual watched/unwatched reset left a stale local resume");
+            var again = new MediaItem { Id = "again", RunTimeTicks = 1000, UserData = new() { LastPlayedDate = now, PlaybackPositionTicks = 300, Played = true } };
+            reopened.RememberPlayback(again);
+            Assert(reopened.Load<List<MediaItem>>("resume")!.Single().Id == "again" && reopened.MergeResume([], reopened.RecentPlayback()).Single().Id == "again",
+                "A title watched again, stopped halfway (still watched on Jellyfin 12), is resumed here as well");
             return Task.CompletedTask;
         });
         await Test("Reprise : une ancienne lecture absente du serveur ne revient que si sa synchronisation attend", () =>
