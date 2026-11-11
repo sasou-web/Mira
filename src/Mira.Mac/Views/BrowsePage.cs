@@ -443,6 +443,7 @@ public sealed class BrowsePage : Page
             else _empty.Hide();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (UnauthorizedAccessException ex) { if (version == _version) Shell.Say(ex); }
         catch (Exception ex) when (Errors.Expected(ex)) { if (version == _version) Shell.Notice(Errors.Friendly(ex), L("Réessayer", "Try again"), () => _ = ReloadAsync()); }
         finally { if (version == _version) { _loading = false; _grid.Skeleton(0); } }
     }

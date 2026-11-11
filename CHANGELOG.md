@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Session finie sur Jellyfin (Mac)** : un compte déconnecté depuis le tableau de bord de Jellyfin, ou dont le mot de passe a changé, ramène maintenant à l’écran de connexion, serveur et nom remplis, comme sous Windows ; avant, chaque page disait « Reconnecte ton compte » sans rien proposer d’autre que Réglages → Se déconnecter. Un refus qui ne vient que d’un droit manquant (page d’administrateur) reste un simple avis : Mira demande d’abord à Jellyfin si la session existe encore. Contrôlé par le self-check du Mac ; jamais essayé sur un vrai Mac.
+
 ## 0.9.6 — 2026-11-10
 
 - **Accueil des anglophones** : miracinema.app s’ouvre en anglais (le français passe dans `/fr/`, `/en/` renvoie à la racine), formulaires d’issue et de PR en anglais, avec l’appareil et le rapport de « Exporter un rapport » ; la revue de la 0.7.3 rangée dans `docs/`. `SECURITY.md` (l’onglet Security de GitHub) passe en anglais, le français dans `docs/SECURITY.fr.md` ; Réglages → Confidentialité ouvre celui de la langue de Mira.

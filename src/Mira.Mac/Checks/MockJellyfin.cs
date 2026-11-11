@@ -23,6 +23,8 @@ public sealed class MockJellyfin : HttpMessageHandler
     public bool PartyGone { get; set; }
     /// <summary>A Jellyfin without Mira's extension (most of them): every Mira/… path answers 404.</summary>
     public bool NoExtension { get; set; }
+    /// <summary>The account's session ended on Jellyfin: every request of it answered 401.</summary>
+    public bool Expired { get; set; }
     /// <summary>Someone plays something on this Jellyfin (« En ce moment sur Jellyfin »): a friend's iPhone.</summary>
     public bool Watching { get; set; } = true;
     /// <summary>« Extension Mira sur Jellyfin »: Jellyfin was asked to install the plugin from Mira's checked repository.</summary>
@@ -125,6 +127,8 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "System/Info/Public") return Json(new { Id = "check-server", ServerName = "Jellyfin du contrôle", Version = "10.10.7", ProductName = "Jellyfin Server" });
         if (path == "System/Ping") return Json("Jellyfin Server");
         if (request.Method == HttpMethod.Post && path == "Users/AuthenticateByName") return Json(new { AccessToken = "check-token", ServerId = "check-server", User = new { Id = UserId, Name = "Contrôle" } });
+        // Jellyfin forgot this session's token (signed out from its dashboard): every request of the account refused.
+        if (Expired && path != "Sessions/Logout") return new HttpResponseMessage(HttpStatusCode.Unauthorized);
         if (path == "Playback/BitrateTest") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[Math.Clamp(int.TryParse(query["size"], out var size) ? size : 0, 0, 10_000_000)]) };
         if (path.StartsWith("Videos/") && path.EndsWith("/stream")) return await FileAsync(request, Short(path.Split('/')[1]) ? _short : _media, cancellationToken);
         // An administrator, whose PC of Jellyfin runs Mira for Windows: « Téléchargements » through the relay of the extension.

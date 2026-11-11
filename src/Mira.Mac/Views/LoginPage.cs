@@ -34,6 +34,7 @@ public sealed class LoginPage : UserControl
     /// <summary>The last search found nothing: « Tailscale intégré » is offered (Jellyfin may be on Tailscale).</summary>
     private bool _noneFound;
     public string Server { get => _server.Text ?? ""; set => _server.Text = value; }
+    public string User { get => _user.Text ?? ""; set => _user.Text = value; }
 
     public LoginPage(MainWindow shell, string? error = null)
     {
