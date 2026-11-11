@@ -93,6 +93,23 @@
       "start": 1
     },
     {
+      "why": "watched before, then again: the first part to its end, the second left halfway (Jellyfin 12 keeps both watched, the second with its position): the second",
+      "title": {
+        "Played": true,
+        "PlaybackPositionTicks": 0,
+        "LastPlayedDate": "2026-11-03T20:00:00Z"
+      },
+      "parts": [
+        {
+          "Played": true,
+          "PlaybackPositionTicks": 7200000000,
+          "LastPlayedDate": "2026-11-03T21:00:00Z"
+        }
+      ],
+      "fromStart": false,
+      "start": 1
+    },
+    {
       "why": "the same, « Depuis le début »: the first part",
       "title": {
         "Played": true,

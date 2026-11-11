@@ -32,13 +32,14 @@ public sealed class MovieParts
 
     /// <summary>
     /// Where « Lecture » starts: a later part left halfway, from where it stopped (Jellyfin marked the title watched at
-    /// the end of its first part), unless the first part was left halfway after it (Jellyfin 12 keeps a title watched
-    /// when it is watched again, with its position: checked on 12.1). Otherwise, and for « Depuis le début », the first.
+    /// the end of its first part), unless the first part was left halfway after it. A part watched before and left
+    /// halfway again counts: Jellyfin 12 keeps a part watched when it is watched again, with its position (Jellyfin zeroes
+    /// the position of what is watched to its end; checked on 12.1). Otherwise, and for « Depuis le début », the first.
     /// </summary>
     public MediaItem Start(bool fromStart)
     {
         if (fromStart) return Title;
-        var later = Parts.Skip(1).Where(x => x.UserData is { Played: false, PlaybackPositionTicks: > 0 }).MaxBy(Seen);
+        var later = Parts.Skip(1).Where(x => x.UserData.PlaybackPositionTicks > 0).MaxBy(Seen);
         return later is null || Title.UserData.PlaybackPositionTicks > 0 && Seen(Title) >= Seen(later) ? Title : later;
     }
     private static DateTimeOffset Seen(MediaItem item) => item.UserData.LastPlayedDate ?? DateTimeOffset.MinValue;

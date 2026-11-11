@@ -30,11 +30,12 @@ struct MovieParts: Sendable {
     }
 
     /// Where « Play » starts: a later part left halfway, from where it stopped (Jellyfin marked the title watched at the
-    /// end of its first part), unless the first part was left halfway after it (Jellyfin 12 keeps a title watched when
-    /// it is watched again, with its position: checked on 12.1). Otherwise, and for « From the beginning », the first.
+    /// end of its first part), unless the first part was left halfway after it. A part watched before and left halfway
+    /// again counts: Jellyfin 12 keeps a part watched when it is watched again, with its position (Jellyfin zeroes the
+    /// position of what is watched to its end; checked on 12.1). Otherwise, and for « From the beginning », the first.
     func start(fromStart: Bool) -> Item {
         if fromStart { return title }
-        let later = parts.dropFirst().filter { $0.userData?.played != true && ($0.userData?.playbackPositionTicks ?? 0) > 0 }.max { seen($0) < seen($1) }
+        let later = parts.dropFirst().filter { ($0.userData?.playbackPositionTicks ?? 0) > 0 }.max { seen($0) < seen($1) }
         guard let later else { return title }
         return (title.userData?.playbackPositionTicks ?? 0) > 0 && seen(title) >= seen(later) ? title : later
     }
