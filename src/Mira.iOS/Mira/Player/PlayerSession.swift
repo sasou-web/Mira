@@ -242,6 +242,12 @@ final class PlayerSession: NSObject {
             describeTracks()
             attach(address, startSeconds: Double(ticks) / Double(ItemText.ticksPerSecond))
         } catch is CancellationError {
+        } catch JellyfinError.unauthorized {
+            // The session ended meanwhile (signed out from Jellyfin's dashboard, password changed, a party's link taken
+            // back while its guest watched): said as everywhere else, never as a wrong password.
+            guard attempt == opening, !closed else { return }
+            close()
+            app?.sessionEnded()
         } catch {
             guard attempt == opening, !closed else { return }
             Diagnostics.record(item, source: source ?? item.mediaSources?.first, server: client.server, how: "not opened", error: error is PlayerError ? String(describing: error) : String(describing: type(of: error)))
