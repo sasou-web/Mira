@@ -263,7 +263,7 @@ public static class Cards
         var frame = new Grid { ClipToBounds = true };
         frame.Children.Add(Placeholder(item, false));
         frame.Children.Add(image);
-        if (item.Progress > 0 && !item.UserData.Played) frame.Children.Add(Progress(item.Progress));
+        if (item.Resumable) frame.Children.Add(Progress(item.Progress));
         if (item.UserData.Played) frame.Children.Add(Watched());
         else if (item.EpisodesToWatchBadge is { } count) frame.Children.Add(ToWatch(count));
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
@@ -289,7 +289,7 @@ public static class Cards
         frame.Children.Add(Placeholder(item, true));
         frame.Children.Add(image);
         frame.Children.Add(new Border { Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0.55, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#00000000"), 0), new GradientStop(Color.Parse("#A0000000"), 1) } } });
-        if (item.Progress > 0 && !item.UserData.Played) frame.Children.Add(Progress(item.Progress));
+        if (item.Resumable) frame.Children.Add(Progress(item.Progress));
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
         var line = item.Type == "Episode" ? $"{EpisodeCode(item)} — {item.Name}" : item.Progress > 0 ? Ui.Remaining(item) : Caption(item);
         var caption = Ui.Column(2,

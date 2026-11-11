@@ -239,7 +239,7 @@ public sealed class LibraryStore
             var cached = Load<List<MediaItem>>("resume") ?? [];
             var updated = history.First(x => x.Id == item.Id);
             cached.RemoveAll(x => x.Id == item.Id);
-            if (!updated.UserData.Played && updated.UserData.PlaybackPositionTicks > 0) cached.Insert(0, updated);
+            if (updated.Resumable) cached.Insert(0, updated);
             Save("resume", ContinueWatching.Order(cached, [], history));
         }
     }
@@ -259,7 +259,7 @@ public sealed class LibraryStore
                 var known = result.FirstOrDefault(x => x.Id == item.Id);
                 if (known?.UserData.LastPlayedDate > item.UserData.LastPlayedDate) continue;
                 result.RemoveAll(x => x.Id == item.Id);
-                if (!item.UserData.Played && item.UserData.PlaybackPositionTicks > 0) result.Add(item with { UserData = item.UserData with { } });
+                if (item.Resumable) result.Add(item with { UserData = item.UserData with { } });
             }
             return result;
         }

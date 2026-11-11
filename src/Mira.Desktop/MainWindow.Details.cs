@@ -232,7 +232,7 @@ public partial class MainWindow
             // episode in progress, of the first unwatched.
             var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip))
                 ?? EpisodePages.Holding(pages, _episodes, _episodes.FirstOrDefault(x => x.Id == _detailEpisode?.Id))
-                ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played));
+                ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? _episodes.FirstOrDefault(x => x.Resumable) ?? _episodes.FirstOrDefault(x => !x.UserData.Played));
             SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
             _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta(); ShowOfflineButton();
             if (_detailNext is { } target && _detailFile?.Id != target.Id) await LoadDetailFileAsync(target, version);
@@ -330,10 +330,10 @@ public partial class MainWindow
     private void UpdateDetailPlayLabel()
     {
         if (_detail?.Type != "Series") return;
-        var target = _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played);
+        var target = _detailNext ?? _episodes.FirstOrDefault(x => x.Resumable) ?? _episodes.FirstOrDefault(x => !x.UserData.Played);
         KeepPlayWidth();
         if (target is null) { DetailPlay.Content = SeriesPlayLabel(_episodes.Count > 0 ? L("Revoir", "Watch again") : L("Regarder", "Watch"), null); ShowRestart(false); return; }
-        var resume = target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
+        var resume = target.Resumable && _settings.RememberPosition;
         var code = $"S{target.ParentIndexNumber ?? 1:00} E{target.IndexNumber ?? 1:00}";
         DetailPlay.Content = SeriesPlayLabel(GroupPlayLabel(target, code) ?? L($"{(resume ? "Reprendre" : "Regarder")} · {code}", $"{(resume ? "Resume" : "Watch")} · {code}"),
             resume && !InGroup ? MediaQuality.Left(target) : null);
@@ -410,7 +410,7 @@ public partial class MainWindow
     {
         KeepPlayWidth(); ShapeDetailPlay(item.Type == "Movie");
         if (item.Type == "Series") { DetailProgress.Visibility = Visibility.Collapsed; UpdateDetailPlayLabel(); return; }
-        var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
+        var resume = item.Resumable && _settings.RememberPosition;
         DetailPlay.Content = FilmPlayLabel(GroupPlayLabel(item, "") ?? (resume ? L("Reprendre", "Resume") : item.UserData.Played ? L("Revoir", "Watch again") : L("Regarder", "Watch")),
             resume && !InGroup ? MediaQuality.Left(item) : item.DurationLabel is { Length: > 0 } length ? length : null);
         ShowRestart(resume); ShowDetailProgress(item, resume);
@@ -464,7 +464,7 @@ public partial class MainWindow
         if (_detail is not { } item) return;
         var target = item.Type == "Series" ? _detailNext : item;
         var file = item.Type != "Series" ? MediaQuality.Label(item) : _detailFile is { } known && known.Id == target?.Id ? MediaQuality.Label(known.Source) : null;
-        var resume = target is not null && target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
+        var resume = target is not null && target.Resumable && _settings.RememberPosition;
         DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is { } rating and > 0 ? $"★ {Number(rating, "0.0")}" : "", item.OfficialRating ?? "",
             file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
     }
@@ -538,7 +538,7 @@ public partial class MainWindow
             if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
             thumb.Children.Add(new Border { Background = Brush("#44000000") });
             thumb.Children.Add(new Icon { Kind = "play", Width = 23, Height = 23, Foreground = Brushes.White });
-            if (episode.Progress > 0 && !episode.UserData.Played) thumb.Children.Add(new Border { Height = 3, Width = 160 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
+            if (episode.Resumable) thumb.Children.Add(new Border { Height = 3, Width = 160 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
             grid.Children.Add(thumb);
             var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(21, 0, 20, 0) }; Grid.SetColumn(copy, 1);
             var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
@@ -619,7 +619,7 @@ public partial class MainWindow
     private ContextMenu EpisodeMenu(MediaItem episode)
     {
         var menu = new ContextMenu();
-        var resume = episode.Progress > 0 && !episode.UserData.Played && _settings.RememberPosition;
+        var resume = episode.Resumable && _settings.RememberPosition;
         menu.Items.Add(MenuAction(resume ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", async () => await PlayAsync(episode, chosen: true)));
         if (resume) menu.Items.Add(MenuAction(L("Lire depuis le début", "Play from the beginning"), "refresh", async () => await PlayAsync(episode, fromStart: true, chosen: true)));
         menu.Items.Add(MenuAction(episode.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), episode.UserData.Played ? "refresh" : "check", async () => { await SetPlayedAsync(episode, !episode.UserData.Played); await RefreshDetailAsync(); }));

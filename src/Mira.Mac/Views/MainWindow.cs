@@ -1009,8 +1009,8 @@ public sealed partial class MainWindow : Window
             if (CollectionRights.Manage) Add(L("Supprimer la collection…", "Delete collection…"), () => AskDeleteCollection(item));
             return menu;
         }
-        Add(item.Progress > 0 && !item.UserData.Played ? L("Reprendre", "Resume") : L("Lecture", "Play"), () => _ = PlayAsync(item));
-        if (item.Progress > 0 && !item.UserData.Played) Add(L("Lire depuis le début", "Play from the beginning"), () => _ = PlayAsync(item, fromStart: true));
+        Add(item.Resumable ? L("Reprendre", "Resume") : L("Lecture", "Play"), () => _ = PlayAsync(item));
+        if (item.Resumable) Add(L("Lire depuis le début", "Play from the beginning"), () => _ = PlayAsync(item, fromStart: true));
         Add(L("Plus d’infos", "More info"), () => Open(item));
         Add(item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), () => _ = SetPlayedAsync(item, !item.UserData.Played));
         Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
@@ -1034,7 +1034,7 @@ public sealed partial class MainWindow : Window
     {
         if (Session is not { } session) return;
         var group = ContinueWatching.Group(item); var ticks = item.UserData.PlaybackPositionTicks;
-        var resumable = ticks > 0 && !item.UserData.Played;
+        var resumable = item.Resumable;
         var change = Task.Run(() => Errors.TryCache(() => { session.Store.HideFromResume(group, DateTimeOffset.UtcNow); if (resumable) session.Store.ForgetProgress(item.Id); }));
         _resumeChange = change;
         await change;

@@ -104,7 +104,7 @@ public sealed partial class PlayerPage
         var thumb = new Grid { Width = 112, Height = 63 };
         thumb.Children.Add(new Border { Background = Ui.Brush("#222225") });
         thumb.Children.Add(image);
-        if (episode.Progress > 0 && !episode.UserData.Played) thumb.Children.Add(new Border { Height = 3, Width = 112 * episode.Progress, Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
+        if (episode.Resumable) thumb.Children.Add(new Border { Height = 3, Width = 112 * episode.Progress, Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
         var art = new Border { CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = thumb };
         var title = episode.IndexNumber is { } number ? $"{number}. {episode.Name}" : episode.Name;
         var state = playing ? L("En lecture", "Playing") : episode.UserData.Played ? L("✓ Vu", "✓ Watched") : episode.Progress > 0 ? L("En cours", "In progress") : null;

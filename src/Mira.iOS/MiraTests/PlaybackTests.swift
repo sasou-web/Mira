@@ -133,6 +133,11 @@ struct PlaybackTests {
         #expect(PlaybackPlan.startTicks(film, fromStart: true) == 0)
         film.userData?.playbackPositionTicks = 980 * ItemText.ticksPerSecond
         #expect(PlaybackPlan.startTicks(film, fromStart: false) == 0)
+        // Watched before, left halfway again: Jellyfin 12 keeps it watched, with the position of this new viewing.
+        film.userData = UserData(playbackPositionTicks: 300 * ItemText.ticksPerSecond, played: true)
+        #expect(PlaybackPlan.startTicks(film, fromStart: false) == 300 * ItemText.ticksPerSecond)
+        film.userData?.playbackPositionTicks = 0
+        #expect(PlaybackPlan.startTicks(film, fromStart: false) == 0)
     }
 
     @Test("Noms des pistes : langue, détails quand deux se ressemblent, forcés")

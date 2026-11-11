@@ -32,12 +32,13 @@ public sealed class PlaybackSession
     private DateTimeOffset _pendingUntil;
 
     /// <summary>
-    /// Where a title starts: where it was left (<paramref name="back"/> seconds before, see <see cref="ResumeBack"/>),
-    /// unless positions are not remembered or it was watched to the end (or nearly, <see cref="LibraryStore.WatchedThreshold"/>),
-    /// which starts over instead of on its last seconds.
+    /// Where a title starts: where it was left (<paramref name="back"/> seconds before, see <see cref="ResumeBack"/>), a
+    /// title watched again included (<see cref="MediaItem.Resumable"/>), unless positions are not remembered or it was
+    /// watched to the end (or nearly, <see cref="LibraryStore.WatchedThreshold"/>), which starts over instead of on its
+    /// last seconds.
     /// </summary>
     public static double StartAt(MediaItem item, bool remember, int back = 0) =>
-        !remember || item.UserData.Played || item.Progress >= LibraryStore.WatchedThreshold ? 0 : ResumeBack(TimeSpan.FromTicks(item.UserData.PlaybackPositionTicks).TotalSeconds, back);
+        !remember || !item.Resumable ? 0 : ResumeBack(TimeSpan.FromTicks(item.UserData.PlaybackPositionTicks).TotalSeconds, back);
 
     /// <summary>The choices of « Reprendre un peu avant », in seconds; 0 resumes exactly where the title was left.</summary>
     public static readonly int[] ResumeBackChoices = [0, 5, 10, 15];

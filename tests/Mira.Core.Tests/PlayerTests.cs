@@ -875,8 +875,11 @@ internal static class PlayerTests
             MediaItem Film(long position, bool played = false) => new() { Id = "a", RunTimeTicks = hour, UserData = new() { PlaybackPositionTicks = position, Played = played } };
             Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(20).Ticks), remember: true) == 1200, "Resumes where it was left");
             Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(20).Ticks), remember: false) == 0, "Positions not remembered");
-            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(56).Ticks), remember: true) == 0 && PlaybackSession.StartAt(Film(hour / 2, played: true), remember: true) == 0,
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(56).Ticks), remember: true) == 0 && PlaybackSession.StartAt(Film(0, played: true), remember: true) == 0,
                 "Nearly finished or watched: starts over");
+            Assert(PlaybackSession.StartAt(Film(hour / 2, played: true), remember: true) == 1800 && Film(hour / 2, played: true).Resumable,
+                "Watched before, left halfway again: Jellyfin 12 keeps it watched with the new position, and it resumes there");
+            Assert(!Film(0, played: true).Resumable && !Film(TimeSpan.FromMinutes(56).Ticks, played: true).Resumable && !Film(0).Resumable, "Nothing to resume: watched, past 90 %, not started");
             var session = new PlaybackSession { Reported = true, Failure = "old" };
             session.Begin(Film(0), new MediaSource { Id = "s" }, "p", 30);
             Assert(session.Position == 30 && session.Duration == 3600 && !session.Reported && session.Failure is null, "A new playback starts clean, its length from Jellyfin");

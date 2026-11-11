@@ -129,10 +129,10 @@ struct HomeTests {
         #expect(ordered == ["x2", "e3", "film"])
     }
 
-    @Test("Un titre déjà vu ou sans position n'est pas repris")
+    @Test("Un titre sans position n'est pas repris ; revu et laissé en cours, il l'est (Jellyfin 12 le garde vu)")
     func notResumed() {
-        let resume = [item("vu", position: 100, played: true), item("zero")]
-        #expect(HomeContent.orderContinue(resume: resume, next: [], history: []).isEmpty)
+        let resume = [item("revu", position: 100, played: true), item("vu", played: true), item("zero")]
+        #expect(HomeContent.orderContinue(resume: resume, next: [], history: []).map(\.id) == ["revu"])
     }
 
     @Test("Dates de Jellyfin à sept décimales")
