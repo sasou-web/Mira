@@ -101,7 +101,8 @@ public sealed class HomePage : Page
         var resume = client.ResumeAsync(); var next = client.NextUpAsync();
         // What this account played lately on any device (the iPhone, a TV…): where each film or series stands in « Continuer à regarder ».
         var played = TryAsync(() => client.HistoryAsync());
-        var latest = client.BrowseAsync(limit: 30);
+        // Every title « Ajoutés récemment » shows, not just its first 30: the grid stays as long under the reader.
+        var latest = client.BrowseAsync(limit: Math.Max(LatestPage, _latestShown));
         var favorites = client.BrowseAsync(favorites: true, limit: 30);
         var libraries = TryAsync(() => client.LibrariesAsync());
         // The collections only while their row is shown.
@@ -189,6 +190,7 @@ public sealed class HomePage : Page
     {
         var grid = new CardGrid { MinItemWidth = 180 };
         foreach (var item in latest) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
+        _latestShown = grid.Children.Count;
         var title = new DockPanel { Margin = new Thickness(0, 0, 6, 22) };
         var count = new TextBlock { FontSize = 12, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
         void Counted() => count.Text = Lang.Count(Math.Max(_latestTotal, grid.Children.Count), "titre", "titres", "title", "titles");
@@ -204,9 +206,10 @@ public sealed class HomePage : Page
             more!.IsEnabled = false;
             try
             {
-                var next = await session.Client.BrowseAsync(start: grid.Children.Count, limit: 30, ct: session.Lifetime);
+                var next = await session.Client.BrowseAsync(start: grid.Children.Count, limit: LatestPage, ct: session.Lifetime);
                 await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(next.Items)));
                 foreach (var item in next.Items) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
+                _latestShown = grid.Children.Count;
                 _latestTotal = next.Items.Count == 0 ? grid.Children.Count : next.TotalRecordCount;
                 Counted();
                 more.IsVisible = grid.Children.Count < _latestTotal;
@@ -220,6 +223,15 @@ public sealed class HomePage : Page
         return section;
     }
     private int _latestTotal;
+    /// <summary>« Ajoutés récemment » at first, and each « Afficher plus de titres ».</summary>
+    private const int LatestPage = 30;
+    /// <summary>
+    /// The titles « Ajoutés récemment » shows, 30 more at each « Afficher plus de titres »: a refresh (Home come back to,
+    /// the player closed, a change on the server) asks for all of them again, as Windows' grid keeps every page loaded.
+    /// Asked for the first 30 only, a new title or a mark changed among them drew the grid again with those 30: it
+    /// shrank under the reader, who lost their place.
+    /// </summary>
+    private int _latestShown;
     /// <summary>Down to the grid (the self-check's capture).</summary>
     public void ScrollToEnd() => _scroll.ScrollToEnd();
     public void ScrollToHome() => _scroll.ScrollToHome();

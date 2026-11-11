@@ -46,6 +46,13 @@ public sealed class MockJellyfin : HttpMessageHandler
     public List<string> Requests { get; } = [];
     /// <summary>When Jellyfin added a new episode of « Petite série », a favourite: none until the check says so.</summary>
     public DateTimeOffset? NewEpisodeAt { get; set; }
+    /// <summary>
+    /// « Ajoutés récemment » of a large library: this many films more after the library's titles, served a page at a
+    /// time as Jellyfin does (startIndex, limit). None until the check says so.
+    /// </summary>
+    public int Fillers { get; set; }
+    /// <summary>With <see cref="Fillers"/>: a film just added, on top of « Ajoutés récemment ».</summary>
+    public bool LatestAdded { get; set; }
 
     public MockJellyfin(string media, string shortMedia)
     {
@@ -253,6 +260,20 @@ public sealed class MockJellyfin : HttpMessageHandler
             if (query["searchTerm"] is { } search) items = items.Where(x => Name(x).Contains(search, StringComparison.CurrentCultureIgnoreCase));
             if (query["isFavorite"] == "true") items = items.Where(x => Id(x) == "movie-2");
             if (query["personIds"] is { } person) items = items.Where(x => person.StartsWith("actor") || Type(x) == "Movie");
+            // « Ajoutés récemment » of a large library (Fillers): the newest first, one page asked at a time.
+            if (Fillers > 0 && query["includeItemTypes"] == "Movie,Series" && query["sortBy"]?.StartsWith("DateCreated") == true
+                && new[] { "parentId", "searchTerm", "isFavorite", "personIds", "studioIds", "genres", "years" }.All(x => query[x] is null))
+            {
+                object Filler(int i, string name) => new
+                {
+                    Id = $"filler-{i}", Name = name, Type = "Movie", ProductionYear = 2020, RunTimeTicks = 30L * TimeSpan.TicksPerSecond,
+                    ImageTags = new Dictionary<string, string>(), BackdropImageTags = Array.Empty<string>(), UserData = new { PlaybackPositionTicks = 0L, Played = false, IsFavorite = false }
+                };
+                var latest = (LatestAdded ? [Filler(0, "Arrivé à l’instant")] : new List<object>()).Concat(items).Concat(Enumerable.Range(1, Fillers).Select(i => Filler(i, $"Titre {i}"))).ToList();
+                var start = int.TryParse(query["startIndex"], out var first) ? first : 0;
+                var limit = int.TryParse(query["limit"], out var most) ? most : latest.Count;
+                return Json(new { Items = latest.Skip(start).Take(limit).ToList(), TotalRecordCount = latest.Count });
+            }
             return Items(items);
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
