@@ -547,6 +547,7 @@ struct BannerView: View {
                             .padding(.horizontal, 6)
                         }
                         .buttonStyle(.glassProminent)
+                        .accessibilityIdentifier("banner.play")
                     }
                     NavigationLink(value: TitleRoute(item: item, source: "banner-\(item.id)")) {
                         if entry.play == nil {

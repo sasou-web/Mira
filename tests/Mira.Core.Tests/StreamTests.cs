@@ -129,16 +129,19 @@ internal static class StreamTests
         });
         await Test("Qualité : fichier tel quel à la maison, conversion loin, débit mesuré une fois, pistes de la série (Jellyfin simulé)", async () =>
         {
-            var requests = new List<JsonNode>(); var measures = 0;
+            // Jellyfin's default picture subtitles, drawn in until the file is named (-1: none).
+            var requests = new List<JsonNode>(); var measures = 0; var jellyfinDraws = -1;
             var handler = new Handler(async request =>
             {
                 var path = request.RequestUri!.AbsolutePath;
                 if (path.EndsWith("/Playback/BitrateTest", StringComparison.Ordinal)) { measures++; return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[4_000_000]) }; }
                 if (!path.EndsWith("/PlaybackInfo", StringComparison.Ordinal) || request.Method != HttpMethod.Post) return new HttpResponseMessage(HttpStatusCode.NotFound);
                 var body = JsonNode.Parse(await request.Content!.ReadAsStringAsync())!; requests.Add(body);
-                var bitrate = body["MaxStreamingBitrate"]!.GetValue<long>(); var audio = body["AudioStreamIndex"]?.GetValue<int>() ?? 1; var burn = body["SubtitleStreamIndex"]!.GetValue<int>();
+                // As Jellyfin 12.1: the tracks asked are read only for the file named (MediaSourceId), its own default ones before.
+                var named = body["MediaSourceId"]?.GetValue<string>() == "source-1";
+                var bitrate = body["MaxStreamingBitrate"]!.GetValue<long>(); var audio = named ? body["AudioStreamIndex"]?.GetValue<int>() ?? 1 : 1; var burn = named ? body["SubtitleStreamIndex"]!.GetValue<int>() : jellyfinDraws;
                 var direct = bitrate >= 25_000_000;
-                return JsonResponse(Answer(direct, direct ? null : $"/videos/item-1/master.m3u8?DeviceId=device&MediaSourceId=source-1&VideoCodec=h264&AudioStreamIndex={audio}" + (burn >= 0 ? $"&SubtitleStreamIndex={burn}&SubtitleMethod=Encode" : "") + "&PlaySessionId=session-2&ApiKey=secret&TranscodeReasons=ContainerBitrateExceedsLimit"));
+                return JsonResponse(Answer(direct, direct ? null : $"/videos/item-1/master.m3u8?DeviceId=device&MediaSourceId=source-1&VideoCodec=h264&AudioStreamIndex={audio}" + (burn >= 0 ? $"&SubtitleStreamIndex={burn}" : "") + "&SubtitleMethod=Encode&PlaySessionId=session-2&ApiKey=secret&TranscodeReasons=ContainerBitrateExceedsLimit"));
             });
             var item = new MediaItem { Id = "item-1", Name = "Film", Type = "Movie" };
             Task<bool> Here(string path) => Task.FromResult(path == "/media/film.mkv");
@@ -173,7 +176,24 @@ internal static class StreamTests
             Assert(english.Audio == 1 && english.Burned is null && requests.Count == 1, "The settings' first language there: Jellyfin's choice already");
             requests.Clear();
             var chosen = await ServerStreams.OpenAsync(away, new ConnectionSpeed(), "3000000", item, new(0, Audio: 2, Burn: -1, Memory: memory), "jpn,eng", Here);
-            Assert(chosen.Audio == 2 && chosen.Burned is null && requests.Count == 1 && requests[0]["SubtitleStreamIndex"]!.GetValue<int>() == -1, "Tracks chosen in the player win over the memory");
+            Assert(chosen.Audio == 2 && chosen.Burned is null && requests.Count == 2 && requests[1]["MediaSourceId"]!.GetValue<string>() == "source-1" && requests[1]["AudioStreamIndex"]!.GetValue<int>() == 2 && requests[1]["SubtitleStreamIndex"]!.GetValue<int>() == -1,
+                "Tracks chosen in the player win over the memory, asked again for the file named");
+
+            // A file whose default subtitles are pictures: Jellyfin draws them in while the file is not named, whatever is
+            // asked (12.1). Said in the menu, and taken off or changed when asked: the menu said none, and they stayed.
+            jellyfinDraws = 3; requests.Clear();
+            var film = await ServerStreams.OpenAsync(away, new ConnectionSpeed(), "3000000", item, new(0), "jpn,eng,fre", Here);
+            Assert(film.Audio == 1 && film.Burned == 3 && requests.Count == 1, $"A film: Jellyfin's own picture subtitles, said in the menu ({film.Burned}, {requests.Count} requests)");
+            requests.Clear();
+            var off = await ServerStreams.OpenAsync(away, new ConnectionSpeed(), "3000000", item, new(0, Burn: -1), "jpn,eng,fre", Here);
+            Assert(off.Burned is null && requests.Count == 2 && requests[1]["MediaSourceId"]!.GetValue<string>() == "source-1" && requests[1]["SubtitleStreamIndex"]!.GetValue<int>() == -1,
+                $"Turned off: asked again for the file named, none drawn ({off.Burned}, {requests.Count} requests)");
+            requests.Clear();
+            var quiet = new TrackMemory("eng", null, false, null, null, false);
+            var episode = await ServerStreams.OpenAsync(away, new ConnectionSpeed(), "3000000", item, new(0, Memory: quiet), "jpn,eng", Here);
+            Assert(episode.Audio == 1 && episode.Burned is null && requests.Count == 2, $"A series that turned subtitles off: none drawn ({episode.Burned}, {requests.Count} requests)");
+            Assert(ServerStreams.Drawn("/v/master.m3u8?AudioStreamIndex=2&SubtitleMethod=Encode") is null && ServerStreams.Drawn("/v?SubtitleStreamIndex=3&SubtitleMethod=Encode") == 3
+                && ServerStreams.Drawn("/v?SubtitleStreamIndex=4&SubtitleMethod=Hls") is null && ServerStreams.Drawn(null) is null, "Drawn in: Encode with an index only");
         });
         await Test("Qualité : sous-titres d’une conversion (à côté, sans jeton, sur ce serveur) et choix de départ", () =>
         {
