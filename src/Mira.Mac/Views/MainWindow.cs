@@ -567,7 +567,7 @@ public sealed partial class MainWindow : Window
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
         if (!ReferenceEquals(session, Session)) return;
         var answer = Together.Answer(invite, groups, session.Connection.Server, Group.Active ? Group.Group?.GroupId : null);
-        Activate();
+        Reopen();
         if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
             Notice(answer.Text, L("Rejoindre", "Join"), () => _ = Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct)), sticky: true);
         else if (answer.Kind == Together.InviteKind.Waiting)
@@ -595,7 +595,7 @@ public sealed partial class MainWindow : Window
         try { host = await session.Client.PartyHostAsync(code, session.Lifetime); }
         catch (Exception ex) when (Errors.Expected(ex)) { host = null; }
         if (!ReferenceEquals(session, Session) || _invite is not null) return;
-        Activate();
+        Reopen();
         if (host is null) { await AskPartyAsync(invite.Server, code); return; }
         if (host == session.Connection.UserName) { Notice(L("C’est ton propre lien de party : envoie-le à ceux qui veulent te rejoindre.", "This is your own party link: send it to whoever wants to join you.")); return; }
         // Jellyfin says GroupJoined through the WebSocket: open first, or the answer would go unheard.
@@ -634,7 +634,7 @@ public sealed partial class MainWindow : Window
             if (!ReferenceEquals(_inviteWait, wait) || !ReferenceEquals(session, Session)) return;
             _inviteWait = null;
             if (Group.Active) return;
-            Activate();
+            Reopen();
             await Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct));
         }
         async Task<IReadOnlyList<Together.Group>?> ReadAsync(CancellationToken ct)

@@ -62,7 +62,7 @@ public sealed partial class MainWindow
     /// <summary>The party's card over the window, above the sign-in or the library, under the player.</summary>
     private PartyView RevealParty()
     {
-        Activate();
+        Reopen();
         if (_party is null) _party = new PartyView(this, PartyPrimary, PartySecondary);
         if (!_overlay.Children.Contains(_party))
         {
