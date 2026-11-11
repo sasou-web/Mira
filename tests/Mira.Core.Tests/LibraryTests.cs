@@ -566,6 +566,30 @@ internal static class LibraryTests
             }
             return Task.CompletedTask;
         });
+        await Test("Série : Lecture sans « à suivre » de Jellyfin, une reprise, le premier non vu, l’épisode après celui revu en dernier, sinon S01E01 avant les épisodes spéciaux (tests/fixtures/series-start.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "series-start.json")));
+            var cases = fixture.RootElement.GetProperty("cases").EnumerateArray().ToList();
+            Assert(cases.Count > 5, "Cases read");
+            foreach (var row in cases)
+            {
+                var name = row[0].GetString();
+                var episodes = row[1].EnumerateArray().Select(x => new MediaItem
+                {
+                    Id = x[0].GetString()!, ParentIndexNumber = x[1].ValueKind == JsonValueKind.Null ? null : x[1].GetInt32(), Type = "Episode", RunTimeTicks = 100,
+                    UserData = new()
+                    {
+                        Played = x[2].GetBoolean(), PlaybackPositionTicks = x[3].GetInt64(),
+                        LastPlayedDate = x.GetArrayLength() > 4 && x[4].ValueKind == JsonValueKind.Number ? new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddMinutes(x[4].GetInt32()) : null
+                    }
+                }).ToList();
+                string? Wanted(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+                Assert(EpisodePages.Unfinished(episodes)?.Id == Wanted(row[2]), $"{name}: unfinished {EpisodePages.Unfinished(episodes)?.Id}");
+                Assert(EpisodePages.Start(episodes)?.Id == Wanted(row[3]), $"{name}: start {EpisodePages.Start(episodes)?.Id}");
+            }
+            return Task.CompletedTask;
+        });
         await Test("Résumé : le HTML de Jellyfin (« <br> » d’AniList) lu en texte, comme Mira web et l’iPhone (tests/fixtures/overview.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

@@ -100,17 +100,20 @@ extension JellyfinClient {
         ], as: ItemList.self).items ?? []
     }
 
-    /// The episode Jellyfin would play next in a series: the one started, else the first not watched; a series watched
-    /// to the end starts again at its first episode, as on Mira web.
+    /// The episode Jellyfin would play next in a series: the one started, else the first not watched. When Jellyfin has
+    /// none (a series watched to its end, watched out of order, only specials left), SeriesStart: one left halfway, the
+    /// first not watched, else the first to watch it again, the numbered seasons before the specials.
     func nextUp(series: String) async throws -> Item? {
         let list: ItemList = try await get("Shows/NextUp", [
             "userId": userId, "seriesId": series, "limit": "1", "enableResumable": "true", "enableRewatching": "false", "fields": "MediaSources",
         ])
         if let next = list.items?.first { return next }
-        let first: ItemList = try await get("Shows/\(series)/Episodes", [
-            "userId": userId, "limit": "1", "fields": "MediaSources", "enableUserData": "true",
+        let all: ItemList = try await get("Shows/\(series)/Episodes", [
+            "userId": userId, "isMissing": "false", "enableUserData": "true", "enableImages": "false",
         ])
-        return first.items?.first
+        guard let start = SeriesStart.start(all.items ?? []) else { return nil }
+        // With its files (the languages under Play): asked for this one alone, not for each of a long anime's episodes.
+        return try await item(start.id)
     }
 
     /// An address the player reads without an Authorization header, carrying the session as Mira web's do (ApiKey):

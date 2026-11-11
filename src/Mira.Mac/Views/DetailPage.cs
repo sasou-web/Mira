@@ -243,7 +243,7 @@ public sealed class DetailPage : Page
     }
 
     /// <summary>The episode Lecture opens on a series: Jellyfin's next one, else one in progress, else the first unwatched.</summary>
-    private MediaItem? SeriesTarget => _next ?? _allEpisodes.FirstOrDefault(x => x.Resumable) ?? _allEpisodes.FirstOrDefault(x => !x.UserData.Played) ?? _allEpisodes.FirstOrDefault();
+    private MediaItem? SeriesTarget => _next ?? EpisodePages.Start(_allEpisodes);
 
     /// <summary>Lecture picks up where it stopped: started, not finished, and Mira set to remember.</summary>
     private bool Resumes(MediaItem item) => item.Resumable && Shell.Settings.RememberPosition;

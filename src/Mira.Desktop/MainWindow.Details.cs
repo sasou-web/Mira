@@ -229,10 +229,10 @@ public partial class MainWindow
             // « Saison 1 · 1001–1100 » needs more room than « Saison 1 ».
             SeasonSelector.Width = pages.GroupBy(x => x.Season).Any(x => x.Count() > 1) ? 230 : 180;
             // The page shown before a refresh, else the one of the episode found by a search, of the next episode, of an
-            // episode in progress, of the first unwatched.
+            // episode in progress, of the first unwatched, of S01E01 (a series watched to its end: not its specials).
             var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip))
                 ?? EpisodePages.Holding(pages, _episodes, _episodes.FirstOrDefault(x => x.Id == _detailEpisode?.Id))
-                ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? _episodes.FirstOrDefault(x => x.Resumable) ?? _episodes.FirstOrDefault(x => !x.UserData.Played));
+                ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? EpisodePages.Start(_episodes));
             SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
             _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta(); ShowOfflineButton();
             if (_detailNext is { } target && _detailFile?.Id != target.Id) await LoadDetailFileAsync(target, version);
@@ -330,7 +330,8 @@ public partial class MainWindow
     private void UpdateDetailPlayLabel()
     {
         if (_detail?.Type != "Series") return;
-        var target = _detailNext ?? _episodes.FirstOrDefault(x => x.Resumable) ?? _episodes.FirstOrDefault(x => !x.UserData.Played);
+        // A series watched again: the episode after the one watched last (EpisodePages.Again), as Lecture plays it.
+        var target = _detailNext ?? EpisodePages.Unfinished(_episodes) ?? EpisodePages.Again(_episodes);
         KeepPlayWidth();
         if (target is null) { DetailPlay.Content = SeriesPlayLabel(_episodes.Count > 0 ? L("Revoir", "Watch again") : L("Regarder", "Watch"), null); ShowRestart(false); return; }
         var resume = target.Resumable && _settings.RememberPosition;
