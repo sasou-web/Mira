@@ -11,6 +11,8 @@ struct SubtitleCues: Sendable, Equatable {
     }
 
     let cues: [Cue]
+    /// For each line, the latest end among it and those before it: how far back a line can still be on.
+    private let reach: [Double]
 
     /// The lines of a WebVTT file (SRT's commas read too), tags taken out, sorted by their start.
     init(webVTT: String) {
@@ -24,12 +26,21 @@ struct SubtitleCues: Sendable, Equatable {
             let text = lines[(at + 1)...].map(Self.plain).filter { !$0.isEmpty }.joined(separator: "\n")
             if !text.isEmpty { cues.append(Cue(start: start, end: end, text: text)) }
         }
-        self.cues = cues.sorted { $0.start < $1.start }
+        let sorted = cues.sorted { $0.start < $1.start }
+        var reach: [Double] = [], latest = -Double.infinity
+        reach.reserveCapacity(sorted.count)
+        for cue in sorted {
+            latest = max(latest, cue.end)
+            reach.append(latest)
+        }
+        self.cues = sorted
+        self.reach = reach
     }
 
     /// What shows at this time of the video: the lines that hold it, in their order.
     func text(at time: Double) -> String? {
-        // The last line starting at or before `time`, then back over those still on.
+        // The last line starting at or before `time`, then back over those that may still be on: a long one (a sign at
+        // the top, a song) stays through as many short ones as start after it.
         var low = 0, high = cues.count
         while low < high {
             let middle = (low + high) / 2
@@ -37,7 +48,7 @@ struct SubtitleCues: Sendable, Equatable {
         }
         var shown: [String] = []
         var index = low - 1
-        while index >= 0, index >= low - 8 {
+        while index >= 0, reach[index] > time {
             let cue = cues[index]
             if cue.end > time { shown.append(cue.text) }
             index -= 1
