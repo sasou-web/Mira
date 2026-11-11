@@ -279,6 +279,12 @@ enum KeptRules {
         return watch.finished ? .played : .position(watch.ticks)
     }
 
+    /// The film of a copy whose every piece came, already in its place (the part moved there, Mira closed before its
+    /// subtitles): a video of the very length fetched. Nothing to fetch nor move again, only the subtitles.
+    static func videoInPlace(_ copy: KeptCopy, videoSize: Int64?) -> Bool {
+        copy.kind != nil && copy.total > 0 && copy.pieces >= copy.total && copy.bytes > 0 && videoSize == copy.bytes
+    }
+
     /// How far a copy came, 0 to 1.
     static func fraction(_ copy: KeptCopy) -> Double {
         if copy.complete { return 1 }

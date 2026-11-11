@@ -317,6 +317,22 @@ final class Keeper {
         guard let account else { return }
         var copy = start
         let folder = KeptStore.folder(account: account, item: copy.id)
+        let part = folder.appending(path: "video.part")
+        if copy.total > 0, copy.pieces >= copy.total, !FileManager.default.fileExists(atPath: part.path) {
+            // Every piece fetched and moved into place, then Mira closed while its subtitles came: only those are asked
+            // again (removing the film to move a part that is no longer there left the copy waiting for ever).
+            if KeptRules.videoInPlace(copy, videoSize: Self.size(folder.appending(path: copy.videoName))), let source = copy.source {
+                copy.size = copy.bytes
+                copy.subtitles = await subtitles(copy, source, client, folder: folder)
+                copy.complete = true
+                copy.failure = nil
+                update(copy)
+                return
+            }
+            // Neither the part nor the film: from the start.
+            copy.pieces = 0
+            copy.bytes = 0
+        }
         if copy.kind == nil {
             // What Jellyfin knows of the title now (its file and tracks, its chapters), and whether the account may
             // keep it: the download right of Jellyfin's policy, for a conversion too.
@@ -353,7 +369,6 @@ final class Keeper {
             copy.hasPicture = true
             update(copy)
         }
-        let part = folder.appending(path: "video.part")
         switch kind {
         case .file: copy = try await fetchFile(copy, client, part: part)
         case .converted:
@@ -553,6 +568,11 @@ final class Keeper {
         case 404: throw KeepError.gone
         default: throw JellyfinError.http(http.statusCode)
         }
+    }
+
+    /// A file's length, nil when there is none.
+    nonisolated private static func size(_ file: URL) -> Int64? {
+        (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init)
     }
 
     /// The piece written after the first `offset` bytes of the part (what came after them, from a piece cut short, is
