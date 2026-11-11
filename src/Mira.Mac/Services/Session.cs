@@ -64,7 +64,7 @@ public sealed class Session : IAsyncDisposable
         try
         {
             var next = await Client.NextEpisodeAsync(seriesId);
-            if (next is not null) await Task.Run(() => Store.ApplyLocalProgress([next]));
+            if (next is not null) await Task.Run(() => Errors.TryCache(() => Store.ApplyLocalProgress([next])));
             // Jellyfin may still return the episode whose watched report is queued locally.
             return next?.UserData.Played == true ? null : next;
         }

@@ -314,7 +314,7 @@ public sealed partial class PlayerPage : UserControl
         if (next is null)
         {
             var episodes = (await session.EpisodesAsync(series.Id)).Items;
-            await Task.Run(() => session.Store.ApplyLocalProgress(episodes));
+            await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(episodes)));
             next = episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? episodes.FirstOrDefault(x => !x.UserData.Played) ?? episodes.FirstOrDefault();
         }
         return next ?? throw new IOException(L("Aucun épisode disponible.", "No episode available."));

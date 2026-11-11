@@ -115,14 +115,14 @@ public sealed class DetailPage : Page
         if (Shell.Session is not { } session) return;
         session.Forget();
         var full = await session.ItemAsync(_item.Id);
-        await Task.Run(() => session.Store.ApplyLocalProgress([full]));
+        await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress([full])));
         _item = full;
         if (_backdrop.Source is null) _ = LoadArtAsync(session);
         if (_item.Type == "Series")
         {
             var episodes = await session.EpisodesAsync(_item.Id);
             _next = await session.NextEpisodeAsync(_item.Id);
-            await Task.Run(() => session.Store.ApplyLocalProgress(episodes.Items));
+            await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(episodes.Items)));
             _allEpisodes = episodes.Items;
             if (_next is not null) _next = _allEpisodes.FirstOrDefault(x => x.Id == _next.Id) ?? _next;
         }
