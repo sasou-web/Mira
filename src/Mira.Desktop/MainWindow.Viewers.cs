@@ -24,6 +24,9 @@ public partial class MainWindow
     private async Task ShowViewersAsync()
     {
         if (!ViewersOnScreen) { _viewersTimer.Stop(); return; }
+        // Minimized or hidden in the notification area: Jellyfin is not asked for nobody; the next tick after the window
+        // comes back reads it again (as the Mac in the Dock, and the Downloads page).
+        if (WindowState == WindowState.Minimized || !IsVisible) return;
         if (_viewersBusy || _client is not { } client) return;
         _viewersBusy = true;
         var ct = _connectionLifetime.Token;
