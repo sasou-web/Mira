@@ -316,8 +316,8 @@ public partial class MainWindow
             // « Arrêter à la fin de l’épisode »: this one was the last.
             var last = eof && _sleep.AtEnd;
             if (last) _sleep.Clear();
-            // The trailer over (or unreadable): its film, as at the cinema.
-            if (film is not null && (eof || error is not null) && !last) { await PlayAsync(film, keepMini, trailerDone: true); return; }
+            // The trailer over (or unreadable): its film, as at the cinema, from its first second (FilmAfterTrailerAsync).
+            if (film is not null && (eof || error is not null) && !last) { await FilmAfterTrailerAsync(film, keepMini); return; }
             // The last part of an episode in several files: the episode after its title.
             var title = previous is not null && _parts is { } parts && parts.Holds(previous.Id) ? parts.Title : previous;
             if (eof && _settings.AutoNext && !last && !_demo && !stay && title?.Type == "Episode")

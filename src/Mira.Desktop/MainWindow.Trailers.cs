@@ -54,4 +54,11 @@ public partial class MainWindow
         try { return (await client.LocalTrailersAsync(film.Id).WaitAsync(TimeSpan.FromSeconds(4))).FirstOrDefault(); }
         catch (Exception ex) when (IsExpected(ex) || ex is TimeoutException) { return null; }
     }
+
+    /// <summary>
+    /// The film after its trailer (its end, or « Passer la bande-annonce »): from its first second, as the trailer only
+    /// plays then (<see cref="Trailers.PlaysFirst"/>). Without it, « Depuis le début » on a film left halfway played the
+    /// trailer, then resumed the film where it was left.
+    /// </summary>
+    private Task FilmAfterTrailerAsync(MediaItem film, bool keepMini) => PlayAsync(film, keepMini, fromStart: true, trailerDone: true);
 }
