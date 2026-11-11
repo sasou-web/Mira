@@ -95,20 +95,41 @@ enum NewEpisodes {
 }
 
 extension JellyfinClient {
-    /// The latest episodes not watched yet, and their series (whether followed).
-    func recentEpisodes() async throws -> (episodes: [Item], series: [String: Item]) {
-        let found: ItemList = try await get("Items", [
-            "userId": userId, "recursive": "true", "includeItemTypes": "Episode", "isMissing": "false", "isPlayed": "false",
-            "sortBy": "DateCreated", "sortOrder": "Descending", "limit": "50", "fields": "DateCreated",
-            "enableImageTypes": "Primary,Thumb", "imageTypeLimit": "1",
-        ])
-        let episodes = found.items ?? []
-        var ids: [String] = []
-        for id in episodes.compactMap(\.seriesId) where !ids.contains(id) { ids.append(id) }
-        guard !ids.isEmpty else { return (episodes, [:]) }
-        let shows: ItemList = try await get("Items", ["userId": userId, "ids": ids.joined(separator: ","), "enableImages": "false"])
-        let series = (shows.items ?? []).filter(\.isSeries)
-        return (episodes, Dictionary(series.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }))
+    /// The most episodes one look reads past the mark (Mira not opened for long, or a whole library added).
+    static let mostRecentEpisodes = 2000
+
+    /// The episodes Jellyfin added since `since` (ms), not watched yet, newest first (the 50 it added last without a
+    /// mark: the first look only sets it), and their series (whether followed). Read page by page down to the mark, as
+    /// RecentEpisodesAsync in Core: a whole season of another series added at once never hides the episode of a
+    /// followed one (only the 50 newest were read, and the mark went past the rest).
+    func recentEpisodes(since: Double? = nil) async throws -> (episodes: [Item], series: [String: Item]) {
+        let first = 50, page = 200, most = Self.mostRecentEpisodes
+        var episodes: [Item] = [], known = Set<String>(), start = 0, asked = first
+        while true {
+            let found: ItemList = try await get("Items", [
+                "userId": userId, "recursive": "true", "includeItemTypes": "Episode", "isMissing": "false", "isPlayed": "false",
+                "sortBy": "DateCreated", "sortOrder": "Descending", "startIndex": String(start), "limit": String(asked),
+                "fields": "DateCreated", "enableImageTypes": "Primary,Thumb", "imageTypeLimit": "1",
+            ])
+            let items = found.items ?? []
+            start += items.count
+            let fresh = items.filter { known.insert($0.id.lowercased()).inserted }
+            episodes += fresh
+            // Down to the mark, the end of the list, or enough.
+            guard let since, items.count == asked, !fresh.isEmpty, start < found.totalRecordCount ?? 0, episodes.count < most,
+                  let last = NewEpisodes.date(items.last?.dateCreated), last > since else { break }
+            asked = min(page, most - episodes.count)
+        }
+        var ids: [String] = [], listed = Set<String>()
+        for id in episodes.compactMap(\.seriesId) where listed.insert(id).inserted { ids.append(id) }
+        // A hundred series a request: a few thousand characters of address, where Jellyfin's server takes 8 KB.
+        var series: [String: Item] = [:]
+        for offset in stride(from: 0, to: ids.count, by: 100) {
+            let chunk = ids[offset..<min(offset + 100, ids.count)]
+            let shows: ItemList = try await get("Items", ["userId": userId, "ids": chunk.joined(separator: ","), "enableImages": "false"])
+            for show in shows.items ?? [] where show.isSeries && series[show.id] == nil { series[show.id] = show }
+        }
+        return (episodes, series)
     }
 }
 
@@ -126,9 +147,11 @@ final class NewEpisodesWatch {
         if looking || comingBack && Date().timeIntervalSince(lastLook) < 15 * 60 { return }
         looking = true
         defer { looking = false }
-        guard let found = try? await client.recentEpisodes(), client.userId == account else { return }
-        lastLook = Date()
         let defaults = UserDefaults.standard
+        // Read down to the mark: what came since, however much.
+        let since = defaults.object(forKey: Self.key(account)) as? Double
+        guard let found = try? await client.recentEpisodes(since: since), client.userId == account else { return }
+        lastLook = Date()
         let seen = defaults.object(forKey: Self.key(account)) as? Double
         if let seen {
             let pick = NewEpisodes.pick(found.episodes, series: found.series, seen: seen)
