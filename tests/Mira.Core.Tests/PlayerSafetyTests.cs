@@ -68,18 +68,15 @@ internal static class PlayerSafetyTests
             Assert(results.All(r => r.Passed), string.Join(" | ", results.Where(r => !r.Passed).Select(r => r.Message)));
         });
         if (Ffmpeg() is not { } ffmpeg) return;
-        await Test("Lecteur : sous-titres au départ avec le vrai mpv, seulement les forcés dans la langue de l’audio", async () =>
+        await Test("Lecteur : sous-titres au départ avec le vrai mpv, choisis par Mira (Mira en anglais et en français, sous-titres de Jellyfin à côté)", async () =>
         {
             var folder = Path.Combine(run.Root, "tracks"); Directory.CreateDirectory(folder);
             MakeTrackMedia(ffmpeg, folder);
-            var results = await PlayerSafety.TracksAsync(() => new HeadlessMpv(library, English), folder);
+            var results = await PlayerSafety.TracksAsync(languages => new HeadlessMpv(library, new() { AudioLanguage = languages.Audio, SubtitleLanguage = languages.Subtitles }), folder);
             foreach (var result in results) Console.WriteLine($"      {(result.Passed ? "ok" : "ÉCHEC")} {result.Message}");
             Assert(results.All(r => r.Passed), string.Join(" | ", results.Where(r => !r.Passed).Select(r => r.Message)));
         });
     }
-
-    /// <summary>Mira's languages in English: audio jpn, eng, fre; subtitles eng, fre.</summary>
-    private static readonly PlayerSettings English = new() { AudioLanguage = "jpn,ja,eng,en,fre,fra,fr", SubtitleLanguage = "eng,en,fre,fra,fr" };
 
     private static string? Ffmpeg()
     {
@@ -93,22 +90,29 @@ internal static class PlayerSafetyTests
     {
         var srt = Path.Combine(folder, "lines.srt");
         File.WriteAllText(srt, "1\n00:00:00,000 --> 00:00:02,500\nA line\n");
-        void Make(string file, string audio, params string[] forced)
+        File.Copy(srt, Path.Combine(folder, "french.srt"), overwrite: true);
+        void Make(string file, string audio, params string[] subtitles)
         {
             var start = new ProcessStartInfo(ffmpeg) { RedirectStandardError = true };
-            var arguments = new List<string> { "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=duration=3:size=320x240:rate=24", "-f", "lavfi", "-i", "sine=duration=3", "-i", srt };
-            if (forced.Length > 0) arguments.AddRange(["-i", srt]);
-            arguments.AddRange(["-map", "0:v", "-map", "1:a", "-map", "2:s"]);
-            if (forced.Length > 0) arguments.AddRange(["-map", "3:s", "-metadata:s:s:1", "language=eng", "-disposition:s:1", "forced"]);
-            arguments.AddRange(["-c:v", "mpeg4", "-c:a", "mp2", "-c:s", "srt", "-metadata:s:a:0", "language=" + audio, "-metadata:s:s:0", "language=eng", "-disposition:s:0", "0", Path.Combine(folder, file)]);
+            var arguments = new List<string> { "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=duration=3:size=320x240:rate=24", "-f", "lavfi", "-i", "sine=duration=3" };
+            foreach (var _ in subtitles) arguments.AddRange(["-i", srt]);
+            arguments.AddRange(["-map", "0:v", "-map", "1:a"]);
+            for (var i = 0; i < subtitles.Length; i++)
+            {
+                var (language, forced) = (subtitles[i].Split(':')[0], subtitles[i].EndsWith(":forced", StringComparison.Ordinal));
+                arguments.AddRange(["-map", $"{i + 2}:s", $"-metadata:s:s:{i}", "language=" + language, $"-disposition:s:{i}", forced ? "forced" : "0"]);
+            }
+            arguments.AddRange(["-c:v", "mpeg4", "-c:a", "mp2", "-c:s", "srt", "-metadata:s:a:0", "language=" + audio, Path.Combine(folder, file)]);
             foreach (var argument in arguments) start.ArgumentList.Add(argument);
             using var process = Process.Start(start)!;
             var error = process.StandardError.ReadToEnd(); process.WaitForExit();
             Assert(process.ExitCode == 0, "ffmpeg: " + error);
         }
-        Make("english.mkv", "eng");
-        Make("forced.mkv", "eng", "forced");
-        Make("japanese.mkv", "jpn");
+        Make("english.mkv", "eng", "eng");
+        Make("forced.mkv", "eng", "eng", "eng:forced");
+        Make("japanese.mkv", "jpn", "eng");
+        Make("bilingual.mkv", "eng", "fre", "eng");
+        Make("french.mkv", "fre", "eng");
     }
 
     /// <summary>mpv without a window or sound, from the system's libmpv (Linux CI), with Mira's own options.</summary>

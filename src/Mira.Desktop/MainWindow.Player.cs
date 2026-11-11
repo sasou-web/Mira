@@ -222,6 +222,7 @@ public partial class MainWindow
         if (generation != _playGeneration || _mpv is null) return;
         await RememberCurrentPlaybackAsync();
         if (generation != _playGeneration || _mpv is null) return;
+        _forcedFiles.Clear();
         if (!_demo && _client is not null && _stream is { } stream)
         {
             // Subtitles fetched from Jellyfin take the token in their header too (its file on this PC opens without it).
@@ -230,14 +231,16 @@ public partial class MainWindow
             if (!stream.Converted)
                 foreach (var (track, path) in ServerStreams.Beside(stream.Source, converted: false))
                 {
-                    try { _mpv.Command("sub-add", _client.ServerUri(path).AbsoluteUri, "auto", track.DisplayTitle ?? "", track.Language ?? ""); } catch (IOException) { }
+                    var url = _client.ServerUri(path).AbsoluteUri;
+                    try { _mpv.Command("sub-add", url, "auto", track.DisplayTitle ?? "", track.Language ?? ""); if (track.IsForced) _forcedFiles.Add(url); } catch (IOException) { }
                 }
         }
         // The subtitle files kept beside a copy.
         if (_playingCopy is { } kept && kept.Item.Id == _session.Item.Id)
             foreach (var subtitle in kept.Subtitles)
             {
-                try { _mpv.Command("sub-add", Path.Combine(kept.Folder, subtitle.File), "auto", subtitle.Title ?? "", subtitle.Language ?? ""); } catch (IOException) { }
+                var file = Path.Combine(kept.Folder, subtitle.File);
+                try { _mpv.Command("sub-add", file, "auto", subtitle.Title ?? "", subtitle.Language ?? ""); if (kept.Forced(subtitle)) _forcedFiles.Add(file); } catch (IOException) { }
             }
         // Whether « Chercher des sous-titres… » shows, known before the menu opens.
         _ = ShowSubtitleSearchAsync();

@@ -116,6 +116,37 @@ struct TrackChoiceTests {
     }
 }
 
+/// The subtitles a title starts with by the settings' order: tests/fixtures/subtitle-start.json, shared with Mira for
+/// Windows and Mac (StartSubtitles of Core).
+@Suite("Sous-titres au départ")
+struct SubtitleStartTests {
+    private final class Bundled {}
+
+    @Test("Les cas communs")
+    func shared() throws {
+        let url = try #require(Bundle(for: Bundled.self).url(forResource: "subtitle-start", withExtension: "json"))
+        let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        guard case let .array(cases)? = value.object?["cases"] else { Issue.record("cases"); return }
+        #expect(cases.count > 10)
+        for row in cases {
+            let x = row.object ?? [:]
+            var streams = [MediaStream(index: 0, type: "Video"), MediaStream(index: 1, type: "Audio", codec: "aac", language: x["audio"]?.string, channels: 2)]
+            if case let .array(subtitles)? = x["subtitles"] {
+                for (offset, subtitle) in subtitles.enumerated() {
+                    let s = subtitle.object ?? [:]
+                    streams.append(MediaStream(index: 10 + offset, type: "Subtitle", codec: "subrip", language: s["lang"]?.string,
+                                               isDefault: s["default"]?.bool == true, isForced: s["forced"]?.bool == true, isTextSubtitleStream: true))
+                }
+            }
+            // Jellyfin's own choice, where the player keeps its own: 99.
+            let source = MediaSource(defaultAudioStreamIndex: 1, defaultSubtitleStreamIndex: 99, mediaStreams: streams)
+            let chosen = TrackChoice.choose(source, memory: nil, audioOrder: "", subtitleOrder: x["order"]?.string ?? "")
+            let expected = x["expected"]?.number.map { 10 + Int($0) } ?? (x["expected"]?.string == "player" ? 99 : -1)
+            #expect(chosen.audio == 1 && chosen.subtitle == expected, "\(x["name"]?.string ?? ""): \(chosen.subtitle)")
+        }
+    }
+}
+
 /// « Reprendre un peu avant »: tests/fixtures/resume.json, shared with Mira web and Mira for Windows and Mac.
 @Suite("Reprendre un peu avant")
 struct ResumeBackTests {

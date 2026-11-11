@@ -595,11 +595,19 @@ public sealed partial class PlayerPage : UserControl
         _mpv.SetAuthorization(session.Client.AuthorizationHeader);
         // External subtitles supplied by Jellyfin; a conversion's come when chosen.
         // The subtitle files kept beside a copy.
+        _forcedFiles.Clear();
         if (_playingCopy is { } copy && copy.Item.Id == _session.Item.Id)
-            foreach (var subtitle in copy.Subtitles) _mpv.TryCommand("sub-add", Path.Combine(copy.Folder, subtitle.File), "auto", subtitle.Title ?? "", subtitle.Language ?? "");
+            foreach (var subtitle in copy.Subtitles)
+            {
+                var file = Path.Combine(copy.Folder, subtitle.File);
+                if (_mpv.TryCommand("sub-add", file, "auto", subtitle.Title ?? "", subtitle.Language ?? "") && copy.Forced(subtitle)) _forcedFiles.Add(file);
+            }
         else if (!stream.Converted)
             foreach (var (track, path) in ServerStreams.Beside(stream.Source, converted: false))
-                _mpv.TryCommand("sub-add", session.Client.ServerUri(path).AbsoluteUri, "auto", track.DisplayTitle ?? "", track.Language ?? "");
+            {
+                var url = session.Client.ServerUri(path).AbsoluteUri;
+                if (_mpv.TryCommand("sub-add", url, "auto", track.DisplayTitle ?? "", track.Language ?? "") && track.IsForced) _forcedFiles.Add(url);
+            }
         await ChooseStartTracksAsync(session, reopened, generation);
     }
     private PlaybackReport Report() => _session.Report(_mpv?.Level ?? _volume.Value, _mpv?.Flag("mute") ?? false);

@@ -239,6 +239,8 @@ public sealed record MediaStream
     public int? Channels { get; init; }
     public string? Title { get; init; }
     public bool IsForced { get; init; }
+    /// <summary>The file marks the track as its default one.</summary>
+    public bool IsDefault { get; init; }
     /// <summary>A subtitle track in text (SubRip, ASS, WebVTT): sent beside a conversion; the others are pictures, drawn into it.</summary>
     public bool IsTextSubtitleStream { get; init; }
     /// <summary>How a subtitle track comes with the stream PlaybackInfo chose: « Embed » (in the file), « External » (at <see cref="DeliveryUrl"/>), « Encode » (drawn into the picture).</summary>

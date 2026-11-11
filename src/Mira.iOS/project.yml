@@ -152,6 +152,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/series-start.json
         buildPhase: resources
+      - path: ../../tests/fixtures/subtitle-start.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

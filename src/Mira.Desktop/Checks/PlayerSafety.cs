@@ -19,8 +19,9 @@ namespace Mira.Checks;
 /// <item>https:// (<see cref="HttpsAsync"/>): three servers on 127.0.0.1, one with a certificate of an authority Mira
 /// trusts (<see cref="ServerTrust"/>), one made by itself, one of the same authority but for another name. Only the
 /// first may receive a request, and with it the token; mpv never runs yt-dlp.</item>
-/// <item>The subtitles at the start (<see cref="TracksAsync"/>): in the audio's language, the forced ones only; in
-/// another, the preferred language's.</item>
+/// <item>The subtitles at the start (<see cref="TracksAsync"/>, <see cref="StartSubtitles"/>): in the audio's language,
+/// the forced ones only; a film in one's own language, nothing else; in another, the preferred language's, Jellyfin's
+/// external ones included.</item>
 /// </list>
 /// </summary>
 public static class PlayerSafety
@@ -93,27 +94,39 @@ public static class PlayerSafety
         return results;
     }
 
-    /// <param name="make">A headless mpv of the app, with Mira's languages for an app in English (audio jpn, eng, fre;
-    /// subtitles eng, fre).</param>
+    /// <summary>Mira's languages in English (audio jpn, eng, fre; subtitles eng, fre) and in French (fre before eng).</summary>
+    public static readonly (string Audio, string Subtitles) English = ("jpn,ja,eng,en,fre,fra,fr", "eng,en,fre,fra,fr"), French = ("jpn,ja,fre,fra,fr,eng,en", "fre,fra,fr,eng,en");
+
+    /// <param name="make">A headless mpv of the app with these languages.</param>
     /// <param name="folder">The films of tools/player-check.ps1 and mac.yml: english.mkv (audio and subtitles in
     /// English), forced.mkv (the same, then forced subtitles in English), japanese.mkv (audio in Japanese, subtitles in
-    /// English).</param>
-    public static async Task<List<Result>> TracksAsync(Func<MpvClient> make, string folder)
+    /// English), bilingual.mkv (audio in English, subtitles in French then English), french.mkv (audio in French,
+    /// subtitles in English), and french.srt, given as Jellyfin's external subtitles are, once the file is loaded.</param>
+    /// <remarks>The subtitles are chosen as the apps choose them without a memory of the series: by mpv, then by Mira
+    /// (<see cref="MpvClient.ChooseStartSubtitles"/>).</remarks>
+    public static async Task<List<Result>> TracksAsync(Func<(string Audio, string Subtitles), MpvClient> make, string folder)
     {
         var results = new List<Result>();
-        foreach (var (file, expected, what) in new[]
+        foreach (var (languages, file, external, expected, what) in new[]
         {
-            ("english.mkv", "no", "film en anglais : pas ses sous-titres anglais"),
-            ("forced.mkv", "2", "film en anglais : ses seuls sous-titres forcés"),
-            ("japanese.mkv", "1", "anime en japonais : ses sous-titres anglais"),
+            (English, "english.mkv", false, "no", "Mira en anglais, film en anglais : pas ses sous-titres anglais"),
+            (English, "forced.mkv", false, "2", "Mira en anglais, film en anglais : ses seuls sous-titres forcés"),
+            (English, "japanese.mkv", false, "1", "Mira en anglais, anime en japonais : ses sous-titres anglais"),
+            (English, "bilingual.mkv", false, "no", "Mira en anglais, film en anglais : ni ses sous-titres français ni ses anglais"),
+            (English, "french.mkv", false, "1", "Mira en anglais, film en français : ses sous-titres anglais"),
+            (French, "bilingual.mkv", false, "1", "Mira en français, film en anglais : ses sous-titres français"),
+            (French, "english.mkv", false, "no", "Mira en français, film en anglais sans sous-titres français : pas ses anglais"),
+            (French, "french.mkv", false, "no", "Mira en français, film en français : pas ses sous-titres anglais"),
+            (French, "english.mkv", true, "2", "Mira en français, film en anglais : les sous-titres français que Jellyfin donne à côté"),
         })
         {
-            using var mpv = make();
+            using var mpv = make(languages);
             var (opened, said) = await OpenAsync(mpv, Path.Combine(folder, file), close: false);
-            var sid = mpv.Get("sid"); var option = mpv.Get("subs-with-matching-audio");
-            // mpv 0.37 and older know only yes or no: in the audio's language, no subtitles at all, forced ones too.
-            var passed = opened && (sid == expected || (file == "forced.mkv" && sid == "no" && option == "no"));
-            results.Add(new(passed, $"sous-titres au départ, {what} (piste {sid}, subs-with-matching-audio = {option}; {said})"));
+            var guess = mpv.Get("sid");
+            if (opened && external) mpv.Command("sub-add", Path.Combine(folder, "french.srt"), "auto", "", "fre");
+            if (opened) mpv.ChooseStartSubtitles(languages.Subtitles);
+            var sid = mpv.Get("sid");
+            results.Add(new(opened && sid == expected, $"sous-titres au départ, {what} (piste {sid}, mpv seul : {guess}, subs-with-matching-audio = {mpv.Get("subs-with-matching-audio")}; {said})"));
         }
         return results;
     }
