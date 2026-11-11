@@ -32,6 +32,8 @@ public partial class MainWindow
     /// <summary>From the first close request: the window is hidden and its services are being stopped.</summary>
     internal bool IsClosing => _closing;
     private int _playGeneration;
+    /// <summary>Each time the person closes the player (its ✕, Échap, Stop of Windows' media keys): a title still opening then never starts.</summary>
+    private int _playerLeft;
     private bool _tickBusy;
 
     /// <param name="groupStart">Put on by « Regarder ensemble » (MainWindow.Together.cs): opened paused there, until the group plays.</param>
@@ -43,6 +45,7 @@ public partial class MainWindow
         // The countdown or the end of the previous episode: started by itself (« Tu regardes toujours ? »).
         var byItself = _nextByItself; _nextByItself = false;
         if (_playBusy) return; _playBusy = true;
+        var left = _playerLeft;
         // Back from the player, the title's page is laid out afresh (« Depuis le début », the progress line).
         _detailSettled = null;
         // Opening a stream can take a moment: say so right away instead of looking frozen.
@@ -100,6 +103,8 @@ public partial class MainWindow
                 stream = await OpenStreamAsync(_client, item, StartAt());
                 source = stream.Source; session = stream.PlaySessionId; location = stream.Location; authorization = stream.Authorization;
             }
+            // The player closed while the stream opened (the next episode, started by itself or by « Suivant »): it stays closed.
+            if (left != _playerLeft) return;
             await StopPlaybackAsync(completePrevious);
             if (darkening is not null) await darkening;
             _playingCopy = kept; UseStream(stream);
@@ -445,6 +450,7 @@ public partial class MainWindow
     /// <summary>Leaving the player for the library: the picture shrinks and fades over the page (<see cref="ClosePlayerSmoothlyAsync"/>).</summary>
     private async Task LeavePlayerAsync()
     {
+        _playerLeft++;
         FrameProbe.Begin("stop");
         if (await ClosePlayerSmoothlyAsync()) return;
         if (_morphing) { ++_morphVersion; EndMorph(); }

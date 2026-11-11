@@ -44,7 +44,7 @@ public partial class MainWindow
                 case DesktopCommand.Back: if (_loaded) SeekRelative(-10); break;
                 case DesktopCommand.Forward: if (_loaded) SeekRelative(10); break;
                 case DesktopCommand.Next: if (_loaded && _skips.Next is not null) Next_Click(this, new()); break;
-                case DesktopCommand.Stop: if (_playing) { await StopPlaybackAsync(); ReturnToLibrary(); } break;
+                case DesktopCommand.Stop: _playerLeft++; if (_playing) { await StopPlaybackAsync(); ReturnToLibrary(); } break;
                 case DesktopCommand.Seek: if (_loaded && double.IsFinite(position)) SeekRelative(position - _session.Position); break;
             }
             UpdateWindowsPlayback();
