@@ -33,7 +33,9 @@ public sealed partial class MainWindow
         {
             var item = await session.ItemAsync(id);
             if (!ReferenceEquals(session, Session)) return;
-            if (!IsVisible || WindowState == Avalonia.Controls.WindowState.Minimized) { Show(); if (WindowState == Avalonia.Controls.WindowState.Minimized) WindowState = Avalonia.Controls.WindowState.Normal; }
+            // As from the Dock icon: a window shown without leaving the Dock would stay « away » (pages never read again,
+            // ⌘W doing nothing, the update installed from the Dock quitting Mira under the person's eyes).
+            if (!IsVisible || InDock || WindowState == Avalonia.Controls.WindowState.Minimized) Reopen();
             await PlayAsync(item, fromStart: start is 0);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { if (ReferenceEquals(session, Session)) Notice(ex is IOException ? ex.Message : Errors.Friendly(ex)); }
