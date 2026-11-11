@@ -98,6 +98,8 @@ final class PlayerSession: NSObject {
     private var kept: KeptCopy?
     /// The copy of this title did not play: Jellyfin's stream instead, until another title.
     private var keptRefused = false
+    /// The title in several files playing (« cd1 », « cd2 »), its parts one after the other (MovieParts); nil otherwise.
+    private var parts: MovieParts?
 
     init(item: Item, client: JellyfinClient, app: AppModel, audioIndex: Int?, subtitleIndex: Int?) {
         self.item = item
@@ -133,6 +135,10 @@ final class PlayerSession: NSObject {
 
     private var together: Together? { app?.together }
     private var inGroup: Bool { app?.together.group != nil }
+    /// The parts of the title playing, while `item` is one of them.
+    private var playingParts: MovieParts? { parts?.holds(item.id) == true ? parts : nil }
+    /// What plays as the library knows it: the title of a part.
+    private var playingTitle: Item { playingParts?.title ?? item }
 
     /// Opens the player over the app, then the stream: where the title was left unless asked from the start.
     func start(fromStart: Bool, groupStart: Int64? = nil) {
@@ -164,8 +170,25 @@ final class PlayerSession: NSObject {
         }
         startedAt = Double(ticks) / Double(ItemText.ticksPerSecond)
         model.time = startedAt
-        let chosen = groupStart == nil
+        let chosen = groupStart == nil, first = ticks
         Task {
+            var ticks = first
+            // A title in several files: its parts one after the other, « Play » resuming in the part left halfway
+            // (MovieParts). Not in a group, whose queue Jellyfin keeps; nor asked with no way to Jellyfin when its copy
+            // kept here plays (its first part, as before).
+            if !inGroup, MovieParts.has(item), app?.way != nil || app?.keeper.playable(item.id) == nil,
+               let others = try? await client.additionalParts(item.id), !closed {
+                let parts = MovieParts(title: item, others: others)
+                self.parts = parts
+                let part = parts.start(fromStart: fromStart)
+                if part.id != item.id {
+                    item = part
+                    ticks = PlaybackPlan.startTicks(part, fromStart: false, resume: app?.preferences.resume ?? true, back: app?.preferences.resumeBack ?? 0)
+                    startedAt = Double(ticks) / Double(ItemText.ticksPerSecond)
+                    model.time = startedAt
+                }
+                describe()
+            }
             await open(at: ticks)
             // A title chosen here while in a group is put on for the group, from where it starts here.
             if chosen, let together, together.group != nil, together.queue?.itemId != item.id {
@@ -497,7 +520,7 @@ final class PlayerSession: NSObject {
     private func describe() {
         model.title = heading.title
         model.subtitle = heading.subtitle
-        model.isEpisode = item.isEpisode
+        model.isEpisode = playingTitle.isEpisode
         model.hasNext = false
         model.chapters = []
         model.passage = nil
@@ -694,10 +717,17 @@ final class PlayerSession: NSObject {
         }
         stopped = true
         let finished = state(position: max(total, position))
+        // A title in several files: its next part at once, in the same player (« End of the episode » waits for its
+        // last part, « Are you still watching? » never asks between two).
+        let part = playingParts?.after(item.id)
         Task {
             await tell(.stop, finished)
             if playMethod != "DirectPlay", let id = playSessionId { await client.stopEncoding(id) }
-            await nextEpisode()
+            if let part {
+                await switchTo(part, startedByItself: nil)
+            } else {
+                await nextEpisode()
+            }
         }
     }
 
@@ -709,13 +739,15 @@ final class PlayerSession: NSObject {
             close()
             return
         }
-        // « Next episode automatically » off: the episode ends there (the group's choice in a group).
+        // « Next episode automatically » off: the episode ends there (the group's choice in a group). A part of an
+        // episode in several files: the episode after its title.
+        let title = playingTitle
         var found = nextItem
         // No way to Jellyfin: the next episode kept here.
-        if found == nil, item.isEpisode, app?.way == nil { found = app?.keeper.next(after: item)?.item }
-        if found == nil, item.isEpisode { found = try? await client.episode(after: item) }
-        if found == nil, item.isEpisode { found = app?.keeper.next(after: item)?.item }
-        guard item.isEpisode, asked || app?.preferences.autoNext != false || inGroup, let next = found, !closed else {
+        if found == nil, title.isEpisode, app?.way == nil { found = app?.keeper.next(after: title)?.item }
+        if found == nil, title.isEpisode { found = try? await client.episode(after: title) }
+        if found == nil, title.isEpisode { found = app?.keeper.next(after: title)?.item }
+        guard title.isEpisode, asked || app?.preferences.autoNext != false || inGroup, let next = found, !closed else {
             close()
             return
         }
@@ -729,6 +761,19 @@ final class PlayerSession: NSObject {
             askStillWatching(next)
             return
         }
+        // The next episode in several files: its parts one after the other too.
+        var nextParts: MovieParts?
+        if MovieParts.has(next), app?.way != nil || app?.keeper.playable(next.id) == nil, let others = try? await client.additionalParts(next.id) {
+            nextParts = MovieParts(title: next, others: others)
+        }
+        guard !closed else { return }
+        parts = nextParts
+        await switchTo(next, startedByItself: byItself)
+    }
+
+    /// Another title in the same player, from its start, with the same languages: the next episode, or the next part of
+    /// a title in several files (`startedByItself` nil: the same title goes on for « Are you still watching? »).
+    private func switchTo(_ next: Item, startedByItself byItself: Bool?) async {
         let keptNext = app?.keeper.playable(next.id)
         let streams: [MediaStream]
         if let keptNext {
@@ -752,7 +797,7 @@ final class PlayerSession: NSObject {
         started = false
         stopped = false
         app?.playbackChanged()
-        stillWatching.started(.now, byItself: byItself)
+        if let byItself { stillWatching.started(.now, byItself: byItself) }
         await open(at: 0)
     }
 
@@ -820,16 +865,18 @@ final class PlayerSession: NSObject {
                 model.previewSize = CGSize(width: set.info.width ?? 16, height: set.info.height ?? 9)
             }
         }
-        guard known.isEpisode else { return }
+        // A part of an episode in several files: the episode after its title.
+        let episode = playingParts?.title ?? known
+        guard episode.isEpisode else { return }
         // No way to Jellyfin: the next episode kept here, at once.
-        if app?.way == nil, let copy = app?.keeper.next(after: known) {
+        if app?.way == nil, let copy = app?.keeper.next(after: episode) {
             nextItem = copy.item
             model.hasNext = true
         }
         Task {
-            let next = try? await client.episode(after: known)
+            let next = try? await client.episode(after: episode)
             guard item.id == id, !closed else { return }
-            if nextItem == nil { nextItem = next ?? app?.keeper.next(after: known)?.item }
+            if nextItem == nil { nextItem = next ?? app?.keeper.next(after: episode)?.item }
             model.hasNext = nextItem != nil
         }
     }
@@ -862,21 +909,22 @@ final class PlayerSession: NSObject {
             player.seek(to: CMTime(seconds: passage.end, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
             return
         }
-        guard end > 0, item.isEpisode else {
+        guard end > 0, playingTitle.isEpisode else {
             showPassage(passage.flatMap { Timeline.skipLabel($0.type) })
             return
         }
         let nextFrom = Timeline.nextFrom(passages, end: end)
         if !nextAsked && at >= nextFrom - 30 {
             nextAsked = true
-            let id = item.id, current = item
+            let id = item.id, current = playingTitle
             Task {
                 let next = try? await client.episode(after: current)
                 if item.id == id, let next, app?.way != nil || nextItem == nil { nextItem = next }
                 model.hasNext = nextItem != nil
             }
         }
-        if nextItem != nil && at >= nextFrom {
+        // A part of an episode in several files: its next part follows at its end, the next episode after the last one.
+        if nextItem != nil && at >= nextFrom && playingParts?.after(item.id) == nil {
             let auto = !inGroup && app?.preferences.autoNext != false && app?.sleep.atEnd != true && !asksStillWatching
                 ? Timeline.nativeNextAt(passages, end: end, startedAt: startedAt) : nil
             showPassage(String(localized: "Next episode"), next: true, countdown: auto.map { 1 - max(0, $0 - at) / Timeline.countdown })
@@ -1100,11 +1148,17 @@ final class PlayerSession: NSObject {
     // MARK: What the Lock Screen and AirPlay show
 
     private var heading: (title: String, subtitle: String?) {
-        if item.isEpisode {
-            let code = ItemText.episodeCode(item)
-            return ([code, item.name ?? ""].filter { !$0.isEmpty }.joined(separator: " · "), item.seriesName)
+        // A part of a title in several files: its title, then which part (« 2018 · Part 2 of 2 »).
+        let title = playingTitle, part = playingParts?.label(item.id) ?? ""
+        func line(_ text: String?) -> String? {
+            let joined = [text ?? "", part].filter { !$0.isEmpty }.joined(separator: " · ")
+            return joined.isEmpty ? nil : joined
         }
-        return (item.name ?? "", item.productionYear.map(String.init))
+        if title.isEpisode {
+            let code = ItemText.episodeCode(title)
+            return ([code, title.name ?? ""].filter { !$0.isEmpty }.joined(separator: " · "), line(title.seriesName))
+        }
+        return (title.name ?? "", line(title.productionYear.map(String.init)))
     }
 
     private func nowPlayingInfo(artwork: UIImage? = nil) -> [String: Any] {
@@ -1129,7 +1183,8 @@ final class PlayerSession: NSObject {
             }
             return
         }
-        guard let art = Artwork.of(item, .wide) ?? Artwork.of(item, .poster) else { return }
+        let title = playingTitle
+        guard let art = Artwork.of(title, .wide) ?? Artwork.of(title, .poster) else { return }
         let url = client.imageURL(art, width: 640, scale: 1)
         let id = item.id
         Task {
@@ -1274,7 +1329,7 @@ extension PlayerSession: PlayerActions {
     }
 
     private func rememberTracks() {
-        guard let series = item.seriesId, let source else { return }
+        guard let series = playingTitle.seriesId, let source else { return }
         app?.preferences.remember(TrackChoice.memory(source, audio: audioIndex, subtitle: subtitleIndex), for: series)
     }
 
@@ -1481,6 +1536,7 @@ extension PlayerSession: GroupPlayer {
             audioIndex = TrackNames.same(audio, in: streams.filter { $0.type == "Audio" })?.index
             subtitleIndex = subtitleIndex == -1 ? -1 : TrackNames.same(subtitle, in: streams.filter { $0.type == "Subtitle" })?.index ?? -1
             item = next
+            parts = nil
             newTitle(at: Double(startTicks) / Double(ItemText.ticksPerSecond))
             reopenedAt = nil
             source = nil

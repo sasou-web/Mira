@@ -21,12 +21,14 @@ public partial class MainWindow
     private async Task OpenPlayingPageAsync(bool atEpisode)
     {
         if (!_playing || _session.Item is not { } item) return;
+        // A part of a title in several files is hidden from the library: its title's page.
+        var title = _parts is { } parts && parts.Holds(item.Id) ? parts.Title : item;
         if (!_miniPlayer) SetMiniPlayerSmoothly(true);
         try
         {
-            var page = await PageItemAsync(item);
+            var page = await PageItemAsync(title);
             if (!_playing || _session.Item?.Id != item.Id) return;
-            await ShowDetailsAsync(page, atEpisode && item.Type == "Episode" ? item : null);
+            await ShowDetailsAsync(page, atEpisode && title.Type == "Episode" ? title : null);
         }
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }

@@ -22,6 +22,9 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var parentIndexNumber: Int?
     var indexNumber: Int?
     var indexNumberEnd: Int?
+    /// Files of a title in several parts (« Film - cd1.mkv », « Film - cd2.mkv »), 2 or more; nil for one file. Its
+    /// length, stream and progress are those of the first part (MovieParts).
+    var partCount: Int?
     var imageTags: [String: String]?
     var backdropImageTags: [String]?
     var imageBlurHashes: [String: [String: String]]?

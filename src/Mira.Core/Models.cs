@@ -33,6 +33,12 @@ public sealed record MediaItem
     public int? IndexNumber { get; init; }
     public int? ParentIndexNumber { get; init; }
     public int? IndexNumberEnd { get; init; }
+    /// <summary>
+    /// Files of a title in several parts (« Film - cd1.mkv », « Film - cd2.mkv »), 2 or more; null for one file. Its length,
+    /// stream and progress are those of the first part: <see cref="MovieParts"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PartCount { get; init; }
     public string? OriginalTitle { get; init; }
     public long? RunTimeTicks { get; init; }
     public float? CommunityRating { get; init; }

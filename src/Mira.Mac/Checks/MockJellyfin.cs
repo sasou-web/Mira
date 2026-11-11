@@ -106,7 +106,26 @@ public sealed class MockJellyfin : HttpMessageHandler
     }
 
     private IEnumerable<object> All => _movies.Concat(_series);
-    private object? Find(string id) => All.Concat(_episodes.Values.SelectMany(x => x)).FirstOrDefault(x => Id(x) == id);
+    private object? Find(string id) => All.Concat(_episodes.Values.SelectMany(x => x)).Append(PartsTitle()).Append(PartTwo()).FirstOrDefault(x => Id(x) == id);
+
+    /// <summary>
+    /// « Deux bobines », a film in two files (« cd1 », « cd2 ») as Jellyfin 12.1 gives it, out of the lists: the title
+    /// is its first part (PartCount), the second comes from Videos/parts-1/AdditionalParts, an item of its own.
+    /// </summary>
+    public bool PartsWatched { get; set; }
+    /// <summary>Where the second part of « Deux bobines » was left, in ticks (0: never started).</summary>
+    public long PartTwoTicks { get; set; }
+    private object PartsTitle() => new
+    {
+        Id = "parts-1", Name = "Deux bobines", Type = "Movie", ProductionYear = 2019, PartCount = 2, RunTimeTicks = 6 * TimeSpan.TicksPerSecond,
+        ImageTags = new Dictionary<string, string> { ["Primary"] = "pparts-1" },
+        UserData = new { PlaybackPositionTicks = 0L, Played = PartsWatched, IsFavorite = false, LastPlayedDate = PartsWatched ? DateTimeOffset.UtcNow.AddHours(-3) : (DateTimeOffset?)null }
+    };
+    private object PartTwo() => new
+    {
+        Id = "parts-1-b", Name = "Deux bobines", Type = "Video", RunTimeTicks = 6 * TimeSpan.TicksPerSecond,
+        UserData = new { PlaybackPositionTicks = PartTwoTicks, Played = false, IsFavorite = false, LastPlayedDate = PartTwoTicks > 0 ? DateTimeOffset.UtcNow.AddHours(-2) : (DateTimeOffset?)null }
+    };
     private static string Id(object item) => (string)item.GetType().GetProperty("Id")!.GetValue(item)!;
     private static string Name(object item) => (string)item.GetType().GetProperty("Name")!.GetValue(item)!;
     private static string Type(object item) => (string)item.GetType().GetProperty("Type")!.GetValue(item)!;
@@ -131,6 +150,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (Expired && path != "Sessions/Logout") return new HttpResponseMessage(HttpStatusCode.Unauthorized);
         if (path == "Playback/BitrateTest") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[Math.Clamp(int.TryParse(query["size"], out var size) ? size : 0, 0, 10_000_000)]) };
         if (path.StartsWith("Videos/") && path.EndsWith("/stream")) return await FileAsync(request, Short(path.Split('/')[1]) ? _short : _media, cancellationToken);
+        if (path == "Videos/parts-1/AdditionalParts") return Items([PartTwo()]);
         // An administrator, whose PC of Jellyfin runs Mira for Windows: « Téléchargements » through the relay of the extension.
         if (path == "Users/Me") return Json(new { Id = UserId, Name = "Contrôle", Policy = new { IsAdministrator = true } });
         // « Ajouter un ami »: two libraries to share, an account made and limited, codes allowed.
@@ -229,7 +249,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
     /// <summary>The short video: an episode, or a trailer.</summary>
-    private static bool Short(string id) => id.StartsWith("series") || id.StartsWith("trailer");
+    private static bool Short(string id) => id.StartsWith("series") || id.StartsWith("trailer") || id.StartsWith("parts");
     /// <summary>The time the library's lists and pictures take: the cards' shapes and soft placeholders while they come.</summary>
     public TimeSpan Slow { get; set; }
     /// <summary>The name of the collection « Ajouter à une collection » made.</summary>

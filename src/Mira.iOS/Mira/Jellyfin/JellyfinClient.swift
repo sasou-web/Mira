@@ -195,6 +195,11 @@ struct JellyfinClient: Sendable {
         try await get("Items/\(id)", ["userId": userId])
     }
 
+    /// The other files of a title in several parts (MovieParts), in Jellyfin's order, each with this account's progress.
+    func additionalParts(_ id: String) async throws -> [Item] {
+        try await get("Videos/\(id)/AdditionalParts", ["userId": userId], as: ItemList.self).items ?? []
+    }
+
     /// A film's or a series' trailers kept beside it, played as any video: served by Jellyfin alone.
     func localTrailers(_ id: String) async throws -> [Item] {
         try await get("Items/\(id)/LocalTrailers", ["userId": userId], as: [Item].self)
