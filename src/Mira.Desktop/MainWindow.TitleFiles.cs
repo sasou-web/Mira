@@ -73,32 +73,42 @@ public partial class MainWindow
             if (await client.IsAdministratorAsync(ct) != true || await client.VirtualFoldersAsync(ct) is not { } libraries)
             { SetNotice(L("Seul un compte administrateur de Jellyfin peut mettre un titre à la Corbeille depuis Mira.", "Only a Jellyfin administrator account can move a title to the Recycle Bin from Mira.")); return; }
             var folders = libraries.Where(x => !LibrarySection.Groups(x.CollectionType)).SelectMany(x => x.Locations).ToList();
-            var (target, size) = await Task.Run(() => TitleFiles.ToRemove(item, folders) is { } found ? (found, TitleFiles.Size(found)) : (null, 0L), ct);
-            if (target is null) { SetNotice(L($"Mira ne met à la Corbeille que ce qui est dans un dossier de tes bibliothèques, et « {item.DisplayTitle} » n’y est pas (ou plus).", $"Mira only moves to the Recycle Bin what’s in one of your library folders, and “{item.DisplayTitle}” isn’t (or no longer is) there.")); return; }
+            // A film in several files goes whole: its other parts (« Film - cd2.mkv »…) and versions (« Film - 720p.mkv »…).
+            var others = new List<string>();
+            if (item.Type == "Movie")
+            {
+                var title = await client.ItemAsync(item.Id, ct);
+                others.AddRange((title.MediaSources ?? []).Select(x => x.Path).OfType<string>());
+                if (MovieParts.Has(title)) others.AddRange((await client.AdditionalPartsAsync(item.Id, ct)).Select(x => x.Path).OfType<string>());
+            }
+            var (targets, size) = await Task.Run(() => TitleFiles.ToRemove(item, folders, others) is { } found ? (found, found.Sum(TitleFiles.Size)) : (null, 0L), ct);
+            if (targets is null) { SetNotice(L($"Mira ne met à la Corbeille que ce qui est dans un dossier de tes bibliothèques, et « {item.DisplayTitle} » n’y est pas (ou plus).", $"Mira only moves to the Recycle Bin what’s in one of your library folders, and “{item.DisplayTitle}” isn’t (or no longer is) there.")); return; }
             var watching = (await client.ViewersAsync(ct)).FirstOrDefault(x => item.Type == "Series" ? x.Series == item.Name : x.Type == "Movie" && x.Name == item.Name);
             if (watching is not null) { SetNotice(L($"« {item.DisplayTitle} » est en lecture sur {watching.Device} ({watching.User}) : réessaie une fois la lecture finie.", $"“{item.DisplayTitle}” is playing on {watching.Device} ({watching.User}): try again once it’s over.")); return; }
             var what = item.Type == "Series" ? L("le dossier de la série, avec tous ses épisodes", "the show’s folder, with all its episodes")
-                : Directory.Exists(target) ? L("le dossier du film", "the movie’s folder") : L("le fichier du film", "the movie’s file");
-            SetNotice(L($"Mettre « {item.DisplayTitle} » à la Corbeille ? Part {what} : {target} · {OfflineCopies.SizeText(size)}. Tu pourras le remettre depuis la Corbeille de Windows.",
-                $"Move “{item.DisplayTitle}” to the Recycle Bin? This takes {what}: {target} · {OfflineCopies.SizeText(size)}. You can put it back from the Windows Recycle Bin."),
-                L("Mettre à la Corbeille", "Move to Recycle Bin"), () => _ = RecycleAsync(client, item, target), sticky: true);
+                : targets.Count > 1 ? L($"les {targets.Count} fichiers du film", $"the movie’s {targets.Count} files")
+                : Directory.Exists(targets[0]) ? L("le dossier du film", "the movie’s folder") : L("le fichier du film", "the movie’s file");
+            var where = string.Join(", ", targets.Select((x, i) => i == 0 ? x : Path.GetFileName(x)));
+            SetNotice(L($"Mettre « {item.DisplayTitle} » à la Corbeille ? Part {what} : {where} · {OfflineCopies.SizeText(size)}. Tu pourras le remettre depuis la Corbeille de Windows.",
+                $"Move “{item.DisplayTitle}” to the Recycle Bin? This takes {what}: {where} · {OfflineCopies.SizeText(size)}. You can put it back from the Windows Recycle Bin."),
+                L("Mettre à la Corbeille", "Move to Recycle Bin"), () => _ = RecycleAsync(client, item, targets), sticky: true);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
 
-    private async Task RecycleAsync(JellyfinClient client, MediaItem item, string target)
+    private async Task RecycleAsync(JellyfinClient client, MediaItem item, IReadOnlyList<string> targets)
     {
         if (!ReferenceEquals(client, _client)) return;
-        if (!RecycleBin.Send(target, new WindowInteropHelper(this).Handle))
+        if (!RecycleBin.Send(targets, new WindowInteropHelper(this).Handle))
         {
-            SetNotice(File.Exists(target) || Directory.Exists(target)
+            SetNotice(targets.Any(x => File.Exists(x) || Directory.Exists(x))
                 ? L($"« {item.DisplayTitle} » n’a pas été mis à la Corbeille (refusé, annulé ou un fichier encore ouvert) : rien ou une partie seulement est partie.", $"“{item.DisplayTitle}” wasn’t moved to the Recycle Bin (refused, cancelled or a file still open): nothing or only part of it went.")
                 : L($"« {item.DisplayTitle} » n’était plus à sa place.", $"“{item.DisplayTitle}” was no longer there."));
             return;
         }
         // Jellyfin's own folder monitor would see it too; said at once all the same, as a deletion.
-        await client.ReportMediaChangedAsync([], [target]);
+        await client.ReportMediaChangedAsync([], targets);
         _catalog.Forget(item.Id); RenderLibrary();
         _detailTrail.Forget(item.Id);
         if (_detail?.Id == item.Id && DetailOverlay.Visibility == Visibility.Visible) await BackFromDetailsAsync();

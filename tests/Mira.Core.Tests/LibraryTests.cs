@@ -1595,7 +1595,7 @@ internal static class LibraryTests
             Assert(new[] { created.Movies, created.Series, created.Anime }.All(x => File.Exists(Path.Combine(x, LibraryMarker.FileName))), "Folders made by the setup are marked");
             return Task.CompletedTask;
         });
-        await Test("Fichiers d’un titre : un dossier de série, le dossier d’un film seul, sinon son fichier ; jamais une bibliothèque ni hors d’elles", () =>
+        await Test("Fichiers d’un titre : un dossier de série, le dossier d’un film seul, sinon son fichier, ses autres parties et versions avec lui ; jamais une bibliothèque ni hors d’elles", () =>
         {
             var root = Path.Combine(testRoot, "title-files"); var films = Path.Combine(root, "Films"); var series = Path.Combine(root, "Séries");
             string Touch(params string[] parts) { var file = Path.Combine([root, .. parts]); Directory.CreateDirectory(Path.GetDirectoryName(file)!); File.WriteAllText(file, "x"); return file; }
@@ -1605,18 +1605,33 @@ internal static class LibraryTests
             var nested = Touch("Films", "Collection", "Seul.mkv"); Touch("Films", "Collection", "Autre (2001)", "Autre (2001).mkv");
             Touch("Séries", "Regular Show (2010)", "Season 01", "Regular Show S01E01.mkv");
             MediaItem Film(string? path) => new() { Id = "f", Name = "f", Type = "Movie", Path = path };
+            // What goes, joined: one path for a folder or a file, several for a film in several files.
+            string? Removed(MediaItem item, IEnumerable<string> libraries, params string[] parts) => TitleFiles.ToRemove(item, libraries, parts) is { } found ? string.Join(" | ", found) : null;
             var libraries = new[] { films + Path.DirectorySeparatorChar, series, "" };
-            Assert(TitleFiles.ToRemove(Film(alien), libraries) == Path.Combine(films, "Alien (1979)"), "Own folder, bonus videos with it");
-            Assert(TitleFiles.ToRemove(Film(flat), libraries) == flat, "Film right in the library folder: its file alone");
+            Assert(Removed(Film(alien), libraries) == Path.Combine(films, "Alien (1979)"), "Own folder, bonus videos with it");
+            Assert(Removed(Film(flat), libraries) == flat, "Film right in the library folder: its file alone");
             Touch("Films", "Disc (2000)", "VIDEO_TS", "VTS_01_1.VOB");
-            Assert(TitleFiles.ToRemove(Film(Path.Combine(films, "Disc (2000)")), libraries) == Path.Combine(films, "Disc (2000)"), "Film kept as a disc's folder: that folder");
-            Assert(TitleFiles.ToRemove(Film(saga), libraries) == saga && TitleFiles.ToRemove(Film(nested), libraries) == nested, "Other films beside or below: the file alone");
+            Assert(Removed(Film(Path.Combine(films, "Disc (2000)")), libraries) == Path.Combine(films, "Disc (2000)"), "Film kept as a disc's folder: that folder");
+            Assert(Removed(Film(saga), libraries) == saga && Removed(Film(nested), libraries) == nested, "Other films beside or below: the file alone");
             var show = new MediaItem { Id = "s", Name = "Regular Show", Type = "Series", Path = Path.Combine(series, "Regular Show (2010)") };
-            Assert(TitleFiles.ToRemove(show, libraries) == show.Path && TitleFiles.Location(show) == show.Path, "Series: its folder");
-            Assert(TitleFiles.ToRemove(show with { Path = series }, libraries) is null && TitleFiles.ToRemove(show with { Path = root }, libraries) is null, "Never a library folder or above");
-            Assert(TitleFiles.ToRemove(Film(Touch("Ailleurs", "x.mkv")), libraries) is null && TitleFiles.ToRemove(Film(alien), [Path.Combine(root, "Fil")]) is null, "Outside the libraries (a name that only starts like one)");
-            Assert(TitleFiles.ToRemove(Film(Path.Combine(films, "Gone.mkv")), libraries) is null && TitleFiles.ToRemove(show with { Path = Path.Combine(series, "Gone") }, libraries) is null, "No longer there");
+            Assert(Removed(show, libraries) == show.Path && TitleFiles.Location(show) == show.Path, "Series: its folder");
+            Assert(Removed(show with { Path = series }, libraries) is null && Removed(show with { Path = root }, libraries) is null, "Never a library folder or above");
+            Assert(Removed(Film(Touch("Ailleurs", "x.mkv")), libraries) is null && Removed(Film(alien), [Path.Combine(root, "Fil")]) is null, "Outside the libraries (a name that only starts like one)");
+            Assert(Removed(Film(Path.Combine(films, "Gone.mkv")), libraries) is null && Removed(show with { Path = Path.Combine(series, "Gone") }, libraries) is null, "No longer there");
             Assert(TitleFiles.Location(Film("Films/x.mkv")) is null && TitleFiles.Location(Film(null)) is null && TitleFiles.Location(new MediaItem { Type = "Episode", Path = alien }) is null, "Complete paths of films and series only");
+            // A film in several files (« cd1 », « cd2 »: one title for Jellyfin, which gives the first): all of it, or Jellyfin lists
+            // what is left as the film again (checked on 12.1).
+            var cd1 = Touch("Films", "Pile (2019)", "Pile (2019) - cd1.mkv"); var cd2 = Touch("Films", "Pile (2019)", "Pile (2019) - cd2.mkv");
+            Assert(Removed(Film(cd1), libraries, cd2) == Path.Combine(films, "Pile (2019)"), "Its own folder, every part in it");
+            Assert(Removed(Film(cd1), libraries) == cd1, "Without its parts known: the first file alone (as before)");
+            var first = Touch("Films", "Matrix", "Animatrix (2003) - part1.mkv"); var second = Touch("Films", "Matrix", "Animatrix (2003) - part2.mkv");
+            Assert(Removed(Film(first), libraries, second, second, "", "relative.mkv", Path.Combine(films, "Matrix", "Gone - part3.mkv")) == $"{first} | {second}", "Beside other films: its files, each once, no part that is not there");
+            Assert(Removed(Film(first), libraries, Touch("Ailleurs", "Animatrix (2003) - part2.mkv")) is null, "A part outside the libraries: nothing, never the film without it");
+            Assert(Removed(show, libraries, cd2) == show.Path, "A series' folder whatever the parts");
+            // A film in several versions (« - 1080p », « - 720p »: one title, its MediaSources, the first as its Path) goes the same way,
+            // its own Path among them; a version that is an address (a .strm's) is no file here.
+            var high = Touch("Films", "Version (2016)", "Version (2016) - 1080p.mkv"); var low = Touch("Films", "Version (2016)", "Version (2016) - 720p.mkv");
+            Assert(Removed(Film(high), libraries, high, low, "https://example.org/version.mkv") == Path.Combine(films, "Version (2016)"), "Every version: its own folder");
             Assert(TitleFiles.Size(Path.Combine(films, "Alien (1979)")) == 3 && TitleFiles.Size(flat) == 1 && TitleFiles.Size(Path.Combine(root, "none")) == 0, "Sizes");
 
             var catalog = new Catalog { Items = [new() { Id = "s" }, new() { Id = "m" }], TotalCount = 2, Resume = [new() { Id = "e", SeriesId = "s" }], NextUp = [new() { Id = "e2", SeriesId = "s" }], Shelves = new() { ["new"] = [new() { Id = "s" }, new() { Id = "m" }] } };

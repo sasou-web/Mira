@@ -18,31 +18,47 @@ public static class TitleFiles
 
     /// <summary>
     /// What goes to the Recycle Bin: a series' folder; a film's own folder when no other film is in it (its bonus videos
-    /// go with it), otherwise its file alone. Null when that is not strictly inside one of <paramref name="libraries"/>,
-    /// or no longer on this computer.
+    /// go with it), otherwise its files alone. A film in several files goes whole: its parts (« Film - cd1.mkv »,
+    /// « Film - cd2.mkv »: its AdditionalParts) and its versions (« Film - 1080p.mkv », « Film - 720p.mkv »: its
+    /// MediaSources), Jellyfin giving the first as its Path, <paramref name="others"/> the rest. A file left behind is
+    /// listed again by Jellyfin as the film a minute later (checked on 12.1, for both). Null when that is not strictly
+    /// inside one of <paramref name="libraries"/>, or no longer on this computer.
     /// </summary>
-    public static string? ToRemove(MediaItem item, IEnumerable<string> libraries)
+    public static IReadOnlyList<string>? ToRemove(MediaItem item, IEnumerable<string> libraries, IEnumerable<string>? others = null)
     {
         if (Location(item) is not { } location) return null;
         var full = Trim(location);
         var roots = libraries.Where(x => x.Length > 0 && Path.IsPathFullyQualified(x)).Select(Trim).ToList();
         bool Inside(string path) => roots.Any(root => path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
         if (!Inside(full)) return null;
+        var own = new List<string> { full };
+        if (item.Type == "Movie")
+        {
+            foreach (var other in others ?? [])
+            {
+                // A version that is no file (an address of a .strm) is not on this computer.
+                if (other.Length == 0 || !Path.IsPathFullyQualified(other)) continue;
+                var path = Trim(other);
+                // Never the film without all of its files: none of it outside the libraries.
+                if (!Inside(path)) return null;
+                if ((File.Exists(path) || Directory.Exists(path)) && !own.Contains(path, StringComparer.OrdinalIgnoreCase)) own.Add(path);
+            }
+        }
         // A series, or a film kept as a disc's folder (VIDEO_TS, BDMV): Jellyfin gives the folder itself.
-        if (Directory.Exists(full)) return full;
+        if (Directory.Exists(full)) return own;
         if (item.Type == "Series") return null;
         if (!File.Exists(full)) return null;
         var folder = Path.GetDirectoryName(full)!;
-        return Inside(folder) && !OtherVideos(folder, full) ? folder : full;
+        return Inside(folder) && !OtherVideos(folder, own) ? [folder] : own;
     }
 
     /// <summary>Another video in <paramref name="folder"/> or below, bonus folders aside: another film, kept.</summary>
-    private static bool OtherVideos(string folder, string film)
+    private static bool OtherVideos(string folder, IReadOnlyList<string> film)
     {
         try
         {
             return Directory.EnumerateFiles(folder, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 })
-                .Where(ReleaseName.IsVideo).Where(x => !string.Equals(Trim(x), film, StringComparison.OrdinalIgnoreCase))
+                .Where(ReleaseName.IsVideo).Where(x => !film.Contains(Trim(x), StringComparer.OrdinalIgnoreCase))
                 .Any(x => !Path.GetRelativePath(folder, Path.GetDirectoryName(x)!).Split(Path.DirectorySeparatorChar).Any(ExtrasFolders.Contains));
         }
         // Unreadable: the file alone, never more than what is known.

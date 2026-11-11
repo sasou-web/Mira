@@ -18,12 +18,15 @@ internal static class RecycleBin
     /// <paramref name="quiet"/>: no dialog for a file in use (« Remplacer par une meilleure version » tries again later);
     /// Windows still asks before deleting for good.
     /// </summary>
-    public static bool Send(string path, IntPtr owner, bool quiet = false)
+    public static bool Send(string path, IntPtr owner, bool quiet = false) => Send([path], owner, quiet);
+
+    /// <summary>Several at once (a film in several files), as one operation of the Explorer: true once none is there.</summary>
+    public static bool Send(IReadOnlyList<string> paths, IntPtr owner, bool quiet = false)
     {
         // A list of paths, each ended by a null, the whole by another.
-        var operation = new FileOperation { Owner = owner, Function = Delete, From = path + "\0\0", Flags = (ushort)(AllowUndo | NoConfirmation | WantNukeWarning | (quiet ? NoErrorUi : 0)) };
+        var operation = new FileOperation { Owner = owner, Function = Delete, From = string.Concat(paths.Select(x => x + "\0")) + "\0", Flags = (ushort)(AllowUndo | NoConfirmation | WantNukeWarning | (quiet ? NoErrorUi : 0)) };
         var result = SHFileOperation(ref operation);
-        return result == 0 && !operation.AnyAborted && !File.Exists(path) && !Directory.Exists(path);
+        return result == 0 && !operation.AnyAborted && paths.All(x => !File.Exists(x) && !Directory.Exists(x));
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
