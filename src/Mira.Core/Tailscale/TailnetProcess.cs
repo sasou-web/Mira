@@ -210,11 +210,17 @@ public sealed partial class TailnetProcess : IAsyncDisposable
                 ["dir"] = _options.Directory, ["hostname"] = _options.Hostname, ["controlURL"] = _options.ControlUrl, ["authKey"] = _options.AuthKey,
                 ["stateKey"] = key, ["proxyUser"] = launch.Proxy.User, ["proxyPassword"] = launch.Proxy.Password,
             }, TimeSpan.FromSeconds(60), ct, launch).ConfigureAwait(false);
+            // Still this helper, and running, in one step: a helper that ends just after its answer is then started again by
+            // EndedAsync, which finds it running, or by the catch below, which finds it gone; never left « running » without
+            // a process, which nothing would start again.
+            bool told;
             lock (_gate)
             {
                 if (!ReferenceEquals(_launch, launch)) throw new TailnetException(TailnetCodes.Helper, "the helper ended");
+                told = !_disposed;
+                if (told) { Helper = TailnetHelper.Running; NextAttempt = null; Failure = null; }
             }
-            Set(TailnetHelper.Running, null, null);
+            if (told) HelperChanged?.Invoke();
         }
         catch (Exception ex) when (ex is TailnetException or Win32Exception or IOException or OperationCanceledException)
         {
