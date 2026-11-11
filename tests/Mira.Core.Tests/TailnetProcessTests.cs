@@ -82,14 +82,20 @@ internal static class TailnetProcessTests
         {
             var folder = Path.Combine(run.Root, "tailnet-crash");
             await using var helper = new TailnetProcess(Options(folder, "--crash-once", Path.Combine(folder, "crashed")));
-            var states = new List<TailnetHelper>();
-            helper.HelperChanged += () => { lock (states) states.Add(helper.Helper); };
-            await helper.StartAsync();
-            var first = helper.Proxy?.Password;
-            await WaitUntil(() => { lock (states) return states.Contains(TailnetHelper.Restarting); });
-            Assert(helper.Failure?.Code == TailnetCodes.Helper, "Why the helper stopped is not kept");
+            var states = new List<(TailnetHelper Helper, string? Failure)>();
+            var passwords = new List<string>();
+            helper.HelperChanged += () => { lock (states) states.Add((helper.Helper, helper.Failure?.Code)); };
+            helper.ProxyChanged += proxy => { if (proxy is not null) lock (passwords) passwords.Add(proxy.Password); };
+            // It ends just after answering « start »: Mira hears its answer or its end first, by chance (its end, often, on the
+            // Mac runner), and its start returns or fails. Either way, it is started again by itself.
+            try { await helper.StartAsync(); }
+            catch (TailnetException ex) when (ex.Code == TailnetCodes.Helper) { }
+            await WaitUntil(() => { lock (states) return states.Any(x => x.Helper == TailnetHelper.Restarting); });
+            lock (states) Assert(states.First(x => x.Helper == TailnetHelper.Restarting).Failure == TailnetCodes.Helper, "Why the helper stopped is not kept");
             await WaitUntil(() => helper.Helper == TailnetHelper.Running && helper.Proxy is not null, seconds: 10);
-            Assert(helper.Proxy!.Password != first && helper.Failure is null, "The helper started again with the same proxy password, or still shows its failure");
+            lock (passwords)
+                Assert(passwords.Count == 2 && passwords[0] != passwords[1] && helper.Proxy!.Password == passwords[1] && helper.Failure is null,
+                    "The helper started again with the same proxy password, or still shows its failure");
             Assert(await helper.ProbeAsync("100.64.0.2:8096", TimeSpan.FromSeconds(5)) is null, "The helper started again does not answer");
         });
 
