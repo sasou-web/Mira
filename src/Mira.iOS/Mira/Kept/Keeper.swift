@@ -28,6 +28,9 @@ enum KeepError: Error, Equatable {
     }
 }
 
+/// The connection became metered between two pieces of a copy (Keeper.onMobileData): it waits for Wi-Fi.
+struct OnMobileData: Error {}
+
 /// « Keep on this iPhone »: the films and episodes of the account kept here, fetched one at a time from Jellyfin, in
 /// the order they were asked for, resumed where they stopped (Mira closed, the connection gone, iOS's time in the
 /// background over). The file as it is when the iPhone plays it (Items/{id}/Download, in ranges), otherwise Jellyfin's
@@ -42,6 +45,9 @@ final class Keeper {
     private(set) var current: String?
     /// Jellyfin out of reach while copies wait: they go on once a way to it comes back.
     private(set) var waiting = false
+    /// On cellular, a personal hotspot or Low Data Mode, copies wait for Wi-Fi (unless Settings let them use mobile
+    /// data): a copy is the whole film, gigabytes. They go on by themselves on Wi-Fi again.
+    private(set) var waitingForWiFi = false
     @ObservationIgnored weak var app: AppModel?
     @ObservationIgnored private var account: String?
     @ObservationIgnored private var task: Task<Void, Never>?
@@ -132,7 +138,25 @@ final class Keeper {
         later?.cancel()
         current = nil
         waiting = false
+        waitingForWiFi = false
         endBackground(success: false)
+    }
+
+    /// The connection is metered now (cellular, a personal hotspot, Low Data Mode) and copies may not use it.
+    private var onMobileData: Bool {
+        guard let app, !app.preferences.keepOnMobileData else { return false }
+        return app.cost.expensive || app.cost.constrained
+    }
+
+    /// Another connection, or « Keep over mobile data » changed: on Wi-Fi again, what waits goes on; on mobile data, the
+    /// copy being fetched stops after its piece (fetch) and waits.
+    func connectionChanged() {
+        if onMobileData {
+            if task == nil, copies.contains(where: { !$0.complete && $0.failure == nil }) { waitingForWiFi = true }
+            return
+        }
+        waitingForWiFi = false
+        run()
     }
 
     // MARK: Asked here
@@ -201,6 +225,9 @@ final class Keeper {
               copies.contains(where: { !$0.complete && $0.failure == nil }) else { return }
         later?.cancel()
         waiting = false
+        // Gigabytes: not over mobile data unless Settings allow it; Wi-Fi again starts it (connectionChanged).
+        waitingForWiFi = onMobileData
+        guard !waitingForWiFi else { return }
         askToContinue()
         round += 1
         let round = round
@@ -213,6 +240,10 @@ final class Keeper {
     private func loop() async {
         while !Task.isCancelled, let next = copies.filter({ !$0.complete && $0.failure == nil }).min(by: { $0.added < $1.added }) {
             guard let client = app?.client, app?.party.guest == nil else { return }
+            if onMobileData {
+                waitingForWiFi = true
+                return
+            }
             current = next.id
             do {
                 try await fetch(next, client)
@@ -223,6 +254,10 @@ final class Keeper {
                 guard copies.contains(where: { $0.id == next.id }) else { continue }
                 if Task.isCancelled || error is CancellationError { return }
                 switch error {
+                case is OnMobileData:
+                    // Left the Wi-Fi: the piece fetched is kept, the rest waits for Wi-Fi again.
+                    waitingForWiFi = true
+                    return
                 case let error as KeepError:
                     fail(next.id, error.text)
                 case JellyfinError.unauthorized:
@@ -342,6 +377,7 @@ final class Keeper {
         let address = client.url("Items/\(copy.id)/Download")
         while copy.total == 0 || copy.pieces < copy.total {
             try Task.checkCancellation()
+            if onMobileData { throw OnMobileData() }
             try roomLeft(copy)
             let ranges = KeptRules.ranges(size: copy.size)
             let range = copy.total > 0 && copy.pieces < ranges.count ? ranges[copy.pieces] : 0...(KeptRules.chunk - 1)
@@ -400,6 +436,7 @@ final class Keeper {
         }
         while copy.pieces < pieces.count {
             try Task.checkCancellation()
+            if onMobileData { throw OnMobileData() }
             try roomLeft(copy)
             // Jellyfin converts as the segments are asked: a slow one is not a lost connection.
             let (piece, _) = try await Self.download(pieces[copy.pieces], range: nil, authorization: client.authorization, folder: part.deletingLastPathComponent(), timeout: 180)

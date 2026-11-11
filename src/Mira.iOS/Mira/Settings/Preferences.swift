@@ -23,6 +23,9 @@ final class Preferences {
     /// The quality's cap on cellular, a personal hotspot or Low Data Mode: « saver » (by default), « standard », « max »
     /// (PlaybackPlan.mobileCap). This iPhone's: a computer has no mobile data.
     var mobileData: String { didSet { defaults.set(mobileData, forKey: Keys.mobileData) } }
+    /// « Keep on this iPhone » goes on over cellular, a personal hotspot or Low Data Mode; off by default: a copy is
+    /// the whole film, gigabytes, so it waits for Wi-Fi (Keeper).
+    var keepOnMobileData: Bool { didSet { defaults.set(keepOnMobileData, forKey: Keys.keepOnMobileData) } }
 
     // MARK: Kept on Jellyfin too
 
@@ -55,6 +58,7 @@ final class Preferences {
         hideSpoilers = defaults.bool(forKey: Keys.hideSpoilers)
         homeRows = defaults.string(forKey: Keys.homeRows) ?? ""
         mobileData = defaults.string(forKey: Keys.mobileData).flatMap { PlaybackPlan.mobileChoices.contains($0) ? $0 : nil } ?? "saver"
+        keepOnMobileData = defaults.bool(forKey: Keys.keepOnMobileData)
         quality = defaults.string(forKey: Keys.quality) ?? "auto"
         audioLanguages = defaults.string(forKey: Keys.audio)
         subtitleLanguages = defaults.string(forKey: Keys.subtitles)
@@ -152,6 +156,7 @@ final class Preferences {
         static let hideSpoilers = "mira.hideSpoilers"
         static let homeRows = "mira.homeRows"
         static let mobileData = "mira.mobileData"
+        static let keepOnMobileData = "mira.keepOnMobileData"
         static let quality = "mira.quality"
         static let audio = "mira.audioLanguages"
         static let subtitles = "mira.subtitleLanguages"

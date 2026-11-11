@@ -323,6 +323,7 @@ final class AppModel {
     private func costChanged(_ cost: NetworkWatch.Cost) {
         guard cost != self.cost else { return }
         self.cost = cost
+        keeper.connectionChanged()
         mobileDataChanged(after: .seconds(4))
     }
 

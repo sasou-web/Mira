@@ -68,6 +68,7 @@ struct KeepButton: View {
         switch state {
         case let .failed(text): text
         case .kept: String(localized: "It plays here without a connection. Removed, it leaves this iPhone only: it stays on Jellyfin.")
+        case .waiting where keeper.waitingForWiFi: String(localized: "On mobile data, titles wait for Wi-Fi: they’re whole movies, several gigabytes. It goes on by itself on Wi-Fi.")
         case .waiting where keeper.waiting: String(localized: "Mira can’t reach Jellyfin: it goes on as soon as it can.")
         default: String(localized: "It goes on in the background as long as iOS lets it, otherwise when you open Mira again.")
         }
@@ -174,7 +175,7 @@ struct KeptView: View {
                         Button {
                             if copy.complete { app.play(copy.item) } else { asking = copy }
                         } label: {
-                            KeptRow(copy: copy, state: keeper.state(copy.id), waiting: keeper.waiting)
+                            KeptRow(copy: copy, state: keeper.state(copy.id), waiting: keeper.waiting, waitingForWiFi: keeper.waitingForWiFi)
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("kept.row")
@@ -191,6 +192,16 @@ struct KeptView: View {
                 }
                 .listRowBackground(Palette.surface)
             }
+            Section {
+                Toggle(isOn: Binding(get: { app.preferences.keepOnMobileData }, set: {
+                    app.preferences.keepOnMobileData = $0
+                    keeper.connectionChanged()
+                })) {
+                    SettingsRow("Keep over mobile data", "Off, titles wait for Wi-Fi: a movie is several gigabytes.")
+                }
+                .accessibilityIdentifier("kept.mobileData")
+            }
+            .listRowBackground(Palette.surface)
         }
         .font(MiraFont.body)
         .scrollContentBackground(.hidden)
@@ -219,6 +230,7 @@ struct KeptRow: View {
     let copy: KeptCopy
     let state: Keeper.State
     let waiting: Bool
+    var waitingForWiFi = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -247,7 +259,7 @@ struct KeptRow: View {
             Text("Keeping… \(done.formatted(.percent.precision(.fractionLength(0))))").font(MiraFont.footnote).foregroundStyle(Palette.muted)
         case .waiting:
             Group {
-                if waiting { Text("Waiting for Jellyfin") } else { Text("Waiting its turn") }
+                if waitingForWiFi { Text("Waiting for Wi-Fi") } else if waiting { Text("Waiting for Jellyfin") } else { Text("Waiting its turn") }
             }
             .font(MiraFont.footnote).foregroundStyle(Palette.muted)
         default:
