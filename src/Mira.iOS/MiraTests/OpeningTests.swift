@@ -10,10 +10,10 @@ struct OpeningTests {
 
     /// `noWay`: seconds since no way to Jellyfin is found (nil: a way is taken or looked for).
     private func decide(_ home: OpeningPlan.Home, after seconds: TimeInterval, signedIn: Bool = true, party: Bool = false,
-                        noWay: TimeInterval? = nil) -> OpeningPlan.Decision {
+                        noWay: TimeInterval? = nil, sure: Bool = true) -> OpeningPlan.Decision {
         let now = start.addingTimeInterval(seconds)
         return OpeningPlan.decide(signedIn: signedIn, party: party, home: home, noWaySince: noWay.map { now.addingTimeInterval(-$0) },
-                                  startedAt: start, now: now)
+                                  sure: sure, startedAt: start, now: now)
     }
 
     private func close(_ a: MarkStroke.Frame, _ b: MarkStroke.Frame) -> Bool {
@@ -39,6 +39,18 @@ struct OpeningTests {
         #expect(decide(.kept, after: 2, noWay: OpeningPlan.noWay) == .leave)
         // Near the end, the opening's own limit stands.
         #expect(decide(.kept, after: OpeningPlan.longest - 0.5, noWay: 0) == .wait(until: start.addingTimeInterval(OpeningPlan.longest)))
+    }
+
+    @Test("Loin de la maison, aucun chemin encore (réseau de Tailscale qui arrive, VPN qui démarre) : attendu plus longtemps")
+    func noWayYet() {
+        // In 5G, Tailscale's network may come in a few seconds after Mira opens: the way looks again meanwhile.
+        #expect(decide(.waiting, after: 2, noWay: OpeningPlan.noWay, sure: false)
+            == .wait(until: start.addingTimeInterval(2 - OpeningPlan.noWay + OpeningPlan.unsure)))
+        #expect(decide(.kept, after: 3, noWay: 2, sure: false) == .wait(until: start.addingTimeInterval(1 + OpeningPlan.unsure)))
+        #expect(decide(.waiting, after: OpeningPlan.unsure + 1, noWay: OpeningPlan.unsure, sure: false) == .leave)
+        // Never past the opening's own limit.
+        #expect(decide(.waiting, after: OpeningPlan.longest - 1, noWay: 0, sure: false) == .wait(until: start.addingTimeInterval(OpeningPlan.longest)))
+        #expect(OpeningPlan.noWay < OpeningPlan.unsure && OpeningPlan.unsure < OpeningPlan.longest)
     }
 
     @Test("Attend la bibliothèque de Jellyfin, même avec l'Accueil gardé, jamais au-delà de sa limite")

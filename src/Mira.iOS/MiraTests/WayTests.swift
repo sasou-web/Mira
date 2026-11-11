@@ -155,6 +155,9 @@ struct WayPlanTests {
         #expect(hint(.cellular, tailnet, Home.server, []) == .serverNotFound)
         tailnet.peers = [Home.pc]
         #expect(hint(.cellular, tailnet, Home.server, [tailscale]) == .serverNotFound)
+        // Said at once only what the person alone can change; the rest may last a moment only (Mira opening in 5G).
+        #expect([WayPlan.Hint.noNetwork, .signedOut, .expired, .approval].allSatisfy(\.sure))
+        #expect(![WayPlan.Hint.tailscaleOff, .starting, .offline, .serverOffline("maison-pc"), .serverNotFound].contains(where: \.sure))
     }
 
     @Test("L'appareil d'une adresse : son IP Tailscale, son nom MagicDNS entier ou court")
@@ -421,6 +424,50 @@ struct WayTests {
         await way.use(Home.server, id: Home.id)
         #expect(await way.map(item).absoluteString.hasPrefix(Home.pcBase))
         #expect(state.count >= 3)
+    }
+
+    @Test("Loin de la maison, rien ne répond encore (Mira vient de s'ouvrir en 5G) : cherché de nouveau tout seul")
+    func lookedForAgain() async {
+        defer { clean() }
+        let answers = Answers()
+        let way = Way(ask: answers.ask, timing: Way.Timing(grace: 0.2, afterLost: 0, afterNone: 0, tailnet: 1, retry: 0.2), suite: suite)
+        await way.network(.cellular)
+        await way.tailnet(Home.running)
+        await way.use(Home.server, id: Home.id)
+        try? await Task.sleep(for: .seconds(0.5))
+        #expect(await way.current() == nil)
+        #expect(await way.hint() == .serverNotFound)
+        // The PC answers a moment later: taken without any request asking for it.
+        answers.set(Home.pcBase, Home.info)
+        var waited = 0
+        while await way.current() == nil, waited < 40 {
+            try? await Task.sleep(for: .seconds(0.1))
+            waited += 1
+        }
+        #expect(await way.current()?.kind == .builtIn)
+        #expect(await way.hint() == nil)
+    }
+
+    @Test("Rien de trouvé, puis le PC arrive en ligne sur le réseau de Tailscale : cherché tout de suite")
+    func peerOnline() async {
+        defer { clean() }
+        let answers = Answers([Home.pcBase: (0, Home.info)])
+        // Never looked for again on its own here: only the PC coming online starts a search.
+        let way = Way(ask: answers.ask, timing: Way.Timing(grace: 0.2, afterLost: 0, afterNone: 0, tailnet: 1, retry: 60), suite: suite)
+        var empty = Home.running
+        empty.peers = [Home.phone]
+        await way.network(.cellular)
+        await way.tailnet(empty)
+        await way.use(Home.server, id: Home.id)
+        try? await Task.sleep(for: .seconds(0.3))
+        #expect(await way.current() == nil)
+        await way.tailnet(Home.running)
+        var waited = 0
+        while await way.current() == nil, waited < 20 {
+            try? await Task.sleep(for: .seconds(0.1))
+            waited += 1
+        }
+        #expect(await way.current()?.kind == .builtIn)
     }
 
     @Test("Chemin coupé : un autre est cherché, et la requête repart par lui")

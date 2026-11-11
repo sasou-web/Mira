@@ -110,6 +110,16 @@ enum WayPlan {
         case offline
         case serverOffline(String)
         case serverNotFound
+
+        /// Only the person can change it (no network, Built-in Tailscale to sign in to or to approve): said at once. The
+        /// others may last a moment only (Tailscale's network still coming in as Mira opens, its app's VPN starting on
+        /// demand, the PC just seen online): the way looks again on its own (Way), Mira's opening waits a little longer.
+        var sure: Bool {
+            switch self {
+            case .noNetwork, .signedOut, .expired, .approval: true
+            case .tailscaleOff, .starting, .offline, .serverOffline, .serverNotFound: false
+            }
+        }
     }
 
     /// The ways to try, best first. The home network first: the fastest, never through Tailscale, and only on Wi-Fi or

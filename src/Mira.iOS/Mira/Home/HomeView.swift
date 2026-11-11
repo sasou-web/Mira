@@ -163,6 +163,15 @@ struct HomeView: View {
         await load()
     }
 
+    /// Home failed for want of a way to Jellyfin, and one may still come.
+    private func mayComeBack(_ error: JellyfinError) -> Bool {
+        guard app.way == nil, let hint = app.wayHint, !hint.sure else { return false }
+        switch error {
+        case .unreachable, .timeout, .tailscale: return true
+        default: return false
+        }
+    }
+
     /// The status bar's height (0 when hidden, in landscape), read again whenever Home's size changes.
     private var statusBar: CGFloat {
         _ = size
@@ -189,8 +198,11 @@ struct HomeView: View {
                 for picture in pictures { group.addTask { _ = await ImagePipeline.shared.image(picture.url, pixels: picture.pixels) } }
             }
             app.opening.report(.ready)
-        case .failed:
-            app.opening.report(.failed)
+        case let .failed(error):
+            // Away from home with no way found yet, for a reason that may last a moment only (Tailscale's network still
+            // coming in, its app's VPN starting): the opening goes on while the way looks again (Way), Home loads once
+            // one is found (app.way) or says why at the opening's limit (OpeningPlan.unsure).
+            if !mayComeBack(error) { app.opening.report(.failed) }
             await app.together.refresh()
         case .loading:
             // Ended without an answer: another load answers.

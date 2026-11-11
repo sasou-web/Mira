@@ -24,6 +24,9 @@ actor Way {
         var afterLost = 3.0
         var afterNone = 5.0
         var tailnet = 10.0
+        /// None found, for a reason that may last a moment only (WayPlan.Hint.sure): looked for again after this, then
+        /// twice as long each time, a minute at most.
+        var retry = 2.0
     }
 
     /// Jellyfin's public information at a base (System/Info/Public), within a time; nil when nothing answers.
@@ -51,6 +54,9 @@ actor Way {
     /// The kinds of way the UI tests allow (a way through Built-in Tailscale only, though the stand-in Jellyfin is here).
     private var only: Set<WayPlan.Kind>?
     private var said: WayPlan.Hint?
+    /// The next search when none was found (Timing.retry), and how many came before it.
+    private var later: Task<Void, Never>?
+    private var retries = 0
 
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -103,6 +109,9 @@ actor Way {
         resolving = nil
         route = nil
         searchedAt = .distantPast
+        later?.cancel()
+        later = nil
+        retries = 0
         publish(nil, hint: nil)
         if server != nil, id != nil { resolve() }
     }
@@ -123,6 +132,10 @@ actor Way {
         if route?.kind == .builtIn, !tailnet.running || tailnet.relay != before.relay {
             again(keep: false)
         } else if route == nil, tailnet.running, !before.running {
+            again(keep: false)
+        } else if route == nil, resolving == nil, tailnet.running, Self.online(tailnet) != Self.online(before) {
+            // Nothing taken, and a device of the network came online or went (its netmap still coming in as Mira
+            // opens): looked for again now, not at the next request.
             again(keep: false)
         } else if route == nil, resolving == nil, let server {
             // Nothing taken: what to say follows Built-in Tailscale (signed out, then connecting…).
@@ -222,6 +235,9 @@ actor Way {
 
     // MARK: Looking for a way
 
+    /// The devices of Built-in Tailscale's network that may run Jellyfin, online now.
+    private static func online(_ tailnet: WayPlan.Tailnet) -> [String] { WayPlan.peers(tailnet.peers).map(\.id) }
+
     private func again(keep: Bool) {
         guard server != nil, serverId != nil else { return }
         generation += 1
@@ -262,15 +278,36 @@ actor Way {
         guard generation == mine, self.server == server else { return nil }
         resolving = nil
         searchedAt = Date()
+        later?.cancel()
+        later = nil
         if let found {
+            retries = 0
             learn(found.route.address, found.local)
             if found.route != route { route = found.route }
             publish(found.route, hint: nil)
         } else {
             route = nil
-            publish(nil, hint: WayPlan.hint(network: network, tailnet: tailnet, server: server, known: known))
+            let hint = WayPlan.hint(network: network, tailnet: tailnet, server: server, known: known)
+            publish(nil, hint: hint)
+            if !(hint?.sure ?? false) { lookAgainLater(mine) }
         }
         return route
+    }
+
+    /// None found, maybe for a moment only: looked for again later, unless something else looked meanwhile.
+    private func lookAgainLater(_ mine: Int) {
+        let delay = min(timing.retry * pow(2, Double(min(retries, 5))), 60)
+        retries += 1
+        later = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            await self?.lookAgain(mine)
+        }
+    }
+
+    private func lookAgain(_ mine: Int) {
+        guard generation == mine, route == nil, resolving == nil, server != nil, serverId != nil else { return }
+        resolve()
     }
 
     /// Built-in Tailscale as it is now, from the library when the app gave a way to read it.
