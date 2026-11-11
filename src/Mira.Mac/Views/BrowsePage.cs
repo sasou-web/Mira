@@ -415,7 +415,7 @@ public sealed class BrowsePage : Page
         try
         {
             // A refresh keeps every page already loaded, so the grid does not shrink back under the reader.
-            var limit = keep ? Math.Clamp(_items.Count, JellyfinClient.PageSize, 600) : JellyfinClient.PageSize;
+            var limit = keep ? Math.Max(JellyfinClient.PageSize, _items.Count) : JellyfinClient.PageSize;
             var others = _kind == BrowseKind.Search && search.Length >= 2;
             var people = others ? session.Client.PersonsAsync(search, ct) : null;
             var studios = others ? session.Client.StudiosAsync(search, ct) : null;

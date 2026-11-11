@@ -746,6 +746,31 @@ internal static class LibraryTests
             Assert(new CatalogQuery(Played: false).CacheKey != new CatalogQuery(Played: true).CacheKey, "Watched filters share a cache key");
             Assert(new CatalogQuery().Parameters.Contains("DateCreated"), "Default sort changed");
         });
+        await Test("Grande bibliothèque : une actualisation garde toutes les pages chargées, même au-delà de 600 titres", async () =>
+        {
+            // 1 000 films; the grid has 700 of them loaded when Windows or the Mac refreshes it quietly (every 5 min, back
+            // from the player or a title page): it asks for 700 and got 600, the grid shrank under the reader.
+            var films = Enumerable.Range(0, 1000).Select(i => $"film-{i:0000}").ToList();
+            var asked = new List<(int Start, int Limit)>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+                var start = int.Parse(query["startIndex"] ?? "0", System.Globalization.CultureInfo.InvariantCulture); var limit = int.Parse(query["limit"] ?? "100000", System.Globalization.CultureInfo.InvariantCulture);
+                asked.Add((start, limit));
+                var total = query["isFavorite"] == "true" ? 650 : films.Count;
+                return Task.FromResult(JsonResponse(new { Items = films.Take(total).Skip(start).Take(limit).Select(id => new { Id = id, Name = id, Type = "Movie" }), TotalRecordCount = total }));
+            }));
+            var kept = await client.BrowseAsync("Movie", limit: 700);
+            Assert(kept.Items.Select(x => x.Id).SequenceEqual(films.Take(700)) && kept.TotalRecordCount == 1000, $"Kept {kept.Items.Count}");
+            Assert(asked.SequenceEqual([(0, 600), (600, 100)]), "Asked: " + string.Join(" ", asked));
+            asked.Clear();
+            var all = await client.BrowseAsync("Movie", favorites: true, limit: 2000);
+            Assert(all.Items.Count == 650 && all.Items.Select(x => x.Id).Distinct().Count() == 650 && asked.Count == 2, $"Favorites: {all.Items.Count} in {asked.Count} requests");
+            // A next page, or a page of Home, is still one request of what is asked.
+            asked.Clear();
+            var page = await client.BrowseAsync("Movie", start: 640, limit: JellyfinClient.PageSize);
+            Assert(page.Items.Count == 60 && page.Items[0].Id == "film-0640" && asked.SequenceEqual([(640, 60)]), "Next page: " + string.Join(" ", asked));
+        });
         await Test("Séries : épisodes à voir sur l’affiche d’une série commencée, rien avant ni une fois toute vue", () =>
         {
             MediaItem Item(string json) => JsonSerializer.Deserialize<MediaItem>(json, Json.Options)!;
