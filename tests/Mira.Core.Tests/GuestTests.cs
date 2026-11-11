@@ -270,10 +270,15 @@ internal static class GuestTests
             for (var i = 1; i < GuestInvites.MaxPartyGuests; i++) invites.Add($"G{i}", Guid.NewGuid().ToString("N"), "s", "host-id", "ogsas", party.Code, $"device-{i}");
             Assert(invites.OpenParty(party.Code, "device-z", "4.4.4.4").Result == GuestInvites.Opening.Full, "Full");
 
+            // Checked again once the account is made: full, a second tap of the same device, a party made again.
+            Assert(invites.JoinParty("Late", "late-id", "s", party.Code, "device-z") is null && invites.Sweep().Contains("late-id"), "Full meanwhile: refused, account to delete");
+            Assert(invites.JoinParty("Twice", "twice-id", "s", party.Code, "device-a") is { Id: var twice } && twice == lea.Id && invites.Sweep().Contains("twice-id"), "Same device twice: its guest, the extra account to delete");
+            Assert(invites.JoinParty("Old", "old-id", "s", GuestRoutes.NewCode(), "device-y") is null && invites.Sweep().Contains("old-id"), "Party gone meanwhile: refused");
+
             // Made again: the old link stops, its guests' accounts go.
             var again = invites.NewParty("host-id", "ogsas");
             Assert(again.Code != party.Code && invites.Party(party.Code) is null && invites.ByToken("token-a") is null && invites.Guests(again.Code).Count == 0, "Old link and guests gone");
-            Assert(invites.Sweep().Count == GuestInvites.MaxPartyGuests && invites.Sweep().Contains(Item), "Their accounts to delete");
+            Assert(invites.Sweep().Count == GuestInvites.MaxPartyGuests + 3 && invites.Sweep().Contains(Item), "Their accounts to delete");
             Assert(invites.PartyOf("host-id", "ogsas-renamed") is { HostName: "ogsas-renamed" } p && p.Code == again.Code, "A host renamed keeps the link");
             return Task.CompletedTask;
         });

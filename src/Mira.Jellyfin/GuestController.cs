@@ -100,7 +100,14 @@ public sealed partial class GuestController : ControllerBase
                         return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas ouvert la séance. Réessaie dans un instant.");
                     }
 
-                    mine = Plugin.Invites.Add(guestName!, guestId!, password!, party!.HostId, party.HostName, party.Code, device);
+                    // Checked again: the party may have been made again, or filled, while the account was made.
+                    mine = Plugin.Invites.JoinParty(guestName!, guestId!, password!, party!.Code, device);
+                    if (mine is null)
+                    {
+                        GuestCleanup.Wake(_clients, _host, Request.PathBase);
+                        return Refuse(StatusCodes.Status409Conflict, "Ce lien ne marche plus ou la party est pleine : demande à la personne qui t’a invité.");
+                    }
+
                     break;
             }
 

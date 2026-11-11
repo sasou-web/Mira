@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Ta party : plus de compte invité en trop (extension)** : la party était revérifiée avant de créer le compte de l’invité, pas après. Deux touchers du même appareil faisaient deux comptes (le second restait 7 jours et comptait dans les 12 places) ; un lien refait ou une party remplie pendant ce temps laissait entrer l’invité quand même. L’extension revérifie une fois le compte fait et supprime celui en trop.
+
 - **Session finie sur Jellyfin (Mac)** : un compte déconnecté depuis le tableau de bord de Jellyfin, ou dont le mot de passe a changé, ramène maintenant à l’écran de connexion, serveur et nom remplis, comme sous Windows ; avant, chaque page disait « Reconnecte ton compte » sans rien proposer d’autre que Réglages → Se déconnecter. Un refus qui ne vient que d’un droit manquant (page d’administrateur) reste un simple avis : Mira demande d’abord à Jellyfin si la session existe encore. Contrôlé par le self-check du Mac ; jamais essayé sur un vrai Mac.
 
 ## 0.9.6 — 2026-11-10
