@@ -1,7 +1,8 @@
 // The AltStore source of Mira for iPhone, served by the site at https://miracinema.app/altstore.json: AltStore Classic
 // reads it to install Mira and to offer each new version. Every published release that has the iPhone's .ipa (built
 // unsigned by ios.yml, signed on the iPhone by AltStore) is a version, newest first, with its size from GitHub and its
-// summary from WhatsNew.json; without any, the source lists no app yet (AltStore wants a version for each).
+// notes from WhatsNew.json; without any, the source lists no app yet (AltStore wants a version for each). In English, as
+// the site that gives the source's address and the app itself: AltStore shows one language only.
 //   gh api "repos/<owner>/<repo>/releases?per_page=30" > releases.json
 //   node tools/site/altstore.mjs releases.json dist/site
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -24,6 +25,16 @@ if (!localNetwork) {
   process.exit(1);
 }
 
+// A version's notes: its summary, then one line per change (« Category: text »), else per point, as the release notes,
+// Discord and winget give them; the French only where an entry has no English.
+const english = (x) => x.en ?? x;
+function describe(entry) {
+  const lines = entry.changes?.length
+    ? entry.changes.map((x) => `• ${english(x).category}: ${english(x).text}`)
+    : entry.items.map((x) => `• ${english(x).title}: ${english(x).text}`);
+  return [english(entry).summary, ...lines].join('\n');
+}
+
 const versions = [];
 for (const release of releases) {
   if (release.draft || release.prerelease || !/^v\d+\.\d+\.\d+$/.test(release.tag_name)) continue;
@@ -35,7 +46,7 @@ for (const release of releases) {
     version,
     buildVersion: version,
     date: release.published_at,
-    localizedDescription: entry ? [entry.summary, ...(entry.changes?.length ? entry.changes.map((x) => `• ${x.category} : ${x.text}`) : entry.items.map((x) => `• ${x.title} : ${x.text}`))].join('\n') : `Mira ${version}`,
+    localizedDescription: entry ? describe(entry) : `Mira ${version}`,
     downloadURL: ipa.browser_download_url,
     size: ipa.size,
     minOSVersion: '26.0',
@@ -44,8 +55,8 @@ for (const release of releases) {
 
 const source = {
   name: 'Mira',
-  subtitle: 'Ton Jellyfin, comme au cinéma.',
-  description: 'La source de Mira pour iPhone et iPad : un client Jellyfin libre, sans compte ni statistiques, qui ne parle qu’à ton serveur.',
+  subtitle: 'Your Jellyfin, like at the movies.',
+  description: 'The source of Mira for iPhone and iPad: a free Jellyfin client, with no account and no statistics, that talks only to your server.',
   iconURL: `${site}/img/icon-512.png`,
   website: site,
   tintColor: '#5E5E66',
@@ -53,8 +64,8 @@ const source = {
     name: 'Mira',
     bundleIdentifier: 'app.miracinema.Mira',
     developerName: 'sasou-web',
-    subtitle: 'Ton Jellyfin, comme au cinéma.',
-    localizedDescription: 'Mira pour iPhone et iPad : ta bibliothèque Jellyfin dans une app native, à la maison et ailleurs avec Tailscale. Mira ne parle qu’à ton serveur Jellyfin : pas de compte chez nous, pas de statistiques, pas de pub. Code source : https://github.com/sasou-web/Mira',
+    subtitle: 'Your Jellyfin, like at the movies.',
+    localizedDescription: 'Mira for iPhone and iPad: your Jellyfin library in a native app, at home and away with Tailscale. Mira talks only to your Jellyfin server: no account with us, no statistics, no ads. Source code: https://github.com/sasou-web/Mira',
     iconURL: `${site}/img/icon-512.png`,
     tintColor: '#5E5E66',
     category: 'entertainment',
