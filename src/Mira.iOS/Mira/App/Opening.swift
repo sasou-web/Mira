@@ -28,6 +28,9 @@ enum OpeningPlan {
     /// No way to Jellyfin said for this long (no network, Built-in Tailscale signed out…): Home says why. A moment, for a
     /// way said lost while another is still being looked for (the network just changing as Mira opens).
     static let noWay: TimeInterval = 1
+    /// No way found yet for a reason that may last a moment only (WayPlan.Hint.sure: away from home, Tailscale's network
+    /// still coming in, its app's VPN starting on demand): the way looks again meanwhile, Home says why after this.
+    static let unsure: TimeInterval = 8
     /// A line under the mark says what Mira waits for after this.
     static let status: TimeInterval = 2
 
@@ -39,7 +42,8 @@ enum OpeningPlan {
 
     /// `noWaySince`: since when Mira found no way to Jellyfin and knows why (Way's hint: no network, Tailscale off…),
     /// Built-in Tailscale still connecting aside (it is waited for); nil while a way is taken or still looked for.
-    static func decide(signedIn: Bool, party: Bool, home: Home, noWaySince: Date?, startedAt: Date, now: Date) -> Decision {
+    /// `sure`: only the person can change why (WayPlan.Hint.sure); otherwise a way may still come (`unsure`).
+    static func decide(signedIn: Bool, party: Bool, home: Home, noWaySince: Date?, sure: Bool = true, startedAt: Date, now: Date) -> Decision {
         if party || !signedIn { return .leave }
         var limit = startedAt.addingTimeInterval(longest)
         switch home {
@@ -48,7 +52,7 @@ enum OpeningPlan {
         case let .answered(at):
             limit = min(limit, at.addingTimeInterval(pictures))
         case .kept, .waiting:
-            if let noWaySince { limit = min(limit, noWaySince.addingTimeInterval(noWay)) }
+            if let noWaySince { limit = min(limit, noWaySince.addingTimeInterval(sure ? noWay : unsure)) }
         }
         return now >= limit ? .leave : .wait(until: limit)
     }
@@ -156,6 +160,8 @@ final class Opening {
     private(set) var home = OpeningPlan.Home.waiting
     /// Since when no way reaches Jellyfin (OpeningPlan.decide).
     private(set) var noWaySince: Date?
+    /// Whether only the person can change why (WayPlan.Hint.sure).
+    private(set) var noWaySure = true
 
     /// Home waits to be said ready (HomeView): only while Mira opens.
     var waitsForHome: Bool { phase == .on }
@@ -166,9 +172,14 @@ final class Opening {
         self.home = home
     }
 
-    /// Whether a way to Jellyfin is missing, and why is known (OpeningView).
-    func noWay(_ missing: Bool) {
-        if !missing { noWaySince = nil } else if noWaySince == nil { noWaySince = .now }
+    /// Why no way reaches Jellyfin (OpeningView): nil while a way is taken or still looked for.
+    func noWay(_ hint: WayPlan.Hint?) {
+        guard let hint else {
+            noWaySince = nil
+            return
+        }
+        if noWaySince == nil { noWaySince = .now }
+        noWaySure = hint.sure
     }
 
     func leave() {
@@ -194,7 +205,7 @@ struct OpeningView: View {
         var signedIn: Bool
         var party: Bool
         var home: OpeningPlan.Home
-        var noWay: Bool
+        var noWay: WayPlan.Hint?
     }
 
     var body: some View {
@@ -242,9 +253,9 @@ struct OpeningView: View {
     }
 
     /// No way to Jellyfin, and Mira knows why; Built-in Tailscale still connecting is waited for (Way gives it time).
-    private var noWay: Bool {
-        guard app.way == nil, let hint = app.wayHint else { return false }
-        return hint != .starting
+    private var noWay: WayPlan.Hint? {
+        guard app.way == nil, let hint = app.wayHint, hint != .starting else { return nil }
+        return hint
     }
 
     /// Leaves when the plan says so, looked at again at its next limit.
@@ -252,7 +263,7 @@ struct OpeningView: View {
         let opening = app.opening
         opening.noWay(facts.noWay)
         while !Task.isCancelled, opening.phase == .on {
-            switch OpeningPlan.decide(signedIn: facts.signedIn, party: facts.party, home: facts.home, noWaySince: opening.noWaySince,
+            switch OpeningPlan.decide(signedIn: facts.signedIn, party: facts.party, home: facts.home, noWaySince: opening.noWaySince, sure: opening.noWaySure,
                                       startedAt: opening.startedAt, now: .now) {
             case .leave:
                 opening.leave()
