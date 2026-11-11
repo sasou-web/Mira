@@ -1260,6 +1260,52 @@ internal static class LibraryTests
             var picked = NewEpisodes.Pick(many, followed, seen);
             Assert(picked.Notices.Select(x => x.SeriesId).SequenceEqual(["s4", "s3", "s2"]) && picked.More == "Et 2 autres séries que tu suis ont de nouveaux épisodes.", $"{string.Join(",", picked.Notices.Select(x => x.SeriesId))} {picked.More}");
         });
+        await Test("Nouveaux épisodes : lus jusqu'à la marque, une saison entière d'une autre série ne cache plus l'épisode suivi", async () =>
+        {
+            // As Jellyfin 12.1 answered: an episode of a followed series came after the mark, then 260 of series nobody
+            // follows (two episodes each), copied at once; 39 older ones were already there. Only the 50 newest were
+            // read, the mark went past the followed one: never told.
+            var mark = DateTimeOffset.Parse("2026-11-11T21:45:20.9827509Z", System.Globalization.CultureInfo.InvariantCulture);
+            List<MediaItem> Library(int lot)
+            {
+                var items = Enumerable.Range(0, lot).Select(i => new MediaItem { Id = $"l{i}", Type = "Episode", SeriesId = $"lot{i / 2}", Name = "x", ParentIndexNumber = 1, IndexNumber = i % 2 + 1, DateCreated = mark.AddSeconds(lot + 140 - i) }).ToList();
+                items.Add(new MediaItem { Id = "f1", Type = "Episode", SeriesId = "suivie", SeriesName = "Deux Temps", Name = "Le retour", ParentIndexNumber = 2, IndexNumber = 3, DateCreated = mark.AddSeconds(60) });
+                items.AddRange(Enumerable.Range(0, 39).Select(i => new MediaItem { Id = $"o{i}", Type = "Episode", SeriesId = $"old{i}", Name = "x", DateCreated = mark.AddMinutes(-1 - i) }));
+                return items;
+            }
+            var library = Library(260);
+            var pages = new List<(int Start, int Limit)>(); var lookups = new List<string[]>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+            {
+                var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+                if (query["includeItemTypes"] == "Episode")
+                {
+                    var (start, limit) = (int.Parse(query["startIndex"]!, System.Globalization.CultureInfo.InvariantCulture), int.Parse(query["limit"]!, System.Globalization.CultureInfo.InvariantCulture));
+                    pages.Add((start, limit));
+                    return Task.FromResult(JsonResponse(new { Items = library.Skip(start).Take(limit), TotalRecordCount = library.Count }));
+                }
+                var ids = query["ids"]!.Split(','); lookups.Add(ids);
+                return Task.FromResult(JsonResponse(new { Items = ids.Select(id => new { Id = id, Name = id == "suivie" ? "Deux Temps" : "Série " + id, Type = "Series", UserData = new { IsFavorite = id == "suivie", PlayedPercentage = 0 } }), TotalRecordCount = ids.Length }));
+            }));
+            var (episodes, series) = await client.RecentEpisodesAsync(mark);
+            Assert(pages.SequenceEqual([(0, 50), (50, 200), (250, 200)]) && episodes.Count == 300, string.Join(" ", pages) + " " + episodes.Count);
+            // 170 series, a hundred a request: an address under Jellyfin's 8 KB (414 past about 245 ids, on 12.1).
+            Assert(lookups.Count == 2 && lookups.All(x => x.Length <= 100) && lookups.SelectMany(x => x).Distinct().Count() == 170 && series.Count == 170, string.Join(" ", lookups.Select(x => x.Length)));
+            var (notices, more) = NewEpisodes.Pick(episodes, series, mark);
+            Assert(notices.Count == 1 && more is null && notices[0] is { SeriesId: "suivie", Title: "Deux Temps", Text: "Nouvel épisode : S2 É3 · Le retour" }, string.Join(" | ", notices));
+            Assert(NewEpisodes.Newest(episodes, mark) == mark.AddSeconds(400), "Newest");
+            // The first look (no mark yet) and a look with nothing new: one page, as before.
+            pages.Clear();
+            var (first, _) = await client.RecentEpisodesAsync();
+            Assert(pages.SequenceEqual([(0, 50)]) && first.Count == 50, string.Join(" ", pages));
+            pages.Clear();
+            await client.RecentEpisodesAsync(mark.AddSeconds(400));
+            Assert(pages.SequenceEqual([(0, 50)]), string.Join(" ", pages));
+            // Mira closed for months: 2,000 at most.
+            library = Library(3000); pages.Clear();
+            var (most, _) = await client.RecentEpisodesAsync(mark);
+            Assert(most.Count == JellyfinClient.MostRecentEpisodes && pages.Count == 11 && pages.All(x => x.Limit <= 200), $"{most.Count} in {pages.Count}");
+        });
         await Test("Épisodes manquants et prochaines sorties : comme Mira web (tests/fixtures/calendar.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

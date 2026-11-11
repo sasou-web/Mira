@@ -49,7 +49,9 @@ public sealed partial class MainWindow
         var account = client.Connection.Server + " " + client.Connection.UserId;
         try
         {
-            var (episodes, series) = await client.RecentEpisodesAsync(session.Lifetime);
+            // Read down to the mark: what came since, however much.
+            var since = Settings.EpisodesSeenFor == account ? Settings.EpisodesSeenUntil : null;
+            var (episodes, series) = await client.RecentEpisodesAsync(since, session.Lifetime);
             if (!ReferenceEquals(session, Session) || _closing || InParty || !Settings.EpisodeNotices) return;
             var seen = Settings.EpisodesSeenFor == account ? Settings.EpisodesSeenUntil : null;
             if (Settings.EpisodesSeenFor == account && seen is { } mark)

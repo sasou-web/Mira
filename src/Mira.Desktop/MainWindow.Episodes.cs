@@ -33,7 +33,9 @@ public partial class MainWindow
         var account = client.Connection.Server + " " + client.Connection.UserId;
         try
         {
-            var (episodes, series) = await client.RecentEpisodesAsync(_connectionLifetime.Token);
+            // Read down to the mark: what came since, however much.
+            var since = _settings.EpisodesSeenFor == account ? _settings.EpisodesSeenUntil : null;
+            var (episodes, series) = await client.RecentEpisodesAsync(since, _connectionLifetime.Token);
             if (!ReferenceEquals(client, _client) || _closing || !_settings.EpisodeNotices) return;
             // The first look for this account only sets the mark: what was already there is not news.
             var seen = _settings.EpisodesSeenFor == account ? _settings.EpisodesSeenUntil : null;
