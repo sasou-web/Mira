@@ -54,7 +54,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Bandes-annonces : « … » → « Bande-annonce » d'un film qui en a une sur le serveur, lue dans Mira ; « Bande-annonce sur YouTube » ouvre Safari
 - [ ] Ouverture avec le PC de Jellyfin éteint : message clair, puis l'Accueil quand il revient
 - [ ] Un titre qui échouait avant : noter l'erreur et les infos du média
-- [ ] « Garder sur cet iPhone » : un film MP4 et un MKV (converti), puis une saison ; Mira en arrière-plan pendant la copie (progression d'iOS, reprise au retour) ; en mode Avion, lus depuis Réglages → Sur cet iPhone et l'Accueil (pistes, sous-titres, épisode suivant, avance rapide dans le MKV converti) ; de retour à la maison, la reprise est la même sur le PC ; déconnexion = copies retirées
+- [ ] « Garder sur cet iPhone » : un film MP4 et un MKV (converti), puis une saison ; Mira en arrière-plan pendant la copie (progression d'iOS, reprise au retour) ; en mode Avion, lus depuis Réglages → Sur cet iPhone et l'Accueil (pistes, sous-titres, épisode suivant, avance rapide dans le MKV converti) ; de retour à la maison, la reprise est la même sur le PC ; déconnexion = copies retirées ; copie lancée en Wi-Fi puis Wi-Fi coupé (4G/5G) : « En attente du Wi-Fi », rien ne passe sur les données mobiles, reprise seule au retour du Wi-Fi ; « Garder avec les données mobiles » allumé : elle continue en 4G/5G
 
 ## Mac d’un ami 🍎
 - [ ] Installation du `.dmg` (« Ouvrir quand même ») et premier lancement

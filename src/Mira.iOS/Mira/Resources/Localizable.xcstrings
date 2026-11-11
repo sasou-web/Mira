@@ -1421,6 +1421,16 @@
         }
       }
     },
+    "Keep over mobile data": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder avec les données mobiles"
+          }
+        }
+      }
+    },
     "Keep the season on this iPhone": {
       "localizations": {
         "fr": {
@@ -1671,12 +1681,32 @@
         }
       }
     },
+    "Off, titles wait for Wi-Fi: a movie is several gigabytes.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coupé, les titres attendent le Wi-Fi : un film pèse plusieurs gigaoctets."
+          }
+        }
+      }
+    },
     "On a movie or an episode, touch Keep on this iPhone: it plays here without a connection, even far from Jellyfin.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Sur un film ou un épisode, touche Garder sur cet iPhone : il se lit ici sans connexion, même loin de Jellyfin."
+          }
+        }
+      }
+    },
+    "On mobile data, titles wait for Wi-Fi: they’re whole movies, several gigabytes. It goes on by itself on Wi-Fi.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur les données mobiles, les titres attendent le Wi-Fi : ce sont des films entiers, plusieurs gigaoctets. Ça reprend tout seul en Wi-Fi."
           }
         }
       }
@@ -4187,6 +4217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "On attend quelqu’un du groupe…"
+          }
+        }
+      }
+    },
+    "Waiting for Wi-Fi": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente du Wi-Fi"
           }
         }
       }
