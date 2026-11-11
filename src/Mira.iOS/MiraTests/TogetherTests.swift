@@ -153,4 +153,20 @@ struct TogetherTests {
             #expect(SyncRules.partyLink(url) == nil, "\(bad)")
         }
     }
+
+    @Test("Invité d'une party : l'extension est là sans la chercher, sa passerelle répond 404 à Mira/")
+    func partyGuestExtension() async throws {
+        let home = try #require(URL(string: "https://jellyfin-pc.tail1234.ts.net"))
+        let based = try #require(URL(string: "http://192.168.1.42:8096/jellyfin/"))
+        let page = try #require(URL(string: "http://192.168.1.42:8096/Mira/"))
+        #expect(SyncRules.isGuestServer(SyncRules.guestServer(home)))
+        #expect(SyncRules.isGuestServer(SyncRules.guestServer(based)))
+        #expect(!SyncRules.isGuestServer(home))
+        #expect(!SyncRules.isGuestServer(based))
+        #expect(!SyncRules.isGuestServer(page))
+        // Its player takes the extension's HLS playlists (Mira/hls, which the gateway lets through): subtitles in time.
+        let guest = JellyfinClient(server: SyncRules.guestServer(home), device: DeviceIdentity(id: "d1", name: "iPhone", version: "0.9.6"), token: "t0k", userId: "u1")
+        let found = await guest.hasMiraExtension()
+        #expect(found)
+    }
 }

@@ -143,6 +143,14 @@ enum SyncRules {
         return URL(string: base + "/Mira/guest/") ?? server
     }
 
+    /// Whether this is the address of a guest's session (`guestServer`): the extension's own gateway, so the extension
+    /// is there, whatever its gateway answers to paths a guest's player never asks (Mira/ is a 404 there).
+    static func isGuestServer(_ server: URL) -> Bool {
+        var path = server.path(percentEncoded: false)
+        while path.hasSuffix("/") { path.removeLast() }
+        return path.lowercased().hasSuffix("/mira/guest")
+    }
+
     /// The device id a guest of another Jellyfin gives it: drawn from this iPhone's own, always the same for it, 32
     /// hexadecimal characters, never the one this iPhone gives its own Jellyfin. As Together.GuestDevice of Core.
     static func guestDevice(_ deviceId: String) -> String {
