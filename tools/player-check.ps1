@@ -54,17 +54,23 @@ foreach ($made in $hdr) {
 }
 
 # The subtitles a film starts with (PlayerSafety.TracksAsync): audio and subtitles in English, the same with forced
-# subtitles in English after them, audio in Japanese with subtitles in English.
+# subtitles in English after them, audio in Japanese with subtitles in English, audio in English with subtitles in French
+# then English, audio in French with subtitles in English; french.srt, given as Jellyfin's external subtitles are.
 $tracks = Join-Path $Work 'tracks'
 New-Item -ItemType Directory -Force -Path $tracks | Out-Null
 $srt = Join-Path $tracks 'lines.srt'
 Set-Content -LiteralPath $srt -Encoding ASCII -Value @('1', '00:00:00,000 --> 00:00:02,500', 'A line', '')
-foreach ($made in @(@('english.mkv', 'eng', $false), @('forced.mkv', 'eng', $true), @('japanese.mkv', 'jpn', $false))) {
-    $arguments = @('-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=duration=3:size=320x240:rate=24', '-f', 'lavfi', '-i', 'sine=duration=3', '-i', $srt)
-    if ($made[2]) { $arguments += '-i', $srt }
-    $arguments += '-map', '0:v', '-map', '1:a', '-map', '2:s'
-    if ($made[2]) { $arguments += '-map', '3:s', '-metadata:s:s:1', 'language=eng', '-disposition:s:1', 'forced' }
-    $arguments += '-c:v', 'mpeg4', '-c:a', 'mp2', '-c:s', 'srt', '-metadata:s:a:0', "language=$($made[1])", '-metadata:s:s:0', 'language=eng', '-disposition:s:0', '0', (Join-Path $tracks $made[0])
+Copy-Item -LiteralPath $srt -Destination (Join-Path $tracks 'french.srt') -Force
+foreach ($made in @(@('english.mkv', 'eng', @('eng')), @('forced.mkv', 'eng', @('eng', 'eng:forced')), @('japanese.mkv', 'jpn', @('eng')), @('bilingual.mkv', 'eng', @('fre', 'eng')), @('french.mkv', 'fre', @('eng')))) {
+    $arguments = @('-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=duration=3:size=320x240:rate=24', '-f', 'lavfi', '-i', 'sine=duration=3')
+    foreach ($subtitle in $made[2]) { $arguments += '-i', $srt }
+    $arguments += '-map', '0:v', '-map', '1:a'
+    for ($i = 0; $i -lt $made[2].Count; $i++) {
+        $language, $disposition = $made[2][$i].Split(':')
+        if (-not $disposition) { $disposition = '0' }
+        $arguments += '-map', "$($i + 2):s", "-metadata:s:s:$i", "language=$language", "-disposition:s:$i", $disposition
+    }
+    $arguments += '-c:v', 'mpeg4', '-c:a', 'mp2', '-c:s', 'srt', '-metadata:s:a:0', "language=$($made[1])", (Join-Path $tracks $made[0])
     & $ffmpeg.FullName @arguments
     if ($LASTEXITCODE -ne 0) { throw "ffmpeg could not make $($made[0]) ($LASTEXITCODE)" }
 }

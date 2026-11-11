@@ -72,8 +72,9 @@ public abstract unsafe class MpvClient : IDisposable
             Option("tls-verify", "yes");
             // A stream that fails is Jellyfin's, never a web page for yt-dlp: mpv would run any found in the PATH.
             TryOption("ytdl", "no");
-            // In the audio's language, forced subtitles only (signs, a line in another language), as Mira chooses them
-            // for a conversion and on iPhone; mpv 0.37 and older know only yes or no.
+            // In the audio's language, forced subtitles only (signs, a line in another language); mpv 0.37 and older know
+            // only yes or no. Only mpv's first guess: Mira chooses the subtitles once the file is loaded
+            // (ChooseStartSubtitles), mpv 0.38 and later keeping no full subtitles for audio in any language of slang.
             if (!TryOption("subs-with-matching-audio", "forced")) TryOption("subs-with-matching-audio", "no");
         }
         catch { Dispose(); throw; }
@@ -310,6 +311,17 @@ public abstract unsafe class MpvClient : IDisposable
     public List<MpvTrack> Tracks() => MpvLists.Tracks(Get("track-list"));
     /// <summary>Chapters stored in the media file itself (Matroska/MP4 chapter titles and times).</summary>
     public List<ChapterMark> Chapters() => MpvLists.Chapters(Get("chapter-list"));
+    /// <summary>
+    /// The subtitles a file starts with by the settings' languages, chosen by Mira (<see cref="StartSubtitles"/>) once
+    /// Jellyfin's external ones are added: mpv never picks a track added after the file loaded, and its own rule turns off
+    /// the full subtitles of a film whose audio's language is anywhere in its slang. False: mpv's choice is left.
+    /// </summary>
+    public bool ChooseStartSubtitles(string? order, IReadOnlyCollection<string>? forcedFiles = null)
+    {
+        if (StartSubtitles.ForMpv(Get("track-list"), order, forcedFiles) is not { } sid) return false;
+        if (sid != (Get("sid") ?? "no")) Set("sid", sid);
+        return true;
+    }
     /// <summary>Destroys mpv (on Mac, after the view's render context: VideoView.Release).</summary>
     public void Dispose()
     {

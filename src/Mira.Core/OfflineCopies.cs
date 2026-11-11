@@ -25,6 +25,8 @@ public sealed record OfflineCopy
     public long Size { get; init; }
     public bool Complete { get; init; }
     public List<OfflineSubtitle> Subtitles { get; init; } = [];
+    /// <summary>A subtitle file kept that Jellyfin marks as forced (signs and foreign lines only).</summary>
+    public bool Forced(OfflineSubtitle subtitle) => Source?.MediaStreams.Any(s => s.Type == "Subtitle" && s.Index == subtitle.Index && s.IsForced) == true;
     public DateTimeOffset Added { get; init; }
     /// <summary>Where it is: read from the disk, never written.</summary>
     [JsonIgnore] public string Folder { get; init; } = "";

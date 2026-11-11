@@ -170,21 +170,15 @@ public static partial class ServerStreams
         return source.MediaStreams.FirstOrDefault(s => s.Index.ToString(CultureInfo.InvariantCulture) == chosen) is { } stream && Picture(stream) ? stream.Index : null;
     }
     /// <summary>
-    /// The text subtitles a conversion starts with, without a memory of the series: by the settings' languages, as mpv
-    /// chooses in a file. In the language of the audio, only forced ones (signs, foreign lines); null: none.
+    /// The text subtitles a conversion starts with, without a memory of the series: by the settings' languages, the rule
+    /// of every player of Mira (<see cref="StartSubtitles"/>); pictures need another conversion to be drawn in. Null: none.
     /// </summary>
     public static int? SubtitleFor(MediaSource source, int? audio, string languages)
     {
-        var spoken = SeriesTracks.LanguageKey(source.MediaStreams.FirstOrDefault(s => s.Type == "Audio" && s.Index == audio)?.Language);
-        var text = source.MediaStreams.Where(s => s.Type == "Subtitle" && !Picture(s)).ToList();
-        foreach (var language in Languages(languages))
-        {
-            var same = text.Where(s => SeriesTracks.LanguageKey(s.Language) == language).ToList();
-            if (same.Count == 0) continue;
-            if (language == spoken) return same.FirstOrDefault(s => s.IsForced)?.Index;
-            return (same.FirstOrDefault(s => !s.IsForced) ?? same[0]).Index;
-        }
-        return null;
+        var spoken = source.MediaStreams.FirstOrDefault(s => s.Type == "Audio" && s.Index == audio)?.Language;
+        var text = source.MediaStreams.Where(s => s.Type == "Subtitle" && !Picture(s))
+            .Select(s => new StartSubtitles.Track(s.Index.ToString(CultureInfo.InvariantCulture), s.Language, s.IsForced, s.IsDefault)).ToList();
+        return StartSubtitles.Choose(text, spoken, languages).Id is { } id ? int.Parse(id, CultureInfo.InvariantCulture) : null;
     }
     private static IEnumerable<string> Languages(string list) => list.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(SeriesTracks.LanguageKey).OfType<string>().Distinct();

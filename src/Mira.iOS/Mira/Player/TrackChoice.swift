@@ -1,8 +1,10 @@
 import Foundation
 
-/// The audio and subtitle tracks a title starts with, as Mira web chooses them (chooseTracks and trackMemory of
-/// tracks.js): the tracks last chosen for its series (same languages), then the language orders of Settings, then
-/// Jellyfin's own choice. Subtitles in the language of the audio stay off, except forced ones.
+/// The audio and subtitle tracks a title starts with: the tracks last chosen for its series (same languages), then the
+/// language orders of Settings, then Jellyfin's own choice. Subtitles by the rule of Mira for Windows and Mac
+/// (StartSubtitles of Core, cases shared in tests/fixtures/subtitle-start.json): in the audio's language, forced ones
+/// only; audio in the first language of the order (one's own), nothing else; otherwise the first language of the order
+/// with full subtitles.
 enum TrackChoice {
     /// The languages Mira knows by their codes: one key per language, whatever its code (« fre », « fra », « fr »).
     private static let codes: [String: String] = {
@@ -70,12 +72,20 @@ enum TrackChoice {
                 subtitle = (readable.first { same($0.language, language) && ($0.isForced == true) == wantForced } ?? readable.first { same($0.language, language) })?.index
             }
         }
-        if subtitle == nil, let audio, key(audio.language) != nil {
-            let first = subtitleOrder.split(separator: ",").first.map(String.init)
-            if same(audio.language, first) {
-                subtitle = forced(in: audio.language)?.index ?? -1
-            } else {
-                subtitle = (best(readable.filter { $0.isForced != true }, subtitleOrder) ?? forced(in: audio.language))?.index
+        // Then the settings' order. Left to Jellyfin's choice when no language of it has subtitles and the audio's is
+        // not one of them (subtitles whose language is not said, marked as the file's default).
+        if subtitle == nil, let first = subtitleOrder.split(separator: ",").compactMap({ key(String($0)) }).first {
+            let spoken = key(audio?.language)
+            let spokenForced = forced(in: spoken)
+            if spoken == first {
+                // A film in one's own language: no subtitles but its forced ones, whatever other languages it has.
+                subtitle = spokenForced?.index ?? -1
+            } else if let full = best(readable.filter { $0.isForced != true && key($0.language) != spoken }, subtitleOrder) {
+                subtitle = full.index
+            } else if let spokenForced {
+                subtitle = spokenForced.index
+            } else if let spoken, rank(spoken, subtitleOrder) != nil {
+                subtitle = -1
             }
         }
         return (audio?.index, subtitle ?? source?.defaultSubtitleStreamIndex ?? -1)

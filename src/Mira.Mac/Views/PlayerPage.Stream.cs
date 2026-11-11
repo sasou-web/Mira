@@ -142,9 +142,12 @@ public sealed partial class PlayerPage
         if (ids == _trackIds) return;
         _trackIds = ids; _playingTracks = CurrentTracks();
     }
+    /// <summary>The external subtitles given to mpv that Jellyfin marks as forced (mpv cannot tell from their address).</summary>
+    private readonly List<string> _forcedFiles = [];
     /// <summary>
-    /// The tracks a file starts with: the series' or the settings' languages; opened again, those playing before, or those
-    /// chosen in a conversion's menu, then kept for the series.
+    /// The tracks a file starts with: the series' or the settings' languages (<see cref="StartSubtitles"/>, Jellyfin's
+    /// external subtitles included); opened again, those playing before, or those chosen in a conversion's menu, then kept
+    /// for the series.
     /// </summary>
     private async Task ChooseStartTracksAsync(Session session, bool reopened, int generation)
     {
@@ -166,7 +169,9 @@ public sealed partial class PlayerPage
             var (audio, subtitle) = SeriesTracks.Choose(_mpv.Get("track-list"), tracks);
             if (audio is not null) _mpv.Set("aid", audio);
             if (subtitle is not null) _mpv.Set("sid", subtitle);
+            else if (!reopened) _mpv.ChooseStartSubtitles(_shell.Settings.SubtitleLanguage, _forcedFiles);
         }
+        else if (!reopened && generation == _generation) _mpv?.ChooseStartSubtitles(_shell.Settings.SubtitleLanguage, _forcedFiles);
         if (generation != _generation) return;
         if (reopened && _reopenChosen) RememberTracks();
         _reloadTracks = null; _reopenText = null; _reopenChosen = false;

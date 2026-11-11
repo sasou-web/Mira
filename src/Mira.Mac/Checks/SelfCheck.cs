@@ -55,7 +55,7 @@ public static class SelfCheck
             foreach (var line in await Mira.Checks.PlayerSafety.HttpsAsync(network => Playback.MpvPlayer.Probe(engineSettings, network)))
                 Check(line.Passed, (line.Info ? "(info) " : "") + "lecteur : " + line.Message);
             if (Arg("--track-media") is { Length: > 0 } tracks)
-                foreach (var line in await Mira.Checks.PlayerSafety.TracksAsync(() => Playback.MpvPlayer.Probe(engineSettings), tracks))
+                foreach (var line in await Mira.Checks.PlayerSafety.TracksAsync(languages => Playback.MpvPlayer.Probe(new PlayerSettings { MpvPath = window.Settings.MpvPath, AudioLanguage = languages.Audio, SubtitleLanguage = languages.Subtitles }), tracks))
                     Check(line.Passed, "lecteur : " + line.Message);
             window.Settings.AutoNext = true; window.Settings.RememberPosition = true; window.Settings.Volume = 150;
             // The trackpad read as a Mac's out of the box (natural scrolling, two fingers between pages), whatever this machine says.

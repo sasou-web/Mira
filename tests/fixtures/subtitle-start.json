@@ -1,0 +1,28 @@
+{
+  "about": "The subtitles a title starts with when no memory of its series decides: StartSubtitles of Mira.Core (Windows and Mac, for a conversion and for mpv playing the file) and TrackChoice of the iPhone. order: the settings' subtitle languages; audio: the language of the audio playing (null: not said); subtitles: the file's, in its order (lang null: not said). expected: the position of the subtitles to show, null for none, \"player\" where the player keeps its own choice (mpv's, Jellyfin's default on iPhone).",
+  "cases": [
+    { "name": "Mira en anglais, film en anglais : pas ses sous-titres anglais", "order": "eng,en,fre,fra,fr", "audio": "eng", "subtitles": [{ "lang": "eng" }], "expected": null },
+    { "name": "Mira en anglais, film en anglais : ses seuls sous-titres forcés", "order": "eng,en,fre,fra,fr", "audio": "eng", "subtitles": [{ "lang": "eng" }, { "lang": "eng", "forced": true }], "expected": 1 },
+    { "name": "Mira en anglais, anime en japonais : ses sous-titres anglais", "order": "eng,en,fre,fra,fr", "audio": "jpn", "subtitles": [{ "lang": "eng" }], "expected": 0 },
+    { "name": "Mira en anglais, film en anglais : ni ses sous-titres français ni ses anglais", "order": "eng,en,fre,fra,fr", "audio": "eng", "subtitles": [{ "lang": "fre" }, { "lang": "eng" }], "expected": null },
+    { "name": "Mira en anglais, film en anglais avec seulement des sous-titres français : aucun", "order": "eng,en,fre,fra,fr", "audio": "eng", "subtitles": [{ "lang": "fre" }], "expected": null },
+    { "name": "Mira en anglais, film en français : ses sous-titres anglais", "order": "eng,en,fre,fra,fr", "audio": "fre", "subtitles": [{ "lang": "eng" }], "expected": 0 },
+    { "name": "Mira en français, film en anglais : ses sous-titres français", "order": "fre,fra,fr,eng,en", "audio": "eng", "subtitles": [{ "lang": "fre" }, { "lang": "eng" }], "expected": 0 },
+    { "name": "Mira en français, film en anglais : ses sous-titres français, même après les anglais", "order": "fre,fra,fr,eng,en", "audio": "eng", "subtitles": [{ "lang": "eng" }, { "lang": "fra" }], "expected": 1 },
+    { "name": "Mira en français, film en anglais sans sous-titres français : pas ses anglais", "order": "fre,fra,fr,eng,en", "audio": "eng", "subtitles": [{ "lang": "eng" }], "expected": null },
+    { "name": "Mira en français, film en anglais sans sous-titres français : ses anglais forcés", "order": "fre,fra,fr,eng,en", "audio": "eng", "subtitles": [{ "lang": "eng" }, { "lang": "eng", "forced": true }], "expected": 1 },
+    { "name": "Mira en français, film en anglais : les sous-titres français complets, pas les forcés", "order": "fre,fra,fr,eng,en", "audio": "eng", "subtitles": [{ "lang": "fre", "forced": true }, { "lang": "fre" }], "expected": 1 },
+    { "name": "Mira en français, film en anglais : des sous-titres français seulement forcés ne suffisent pas", "order": "fre,fra,fr,eng,en", "audio": "eng", "subtitles": [{ "lang": "fre", "forced": true }], "expected": null },
+    { "name": "Mira en français, film en français : pas ses sous-titres anglais", "order": "fre,fra,fr,eng,en", "audio": "fre", "subtitles": [{ "lang": "eng" }], "expected": null },
+    { "name": "Mira en français, film en français : ses sous-titres français forcés seulement", "order": "fre,fra,fr,eng,en", "audio": "fre", "subtitles": [{ "lang": "fre" }, { "lang": "fre", "forced": true }, { "lang": "eng" }], "expected": 1 },
+    { "name": "Mira en français, anime en japonais : français d'abord", "order": "fre,fra,fr,eng,en", "audio": "jpn", "subtitles": [{ "lang": "eng" }, { "lang": "fre" }], "expected": 1 },
+    { "name": "Mira en français, anime en japonais sans français : ses sous-titres anglais", "order": "fre,fra,fr,eng,en", "audio": "jpn", "subtitles": [{ "lang": "eng" }], "expected": 0 },
+    { "name": "Dans une même langue, celle que le fichier met par défaut", "order": "fre,fra,fr,eng,en", "audio": "jpn", "subtitles": [{ "lang": "fre" }, { "lang": "fre", "default": true }], "expected": 1 },
+    { "name": "Mira en allemand, anime en japonais : allemand, sinon anglais", "order": "ger,deu,de,eng,en", "audio": "jpn", "subtitles": [{ "lang": "eng" }, { "lang": "deu" }], "expected": 1 },
+    { "name": "Audio dont la langue n'est pas dite : la première langue de la liste", "order": "fre,fra,fr,eng,en", "audio": null, "subtitles": [{ "lang": "eng" }, { "lang": "fre" }], "expected": 1 },
+    { "name": "Anime aux sous-titres dont la langue n'est pas dite : le choix du lecteur", "order": "eng,en,fre,fra,fr", "audio": "jpn", "subtitles": [{ "lang": null }], "expected": "player" },
+    { "name": "Mira en français, film en espagnol aux sous-titres espagnols : le choix du lecteur", "order": "fre,fra,fr,eng,en", "audio": "spa", "subtitles": [{ "lang": "spa" }], "expected": "player" },
+    { "name": "Mira en français, film en espagnol : ses sous-titres espagnols forcés", "order": "fre,fra,fr,eng,en", "audio": "spa", "subtitles": [{ "lang": "spa" }, { "lang": "spa", "forced": true }], "expected": 1 },
+    { "name": "Sans langue réglée : le choix du lecteur", "order": "", "audio": "eng", "subtitles": [{ "lang": "fre" }], "expected": "player" }
+  ]
+}

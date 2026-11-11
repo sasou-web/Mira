@@ -509,21 +509,29 @@ public partial class MainWindow
         _ = Task.Run(() => TryCache(() => store.RememberTracks(series, tracks)));
         ChoicesChanged();
     }
-    /// <summary>An episode starts with the audio and subtitles last chosen in its series, where it has them.</summary>
+    /// <summary>
+    /// An episode starts with the audio and subtitles last chosen in its series, where it has them; otherwise with the
+    /// subtitles of the settings' languages, Jellyfin's external ones included (<see cref="StartSubtitles"/>).
+    /// </summary>
     private async Task ChooseSeriesTracksAsync(int generation)
     {
-        if (_store is not { } store || _session.Item?.SeriesId is not { Length: > 0 } series) return;
-        var tracks = await Task.Run(() => TryCache(() => store.TracksOf(series)));
-        if (tracks is null || generation != _playGeneration || _mpv is null) return;
-        ChooseTracks(tracks);
+        TrackMemory? tracks = null;
+        if (_store is { } store && _session.Item?.SeriesId is { Length: > 0 } series)
+            tracks = await Task.Run(() => TryCache(() => store.TracksOf(series)));
+        if (generation != _playGeneration || _mpv is null) return;
+        if ((tracks is null ? null : ChooseTracks(tracks)) is null) _mpv.ChooseStartSubtitles(_settings.SubtitleLanguage, _forcedFiles);
     }
-    private void ChooseTracks(TrackMemory tracks)
+    /// <returns>The subtitles set; null where none of this file's matches the memory.</returns>
+    private string? ChooseTracks(TrackMemory tracks)
     {
-        if (_mpv is null) return;
+        if (_mpv is null) return null;
         var (audio, subtitle) = SeriesTracks.Choose(_mpv.Get("track-list"), tracks);
         if (audio is not null) _mpv.Set("aid", audio);
         if (subtitle is not null) _mpv.Set("sid", subtitle);
+        return subtitle;
     }
+    /// <summary>The external subtitles given to mpv that Jellyfin marks as forced (mpv cannot tell from their address).</summary>
+    private readonly List<string> _forcedFiles = [];
     private void BuildMoreMenu()
     {
         if (_mpv is null) return;

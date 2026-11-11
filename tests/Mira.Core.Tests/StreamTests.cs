@@ -208,10 +208,46 @@ internal static class StreamTests
             Assert(ServerStreams.Picture(source.MediaStreams[3]) && !ServerStreams.Picture(source.MediaStreams[4]), "PGS is a picture");
             var tracks = MpvLists.Tracks(ServerStreams.TrackList(source));
             Assert(tracks.Count(t => t.Type == "audio") == 2 && tracks.Count(t => t.Type == "sub") == 3 && tracks[1].Id == "2" && tracks[1].Label.Contains("Français", StringComparison.Ordinal), $"The menu's tracks: {string.Join(", ", tracks.Select(t => t.Id + " " + t.Label))}");
-            Assert(ServerStreams.SubtitleFor(source, 1, "fre,eng") == 4, "English audio: the French subtitles");
-            Assert(ServerStreams.SubtitleFor(source, 2, "fre,eng") == 4, "French audio: forced French ones only");
+            Assert(ServerStreams.SubtitleFor(source, 1, "fre,eng") is null, "English audio: neither the French forced ones nor the English ones");
+            var full = source with { MediaStreams = [.. source.MediaStreams, new MediaStream { Index = 6, Type = "Subtitle", Codec = "subrip", Language = "fre", IsTextSubtitleStream = true, DeliveryMethod = "External" }] };
+            Assert(ServerStreams.SubtitleFor(full, 1, "fre,eng") == 6, "English audio: the full French subtitles");
+            Assert(ServerStreams.SubtitleFor(source, 2, "fre,eng") == 4 && ServerStreams.SubtitleFor(source, 2, "eng,fre") == 5, "French audio: forced French ones only, or for a Mira in English the English ones");
             Assert(ServerStreams.SubtitleFor(source with { MediaStreams = [.. source.MediaStreams.Where(s => s.Index != 4)] }, 2, "fre") is null, "French audio, no forced ones: none");
             Assert(ServerStreams.AudioFor(source, null, "fre,eng") == 2 && ServerStreams.AudioFor(source, null, "jpn") == 1, "Audio by the languages, else Jellyfin's default");
+            return Task.CompletedTask;
+        });
+        await Test("Sous-titres au départ : rien dans sa propre langue sauf les forcés, sinon la première langue réglée qui en a de complets, conversion et mpv (tests/fixtures/subtitle-start.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "subtitle-start.json")))!;
+            var cases = fixture["cases"]!.AsArray();
+            Assert(cases.Count > 10, "The shared cases");
+            foreach (var row in cases)
+            {
+                var (name, order, audio) = (row!["name"]!.GetValue<string>(), row["order"]!.GetValue<string>(), row["audio"]?.GetValue<string>());
+                var subtitles = row["subtitles"]!.AsArray().Select((x, i) => new StartSubtitles.Track((10 + i).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    x!["lang"]?.GetValue<string>(), x["forced"]?.GetValue<bool>() == true, x["default"]?.GetValue<bool>() == true)).ToList();
+                var expected = row["expected"];
+                var (decided, id) = StartSubtitles.Choose(subtitles, audio, order);
+                var player = expected?.GetValueKind() == JsonValueKind.String;
+                var wanted = expected?.GetValueKind() == JsonValueKind.Number ? (10 + expected.GetValue<int>()).ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+                Assert(decided == !player && id == wanted, $"{name}: {decided} {id}");
+                // The same file in a conversion (Jellyfin's indexes), and in mpv (its track-list, text files beside it).
+                var source = new MediaSource
+                {
+                    Id = "source-1",
+                    MediaStreams = [new MediaStream { Index = 1, Type = "Audio", Language = audio }, .. subtitles.Select(t => new MediaStream { Index = int.Parse(t.Id, System.Globalization.CultureInfo.InvariantCulture), Type = "Subtitle", Codec = "subrip", Language = t.Language, IsForced = t.Forced, IsDefault = t.Default, IsTextSubtitleStream = true })],
+                };
+                Assert(ServerStreams.SubtitleFor(source, 1, order)?.ToString(System.Globalization.CultureInfo.InvariantCulture) == wanted, $"{name}, converted: {ServerStreams.SubtitleFor(source, 1, order)}");
+                var list = new JsonArray(new JsonObject { ["id"] = 1, ["type"] = "audio", ["lang"] = audio, ["selected"] = true });
+                foreach (var t in subtitles) list.Add(new JsonObject { ["id"] = int.Parse(t.Id, System.Globalization.CultureInfo.InvariantCulture), ["type"] = "sub", ["lang"] = t.Language, ["default"] = t.Default, ["external"] = true, ["external-filename"] = $"http://jellyfin.example/Videos/item-1/source-1/Subtitles/{t.Id}/0/Stream.srt" });
+                var forcedFiles = subtitles.Where(t => t.Forced).Select(t => $"http://jellyfin.example/Videos/item-1/source-1/Subtitles/{t.Id}/0/Stream.srt").ToList();
+                var sid = StartSubtitles.ForMpv(list.ToJsonString(), order, forcedFiles);
+                Assert(sid == (player ? null : wanted ?? "no"), $"{name}, mpv: {sid ?? "mpv's own choice"}");
+            }
+            Assert(StartSubtitles.ForMpv("not json", "eng") is null && StartSubtitles.ForMpv(null, "eng") is null, "mpv's list unread: mpv's own choice");
+            Assert(StartSubtitles.ForMpv("""[{"id":1,"type":"audio","lang":"eng","selected":true},{"id":1,"type":"sub","lang":"eng","forced":true},{"id":2,"type":"sub","lang":"eng"}]""", "eng,fre") == "1",
+                "A forced track mpv knows itself (its file's flag)");
             return Task.CompletedTask;
         });
         await Test("Qualité : pistes d’une conversion dans le menu (une piste audio, texte à côté, images incrustées)", () =>
@@ -220,7 +256,7 @@ internal static class StreamTests
             var tracks = new ConvertedTracks(stream);
             Assert(string.Join(",", tracks.Audio.Select(t => t.Id)) == "1,2" && string.Join(",", tracks.Subtitles.Select(t => t.Id)) == "3,4,5", "The source's tracks, by Jellyfin's index");
             Assert(tracks.IsPicture(3) && !tracks.IsPicture(4) && tracks.Path(4) == "/Videos/item-1/source-1/Subtitles/4/0/Stream.subrip" && tracks.Path(3) is null && tracks.Path(5) is null, "Pictures drawn in, text beside (this server only)");
-            Assert(tracks.StartText(null, "fre,eng") == 4 && tracks.MpvId(4) is null, "Starts with the settings' languages");
+            Assert(tracks.StartText(null, "fre,eng") is null && new ConvertedTracks(stream with { Audio = 2 }).StartText(null, "fre,eng") == 4 && tracks.MpvId(4) is null, "Starts with the settings' languages");
             tracks.Added(4, "1");
             Assert(tracks.MpvId(4) == "1" && tracks.Shown("1") == 4 && tracks.Shown("no") is null && !tracks.ShowsOther("1") && tracks.ShowsOther("2") && !tracks.ShowsOther("no"), "mpv's id, and a file of the person's");
             var memory = tracks.Remember("1");
