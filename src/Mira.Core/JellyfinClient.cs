@@ -126,8 +126,32 @@ public sealed class JellyfinClient : IDisposable
         (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Episode&sortBy=DatePlayed&sortOrder=Descending&limit=40" +
             "&enableImages=false&enableUserData=true&enableTotalRecordCount=false", ct)).Items.Where(x => x.UserData.LastPlayedDate is not null).ToList();
     public const int PageSize = 60;
-    public Task<ItemsResult> BrowseAsync(string types = "Movie,Series", string? parentId = null, string? search = null, int start = 0, bool favorites = false, CancellationToken ct = default, CatalogQuery? filters = null, int limit = PageSize) =>
-        GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={types}&limit={Math.Clamp(limit, 1, 600)}&startIndex={start}" +
+    /// <summary>The most titles one request asks Jellyfin for: a longer list comes in several.</summary>
+    private const int MostPerRequest = 600;
+    /// <summary>
+    /// Titles of the library, <paramref name="limit"/> from <paramref name="start"/>. Past what one request asks, the
+    /// rest come request after request: a refresh of every page already loaded (Windows, Mac) keeps them all, so the
+    /// grid never shrinks back to 600 titles under the reader.
+    /// </summary>
+    public async Task<ItemsResult> BrowseAsync(string types = "Movie,Series", string? parentId = null, string? search = null, int start = 0, bool favorites = false, CancellationToken ct = default, CatalogQuery? filters = null, int limit = PageSize)
+    {
+        var wanted = Math.Max(1, limit);
+        var result = await BrowsePageAsync(types, parentId, search, start, favorites, filters, Math.Min(wanted, MostPerRequest), ct);
+        var seen = result.Items.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase); var next = start + result.Items.Count;
+        while (result.Items.Count < wanted && result.Items.Count > 0 && next < result.TotalRecordCount)
+        {
+            var asked = Math.Min(wanted - result.Items.Count, MostPerRequest);
+            var page = await BrowsePageAsync(types, parentId, search, next, favorites, filters, asked, ct);
+            next += page.Items.Count;
+            var fresh = page.Items.Where(x => seen.Add(x.Id)).ToList(); result.Items.AddRange(fresh);
+            result = result with { TotalRecordCount = page.TotalRecordCount };
+            // The last page, or a server that gives the same page again: nothing more to ask.
+            if (page.Items.Count < asked || fresh.Count == 0) break;
+        }
+        return result;
+    }
+    private Task<ItemsResult> BrowsePageAsync(string types, string? parentId, string? search, int start, bool favorites, CatalogQuery? filters, int limit, CancellationToken ct) =>
+        GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={types}&limit={limit}&startIndex={start}" +
             "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (filters ?? new CatalogQuery()).Parameters +
             (parentId is null ? "" : $"&parentId={Uri.EscapeDataString(parentId)}") +
             (string.IsNullOrWhiteSpace(search) ? "" : $"&searchTerm={Uri.EscapeDataString(search)}") +
