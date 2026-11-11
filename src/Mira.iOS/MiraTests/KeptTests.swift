@@ -134,6 +134,27 @@ struct KeptTests {
         #expect(KeptRules.fraction(copy) == 1)
     }
 
+    @Test("Le film déjà à sa place (Mira fermée pendant ses sous-titres) : ni retéléchargé ni effacé")
+    func videoInPlace() {
+        var copy = KeptCopy(item: Item(id: "a"), added: .now)
+        copy.kind = .file
+        copy.total = 3
+        copy.pieces = 3
+        copy.bytes = 40
+        #expect(KeptRules.videoInPlace(copy, videoSize: 40))
+        // Nothing there, or another file under its name: fetched again.
+        #expect(!KeptRules.videoInPlace(copy, videoSize: nil))
+        #expect(!KeptRules.videoInPlace(copy, videoSize: 39))
+        // Pieces still to come.
+        copy.pieces = 2
+        #expect(!KeptRules.videoInPlace(copy, videoSize: 40))
+        copy.pieces = 3
+        copy.kind = nil
+        #expect(!KeptRules.videoInPlace(copy, videoSize: 40))
+        copy.kind = .converted
+        #expect(KeptRules.videoInPlace(copy, videoSize: 40))
+    }
+
     @Test("mira-copy.json se relit tel quel, le dossier d'un compte ne nomme pas le serveur")
     func manifest() throws {
         var kept = KeptCopy(item: episode("e1", season: 1, number: 1), added: Date(timeIntervalSince1970: 1_800_000_000))
