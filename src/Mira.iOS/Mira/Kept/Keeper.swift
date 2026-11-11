@@ -634,10 +634,7 @@ final class Keeper {
                     try await client.setPlayed(id, true)
                     told = true
                 case let .position(ticks):
-                    let body = try JSONSerialization.data(withJSONObject: [
-                        "PlaybackPositionTicks": max(0, ticks), "Played": false,
-                        "LastPlayedDate": watch.at.formatted(.iso8601),
-                    ])
+                    let body = try JSONSerialization.data(withJSONObject: KeptRules.positionBody(ticks: ticks, at: watch.at))
                     try await client.send("POST", "UserItems/\(id)/UserData", ["userId": client.userId], body: body)
                     told = true
                 }

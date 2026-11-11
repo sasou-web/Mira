@@ -285,6 +285,13 @@ enum KeptRules {
         copy.kind != nil && copy.total > 0 && copy.pieces >= copy.total && copy.bytes > 0 && videoSize == copy.bytes
     }
 
+    /// Where a title was left here, as Jellyfin keeps it (UserItems/{id}/UserData). Its watched mark is left as Jellyfin
+    /// has it: a title watched before and watched again halfway stays watched, with its new position, as Jellyfin does
+    /// for a stream (checked on 12.1) and as Windows and Mac send it; `"Played": false` took the mark off everywhere.
+    static func positionBody(ticks: Int64, at: Date) -> [String: Any] {
+        ["PlaybackPositionTicks": max(0, ticks), "LastPlayedDate": at.formatted(.iso8601)]
+    }
+
     /// How far a copy came, 0 to 1.
     static func fraction(_ copy: KeptCopy) -> Double {
         if copy.complete { return 1 }

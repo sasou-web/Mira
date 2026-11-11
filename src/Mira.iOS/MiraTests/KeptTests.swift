@@ -121,6 +121,15 @@ struct KeptTests {
         #expect(KeptRules.progressStep(KeptWatch(ticks: 0, finished: true, at: at), serverLastPlayed: nil) == .played)
     }
 
+    @Test("Revu à moitié ici, un titre déjà vu le reste : la position seule part à Jellyfin")
+    func positionKeepsWatched() {
+        let body = KeptRules.positionBody(ticks: 42, at: Date(timeIntervalSinceReferenceDate: 1000))
+        #expect(body["Played"] == nil)
+        #expect(body["PlaybackPositionTicks"] as? Int64 == 42)
+        #expect(body["LastPlayedDate"] as? String == "2001-01-01T00:16:40Z")
+        #expect(KeptRules.positionBody(ticks: -5, at: .now)["PlaybackPositionTicks"] as? Int64 == 0)
+    }
+
     @Test("Où en est une copie")
     func fraction() {
         var copy = KeptCopy(item: Item(id: "a"), added: .now)
