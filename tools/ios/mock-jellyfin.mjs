@@ -8,7 +8,9 @@
 // fetch it (its trailer, © Blender Foundation, CC BY 3.0), at its real length, with chapters and the trickplay
 // pictures of media/trickplay (tools/ios/trickplay.sh): the player's captures.
 // The tests switch it (POST): /Mock/Slow?ms=… answers the account's requests that much later (pictures and the server's
-// public answer stay quick), /Mock/Down cuts every connection but /Mock's (a PC switched off), /Mock/Up undoes both;
+// public answer stay quick), /Mock/Down cuts every connection but /Mock's (a PC switched off), /Mock/Revoke refuses the
+// account's token from then on (its session ended from Jellyfin's dashboard; signing in again gives it back), /Mock/Up
+// undoes them all;
 // /Mock/Mark?name=… notes when a moment of a filmed test came (/Mock/Marks, read by ios.yml to cut the film).
 // « Keep on this iPhone »: Items/{id}/Download sends the file (ranges), and Cosmos Laundromat's PlaybackInfo, asked with
 // no subtitles from its start (as the app asks to keep a title), is a conversion of an MKV: its HLS playlists cut
@@ -34,7 +36,7 @@ function mp4Seconds(data) {
   return scale ? length / scale : 0;
 }
 const reports = [];
-let slow = 0, down = false;
+let slow = 0, down = false, revoked = false;
 const marks = [];
 
 const port = Number(process.argv[2] ?? 18097);
@@ -245,9 +247,11 @@ const server = http.createServer(async (req, res) => {
   const path = guest ? url.pathname.slice('/Mira/guest'.length) : url.pathname, q = url.searchParams;
   let raw = ''; for await (const part of req) raw += part;
   console.log(req.method, req.url);
-  if (req.method === 'POST' && ['/Mock/Slow', '/Mock/Down', '/Mock/Up'].includes(path)) {
+  if (req.method === 'POST' && ['/Mock/Slow', '/Mock/Down', '/Mock/Revoke', '/Mock/Up'].includes(path)) {
     slow = path === '/Mock/Slow' ? Math.min(60_000, Math.max(0, Number(q.get('ms') ?? 3000))) : 0;
     down = path === '/Mock/Down';
+    revoked = path === '/Mock/Revoke';
+    if (revoked) for (const socket of sockets) socket.destroy();
     if (down) for (const socket of sockets) socket.destroy();
     return send(res, 204, undefined);
   }
@@ -310,9 +314,10 @@ const server = http.createServer(async (req, res) => {
   if (path === '/Users/AuthenticateByName' && req.method === 'POST') {
     const body = JSON.parse(raw || '{}');
     if (body.Pw !== 'mira') return send(res, 401, undefined);
+    revoked = false;
     return send(res, 200, { User: { Id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f', Name: body.Username, ServerId: SERVER_ID }, AccessToken: TOKEN, ServerId: SERVER_ID });
   }
-  if (!(req.headers.authorization ?? '').includes(`Token="${guest ? GUEST_TOKEN : TOKEN}"`)) return send(res, 401, undefined);
+  if ((revoked && !guest) || !(req.headers.authorization ?? '').includes(`Token="${guest ? GUEST_TOKEN : TOKEN}"`)) return send(res, 401, undefined);
   if (slow) await new Promise((resolve) => setTimeout(resolve, slow));
   if (path === '/Sessions/Logout') { if (guest) syncLog.push({ what: 'GuestLogout', body: {} }); return send(res, 204, undefined); }
   if (path === '/Sessions/Capabilities') return send(res, 204, undefined);
@@ -480,7 +485,7 @@ server.on('upgrade', (req, socket) => {
   const url = new URL(req.url, 'http://localhost');
   const key = req.headers['sec-websocket-key'];
   const guest = url.pathname === '/Mira/guest/socket';
-  if ((url.pathname !== '/socket' && !guest) || !key || !(req.headers.authorization ?? '').includes(`Token="${guest ? GUEST_TOKEN : TOKEN}"`)) { socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n'); return; }
+  if ((url.pathname !== '/socket' && !guest) || !key || (revoked && !guest) || !(req.headers.authorization ?? '').includes(`Token="${guest ? GUEST_TOKEN : TOKEN}"`)) { socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n'); return; }
   const accept = createHash('sha1').update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
   socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
   sockets.add(socket);
