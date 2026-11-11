@@ -1268,6 +1268,29 @@ internal static class LibraryTests
             Assert(EpisodeCalendar.DayTitle(today, today) == "Aujourd’hui" && EpisodeCalendar.NextText([], today) == "", "Title of a day, no next episode");
             return Task.CompletedTask;
         });
+        await Test("Épisodes manquants et à venir : tous lus, même au-delà de 5 000 épisodes virtuels", async () =>
+        {
+            // As Jellyfin 12.1 sorts them (by air day, those without one first): 5,050 old missing episodes of a long series
+            // filled the first 5,000, and the episodes coming of the others were never read.
+            var today = new DateOnly(2026, 11, 11);
+            string? Day(int? days) => days is { } d ? today.AddDays(d).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + "T00:00:00.0000000Z" : null;
+            var others = new List<(string Series, int Season, int Episode, int? Days)> { ("deux", 3, 1, null), ("deux", 1, 3, -9), ("deux", 2, 2, -2), ("deux", 2, 3, 2), ("deux", 2, 4, 9), ("anime", 1, 2, 0), ("anime", 1, 3, 7) };
+            var virtuals = Enumerable.Range(0, 5050).Select(i => (Series: "long", Season: 2 + i / 101, Episode: 1 + i % 101, Days: (int?)(-4000 + i / 3))).Concat(others)
+                .OrderBy(x => x.Days is null ? 0 : 1).ThenBy(x => x.Days).ThenBy(x => x.Series, StringComparer.Ordinal).ThenBy(x => x.Season).ThenBy(x => x.Episode)
+                .Select(x => new { Id = $"{x.Series}-{x.Season}-{x.Episode}", Name = "x", Type = "Episode", LocationType = "Virtual", SeriesId = x.Series, ParentIndexNumber = x.Season, IndexNumber = x.Episode, PremiereDate = Day(x.Days) }).ToList();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+                var start = int.Parse(query["startIndex"] ?? "0", System.Globalization.CultureInfo.InvariantCulture); var limit = int.Parse(query["limit"] ?? "100000", System.Globalization.CultureInfo.InvariantCulture);
+                return Task.FromResult(JsonResponse(new { Items = virtuals.Skip(start).Take(limit), TotalRecordCount = virtuals.Count }));
+            }));
+            var episodes = await client.VirtualEpisodesAsync();
+            Assert(episodes.Count == 5057 && episodes.Select(x => x.Id).Distinct().Count() == 5057, $"Read: {episodes.Count}");
+            var (missing, coming) = EpisodeCalendar.Read(episodes.Where(x => x.SeriesId == "deux"), today);
+            Assert(missing.Select(EpisodeCalendar.Code).SequenceEqual(["S1 · É3", "S2 · É2"]) && coming.Select(EpisodeCalendar.Code).SequenceEqual(["S2 · É3", "S2 · É4"]), $"Missing {missing.Count}, coming {coming.Count}");
+            Assert(EpisodeCalendar.Read(episodes.Where(x => x.SeriesId == "anime"), today).Coming.Count == 2, "The anime's coming episodes");
+            Assert(EpisodeCalendar.Airing(episodes.Where(x => x.SeriesId == "deux"), new DateTimeOffset(2026, 11, 11, 12, 0, 0, TimeSpan.Zero)).Count == 4, "What « Suivre une série » sends of its air days");
+        });
         await Test("TheTVDB : installée depuis le dépôt de Jellyfin, ses noms et images coupés, seuls les épisodes manquants gardés", async () =>
         {
             // As Jellyfin 12.1 lists them: a server with Series in its settings, no Person; a series library listing its fetchers, one not.

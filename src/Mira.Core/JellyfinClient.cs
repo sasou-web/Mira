@@ -1482,11 +1482,24 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>
     /// The virtual episodes of every series this account sees (TheTVDB's « Missing Episode Fetcher », <see cref="TvdbExtension"/>),
     /// with their air date, for <see cref="EpisodeCalendar"/>. Asked across the libraries: Jellyfin leaves them out of a
-    /// series' recursive children and of Shows/{id}/Episodes (checked on 12.1). Empty without the plugin.
+    /// series' recursive children and of Shows/{id}/Episodes (checked on 12.1). Empty without the plugin. All of them,
+    /// page after page: sorted by air day, one page of a large library (long series with a few seasons kept) left out
+    /// the newest, those coming first (checked on 12.1 with 5,057: none past 2020 in the first 5,000).
     /// </summary>
-    public async Task<List<MediaItem>> VirtualEpisodesAsync(CancellationToken ct = default) =>
-        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Episode&locationTypes=Virtual&fields=PremiereDate"
-            + "&sortBy=PremiereDate,ParentIndexNumber,IndexNumber&enableImageTypes=Primary&imageTypeLimit=1&enableUserData=false&limit=5000", ct)).Items;
+    public async Task<List<MediaItem>> VirtualEpisodesAsync(CancellationToken ct = default)
+    {
+        const int page = 5000;
+        var all = new List<MediaItem>(); var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var start = 0;
+        while (true)
+        {
+            var result = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Episode&locationTypes=Virtual&fields=PremiereDate"
+                + $"&sortBy=PremiereDate,SeriesSortName,ParentIndexNumber,IndexNumber&enableImageTypes=Primary&imageTypeLimit=1&enableUserData=false&startIndex={start}&limit={page}", ct);
+            start += result.Items.Count;
+            var fresh = result.Items.Where(x => seen.Add(x.Id)).ToList(); all.AddRange(fresh);
+            // The last page, or a server that gives the same page again: nothing more to ask.
+            if (result.Items.Count < page || fresh.Count == 0 || start >= result.TotalRecordCount) return all;
+        }
+    }
     /// <summary>TheTVDB's plugin on this server (<see cref="TvdbExtension.Read"/>); null when this account may not read the plugins.</summary>
     public async Task<TvdbExtension.State?> TvdbStateAsync(CancellationToken ct = default) =>
         await PluginsAsync(ct) is { } plugins ? TvdbExtension.Read(plugins) : null;

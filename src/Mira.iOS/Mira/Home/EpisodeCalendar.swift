@@ -151,13 +151,27 @@ enum EpisodeCalendar {
 extension JellyfinClient {
     /// The virtual episodes of every series this account sees (TheTVDB's « Missing Episode Fetcher »), with their air
     /// day. Asked across the libraries, as Core does: Jellyfin leaves them out of a series' episodes (checked on 12.1).
-    /// Empty without the plugin.
+    /// Empty without the plugin. All of them, page after page: sorted by air day, one page of a large library left out
+    /// the newest, those coming first (checked on 12.1 with 5,057: none past 2020 in the first 5,000).
     func virtualEpisodes() async throws -> [Item] {
-        let list: ItemList = try await get("Items", [
-            "userId": userId, "recursive": "true", "includeItemTypes": "Episode", "locationTypes": "Virtual", "fields": "PremiereDate",
-            "sortBy": "PremiereDate,ParentIndexNumber,IndexNumber", "enableImages": "false", "enableUserData": "false", "limit": "5000",
-        ])
-        return list.items ?? []
+        let page = 5000
+        var all: [Item] = []
+        var seen = Set<String>()
+        var start = 0
+        while true {
+            let list: ItemList = try await get("Items", [
+                "userId": userId, "recursive": "true", "includeItemTypes": "Episode", "locationTypes": "Virtual", "fields": "PremiereDate",
+                "sortBy": "PremiereDate,SeriesSortName,ParentIndexNumber,IndexNumber", "enableImages": "false", "enableUserData": "false",
+                "startIndex": String(start), "limit": String(page),
+            ])
+            let items = list.items ?? []
+            start += items.count
+            let fresh = items.filter { seen.insert($0.id.lowercased()).inserted }
+            all += fresh
+            // The last page, or a server that gives the same page again: nothing more to ask.
+            if items.count < page || fresh.isEmpty { return all }
+            if let total = list.totalRecordCount, start >= total { return all }
+        }
     }
 }
 
