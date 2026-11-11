@@ -932,17 +932,22 @@ public static class SelfCheck
                 Check(await Until(() => window.Current is DetailPage page && page.Item.Id == movie.Id && page.ActionButtons().Any(), 15)
                     && !(window.Current as DetailPage)!.ActionButtons().Any(x => x.Name.Contains(Trailers.Label, StringComparison.OrdinalIgnoreCase)), "fiche sans bande-annonce : pas de bouton");
                 window.Settings.TrailerFirst = true;
+                // « Depuis le début » on a film left at 12 s: its trailer, then the film from its first second, never where it was left.
+                string FilmStart() => window.Player is { } film ? $"{film.Item?.Name} à {film.Position:0.0} s" : window.NoticeText ?? "lecteur fermé";
+                kept.UserData.PlaybackPositionTicks = 12 * TimeSpan.TicksPerSecond;
                 await window.PlayAsync(kept, fromStart: true);
                 var trailerPlayer = window.Player;
                 Check(await Until(() => trailerPlayer is { IsFileLoaded: true, Item.Id: "trailer-3" } && trailerPlayer.SkipPillText == Trailers.SkipLabel, 30),
                     "bande-annonce avant le film : elle passe d’abord, « Passer la bande-annonce » au-dessus", $"{trailerPlayer?.Item?.Name}, « {trailerPlayer?.SkipPillText} »");
                 trailerPlayer?.SkipForCheck();
-                Check(await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "movie-3" }, 30), "bande-annonce avant le film : la pastille mène au film", window.Player?.Item?.Name ?? window.NoticeText ?? "lecteur fermé");
+                Check(await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "movie-3" }, 30) && window.Player?.Position < 6, "bande-annonce avant le film : la pastille mène au film, depuis le début", FilmStart());
                 await window.StopPlaybackAsync();
+                kept.UserData.PlaybackPositionTicks = 12 * TimeSpan.TicksPerSecond;
                 await window.PlayAsync(kept, fromStart: true);
-                Check(await Until(() => window.Player is { Item.Id: "trailer-3" }, 30) && await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "movie-3" }, 60),
-                    "bande-annonce avant le film : le film suit la fin de la bande-annonce", window.Player?.Item?.Name ?? window.NoticeText ?? "lecteur fermé");
+                Check(await Until(() => window.Player is { Item.Id: "trailer-3" }, 30) && await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "movie-3" }, 60) && window.Player?.Position < 6,
+                    "bande-annonce avant le film : le film suit la fin de la bande-annonce, depuis le début", FilmStart());
                 await window.StopPlaybackAsync();
+                kept.UserData.PlaybackPositionTicks = 0;
                 // A film without one starts at once, its own.
                 await window.PlayAsync(movie);
                 Check(await Until(() => window.Player is { IsFileLoaded: true }, 30) && window.Player?.Item?.Id == movie.Id && window.Player.SkipPillText != Trailers.SkipLabel, "bande-annonce avant le film : un film sans bande-annonce part tout de suite", window.Player?.Item?.Name ?? "");

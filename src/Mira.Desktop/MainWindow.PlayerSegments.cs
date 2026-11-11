@@ -166,7 +166,7 @@ public partial class MainWindow
     private async void Skip_Click(object sender, RoutedEventArgs e)
     {
         if (_skips.Active is not { } segment || _mpv is null || !_loaded) return;
-        if (_skips.Film is { } film) { await PlayAsync(film, _miniPlayer, trailerDone: true); return; }
+        if (_skips.Film is { } film) { await FilmAfterTrailerAsync(film, _miniPlayer); return; }
         if (_skips.ToNext && _skips.Next is { } next) { await PlayAsync(next, _miniPlayer, completePrevious: true); return; }
         if (!TryCommand("seek", segment.End.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
         HoldPosition(segment.End); SetSkipVisible(false); SeekedForGroup();

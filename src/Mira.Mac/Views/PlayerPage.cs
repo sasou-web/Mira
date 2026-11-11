@@ -541,11 +541,15 @@ public sealed partial class PlayerPage : UserControl
         }
         if (!await StartAsync(next)) await _shell.CloseOverlayPlayerAsync(this);
     }
-    /// <summary>The film after its trailer, in this same player.</summary>
+    /// <summary>
+    /// The film after its trailer, in this same player: from its first second, as the trailer only plays then
+    /// (<see cref="Trailers.PlaysFirst"/>). Without it, « Depuis le début » on a film left halfway played the trailer,
+    /// then resumed the film where it was left.
+    /// </summary>
     private async Task PlayFilmAsync(MediaItem film)
     {
         await StopAsync();
-        if (!await StartAsync(film, trailerDone: true)) await _shell.CloseOverlayPlayerAsync(this);
+        if (!await StartAsync(film, fromStart: true, trailerDone: true)) await _shell.CloseOverlayPlayerAsync(this);
     }
     /// <summary>
     /// The trailer kept on the server for <paramref name="film"/>; null when there is none, or Jellyfin did not answer in
