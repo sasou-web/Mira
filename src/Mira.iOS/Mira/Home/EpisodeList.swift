@@ -224,3 +224,38 @@ struct SeasonMark: Equatable {
         return SeasonMark(ids: ids, played: !episodes.isEmpty && episodes.allSatisfy { $0.userData?.played == true })
     }
 }
+
+/// The episode Play opens on a series when Jellyfin's next up says none (a series watched to its end, or watched out of
+/// order; Shows/NextUp also leaves the specials out): one left halfway, else the first not watched, else the one after
+/// the episode watched last (a series watched again), else the first, to watch it again. The numbered seasons come
+/// before the specials, which Jellyfin lists first (season 0): « Watch again » starts at S01E01, not at a making-of
+/// (checked on 12.1). EpisodePages.Start of Core, cases of tests/fixtures/series-start.json.
+enum SeriesStart {
+    static func start(_ episodes: [Item]) -> Item? { unfinished(episodes) ?? again(episodes) ?? numbered(episodes).first }
+
+    /// A series watched again: the episode after the one watched last, so that S01E03 follows S01E02 watched again
+    /// yesterday (Shows/NextUp, without enableRewatching, answers none once every episode is watched, checked on 12.1).
+    /// Nil when that one is a special, or the last episode (watched to its end, or marked watched at once: Jellyfin dates
+    /// each episode in turn, in their order), or shares its date with another. EpisodePages.Again of Core.
+    static func again(_ episodes: [Item]) -> Item? {
+        let dated: [(item: Item, date: Date)] = episodes
+            .compactMap { item in item.userData?.lastPlayedDate.flatMap(HomeContent.parseDate).map { (item: item, date: $0) } }
+            .sorted { $0.date > $1.date }
+        guard let last = dated.first, dated.count < 2 || dated[1].date < last.date else { return nil }
+        let ordered = episodes.filter { ($0.parentIndexNumber ?? 1) != 0 }
+        guard let at = ordered.firstIndex(where: { $0.id == last.item.id }), at + 1 < ordered.count else { return nil }
+        return ordered[at + 1]
+    }
+
+    /// One left halfway (short of its last 10 %, as Resumable of Core), else the first not watched; nil when all are.
+    static func unfinished(_ episodes: [Item]) -> Item? {
+        let ordered = numbered(episodes)
+        return ordered.first { ($0.userData?.playbackPositionTicks ?? 0) > 0 && ItemText.progress($0) < 0.9 }
+            ?? ordered.first { $0.userData?.played != true }
+    }
+
+    /// The numbered seasons' episodes, then the specials, each in Jellyfin's order (an episode without a season is in the first).
+    private static func numbered(_ episodes: [Item]) -> [Item] {
+        episodes.filter { ($0.parentIndexNumber ?? 1) != 0 } + episodes.filter { ($0.parentIndexNumber ?? 1) == 0 }
+    }
+}

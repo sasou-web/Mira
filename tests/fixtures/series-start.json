@@ -1,0 +1,24 @@
+{
+  "about": "The episode Lecture opens on a series when Jellyfin's next up says none (Shows/NextUp answers nothing for a series watched to its end, and leaves the specials out): one left halfway, else the first not watched, else the first, to watch it again; the numbered seasons before the specials (season 0), which Jellyfin lists first. Read by tests/Mira.Core.Tests (EpisodePages.Unfinished, Start) and the iPhone (SeriesStart): both must agree. A series watched again: the one after the episode watched last (EpisodePages.Again, SeriesStart.again), unless that one is a special or the last, or shares its date. cases: [name, episodes [id, season (null: none, read as 1), watched, position in % of its length, last played in minutes from any moment (absent or null: never)], unfinished (null: none), start (null: none)]",
+  "cases": [
+    ["watched to its end: again from S01E01, not from the special Jellyfin lists first", [["s0e1", 0, true, 0], ["s1e1", 1, true, 0], ["s1e2", 1, true, 0], ["s2e1", 2, true, 0]], null, "s1e1"],
+    ["only a special left to watch: offered", [["s0e1", 0, false, 0], ["s1e1", 1, true, 0], ["s1e2", 1, true, 0]], "s0e1", "s0e1"],
+    ["watched out of order: the one skipped, before a special", [["s0e1", 0, false, 0], ["s1e1", 1, true, 0], ["s1e2", 1, false, 0], ["s1e3", 1, true, 0]], "s1e2", "s1e2"],
+    ["one left halfway wins over the first not watched", [["s1e1", 1, false, 0], ["s1e2", 1, false, 40]], "s1e2", "s1e2"],
+    ["a numbered episode left halfway before a special left halfway", [["s0e1", 0, false, 30], ["s1e1", 1, true, 0], ["s1e2", 1, false, 50]], "s1e2", "s1e2"],
+    ["only a special left halfway", [["s0e1", 0, false, 30], ["s1e1", 1, true, 0]], "s0e1", "s0e1"],
+    ["watched again and left halfway (Jellyfin 12 keeps it watched)", [["s0e1", 0, false, 0], ["s1e1", 1, true, 40], ["s1e2", 1, true, 0]], "s1e1", "s1e1"],
+    ["stopped past 90 %: not resumed there, the first not watched instead", [["s1e1", 1, true, 0], ["s1e2", 1, false, 0], ["s1e3", 1, false, 95]], "s1e2", "s1e2"],
+    ["only specials (OVAs): the first", [["s0e1", 0, true, 0], ["s0e2", 0, true, 0]], null, "s0e1"],
+    ["episodes without a season count as the first", [["x1", null, true, 0], ["x2", null, true, 0]], null, "x1"],
+    ["no episode", [], null, null],
+    ["watched again: the one after the episode watched last", [["s0e1", 0, true, 0, 1], ["s1e1", 1, true, 0, 100], ["s1e2", 1, true, 0, 3], ["s1e3", 1, true, 0, 4]], null, "s1e2"],
+    ["watched again past a season's last episode: the next season's first", [["s1e1", 1, true, 0, 10], ["s1e2", 1, true, 0, 11], ["s2e1", 2, true, 0, 3], ["s2e2", 2, true, 0, 4]], null, "s2e1"],
+    ["watched again to its last episode: from S01E01 once more", [["s0e1", 0, true, 0, 1], ["s1e1", 1, true, 0, 10], ["s1e2", 1, true, 0, 11]], null, "s1e1"],
+    ["marked watched at once (Jellyfin dates each in turn, in their order): from S01E01", [["s0e1", 0, true, 0, 1], ["s1e1", 1, true, 0, 2], ["s1e2", 1, true, 0, 3]], null, "s1e1"],
+    ["marked watched with one date: from S01E01", [["s1e1", 1, true, 0, 5], ["s1e2", 1, true, 0, 5], ["s1e3", 1, true, 0, 5]], null, "s1e1"],
+    ["a special watched last: from S01E01", [["s0e1", 0, true, 0, 20], ["s1e1", 1, true, 0, 10], ["s1e2", 1, true, 0, 11]], null, "s1e1"],
+    ["watched again and left halfway: resumed there, whatever was watched after", [["s1e1", 1, true, 40, 5], ["s1e2", 1, true, 0, 10], ["s1e3", 1, true, 0, 2]], "s1e1", "s1e1"],
+    ["not all watched: the first not watched, whatever was watched last", [["s1e1", 1, true, 0, 10], ["s1e2", 1, false, 0, null], ["s1e3", 1, true, 0, 2]], "s1e2", "s1e2"]
+  ]
+}

@@ -350,7 +350,7 @@ public sealed partial class PlayerPage : UserControl
         _parts is { } parts && parts.Holds(item.Id) && item.Id != parts.Title.Id
             ? parts.Title with { UserData = parts.Title.UserData with { LastPlayedDate = item.UserData.LastPlayedDate } }
             : item with { UserData = item.UserData with { } };
-    /// <summary>The episode Lecture opens on a series: Jellyfin's next one, else one in progress, else the first unwatched.</summary>
+    /// <summary>The episode Lecture opens on a series: Jellyfin's next one, else <see cref="EpisodePages.Start"/> (one in progress, the first unwatched, the first: specials last).</summary>
     public static async Task<MediaItem> EpisodeOfAsync(Session session, MediaItem series)
     {
         var next = await session.NextEpisodeAsync(series.Id);
@@ -358,7 +358,7 @@ public sealed partial class PlayerPage : UserControl
         {
             var episodes = (await session.EpisodesAsync(series.Id)).Items;
             await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(episodes)));
-            next = episodes.FirstOrDefault(x => x.Resumable) ?? episodes.FirstOrDefault(x => !x.UserData.Played) ?? episodes.FirstOrDefault();
+            next = EpisodePages.Start(episodes);
         }
         return next ?? throw new IOException(L("Aucun épisode disponible.", "No episode available."));
     }

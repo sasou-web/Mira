@@ -61,6 +61,40 @@ public static class EpisodePages
     public static EpisodePage? NextElsewhere(IReadOnlyList<EpisodePage> pages, IReadOnlyList<MediaItem> episodes, EpisodePage? shown, MediaItem? next) =>
         Holding(pages, episodes, next) is { } holding && shown is not null && (holding.Season != shown.Season || holding.Skip != shown.Skip) ? holding : null;
 
+    /// <summary>
+    /// The episode Lecture opens on a series when Jellyfin's next up says none (a series watched to its end, or watched
+    /// out of order; Shows/NextUp also leaves the specials out): <see cref="Unfinished"/>, else <see cref="Again"/>, else
+    /// the first, to watch it again. The numbered seasons come before the specials, which Jellyfin lists first (season 0):
+    /// « Revoir » starts at S01E01, not at a making-of (checked on 12.1). The iPhone's SeriesStart, cases of
+    /// tests/fixtures/series-start.json.
+    /// </summary>
+    public static MediaItem? Start(IReadOnlyList<MediaItem> episodes) => Unfinished(episodes) ?? Again(episodes) ?? Numbered(episodes).FirstOrDefault();
+
+    /// <summary>
+    /// A series watched to its end and being watched again: the episode after the one watched last, so that S01E03 follows
+    /// S01E02 watched again yesterday (Shows/NextUp, without enableRewatching, answers none once every episode is watched,
+    /// checked on 12.1). Null when that one is a special, or the last episode (a series watched to its end, or marked
+    /// watched at once: Jellyfin dates each episode in turn, in their order), or shares its date with another.
+    /// </summary>
+    public static MediaItem? Again(IReadOnlyList<MediaItem> episodes)
+    {
+        var dated = episodes.Where(x => x.UserData.LastPlayedDate is not null).OrderByDescending(x => x.UserData.LastPlayedDate).Take(2).ToList();
+        if (dated.Count == 0 || dated.Count == 2 && dated[0].UserData.LastPlayedDate == dated[1].UserData.LastPlayedDate) return null;
+        var ordered = episodes.Where(x => Season(x) != 0).ToList();
+        var at = ordered.FindIndex(x => x.Id == dated[0].Id);
+        return at >= 0 && at + 1 < ordered.Count ? ordered[at + 1] : null;
+    }
+
+    /// <summary>An episode left halfway, else the first not watched, the numbered seasons before the specials; null when all are watched.</summary>
+    public static MediaItem? Unfinished(IReadOnlyList<MediaItem> episodes)
+    {
+        var ordered = Numbered(episodes);
+        return ordered.FirstOrDefault(x => x.Resumable) ?? ordered.FirstOrDefault(x => !x.UserData.Played);
+    }
+
+    /// <summary>The episodes of the numbered seasons, then the specials, each in Jellyfin's order.</summary>
+    private static List<MediaItem> Numbered(IReadOnlyList<MediaItem> episodes) => [.. episodes.Where(x => Season(x) != 0), .. episodes.Where(x => Season(x) == 0)];
+
     /// <summary>The season of an episode; one without a number is in the first.</summary>
     public static int Season(MediaItem episode) => episode.ParentIndexNumber ?? 1;
     private static int Number(MediaItem episode, int position) => episode.IndexNumber ?? position + 1;
