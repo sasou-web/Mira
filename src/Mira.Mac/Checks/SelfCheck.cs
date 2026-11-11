@@ -108,6 +108,31 @@ public static class SelfCheck
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
             home.ScrollToEnd(); await Task.Delay(800); Capture(window, output, "02b-home-grid"); home.ScrollToHome();
+            // « Ajoutés récemment » goes on with « Afficher plus de titres »: Home refreshed (come back to, the player
+            // closed, a change on the server) keeps every title shown, as Windows' grid keeps its pages. It was asked for
+            // its first 30 only: a title come or a mark changed among them drew it again with those 30, under the reader.
+            if (mock is not null)
+            {
+                mock.Fillers = 100; await window.RefreshPagesAsync();
+                int Shown() => home.GetVisualDescendants().OfType<Mira.Mac.Views.CardGrid>().FirstOrDefault()?.Children.Count ?? 0;
+                Button? More() => home.GetVisualDescendants().OfType<Button>().FirstOrDefault(x => x.IsEffectivelyVisible
+                    && Avalonia.Automation.AutomationProperties.GetName(x) == Lang.L("Afficher plus de titres", "Show more titles"));
+                await Until(() => Shown() >= 30 && More() is not null, 10);
+                for (var i = 0; i < 2 && More() is { } more; i++)
+                {
+                    var before = Shown();
+                    more.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                    await Until(() => Shown() > before && More() is { IsEnabled: true }, 10);
+                }
+                var expanded = Shown();
+                mock.LatestAdded = true; await window.RefreshPagesAsync();
+                await Until(() => home.Latest.FirstOrDefault()?.Id == "filler-0", 10); await Task.Delay(300);
+                var kept = Shown();
+                Check(expanded >= 90 && kept >= expanded && home.Latest.FirstOrDefault()?.Id == "filler-0", "accueil : « Ajoutés récemment » garde tous ses titres à l’actualisation",
+                    $"{expanded} montrés, {kept} après un titre arrivé en tête");
+                mock.Fillers = 0; mock.LatestAdded = false; await window.RefreshPagesAsync();
+                await Until(() => home.Latest.All(x => !x.Id.StartsWith("filler")), 10);
+            }
             // « Nouveautés », as on Windows: the last versions, the newest marked;
             // Escape closes it and gives the keys back to the page.
             var missed = WhatsNew.Recent(Updates.Current);
