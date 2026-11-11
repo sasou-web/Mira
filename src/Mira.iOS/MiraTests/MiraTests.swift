@@ -74,6 +74,15 @@ struct JellyfinTests {
         #expect(backdrop.absoluteString == "http://nas:8096/Items/abc/Images/Backdrop/0?maxWidth=3840&quality=90&tag=t2")
     }
 
+    @Test("Un « + » tapé arrive à Jellyfin comme un « + », jamais comme une espace")
+    func plusSign() throws {
+        let url = client.url("Items", ["searchTerm": "C++ & co", "name": "Marvel + DC"])
+        let query = try #require(url.query(percentEncoded: true))
+        #expect(query == "name=Marvel%20%2B%20DC&searchTerm=C%2B%2B%20%26%20co")
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(items.first { $0.name == "searchTerm" }?.value == "C++ & co")
+    }
+
     @Test("Les clés de Jellyfin en PascalCase ou en camelCase")
     func decoding() throws {
         let pascal = #"{"Id":"e1","Name":"Pilote","Type":"Episode","SeriesId":"s1","SeriesName":"Pioneer One","ParentIndexNumber":1,"IndexNumber":2,"RunTimeTicks":27000000000,"ImageTags":{"Primary":"p1"},"ImageBlurHashes":{"Primary":{"p1":"LEHV6nWB2yk8pyo0adR*.7kCMdnj"}},"UserData":{"PlaybackPositionTicks":9000000000,"Played":false,"LastPlayedDate":"2026-10-27T21:14:03.1234567Z"}}"#
