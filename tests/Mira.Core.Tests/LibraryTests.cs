@@ -1448,7 +1448,7 @@ internal static class LibraryTests
             var root = Path.Combine(testRoot, "offline"); var other = Path.Combine(testRoot, "offline-usb");
             var connection = new Connection("http://nas:8096/", "user-1", "Alice", "token", "device-1");
             var video = Enumerable.Range(0, 300_000).Select(x => (byte)(x % 251)).ToArray();
-            var ranges = new List<string>(); var cut = true; var ignoreRange = false; var refuse = false;
+            var ranges = new List<string>(); var cut = true; var ignoreRange = false; var refuse = false; var slowSubtitle = false;
             using var client = new JellyfinClient(connection, new Handler(request =>
             {
                 var path = request.RequestUri!.PathAndQuery;
@@ -1463,6 +1463,8 @@ internal static class LibraryTests
                     if (from > 0) response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(from, video.Length - 1, video.Length);
                     return Task.FromResult(response);
                 }
+                // Jellyfin not answering within the client's 12 s: HttpClient's TaskCanceledException.
+                if (path == "/Videos/film/src/Subtitles/2/0/Stream.srt" && slowSubtitle) return Task.FromException<HttpResponseMessage>(new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 12 seconds elapsing."));
                 if (path == "/Videos/film/src/Subtitles/2/0/Stream.srt") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("1\n00:00:01,000 --> 00:00:02,000\nBonjour\n") });
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
             }));
@@ -1478,6 +1480,15 @@ internal static class LibraryTests
             Assert(ranges.SequenceEqual(["", "bytes=150000-"]) && File.ReadAllBytes(copy.VideoPath).SequenceEqual(video) && !File.Exists(copy.PartPath), "Resumed: " + string.Join(" | ", ranges));
             Assert(copy.Complete && copy.Subtitles.Single() is { File: "subtitle-2.srt", Language: "fre", Title: "Français" } && File.ReadAllText(Path.Combine(copy.Folder, "subtitle-2.srt")).Contains("Bonjour"), "External subtitle only");
             Assert(OfflineCopies.Read(copy.Folder) is { Complete: true } read && read.BytesOnDisk > 300_000 && (await OfflineCopies.FetchAsync(client, read, null, CancellationToken.None)) == read with { } && ranges.Count == 2, "Complete: not fetched again");
+            // The video came whole, then Mira closed or Jellyfin went before its subtitles: the video is never fetched again,
+            // and a subtitle too slow to come leaves the copy watchable without it.
+            var unfinished = OfflineCopies.Read(copy.Folder)! with { Complete = false, Subtitles = [] };
+            OfflineCopies.Save(unfinished); File.Delete(Path.Combine(copy.Folder, "subtitle-2.srt"));
+            slowSubtitle = true; seen.Clear();
+            var finished = await OfflineCopies.FetchAsync(client, unfinished, new SyncProgress<(long Done, long Total)>(x => seen.Add(x.Done)), CancellationToken.None);
+            Assert(ranges.Count == 2 && finished is { Complete: true, Subtitles.Count: 0 } && OfflineCopies.Read(copy.Folder) is { Complete: true } && File.ReadAllBytes(finished.VideoPath).SequenceEqual(video) && seen.SequenceEqual([300_000L]),
+                "Video whole: not fetched again, slow subtitle left out: " + string.Join(" | ", ranges) + " ; " + string.Join(",", seen));
+            slowSubtitle = false;
             // A server that ignores the range: from the start again, never a file with its beginning twice.
             ignoreRange = true; ranges.Clear();
             var again = OfflineCopies.Plan(root, connection, film with { Id = "film" }, source, DateTimeOffset.UnixEpoch);

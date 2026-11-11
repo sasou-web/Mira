@@ -123,6 +123,8 @@ public static class OfflineCopies
     {
         if (copy.Complete && System.IO.File.Exists(copy.VideoPath)) return copy;
         Directory.CreateDirectory(copy.Folder);
+        // The video came whole before, and only its subtitles did not (Mira closed, Jellyfin gone): never fetched again.
+        if (VideoDone(copy) is { } whole) { progress?.Report((whole, whole)); return await FetchSubtitlesAsync(client, copy with { Size = whole }, ct); }
         var done = System.IO.File.Exists(copy.PartPath) ? new FileInfo(copy.PartPath).Length : 0;
         var response = await client.DownloadAsync(copy.Item.Id, done, ct);
         try
@@ -159,6 +161,21 @@ public static class OfflineCopies
         finally { response.Dispose(); }
         System.IO.File.Move(copy.PartPath, copy.VideoPath, overwrite: true);
         progress?.Report((done, done));
+        return await FetchSubtitlesAsync(client, copy, ct);
+    }
+    /// <summary>
+    /// The video's size when it is already whole in the folder: named so only once complete, at the size Jellyfin said, which
+    /// its manifest keeps (the copy in hand may be older than that answer). Null otherwise.
+    /// </summary>
+    private static long? VideoDone(OfflineCopy copy)
+    {
+        var size = Read(copy.Folder) is { Size: > 0 } saved ? saved.Size : copy.Size;
+        try { return size > 0 && new FileInfo(copy.VideoPath) is { Exists: true } video && video.Length == size ? size : null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+    /// <summary>The external subtitles beside the video, then the copy marked complete.</summary>
+    private static async Task<OfflineCopy> FetchSubtitlesAsync(JellyfinClient client, OfflineCopy copy, CancellationToken ct)
+    {
         var subtitles = new List<OfflineSubtitle>();
         foreach (var stream in copy.Source?.MediaStreams.Where(x => x.Type == "Subtitle" && x.IsExternal) ?? [])
         {
@@ -169,8 +186,8 @@ public static class OfflineCopies
                 await System.IO.File.WriteAllBytesAsync(Path.Combine(copy.Folder, name), bytes, ct);
                 subtitles.Add(new(name, stream.Index, stream.Language, stream.DisplayTitle));
             }
-            // A subtitle Jellyfin cannot give leaves the film watchable: it is only missing from the list.
-            catch (HttpRequestException) { }
+            // A subtitle Jellyfin cannot give, or not within its 12 s, leaves the film watchable: it is only missing from the list.
+            catch (Exception ex) when (ex is HttpRequestException or HttpIOException || ex is OperationCanceledException && !ct.IsCancellationRequested) { }
         }
         copy = copy with { Complete = true, Subtitles = subtitles };
         Save(copy);
