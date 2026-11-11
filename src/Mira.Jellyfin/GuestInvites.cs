@@ -136,6 +136,30 @@ public sealed class GuestInvites
         }
     }
 
+    /// <summary>
+    /// The guest made for a device that opened a party link (<see cref="Opening.Join"/>), checked again now that its
+    /// account is made: the party may have been made again meanwhile, filled up, or the same device may have got a
+    /// guest by a second tap. Then the account just made goes (to delete) and the device gets its guest, or null.
+    /// </summary>
+    public GuestInvite? JoinParty(string name, string userId, string password, string partyCode, string device)
+    {
+        lock (_gate)
+        {
+            var now = _now();
+            var party = _store.Parties.FirstOrDefault(x => Same(x.Code, partyCode));
+            var mine = party is null ? null : _store.Invites.FirstOrDefault(x => x.Party is not null && Same(x.Party, party.Code) && x.Device == device && now - x.Used < Unused);
+            if (party is null || mine is not null || _store.Invites.Count >= MaxInvites
+                || _store.Invites.Count(x => x.Party is not null && Same(x.Party, party.Code)) >= MaxPartyGuests)
+            {
+                _store.Gone.Add(userId);
+                Save();
+                return mine?.Copy();
+            }
+
+            return Add(name, userId, password, party.HostId, party.HostName, party.Code, device);
+        }
+    }
+
     /// <summary>A link taken back: no longer in the list, its account to delete. Null when there is none.</summary>
     public GuestInvite? Remove(string id)
     {
