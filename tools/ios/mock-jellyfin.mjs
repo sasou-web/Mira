@@ -16,6 +16,9 @@
 // no subtitles from its start (as the app asks to keep a title), is a conversion of an MKV: its HLS playlists cut
 // media/clip.mp4 into an init segment and segments, put end to end again by the app; its subtitles as WebVTT; where a
 // title kept was watched without the mock, told by UserItems/{id}/UserData (listed with the reports, « /UserData »).
+// As Jellyfin: Home's lists (Resume, NextUp, the latest, the favourites, what was watched) carry a title's files
+// (MediaSources) only when `fields` asks for them, and PlaybackInfo reads the tracks asked only for the file named
+// (MediaSourceId, 12.1); each ask is listed at /Mock/PlaybackInfo.
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
 import http from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
@@ -36,6 +39,8 @@ function mp4Seconds(data) {
   return scale ? length / scale : 0;
 }
 const reports = [];
+/** PlaybackInfo's asks: the title, the file named, the tracks asked. */
+const asks = [];
 let slow = 0, down = false, revoked = false;
 const marks = [];
 
@@ -163,6 +168,8 @@ function send(res, status, body) {
   res.end(body === undefined ? '' : JSON.stringify(body));
 }
 const list = (items) => ({ Items: items, TotalRecordCount: items.length, StartIndex: 0 });
+/** A list as Jellyfin sends it: the titles' files only when `fields` asks for them. */
+const listed = (items, q) => list((q.get('fields') ?? '').split(',').includes('MediaSources') ? items : items.map(({ MediaSources, ...rest }) => rest));
 
 // Pictures: a gradient of two colours taken from the item's id, at the asked width, as a PNG.
 const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
@@ -273,6 +280,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (path === '/System/Info/Public') return send(res, 200, { LocalAddress: `http://127.0.0.1:${port}`, ServerName: 'Maison', Version: '12.1.0', ProductName: 'Jellyfin Server', Id: SERVER_ID, StartupWizardCompleted: true });
   if (path === '/Mock/Reports') return send(res, 200, reports);
+  if (path === '/Mock/PlaybackInfo') return send(res, 200, asks);
   if (path === '/Mock/SyncPlay') return send(res, 200, { group, queue, requests: syncLog });
   // The stream needs no header: AVPlayer reads it by its address, the session in it (ApiKey).
   const video = /^\/Videos\/([0-9a-f]+)\/stream\.mp4$/.exec(path);
@@ -348,8 +356,8 @@ const server = http.createServer(async (req, res) => {
     box.titles = req.method === 'DELETE' ? box.titles.filter((x) => !ids.includes(x)) : [...new Set([...box.titles, ...ids])];
     return send(res, 204, undefined);
   }
-  if (path === '/UserItems/Resume') return send(res, 200, list([episodes[1], films[0]]));
-  if (path === '/Shows/NextUp') return send(res, 200, list([q.get('seriesId') ? episodes[1] : episodes[2]]));
+  if (path === '/UserItems/Resume') return send(res, 200, listed([episodes[1], films[0]], q));
+  if (path === '/Shows/NextUp') return send(res, 200, listed([q.get('seriesId') ? episodes[1] : episodes[2]], q));
   // An account that shows missing episodes (Jellyfin's « Display missing episodes within seasons »): as Jellyfin 12.1,
   // its episodes and seasons come with the virtual ones (and a season of missing episodes only) unless isMissing=false.
   const missingToo = q.get('isMissing') !== 'false';
@@ -367,9 +375,12 @@ const server = http.createServer(async (req, res) => {
     const item = everything.find((x) => x.Id === playback[1]);
     if (!item?.MediaSources) return send(res, 404, undefined);
     const body = JSON.parse(raw || '{}'), session = `play-${reports.length}`;
+    asks.push({ item: item.Id, source: body.MediaSourceId ?? null, audio: body.AudioStreamIndex ?? null, subtitles: body.SubtitleStreamIndex ?? null });
+    // The tracks asked, read for the file named only: Jellyfin's own default ones otherwise.
+    const named = body.MediaSourceId === item.MediaSources[0].Id;
     if (item === converted && body.SubtitleStreamIndex === -1 && !body.StartTimeTicks) {
       const source = { ...item.MediaSources[0], Container: 'mkv', SupportsDirectPlay: false, SupportsDirectStream: false, TranscodingSubProtocol: 'hls',
-        TranscodingUrl: `/videos/${item.Id}/master.m3u8?MediaSourceId=${item.Id}&PlaySessionId=${session}&AudioStreamIndex=${body.AudioStreamIndex ?? 1}` };
+        TranscodingUrl: `/videos/${item.Id}/master.m3u8?MediaSourceId=${item.Id}&PlaySessionId=${session}&AudioStreamIndex=${(named ? body.AudioStreamIndex : null) ?? 1}` };
       return send(res, 200, { MediaSources: [source], PlaySessionId: session });
     }
     return send(res, 200, { MediaSources: item.MediaSources, PlaySessionId: session });
@@ -474,9 +485,9 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { Items: found.slice(start, start + limit), TotalRecordCount: found.length, StartIndex: start });
   }
   if (path === '/Items') {
-    if (q.get('sortBy') === 'DatePlayed') return send(res, 200, list(everything.filter((x) => x.UserData?.LastPlayedDate)));
-    if (q.get('isFavorite') === 'true') return send(res, 200, list(everything.filter((x) => x.UserData?.IsFavorite && x.Type !== 'Episode')));
-    return send(res, 200, list(latest.slice(0, Number(q.get('limit') ?? 24))));
+    if (q.get('sortBy') === 'DatePlayed') return send(res, 200, listed(everything.filter((x) => x.UserData?.LastPlayedDate), q));
+    if (q.get('isFavorite') === 'true') return send(res, 200, listed(everything.filter((x) => x.UserData?.IsFavorite && x.Type !== 'Episode'), q));
+    return send(res, 200, listed(latest.slice(0, Number(q.get('limit') ?? 24)), q));
   }
   return send(res, 404, undefined);
 });

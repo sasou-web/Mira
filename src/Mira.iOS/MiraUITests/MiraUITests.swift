@@ -400,6 +400,42 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/Stopped", item: Self.sintel, timeout: 20), "Closing the bar did not stop Sintel")
     }
 
+    /// Home's banner plays what it shows with the tracks Mira chose, as a title's page does. Home's lists come without the
+    /// titles' files (Jellyfin gives them only when asked), and Jellyfin reads the tracks asked only for the file named
+    /// (12.1): the banner's Resume named none, and Jellyfin played its own audio under the one Mira's menu showed.
+    @MainActor
+    func testResumeFromBanner() throws {
+        let app = launch(language: "fr", locale: "fr_FR")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continuer à regarder"].waitForExistence(timeout: 20), "L'Accueil n'a pas montré Continuer à regarder")
+        dismissSavePassword(app)
+        // The slide on screen, whichever the banner turned to: each plays a title of Home's lists. The banner turns every
+        // 9 s and each slide has its button at the same place: touched where it is now (a button found before a turn is
+        // another slide's at the touch), and again if the touch fell during a turn or under a late « Save Password? ».
+        let buttons = app.buttons.matching(identifier: "banner.play")
+        XCTAssertTrue(buttons.firstMatch.waitForExistence(timeout: 10), "Pas de Reprendre dans le bandeau")
+        let before = playbackAsks().count
+        var asked: [[String: Any]] = []
+        for _ in 0..<3 where asked.isEmpty {
+            dismissSavePassword(app, timeout: 1)
+            if let shown = buttons.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+                let frame = shown.frame
+                app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+            }
+            let deadline = Date().addingTimeInterval(15)
+            while asked.isEmpty, Date() < deadline {
+                asked = Array(playbackAsks().dropFirst(before))
+                if asked.isEmpty { Thread.sleep(forTimeInterval: 0.5) }
+            }
+        }
+        let first = try XCTUnwrap(asked.first, "Jellyfin ne s'est jamais vu demander quoi lire")
+        let title = first["item"] as? String ?? "?"
+        XCTAssertEqual(first["source"] as? String, title, "Le bandeau n'a pas nommé le fichier de \(title) : Jellyfin lit alors ses propres pistes")
+        XCTAssertNotNil(first["audio"] as? Int, "Aucune piste audio demandée pour \(title)")
+        // Left as it is, not reduced and closed: the banner resumes minutes into the stand-in's clip of 10 s, which ends
+        // at once (a cut: « Lecture impossible », no Reduce button). The next test launches Mira anew.
+    }
+
     /// Mira's opening (App/Opening.swift), as Mira opens every day, signed in: Jellyfin slow to answer, the opening gives
     /// way to Home once drawn; Jellyfin away (every connection cut, a PC switched off), it gives way at once to the Home
     /// kept from the last time, which says it can't reach Jellyfin; Jellyfin back, Retry brings Home.
@@ -928,6 +964,13 @@ final class MiraUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.5)
         }
         return false
+    }
+
+    /// What the stand-in Jellyfin was asked to play (PlaybackInfo), in order: the title, the file named, the tracks.
+    private func playbackAsks() -> [[String: Any]] {
+        guard let data = try? Data(contentsOf: URL(string: "http://\(Self.server)/Mock/PlaybackInfo")!),
+              let asks = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return asks
     }
 
     /// How many reports of this kind about this title the stand-in Jellyfin has received.

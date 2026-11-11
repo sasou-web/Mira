@@ -216,6 +216,10 @@ final class PlayerSession: NSObject {
         }
         kept = nil
         do {
+            // A title known without its files (what Home's lists bring, its banner's Resume among them): read first, for
+            // the file's bitrate, the tracks to choose from and the file to name. Jellyfin reads the tracks asked only for
+            // the file named (MediaSourceId, 12.1): without it, it played its own audio under the one the menu showed.
+            if source == nil, item.mediaSources?.first?.mediaStreams?.isEmpty != false { await loadFiles() }
             let fileBitrate = source?.bitrate ?? item.mediaSources?.first?.bitrate ?? 0
             if bitrate == nil {
                 askedUnder = app?.mobileCap
@@ -228,7 +232,7 @@ final class PlayerSession: NSObject {
             }
             if !tracksChosen {
                 tracksChosen = true
-                await chooseTracks()
+                chooseTracks()
             }
             if passagesFor != item.id { loadPassages() }
             guard attempt == opening, !closed else { return }
@@ -308,13 +312,17 @@ final class PlayerSession: NSObject {
         attach(app?.keeper.videoURL(copy) ?? URL.temporaryDirectory, startSeconds: Double(ticks) / Double(ItemText.ticksPerSecond))
     }
 
+    /// The title's files, as Items/{id} gives them, for a title that came without them; kept when Jellyfin does not say.
+    private func loadFiles() async {
+        guard let full = try? await client.item(item.id), full.id == item.id, let files = full.mediaSources, !files.isEmpty else { return }
+        item.mediaSources = files
+    }
+
     /// Nothing chosen on the title's page: the series' last tracks, else the languages of Settings (TrackChoice, as
     /// Mira web), from the file's tracks.
-    private func chooseTracks() async {
-        guard audioIndex == nil, subtitleIndex == nil, let preferences = app?.preferences else { return }
-        var file = item.mediaSources?.first
-        if file?.mediaStreams?.isEmpty != false { file = (try? await client.item(item.id))?.mediaSources?.first }
-        guard let file, file.mediaStreams?.isEmpty == false, audioIndex == nil, subtitleIndex == nil else { return }
+    private func chooseTracks() {
+        guard audioIndex == nil, subtitleIndex == nil, let preferences = app?.preferences,
+              let file = item.mediaSources?.first, file.mediaStreams?.isEmpty == false else { return }
         let chosen = TrackChoice.choose(file, memory: preferences.tracks(for: item.seriesId), audioOrder: preferences.audioOrder, subtitleOrder: preferences.subtitleOrder)
         audioIndex = chosen.audio
         subtitleIndex = chosen.subtitle

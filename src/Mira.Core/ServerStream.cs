@@ -24,7 +24,8 @@ public sealed record ServerStream(MediaSource Source, string PlaySessionId, stri
 /// <summary>
 /// What a title is opened with: where (seconds), and for a conversion the audio track and the picture subtitles to draw
 /// into it, by Jellyfin's index (-1 for <paramref name="Burn"/>: none). Null: chosen by the series' <paramref name="Memory"/>,
-/// else by the languages of the settings. Text subtitles are mpv's to choose: they come beside the video.
+/// else by the languages of the settings (the audio) and by Jellyfin (the pictures: its default ones, by the flags of the
+/// file and the account's settings). Text subtitles are mpv's to choose: they come beside the video.
 /// </summary>
 public sealed record StreamWish(double Start, int? Audio = null, int? Burn = null, TrackMemory? Memory = null);
 
@@ -108,6 +109,12 @@ public static partial class ServerStreams
         return null;
     }
     private static int? Index(string? address, string name) => int.TryParse(Parameter(address, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) ? index : null;
+    /// <summary>
+    /// The subtitles a conversion draws into its video, by Jellyfin's index (« SubtitleMethod=Encode »); null for none.
+    /// Jellyfin reads the tracks asked only for the file named (MediaSourceId, 12.1): before, it draws its own default ones.
+    /// </summary>
+    public static int? Drawn(string? address) =>
+        string.Equals(Parameter(address, "SubtitleMethod"), "Encode", StringComparison.OrdinalIgnoreCase) && Index(address, "SubtitleStreamIndex") is >= 0 and var index ? index : null;
     /// <summary>Why Jellyfin converts, in its words (« ContainerBitrateExceedsLimit »); <see cref="Viewers.Reason"/> says them.</summary>
     public static IReadOnlyList<string> Reasons(string? address) => Parameter(address, "TranscodeReasons") is { Length: > 0 } reasons ? reasons.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [];
 
@@ -217,15 +224,18 @@ public static partial class ServerStreams
             var source = info.MediaSources.FirstOrDefault() ?? throw new IOException(L("Aucune source lisible disponible.", "No playable source available."));
             sourceId = source.Id;
             var converted = Converts(source);
+            // What the conversion carries, as Jellyfin decided: until the file is named, its own default tracks, whatever
+            // was asked (it draws its default picture subtitles into the video then, and the menu said none).
             var given = converted ? Index(source.TranscodingUrl, "AudioStreamIndex") ?? asked.Audio : asked.Audio;
+            var drawn = converted ? Drawn(source.TranscodingUrl) : null;
             // What this answer asks for: « Automatique » with the file's own bitrate, now known; a conversion's tracks.
             var wanted = asked;
             if (source.Bitrate is > 0 and var known && known != fileBitrate) { fileBitrate = known; wanted.Bitrate = await speed.BitrateAsync(quality, atHome, known, Measure); }
-            if (converted) wanted = (wanted.Bitrate, wish.Audio ?? AudioFor(source, wish.Memory, audioLanguages) ?? given, wish.Burn is { } burn ? (burn >= 0 ? burn : null) : BurnFor(source, wish.Memory));
-            if (round < 2 && (wanted.Bitrate != asked.Bitrate || converted && (wanted.Audio != given || wanted.Burned != asked.Burned))) { asked = wanted; continue; }
+            if (converted) wanted = (wanted.Bitrate, wish.Audio ?? AudioFor(source, wish.Memory, audioLanguages) ?? given, wish.Burn is { } burn ? (burn >= 0 ? burn : null) : wish.Memory is null ? drawn : BurnFor(source, wish.Memory));
+            if (round < 2 && (wanted.Bitrate != asked.Bitrate || converted && (wanted.Audio != given || wanted.Burned != drawn))) { asked = wanted; continue; }
             var session = string.IsNullOrEmpty(info.PlaySessionId) ? Guid.NewGuid().ToString("N") : info.PlaySessionId;
             if (converted)
-                return new(source, session, client.ServerUri(WithoutKey(source.TranscodingUrl!)).AbsoluteUri, client.AuthorizationHeader, true, given, asked.Burned, asked.Bitrate, Reasons(source.TranscodingUrl));
+                return new(source, session, client.ServerUri(WithoutKey(source.TranscodingUrl!)).AbsoluteUri, client.AuthorizationHeader, true, given, drawn, asked.Bitrate, Reasons(source.TranscodingUrl));
             // Jellyfin on this same computer: its file, read directly.
             if (new Uri(client.Connection.Server).IsLoopback && string.Equals(source.Protocol, "File", StringComparison.OrdinalIgnoreCase) && source.Path is { } path && await fileHere(path))
                 return new(source, session, path, null, false, null, null, asked.Bitrate, []);
