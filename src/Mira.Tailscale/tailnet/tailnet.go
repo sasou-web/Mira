@@ -72,7 +72,10 @@ type Node struct {
 	subs    map[int]func(Status)
 	nextSub int
 	authURL []chan string // Login calls waiting for a login page
-	closed  bool
+	// loginAsked is when the node asked Tailscale for a login that has not brought its page yet; zero when none is
+	// waiting. Login waits for that page rather than asking again (see Login).
+	loginAsked time.Time
+	closed     bool
 	// conns are the connections Dial made, idle or not: those of a device that goes offline are closed (dropGone).
 	conns map[*deviceConn]struct{}
 }
@@ -120,6 +123,13 @@ func Start(cfg Config) (*Node, error) {
 	if n.lc, err = n.srv.LocalClient(); err != nil {
 		return fail(err)
 	}
+	// A node that needs a login asks for one as it starts (tsnet does): Login waits for that login's page.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	st, err := n.lc.StatusWithoutPeers(ctx)
+	cancel()
+	if err == nil && st.BackendState == ipn.NeedsLogin.String() && st.AuthURL == "" {
+		n.loginAsked = time.Now()
+	}
 	dialer, ok := n.srv.Sys().Dialer.GetOK()
 	if !ok || dialer.NetstackDialTCP == nil {
 		return fail(errors.New("tailnet: the node has no network stack of its own"))
@@ -153,9 +163,18 @@ func (n *Node) Close() error {
 	return err
 }
 
+// loginPatience is how long Login waits for the page of a login already asked for before asking again, in case that
+// login was lost: a page comes within seconds when Tailscale's coordination server answers.
+const loginPatience = 15 * time.Second
+
 // Login returns the page that logs this node in: the one already offered, or a new one. The node joins the tailnet as
 // soon as the person approves it there; Status then turns StateRunning (or StateMachineAuth when the tailnet's admin
 // must approve new devices).
+//
+// A login asked for and still without its page (the one a node asks for as it starts, or another Login's) is waited
+// for, not asked again: asking again made Tailscale drop it for another, with a new node key, and the dropped login's
+// page could still come first (CI, 2026-11-11): opened, it logged in a key the node no longer used, and the node never
+// joined.
 func (n *Node) Login(ctx context.Context) (string, error) {
 	n.mu.Lock()
 	if n.closed {
@@ -169,6 +188,13 @@ func (n *Node) Login(ctx context.Context) (string, error) {
 	}
 	ch := make(chan string, 1)
 	n.authURL = append(n.authURL, ch)
+	var patience time.Duration
+	if !n.loginAsked.IsZero() {
+		patience = loginPatience - time.Since(n.loginAsked)
+	}
+	if patience <= 0 {
+		n.loginAsked = time.Now()
+	}
 	n.mu.Unlock()
 	defer func() {
 		n.mu.Lock()
@@ -180,6 +206,24 @@ func (n *Node) Login(ctx context.Context) (string, error) {
 		}
 		n.mu.Unlock()
 	}()
+	if patience > 0 {
+		// Its page may have come before anything watched for it.
+		if st, err := n.lc.StatusWithoutPeers(ctx); err == nil && st.BackendState == ipn.NeedsLogin.String() && st.AuthURL != "" {
+			return st.AuthURL, nil
+		}
+		timer := time.NewTimer(patience)
+		defer timer.Stop()
+		select {
+		case url := <-ch:
+			return url, nil
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-timer.C:
+		}
+		n.mu.Lock()
+		n.loginAsked = time.Now()
+		n.mu.Unlock()
+	}
 	if err := n.lc.StartLoginInteractive(ctx); err != nil {
 		return "", err
 	}
@@ -194,7 +238,11 @@ func (n *Node) Login(ctx context.Context) (string, error) {
 // Logout signs this node out of its tailnet: the device turns « logged out » in the admin console, and the node waits for
 // a new Login.
 func (n *Node) Logout(ctx context.Context) error {
-	return n.lc.Logout(ctx)
+	err := n.lc.Logout(ctx)
+	n.mu.Lock()
+	n.loginAsked = time.Time{} // a login in progress ends with the logout
+	n.mu.Unlock()
+	return err
 }
 
 // Rebind makes the node take a fresh look at the network after the computer woke up or changed networks: new sockets, its
@@ -297,6 +345,7 @@ func (n *Node) offerLogin(url string) {
 	n.mu.Lock()
 	waiting := n.authURL
 	n.authURL = nil
+	n.loginAsked = time.Time{} // the login asked for brought its page
 	n.mu.Unlock()
 	for _, ch := range waiting {
 		select {
