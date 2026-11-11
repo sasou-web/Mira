@@ -156,8 +156,10 @@ struct WayPlanTests {
         tailnet.peers = [Home.pc]
         #expect(hint(.cellular, tailnet, Home.server, [tailscale]) == .serverNotFound)
         // Said at once only what the person alone can change; the rest may last a moment only (Mira opening in 5G).
-        #expect([WayPlan.Hint.noNetwork, .signedOut, .expired, .approval].allSatisfy(\.sure))
-        #expect(![WayPlan.Hint.tailscaleOff, .starting, .offline, .serverOffline("maison-pc"), .serverNotFound].contains(where: \.sure))
+        let sure: [WayPlan.Hint] = [.noNetwork, .signedOut, .expired, .approval]
+        let passing: [WayPlan.Hint] = [.tailscaleOff, .starting, .offline, .serverOffline("maison-pc"), .serverNotFound]
+        #expect(sure.map(\.sure) == [true, true, true, true])
+        #expect(passing.map(\.sure) == [false, false, false, false, false])
     }
 
     @Test("L'appareil d'une adresse : son IP Tailscale, son nom MagicDNS entier ou court")
