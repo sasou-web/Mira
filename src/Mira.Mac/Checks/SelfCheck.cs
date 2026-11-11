@@ -1010,6 +1010,17 @@ public static class SelfCheck
                 await Until(() => window.Current is HomePage, 10);
             }
 
+            // —— « Lire sur… » from another device while the window is in the Dock: back as from the Dock icon ——
+            if (mock is not null)
+            {
+                await window.CloseToDockAsync();
+                window.Remote(window.Session!, new RemoteCommand(RemoteAction.Play) { ItemId = "movie-1", Start = 0 });
+                var played = await Until(() => window.Player is { IsFileLoaded: true }, 20);
+                Check(played && window.IsVisible && !window.InDock && !window.Away, "télécommande : « Lire sur… » ramène la fenêtre du Dock",
+                    $"lu {played}, visible {window.IsVisible}, Dock {window.InDock}");
+                await window.StopPlaybackAsync();
+            }
+
             // —— Sign-out ——
             if (mock is not null)
             {
