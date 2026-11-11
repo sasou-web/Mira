@@ -41,8 +41,17 @@
     {
       "preferences": "kor,ko",
       "languages": [
+        "kor",
         "fre",
         "eng"
+      ]
+    },
+    {
+      "preferences": "xyz,dut,nld,nl,eng",
+      "languages": [
+        "dut",
+        "eng",
+        "fre"
       ]
     }
   ],
@@ -309,6 +318,30 @@
       "preferences": "",
       "format": "srt",
       "language": "fre",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Drama.S01E01.ko.srt",
+      "preferences": "eng,en",
+      "format": "srt",
+      "language": "kor",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Film.2019.zh.forced.ass",
+      "preferences": "fre,fra,fr",
+      "format": "ass",
+      "language": "chi",
+      "forced": true,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Episode 05.srt",
+      "preferences": "kor,ko,eng,en",
+      "format": "srt",
+      "language": "kor",
       "forced": false,
       "hearingImpaired": false
     },
