@@ -60,7 +60,12 @@ struct JellyfinClient: Sendable {
     func url(_ path: String, _ query: [String: String?] = [:]) -> URL {
         var parts = URLComponents(url: server.appending(path: path), resolvingAgainstBaseURL: false)!
         let items = query.compactMap { key, value in value.map { URLQueryItem(name: key, value: $0) } }.sorted { $0.name < $1.name }
-        if !items.isEmpty { parts.queryItems = items }
+        if !items.isEmpty {
+            parts.queryItems = items
+            // URLComponents leaves a « + » as it is (RFC 3986 allows it in a query), and Jellyfin reads it as a space, as a
+            // form does: « C++ » was searched as « C  », a collection « Marvel + DC » made as « Marvel   DC » (checked on 12.1).
+            parts.percentEncodedQuery = parts.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        }
         return parts.url!
     }
 
