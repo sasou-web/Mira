@@ -243,10 +243,10 @@ public sealed class DetailPage : Page
     }
 
     /// <summary>The episode Lecture opens on a series: Jellyfin's next one, else one in progress, else the first unwatched.</summary>
-    private MediaItem? SeriesTarget => _next ?? _allEpisodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _allEpisodes.FirstOrDefault(x => !x.UserData.Played) ?? _allEpisodes.FirstOrDefault();
+    private MediaItem? SeriesTarget => _next ?? _allEpisodes.FirstOrDefault(x => x.Resumable) ?? _allEpisodes.FirstOrDefault(x => !x.UserData.Played) ?? _allEpisodes.FirstOrDefault();
 
     /// <summary>Lecture picks up where it stopped: started, not finished, and Mira set to remember.</summary>
-    private bool Resumes(MediaItem item) => item.Progress > 0 && !item.UserData.Played && Shell.Settings.RememberPosition;
+    private bool Resumes(MediaItem item) => item.Resumable && Shell.Settings.RememberPosition;
 
     /// <summary>
     /// A click changed the page (Favori, Vu): from then on, until the player opens, it keeps where everything is, as on
@@ -888,7 +888,7 @@ public sealed class DetailPage : Page
         thumb.Children.Add(image);
         thumb.Children.Add(new Border { Background = Ui.Brush("#33000000") });
         thumb.Children.Add(new Icon("play", 22) { Foreground = Brushes.White });
-        if (episode.Progress > 0 && !episode.UserData.Played) thumb.Children.Add(new ProgressLine { Value = episode.Progress, Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(8, 0, 8, 7) });
+        if (episode.Resumable) thumb.Children.Add(new ProgressLine { Value = episode.Progress, Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(8, 0, 8, 7) });
         var art = new Border { CornerRadius = new CornerRadius(6), ClipToBounds = true, Child = thumb };
         var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
         var copy = Ui.Column(6,

@@ -460,7 +460,7 @@ public partial class MainWindow
                 AddCollectionActions(menu, item);
                 return;
             }
-            var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
+            var resume = item.Resumable && _settings.RememberPosition;
             menu.Items.Add(MenuAction(resume ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", async () => await PlayAsync(item, chosen: true)));
             if (resume) menu.Items.Add(MenuAction(L("Lire depuis le début", "Play from the beginning"), "refresh", async () => await PlayAsync(item, fromStart: true, chosen: true)));
             menu.Items.Add(MenuAction(item.Type == "Episode" ? L("Voir la série", "View show") : L("Voir la fiche", "View details"), "info", async () => await ShowDetailsAsync(await PageItemAsync(item))));
@@ -481,7 +481,7 @@ public partial class MainWindow
     private async Task HideFromResumeAsync(MediaItem item)
     {
         var group = ContinueWatching.Group(item); var ticks = item.UserData.PlaybackPositionTicks;
-        var resumable = ticks > 0 && !item.UserData.Played;
+        var resumable = item.Resumable;
         var client = _demo ? null : _client; var store = _store;
         var at = DateTimeOffset.UtcNow; _catalog.HiddenResume[group] = at;
         if (resumable) _catalog.RecentPlayback.RemoveAll(x => x.Id == item.Id);

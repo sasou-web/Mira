@@ -75,7 +75,7 @@ public sealed class MediaCard : Button
         Background = Brushes.Transparent; Padding = new Thickness(0);
         BorderThickness = new Thickness(0); HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Top; Margin = new Thickness(0, 0, 22, wide ? 5 : 30);
-        System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Progress > 0 && !item.UserData.Played ? L("Reprendre ", "Resume ") : L("Regarder ", "Watch ") : L("Ouvrir ", "Open ")) + item.DisplayTitle + (item.UserData.Played ? L(", vu", ", watched") : item.EpisodesToWatchText is { } toWatch ? ", " + toWatch : ""));
+        System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Resumable ? L("Reprendre ", "Resume ") : L("Regarder ", "Watch ") : L("Ouvrir ", "Open ")) + item.DisplayTitle + (item.UserData.Played ? L(", vu", ", watched") : item.EpisodesToWatchText is { } toWatch ? ", " + toWatch : ""));
         // Transparent, not empty: the whole card answers the pointer, as the template's background did.
         var root = new StackPanel { Background = Brushes.Transparent };
         _visual = new Grid { Background = Palette.Get("Raised"), ClipToBounds = true };
@@ -134,7 +134,7 @@ public sealed class MediaCard : Button
         // Focus from a mouse click must not leave a highlight behind once the pointer moves on.
         GotKeyboardFocus += (_, _) => { if (InputManager.Current.MostRecentInputDevice is KeyboardDevice && Accessible.GetFocusRingShown(this)) FocusEntered?.Invoke(this); };
         LostKeyboardFocus += (_, _) => { if (!IsMouseOver) HoverLeft?.Invoke(this); };
-        if (item.Progress > 0 && !item.UserData.Played && (wide || settings.ShowProgress))
+        if (item.Resumable && (wide || settings.ShowProgress))
         {
             _visual.Children.Add(new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)) });
             _progress = new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Accent") }; _visual.Children.Add(_progress);
@@ -144,7 +144,7 @@ public sealed class MediaCard : Button
         Loaded += (_, _) => Live.Add(this); Unloaded += (_, _) => Live.Remove(this);
         root.Children.Add(TruncationTip.Attach(new TextBlock { Text = item.DisplayTitle, FontSize = 15, FontWeight = FontWeights.ExtraBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 21, Height = wide ? 23 : 42, Margin = new Thickness(0, 12, 3, 0), Foreground = Brushes.White }));
         // Resume cards say how much is left, which is what matters when picking something to finish.
-        var remaining = wide && item.Progress > 0 && !item.UserData.Played && item.RunTimeTicks is > 0
+        var remaining = wide && item.Resumable && item.RunTimeTicks is > 0
             ? TimeLeft(MediaItem.FormatDuration(TimeSpan.FromTicks(Math.Max(TimeSpan.TicksPerMinute, item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks)))) : null;
         static string TimeLeft(string time) => L("Reste " + time, time + " left");
         var meta = wide && item.Type == "Episode"

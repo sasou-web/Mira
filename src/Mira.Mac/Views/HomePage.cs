@@ -290,7 +290,7 @@ public sealed class HomePage : Page
         if (item.Type != "Series" && item.DurationLabel.Length > 0) tags.Children.Add(Ui.Tag(item.Progress > 0 ? Ui.Remaining(item) : item.DurationLabel));
         if (item.CommunityRating is { } rating) tags.Children.Add(Ui.Tag("★ " + Number(rating, "0.0")));
         _heroText.Children.Add(tags);
-        var resume = item.Progress > 0 && !item.UserData.Played;
+        var resume = item.Resumable;
         var heart = Ui.IconButton(item.UserData.IsFavorite ? "heart-filled" : "heart", item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = Shell.SetFavoriteAsync(item, !item.UserData.IsFavorite), "icon", 24);
         heart.Width = heart.Height = 46;
         _heroText.Children.Add(Ui.Row(12,
