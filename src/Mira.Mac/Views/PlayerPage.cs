@@ -236,9 +236,11 @@ public sealed partial class PlayerPage : UserControl
 
     // —— Start and stop ——
     /// <summary>
-    /// Opens <paramref name="item"/> (a series: its next episode); false when there is nothing to show (no account, a
-    /// newer start), a start that fails saying why on its own screen (PlayerPage.Failure.cs). With
-    /// <paramref name="groupStart"/>, for the group: there, paused until Jellyfin says when to play.
+    /// Opens <paramref name="item"/> (a series: its next episode); false when there is nothing to show (no account), a
+    /// start that fails saying why on its own screen (PlayerPage.Failure.cs). A start overtaken meanwhile (another title
+    /// in this player, or the player stopped) gives way and is true: what overtook it shows its own, and the player that
+    /// plays it must not be closed for this one. With <paramref name="groupStart"/>, for the group: there, paused until
+    /// Jellyfin says when to play.
     /// </summary>
     /// <param name="trailerDone">The film after its trailer (« Bande-annonce avant le film »): never its trailer again.</param>
     public async Task<bool> StartAsync(MediaItem item, bool fromStart = false, long? groupStart = null, bool trailerDone = false)
@@ -259,13 +261,13 @@ public sealed partial class PlayerPage : UserControl
             if (!trailerDone && groupStart is null && Trailers.PlaysFirst(_shell.Settings.TrailerFirst, item, start, Group.Active, _shell.KeptCopy(item.Id) is not null)
                 && await TrailerOfAsync(session, item) is { } trailer)
             {
-                if (generation != _generation) return false;
+                if (generation != _generation) return true;
                 film = item; item = trailer; start = 0;
             }
             var kept = _shell.KeptCopy(item.Id);
             var stream = kept is not null ? new ServerStream(kept.Source ?? new MediaSource(), Guid.NewGuid().ToString("N"), kept.VideoPath, null, false, null, null, 0, [])
                 : await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(session, item)), _shell.Settings.AudioLanguage, FileHere);
-            if (generation != _generation) return false;
+            if (generation != _generation) return true;
             UseStream(stream); _playingCopy = kept;
             _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
             _stillWatching.Started(DateTimeOffset.Now, _nextByItself); _nextByItself = false;
@@ -275,7 +277,8 @@ public sealed partial class PlayerPage : UserControl
             _next.IsEnabled = false; ShowEpisodeButtons(item);
 
             await OpenEngineAsync();
-            if (_mpv is null || generation != _generation) return false;
+            if (generation != _generation) return true;
+            if (_mpv is null) return false;
             // In a group: loaded paused, « ready » once there (GroupRestarted), played when Jellyfin says.
             _groupReadyPending = groupStart is not null; _groupStallSince = null; _groupStalled = false;
             if (groupStart is not null) { Group.SetAway(false); Group.Report("Buffering", _session.Position, false); }
@@ -291,7 +294,7 @@ public sealed partial class PlayerPage : UserControl
         }
         catch (Exception ex) when (Errors.Expected(ex) || ex is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
         {
-            if (generation != _generation) return false;
+            if (generation != _generation) return true;
             var started = L("La lecture n’a pas pu démarrer. ", "Playback couldn’t start. ");
             if (ex is IOException or FileNotFoundException) await FailAsync(started + ex.Message, item);
             // An engine that does not load will not load on another try either.
@@ -322,7 +325,10 @@ public sealed partial class PlayerPage : UserControl
     /// <summary>mpv and the view it draws into: OpenGL, else (no OpenGL, or MIRA_SOFTWARE_VIDEO set) in software.</summary>
     private async Task OpenEngineAsync()
     {
+        var opening = _generation;
         await ReleaseEngineAsync();
+        // Stopped, or another title asked for, meanwhile: that start makes its own engine.
+        if (opening != _generation) return;
         var player = new MpvPlayer(_shell.Settings, picture: PictureForPlayback());
         _mpv = player;
         // « Décalage de l’audio », kept from one title to the next until Mira quits, as on Windows.
@@ -347,15 +353,29 @@ public sealed partial class PlayerPage : UserControl
         IVideoSurface surface = Environment.GetEnvironmentVariable("MIRA_SOFTWARE_VIDEO") is { Length: > 0 } || repair >= 3 ? new SoftwareVideoView() : new VideoView();
         if (repair >= 1) Repair(player, surface, repair);
         _greyFlat = 0;
-        if (!await AttachAsync(surface, player) && surface is VideoView gl)
+        var attached = await AttachAsync(surface, player);
+        if (await GaveWayAsync(surface, player)) return;
+        if (!attached && surface is VideoView gl)
         {
             VideoFallback = gl.Problem ?? (gl.Initialized ? L("contexte de rendu mpv non créé", "mpv render context not created") : L("OpenGL indisponible dans cette fenêtre", "OpenGL unavailable in this window"));
             // This window has no OpenGL: the software view always works.
             await DetachAsync(surface);
+            if (await GaveWayAsync(surface, player)) return;
             surface = new SoftwareVideoView();
             if (!await AttachAsync(surface, player)) throw new InvalidOperationException(L("Aucun rendu vidéo disponible.", "No video rendering available."));
         }
         player.SetLevel(_volume.Value);
+    }
+    /// <summary>
+    /// The engine let go while its view waited for its first frame (stopped, or another title asked for): its view goes,
+    /// and the engine too if nothing freed it yet. Never handed to another view: mpv, destroyed, has no handle any more.
+    /// </summary>
+    private async Task<bool> GaveWayAsync(IVideoSurface surface, MpvPlayer player)
+    {
+        if (ReferenceEquals(_mpv, player)) return false;
+        await DetachAsync(surface);
+        player.Dispose();
+        return true;
     }
     /// <summary>mpv's view into <paramref name="host"/>: by default the player's place, or the small window while it is open (PlayerPage.Pip.cs).</summary>
     private async Task<bool> AttachAsync(IVideoSurface surface, MpvPlayer player, Panel? host = null)

@@ -38,6 +38,8 @@ internal static unsafe class MpvRender
 
     public static IntPtr Create(MpvPlayer player, Param* parameters)
     {
+        // An engine already destroyed: mpv would read through no handle (SIGSEGV in mpv_render_context_create).
+        if (player.Handle == IntPtr.Zero) throw new InvalidOperationException("mpv n’est plus là pour le rendu vidéo.");
         var create = (delegate* unmanaged[Cdecl]<IntPtr*, IntPtr, Param*, int>)player.Export("mpv_render_context_create");
         IntPtr context;
         var result = create(&context, player.Handle, parameters);
@@ -77,6 +79,8 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
     {
         // Normally done by OnOpenGlDeinit when the view leaves the window; this covers a view still attached.
         _player = null;
+        // Given up before its first frame: no longer waited for.
+        _ready?.TrySetResult(false);
         if (_context != IntPtr.Zero) Failed?.Invoke("Le rendu vidéo n’a pas été libéré à temps.");
     }
     protected override void OnOpenGlInit(GlInterface gl) { _gl = gl; Initialized = true; }
@@ -260,7 +264,6 @@ public sealed unsafe class SoftwareVideoView : Control, IVideoSurface
     public Task<bool> AttachAsync(MpvPlayer player)
     {
         _player = player; _library = player.Library;
-        _self = GCHandle.Alloc(this);
         var api = Marshal.StringToCoTaskMemUTF8("sw");
         try
         {
@@ -270,6 +273,7 @@ public sealed unsafe class SoftwareVideoView : Control, IVideoSurface
             _context = MpvRender.Create(player, parameters);
         }
         finally { Marshal.FreeCoTaskMem(api); }
+        _self = GCHandle.Alloc(this);
         MpvRender.SetUpdateCallback(player, _context, &OnUpdate, GCHandle.ToIntPtr(_self));
         _thread = new Thread(RenderLoop) { IsBackground = true, Name = "Mira video" };
         _thread.Start();
