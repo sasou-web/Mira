@@ -77,25 +77,30 @@ extension JellyfinClient {
     }
 
     /// The episode after this one in its series, in Jellyfin's order (specials where Jellyfin puts them); nil after the
-    /// last one.
+    /// last one. Only those in the library: an account that shows missing episodes in Jellyfin (« Display missing
+    /// episodes within seasons », with TheTVDB's extension) has them in this list too, which play nothing
+    /// (`NoCompatibleStream`; checked on Jellyfin 12.1).
     func episode(after episode: Item) async throws -> Item? {
         guard let series = episode.seriesId else { return nil }
         let list: ItemList = try await get("Shows/\(series)/Episodes", [
-            "userId": userId, "startItemId": episode.id, "limit": "2", "fields": "MediaSources", "enableUserData": "true",
+            "userId": userId, "startItemId": episode.id, "limit": "2", "isMissing": "false", "fields": "MediaSources", "enableUserData": "true",
         ])
         guard let items = list.items, items.first?.id == episode.id, items.count > 1 else { return nil }
         return items[1]
     }
 
-    /// A series' seasons, in order (specials first when Jellyfin has them).
+    /// A series' seasons, in order (specials first when Jellyfin has them). Not a season of missing episodes only (TheTVDB's
+    /// extension, for an account that shows them): isMissing=false still keeps the season Jellyfin makes for episodes
+    /// with no season folder, also « Virtual » (checked on Jellyfin 12.1).
     func seasons(_ series: String) async throws -> [Item] {
-        try await get("Shows/\(series)/Seasons", ["userId": userId, "enableUserData": "true", "enableImages": "false"], as: ItemList.self).items ?? []
+        try await get("Shows/\(series)/Seasons", ["userId": userId, "isMissing": "false", "enableUserData": "true", "enableImages": "false"], as: ItemList.self).items ?? []
     }
 
-    /// A season's episodes, in order, with their pictures, progress and files (for their languages).
+    /// A season's episodes, in order, with their pictures, progress and files (for their languages). Only those in the
+    /// library, as on Windows and Mac: the missing ones are said by the line above them (EpisodeCalendar).
     func episodes(_ series: String, season: String) async throws -> [Item] {
         try await get("Shows/\(series)/Episodes", [
-            "userId": userId, "seasonId": season, "fields": "Overview,MediaSources", "enableUserData": "true",
+            "userId": userId, "seasonId": season, "isMissing": "false", "fields": "Overview,MediaSources", "enableUserData": "true",
             "enableImageTypes": "Primary,Thumb,Backdrop", "imageTypeLimit": "1",
         ], as: ItemList.self).items ?? []
     }

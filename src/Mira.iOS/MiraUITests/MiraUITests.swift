@@ -579,6 +579,14 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Triangle'")).firstMatch.exists, "The list does not name the missing episode")
         settle()
         capture("60-series-calendar")
+        // An account that shows missing episodes in Jellyfin (the stand-in lists them so unless asked isMissing=false):
+        // they are on this line only, never a season of their own nor rows to play (they play nothing).
+        XCTAssertFalse(app.buttons["Season 2"].exists, "A season of missing episodes only is offered")
+        let third = app.buttons["episode.play.3"]
+        for _ in 0..<5 where !(third.exists && third.isHittable) { app.swipeUp() }
+        app.swipeUp()
+        XCTAssertTrue(third.exists, "The series page lists no third episode")
+        XCTAssertFalse(app.buttons["episode.play.4"].exists || app.buttons["episode.play.5"].exists, "A missing episode is listed to play")
         app.navigationBars.buttons.firstMatch.tap()
 
         for _ in 0..<3 { app.swipeDown() }
