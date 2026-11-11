@@ -399,6 +399,36 @@ internal static class LibraryTests
             await client.DeleteCollectionAsync("c2");
             Assert(asked[^1] == "DELETE /Items/c2", asked[^1]);
         });
+        await Test("Collections à la main : un nom pris est refusé même après la 500e collection, et le menu les liste toutes", async () =>
+        {
+            // Jellyfin 12.1 gives a page of what it is asked (507 collections there: 500, then 7); a collection created under
+            // the name of one past the first page took its place, which lost its titles.
+            var collections = Enumerable.Range(0, 506).Select(i => (Id: $"c{i}", Name: $"Collection {i:000}"))
+                .Append((Id: "late", Name: "Zzz Soirées")).ToList();
+            var asked = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery; asked.Add($"{request.Method} {path}");
+                if (path.StartsWith("/Items?", StringComparison.Ordinal) && path.Contains("includeItemTypes=BoxSet"))
+                {
+                    var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
+                    var start = int.Parse(query["startIndex"] ?? "0", System.Globalization.CultureInfo.InvariantCulture); var limit = int.Parse(query["limit"] ?? "100000", System.Globalization.CultureInfo.InvariantCulture);
+                    var page = collections.Skip(start).Take(limit).Select(x => new { x.Id, x.Name, Type = "BoxSet", Path = $"/config/data/collections/{x.Name} [boxset]" });
+                    return Task.FromResult(JsonResponse(new { Items = page, TotalRecordCount = collections.Count }));
+                }
+                if (path.StartsWith("/Collections?", StringComparison.Ordinal)) return Task.FromResult(JsonResponse(new { Id = "made" }));
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            }));
+            try { await client.CreateCollectionAsync("zzz soirées", ["film"]); throw new Exception("The name of the 507th collection was sent: " + string.Join(" | ", asked)); }
+            catch (UserInputException ex) { Assert(ex.Message == "Ce nom est déjà pris par la collection « Zzz Soirées ».", ex.Message); }
+            Assert(!asked.Any(x => x.StartsWith("POST /Collections", StringComparison.Ordinal)), "Sent: " + string.Join(" | ", asked));
+            try { await client.RenameCollectionAsync("c3", "Zzz Soirées"); throw new Exception("Renamed to the name of the 507th collection"); } catch (UserInputException) { }
+            var all = await client.CollectionsAsync();
+            Assert(all.Count == 507 && all[^1].Id == "late", $"Listed: {all.Count}");
+            asked.Clear();
+            Assert((await client.CollectionsAsync(30)).Count == 30 && asked.Count == 1 && asked[0].Contains("limit=30"), "Home's row: " + string.Join(" | ", asked));
+            Assert(await client.CreateCollectionAsync("Nouvelle", []) == "made", "A free name");
+        });
         await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro", async () =>
         {
             var removed = DateTimeOffset.UtcNow.AddHours(-1);

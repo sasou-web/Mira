@@ -241,9 +241,27 @@ public sealed class JellyfinClient : IDisposable
         return others.Count == 0 ? null : new Saga(box.Name, others);
     }
     // Collections made by hand (TitleCollections), beside the sagas: Jellyfin's own, which only list titles.
-    /// <summary>Every collection this account sees, sagas and those made by hand, by name, with their folder (<see cref="TitleCollections.NameProblem"/>).</summary>
-    public async Task<List<MediaItem>> CollectionsAsync(int limit = 500, CancellationToken ct = default) =>
-        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=BoxSet&sortBy=SortName&limit={limit}&fields=ChildCount,Path&enableImages=true", ct)).Items;
+    /// <summary>
+    /// Every collection this account sees, sagas and those made by hand, by name, with their folder
+    /// (<see cref="TitleCollections.NameProblem"/>): page after page, since a new name is checked against all of them
+    /// (one past the first page that has it would lose its titles to the new one: checked on 12.1, with 507 collections)
+    /// and « Ajouter à une collection… » lists them all. <paramref name="limit"/>: the first ones only (Home's row).
+    /// </summary>
+    public async Task<List<MediaItem>> CollectionsAsync(int? limit = null, CancellationToken ct = default)
+    {
+        const int page = 500;
+        var all = new List<MediaItem>(); var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var start = 0;
+        while (limit is not { } most || all.Count < most)
+        {
+            var asked = limit is { } wanted ? Math.Clamp(wanted - all.Count, 1, page) : page;
+            var result = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=BoxSet&sortBy=SortName&startIndex={start}&limit={asked}&fields=ChildCount,Path&enableImages=true", ct);
+            start += result.Items.Count;
+            var fresh = result.Items.Where(x => seen.Add(x.Id)).ToList(); all.AddRange(fresh);
+            // The last page, or a server that gives the same page again: nothing more to ask.
+            if (result.Items.Count < asked || fresh.Count == 0 || start >= result.TotalRecordCount) break;
+        }
+        return all;
+    }
     /// <summary>The ids of the collections holding a title; null when Jellyfin cannot say (404: older than 12.1).</summary>
     public async Task<HashSet<string>?> CollectionsOfAsync(string id, CancellationToken ct = default)
     {

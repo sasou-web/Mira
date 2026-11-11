@@ -94,13 +94,28 @@ enum TitleCollections {
 }
 
 extension JellyfinClient {
-    /// Every collection this account sees, sagas and those made by hand, with their folder (TitleCollections.nameProblem).
+    /// Every collection this account sees, sagas and those made by hand, with their folder (TitleCollections.nameProblem):
+    /// page after page, since a new name is checked against all of them (one past the first page that has it would
+    /// lose its titles to the new one: checked on 12.1, with 507 collections) and the sheet lists them all.
     func collections() async throws -> [Item] {
-        let list: ItemList = try await get("Items", [
-            "userId": userId, "recursive": "true", "includeItemTypes": "BoxSet", "sortBy": "SortName", "limit": "500",
-            "fields": "ChildCount,Path", "enableImages": "false", "enableUserData": "false",
-        ])
-        return list.items ?? []
+        let page = 500
+        var all: [Item] = []
+        var seen = Set<String>()
+        var start = 0
+        while true {
+            let list: ItemList = try await get("Items", [
+                "userId": userId, "recursive": "true", "includeItemTypes": "BoxSet", "sortBy": "SortName",
+                "startIndex": String(start), "limit": String(page),
+                "fields": "ChildCount,Path", "enableImages": "false", "enableUserData": "false",
+            ])
+            let items = list.items ?? []
+            start += items.count
+            let fresh = items.filter { seen.insert($0.id.lowercased()).inserted }
+            all += fresh
+            // The last page, or a server that gives the same page again: nothing more to ask.
+            if items.count < page || fresh.isEmpty { return all }
+            if let total = list.totalRecordCount, start >= total { return all }
+        }
     }
 
     /// The ids of the collections holding a title; nil when Jellyfin cannot say (404: older than 12.1).
