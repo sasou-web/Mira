@@ -48,6 +48,21 @@ struct ServerAddressTests {
         #expect(!exposed("http://nas:8096"))
         #expect(!exposed("http://nas.local:8096"))
         #expect(exposed("http://100.200.1.1:8096"))
+        #expect(exposed("http://[2001:db8::1]:8096"))
+        #expect(!exposed("http://[fd7a:115c:a1e0::1]:8096"))
+        #expect(!exposed("http://[fe80::1]:8096"))
+    }
+
+    @Test("Une adresse IPv6 entre crochets : la connexion essaie le serveur au lieu de fermer Mira")
+    func bracketedIPv6() async throws {
+        #expect(try ServerAddress.candidates("[fd7a:115c:a1e0::1]:8096").map(\.absoluteString) == ["http://[fd7a:115c:a1e0::1]:8096", "https://[fd7a:115c:a1e0::1]:8096"])
+        let across = { (text: String) in ServerAddress.acrossInternet(URL(string: text)!) }
+        #expect(across("https://[2001:db8::1]"))
+        #expect(!across("https://[fd7a:115c:a1e0::1]"))
+        #expect(across("https://jellyfin.example.com"))
+        #expect(!across("https://nas.local"))
+        // Nothing listens there: the sign-in says so. Rebuilt from its host, « http://::1 » was no address, and Mira stopped.
+        await #expect(throws: JellyfinError.unreachable) { try await JellyfinClient.discover("[::1]:9") }
     }
 }
 
