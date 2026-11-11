@@ -248,8 +248,9 @@ extension JellyfinClient {
             var results = [Probe?](repeating: nil, count: candidates.count)
             var graceStarted = false, graceOver = false
             // A name of the Internet never ends in http:// once https:// failed on its certificate: someone on the way
-            // can make HTTPS fail just so, then answer in plain HTTP.
-            let internet = candidates.first.map { ServerAddress.exposesPassword(URL(string: "http://\($0.host(percentEncoded: false) ?? "")")!) } ?? false
+            // can make HTTPS fail just so, then answer in plain HTTP. Judged on the address itself: rebuilt from its
+            // host, an IPv6 address lost its brackets and made no address at all (Mira closed on « [fd7a::1]:8096 »).
+            let internet = candidates.first.map(ServerAddress.acrossInternet) ?? false
             func refused(_ index: Int) -> Bool {
                 internet && results[index]?.info?.address.scheme == "http"
                     && results[..<index].contains { $0?.failure == .certificate }

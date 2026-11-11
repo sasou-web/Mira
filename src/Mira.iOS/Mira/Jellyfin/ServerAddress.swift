@@ -59,10 +59,15 @@ enum ServerAddress {
 
 
     /// Whether signing in at this address sends the password in clear across the Internet: plain http:// to a server
-    /// that is neither on the home network nor on Tailscale. A dotted name of the Internet always counts (the network's
-    /// DNS may lie); a single name (« nas ») or an address of a home network or of Tailscale does not.
-    static func exposesPassword(_ server: URL) -> Bool {
-        guard server.scheme == "http", var host = server.host(percentEncoded: false)?.lowercased() else { return false }
+    /// that is neither on the home network nor on Tailscale (acrossInternet).
+    static func exposesPassword(_ server: URL) -> Bool { server.scheme == "http" && acrossInternet(server) }
+
+    /// Whether this server is reached across the Internet, whatever its scheme: neither on the home network nor on
+    /// Tailscale. A dotted name of the Internet always counts (the network's DNS may lie); a single name (« nas ») or an
+    /// address of a home network or of Tailscale does not. The host is judged as it is: an IPv6 address comes without
+    /// its brackets, and never makes an address again on its own (« http://fd7a::1 » is none).
+    static func acrossInternet(_ server: URL) -> Bool {
+        guard var host = server.host(percentEncoded: false)?.lowercased() else { return false }
         host = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]."))
         if let ip = IPv4(host) { return !ip.isPrivate }
         if host.contains(":") { return !(host == "::1" || host.hasPrefix("fe80:") || host.hasPrefix("fc") || host.hasPrefix("fd") || host.hasPrefix("fd7a:115c:a1e0:")) }
