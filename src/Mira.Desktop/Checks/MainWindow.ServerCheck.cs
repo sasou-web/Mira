@@ -146,6 +146,18 @@ public partial class MainWindow
             await UntilServer("« Continuer à regarder »", async () => { await RefreshAsync(quiet: true); return _catalog.Resume.FirstOrDefault(x => x.Id == cut.Id); }, 30);
             Require(true, "the film stopped halfway is in « Continuer à regarder »");
 
+            // The next title opening from the player (the next episode by itself, its file just ended), then the player
+            // closed while Jellyfin answers: it stays closed. Before, the title started a moment later, the player back.
+            var later = await FindFilm("Signes Test (2022)") ?? throw new InvalidOperationException("The film « Signes Test » is not in the library.");
+            await PlayAsync(cut); await Until("the film plays again", () => _loaded, 40);
+            await StopPlaybackAsync();
+            step = "the player closed while the next title opens";
+            var opening = PlayAsync(later);
+            await LeavePlayerAsync();
+            await opening; await Task.Delay(3000);
+            Require(!_playing && _mpv is null && PlayerShell.Visibility != Visibility.Visible && _session.Item?.Id != later.Id,
+                $"the player closed while the next title opened: it stays closed (playing {_playing}, {_session.Item?.Name})");
+
             // « Garder sur ce PC »: the file and its subtitles, then played with Jellyfin stopped.
             _settings.Quality = StreamQuality.Auto;
             var dawn = await FindFilm("Aube Test (2021)") ?? throw new InvalidOperationException("The film « Aube Test » is not in the library.");
