@@ -1199,6 +1199,16 @@ public static class SelfCheck
             "lecteur : un autre titre demandé avant la première image du premier, le lecteur le garde",
             $"lecteur {(window.Player == player ? "gardé" : "fermé")}, chargé {player?.IsFileLoaded}, {player?.Surface?.GetType().Name} {player?.Surface?.Frames} images");
         await window.StopPlaybackAsync();
+
+        // Closed while the next title opens (the one playing still letting go): nothing plays on behind the library.
+        await window.PlayAsync(movie, fromStart: true);
+        var closed = await Until(() => window.Player is { IsFileLoaded: true }, 20) ? window.Player : null;
+        var following = closed?.PlayAgainForCheck(movie);
+        await window.StopPlaybackAsync();
+        if (following is not null) await following;
+        await Task.Delay(3000);
+        check(closed is not null && window.Player is null && closed.Engine is null && !closed.IsFileLoaded,
+            "lecteur : fermé pendant que le titre suivant s’ouvre, il reste fermé", $"lecteur {window.Player is not null}, moteur {closed?.Engine is not null}, chargé {closed?.IsFileLoaded}");
     }
 
     /// <summary>

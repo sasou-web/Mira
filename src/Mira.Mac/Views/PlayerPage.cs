@@ -245,6 +245,9 @@ public sealed partial class PlayerPage : UserControl
     /// <param name="trailerDone">The film after its trailer (« Bande-annonce avant le film »): never its trailer again.</param>
     public async Task<bool> StartAsync(MediaItem item, bool fromStart = false, long? groupStart = null, bool trailerDone = false)
     {
+        // Closed while its previous title let go (the next episode, the film after its trailer): it stays closed, nothing
+        // plays behind the library with no player to stop it.
+        if (!ReferenceEquals(_shell.Player, this)) return true;
         if (_shell.Session is not { } session) return false;
         var generation = ++_generation;
         _stopped = false; _loaded = false; _session.Reported = false; _session.Failure = null; ResetMarkers();
@@ -487,6 +490,8 @@ public sealed partial class PlayerPage : UserControl
     {
         var forGroup = Group.PlaysFor(this);
         await StopAsync(completed || _skips.ToNext && _skips.Active is not null);
+        // Closed meanwhile: the group is not asked for the next title either.
+        if (!ReferenceEquals(_shell.Player, this)) return;
         if (forGroup)
         {
             // Jellyfin puts it on for the whole group, this Mac included (PlayForGroupAsync); the player waits for it.
