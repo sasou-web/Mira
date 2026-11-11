@@ -996,6 +996,20 @@ public static class SelfCheck
                 }
             }
 
+            // —— Session ended on Jellyfin (signed out from its dashboard, password changed) ——
+            if (mock is not null)
+            {
+                window.Go("home"); await Until(() => window.Current is HomePage, 10);
+                mock.Expired = true;
+                await window.RefreshPagesAsync();
+                var ended = await Until(() => window.Login is not null && window.Session is null, 10);
+                Check(ended && window.Login!.Server == MockJellyfin.Server && window.Login.User == "Contrôle" && window.Login.Error is { Length: > 0 },
+                    "session finie sur Jellyfin : retour à la connexion, serveur et nom remplis", window.Login?.Error ?? window.NoticeText ?? "rien");
+                mock.Expired = false;
+                await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
+                await Until(() => window.Current is HomePage, 10);
+            }
+
             // —— Sign-out ——
             if (mock is not null)
             {

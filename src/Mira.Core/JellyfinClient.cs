@@ -1268,6 +1268,15 @@ public sealed class JellyfinClient : IDisposable
     /// Whether this account administers Jellyfin (its policy): only an administrator installs Mira web or lets
     /// Tailscale in. Null when Jellyfin does not say.
     /// </summary>
+    /// <summary>
+    /// Whether Jellyfin still knows this session's token: false only on its 401 to Users/Me, which any account may ask
+    /// (a 403 elsewhere is a right this account lacks, not a session that ended).
+    /// </summary>
+    public async Task<bool> SessionValidAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Users/Me", ct);
+        return response.StatusCode != HttpStatusCode.Unauthorized;
+    }
     public async Task<bool?> IsAdministratorAsync(CancellationToken ct = default)
     {
         using var response = await _http.GetAsync("Users/Me", ct);

@@ -920,9 +920,45 @@ public sealed partial class MainWindow : Window
     /// </summary>
     public void Say(Exception error)
     {
+        // Refused: Jellyfin may have ended this account's session; asked once before saying anything (SessionEndedAsync).
+        if (error is UnauthorizedAccessException && Session is { } session && !InParty) { _ = SayRefusedAsync(session, error); return; }
+        SayNow(error);
+    }
+    private void SayNow(Exception error)
+    {
         NotAnswered(error);
         if (Tailnet.Says(Session?.Connection.Server, error) is { } said) Notice(said.Text, said.Action, said.Act, sticky: said.Action is not null);
         else Notice(Errors.Friendly(error), tone: NoticeTone.Error);
+    }
+    private async Task SayRefusedAsync(Session session, Exception error)
+    {
+        bool valid;
+        try { valid = await session.Client.SessionValidAsync(session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { valid = true; }
+        if (!ReferenceEquals(session, Session)) return;
+        if (valid) SayNow(error);
+        else await SessionEndedAsync(session);
+    }
+    private bool _endingSession;
+    /// <summary>
+    /// Jellyfin no longer knows this account's token (signed out from its dashboard, password changed, device removed):
+    /// the sign-in form, server and name filled in, as on Windows, rather than a notice on every page. The reports not
+    /// sent wait in SQLite; the account's cache and copies stay on this Mac for the same account.
+    /// </summary>
+    internal async Task SessionEndedAsync(Session session)
+    {
+        if (_endingSession || !ReferenceEquals(session, Session)) return;
+        _endingSession = true;
+        try
+        {
+            await StopPlaybackAsync();
+            await Task.Run(Profile.ClearConnection);
+            await CloseSessionAsync(); SetPhoto(null);
+            ShowLogin(L("Jellyfin a mis fin à la session de ce compte (déconnecté depuis son tableau de bord, ou mot de passe changé). Reconnecte-toi.",
+                "Jellyfin ended this account’s session (signed out from its dashboard, or the password changed). Sign in again."));
+            if (Login is { } login) { login.Server = session.Connection.Server; login.User = session.Connection.UserName; login.FocusPassword(); }
+        }
+        finally { _endingSession = false; }
     }
     /// <summary>Jellyfin did not answer: the page reloads once « Tailscale intégré » joins (TailnetJoined).</summary>
     internal void NotAnswered(Exception error) { if (error is HttpRequestException or OperationCanceledException or TimeoutException) _unanswered = true; }
