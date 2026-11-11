@@ -126,6 +126,8 @@ public partial class MainWindow
             _profile.SaveConnection(connection); SetupPasswordBox.Clear();
             _serverSetupBusy = false; ShowSignInForm();
             await ActivateConnectionAsync(connection);
+            // The previews the light way, before the first night: the care of Jellyfin looks only every 6 hours.
+            if (OwnClient is { } admin) { try { await MakePreviewsAsync(admin, _connectionLifetime.Token); } catch (Exception ex) when (IsExpected(ex)) { } }
             OpenGuide(L($"Jellyfin est prêt. Range tes vidéos dans {folders.Root}.", $"Jellyfin is ready. Put your videos in {folders.Root}."));
             if (installer is { Running: true }) InstallerStillAsking(installer);
         }
