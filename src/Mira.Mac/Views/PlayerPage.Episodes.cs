@@ -53,7 +53,7 @@ public sealed partial class PlayerPage
     }
     private void PlayPrevious()
     {
-        if (_session.Item is { } current && PreviousEpisode(current) is { } previous) _ = PlayNextAsync(previous);
+        if (PlayingTitle is { } current && PreviousEpisode(current) is { } previous) _ = PlayNextAsync(previous);
     }
     private void ToggleEpisodes()
     {

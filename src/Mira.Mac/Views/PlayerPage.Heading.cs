@@ -19,7 +19,7 @@ public sealed partial class PlayerPage
             if (e.Property != TextBlock.TextProperty) return;
             AutomationProperties.SetName(button, text.Text ?? "");
             button.IsVisible = !string.IsNullOrEmpty(text.Text);
-            var episode = _session.Item is { Type: "Episode", SeriesId: not null };
+            var episode = PlayingTitle is { Type: "Episode", SeriesId: not null };
             ToolTip.SetTip(button, !episode ? L("Voir la fiche", "View details") : episodeLine ? L("Voir l’épisode dans sa saison", "View the episode in its season") : L("Voir la série", "View show"));
         };
         button.Click += (_, _) => OpenHeading(episodeLine);
@@ -27,7 +27,8 @@ public sealed partial class PlayerPage
     }
     private void OpenHeading(bool episodeLine)
     {
-        if (_stopped || _session.Item is not { } item) return;
+        // A part of a title in several files is hidden from the library: its title's page.
+        if (_stopped || PlayingTitle is not { } item) return;
         SetMini(true);
         if (item.Type == "Episode" && item.SeriesId is { } series && !episodeLine) _shell.Open(new MediaItem { Id = series, Name = item.SeriesName ?? item.Name, Type = "Series" });
         else _shell.Open(item);

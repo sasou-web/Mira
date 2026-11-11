@@ -148,6 +148,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/languages.json
         buildPhase: resources
+      - path: ../../tests/fixtures/parts.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

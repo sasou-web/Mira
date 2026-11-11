@@ -211,6 +211,9 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>The episodes a series has, their numbers only.</summary>
     public Task<ItemsResult> OwnedEpisodesAsync(string seriesId, CancellationToken ct = default) =>
         GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&isMissing=false&enableImages=false&enableUserData=false", ct);
+    /// <summary>The other files of a title in several parts (<see cref="MovieParts"/>), in Jellyfin's order, each with this account's progress.</summary>
+    public async Task<List<MediaItem>> AdditionalPartsAsync(string id, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Videos/{Uri.EscapeDataString(id)}/AdditionalParts?userId={Connection.UserId}", ct)).Items;
     public Task<MediaItem> ItemAsync(string id, CancellationToken ct = default) =>
         GetAsync<MediaItem>($"Items/{Uri.EscapeDataString(id)}?userId={Connection.UserId}", ct);
     /// <summary>Titles Jellyfin finds close to this one (shared genres, people, studios).</summary>

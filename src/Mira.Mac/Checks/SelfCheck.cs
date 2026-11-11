@@ -950,6 +950,28 @@ public static class SelfCheck
                 window.Settings.TrailerFirst = false;
             }
 
+            // —— A film in several files (« cd1 », « cd2 »): its parts one after the other, « Lecture » back in the one left ——
+            if (mock is not null)
+            {
+                var parted = await window.Session.Client.ItemAsync("parts-1");
+                var labels = new MovieParts(parted, [new MediaItem { Id = "parts-1-b", Type = "Video" }]);
+                int Started(string id) { lock (mock.Reports) return mock.Reports.Count(x => x.Kind == "start" && x.Body.TryGetProperty("ItemId", out var played) && played.GetString() == id); }
+                await window.PlayAsync(parted, fromStart: true);
+                Check(await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "parts-1" } player && player.HeadingText.Contains(labels.Label("parts-1"), StringComparison.Ordinal), 30),
+                    "film en plusieurs fichiers : la première partie d'abord", window.Player?.HeadingText ?? window.NoticeText ?? "lecteur fermé");
+                Check(await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "parts-1-b" } player && player.HeadingText.StartsWith("Deux bobines", StringComparison.Ordinal) && player.HeadingText.Contains(labels.Label("parts-1-b"), StringComparison.Ordinal), 60),
+                    "film en plusieurs fichiers : la deuxième partie suit, sous le titre du film", window.Player?.HeadingText ?? window.NoticeText ?? "lecteur fermé");
+                Check(await Until(() => Started("parts-1-b") > 0, 15) && Started("parts-1") > 0, "film en plusieurs fichiers : chaque partie dite à Jellyfin sous son propre id", $"{Started("parts-1")} et {Started("parts-1-b")} départs");
+                Check(await Until(() => window.Player is null, 60), "film en plusieurs fichiers : le lecteur se ferme après la dernière partie", window.Player?.Item?.Id ?? "");
+                // Watched to the end of its first part (Jellyfin marks the title watched), the second left at 3 s.
+                mock.PartsWatched = true; mock.PartTwoTicks = 3 * TimeSpan.TicksPerSecond;
+                await window.PlayAsync(await window.Session.Client.ItemAsync("parts-1"));
+                Check(await Until(() => window.Player is { IsFileLoaded: true, Item.Id: "parts-1-b" }, 30) && window.Player!.Position >= 2,
+                    "film en plusieurs fichiers : « Lecture » reprend dans la partie laissée en cours", $"{window.Player?.Item?.Id} à {window.Player?.Position:0.0} s");
+                await window.StopPlaybackAsync();
+                mock.PartsWatched = false; mock.PartTwoTicks = 0;
+            }
+
             // —— Next episode at the end of one ——
             var episodes = (await window.Session.Client.EpisodesAsync(series.Id)).Items;
             if (episodes.Count >= 2 && (mock is not null || episodes[0].RunTimeTicks < TimeSpan.FromMinutes(3).Ticks))

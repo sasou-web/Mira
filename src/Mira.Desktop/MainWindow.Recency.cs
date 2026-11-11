@@ -18,6 +18,8 @@ public partial class MainWindow
     private MediaItem? RecentSnapshot()
     {
         if (_session.Item is not { } item || !_loaded) return null;
+        // A later part of a title in several files, hidden from the library: its title in the lists.
+        if (_parts is { } parts && parts.Holds(item.Id)) item = parts.Title;
         var at = DateTimeOffset.UtcNow; item.UserData.LastPlayedDate = at;
         var snapshot = item with { UserData = item.UserData with { } };
         _seasonThumbs.Apply([snapshot]);

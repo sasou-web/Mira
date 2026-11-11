@@ -1,0 +1,247 @@
+{
+  "about": "A title in several files (« Film - cd1.mkv », « Film - cd2.mkv »): Jellyfin shows the first one as the title (PartCount, its length, stream and progress), the others through Videos/{id}/AdditionalParts. Which part « Lecture » starts and which one follows: MovieParts (Core, Windows and Mac) and Player/MovieParts.swift (iPhone). In « start », 0 is the title, 1 and up its other parts; positions in ticks, LastPlayedDate as Jellyfin gives it.",
+  "has": [
+    {
+      "item": {
+        "Type": "Movie",
+        "PartCount": 2
+      },
+      "has": true
+    },
+    {
+      "item": {
+        "Type": "Episode",
+        "PartCount": 3
+      },
+      "has": true
+    },
+    {
+      "item": {
+        "Type": "Movie"
+      },
+      "has": false
+    },
+    {
+      "item": {
+        "Type": "Movie",
+        "PartCount": 1
+      },
+      "has": false
+    },
+    {
+      "item": {
+        "Type": "Video",
+        "PartCount": 2
+      },
+      "has": false
+    },
+    {
+      "item": {
+        "Type": "Series",
+        "PartCount": 2
+      },
+      "has": false
+    }
+  ],
+  "start": [
+    {
+      "why": "never watched: the first part",
+      "title": {
+        "Played": false,
+        "PlaybackPositionTicks": 0
+      },
+      "parts": [
+        {
+          "Played": false,
+          "PlaybackPositionTicks": 0
+        }
+      ],
+      "fromStart": false,
+      "start": 0
+    },
+    {
+      "why": "the first part left halfway: it resumes",
+      "title": {
+        "Played": false,
+        "PlaybackPositionTicks": 12000000000,
+        "LastPlayedDate": "2026-11-01T20:00:00Z"
+      },
+      "parts": [
+        {
+          "Played": false,
+          "PlaybackPositionTicks": 0
+        }
+      ],
+      "fromStart": false,
+      "start": 0
+    },
+    {
+      "why": "the first part watched to its end (Jellyfin marks the title watched), the second left halfway: the second",
+      "title": {
+        "Played": true,
+        "PlaybackPositionTicks": 0,
+        "LastPlayedDate": "2026-11-01T20:00:00Z"
+      },
+      "parts": [
+        {
+          "Played": false,
+          "PlaybackPositionTicks": 7200000000,
+          "LastPlayedDate": "2026-11-01T21:00:00Z"
+        }
+      ],
+      "fromStart": false,
+      "start": 1
+    },
+    {
+      "why": "the same, « Depuis le début »: the first part",
+      "title": {
+        "Played": true,
+        "PlaybackPositionTicks": 0,
+        "LastPlayedDate": "2026-11-01T20:00:00Z"
+      },
+      "parts": [
+        {
+          "Played": false,
+          "PlaybackPositionTicks": 7200000000,
+          "LastPlayedDate": "2026-11-01T21:00:00Z"
+        }
+      ],
+      "fromStart": true,
+      "start": 0
+    },
+    {
+      "why": "three parts, the third left halfway",
+      "title": {
+        "Played": true,
+        "PlaybackPositionTicks": 0,
+        "LastPlayedDate": "2026-11-01T20:00:00Z"
+      },
+      "parts": [
+        {
+          "Played": true,
+          "PlaybackPositionTicks": 0,
+          "LastPlayedDate": "2026-11-01T21:00:00Z"
+        },
+        {
+          "Played": false,
+          "PlaybackPositionTicks": 3000000000,
+          "LastPlayedDate": "2026-11-02T20:00:00Z"
+        }
+      ],
+      "fromStart": false,
+      "start": 2
+    },
+    {
+      "why": "all watched: the first part, from its start",
+      "title": {
+        "Played": true,
+        "PlaybackPositionTicks": 0,
+        "LastPlayedDate": "2026-11-01T20:00:00Z"
+      },
+      "parts": [
+        {
+          "Played": true,
+          "PlaybackPositionTicks": 0,
+          "LastPlayedDate": "2026-11-01T21:00:00Z"
+        }
+      ],
+      "fromStart": false,
+      "start": 0
+    },
+    {
+      "why": "watched again from the start and left in the first part, after the second (Jellyfin 12 keeps the title watched, with its position): the first part",
+      "title": {
+        "Played": true,
+        "PlaybackPositionTicks": 6000000000,
+        "LastPlayedDate": "2026-11-02T20:00:00Z"
+      },
+      "parts": [
+        {
+          "Played": false,
+          "PlaybackPositionTicks": 7200000000,
+          "LastPlayedDate": "2026-11-01T21:00:00Z"
+        }
+      ],
+      "fromStart": false,
+      "start": 0
+    },
+    {
+      "why": "the first part watched, the second not started: the first part again",
+      "title": {
+        "Played": true,
+        "PlaybackPositionTicks": 0,
+        "LastPlayedDate": "2026-11-01T20:00:00Z"
+      },
+      "parts": [
+        {
+          "Played": false,
+          "PlaybackPositionTicks": 0
+        }
+      ],
+      "fromStart": false,
+      "start": 0
+    },
+    {
+      "why": "no dates (a part never reported): the first part when it has progress",
+      "title": {
+        "Played": false,
+        "PlaybackPositionTicks": 6000000000
+      },
+      "parts": [
+        {
+          "Played": false,
+          "PlaybackPositionTicks": 7200000000
+        }
+      ],
+      "fromStart": false,
+      "start": 0
+    }
+  ],
+  "after": {
+    "parts": 3,
+    "cases": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        null
+      ],
+      [
+        -1,
+        null
+      ]
+    ]
+  },
+  "labels": [
+    {
+      "lang": "fr",
+      "parts": 3,
+      "at": 1,
+      "label": "Partie 2 sur 3"
+    },
+    {
+      "lang": "en",
+      "parts": 3,
+      "at": 2,
+      "label": "Part 3 of 3"
+    },
+    {
+      "lang": "en",
+      "parts": 2,
+      "at": 0,
+      "label": "Part 1 of 2"
+    },
+    {
+      "lang": "en",
+      "parts": 2,
+      "at": -1,
+      "label": ""
+    }
+  ]
+}

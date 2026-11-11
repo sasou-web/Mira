@@ -51,7 +51,10 @@ public partial class MainWindow
         if (_demo || _client is not { } client) return;
         var segments = client.SegmentsAsync(item.Id);
         var timeline = client.TimelineAsync(item.Id, _session.Source?.Id);
-        var next = item.Type == "Episode" ? EpisodeContextAsync(item, quiet: true) : Task.FromResult<(MediaItem? Next, List<MediaItem> Episodes)>((null, []));
+        // A part of an episode in several files: the series of its title, and no next episode before its last part.
+        var parts = _parts is { } playing && playing.Holds(item.Id) ? playing : null;
+        var episode = parts?.Title ?? item;
+        var next = episode.Type == "Episode" ? EpisodeContextAsync(episode, quiet: true) : Task.FromResult<(MediaItem? Next, List<MediaItem> Episodes)>((null, []));
         // Older servers, or servers without a segment provider, simply have no markers.
         try { var result = await segments; if (generation == _playGeneration) _skips.ServerSegments = PlaybackMarkers.FromJellyfin(result); }
         catch (Exception ex) when (IsExpected(ex)) { }
@@ -63,14 +66,14 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { }
         var (following, episodes) = await next;
         if (generation != _playGeneration) return;
-        _skips.Next = following;
+        _skips.Next = parts?.After(item.Id) is null ? following : null;
         UpdateWindowsPlayback();
-        if (item.Type == "Episode")
+        if (episode.Type == "Episode")
         {
             NextButton.IsEnabled = following is not null;
             NextButton.ToolTip = following is null ? L("Dernier épisode disponible", "Last available episode") : L("Épisode suivant · ", "Next episode · ") + PlayerText.Subtitle(following, episodes);
-            SetPlayerEpisodes(item, episodes);
-            if (episodes.Count > 0) PlayingSubtitle.Content = PlayerText.Subtitle(item, episodes);
+            SetPlayerEpisodes(episode, episodes);
+            if (episodes.Count > 0) PlayingSubtitle.Content = parts?.Subtitle(item.Id, episodes) ?? PlayerText.Subtitle(item, episodes);
         }
         RebuildSegments();
     }

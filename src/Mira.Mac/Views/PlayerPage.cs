@@ -54,6 +54,10 @@ public sealed partial class PlayerPage : UserControl
     private IVideoSurface? _surface;
     /// <summary>What plays, where it is and what Jellyfin was told, as on Windows.</summary>
     private readonly PlaybackSession _session = new();
+    /// <summary>The title in several files playing (« cd1 », « cd2 »), its parts one after the other; null otherwise.</summary>
+    private MovieParts? _parts;
+    /// <summary>What plays, as the library knows it: for a part of a title in several files (hidden from the library), its title.</summary>
+    private MediaItem? PlayingTitle => _session.Item is { } item && _parts is { } parts && parts.Holds(item.Id) ? parts.Title : _session.Item;
     private bool _loaded, _stopped, _controlsShown = true, _initializing;
     private double _lastAudible = 80;
     private int _generation;
@@ -87,6 +91,8 @@ public sealed partial class PlayerPage : UserControl
     public bool IsStopped => _stopped;
     public double Position => _session.Position;
     public MediaItem? Item => _session.Item;
+    /// <summary>The title and the line under it, as the player shows them.</summary>
+    public string HeadingText => $"{_title.Text} · {_subtitle.Text}";
     public MediaItem? NextItem => _skips.Next;
     /// <summary>What mpv opened: Jellyfin's address, or a file of this Mac (a copy kept, Jellyfin on this Mac).</summary>
     public string? Location => _stream?.Location;
@@ -255,6 +261,17 @@ public sealed partial class PlayerPage : UserControl
         try
         {
             if (item.Type == "Series") item = await EpisodeOfAsync(session, item);
+            // A title in several files: its parts one after the other, each under its own id; « Lecture » resumes in the
+            // part left halfway (MovieParts). Not for a group, whose queue Jellyfin keeps.
+            var nextPart = _parts is { } playing && playing.Holds(item.Id) && item.Id != playing.Title.Id;
+            if (groupStart is not null) _parts = null;
+            else if (MovieParts.Has(item))
+            {
+                _parts = await PartsAsync(session, item);
+                if (generation != _generation) return true;
+                if (_parts is not null) item = _parts.Start(fromStart);
+            }
+            else if (_parts?.Holds(item.Id) != true) _parts = null;
             var start = groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart, back: _shell.Settings.ResumeBack);
             // Jellyfin on this same Mac: its file directly; otherwise the file as it is, or Jellyfin's conversion under the
             // quality chosen (PlayerPage.Stream.cs).
@@ -273,11 +290,14 @@ public sealed partial class PlayerPage : UserControl
             if (generation != _generation) return true;
             UseStream(stream); _playingCopy = kept;
             _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
-            _stillWatching.Started(DateTimeOffset.Now, _nextByItself); _nextByItself = false;
+            // The next part after the end of one: the same title goes on, not a new start for « Tu regardes toujours ? ».
+            if (!nextPart) _stillWatching.Started(DateTimeOffset.Now, _nextByItself);
+            _nextByItself = false;
             _skips.Film = film;
-            _title.Text = (film ?? item).DisplayTitle; _subtitle.Text = film is not null ? Trailers.Playing : PlayerText.Subtitle(item);
-            TellTitle(film ?? item, _title.Text, _subtitle.Text);
-            _next.IsEnabled = false; ShowEpisodeButtons(item);
+            var shown = film ?? _parts?.Title ?? item;
+            _title.Text = shown.DisplayTitle; _subtitle.Text = film is not null ? Trailers.Playing : _parts is { } parts ? parts.Subtitle(item.Id) : PlayerText.Subtitle(item);
+            TellTitle(shown, _title.Text, _subtitle.Text);
+            _next.IsEnabled = false; ShowEpisodeButtons(_parts?.Title ?? item);
 
             await OpenEngineAsync();
             if (generation != _generation) return true;
@@ -313,6 +333,23 @@ public sealed partial class PlayerPage : UserControl
             return true;
         }
     }
+    /// <summary>
+    /// The parts of a title in several files; none when Jellyfin does not give them (out of reach: its copy kept on this
+    /// Mac plays, its first part only, as before).
+    /// </summary>
+    private static async Task<MovieParts?> PartsAsync(Session session, MediaItem title)
+    {
+        try { return new MovieParts(title, await session.Client.AdditionalPartsAsync(title.Id)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { return null; }
+    }
+    /// <summary>
+    /// What « Continuer à regarder » and the recent list keep of what stopped: itself, or for a later part of a title in
+    /// several files (hidden from the library), its title.
+    /// </summary>
+    private MediaItem Remembered(MediaItem item) =>
+        _parts is { } parts && parts.Holds(item.Id) && item.Id != parts.Title.Id
+            ? parts.Title with { UserData = parts.Title.UserData with { LastPlayedDate = item.UserData.LastPlayedDate } }
+            : item with { UserData = item.UserData with { } };
     /// <summary>The episode Lecture opens on a series: Jellyfin's next one, else one in progress, else the first unwatched.</summary>
     public static async Task<MediaItem> EpisodeOfAsync(Session session, MediaItem series)
     {
@@ -419,7 +456,7 @@ public sealed partial class PlayerPage : UserControl
             item.UserData.Played = item.UserData.Played || completed;
             item.UserData.PlaybackPositionTicks = completed ? 0 : TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
             item.UserData.LastPlayedDate = DateTimeOffset.UtcNow;
-            var snapshot = item with { UserData = item.UserData with { } };
+            var snapshot = Remembered(item);
             // The engine is released below whatever the cache says: a full disk only loses this row for the next start.
             await Task.Run(() => Errors.TryCache(() => session.Store.RememberPlayback(snapshot)));
         }
@@ -451,7 +488,7 @@ public sealed partial class PlayerPage : UserControl
             item.UserData.Played = item.UserData.Played || completed;
             item.UserData.PlaybackPositionTicks = completed ? 0 : TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
             item.UserData.LastPlayedDate = DateTimeOffset.UtcNow;
-            var snapshot = item with { UserData = item.UserData with { } };
+            var snapshot = Remembered(item);
             Errors.TryCache(() => session.Store.RememberPlayback(snapshot));
         }
         if (_mpv is not null) _shell.Settings.Volume = _mpv.Level;
@@ -464,12 +501,15 @@ public sealed partial class PlayerPage : UserControl
         if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
         var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay; var film = _skips.Film;
         if (eof && _session.Duration > 0) _session.Position = _session.Duration;
+        // A title in several files: its next part right away, in the same player (« Arrêter à la fin » waits for its last part).
+        if (eof && _session.Item is { } played && _parts?.After(played.Id) is { } part) { await PlayNextAsync(part, completed: true); return; }
         // « Arrêter à la fin de l’épisode »: this one was the last.
         var last = eof && _sleep.AtEnd;
         if (last) _sleep.Clear();
         // The trailer over (or unreadable): its film, as at the cinema.
         if (film is not null && (eof || error is not null) && !last) { await PlayFilmAsync(film); return; }
-        if (eof && _shell.Settings.AutoNext && !last && !stay && _session.Item?.Type == "Episode" && (next ?? await NextAfterAsync(_session.Item)) is { } following)
+        // The last part of an episode in several files: the episode after its title.
+        if (eof && _shell.Settings.AutoNext && !last && !stay && PlayingTitle is { Type: "Episode" } title && (next ?? await NextAfterAsync(title)) is { } following)
         {
             // « Tu regardes toujours ? »: three episodes in a row with nothing touched, the next one waits for an answer.
             if (AsksStillWatching()) { await AskStillWatchingAsync(following); return; }
@@ -902,23 +942,27 @@ public sealed partial class PlayerPage : UserControl
             if (generation == _generation) { _skips.ServerChapters = PlaybackMarkers.FromJellyfin(timeline.Chapters); ShowTrickplay(session.Client, timeline.Trickplay); }
         }
         catch (Exception ex) when (Errors.Expected(ex)) { }
-        if (item.Type == "Episode" && item.SeriesId is { } series)
+        // A part of an episode in several files: the series of its title, and no next episode before its last part.
+        var parts = _parts is { } playing && playing.Holds(item.Id) ? playing : null;
+        var episode = parts?.Title ?? item;
+        var lastPart = parts?.After(item.Id) is null;
+        if (episode.Type == "Episode" && episode.SeriesId is { } series)
         {
             try
             {
                 var episodes = (await session.EpisodesAsync(series)).Items;
                 if (generation != _generation) return;
                 _episodes = episodes;
-                var index = episodes.FindIndex(x => x.Id == item.Id);
-                _skips.Next = index >= 0 ? episodes.ElementAtOrDefault(index + 1) : null;
-                _subtitle.Text = PlayerText.Subtitle(item, episodes);
+                var index = episodes.FindIndex(x => x.Id == episode.Id);
+                _skips.Next = index >= 0 && lastPart ? episodes.ElementAtOrDefault(index + 1) : null;
+                _subtitle.Text = parts?.Subtitle(item.Id, episodes) ?? PlayerText.Subtitle(item, episodes);
             }
             // Without Jellyfin: the next episode kept on this Mac, if there is one.
-            catch (Exception ex) when (Errors.Expected(ex)) { _skips.Next ??= OfflineCopies.NextEpisode(_shell.OfflineCopiesKept, item)?.Item; }
+            catch (Exception ex) when (Errors.Expected(ex)) { if (lastPart) _skips.Next ??= OfflineCopies.NextEpisode(_shell.OfflineCopiesKept, episode)?.Item; }
         }
         if (generation != _generation) return;
         _next.IsEnabled = _skips.Next is not null;
-        if (_session.Item is { } current) SetEpisodes(current);
+        if (PlayingTitle is { } current) SetEpisodes(current);
         ToolTip.SetTip(_next, _skips.Next is not { } next ? L("Dernier épisode disponible", "Last episode available") : L("Épisode suivant · ", "Next episode · ") + PlayerText.Subtitle(next, _episodes));
         Rebuild();
     }

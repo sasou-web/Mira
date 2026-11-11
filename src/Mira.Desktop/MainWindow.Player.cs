@@ -28,6 +28,8 @@ public partial class MainWindow
     private IntPtr _videoHandle;
     /// <summary>What plays, where it is and what Jellyfin was told (Mira.Core, tested without the window).</summary>
     private readonly PlaybackSession _session = new();
+    /// <summary>The title in several files playing (« cd1 », « cd2 »), its parts one after the other; null otherwise.</summary>
+    private MovieParts? _parts;
     private bool _playing, _loaded, _seeking, _fullscreen, _closing, _playBusy;
     /// <summary>From the first close request: the window is hidden and its services are being stopped.</summary>
     internal bool IsClosing => _closing;
@@ -76,6 +78,13 @@ public partial class MainWindow
                 if (await AskGroupAsync(item, fromStart, completePrevious, chosen)) return;
                 groupStart = _groupQueue?.StartTicks ?? 0;
             }
+            // A title in several files: its parts one after the other, each under its own id; « Lecture » resumes in the
+            // part left halfway (MovieParts). Not for a group, whose queue Jellyfin keeps.
+            if (groupStart is not null || _demo || _client is null) _parts = null;
+            else if (MovieParts.Has(item)) { _parts = await PartsAsync(_client, item); if (_parts is not null) item = _parts.Start(fromStart); }
+            else if (_parts?.Holds(item.Id) != true) _parts = null;
+            // The next part after the end of one: the same title goes on, not a new start for « Tu regardes toujours ? ».
+            var nextPart = _parts is { } playingParts && playingParts.Holds(asked.Id) && asked.Id != playingParts.Title.Id;
             // « Bande-annonce avant le film »: its trailer kept on the server first, the film waiting behind the pill (MainWindow.Trailers.cs).
             MediaItem? film = null;
             if (!trailerDone && !_demo && groupStart is null && await TrailerBeforeAsync(item, fromStart) is { } trailer) { film = item; item = trailer; }
@@ -110,10 +119,12 @@ public partial class MainWindow
             _playingCopy = kept; UseStream(stream);
             // After the previous playback stopped: it may have been this title, now further on or watched.
             _session.Begin(item, source, session, StartAt(), stream?.PlayMethod ?? "DirectPlay"); _loaded = false;
-            _stillWatching.Started(DateTimeOffset.Now, byItself);
+            if (!nextPart) _stillWatching.Started(DateTimeOffset.Now, byItself);
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
-            PlayingTitle.Content = MiniTitle.Text = (film ?? item).DisplayTitle; PlayingSubtitle.Content = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : film is not null ? Trailers.Playing : PlayerText.Subtitle(item);
-            ShowPlayingLinks(film ?? item);
+            var shown = film ?? _parts?.Title ?? item;
+            PlayingTitle.Content = MiniTitle.Text = shown.DisplayTitle;
+            PlayingSubtitle.Content = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : film is not null ? Trailers.Playing : _parts is { } parts ? parts.Subtitle(item.Id) : PlayerText.Subtitle(item);
+            ShowPlayingLinks(shown);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
             AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
             HidePlayerError();
@@ -122,7 +133,7 @@ public partial class MainWindow
             if (_pip is null) { LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible; NavigationRail.Visibility = Visibility.Collapsed; }
             // The player's keys must reach Mira, not the TorLink terminal left open underneath.
             if (TorLinkOverlay.IsKeyboardFocusWithin) Focus();
-            NextButton.IsEnabled = !_demo && item.Type == "Episode";
+            NextButton.IsEnabled = !_demo && (_parts?.Title ?? item).Type == "Episode";
             // The episodes around this one follow with the series (LoadServerMarkersAsync).
             _playerEpisodes = []; PreviousButton.IsEnabled = PlayerEpisodesButton.IsEnabled = false;
             if (_videoHost is null)
@@ -300,14 +311,18 @@ public partial class MainWindow
             // Watched to the end: shown as seen right away, and the next play starts from the beginning.
             if (eof && previous is not null) { previous.UserData.Played = true; previous.UserData.PlaybackPositionTicks = 0; }
             var stoppedGeneration = _playGeneration;
+            // A title in several files: its next part right away, in the same player (« Arrêter à la fin » waits for its last part).
+            if (eof && previous is not null && _parts?.After(previous.Id) is { } part) { await PlayAsync(part, keepMini); return; }
             // « Arrêter à la fin de l’épisode »: this one was the last.
             var last = eof && _sleep.AtEnd;
             if (last) _sleep.Clear();
             // The trailer over (or unreadable): its film, as at the cinema.
             if (film is not null && (eof || error is not null) && !last) { await PlayAsync(film, keepMini, trailerDone: true); return; }
-            if (eof && _settings.AutoNext && !last && !_demo && !stay && previous?.Type == "Episode")
+            // The last part of an episode in several files: the episode after its title.
+            var title = previous is not null && _parts is { } parts && parts.Holds(previous.Id) ? parts.Title : previous;
+            if (eof && _settings.AutoNext && !last && !_demo && !stay && title?.Type == "Episode")
             {
-                var next = following ?? await GetNextAsync(previous);
+                var next = following ?? await GetNextAsync(title);
                 if (stoppedGeneration != _playGeneration || _playing) return;
                 // « Tu regardes toujours ? »: three episodes in a row with nothing touched, the next one waits for an answer.
                 if (next is not null && AsksStillWatching()) { ShowStillWatching(next, keepMini); return; }
@@ -423,9 +438,20 @@ public partial class MainWindow
         await Task.Run(() => { var released = System.Diagnostics.Stopwatch.StartNew(); engine.Dispose(); FrameProbe.Finished("mpv released", released.Elapsed.TotalMilliseconds); });
     }
     private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false) => (await EpisodeContextAsync(current, quiet)).Next;
+    /// <summary>
+    /// The parts of a title in several files; none when Jellyfin does not give them (out of reach: its copy kept on this
+    /// PC plays, its first part only, as before).
+    /// </summary>
+    private async Task<MovieParts?> PartsAsync(JellyfinClient client, MediaItem title)
+    {
+        try { return new MovieParts(title, await client.AdditionalPartsAsync(title.Id)); }
+        catch (Exception ex) when (IsExpected(ex)) { return null; }
+    }
     /// <summary>The episode after <paramref name="current"/> and every episode of its series (for "Épisode 3 / 12").</summary>
     private async Task<(MediaItem? Next, List<MediaItem> Episodes)> EpisodeContextAsync(MediaItem current, bool quiet = false)
     {
+        // A part of an episode in several files: the episodes around its title.
+        if (_parts is { } parts && parts.Holds(current.Id)) current = parts.Title;
         if (_client is null || current.SeriesId is null) return (null, []);
         try
         {
