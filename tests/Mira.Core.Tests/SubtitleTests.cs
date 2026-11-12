@@ -255,6 +255,9 @@ internal static class SubtitleTests
         {
             Assert(SubtitleLanguages.Two("fre") == "fr" && SubtitleLanguages.Two("fra") == "fr" && SubtitleLanguages.Two("eng") == "en" && SubtitleLanguages.Two("jpn") == "ja" && SubtitleLanguages.Two("xxx") is null, "Two");
             Assert(SubtitleLanguages.Three("fr") == "fre" && SubtitleLanguages.Three("pt-br") == "por" && SubtitleLanguages.Three("EN") == "eng" && SubtitleLanguages.Three("deu") == "ger", "Three");
+            // A track's language as Jellyfin 12.1 keeps it from a file's name: « fr-ca », « pt-br », « es-419 », « zh-hant » are their language.
+            Assert(SubtitleLanguages.Of("fr-ca") == "fr" && SubtitleLanguages.Of("pt-br") == "pt" && SubtitleLanguages.Of("es-419") == "es" && SubtitleLanguages.Of("zh-hant") == "zh"
+                && SubtitleLanguages.Of("fra") == "fr" && SubtitleLanguages.Of("eng") == "en" && SubtitleLanguages.Of("und") is null && SubtitleLanguages.Of(null) is null, "Of");
             // OpenSubtitles' hash: the size, plus the little-endian 64-bit words of the first and last 64 KiB.
             Assert(MovieHash.Compute(new MemoryStream(new byte[131072])) == "0000000000020000", "Zeros: the size alone");
             var bytes = new byte[200000]; bytes[0] = 1; bytes[^8] = 2; bytes[^1] = 0x80;
@@ -274,9 +277,18 @@ internal static class SubtitleTests
             // Already there: a file beside the video named for the language, by any of its codes; not another language, not another video.
             var folder = Path.Combine(run.Root, "beside"); Directory.CreateDirectory(folder);
             var video = Path.Combine(folder, "Dune.Part.Two.2024.mkv");
-            File.WriteAllText(video, ""); File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.en.srt"), ""); File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.fra.forced.ass"), "");
+            File.WriteAllText(video, ""); File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.en.srt"), ""); File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.fra.sdh.ass"), "");
             File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.Extended.fre.srt.txt"), ""); File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.nfo"), "");
-            Assert(SubtitleFiles.HasBeside(video, "fr") && SubtitleFiles.HasBeside(video, "en") && !SubtitleFiles.HasBeside(video, "es"), "Beside");
+            Assert(SubtitleFiles.HasBeside(video, "fr") && SubtitleFiles.HasBeside(video, "en") && !SubtitleFiles.HasBeside(video, "pt"), "Beside");
+            // A forced file, named as Jellyfin reads it (« .forced », « .foreign », any case), only has the lines of the other languages spoken:
+            // the language is still to find, unless a whole file of it is there too.
+            File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.de.forced.srt"), ""); File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.ITA.Foreign.srt"), "");
+            File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.es.forced.srt"), ""); File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.spa.srt"), "");
+            Assert(!SubtitleFiles.HasBeside(video, "de") && !SubtitleFiles.HasBeside(video, "it") && SubtitleFiles.HasBeside(video, "es"), "Forced only");
+            // A whole file named with its region or script, as Bazarr and the platforms name them, is that language; forced, it is still not.
+            File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.pt-BR.srt"), ""); File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.zh-Hant.sdh.srt"), "");
+            File.WriteAllText(Path.Combine(folder, "Dune.Part.Two.2024.ko-KR.forced.srt"), "");
+            Assert(SubtitleFiles.HasBeside(video, "pt") && SubtitleFiles.HasBeside(video, "zh") && !SubtitleFiles.HasBeside(video, "ko"), "Region");
             Assert(!SubtitleFiles.HasBeside(Path.Combine(folder, "Autre.mkv"), "fr") && !SubtitleFiles.HasBeside(Path.Combine(run.Root, "nowhere", "x.mkv"), "fr"), "Other video, no folder");
             return Task.CompletedTask;
         });
