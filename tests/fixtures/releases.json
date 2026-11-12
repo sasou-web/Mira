@@ -100,6 +100,17 @@
     ["The French Dispatch (2021)", "", "dispatch", []],
     ["The French Connection (1971)", "", "connection", []]
    ]
+  },
+  {
+   "category": "movies",
+   "note": "One film whose title has an elided article and a ligature, written as a scene name writes it or as its own title: one title",
+   "hits": [
+    ["lost", "L.Arnacoeur.2010.FRENCH.1080p.BluRay.x264-LOST", 8589934592, 40, "1337x"],
+    ["multi", "L'Arnacœur (2010) MULTi 1080p WEB-DL x264", 3221225472, 60, "1337x"]
+   ],
+   "groups": [
+    ["L'Arnacœur (2010)", "", "multi", ["lost"]]
+   ]
   }
  ]
 }

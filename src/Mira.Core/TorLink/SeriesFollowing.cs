@@ -40,6 +40,13 @@ public static partial class SeriesFollowing
             .DistinctBy(ReleaseRanking.TitleKey).Take(MaxQueries).ToList();
     }
 
+    /// <summary>
+    /// The name to search typed in a series' row: null for its own (left as it was, or emptied). Any other spelling is kept
+    /// (« L Amie Prodigieuse » for « L'Amie prodigieuse »): it is what TorLink's sites are asked, whatever its title key.
+    /// </summary>
+    public static string? ChosenQuery(string? typed, string name) =>
+        RemoteDownloads.CleanQuery(typed) is { } query && !string.Equals(query, RemoteDownloads.CleanQuery(name), StringComparison.OrdinalIgnoreCase) ? query : null;
+
     /// <summary>« S01E13 »: an episode as the pages say it, in both languages.</summary>
     public static string Label(FollowEpisode episode) => string.Create(CultureInfo.InvariantCulture, $"S{episode.Season:00}E{episode.Episode:00}");
 

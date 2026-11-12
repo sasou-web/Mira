@@ -118,18 +118,30 @@ public static partial class ReleaseRanking
         return !PackWords.Contains(Word(tokens[next].Value)) && EndsTitle(tokens, next) || word != "batch" && Whole().IsMatch(following);
     }
 
-    /// <summary>A title to compare: lower case, no accent, no apostrophe, « & » as « and », one space between words.</summary>
+    /// <summary>
+    /// A title to compare, its letters and digits only: lower case, no accent, ligature or exponent (« œ » as « oe », « ³ »
+    /// as « 3 »), « & » as « and », without apostrophes, spaces or punctuation. Release names write a title in plain letters,
+    /// an elided article as a word of its own (« L.Arnacoeur », « Le.Fabuleux.Destin.D.Amelie.Poulain ») and an English
+    /// apostrophe as nothing (« Charlottes.Web »): « L'Arnacœur », « Charlotte's Web » and « Alien³ » are them.
+    /// </summary>
     public static string TitleKey(string? title)
     {
-        var text = (title ?? "").Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder(text.Length);
-        foreach (var c in text)
+        var builder = new StringBuilder();
+        foreach (var rune in (title ?? "").Normalize(NormalizationForm.FormKD).EnumerateRunes())
         {
-            if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark || c is '\'' or '’' or '`' or '´') continue;
-            if (c == '&') { builder.Append(" and "); continue; }
-            builder.Append(char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' ');
+            if (rune.Value == '&') builder.Append("and");
+            else if (Rune.IsLetterOrDigit(rune)) builder.Append(Rune.ToLowerInvariant(rune).Value switch
+            {
+                'œ' => "oe",
+                'æ' => "ae",
+                'ß' => "ss",
+                'ø' => "o",
+                'ł' => "l",
+                'đ' => "d",
+                var letter => char.ConvertFromUtf32(letter),
+            });
         }
-        return Spaces().Replace(builder.ToString(), " ").Trim();
+        return builder.ToString();
     }
 
     private static string Tidy(string text)

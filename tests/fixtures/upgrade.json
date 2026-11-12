@@ -40,6 +40,10 @@
     [["Movie", "Un parfait inconnu", "A Complete Unknown", 2024], "A.Complete.Unknown.2024.MULTi.VFF.1080p.WEB.H264-FW", true],
     [["Movie", "The French Dispatch", null, 2021], "The.French.Dispatch.2021.1080p.BluRay.x264-PiGNUS", true],
     [["Movie", "The French Dispatch", null, 2021], "The.French.Connection.1971.1080p.BluRay.x264-AMIABLE", false],
+    [["Movie", "L'Arnacœur", "L'Arnacœur", 2010], "L.Arnacoeur.FRENCH.DVDRip.XviD-AYMO", true],
+    [["Movie", "Le Fabuleux Destin d'Amélie Poulain", null, 2001], "Le.Fabuleux.Destin.d.Amelie.Poulain.2001.1080p.BluRay.x264-Japhson", true],
+    [["Movie", "Alien³", "Alien³", 1992], "Alien.3.1992.1080p.BluRay.x264-GRP", true],
+    [["Movie", "Alien³", "Alien³", 1992], "Alien.Resurrection.1997.1080p.BluRay.x264-GRP", false],
     [["Movie", "Dune", "Dune", 2021], "Dune.S01E01.1080p.WEB-DL.x264-GRP", false],
     [["Episode", "Mira Check", 1, 2, null], "Mira.Check.S01E02.1080p.WEB-DL.H264-GRP", true],
     [["Episode", "Mira Check", 1, 2, null], "Mira.Check.S01E03.1080p.WEB-DL.H264-GRP", false],
@@ -49,7 +53,8 @@
     [["Episode", "Mira Check", 1, 5, null], "[SubsPlease] Mira Check - 05 (1080p) [ABCDEF12].mkv", true],
     [["Episode", "Mira Check", 2, 5, null], "[SubsPlease] Mira Check - 05 (1080p) [ABCDEF12].mkv", false],
     [["Episode", "Mira Check", 1, 1, 2], "Mira.Check.S01E01E02.1080p.WEB-DL.H264-GRP", true],
-    [["Episode", "Mira Check", 1, 1, null], "Mira.Check.S01E01E02.1080p.WEB-DL.H264-GRP", false]
+    [["Episode", "Mira Check", 1, 1, null], "Mira.Check.S01E01E02.1080p.WEB-DL.H264-GRP", false],
+    [["Episode", "L'Amie prodigieuse", 4, 1, null], "L.Amie.Prodigieuse.S04E01.FRENCH.1080p.WEB.H264-GRP", true]
   ],
   "queries": [
     [["Movie", "Dune", "Dune", 2021], "Dune 2021"],

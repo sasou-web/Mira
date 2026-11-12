@@ -73,7 +73,7 @@ internal static class RemoteDownloadTests
                 Assert(found.SequenceEqual(expected), "Groups: " + string.Join(" ; ", found));
             }
             Assert(ReleaseRanking.Parse("[ToonsHub] JoJos Bizarre Adventure S06E04 1080p (JoJo no Kimyou na Bouken: Steel Ball Run - 2nd - 3rd STAGE, Dual-Audio)").Alternate == "JoJo no Kimyou na Bouken: Steel Ball Run"
-                && ReleaseRanking.Parse("Film.2020.1080p.WEB-DL.MultiSub.x264").Languages.Count == 0 && ReleaseRanking.TitleKey("JoJo’s Bizarre Adventure: Éclat & Co") == "jojos bizarre adventure eclat and co", "Other name, subtitles, key");
+                && ReleaseRanking.Parse("Film.2020.1080p.WEB-DL.MultiSub.x264").Languages.Count == 0 && ReleaseRanking.TitleKey("JoJo’s Bizarre Adventure: Éclat & Co") == "jojosbizarreadventureeclatandco", "Other name, subtitles, key");
             RelayHit Hit(string name, int seeders, string source = "1337x") => new("x", name, 3L << 30, seeders, 0, source, null);
             Assert(ReleaseRanking.Score(Hit("Film.2020.1080p.BluRay.x264-A", 5), ReleaseRanking.Parse("Film.2020.1080p.BluRay.x264-A")) > ReleaseRanking.Score(Hit("Film.2020.1080p.WEBRip.x264-B", 5000), ReleaseRanking.Parse("Film.2020.1080p.WEBRip.x264-B"))
                 && ReleaseRanking.Warning(new(Hit("", 0, "subsplease"), ReleaseRanking.Parse("[SubsPlease] Show - 05 (1080p)"), 0, 0)) == "", "Seeders only break ties; SubsPlease has none");
@@ -97,7 +97,7 @@ internal static class RemoteDownloadTests
             var many = ReleaseRanking.Group(new[] { "Mira.Check.S01E02.1080p.WEB-DL", "Mira.Check.S01E03.1080p.WEB-DL", "Mira.Check.2026.1080p.WEB-DL" }.Concat(Enumerable.Range(0, 20).Select(i => $"Film {(char)('A' + i)} 2020 1080p BluRay"))
                 .Select((n, i) => new RelayHit($"h{i}", n, 2L << 30, 9, 0, "x", null)));
             var lookups = OwnedTitles.Lookups(many);
-            Assert(lookups.Count == OwnedTitles.MaxLookups && lookups[0] == ("show|mira check", "Mira Check", false) && lookups[1] == ("film|mira check", "Mira Check", true), "Lookups: " + string.Join(" ; ", lookups));
+            Assert(lookups.Count == OwnedTitles.MaxLookups && lookups[0] == ("show|miracheck", "Mira Check", false) && lookups[1] == ("film|miracheck", "Mira Check", true), "Lookups: " + string.Join(" ; ", lookups));
             return Task.CompletedTask;
         });
         await Test("Télécharger sur le PC serveur : l'écran des apps écrit le PC, un résultat, une demande et un téléchargement comme Mira web (tests/fixtures/torlink-lines.json)", () =>

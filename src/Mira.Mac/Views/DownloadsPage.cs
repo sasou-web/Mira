@@ -494,8 +494,7 @@ public sealed class DownloadsPage : Page
         actions.Children.Add(box);
         void Save()
         {
-            var query = RemoteDownloads.CleanQuery(box.Text);
-            query = query is null || ReleaseRanking.TitleKey(query) == ReleaseRanking.TitleKey(follow.Name) ? null : query;
+            var query = SeriesFollowing.ChosenQuery(box.Text, follow.Name);
             _ = FollowActionAsync(c => c.TorLinkFollowAsync(follow.SeriesId, follow.Name, query, _session!.Lifetime), L("Nom cherché changé : le PC serveur cherche de nouveau.", "Search name changed: the server PC is searching again."));
         }
         box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; Save(); } };
