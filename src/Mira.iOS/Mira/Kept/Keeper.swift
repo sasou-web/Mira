@@ -86,10 +86,18 @@ final class Keeper {
 
     var kept: [KeptCopy] { copies.filter(\.complete) }
 
-    /// The copy a title plays from, complete and on the disk; none for a friend's party's guest.
+    /// The copy a title plays from, complete and on the disk; none for a friend's party's guest. The id of one of the
+    /// other files of a title in several files: that file, once the title is whole.
     func playable(_ id: String) -> KeptCopy? {
-        guard app?.party.guest == nil, let copy = copies.first(where: { $0.id == id && $0.complete }) else { return nil }
-        return FileManager.default.fileExists(atPath: videoURL(copy).path) ? copy : nil
+        guard app?.party.guest == nil, let found = KeptRules.locate(id, in: copies), found.title.complete else { return nil }
+        return FileManager.default.fileExists(atPath: videoURL(found.copy).path) ? found.copy : nil
+    }
+
+    /// The parts of a title kept here whole (« cd1 », « cd2 »…), to play one after the other without Jellyfin
+    /// (MovieParts); nil for a title kept in one file, or kept before its other files were.
+    func keptParts(_ title: Item) -> MovieParts? {
+        guard let copy = playable(title.id), let parts = copy.parts, !parts.isEmpty, parts.allSatisfy({ playable($0.id) != nil }) else { return nil }
+        return MovieParts(title: title, others: parts.map(\.item))
     }
 
     func next(after episode: Item) -> KeptCopy? {
@@ -99,12 +107,21 @@ final class Keeper {
 
     func videoURL(_ copy: KeptCopy) -> URL { folder(copy).appending(path: copy.videoName) }
     func subtitleURL(_ copy: KeptCopy, _ subtitle: KeptSubtitle) -> URL { folder(copy).appending(path: subtitle.file) }
-    func pictureURL(_ copy: KeptCopy) -> URL? { copy.hasPicture ? folder(copy).appending(path: "picture") : nil }
+
+    /// The title's picture; for one of its other files, the title's.
+    func pictureURL(_ copy: KeptCopy) -> URL? {
+        let title = KeptRules.locate(copy.id, in: copies)?.title ?? copy
+        return title.hasPicture ? folder(title).appending(path: "picture") : nil
+    }
 
     /// What the copies take, and the room left.
     var used: Int64 { account.map(KeptStore.bytes) ?? 0 }
 
-    private func folder(_ copy: KeptCopy) -> URL { KeptStore.folder(account: account ?? "_", item: copy.id) }
+    /// A title's folder; one of its other files', in it.
+    private func folder(_ copy: KeptCopy) -> URL {
+        guard let found = KeptRules.locate(copy.id, in: copies), let part = found.part else { return KeptStore.folder(account: account ?? "_", item: copy.id) }
+        return KeptStore.folder(account: account ?? "_", item: found.title.id).appending(path: KeptStore.partFolder(part), directoryHint: .isDirectory)
+    }
 
     // MARK: The account
 
@@ -274,7 +291,8 @@ final class Keeper {
                         try? await Task.sleep(for: .seconds(5))
                     }
                 case let error as CocoaError where error.code == .fileWriteOutOfSpace:
-                    fail(next.id, KeepError.noRoom(max(0, next.size - next.bytes)).text)
+                    let now = copies.first { $0.id == next.id } ?? next
+                    fail(next.id, KeepError.noRoom(now.files.reduce(0) { $0 + max(0, $1.size - $1.bytes) }).text)
                 default:
                     // The way to Jellyfin: tried again when one comes back, and every minute meanwhile.
                     waiting = true
@@ -311,12 +329,52 @@ final class Keeper {
         if copy.id == current { continued?.progress.completedUnitCount = Int64(KeptRules.fraction(copy) * 1000) }
     }
 
+    /// One of the other files of a title written into it, if both are still kept.
+    private func update(part: KeptCopy, of id: String, at index: Int) {
+        guard var title = copies.first(where: { $0.id == id }), var parts = title.parts, parts.indices.contains(index), parts[index].id == part.id else { return }
+        parts[index] = part
+        title.parts = parts
+        update(title)
+    }
+
     private var authorization: String { app?.client?.authorization ?? "" }
 
+    /// A title: its other files first when Jellyfin put several together (« cd1 », « cd2 »…), each into a folder of the
+    /// title's, then its own; complete only whole.
     private func fetch(_ start: KeptCopy, _ client: JellyfinClient) async throws {
         guard let account else { return }
+        var title = start
+        let id = title.id, folder = KeptStore.folder(account: account, item: id)
+        let fresh = title.kind == nil
+        if fresh {
+            // What Jellyfin knows of the title now (its files and tracks, its chapters).
+            do { title.item = try await client.item(id) } catch JellyfinError.http(404) { throw KeepError.gone }
+        }
+        if title.parts == nil, MovieParts.has(title.item) {
+            // Jellyfin's file of the title (Items/{id}/Download) and its conversion are its first file alone (checked
+            // on 12.1): its other files are kept with it.
+            title.parts = KeptRules.parts(of: title, others: try await client.additionalParts(id))
+            update(title)
+        }
+        for index in (title.parts ?? []).indices {
+            guard let part = title.parts?[index], !part.complete else { continue }
+            // Taken off meanwhile: no folder made again.
+            try Task.checkCancellation()
+            let place = folder.appending(path: KeptStore.partFolder(index), directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: place, withIntermediateDirectories: true)
+            title.parts?[index] = try await fetchVideo(part, client, folder: place, read: true, picture: false) { [weak self] saved in
+                self?.update(part: saved, of: id, at: index)
+            }
+        }
+        _ = try await fetchVideo(title, client, folder: folder, read: false, picture: true) { [weak self] copy in self?.update(copy) }
+    }
+
+    /// One file of a title into `folder`: the title's own (its item read by `fetch`), or one of its other files (read
+    /// here). The file as it is when the iPhone plays it, otherwise Jellyfin's conversion of it; then its text subtitles
+    /// (and the title's picture). `save` writes where it came.
+    private func fetchVideo(_ start: KeptCopy, _ client: JellyfinClient, folder: URL, read: Bool, picture withPicture: Bool,
+                            save: (KeptCopy) -> Void) async throws -> KeptCopy {
         var copy = start
-        let folder = KeptStore.folder(account: account, item: copy.id)
         let part = folder.appending(path: "video.part")
         if copy.total > 0, copy.pieces >= copy.total, !FileManager.default.fileExists(atPath: part.path) {
             // Every piece fetched and moved into place, then Mira closed while its subtitles came: only those are asked
@@ -326,17 +384,19 @@ final class Keeper {
                 copy.subtitles = await subtitles(copy, source, client, folder: folder)
                 copy.complete = true
                 copy.failure = nil
-                update(copy)
-                return
+                save(copy)
+                return copy
             }
             // Neither the part nor the film: from the start.
             copy.pieces = 0
             copy.bytes = 0
         }
         if copy.kind == nil {
-            // What Jellyfin knows of the title now (its file and tracks, its chapters), and whether the account may
-            // keep it: the download right of Jellyfin's policy, for a conversion too.
-            do { copy.item = try await client.item(copy.id) } catch JellyfinError.http(404) { throw KeepError.gone }
+            // What Jellyfin knows of the file now (its tracks), and whether the account may keep it: the download right
+            // of Jellyfin's policy, for a conversion too.
+            if read {
+                do { copy.item = try await client.item(copy.id) } catch JellyfinError.http(404) { throw KeepError.gone }
+            }
             try await Self.allowed(client.url("Items/\(copy.id)/Download"), authorization: client.authorization)
             if let preferences = app?.preferences {
                 let chosen = TrackChoice.choose(copy.item.mediaSources?.first, memory: preferences.tracks(for: copy.item.seriesId),
@@ -364,16 +424,16 @@ final class Keeper {
         }
         copy.source = source
         guard KeptRules.fits(max(0, copy.size - copy.bytes), free: KeptStore.freeSpace()) else { throw KeepError.noRoom(max(0, copy.size - copy.bytes)) }
-        update(copy)
-        if !copy.hasPicture, await picture(copy, client, to: folder.appending(path: "picture")) {
+        save(copy)
+        if withPicture, !copy.hasPicture, await picture(copy, client, to: folder.appending(path: "picture")) {
             copy.hasPicture = true
-            update(copy)
+            save(copy)
         }
         switch kind {
-        case .file: copy = try await fetchFile(copy, client, part: part)
+        case .file: copy = try await fetchFile(copy, client, part: part, save: save)
         case .converted:
             defer { if let session = info.playSessionId { Task { await client.stopEncoding(session) } } }
-            copy = try await fetchConversion(copy, source, client, part: part)
+            copy = try await fetchConversion(copy, source, client, part: part, save: save)
         }
         try Task.checkCancellation()
         let video = folder.appending(path: copy.videoName)
@@ -383,11 +443,12 @@ final class Keeper {
         copy.subtitles = await subtitles(copy, source, client, folder: folder)
         copy.complete = true
         copy.failure = nil
-        update(copy)
+        save(copy)
+        return copy
     }
 
     /// The file as it is, a range at a time: the first one says its size.
-    private func fetchFile(_ start: KeptCopy, _ client: JellyfinClient, part: URL) async throws -> KeptCopy {
+    private func fetchFile(_ start: KeptCopy, _ client: JellyfinClient, part: URL, save: (KeptCopy) -> Void) async throws -> KeptCopy {
         var copy = start
         let address = client.url("Items/\(copy.id)/Download")
         while copy.total == 0 || copy.pieces < copy.total {
@@ -403,7 +464,7 @@ final class Keeper {
                 copy.size = copy.bytes
                 copy.pieces = 1
                 copy.total = 1
-                update(copy)
+                save(copy)
                 return copy
             }
             let size = KeptRules.rangeTotal(response.value(forHTTPHeaderField: "Content-Range")) ?? 0
@@ -424,14 +485,14 @@ final class Keeper {
             }
             copy.bytes = try Self.append(piece, to: part, at: range.lowerBound)
             copy.pieces += 1
-            update(copy)
+            save(copy)
         }
         return copy
     }
 
     /// Jellyfin's conversion, its playlist read, then its init segment and each segment after it, into one fragmented
     /// MP4 (the same file Apple's player reads segment by segment).
-    private func fetchConversion(_ start: KeptCopy, _ source: MediaSource, _ client: JellyfinClient, part: URL) async throws -> KeptCopy {
+    private func fetchConversion(_ start: KeptCopy, _ source: MediaSource, _ client: JellyfinClient, part: URL, save: (KeptCopy) -> Void) async throws -> KeptCopy {
         var copy = start
         guard let path = source.transcodingUrl, let master = client.signed(path) else { throw KeepError.cannotPlay }
         let first = try await Self.text(master, authorization: client.authorization)
@@ -458,7 +519,7 @@ final class Keeper {
             copy.bytes = try Self.append(piece, to: part, at: copy.bytes)
             copy.pieces += 1
             if copy.pieces > 1 { copy.size = max(copy.bytes, copy.bytes / Int64(copy.pieces) * Int64(copy.total)) }
-            update(copy)
+            save(copy)
         }
         return copy
     }
@@ -594,23 +655,43 @@ final class Keeper {
 
     // MARK: What was watched here
 
-    /// Where a title kept here was left: its page and the next playback start there; Jellyfin is told later when it did
-    /// not hear it (`heard`).
+    /// Where a title kept here (or one of the other files of a title in several files) was left: its page and the next
+    /// playback start there; Jellyfin is told later when it did not hear it (`heard`).
     func remember(_ id: String, ticks: Int64, finished: Bool, heard: Bool, at: Date = Date()) {
-        guard var copy = copies.first(where: { $0.id == id }) else { return }
-        var data = copy.item.userData ?? UserData()
-        data.playbackPositionTicks = finished ? 0 : ticks
-        if finished { data.played = true }
-        copy.item.userData = data
-        copy.watched = heard ? nil : KeptWatch(ticks: ticks, finished: finished, at: at)
-        update(copy)
+        change(id) { copy in
+            var data = copy.item.userData ?? UserData()
+            data.playbackPositionTicks = finished ? 0 : ticks
+            if finished { data.played = true }
+            // When, as Jellyfin says it: « Play » of a title in several files starts in the part left last (MovieParts).
+            data.lastPlayedDate = at.formatted(.iso8601)
+            copy.item.userData = data
+            copy.watched = heard ? nil : KeptWatch(ticks: ticks, finished: finished, at: at)
+            return true
+        }
     }
 
     /// Jellyfin heard where the title was at `at`: nothing left to tell it from then.
     func heard(_ id: String, at: Date) {
-        guard var copy = copies.first(where: { $0.id == id }), let watch = copy.watched, watch.at <= at else { return }
-        copy.watched = nil
-        update(copy)
+        change(id) { copy in
+            guard let watch = copy.watched, watch.at <= at else { return false }
+            copy.watched = nil
+            return true
+        }
+    }
+
+    /// The copy of this id, a title kept here or one of its other files, changed (when `apply` says so) and written
+    /// into its title.
+    private func change(_ id: String, _ apply: (inout KeptCopy) -> Bool) {
+        guard let found = KeptRules.locate(id, in: copies) else { return }
+        var title = found.title
+        if let index = found.part {
+            guard var parts = title.parts else { return }
+            guard apply(&parts[index]) else { return }
+            title.parts = parts
+        } else {
+            guard apply(&title) else { return }
+        }
+        update(title)
     }
 
     /// What was watched here while Jellyfin heard nothing, told to it now: unless it was watched elsewhere since.
@@ -619,8 +700,8 @@ final class Keeper {
         sending = true
         defer { sending = false }
         var told = false
-        for id in copies.filter({ $0.watched != nil }).map(\.id) {
-            guard let watch = copies.first(where: { $0.id == id })?.watched else { continue }
+        for id in copies.flatMap(\.files).filter({ $0.watched != nil }).map(\.id) {
+            guard let watch = KeptRules.locate(id, in: copies)?.copy.watched else { continue }
             let server: Item
             do { server = try await client.item(id) } catch JellyfinError.http(404) {
                 clearWatched(id, watch)
@@ -645,9 +726,11 @@ final class Keeper {
     }
 
     private func clearWatched(_ id: String, _ watch: KeptWatch) {
-        guard var copy = copies.first(where: { $0.id == id }), copy.watched == watch else { return }
-        copy.watched = nil
-        update(copy)
+        change(id) { copy in
+            guard copy.watched == watch else { return false }
+            copy.watched = nil
+            return true
+        }
     }
 
     // MARK: In the background

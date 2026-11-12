@@ -30,8 +30,18 @@ struct KeptCopy: Codable, Sendable, Identifiable, Hashable {
     var failure: String?
     /// Watched here while Jellyfin heard nothing: told to it once it answers (KeptRules.progressStep).
     var watched: KeptWatch?
+    /// The title's other files, when Jellyfin put several together (« cd1 », « cd2 »…: MovieParts): each a copy of its
+    /// own in a folder of the title's (`part-2`, `part-3`…), fetched before the title's own file, which is its first: the
+    /// title is complete only whole. Nil for a title in one file, and for one kept before (its first file alone).
+    var parts: [KeptCopy]?
 
     var id: String { item.id }
+
+    /// The files the title is made of: its other parts, then its own.
+    var files: [KeptCopy] { (parts ?? []) + [self] }
+
+    /// What the title takes on this iPhone, every file of it.
+    var totalSize: Int64 { files.reduce(0) { $0 + $1.size } }
 
     /// « video.mp4 », « video.mov »: AVPlayer reads a file by its extension.
     var videoName: String { kind == .file ? "video." + KeptRules.videoExtension(source) : "video.mp4" }
@@ -86,9 +96,14 @@ enum KeptStore {
     static func read(_ folder: URL) -> KeptCopy? {
         guard let data = try? Data(contentsOf: folder.appending(path: manifest)), let copy = try? decoder.decode(KeptCopy.self, from: data),
               !copy.item.id.isEmpty, safeName(copy.item.id) == folder.lastPathComponent,
-              copy.subtitles.allSatisfy({ safeName($0.file) == $0.file }) else { return nil }
+              copy.subtitles.allSatisfy({ safeName($0.file) == $0.file }),
+              (copy.parts ?? []).allSatisfy({ part in !part.item.id.isEmpty && part.parts == nil && part.subtitles.allSatisfy { safeName($0.file) == $0.file } })
+        else { return nil }
         return copy
     }
+
+    /// The folder of a title's other file, in the title's own: « part-2 » for the first of them (its second part).
+    static func partFolder(_ index: Int) -> String { "part-\(index + 2)" }
 
     /// Written whole or not at all: a manifest cut by a crash would lose the copy.
     static func save(_ copy: KeptCopy, account: String) throws {
@@ -236,6 +251,23 @@ enum KeptRules {
         return ended && !segments.isEmpty ? (initial, segments) : nil
     }
 
+    /// A title's other files to keep with it, from Jellyfin's list of its parts (Videos/{id}/AdditionalParts): the title
+    /// itself, if Jellyfin gives it again, left out, as MovieParts does.
+    static func parts(of title: KeptCopy, others: [Item]) -> [KeptCopy] {
+        var seen: Set = [title.id]
+        return others.filter { seen.insert($0.id).inserted }.map { KeptCopy(item: $0, added: title.added) }
+    }
+
+    /// The copy of a file by its id, a title kept here or one of its other files: with the title it belongs to, and its
+    /// place among the title's parts (nil: the title's own file).
+    static func locate(_ id: String, in copies: [KeptCopy]) -> (title: KeptCopy, copy: KeptCopy, part: Int?)? {
+        for title in copies {
+            if title.id == id { return (title, title, nil) }
+            if let parts = title.parts, let at = parts.firstIndex(where: { $0.id == id }) { return (title, parts[at], at) }
+        }
+        return nil
+    }
+
     /// The episode after this one among the copies, in the order of the series: what plays next when Jellyfin can't
     /// say (OfflineCopies.NextEpisode).
     static func next(after episode: Item, in copies: [KeptCopy]) -> KeptCopy? {
@@ -292,10 +324,13 @@ enum KeptRules {
         ["PlaybackPositionTicks": max(0, ticks), "LastPlayedDate": at.formatted(.iso8601)]
     }
 
-    /// How far a copy came, 0 to 1.
+    /// How far a copy came, 0 to 1: a title in several files, each file its share.
     static func fraction(_ copy: KeptCopy) -> Double {
         if copy.complete { return 1 }
-        if copy.total > 0 { return min(0.99, Double(copy.pieces) / Double(copy.total)) }
-        return 0
+        let files = copy.files
+        let done = files.reduce(0.0) { sum, file in
+            sum + (file.complete ? 1 : file.total > 0 ? Double(file.pieces) / Double(file.total) : 0)
+        }
+        return min(0.99, done / Double(files.count))
     }
 }

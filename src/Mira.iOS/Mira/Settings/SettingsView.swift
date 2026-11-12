@@ -304,7 +304,7 @@ struct SettingsView: View {
     private var keptLine: String {
         let kept = app.keeper.kept
         guard !kept.isEmpty else { return String(localized: "Movies and episodes kept here play without a connection.") }
-        return String(localized: "\(kept.count) titles · \(Keeper.size(kept.reduce(0) { $0 + $1.size }))")
+        return String(localized: "\(kept.count) titles · \(Keeper.size(kept.reduce(0) { $0 + $1.totalSize }))")
     }
 
     private func row(_ title: LocalizedStringKey, _ detail: LocalizedStringKey, symbol: String? = nil) -> some View {

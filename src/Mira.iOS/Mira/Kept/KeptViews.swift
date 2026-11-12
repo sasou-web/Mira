@@ -263,7 +263,7 @@ struct KeptRow: View {
             }
             .font(MiraFont.footnote).foregroundStyle(Palette.muted)
         default:
-            Text(verbatim: Keeper.size(copy.size)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
+            Text(verbatim: Keeper.size(copy.totalSize)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
         }
     }
 

@@ -143,6 +143,46 @@ struct KeptTests {
         #expect(KeptRules.fraction(copy) == 1)
     }
 
+    @Test("Un film en plusieurs fichiers : ses autres fichiers gardés avec lui, chacun sa part du chemin")
+    func parts() {
+        var title = KeptCopy(item: Item(id: "cd1", name: "Film", type: "Movie"), added: Date(timeIntervalSinceReferenceDate: 7))
+        // Jellyfin's list of the title's other files: the title itself, or a file twice, never kept twice.
+        let others = [Item(id: "cd2", type: "Video"), Item(id: "cd1", type: "Movie"), Item(id: "cd3", type: "Video"), Item(id: "cd2", type: "Video")]
+        let parts = KeptRules.parts(of: title, others: others)
+        #expect(parts.map(\.id) == ["cd2", "cd3"])
+        #expect(parts.allSatisfy { $0.added == title.added && !$0.complete && $0.parts == nil })
+        title.parts = parts
+        #expect(title.files.map(\.id) == ["cd2", "cd3", "cd1"])
+        #expect(KeptStore.partFolder(0) == "part-2")
+        #expect(KeptStore.partFolder(1) == "part-3")
+        // Each file found by its id: its title, and its place among the title's other files.
+        let copies = [KeptCopy(item: Item(id: "film", type: "Movie"), added: .now), title]
+        #expect(KeptRules.locate("cd3", in: copies)?.title.id == "cd1")
+        #expect(KeptRules.locate("cd3", in: copies)?.copy.id == "cd3")
+        #expect(KeptRules.locate("cd3", in: copies)?.part == 1)
+        #expect(KeptRules.locate("cd1", in: copies)?.copy.id == "cd1")
+        #expect(KeptRules.locate("cd1", in: copies)?.part == nil)
+        #expect(KeptRules.locate("film", in: copies)?.title.id == "film")
+        #expect(KeptRules.locate("cd4", in: copies) == nil)
+        // How far: each file its share, whole only once the title's own file is.
+        #expect(KeptRules.fraction(title) == 0)
+        title.parts?[0].complete = true
+        title.parts?[1].total = 4
+        title.parts?[1].pieces = 2
+        #expect(KeptRules.fraction(title) == 0.5)
+        title.parts?[1].complete = true
+        title.total = 4
+        title.pieces = 4
+        #expect(KeptRules.fraction(title) == 0.99)
+        title.complete = true
+        #expect(KeptRules.fraction(title) == 1)
+        // What it takes on this iPhone: every file of it.
+        title.size = 100
+        title.parts?[0].size = 150
+        title.parts?[1].size = 50
+        #expect(title.totalSize == 300)
+    }
+
     @Test("Le film déjà à sa place (Mira fermée pendant ses sous-titres) : ni retéléchargé ni effacé")
     func videoInPlace() {
         var copy = KeptCopy(item: Item(id: "a"), added: .now)
@@ -187,5 +227,32 @@ struct KeptTests {
         #expect(KeptStore.safeName("../etc") == "_")
         #expect(KeptStore.safeName("a1b2-c3") == "a1b2-c3")
         #expect(KeptStore.safeName("") == "_")
+    }
+
+    @Test("mira-copy.json d'un film en plusieurs fichiers se relit tel quel ; celui d'une copie gardée avant, sans eux")
+    func manifestWithParts() throws {
+        let folder = URL.temporaryDirectory.appending(path: "kept-\(UUID().uuidString)", directoryHint: .isDirectory).appending(path: "cd1", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
+        var kept = KeptCopy(item: Item(id: "cd1", name: "Film", type: "Movie"), added: Date(timeIntervalSince1970: 1_800_000_000))
+        var part = KeptCopy(item: Item(id: "cd2", type: "Video"), added: kept.added)
+        part.kind = .file
+        part.size = 42
+        part.subtitles = [KeptSubtitle(file: "subtitle-2.vtt", index: 2)]
+        part.watched = KeptWatch(ticks: 5, finished: false, at: Date(timeIntervalSince1970: 1_800_000_100))
+        kept.parts = [part]
+        try KeptStore.encoder.encode(kept).write(to: folder.appending(path: KeptStore.manifest))
+        #expect(KeptStore.read(folder) == kept)
+        // A subtitle of another file named outside its folder: the manifest is not read.
+        var outside = kept
+        outside.parts?[0].subtitles = [KeptSubtitle(file: "../../x.vtt", index: 2)]
+        try KeptStore.encoder.encode(outside).write(to: folder.appending(path: KeptStore.manifest))
+        #expect(KeptStore.read(folder) == nil)
+        // Kept before Mira kept the other files: no « parts » in its manifest, the title alone.
+        kept.parts = nil
+        let before = try KeptStore.encoder.encode(kept)
+        #expect(!String(decoding: before, as: UTF8.self).contains("\"parts\""))
+        try before.write(to: folder.appending(path: KeptStore.manifest))
+        #expect(KeptStore.read(folder)?.files.map(\.id) == ["cd1"])
     }
 }
