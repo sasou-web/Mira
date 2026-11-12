@@ -212,7 +212,7 @@ public partial class MainWindow
             if (active) shown = button;
             // Contrast themes keep the tile on the button itself: the sliding one is drawn in Mira's colours.
             button.Background = active && HighContrast ? Palette.Get("Text") : Brushes.Transparent;
-            Ink(button, active ? Palette.Get("OnAccent") : Palette.Get("TextTertiary"), button != _railActive && (active || button == _railActive));
+            button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextTertiary");
         }
         MoveRailIndicator(shown);
     }
@@ -221,34 +221,21 @@ public partial class MainWindow
     /// <summary>The rail's button of the page shown (its tile), else null.</summary>
     private Button? ShownRailButton() => _railActive is { IsVisible: true } active && RailButtons.Contains(active) ? active : null;
     private static bool HighContrast => SystemParameters.HighContrast;
-    /// <summary>The icon's ink, turned in step with the tile sliding under it.</summary>
-    private static void Ink(Button button, Brush target, bool animate)
-    {
-        if (!animate || Motion.Reduced || target is not SolidColorBrush to || button.Foreground is not SolidColorBrush from) { button.Foreground = target; return; }
-        if (from.Color == to.Color) return;
-        var ink = new SolidColorBrush(from.Color); button.Foreground = ink;
-        ink.BeginAnimation(SolidColorBrush.ColorProperty, new System.Windows.Media.Animation.ColorAnimation(to.Color, TimeSpan.FromMilliseconds(220)) { EasingFunction = Motion.Enter });
-    }
+    /// <summary>
+    /// The page's tile under its rail button, put there at once: it no longer slides from one button to the next, nor fades
+    /// (ogsas, 2026-11-12: buttons stay still, only a static hover).
+    /// </summary>
     private void MoveRailIndicator(Button? active)
     {
         var move = (TranslateTransform)RailIndicator.RenderTransform;
-        if (active is null || !active.IsVisible || HighContrast) { _railActive = active; Motion.Fade(RailIndicator, 0, 140); return; }
+        _railActive = active;
+        RailIndicator.BeginAnimation(OpacityProperty, null);
+        if (active is null || !active.IsVisible || HighContrast) { RailIndicator.Opacity = 0; return; }
         RailBody.UpdateLayout();
         var at = active.TranslatePoint(new Point(), RailBody);
         RailIndicator.Width = active.ActualWidth; RailIndicator.Height = active.ActualHeight;
-        var first = RailIndicator.Opacity < .01 || _railActive is null;
-        if (first || Motion.Reduced)
-        {
-            move.BeginAnimation(TranslateTransform.XProperty, null); move.BeginAnimation(TranslateTransform.YProperty, null);
-            move.X = at.X; move.Y = at.Y; Motion.Fade(RailIndicator, 1, 160);
-        }
-        else if (active != _railActive)
-        {
-            Motion.Animate(move, TranslateTransform.XProperty, at.X, 320, ease: Motion.Glide);
-            Motion.Animate(move, TranslateTransform.YProperty, at.Y, 320, ease: Motion.Glide);
-            Motion.Fade(RailIndicator, 1, 120);
-        }
-        _railActive = active;
+        move.BeginAnimation(TranslateTransform.XProperty, null); move.BeginAnimation(TranslateTransform.YProperty, null);
+        move.X = at.X; move.Y = at.Y; RailIndicator.Opacity = 1;
     }
     private void RenderLibrary()
     {

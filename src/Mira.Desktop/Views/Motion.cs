@@ -104,52 +104,34 @@ public static class Motion
     public static readonly DependencyProperty RadiusProperty = DependencyProperty.RegisterAttached("Radius", typeof(CornerRadius), typeof(Motion), new FrameworkPropertyMetadata(new CornerRadius(10)));
     public static CornerRadius GetRadius(DependencyObject value) => (CornerRadius)value.GetValue(RadiusProperty);
     public static void SetRadius(DependencyObject value, CornerRadius radius) => value.SetValue(RadiusProperty, radius);
-    /// <summary>Icon buttons also grow slightly under the pointer. Text buttons keep a fixed size:
-    /// scaling pixel-snapped text makes it shimmer instead of moving smoothly.</summary>
-    public static readonly DependencyProperty HoverScaleProperty = DependencyProperty.RegisterAttached("HoverScale", typeof(bool), typeof(Motion), new PropertyMetadata(false));
-    public static bool GetHoverScale(DependencyObject value) => (bool)value.GetValue(HoverScaleProperty);
-    public static void SetHoverScale(DependencyObject value, bool enabled) => value.SetValue(HoverScaleProperty, enabled);
     public const double HoverWash = .11, PressWash = .19;
+    /// <summary>
+    /// The default template's wash, set at once: buttons stay still, no fade, no scale (ogsas, 2026-11-12: an animated
+    /// hover looked neither smooth nor good). Pressed is a little darker than hovered.
+    /// </summary>
     private static void InteractiveChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
     {
         if (sender is not Button button || e.NewValue is not true || button is MediaCard) return;
-        ScaleTransform? scale = null;
         // Lit by the pointer: only then is there something to put out when the button goes.
         var lifted = false;
-        void To(double wash, double size, int ms)
+        void To(double wash)
         {
+            if (!lifted && wash == 0) return;
             lifted = wash > 0;
             button.ApplyTemplate();
-            // Wash and scale share one duration and one curve, so they move as a single gesture.
-            if (button.Template?.FindName("Hover", button) is UIElement layer) Fade(layer, wash, ms, ease: Soft);
-            if (!GetHoverScale(button)) return;
-            if (scale is null) { scale = new ScaleTransform(1, 1); button.RenderTransformOrigin = new Point(.5, .5); button.RenderTransform = scale; }
-            if (Reduced) size = 1;
-            Animate(scale, ScaleTransform.ScaleXProperty, size, ms, ease: Soft); Animate(scale, ScaleTransform.ScaleYProperty, size, ms, ease: Soft);
+            if (button.Template?.FindName("Hover", button) is UIElement layer) { layer.BeginAnimation(UIElement.OpacityProperty, null); layer.Opacity = wash; }
         }
-        double Grow() => 1 + Math.Min(.05, 2.2 / Math.Max(1, button.ActualWidth));
-        double Shrink() => 1 - Math.Min(.04, 1.8 / Math.Max(1, button.ActualWidth));
-        button.MouseEnter += (_, _) => To(HoverWash, Grow(), 190);
-        button.MouseLeave += (_, _) => To(0, 1, 240);
-        button.PreviewMouseLeftButtonDown += (_, _) => To(PressWash, Shrink(), 110);
-        button.PreviewMouseLeftButtonUp += (_, _) => { if (button.IsMouseOver) To(HoverWash, Grow(), 200); else To(0, 1, 240); };
-        // A button hidden or disabled under the pointer must not keep its highlight. The others have none to put out: a
-        // page closing would otherwise start an animation on each of its buttons.
-        button.IsVisibleChanged += (_, _) => { if (!button.IsVisible && lifted) To(0, 1, 0); };
-        button.IsEnabledChanged += (_, _) => { if (!button.IsEnabled && lifted) To(0, 1, 120); };
+        button.MouseEnter += (_, _) => To(HoverWash);
+        button.MouseLeave += (_, _) => To(0);
+        button.PreviewMouseLeftButtonDown += (_, _) => To(PressWash);
+        button.PreviewMouseLeftButtonUp += (_, _) => To(button.IsMouseOver ? HoverWash : 0);
+        // A button hidden or disabled under the pointer must not keep its highlight.
+        button.IsVisibleChanged += (_, _) => { if (!button.IsVisible) To(0); };
+        button.IsEnabledChanged += (_, _) => { if (!button.IsEnabled) To(0); };
     }
 
-    /// <summary>Changes a glyph with a short pop (scale and fade) so a state change reads as one gesture.</summary>
-    public static void Swap(Icon icon, string kind)
-    {
-        if (icon.Kind == kind) return;
-        icon.Kind = kind;
-        if (Reduced) return;
-        var scale = icon.RenderTransform as ScaleTransform;
-        if (scale is null || scale.IsFrozen) { scale = new ScaleTransform(1, 1); icon.RenderTransformOrigin = new Point(.5, .5); icon.RenderTransform = scale; }
-        Animate(scale, ScaleTransform.ScaleXProperty, 1, 170, .78, Soft); Animate(scale, ScaleTransform.ScaleYProperty, 1, 170, .78, Soft);
-        Fade(icon, 1, 150, .35, Soft);
-    }
+    /// <summary>Changes a glyph at once: a state change on a button does not animate.</summary>
+    public static void Swap(Icon icon, string kind) => icon.Kind = kind;
     public static readonly DependencyProperty SwitchProperty = DependencyProperty.RegisterAttached("Switch", typeof(bool), typeof(Motion), new PropertyMetadata(false, SwitchChanged));
     public static bool GetSwitch(DependencyObject value) => (bool)value.GetValue(SwitchProperty);
     public static void SetSwitch(DependencyObject value, bool enabled) => value.SetValue(SwitchProperty, enabled);

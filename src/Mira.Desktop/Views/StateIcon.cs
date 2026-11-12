@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using Mira.Core;
 
 namespace Mira.Desktop.Views;
@@ -10,8 +9,8 @@ namespace Mira.Desktop.Views;
 /// <summary>
 /// The glyph of a state button of a title's page (<see cref="IconPaths.States"/>: Favori, Vu, Suivre, Garder sur ce PC):
 /// its outline off, a solid white shape on, a ring of how far a copy is while it comes. The button around it stays the
-/// same rounded square in every state: a change only pops this drawing (a short spring of its scale, inside the
-/// button), never the row, so a click on the page moves nothing (checked by the public gallery, <c>24-title-*</c>).
+/// same rounded square in every state: a change only redraws this glyph, at once (no animation: ogsas, 2026-11-12), never
+/// the row, so a click on the page moves nothing (checked by the public gallery, <c>24-title-*</c>).
 /// </summary>
 public sealed class StateIcon : FrameworkElement
 {
@@ -21,7 +20,6 @@ public sealed class StateIcon : FrameworkElement
     private string _kind = "favorite";
     private bool _on;
     private double? _progress;
-    private readonly ScaleTransform _pop = new(1, 1);
     private static readonly Dictionary<string, (Geometry Off, Geometry Solid, Geometry? Lines, Geometry? Marks, Geometry? Ring)> Shapes =
         IconPaths.States.ToDictionary(x => x.Key, x => (Shape(x.Value.Off), Shape(x.Value.Solid), Optional(x.Value.Lines), Optional(x.Value.Marks), x.Value.Off.StartsWith(IconPaths.Ring, StringComparison.Ordinal) ? Shape(IconPaths.Ring) : null));
     private static Geometry Shape(string path) { var value = Geometry.Parse(path); value.Freeze(); return value; }
@@ -30,7 +28,6 @@ public sealed class StateIcon : FrameworkElement
     public StateIcon(string kind)
     {
         _kind = kind; Width = Height = 20;
-        RenderTransform = _pop; RenderTransformOrigin = new Point(.5, .5);
         SetBinding(ForegroundProperty, new Binding(nameof(Control.Foreground)) { RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(Button), 1) });
     }
     public string Kind => _kind;
@@ -38,28 +35,11 @@ public sealed class StateIcon : FrameworkElement
     /// <summary>How far a copy is, from 0 to 1, while it comes; null otherwise.</summary>
     public double? Progress => _progress;
 
-    /// <summary>
-    /// The state to draw. A change of on or off pops the glyph once the button is on screen (not when the page is drawn
-    /// for another title, nor with reduced motion); the same state drawn again, or a copy a little further, does not.
-    /// </summary>
+    /// <summary>The state to draw, at once.</summary>
     public void Show(string kind, bool on, double? progress = null)
     {
-        var flipped = on != _on || kind != _kind;
         _kind = kind; _on = on; _progress = progress is { } value ? Math.Clamp(value, 0, 1) : null;
         InvalidateVisual();
-        if (flipped && IsVisible && IsLoaded && !Motion.Reduced) Pop(on);
-    }
-    /// <summary>
-    /// On, the shape lands from smaller with a little overshoot, as something set; off, it settles from a little smaller,
-    /// without one. Only this glyph's scale: the button and the row do not change.
-    /// </summary>
-    private void Pop(bool on)
-    {
-        var spring = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(on ? 340 : 220) };
-        spring.KeyFrames.Add(new DiscreteDoubleKeyFrame(on ? .62 : .8, KeyTime.FromPercent(0)));
-        spring.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromPercent(1), on ? new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = .55 } : Motion.EaseOut));
-        _pop.BeginAnimation(ScaleTransform.ScaleXProperty, spring, HandoffBehavior.SnapshotAndReplace);
-        _pop.BeginAnimation(ScaleTransform.ScaleYProperty, spring, HandoffBehavior.SnapshotAndReplace);
     }
 
     protected override Size MeasureOverride(Size availableSize) => new(double.IsNaN(Width) ? 20 : Width, double.IsNaN(Height) ? 20 : Height);
