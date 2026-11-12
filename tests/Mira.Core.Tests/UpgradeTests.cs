@@ -61,6 +61,46 @@ internal static class UpgradeTests
             return Task.CompletedTask;
         });
 
+        await Test("Meilleure version : un fichier rangé par Mira (« Dune (2021).mkv »), ou qui garde le nom de l'ancien après un échange, se juge à son poids", () =>
+        {
+            const long GB = 1L << 30;
+            MediaItem Film(string path, int width, int height, long size) => new()
+            {
+                Type = "Movie", Name = "Dune Part Two", ProductionYear = 2024,
+                MediaSources = [new() { Path = path, Size = size, MediaStreams = [new() { Type = "Video", Width = width, Height = height, Codec = "h264" }] }],
+            };
+            RelayHit Hit(string name, double gigabytes) => new(name, name, (long)(gigabytes * GB), 50, 1, "x1337", null);
+            string Offered(MediaItem film, params RelayHit[] hits) => string.Join(", ", TitleUpgrade.Candidates(film, hits).Select(x => x.Name));
+            const string Filed = "/medias/Films/Dune Part Two (2024)/Dune Part Two (2024).mkv";
+
+            // A REMUX filed by Mira: neither its own encodes, nor the same REMUX, nor a 4K lighter than it; a 4K REMUX, yes.
+            var remux = Film(Filed, 1920, 1080, 31 * GB);
+            var offered = Offered(remux, Hit("Dune.Part.Two.2024.1080p.BluRay.x264-GRP", 12), Hit("Dune.Part.Two.2024.1080p.BluRay.REMUX.AVC.DTS-HD.MA.7.1-GRP", 32),
+                Hit("Dune.Part.Two.2024.2160p.WEB-DL.DDP5.1.H.265-GRP", 16), Hit("Dune.Part.Two.2024.2160p.BluRay.REMUX.HEVC.TrueHD.7.1-GRP", 68));
+            Assert(offered == "Dune.Part.Two.2024.2160p.BluRay.REMUX.HEVC.TrueHD.7.1-GRP", "A REMUX filed by Mira: " + offered);
+            Assert(TitleUpgrade.Line(TitleUpgrade.Current(remux)) == "1080p · source inconnue · 31 Go", TitleUpgrade.Line(TitleUpgrade.Current(remux)));
+
+            // A version filmed in a theatre, filed by Mira: the WEB-DL out a few weeks later.
+            offered = Offered(Film(Filed, 1920, 800, 2 * GB), Hit("Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-GRP", 6), Hit("Dune.Part.Two.2024.1080p.WEBRip.x264-GRP", 2.5));
+            Assert(offered == "Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-GRP", "A version filmed in a theatre, filed by Mira: " + offered);
+
+            // A WEB-DL filed by Mira: a BluRay a quarter heavier (HEVC counts half again), never a WEB-DL of its weight.
+            offered = Offered(Film(Filed, 1920, 1080, 6 * GB), Hit("Dune.Part.Two.2024.1080p.BluRay.x264-GRP", 11), Hit("Dune.Part.Two.2024.1080p.BluRay.x265-OTHER", 5.5),
+                Hit("Dune.Part.Two.2024.1080p.WEB-DL.H.264-OTHER", 6.5));
+            Assert(offered == "Dune.Part.Two.2024.1080p.BluRay.x264-GRP, Dune.Part.Two.2024.1080p.BluRay.x265-OTHER", "A WEB-DL filed by Mira: " + offered);
+
+            // A swap keeps the old file's name (TitleSwap.Destination): a 720p BluRay's name on a 1080p WEB-DL says nothing of it…
+            var swapped = Film("/medias/Films/Dune Part Two (2024)/Dune.Part.Two.2024.720p.BluRay.x264-GRP.mkv", 1920, 800, 6 * GB);
+            Assert(TitleUpgrade.Current(swapped) is { Resolution: 1080, Source: null }, "The old name's source: " + TitleUpgrade.Current(swapped));
+            offered = Offered(swapped, Hit("Dune.Part.Two.2024.1080p.BluRay.x264-GRP", 11));
+            Assert(offered == "Dune.Part.Two.2024.1080p.BluRay.x264-GRP", "A 1080p BluRay, on a 720p BluRay's name: " + offered);
+            // … and a WEBRip's name on a BluRay never brings a lighter WEB-DL.
+            offered = Offered(Film("/medias/Films/Dune Part Two (2024)/Dune.Part.Two.2024.1080p.WEBRip.x264-GRP.mkv", 1920, 1080, 11 * GB),
+                Hit("Dune.Part.Two.2024.1080p.WEB-DL.H.264-OTHER", 6), Hit("Dune.Part.Two.2024.1080p.BluRay.REMUX.AVC-GRP", 32));
+            Assert(offered == "Dune.Part.Two.2024.1080p.BluRay.REMUX.AVC-GRP", "A WEBRip's name on a heavier file: " + offered);
+            return Task.CompletedTask;
+        });
+
         await Test("Meilleure version : seuls un film ou un épisode d'un seul fichier, de durée connue, dans une bibliothèque, se remplacent", () =>
         {
             var libraries = new[] { @"D:\Medias\Films", "/srv/medias/Séries/" };
