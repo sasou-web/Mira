@@ -31,8 +31,8 @@ public partial class MainWindow
     private readonly MiniDock _dock = new();
     private readonly Stopwatch _dockClock = Stopwatch.StartNew();
     private DispatcherTimer? _dockTimer;
-    /// <summary>The pointer as the player check puts it; null, the real one.</summary>
-    private Func<bool>? _miniPointerForCheck;
+    /// <summary>The pointer as the player check puts it; null, the real one (always, in the packages: Checks/ is left out).</summary>
+    private Func<bool>? _miniPointerForCheck = null;
     /// <summary>A click on the mini-player brought the whole player back: the presses of the same double click go nowhere.</summary>
     private long _swallowPressesUntil;
     private bool MiniSettled => !_miniDragging && !_miniTucked && !_miniSliding;
