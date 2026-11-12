@@ -289,6 +289,51 @@ internal static class TorLinkTests
                 Assert(ReleaseName.AlternateTitles(name).Count == 0 && ReleaseRanking.Parse(name).Alternate is null, $"{name} → {string.Join(" ; ", ReleaseName.AlternateTitles(name))} / {ReleaseRanking.Parse(name).Alternate}");
             return Task.CompletedTask;
         });
+        await Test("TorLink : un mot de tag dans un titre (« Charlottes Web », « The Bad Batch », « A Complete Unknown ») reste dans le titre", () =>
+        {
+            // « Web » and « Opus » ended a film's title, « Batch » and « Complete » a show's: « Charlottes (2006) », every episode
+            // of « Star Wars The Bad Batch » in a folder « Star Wars The Bad », « A Complete Unknown » placed as a series « A ».
+            foreach (var (name, title, year) in new (string, string, int?)[]
+            {
+                ("Charlottes.Web.2006.1080p.BluRay.x264-HANDJOB", "Charlottes Web", 2006), ("Mr.Hollands.Opus.1995.1080p.BluRay.x264-SiNNERS", "Mr Hollands Opus", 1995),
+                ("Unfriended.Dark.Web.2018.1080p.BluRay.x264-DRONES", "Unfriended Dark Web", 2018), ("Old.Film.WEB.x264-GRP", "Old Film", null), ("Old.Film.Opus.x264-GRP", "Old Film", null),
+            })
+                Assert(ReleaseName.Movie(name) == (title, year), $"{name} → {ReleaseName.Movie(name)}");
+            const string Episode = "Star.Wars.The.Bad.Batch.S03E15.1080p.WEB.h264-ETHEL";
+            Assert(ReleaseName.Show(Episode) == ("Star Wars The Bad Batch", null) && !ReleaseName.IsCompletePack(Episode), "The Bad Batch: " + ReleaseName.Show(Episode));
+            Assert(ReleaseName.Show("Star Wars The Bad Batch Complete Series 1080p") == ("Star Wars The Bad Batch", null), "The Bad Batch, every episode");
+            // Every episode, still: « Complete » or « Batch » before nothing, a tag, a language, « Series » or years.
+            foreach (var name in new[] { "The.Office.US.Complete.Series.1080p.BluRay.x264", "Breaking.Bad.Complete.1080p.BluRay.x264", "Kaamelott.Integrale.FRENCH.1080p.BluRay.x264", "Kaamelott.Integrale.2005-2009.1080p",
+                "[Tsundere-Raws] Kemono Jihen - BATCH VOSTFR (WKN) [1080p]", "Show.Complete-GRP", "Show Complete" })
+                Assert(ReleaseName.IsCompletePack(name), "Not every episode: " + name);
+            Assert(ReleaseName.Show("Kaamelott.Integrale.2005-2009.1080p") == ("Kaamelott", null) && !ReleaseName.IsCompletePack("A.Complete.Unknown.2024.1080p.BluRay.x264-GRP"), "Kaamelott, A Complete Unknown");
+            // Every film too: « Complete » or « Intégrale » before « Movie », « Films », « Trilogy », « 8-Film », « 1-4 » or « Livres ».
+            foreach (var (name, title) in new[]
+            {
+                ("Harry.Potter.Complete.Movie.Collection.1080p.BluRay.x264-GRP", "Harry Potter"), ("Harry Potter Complete 8-Film Collection (2001-2011) 1080p BluRay", "Harry Potter"),
+                ("The.Godfather.Complete.Trilogy.1080p.BluRay.x264-GRP", "The Godfather"), ("Toy Story Complete Movies 1-4 1080p", "Toy Story"), ("Scream Complete 1-5 1080p", "Scream"),
+                ("Mad Max Complete Anthology 1080p", "Mad Max"), ("Kaamelott.Integrale.Livres.I.a.VI.FRENCH.1080p.BluRay.x264-GRP", "Kaamelott"),
+                ("[AnimeRG] Broken Blade Complete Movie Series [DUAL-AUDIO] [1080p] [HEVC] [x265] [pseudo]", "Broken Blade"),
+            })
+                Assert(ReleaseName.IsCompletePack(name) && ReleaseName.Show(name).Title == title && ReleaseRanking.Parse(name) is { Pack: true } read && read.Title == title,
+                    $"{name} → {ReleaseName.Show(name)}, {ReleaseRanking.Parse(name).Title}, pack {ReleaseRanking.Parse(name).Pack}");
+            var dir = Path.Combine(testRoot, "torlink-title-words"); var films = Path.Combine(dir, "FILMS"); var series = Path.Combine(dir, "SERIES");
+            var libraries = new MediaLibraries(films, series, null);
+            SourceFile File(string path, long size) => new(Path.Combine(dir, "downloads", path), path, size);
+            const string Unknown = "A.Complete.Unknown.2024.1080p.BluRay.x264-GRP";
+            var film = MediaPlanner.Plan(Unknown, "x1337", [File($"{Unknown}/{Unknown}.mkv", 10_000_000_000), File($"{Unknown}/A.Complete.Unknown.2024.Featurette.mkv", 600_000_000)], libraries);
+            Assert(film.Kind == MediaKind.Movie && film.Operations[0].Destination == Path.Combine(films, "A Complete Unknown (2024)", "A Complete Unknown (2024).mkv"),
+                $"A Complete Unknown: {film.Kind} " + string.Join(" | ", film.Operations.Select(x => x.Destination)));
+            var batch = MediaPlanner.Plan(Episode, "x1337-tv", [File($"{Episode}.mkv", 2_000_000_000)], libraries);
+            Assert(batch.Operations.Single().Destination == Path.Combine(series, "Star Wars The Bad Batch", "Season 03", "Star Wars The Bad Batch - S03E15.mkv"), "The Bad Batch: " + batch.Operations.Single().Destination);
+            // A pack of films numbered as episodes keeps its title without « Complete Movie Series » (AnimeRG on nyaa).
+            const string Blades = "[AnimeRG] Broken Blade Complete Movie Series [DUAL-AUDIO] [1080p] [HEVC] [x265] [pseudo]";
+            var blades = MediaPlanner.Plan(Blades, "x1337-tv", [File($"{Blades}/[AnimeRG] Broken Blade - 01 [1080p] [Dual-Audio] [HEVC] [x265] [pseudo].mkv", 600_000_000),
+                File($"{Blades}/[AnimeRG] Broken Blade - 02 [1080p] [Dual-Audio] [HEVC] [x265] [pseudo].mkv", 600_000_000)], libraries);
+            Assert(blades.Operations.Select(x => x.Destination).SequenceEqual([Path.Combine(series, "Broken Blade", "Season 01", "Broken Blade - S01E01.mkv"), Path.Combine(series, "Broken Blade", "Season 01", "Broken Blade - S01E02.mkv")]),
+                "Broken Blade: " + string.Join(" | ", blades.Operations.Select(x => x.Destination)));
+            return Task.CompletedTask;
+        });
         await Test("TorLink : dossier de téléchargement sur le disque de la bibliothèque, choisi seulement si TorLink n’en a pas", () =>
         {
             var dir = Path.Combine(testRoot, "torlink-drive"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

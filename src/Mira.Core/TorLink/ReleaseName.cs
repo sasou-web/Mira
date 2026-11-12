@@ -30,6 +30,9 @@ public static partial class ReleaseName
         "aac", "ac3", "eac3", "ddp", "dts", "dts-hd", "dtshd", "dts-x", "dtsx", "truehd", "atmos", "flac", "opus", "mp3", "lpcm", "pcm",
         "dual-audio", "multi-audio", "proper", "repack", "rerip", "internal", "nf", "amzn", "dsnp", "hmax", "atvp", "pcok"
     };
+    // Tags that are also words of titles ("Charlottes Web 2006", "Mr Hollands Opus 1995"): one ends a title only before
+    // another tag or at the very end, never before a year, another word or an episode.
+    private static readonly HashSet<string> TitleWords = new(StringComparer.OrdinalIgnoreCase) { "web", "opus" };
     // Edition or dub markers left at the end of a title ("Film EXTENDED", "Film TRUEFRENCH").
     private static readonly HashSet<string> TrailingTags = new(StringComparer.OrdinalIgnoreCase)
     { "extended", "unrated", "uncut", "remastered", "restored", "criterion", "imax", "multi", "multisub", "msubs", "subbed", "dubbed", "vostfr", "vost", "vff", "vfq", "vfi", "truefrench", "subfrench" };
@@ -101,6 +104,11 @@ public static partial class ReleaseName
     private static partial Regex SeasonRange();
     [GeneratedRegex(@"\b(?:Complete(?:\s+Series)?|Int[ée]grale|Batch)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CompleteMarker();
+    // What "Complete" and "Intégrale" may come before and still mean every episode or every film: "Complete Collection",
+    // "COMPLETE S01-S05", "Integrale 2005-2009", "Complete Movie Series", "Complete 8-Film Collection", "Complete Trilogy",
+    // "Integrale Livres I a VI".
+    [GeneratedRegex(@"^(?:series|seasons?|saisons?|s\d{1,2}(?:[-~]s?\d{1,2})?|collection|saga|box|boxset|pack|movies?|films?|(?:tri|duo|di|tetra|quadri|penta|hexa|antho)log(?:y|ie)|livres?|\d{1,2}-?(?:films?|movies?)|\d{1,3}[-~]\d{1,3}|(?:19|20)\d\d(?:[-~](?:19|20)?\d\d)?)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex Whole();
     [GeneratedRegex(@"(?<![a-z0-9])(?:cd|dvd|disc|disk|part|pt)[\s._-]*(?<n>\d{1,2})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex StackMarker();
     [GeneratedRegex(@"(?<![a-z0-9])sample(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -145,7 +153,7 @@ public static partial class ReleaseName
         Match? chosen = null;
         // The last plausible year wins: "2001 A Space Odyssey 1968", "Blade Runner 2049 2017".
         foreach (Match m in Year().Matches(text)) if (m.Index > 0 && int.Parse(m.Groups["y"].Value, CultureInfo.InvariantCulture) <= limit) chosen = m;
-        if (chosen is not null && Tidy(CutAtTags(text[..chosen.Index])) is { Length: > 0 } title)
+        if (chosen is not null && Tidy(CutAtTags(text[..chosen.Index], followed: true)) is { Length: > 0 } title)
             return (title, int.Parse(chosen.Groups["y"].Value, CultureInfo.InvariantCulture));
         return (Tidy(CutAtTags(text)), null);
     }
@@ -155,12 +163,13 @@ public static partial class ReleaseName
     {
         var text = Readable(name, out _);
         var cut = text.Length;
-        foreach (var marker in new[] { SeasonEpisode(), CrossEpisode(), WordsEpisode(), AbsoluteEpisode(), SeasonMarker(), SeasonWord(), OrdinalSeason(), SeasonRange(), CompleteMarker(), EpisodeWord() })
+        foreach (var marker in new[] { SeasonEpisode(), CrossEpisode(), WordsEpisode(), AbsoluteEpisode(), SeasonMarker(), SeasonWord(), OrdinalSeason(), SeasonRange(), EpisodeWord() })
         {
             var m = marker.Match(text);
             if (m.Success && m.Index < cut) cut = m.Index;
         }
-        var head = CutAtTags(text[..cut]);
+        if (PackMarker(text) is { } pack && pack.Index < cut) cut = pack.Index;
+        var head = CutAtTags(text[..cut], followed: cut < text.Length);
         var year = TrailingYear().Match(head);
         if (year.Success && year.Index > 0 && Tidy(head[..year.Index]) is { Length: > 0 } title)
             return (title, int.Parse(year.Groups["y"].Value, CultureInfo.InvariantCulture));
@@ -235,7 +244,7 @@ public static partial class ReleaseName
             return true;
         return words is [var word] && word.Length <= 8 && word.All(char.IsAsciiLetter) && word == word.ToUpperInvariant();
     }
-    public static bool IsCompletePack(string name) => CompleteMarker().IsMatch(Readable(name, out _));
+    public static bool IsCompletePack(string name) => PackMarker(Readable(name, out _)) is not null;
     public static bool HasGroupPrefix(string name) { Readable(name, out var group); return group is not null; }
     /// <summary>Sample clip: "sample" in the file name or one of its folders (the torrent's own top folder is not considered).</summary>
     public static bool IsSample(string relativePath)
@@ -336,11 +345,46 @@ public static partial class ReleaseName
         return dash > 0 && (Tags.Contains(value[..dash]) || TagPattern().IsMatch(value[..dash]));
     }
     private static bool IsTagGroup(string content) => Checksum().IsMatch(content) || content.Split([' ', ',', '.', '_'], StringSplitOptions.RemoveEmptyEntries).Any(IsTag);
-    private static string CutAtTags(string text)
+    // The title before the first tag; <paramref name="followed"/>: a year or an episode comes after this text.
+    private static string CutAtTags(string text, bool followed = false)
     {
         var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        for (var i = 1; i < tokens.Length; i++) if (IsTag(tokens[i])) return string.Join(' ', tokens[..i]);
+        for (var i = 1; i < tokens.Length; i++) if (EndsTitle(tokens, i, followed)) return string.Join(' ', tokens[..i]);
         return text;
+    }
+    private static string Bare(string token) => token.Trim('-', '.', ',', '+', '(', ')', '[', ']');
+    // "Batch-GRP" is "Batch"; "WEB-DL" stays itself.
+    private static string Word(string token) { var t = Bare(token); return t.IndexOf('-') is > 0 and var dash && !Tags.Contains(t) ? t[..dash] : t; }
+    private static bool IsPackWord(string token) => Word(token).ToLowerInvariant() is "complete" or "integrale" or "intégrale" or "batch";
+    // A tag, an edition or a language: what never names a title ("VOSTFR", "MULTi"), "Complete" and "Batch" aside.
+    private static bool Tagged(string token) => IsTag(token) || (TrailingTags.Contains(Bare(token)) || NotNames.Contains(Bare(token))) && !IsPackWord(token);
+    // Whether tokens[i] ends a title: a tag, except a word of titles before another word, or last before a year or an episode.
+    private static bool EndsTitle(string[] tokens, int i, bool followed)
+    {
+        if (!IsTag(tokens[i])) return false;
+        if (!TitleWords.Contains(Word(tokens[i]))) return true;
+        var next = i + 1;
+        while (next < tokens.Length && !tokens[next].Any(char.IsLetterOrDigit)) next++;
+        if (next >= tokens.Length) return !followed;
+        return TitleWords.Contains(Word(tokens[next])) ? EndsTitle(tokens, next, followed) : Tagged(tokens[next]);
+    }
+    /// <summary>
+    /// "Complete", "Intégrale" or "Batch" when it means every episode: before nothing, a tag or a language, and for the first
+    /// two before what makes every episode or years ("Complete Collection", "COMPLETE S01-S05", "Integrale 2005-2009"); never a
+    /// word of the title ("A Complete Unknown 2024", "Star Wars The Bad Batch S03E15", "The Bad Batch (2021) S01E01").
+    /// </summary>
+    private static Match? PackMarker(string text)
+    {
+        foreach (Match m in CompleteMarker().Matches(text))
+        {
+            if (m.Value.Contains(' ')) return m;
+            var rest = text[(m.Index + m.Length)..].Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(x => x.Any(char.IsLetterOrDigit)).ToArray();
+            // "Show.Complete-GRP": the group of the release.
+            if (rest.Length == 0 || rest.Length == 1 && rest[0].StartsWith('-')) return m;
+            var batch = m.Value.Equals("batch", StringComparison.OrdinalIgnoreCase);
+            if (!IsPackWord(rest[0]) && Tagged(rest[0]) || !batch && Whole().IsMatch(Bare(rest[0]))) return m;
+        }
+        return null;
     }
     private static string Tidy(string text)
     {

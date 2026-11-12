@@ -84,6 +84,12 @@ enum Releases {
         nf amzn dsnp hmax atvp pcok cr french truefrench vff vfq vfi vf vostfr subfrench complete integrale intégrale batch
         extended unrated uncut remastered imax
         """.split(whereSeparator: { $0 == " " || $0 == "\n" }).map(String.init))
+    /// Tags that are also words of titles (« Charlottes Web 2006 », « The French Dispatch », « A Complete Unknown »,
+    /// « Mr Hollands Opus », « Star Wars The Bad Batch S03E15 »): one ends a title only before another tag or at the end,
+    /// and those no title ends with (« Film FRENCH 2019 », « Show Integrale 2005-2009 ») before a year too.
+    private static let titleWords: Set<String> = ["web", "french", "opus", "complete", "integrale", "intégrale", "batch"]
+    private static let beforeYears: Set<String> = ["french", "complete", "integrale", "intégrale"]
+    private static let packWords: Set<String> = ["complete", "integrale", "intégrale", "batch"]
 
     private struct Token { var text: String; var index: Int }
 
@@ -102,6 +108,32 @@ enum Releases {
         where Regex.test(pattern, t, options: []) { return true }
         if let dash = t.firstIndex(of: "-"), tags.contains(String(t[..<dash])) { return true }
         return false
+    }
+
+    /// « Batch-GRP » is « batch »; « WEB-DL » stays itself.
+    private static func wordOf(_ token: String) -> String {
+        let t = bare(token)
+        if let dash = t.firstIndex(of: "-"), dash != t.startIndex, !tags.contains(t) { return String(t[..<dash]) }
+        return t
+    }
+
+    /// Whether the token at `i` ends a title: a tag, except a word of titles that another word, an episode or a year
+    /// follows (« Charlottes Web 2006 », « A Complete Unknown », « The Bad Batch S03E15 »). « Complete » and « Intégrale »
+    /// also end it before what makes every episode or every film (« Complete Series », « COMPLETE S01-S05 », « Complete Movie
+    /// Series », « Complete 8-Film Collection », « Complete Trilogy », « Integrale Livres I a VI »).
+    private static func endsTitle(_ tokens: [Token], _ i: Int) -> Bool {
+        guard isTag(tokens[i].text) else { return false }
+        let word = wordOf(tokens[i].text)
+        guard titleWords.contains(word) else { return true }
+        var next = i + 1
+        while next < tokens.count, !tokens[next].text.contains(where: { $0.isLetter || $0.isNumber }) { next += 1 }
+        guard next < tokens.count else { return true }
+        let following = bare(tokens[next].text)
+        if beforeYears.contains(word), Regex.test(#"^(?:19|20)\d\d(?:[-~](?:19|20)?\d\d)?$"#, following, options: []) { return true }
+        guard packWords.contains(word) else { return endsTitle(tokens, next) }
+        // A pack word before another (« The Bad Batch Complete Series ») is the title's own.
+        return !packWords.contains(wordOf(tokens[next].text)) && endsTitle(tokens, next)
+            || word != "batch" && Regex.test(#"^(?:series|seasons?|saisons?|s\d{1,2}(?:[-~]s?\d{1,2})?|collection|saga|box|boxset|pack|movies?|films?|(?:tri|duo|di|tetra|quadri|penta|hexa|antho)log(?:y|ie)|livres?|\d{1,2}-?(?:films?|movies?)|\d{1,3}[-~]\d{1,3})$"#, following, options: [])
     }
 
     private static func has(_ text: String, _ pattern: String) -> Bool {
@@ -164,7 +196,6 @@ enum Releases {
             group = found
         }
 
-        let lower = text.lowercased()
         // Scene names put dots or underscores for spaces; « Mr. Robot » keeps its dot, « AAC2.0 » and « 5.1 » too.
         var spaced = text.replacingOccurrences(of: "_", with: " ")
         if spaced.filter({ $0 == "." }).count >= spaced.filter({ $0 == " " }).count {
@@ -215,20 +246,23 @@ enum Releases {
                 absolute = season == nil
             }
         }
-        if let complete = Regex.first(#"(?<![a-z0-9])(?:complete(?:\s+series)?|int[ée]grale|batch)(?![a-z0-9])"#, in: plain) {
+        let tokens = tokenize(plain)
+        for complete in Regex.all(#"(?<![a-z0-9])(?:complete(?:\s+series)?|int[ée]grale|batch)(?![a-z0-9])"#, in: plain) {
+            // « A Complete Unknown », « Star Wars The Bad Batch S03E15 »: words of the title, not every episode.
+            if let at = tokens.firstIndex(where: { $0.index == complete.start }), !(complete.text(0) ?? "").contains(" "), !endsTitle(tokens, at) { continue }
             if episode == nil || lastEpisode != nil { pack = true }
             mark(complete.start)
+            break
         }
 
         // The title ends at the first marker: an episode, a year after its first word, a tag.
-        let tokens = tokenize(plain)
         var year: Int?
         let nextYear = Calendar(identifier: .gregorian).component(.year, from: Date()) + 1
         var i = 1
         while i < tokens.count, tokens[i].index < cut {
             let t = bare(tokens[i].text)
             if isYear(t), let value = Int(t), value <= nextYear { year = value; i += 1; continue }
-            if isTag(tokens[i].text) { mark(tokens[i].index); break }
+            if endsTitle(tokens, i) { mark(tokens[i].index); break }
             i += 1
         }
         if year != nil {
@@ -242,6 +276,13 @@ enum Releases {
         var title = tidy(String(decoding: units[0..<min(cut, units.count)], as: UTF16.self))
         if title.isEmpty { title = tidy(plain) }
         if title.isEmpty { title = name ?? "" }
+        // What the release says of itself comes after its title: « The French Dispatch » is not in French, « Cam » (2018)
+        // was not filmed in a theatre. The title's place in the name is known while nothing in brackets comes before its end.
+        var end = min(cut, units.count)
+        while end > 0, let unit = Unicode.Scalar(units[end - 1]), unit.properties.isWhitespace { end -= 1 }
+        let spacedUnits = Array(spaced.utf16), textUnits = Array(text.utf16)
+        let lower = (end > 0 && spacedUnits.count >= end && spacedUnits[0..<end] == units[0..<end]
+            ? String(decoding: textUnits[end...], as: UTF16.self) : text).lowercased()
 
         // Picture and sound.
         let resolution: Int? = has(lower, "2160p|4k|uhd") ? 2160 : has(lower, "1080[pi]") ? 1080 : has(lower, "720p") ? 720

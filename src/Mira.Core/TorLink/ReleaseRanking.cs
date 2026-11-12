@@ -47,6 +47,12 @@ public static partial class ReleaseRanking
         nf amzn dsnp hmax atvp pcok cr french truefrench vff vfq vfi vf vostfr subfrench complete integrale intégrale batch
         extended unrated uncut remastered imax
         """.Split((char[])[' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries), StringComparer.Ordinal);
+    // Tags that are also words of titles (« Charlottes Web 2006 », « The French Dispatch », « A Complete Unknown »,
+    // « Mr Hollands Opus », « Star Wars The Bad Batch S03E15 »): one ends a title only before another tag or at the end,
+    // and those no title ends with (« Film FRENCH 2019 », « Show Integrale 2005-2009 ») before a year too.
+    private static readonly HashSet<string> TitleWords = new(StringComparer.Ordinal) { "web", "french", "opus", "complete", "integrale", "intégrale", "batch" };
+    private static readonly HashSet<string> BeforeYears = new(StringComparer.Ordinal) { "french", "complete", "integrale", "intégrale" };
+    private static readonly HashSet<string> PackWords = new(StringComparer.Ordinal) { "complete", "integrale", "intégrale", "batch" };
 
     private const RegexOptions Options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
     [GeneratedRegex(@"[^\s\[\](){}]+")] private static partial Regex Token();
@@ -60,12 +66,16 @@ public static partial class ReleaseRanking
     [GeneratedRegex(@"-\s?([A-Za-z0-9][A-Za-z0-9_]{1,24})\s*(?:\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})*\s*$")] private static partial Regex TrailingGroup();
     [GeneratedRegex(@"\[[^\]]*\]|\{[^}]*\}")] private static partial Regex Bracketed();
     [GeneratedRegex(@"^(?:19|20)\d\d$")] private static partial Regex YearOnly();
+    [GeneratedRegex(@"^(?:19|20)\d\d(?:[-~](?:19|20)?\d\d)?$")] private static partial Regex Years();
     [GeneratedRegex(@"(?<![a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?:-?e(\d{1,4})|-(\d{1,4})(?![0-9p]))?(?![0-9])", Options)] private static partial Regex SeasonEpisode();
     [GeneratedRegex(@"(?<![a-z0-9])(\d{1,2})x(\d{2,3})(?![a-z0-9])", Options)] private static partial Regex CrossEpisode();
     [GeneratedRegex(@"(?<![a-z0-9])(?:s\d{1,2}\s*[-~]\s*s\d{1,2}|(?:seasons?|saisons?)\s*\d{1,2}\s*[-~]\s*\d{1,2})(?![0-9])", Options)] private static partial Regex SeasonRange();
     [GeneratedRegex(@"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season)", Options)] private static partial Regex SeasonMarker();
     [GeneratedRegex(@"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})(?:v\d)?(?:\s*[-~]\s*(\d{1,4})(?:v\d)?)?(?=\s|$)", Options)] private static partial Regex Numbered();
     [GeneratedRegex(@"(?<![a-z0-9])(?:complete(?:\s+series)?|int[ée]grale|batch)(?![a-z0-9])", Options)] private static partial Regex Complete();
+    // What « Complete » and « Intégrale » may come before and still mean every episode or every film: « Complete Collection »,
+    // « COMPLETE S01-S05 », « Complete Movie Series », « Complete 8-Film Collection », « Complete Trilogy », « Integrale Livres I a VI ».
+    [GeneratedRegex(@"^(?:series|seasons?|saisons?|s\d{1,2}(?:[-~]s?\d{1,2})?|collection|saga|box|boxset|pack|movies?|films?|(?:tri|duo|di|tetra|quadri|penta|hexa|antho)log(?:y|ie)|livres?|\d{1,2}-?(?:films?|movies?)|\d{1,3}[-~]\d{1,3})$", Options)] private static partial Regex Whole();
     [GeneratedRegex(@"\s+")] private static partial Regex Spaces();
     [GeneratedRegex(@"^[\s\-–—.:;,_+~|]+|[\s\-–—.:;,_+~|(\[]+$")] private static partial Regex TidyEdges();
 
@@ -83,6 +93,29 @@ public static partial class ReleaseRanking
     {
         var t = Bare(token);
         return Tags.Contains(t) || TagPattern().IsMatch(t) || (t.IndexOf('-') is > 0 and var dash && Tags.Contains(t[..dash]));
+    }
+
+    // « Batch-GRP » is « batch »; « WEB-DL » stays itself.
+    private static string Word(string token) { var t = Bare(token); return t.IndexOf('-') is > 0 and var dash && !Tags.Contains(t) ? t[..dash] : t; }
+
+    /// <summary>
+    /// Whether the token at <paramref name="i"/> ends a title: a tag, except a word of titles that another word, an episode
+    /// or a year follows (« Charlottes Web 2006 », « A Complete Unknown », « The Bad Batch S03E15 »). « Complete » and
+    /// « Intégrale » also end it before what makes every episode (« Complete Series », « COMPLETE S01-S05 »).
+    /// </summary>
+    private static bool EndsTitle(IReadOnlyList<Match> tokens, int i)
+    {
+        if (!IsTag(tokens[i].Value)) return false;
+        var word = Word(tokens[i].Value);
+        if (!TitleWords.Contains(word)) return true;
+        var next = i + 1;
+        while (next < tokens.Count && !tokens[next].Value.Any(char.IsLetterOrDigit)) next++;
+        if (next >= tokens.Count) return true;
+        var following = Bare(tokens[next].Value);
+        if (BeforeYears.Contains(word) && Years().IsMatch(following)) return true;
+        if (!PackWords.Contains(word)) return EndsTitle(tokens, next);
+        // A pack word before another (« The Bad Batch Complete Series ») is the title's own.
+        return !PackWords.Contains(Word(tokens[next].Value)) && EndsTitle(tokens, next) || word != "batch" && Whole().IsMatch(following);
     }
 
     /// <summary>A title to compare: lower case, no accent, no apostrophe, « & » as « and », one space between words.</summary>
@@ -129,7 +162,6 @@ public static partial class ReleaseRanking
             if (!value.All(char.IsAsciiDigit) && !IsTag(value) && !text[..tail.Index].EndsWith("web", StringComparison.OrdinalIgnoreCase)) group = value;
         }
 
-        var lower = text.ToLowerInvariant();
         // Scene names put dots or underscores for spaces; « Mr. Robot », « AAC2.0 » and « 5.1 » keep theirs, « 2049.2017 » does not.
         var spaced = text.Replace('_', ' ');
         if (spaced.Count(c => c == '.') >= spaced.Count(c => c == ' '))
@@ -175,17 +207,24 @@ public static partial class ReleaseRanking
                 absolute = season is null;
             }
         }
-        var complete = Complete().Match(plain);
-        if (complete.Success) { if (episode is null || lastEpisode is not null) pack = true; Mark(complete.Index); }
+        var tokens = Token().Matches(plain).ToList();
+        foreach (Match complete in Complete().Matches(plain))
+        {
+            // « A Complete Unknown », « Star Wars The Bad Batch S03E15 »: words of the title, not every episode.
+            var at = tokens.FindIndex(t => t.Index == complete.Index);
+            if (at >= 0 && !complete.Value.Contains(' ') && !EndsTitle(tokens, at)) continue;
+            if (episode is null || lastEpisode is not null) pack = true;
+            Mark(complete.Index);
+            break;
+        }
 
         // The title ends at the first marker: an episode, a year after its first word, a tag.
-        var tokens = Token().Matches(plain).ToList();
         int? year = null;
         for (var i = 1; i < tokens.Count && tokens[i].Index < cut; i++)
         {
             var t = Bare(tokens[i].Value);
             if (YearOnly().IsMatch(t) && int.Parse(t, CultureInfo.InvariantCulture) <= DateTime.UtcNow.Year + 1) { year = int.Parse(t, CultureInfo.InvariantCulture); continue; }
-            if (IsTag(tokens[i].Value)) { Mark(tokens[i].Index); break; }
+            if (EndsTitle(tokens, i)) { Mark(tokens[i].Index); break; }
         }
         if (year is not null)
         {
@@ -195,6 +234,10 @@ public static partial class ReleaseRanking
         }
         var title = Tidy(plain[..cut]);
         if (title.Length == 0) title = Tidy(plain) is { Length: > 0 } whole ? whole : name ?? "";
+        // What the release says of itself comes after its title: « The French Dispatch » is not in French, « Cam » (2018)
+        // was not filmed in a theatre. The title's place in the name is known while nothing in brackets comes before its end.
+        var end = plain[..cut].TrimEnd().Length;
+        var lower = (end > 0 && string.CompareOrdinal(spaced, 0, plain, 0, end) == 0 ? text[end..] : text).ToLowerInvariant();
 
         // Picture and sound.
         int? resolution = Has(lower, "2160p|4k|uhd") ? 2160 : Has(lower, "1080[pi]") ? 1080 : Has(lower, "720p") ? 720 : Has(lower, "576p") ? 576 : Has(lower, "480p|360p") ? 480 : null;
