@@ -133,15 +133,21 @@ public sealed class JellyfinClient : IDisposable
     /// rest come request after request: a refresh of every page already loaded (Windows, Mac) keeps them all, so the
     /// grid never shrinks back to 600 titles under the reader.
     /// </summary>
-    public async Task<ItemsResult> BrowseAsync(string types = "Movie,Series", string? parentId = null, string? search = null, int start = 0, bool favorites = false, CancellationToken ct = default, CatalogQuery? filters = null, int limit = PageSize)
+    /// <param name="everyTitle">
+    /// Every film and series, even on a server set to « Group movies into collections » (or shows; Jellyfin's dashboard,
+    /// Libraries → Display), which would otherwise list a collection in place of its titles, under its own date added.
+    /// Home asks so: a film added to an old collection would never be among « Recently added » or « New in … », and a
+    /// collection would come up in its banner with a Play that plays nothing. Movies and Shows follow the server.
+    /// </param>
+    public async Task<ItemsResult> BrowseAsync(string types = "Movie,Series", string? parentId = null, string? search = null, int start = 0, bool favorites = false, CancellationToken ct = default, CatalogQuery? filters = null, int limit = PageSize, bool everyTitle = false)
     {
         var wanted = Math.Max(1, limit);
-        var result = await BrowsePageAsync(types, parentId, search, start, favorites, filters, Math.Min(wanted, MostPerRequest), ct);
+        var result = await BrowsePageAsync(types, parentId, search, start, favorites, filters, Math.Min(wanted, MostPerRequest), everyTitle, ct);
         var seen = result.Items.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase); var next = start + result.Items.Count;
         while (result.Items.Count < wanted && result.Items.Count > 0 && next < result.TotalRecordCount)
         {
             var asked = Math.Min(wanted - result.Items.Count, MostPerRequest);
-            var page = await BrowsePageAsync(types, parentId, search, next, favorites, filters, asked, ct);
+            var page = await BrowsePageAsync(types, parentId, search, next, favorites, filters, asked, everyTitle, ct);
             next += page.Items.Count;
             var fresh = page.Items.Where(x => seen.Add(x.Id)).ToList(); result.Items.AddRange(fresh);
             result = result with { TotalRecordCount = page.TotalRecordCount };
@@ -150,12 +156,12 @@ public sealed class JellyfinClient : IDisposable
         }
         return result;
     }
-    private Task<ItemsResult> BrowsePageAsync(string types, string? parentId, string? search, int start, bool favorites, CatalogQuery? filters, int limit, CancellationToken ct) =>
+    private Task<ItemsResult> BrowsePageAsync(string types, string? parentId, string? search, int start, bool favorites, CatalogQuery? filters, int limit, bool everyTitle, CancellationToken ct) =>
         GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={types}&limit={limit}&startIndex={start}" +
             "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (filters ?? new CatalogQuery()).Parameters +
             (parentId is null ? "" : $"&parentId={Uri.EscapeDataString(parentId)}") +
             (string.IsNullOrWhiteSpace(search) ? "" : $"&searchTerm={Uri.EscapeDataString(search)}") +
-            (favorites ? "&isFavorite=true" : ""), ct);
+            (favorites ? "&isFavorite=true" : "") + (everyTitle ? "&collapseBoxSetItems=false" : ""), ct);
     /// <summary>
     /// « Ton bilan »: the films and episodes played to the end since <paramref name="from"/> (by their last play), newest
     /// first, a few pages at most, and the series of those episodes (their genres, whether all is watched).
@@ -459,10 +465,13 @@ public sealed class JellyfinClient : IDisposable
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
     // —— Titles recognized badly (TitleIdentity), for an administrator ——
-    /// <summary>Every film and series this account sees, with what « Titres à corriger » judges (<see cref="TitleIdentity.Check"/>).</summary>
+    /// <summary>
+    /// Every film and series this account sees, with what « Titres à corriger » judges (<see cref="TitleIdentity.Check"/>):
+    /// each one even on a server that groups them into collections, whose films would otherwise never be checked.
+    /// </summary>
     public async Task<List<MediaItem>> TitlesToCheckAsync(CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Series&fields={TitleIdentity.Fields}" +
-            "&enableImageTypes=Primary&imageTypeLimit=1&enableUserData=false&sortBy=SortName", ct)).Items;
+            "&enableImageTypes=Primary&imageTypeLimit=1&enableUserData=false&sortBy=SortName&collapseBoxSetItems=false", ct)).Items;
     /// <summary>
     /// What Jellyfin's metadata sources propose for a film or series (TMDb and the others it has), searched by Jellyfin:
     /// its RemoteSearch, as its dashboard's « Identifier » does.

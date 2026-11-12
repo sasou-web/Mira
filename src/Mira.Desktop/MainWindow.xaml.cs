@@ -478,7 +478,8 @@ public partial class MainWindow : Window
         {
             // A background refresh keeps every page already loaded instead of shrinking the grid back to one page.
             var limit = quiet && !more ? Math.Max(JellyfinClient.PageSize, _catalog.Items.Count) : JellyfinClient.PageSize;
-            var browse = client.BrowseAsync(_catalog.Types, _catalog.Parent, search, more ? _catalog.Items.Count : 0, !home && _catalog.Favorites, ct, filters, limit);
+            // « Ajoutés récemment »: every film, even in a collection, on a server that groups them (Films and Séries follow it).
+            var browse = client.BrowseAsync(_catalog.Types, _catalog.Parent, search, more ? _catalog.Items.Count : 0, !home && _catalog.Favorites, ct, filters, limit, everyTitle: home);
             var people = !more && _catalog.SearchesPeople(search) ? client.PersonsAsync(search, ct) : null;
             var studios = !more && _catalog.SearchesPeople(search) ? client.StudiosAsync(search, ct) : null;
             var episodes = !more && _catalog.SearchesPeople(search) ? client.SearchOthersAsync("Episode", search, ct) : null;
