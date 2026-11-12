@@ -20,7 +20,7 @@ public partial class MainWindow
     {
         if (LibraryOnScreen && PageMemory.Shows(_catalog, view, parentId)) { SmoothScroll.ToTop(LibraryScroll); return; }
         KeepPage();
-        if (!keepSearch) { ResetFilters(); _filtersOpen = false; }
+        _filtersOpen = false; if (!keepSearch) ResetFilters();
         _catalog.View = view;
         if (view == "library")
         {
@@ -49,7 +49,7 @@ public partial class MainWindow
         Pick(GenreFilter, state.Genre); Pick(YearFilter, state.Year); Pick(WatchedFilter, state.Watched); Pick(SortFilter, state.Sort); Pick(LibraryFilter, state.Library);
         Pick(QualityFilter, state.Quality); Pick(RatingFilter, state.Rating); Pick(AudioFilter, state.Audio); Pick(SubtitleFilter, state.Subtitles);
         _catalog.ParentId = state.Library.Length > 0 ? state.Library : null;
-        _catalog.Favorites = state.Favorites; _filtersOpen = state.FiltersOpen; SearchBox.Text = state.Search;
+        _catalog.Favorites = state.Favorites; _filtersOpen = false; SearchBox.Text = state.Search;
         _filterBusy = false; ShowFavoritesFilter();
         static void Pick(ComboBox box, string tag) => box.SelectedItem = box.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == tag) ?? box.Items.OfType<ComboBoxItem>().FirstOrDefault();
     }

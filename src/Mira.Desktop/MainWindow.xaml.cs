@@ -93,6 +93,7 @@ public partial class MainWindow : Window
             if (Hero.IsKeyboardFocusWithin) UpdateHeroClock();
             // The mouse's "back" side button steps back like Escape.
             if (e.ChangedButton == MouseButton.XButton1 && GoBack()) e.Handled = true;
+            else FoldFiltersOnPress(e);
         };
         _noticeTimer.Tick += NoticeTick;
         StateChanged += (_, _) =>

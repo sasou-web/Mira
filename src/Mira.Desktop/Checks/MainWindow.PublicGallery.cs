@@ -31,8 +31,13 @@ public partial class MainWindow
             await Page("home", "01-home");
             await Page("library", "02-library");
             // « Filtrer » unfolds the genre, year, progress and library choices; a filter chosen is counted on it.
+            // They open over the grid: nothing below them moves.
+            UpdateLayout(); var gridAt = LibraryRows.TranslatePoint(new Point(), LibraryScroll).Y;
             FiltersToggle_Click(this, new()); _filterBusy = true; GenreFilter.SelectedIndex = Math.Min(1, GenreFilter.Items.Count - 1); _filterBusy = false; RenderDemo();
             await CaptureAsync(output, "02-library-filters");
+            UpdateLayout();
+            if (Math.Abs(LibraryRows.TranslatePoint(new Point(), LibraryScroll).Y - gridAt) > 0.5) throw new InvalidOperationException("« Filtrer » pushed the grid down instead of opening over it");
+            if (GenreFilter.SelectedIndex > 0 && GenreChipsScroll.Visibility != Visibility.Visible && ActiveFilters.Children.Count != 1) throw new InvalidOperationException("The genre chosen has no chip beside « Trier par »");
             if (CatalogFilters.Visibility != Visibility.Visible || GenreFilter.SelectedIndex > 0 != FiltersText.Text.Contains('1')) throw new InvalidOperationException("« Filtrer » does not show or count its filters: " + FiltersText.Text);
             _filtersOpen = false;
             await Page("Movie", "03-films");

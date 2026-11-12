@@ -147,7 +147,57 @@ public partial class MainWindow
     private void FiltersToggle_Click(object sender, RoutedEventArgs e)
     {
         _filtersOpen = !_filtersOpen; ShowFilters();
-        if (_filtersOpen) { Motion.Reveal(CatalogFilters, 200, 6); GenreFilter.Focus(); }
+        // Over the grid at once, no slide (ogsas, 2026-11-12: nothing that moves for a button).
+        if (_filtersOpen) GenreFilter.Focus();
+    }
+    /// <summary>The filters folded: Escape, a click outside them, another page.</summary>
+    private void CloseFilters(bool focusToggle = false)
+    {
+        if (!_filtersOpen) return;
+        _filtersOpen = false; ShowFilters();
+        if (focusToggle) FiltersToggle.Focus();
+    }
+    private ComboBox[] FilterBoxes => [GenreFilter, YearFilter, WatchedFilter, LibraryFilter, QualityFilter, RatingFilter, AudioFilter, SubtitleFilter];
+    /// <summary>
+    /// A press outside the open filters folds them; one on the grid is taken by it (a poster under the pointer is not
+    /// opened by the click meant to close). Their own lists drop down in windows of their own: while one is open, the
+    /// press only closes that list, as WPF does.
+    /// </summary>
+    private void FoldFiltersOnPress(MouseButtonEventArgs e)
+    {
+        if (!_filtersOpen || !CatalogFilters.IsVisible || FilterBoxes.Any(x => x.IsDropDownOpen)) return;
+        if (e.OriginalSource is not DependencyObject source || Within(source, CatalogFilters) || Within(source, FiltersToggle)) return;
+        CloseFilters();
+        if (Within(source, LibraryRows)) e.Handled = true;
+    }
+    private static bool Within(DependencyObject? node, DependencyObject ancestor)
+    {
+        for (; node is not null; node = node is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(node) ?? LogicalTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node))
+            if (node == ancestor) return true;
+        return false;
+    }
+    /// <summary>
+    /// Each filter that narrows the list, as a chip beside « Trier par »: seen with the filters folded, removed by its ✕.
+    /// Genre has its own chips on Films and Séries.
+    /// </summary>
+    private void RenderActiveFilters()
+    {
+        var genreChips = GenreChipsScroll.Visibility == Visibility.Visible;
+        var chosen = FilterBoxes.Where(x => x.SelectedIndex > 0 && x.SelectedItem is ComboBoxItem && !(x == GenreFilter && genreChips)).ToList();
+        if (ActiveFilters.Children.OfType<Button>().Select(x => x.Tag).SequenceEqual(chosen.Select(x => (object)x.SelectedItem)) && ActiveFilters.Children.Count == chosen.Count) return;
+        ActiveFilters.Children.Clear();
+        foreach (var box in chosen)
+        {
+            var label = (box.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
+            var content = new StackPanel { Orientation = Orientation.Horizontal };
+            content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+            content.Children.Add(new Views.Icon { Kind = "close", Width = 11, Height = 11, Margin = new Thickness(9, 1, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Palette.Get("Muted") });
+            var chip = new Button { Content = content, Tag = box.SelectedItem, Style = (Style)FindResource("Quiet"), Padding = new Thickness(14, 6, 11, 6), Margin = new Thickness(0, 2, 8, 2), FontSize = 13 };
+            Motion.SetRadius(chip, new CornerRadius(16));
+            System.Windows.Automation.AutomationProperties.SetName(chip, L($"Retirer le filtre {label}", $"Remove the {label} filter"));
+            chip.Click += (_, _) => box.SelectedIndex = 0;
+            ActiveFilters.Children.Add(chip);
+        }
     }
     /// <summary>
     /// « Filtrer », or « Filtres · 2 » lit like the favourites while filters narrow the list, folded or not: a list
@@ -158,12 +208,13 @@ public partial class MainWindow
         var browsing = _catalog.View is not ("search" or "offline");
         CatalogTools.Visibility = browsing ? Visibility.Visible : Visibility.Collapsed;
         CatalogFilters.Visibility = browsing && _filtersOpen ? Visibility.Visible : Visibility.Collapsed;
+        FiltersSummary.Text = ItemCount.Text;
         var count = _catalog.FilterCount(CurrentQuery());
         FiltersText.Text = Catalog.FiltersLabel(count);
         if (count > 0) { FiltersToggle.Background = Palette.Get("Text"); FiltersToggle.Foreground = FiltersIcon.Foreground = Palette.Get("OnAccent"); }
         else { FiltersToggle.ClearValue(BackgroundProperty); FiltersToggle.ClearValue(ForegroundProperty); FiltersIcon.ClearValue(Views.Icon.ForegroundProperty); }
         System.Windows.Automation.AutomationProperties.SetName(FiltersToggle, (count > 0 ? FiltersText.Text : L("Filtrer", "Filter")) + (_filtersOpen ? L(", ouverts", ", open") : ""));
-        RenderGenreChips();
+        RenderGenreChips(); RenderActiveFilters();
     }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing && !_filterBusy) await RefreshAsync(); }
     private async void LibraryFilter_Changed(object sender, SelectionChangedEventArgs e)
