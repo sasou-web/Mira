@@ -45,6 +45,9 @@ public static class SubtitleLanguages
     ];
     private static readonly Dictionary<string, string> Aliases = new(StringComparer.OrdinalIgnoreCase)
     { ["fra"] = "fre", ["deu"] = "ger", ["nld"] = "dut", ["zho"] = "chi", ["ces"] = "cze", ["ell"] = "gre", ["ron"] = "rum", ["slk"] = "slo", ["msa"] = "may", ["fas"] = "per" };
+    // SubDL's own codes for a variant: Brazilian Portuguese, Chinese in Big5 (traditional). An underscore must never
+    // reach a subtitle's id (Jellyfin cuts the id at the first one).
+    private static readonly Dictionary<string, string> SourceCodes = new(StringComparer.OrdinalIgnoreCase) { ["br_pt"] = "por", ["zh_bg"] = "chi" };
 
     /// <summary>« fre » → « fr »; null for a language no source is asked for.</summary>
     public static string? Two(string? three)
@@ -63,11 +66,12 @@ public static class SubtitleLanguages
     /// </summary>
     public static string? Of(string? tag) => tag is null ? null : Two(tag.Trim().Split('-', '_')[0]);
 
-    /// <summary>« fr », « pt-br », « PT » → « fre », « por »; the code itself when unknown (Jellyfin keeps it).</summary>
+    /// <summary>« fr », « pt-br », « PT », « BR_PT » → « fre », « por »; the code itself when unknown (Jellyfin keeps it).</summary>
     public static string Three(string? two)
     {
         if (two is null) return "und";
         var code = two.Trim().ToLowerInvariant();
+        if (SourceCodes.TryGetValue(code, out var variant)) return variant;
         var main = code.Split('-')[0];
         if (main.Length == 3) return Aliases.TryGetValue(main, out var alias) ? alias : main;
         return Table.FirstOrDefault(x => x.Two == main).Three ?? code;

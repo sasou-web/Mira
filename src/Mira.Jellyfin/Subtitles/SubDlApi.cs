@@ -33,10 +33,16 @@ public sealed class SubDlApi : SubtitleSource
     public override string Name => "SubDL";
     public override bool Ready => _apiKey.Length > 0;
 
+    /// <summary>
+    /// The languages asked for one: SubDL files Brazilian Portuguese (« BR_PT ») apart from Portuguese (« PT ») and
+    /// traditional Chinese (« ZH_BG ») apart from Chinese (« ZH »); both are asked, Jellyfin's « por » and « chi » being either.
+    /// </summary>
+    public static string Languages(string two) => two switch { "pt" => "PT,BR_PT", "zh" => "ZH,ZH_BG", _ => two.ToUpperInvariant() };
+
     /// <summary>The query as sent, without the key.</summary>
     public static string SearchQuery(SubtitleQuery query, string language)
     {
-        var parts = new List<string> { "languages=" + language.ToUpperInvariant(), "type=" + (query.IsEpisode ? "tv" : "movie"), "releases=1", "subs_per_page=30" };
+        var parts = new List<string> { "languages=" + Languages(language), "type=" + (query.IsEpisode ? "tv" : "movie"), "releases=1", "subs_per_page=30" };
         var imdb = query.IsEpisode ? query.ParentImdbId ?? query.ImdbId : query.ImdbId;
         var tmdb = query.IsEpisode ? query.ParentTmdbId ?? query.TmdbId : query.TmdbId;
         if (imdb is { } i) parts.Add("imdb_id=" + (i.StartsWith("tt", StringComparison.OrdinalIgnoreCase) ? i : "tt" + i));
