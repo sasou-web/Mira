@@ -44,13 +44,15 @@ public static partial class TitleIdentity
     public static List<Entry> Check(IEnumerable<MediaItem> titles)
     {
         var list = titles.Where(x => x.Type is "Movie" or "Series").ToList();
+        var twins = Twins(list);
         var entries = new List<Entry>();
-        foreach (var item in list)
+        for (var i = 0; i < list.Count; i++)
         {
+            var item = list[i];
             var problems = new List<Problem>();
             var identified = Identified(item);
             if (!identified) problems.Add(Problem.Unidentified);
-            var twin = list.FirstOrDefault(x => x.Id != item.Id && Same(item, x));
+            var twin = twins[i] is { } other ? list[other] : null;
             if (twin is not null) problems.Add(Problem.Duplicate);
             if (!item.ImageTags.ContainsKey("Primary")) problems.Add(Problem.NoPoster);
             if (item.ProductionYear is null) problems.Add(Problem.NoYear);
@@ -61,14 +63,49 @@ public static partial class TitleIdentity
         return [.. entries.OrderBy(x => x.Problems[0]).ThenBy(x => x.Item.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Item.Id, StringComparer.Ordinal)];
     }
 
-    /// <summary>Two titles of one kind that are the same: an id of a metadata source in common, or the same name and year.</summary>
-    private static bool Same(MediaItem a, MediaItem b)
+    /// <summary>
+    /// For each title, the first other one of the list that is the same, of the same kind: an id of a metadata source in
+    /// common (its name and value, whatever their case), or the same name and year. Found through what each title is
+    /// filed under rather than by comparing every pair: that took 25 s for 6 000 titles, minutes beyond, each time the
+    /// list was read.
+    /// </summary>
+    private static int?[] Twins(List<MediaItem> list)
     {
-        if (a.Type != b.Type) return false;
-        var others = Ids(b).ToList();
-        if (Ids(a).Any(x => others.Any(y => string.Equals(x.Key, y.Key, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Value.Trim(), y.Value.Trim(), StringComparison.OrdinalIgnoreCase))))
-            return true;
-        return NameKey(a.Name) is { Length: > 0 } key && key == NameKey(b.Name) && (a.ProductionYear ?? FolderYear(a.Name)) == (b.ProductionYear ?? FolderYear(b.Name));
+        var byId = new Dictionary<(string Type, string Key, string Value), List<int>>(new IdComparer());
+        var byName = new Dictionary<(string Type, string Name, int? Year), List<int>>();
+        var filed = new List<List<int>>[list.Count];
+        static List<int> Into<TKey>(Dictionary<TKey, List<int>> index, TKey key, int position) where TKey : notnull
+        {
+            if (!index.TryGetValue(key, out var titles)) index[key] = titles = [];
+            if (titles.Count == 0 || titles[^1] != position) titles.Add(position);
+            return titles;
+        }
+        for (var i = 0; i < list.Count; i++)
+        {
+            var item = list[i];
+            filed[i] = [.. Ids(item).Select(x => Into(byId, (item.Type, x.Key, x.Value.Trim()), i))];
+            if (NameKey(item.Name) is { Length: > 0 } name) filed[i].Add(Into(byName, (item.Type, name, item.ProductionYear ?? FolderYear(item.Name)), i));
+        }
+        var twins = new int?[list.Count];
+        for (var i = 0; i < list.Count; i++)
+        {
+            foreach (var titles in filed[i])
+            {
+                // Each list is in the list's order: its first title that is not this one (nor another copy of it) comes first.
+                var first = titles.FirstOrDefault(x => list[x].Id != list[i].Id, -1);
+                if (first >= 0 && (twins[i] is not { } found || first < found)) twins[i] = first;
+            }
+        }
+        return twins;
+    }
+
+    /// <summary>An id of a metadata source: its kind of title as it is, its name and value whatever their case.</summary>
+    private sealed class IdComparer : IEqualityComparer<(string Type, string Key, string Value)>
+    {
+        public bool Equals((string Type, string Key, string Value) a, (string Type, string Key, string Value) b) =>
+            a.Type == b.Type && string.Equals(a.Key, b.Key, StringComparison.OrdinalIgnoreCase) && string.Equals(a.Value, b.Value, StringComparison.OrdinalIgnoreCase);
+        public int GetHashCode((string Type, string Key, string Value) id) =>
+            HashCode.Combine(id.Type, StringComparer.OrdinalIgnoreCase.GetHashCode(id.Key), StringComparer.OrdinalIgnoreCase.GetHashCode(id.Value));
     }
 
     // Jellyfin names a film without metadata after its folder: « Dune (2021) ».

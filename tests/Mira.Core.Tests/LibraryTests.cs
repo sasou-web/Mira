@@ -1698,5 +1698,33 @@ internal static class LibraryTests
             Assert(sent[2] == "POST /Items/s9/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=FullRefresh&replaceAllMetadata=false&replaceAllImages=false ", "Refresh: " + sent[2]);
             Assert(await client.MatchImageAsync("https://image.tmdb.org/x.jpg") is null, "No poster without an image answer");
         });
+        await Test("Titres à corriger : une bibliothèque de 20 000 titres jugée en un instant, chaque doublon avec le premier de la liste", () =>
+        {
+            // Read each time Réglages → Jellyfin opens: every pair was compared, 25 s for 6 000 titles, minutes beyond.
+            var titles = Enumerable.Range(0, 20_000).Select(i => new MediaItem
+            {
+                Id = $"t{i}", Type = i % 4 == 0 ? "Series" : "Movie", Name = $"Title {i}", ProductionYear = 1950 + i % 70,
+                // A saga's id is shared by many films and never makes two of them the same.
+                ProviderIds = new() { ["Tmdb"] = $"{100_000 + i}", ["Imdb"] = $"tt{1_000_000 + i}", ["TmdbCollection"] = $"{i % 50}" },
+                ImageTags = new() { ["Primary"] = "tag" }, Overview = "Something",
+            }).ToList();
+            MediaItem At(int i, Func<MediaItem, MediaItem> change) => titles[i] = change(titles[i]);
+            At(15_001, x => x with { ProviderIds = new() { ["tmdb"] = " 100001 " } });                       // the same id as t1, whatever its case and spaces
+            At(15_005, x => x with { ProviderIds = new() { ["Imdb"] = "tt1000005" } });
+            At(18_005, x => x with { ProviderIds = new() { ["Imdb"] = "tt1000005" } });                      // a third copy: the first of the list
+            At(16_002, x => x with { Name = "Title 2 (1952)", ProductionYear = null, ProviderIds = [] });  // named after its folder, the year of t2
+            At(16_004, x => x with { ProviderIds = new() { ["Tmdb"] = "100004" }, Type = "Movie" });         // t4 is a series: another kind
+            At(17_003, x => x with { Name = "TITLE 3", ProviderIds = [] });                                  // the same name, another year: not the same
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var entries = TitleIdentity.Check(titles);
+            var took = clock.Elapsed;
+            var twins = entries.Where(x => x.Twin is not null).ToDictionary(x => x.Item.Id, x => x.Twin!.Id);
+            Assert(twins["t1"] == "t15001" && twins["t15001"] == "t1", "One id in common, whatever its case: each other's twin");
+            Assert(twins["t5"] == "t15005" && twins["t15005"] == "t5" && twins["t18005"] == "t5", "Three copies: the first of the list");
+            Assert(twins["t2"] == "t16002" && twins["t16002"] == "t2", "The same name and year, one named after its folder");
+            Assert(twins.Count == 7, "No other: " + string.Join(", ", twins.Keys.Where(x => x is not ("t1" or "t15001" or "t5" or "t15005" or "t18005" or "t2" or "t16002"))));
+            Assert(took < TimeSpan.FromSeconds(10), $"Judged in {took.TotalSeconds:F1} s");
+            return Task.CompletedTask;
+        });
     }
 }
