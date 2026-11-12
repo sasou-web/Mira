@@ -346,6 +346,78 @@
       "hearingImpaired": false
     },
     {
+      "file": "Film.2021.fr-CA.srt",
+      "preferences": "eng,en",
+      "format": "srt",
+      "language": "fre",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Film.en-US.srt",
+      "preferences": "fre,fra,fr",
+      "format": "srt",
+      "language": "eng",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Film.en-CA.forced.srt",
+      "preferences": "fre,fra,fr",
+      "format": "srt",
+      "language": "eng",
+      "forced": true,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Film.pt-BR.SDH.srt",
+      "preferences": "fre",
+      "format": "srt",
+      "language": "por",
+      "forced": false,
+      "hearingImpaired": true
+    },
+    {
+      "file": "Film [es-419].vtt",
+      "preferences": "eng,en",
+      "format": "vtt",
+      "language": "spa",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Film.zh-Hant-TW.ass",
+      "preferences": "eng,en",
+      "format": "ass",
+      "language": "chi",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Film.en_US-forced.srt",
+      "preferences": "fre",
+      "format": "srt",
+      "language": "eng",
+      "forced": true,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Film.en-hi.srt",
+      "preferences": "fre",
+      "format": "srt",
+      "language": "eng",
+      "forced": false,
+      "hearingImpaired": true
+    },
+    {
+      "file": "Show.S01E01.1080p.WEB-DL.srt",
+      "preferences": "fre",
+      "format": "srt",
+      "language": "fre",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
       "file": "sous-titres.idx",
       "preferences": "fre",
       "format": null
