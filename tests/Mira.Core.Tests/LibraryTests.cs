@@ -1509,7 +1509,7 @@ internal static class LibraryTests
             var root = Path.Combine(testRoot, "offline"); var other = Path.Combine(testRoot, "offline-usb");
             var connection = new Connection("http://nas:8096/", "user-1", "Alice", "token", "device-1");
             var video = Enumerable.Range(0, 300_000).Select(x => (byte)(x % 251)).ToArray();
-            var ranges = new List<string>(); var cut = true; var ignoreRange = false; var refuse = false; var slowSubtitle = false;
+            var ranges = new List<string>(); var cut = true; var ignoreRange = false; var refuse = false; var slowSubtitle = false; var served = video;
             using var client = new JellyfinClient(connection, new Handler(request =>
             {
                 var path = request.RequestUri!.PathAndQuery;
@@ -1518,12 +1518,19 @@ internal static class LibraryTests
                     if (refuse) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
                     var from = ignoreRange ? 0 : request.Headers.Range?.Ranges.Single().From ?? 0; ranges.Add(request.Headers.Range?.ToString() ?? "");
                     // The first answer stops halfway: the connection was cut.
-                    var body = video[(int)from..(cut ? 150_000 : video.Length)];
+                    var body = served[(int)from..(cut ? 150_000 : served.Length)];
                     var response = new HttpResponseMessage(from > 0 ? HttpStatusCode.PartialContent : HttpStatusCode.OK) { Content = new ByteArrayContent(body) };
-                    response.Content.Headers.ContentLength = video.Length - from;
-                    if (from > 0) response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(from, video.Length - 1, video.Length);
+                    response.Content.Headers.ContentLength = served.Length - from;
+                    if (from > 0) response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(from, served.Length - 1, served.Length);
                     return Task.FromResult(response);
                 }
+                // The title as Jellyfin describes it now: its file replaced by a better version, with an English subtitle beside it.
+                if (path == "/Items/film?userId=user-1")
+                {
+                    var json = $$"""{"Id":"film","Name":"Dune","Type":"Movie","MediaSources":[{"Id":"src","Container":"mkv","Size":{{served.Length}},"MediaStreams":[{"Index":4,"Type":"Subtitle","Codec":"subrip","IsExternal":true,"Language":"eng","DisplayTitle":"English"}]}]}""";
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
+                }
+                if (path == "/Videos/film/src/Subtitles/4/0/Stream.srt") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("1\n00:00:01,000 --> 00:00:02,000\nHello\n") });
                 // Jellyfin not answering within the client's 12 s: HttpClient's TaskCanceledException.
                 if (path == "/Videos/film/src/Subtitles/2/0/Stream.srt" && slowSubtitle) return Task.FromException<HttpResponseMessage>(new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 12 seconds elapsing."));
                 if (path == "/Videos/film/src/Subtitles/2/0/Stream.srt") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("1\n00:00:01,000 --> 00:00:02,000\nBonjour\n") });
@@ -1556,6 +1563,17 @@ internal static class LibraryTests
             File.Delete(again.VideoPath); File.WriteAllBytes(again.PartPath, new byte[1000]);
             again = await OfflineCopies.FetchAsync(client, again, null, CancellationToken.None);
             Assert(ranges.SequenceEqual(["bytes=1000-"]) && File.ReadAllBytes(again.VideoPath).SequenceEqual(video), "Range ignored: from the start");
+            // Jellyfin's file changed since the part began (a better version put in its place: another size, other tracks):
+            // from the start, its tracks read again, never the end of the new file after the start of the old one.
+            ignoreRange = false; ranges.Clear();
+            var changed = OfflineCopies.Plan(root, connection, film, source, DateTimeOffset.UnixEpoch);
+            File.Delete(changed.VideoPath); File.WriteAllBytes(changed.PartPath, video[..120_000]);
+            served = [.. Enumerable.Range(0, 320_000).Select(x => (byte)(x % 241))];
+            changed = await OfflineCopies.FetchAsync(client, changed, null, CancellationToken.None);
+            Assert(ranges.SequenceEqual(["bytes=120000-", ""]) && File.ReadAllBytes(changed.VideoPath).SequenceEqual(served) && changed is { Complete: true, Size: 320_000 }
+                && changed.Subtitles.Single() is { File: "subtitle-4.srt", Language: "eng" } && OfflineCopies.Read(changed.Folder)?.Source?.MediaStreams.Single().Index == 4,
+                "File changed on Jellyfin: from the start, its tracks read again: " + string.Join(" | ", ranges));
+            served = video;
             refuse = true;
             var refused = OfflineCopies.Plan(other, connection, film, source, DateTimeOffset.UnixEpoch);
             try { await OfflineCopies.FetchAsync(client, refused, null, CancellationToken.None); Assert(false, "Refused"); }

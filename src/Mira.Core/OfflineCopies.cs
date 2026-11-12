@@ -126,6 +126,8 @@ public static class OfflineCopies
         // The video came whole before, and only its subtitles did not (Mira closed, Jellyfin gone): never fetched again.
         if (VideoDone(copy) is { } whole) { progress?.Report((whole, whole)); return await FetchSubtitlesAsync(client, copy with { Size = whole }, ct); }
         var done = System.IO.File.Exists(copy.PartPath) ? new FileInfo(copy.PartPath).Length : 0;
+        // The size of the file the part comes from, kept in the manifest (the copy in hand may be older than it).
+        var before = Read(copy.Folder) is { Size: > 0 } saved ? saved.Size : copy.Size;
         var response = await client.DownloadAsync(copy.Item.Id, done, ct);
         try
         {
@@ -133,7 +135,20 @@ public static class OfflineCopies
             if (done > 0 && response.StatusCode != HttpStatusCode.PartialContent)
             {
                 done = 0;
-                if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable) { response.Dispose(); response = await client.DownloadAsync(copy.Item.Id, 0, ct); }
+                if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
+                {
+                    response.Dispose();
+                    copy = await ReadAgainAsync(client, copy, ct);
+                    response = await client.DownloadAsync(copy.Item.Id, 0, ct);
+                }
+            }
+            // The part is the start of the file Jellyfin had then: a file of another size now (a better version put in its
+            // place) starts over, its tracks read again, never the end of one after the start of the other (as the iPhone).
+            else if (done > 0 && before > 0 && response.Content.Headers.ContentRange?.Length is { } now && now != before)
+            {
+                response.Dispose(); done = 0;
+                copy = await ReadAgainAsync(client, copy, ct);
+                response = await client.DownloadAsync(copy.Item.Id, 0, ct);
             }
             var total = response.Content.Headers.ContentRange?.Length ?? (response.Content.Headers.ContentLength is { } length ? length + done : copy.Size);
             if (total > 0 && total != copy.Size) { copy = copy with { Size = total }; Save(copy); }
@@ -162,6 +177,14 @@ public static class OfflineCopies
         System.IO.File.Move(copy.PartPath, copy.VideoPath, overwrite: true);
         progress?.Report((done, done));
         return await FetchSubtitlesAsync(client, copy, ct);
+    }
+    /// <summary>The copy with the file Jellyfin describes now (its tracks, its external subtitles), when it changed since.</summary>
+    private static async Task<OfflineCopy> ReadAgainAsync(JellyfinClient client, OfflineCopy copy, CancellationToken ct)
+    {
+        if ((await client.ItemAsync(copy.Item.Id, ct)).MediaSources?.FirstOrDefault() is not { } source) return copy;
+        copy = copy with { Source = source, Size = source.Size ?? 0 };
+        Save(copy);
+        return copy;
     }
     /// <summary>
     /// The video's size when it is already whole in the folder: named so only once complete, at the size Jellyfin said, which
