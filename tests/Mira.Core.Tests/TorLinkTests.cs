@@ -368,6 +368,50 @@ internal static class TorLinkTests
                 Assert(ReleaseName.AlternateTitles(name).Count == 0 && ReleaseRanking.Parse(name).Alternate is null, $"{name} → {string.Join(" ; ", ReleaseName.AlternateTitles(name))} / {ReleaseRanking.Parse(name).Alternate}");
             return Task.CompletedTask;
         });
+        await Test("TorLink : les épisodes de Judas (« (Weekly) », nom anglais entre parenthèses) rejoignent chacun leur série", () =>
+        {
+            // Real names of nyaa (Judas). « (Weekly) » was taken for another name of every show: the weekly episode of a second
+            // show joined the first one's folder (« Shingeki no Kyojin - S04E30 » in « Kimetsu no Yaiba Demon Slayer/Season 04 »);
+            // and the English name after the title stayed in it: a folder « Kimetsu no Yaiba Demon Slayer », a batch of a show
+            // placed before under its own name in a second folder, a film « Kimi no Na wa Your Name Movie ».
+            const string Kimetsu = "[Judas] Kimetsu no Yaiba (Demon Slayer) - S05E08 [1080p][HEVC x265 10bit][Multi-Subs] (Weekly)";
+            Assert(ReleaseName.AlternateTitles(Kimetsu) is ["Demon Slayer"] && ReleaseName.Show(Kimetsu) == ("Kimetsu no Yaiba", null), $"{string.Join(" ; ", ReleaseName.AlternateTitles(Kimetsu))} / {ReleaseName.Show(Kimetsu)}");
+            foreach (var (name, title, year) in new (string, string, int?)[]
+            {
+                ("[Judas] Kimi no Na wa (Your Name) [BD 1080p][HEVC x265 10bit][Dual-Audio][Multi-Subs] (Movie)", "Kimi no Na wa", null),
+                ("[Judas] Project Itoh - Harmony (2015) [1080p][HEVC x265 10bit][Multi-Audio][Multi-Subs] (Movie)", "Project Itoh - Harmony", 2015),
+                // Words in parentheses inside a title stay, and so does a name a group gives first.
+                ("[Group] Evangelion 2.22 You Can (Not) Advance (2009) [1080p].mkv", "Evangelion 2.22 You Can Not Advance", 2009),
+                ("[Raze] (Demon Slayer) Kimetsu no Yaiba - Infinity Castle (2025) (Web) x265 10bit 1080p 144fps", "Demon Slayer Kimetsu no Yaiba - Infinity Castle", 2025),
+            })
+                Assert(ReleaseName.Movie(name) == (title, year), $"{name} → {ReleaseName.Movie(name)}");
+            Assert(ReleaseName.AlternateTitles("[Judas] Kimi no Na wa (Your Name) [BD 1080p][HEVC x265 10bit][Dual-Audio][Multi-Subs] (Movie)") is ["Your Name"]
+                && ReleaseRanking.Parse("[Judas] Bubble (2022) [1080p][HEVC x265 10bit][Dual-Audio][Multi-Subs] (Movie)").Alternate is null, "A note taken for a name");
+
+            var dir = Path.Combine(testRoot, "torlink-weekly"); var anime = Path.Combine(dir, "ANIME"); var libraries = new MediaLibraries(null, null, anime);
+            Directory.CreateDirectory(anime);
+            var journal = new List<TorLinkImportEntry>();
+            string Get(string torrent, params string[] files)
+            {
+                var sources = files.Select(x => new SourceFile(Path.Combine(dir, "downloads", x), x, 700_000_000)).ToList();
+                var plan = MediaPlanner.Plan(torrent, "nyaa", sources, libraries, null, MediaPlanner.KnownShows(journal));
+                foreach (var folder in plan.Operations.Select(x => Path.GetDirectoryName(x.Destination)!).Distinct()) Directory.CreateDirectory(folder);
+                journal.Add(new() { Id = new string((char)('a' + journal.Count), 40), Name = torrent, Kind = plan.Kind, LibraryRoot = plan.LibraryRoot, Files = plan.Operations.Select(x => new TorLinkImportedFile(x.RelativePath, x.Destination, x.Role)).ToList() });
+                return string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(anime, x.Destination).Replace('\\', '/')));
+            }
+            string Episode(string name) => Get(name + ".mkv", name + ".mkv");
+            var kimetsu = Episode(Kimetsu);
+            Assert(kimetsu == "Kimetsu no Yaiba/Season 05/Kimetsu no Yaiba - S05E08.mkv", "Kimetsu no Yaiba: " + kimetsu);
+            var titans = Episode("[Judas] Shingeki no Kyojin (Attack on Titan) - S04E30 [1080p][HEVC x265 10bit][Multi-Subs] (Weekly)");
+            Assert(titans == "Shingeki no Kyojin/Season 04/Shingeki no Kyojin - S04E30.mkv", "The second show's weekly episode joined the first one's folder: " + titans);
+            // A show placed before under its own name (SubsPlease): Judas' batch joins it.
+            var mushoku = Episode("[SubsPlease] Mushoku Tensei S3 - 01 (1080p) [ABCDEF12]");
+            const string Batch = "[Judas] Mushoku Tensei (Jobless Reincarnation) (Season 03) [1080p][HEVC x265 10bit][Dual-Audio][Multi-Subs] (Batch)";
+            var batch = Get(Batch, $"{Batch}/[Judas] Mushoku Tensei - S03E02.mkv", $"{Batch}/[Judas] Mushoku Tensei - S03E03.mkv");
+            Assert(mushoku == "Mushoku Tensei/Season 03/Mushoku Tensei - S03E01.mkv" && batch == "Mushoku Tensei/Season 03/Mushoku Tensei - S03E02.mkv | Mushoku Tensei/Season 03/Mushoku Tensei - S03E03.mkv"
+                && Directory.GetDirectories(anime).Length == 3, $"The batch made a second folder: {mushoku} / {batch}");
+            return Task.CompletedTask;
+        });
         await Test("TorLink : un mot de tag dans un titre (« Charlottes Web », « The Bad Batch », « A Complete Unknown ») reste dans le titre", () =>
         {
             // « Web » and « Opus » ended a film's title, « Batch » and « Complete » a show's: « Charlottes (2006) », every episode
