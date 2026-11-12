@@ -357,6 +357,8 @@ public sealed partial class MainWindow : Window
     public string? NoticeText => _toastOn ? _toastText.Text : null;
     /// <summary>The button of the notice shown (the checks).</summary>
     public string? NoticeAction => _toastOn && _toastAction.IsVisible ? _toastAction.Content as string : null;
+    /// <summary>The button of the notice shown, pressed as a click on it does (the checks).</summary>
+    public void PressNotice() => _toastAction.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
     private async Task StartAsync()
     {
@@ -1035,16 +1037,22 @@ public sealed partial class MainWindow : Window
         if (Session is not { } session) return;
         var group = ContinueWatching.Group(item); var ticks = item.UserData.PlaybackPositionTicks;
         var resumable = item.Resumable;
-        var change = Task.Run(() => Errors.TryCache(() => { session.Store.HideFromResume(group, DateTimeOffset.UtcNow); if (resumable) session.Store.ForgetProgress(item.Id); }));
-        _resumeChange = change;
-        await change;
-        Notice(L($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", $"“{item.DisplayTitle}” removed from Continue watching."), L("Annuler", "Undo"), () => _ = ShowInResumeAsync(session, item, group, resumable ? ticks : 0), sticky: false);
-        await RefreshPagesAsync();
-        try { if (resumable) await session.Client.SetPlaybackPositionAsync(item.Id, 0, session.Lifetime); }
-        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex) + L(" Le titre est retiré de Mira seulement.", " The title is removed from Mira only."), tone: NoticeTone.Error); }
+        // « Annuler » waits for all of it, the resume point taken back on Jellyfin included: pressed while the page was
+        // still coming from a Jellyfin far away, its own resume point was written first and this 0 over it.
+        var removal = Save();
+        _resumeChange = removal;
+        await removal;
         ChoicesChanged();
+        async Task Save()
+        {
+            await Task.Run(() => Errors.TryCache(() => { session.Store.HideFromResume(group, DateTimeOffset.UtcNow); if (resumable) session.Store.ForgetProgress(item.Id); }));
+            Notice(L($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", $"“{item.DisplayTitle}” removed from Continue watching."), L("Annuler", "Undo"), () => _ = ShowInResumeAsync(session, item, group, resumable ? ticks : 0), sticky: false);
+            await RefreshPagesAsync();
+            try { if (resumable) await session.Client.SetPlaybackPositionAsync(item.Id, 0, session.Lifetime); }
+            catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex) + L(" Le titre est retiré de Mira seulement.", " The title is removed from Mira only."), tone: NoticeTone.Error); }
+        }
     }
-    /// <summary>The last removal still being saved: « Annuler » waits for it, so that it cannot land after the undo.</summary>
+    /// <summary>The last removal still being saved, on this Mac and on Jellyfin: « Annuler » waits for it, so that it cannot land after the undo.</summary>
     private Task _resumeChange = Task.CompletedTask;
     private async Task ShowInResumeAsync(Session session, MediaItem item, string group, long ticks)
     {

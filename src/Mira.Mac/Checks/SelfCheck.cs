@@ -127,6 +127,21 @@ public static class SelfCheck
                 Check(gone && told, "accueil : retirer de continuer à regarder", $"retiré {gone}, Jellyfin prévenu {told}");
                 window.Session.Store.HideFromResume(group, null); await window.RefreshPagesAsync();
                 await Until(() => window.Current is HomePage { Continue: var back } && back.Any(x => x.Id == "movie-1"), 10);
+                // « Annuler » pressed at once, while a Jellyfin far away still gives the row again: the resume point is
+                // back on Jellyfin, never put to 0 by the removal after the undo.
+                var ticks = resumed.UserData.PlaybackPositionTicks;
+                mock.SlowResume = TimeSpan.FromSeconds(1.5); lock (mock.Positions) mock.Positions.Clear();
+                var removal = window.HideFromResumeAsync(resumed);
+                var undo = await Until(() => window.NoticeAction == Lang.L("Annuler", "Undo"), 5);
+                if (undo) window.PressNotice();
+                await removal;
+                await Until(() => { lock (mock.Positions) return mock.Positions.Count >= 2; }, 10);
+                await Task.Delay(2500);
+                mock.SlowResume = TimeSpan.Zero;
+                List<(string Id, long Ticks)> positions; lock (mock.Positions) positions = [.. mock.Positions];
+                var again = await Until(() => window.Current is HomePage { Continue: var row } && row.Any(x => x.Id == "movie-1"), 10);
+                Check(undo && positions.Count > 0 && positions[^1] == ("movie-1", ticks) && again, "accueil : « Annuler » tout de suite rend le point de reprise sur Jellyfin",
+                    $"bouton {undo}, Jellyfin : {string.Join(" puis ", positions.Select(x => x.Ticks))} (avant : {ticks}), de retour dans la rangée {again}");
             }
             // « Animer l’accueil » off: the banner stays on its title; on again, it turns.
             if (mock is not null)

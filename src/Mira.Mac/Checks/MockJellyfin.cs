@@ -38,6 +38,10 @@ public sealed class MockJellyfin : HttpMessageHandler
     /// <summary>Every request, « GET Items/… ».</summary>
     public List<string> Calls { get; } = [];
     public List<(string Kind, JsonElement Body)> Reports { get; } = [];
+    /// <summary>Each resume point put on Jellyfin, in the order it came: « Retirer de Continuer à regarder » and its « Annuler ».</summary>
+    public List<(string Id, long Ticks)> Positions { get; } = [];
+    /// <summary>A Jellyfin far away (Built-in Tailscale, a phone's connection): « Continuer à regarder » comes this late.</summary>
+    public TimeSpan SlowResume { get; set; }
     /// <summary>What « Téléchargements » sent to the PC of Jellyfin: the names of its requests.</summary>
     public List<string> Requests { get; } = [];
     /// <summary>When Jellyfin added a new episode of « Petite série », a favourite: none until the check says so.</summary>
@@ -169,7 +173,12 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "Packages/Installed/Mira" && request.Method == HttpMethod.Post) { PluginInstalled = query["repositoryUrl"] == Mira.Core.MiraWeb.RepositoryFor(Mira.Mac.Services.Updates.Current); return new HttpResponseMessage(HttpStatusCode.NoContent); }
         if (path == "System/Restart" && request.Method == HttpMethod.Post) return new HttpResponseMessage(HttpStatusCode.NoContent);
         // « Retirer de Continuer à regarder »: the resume point taken back.
-        if (request.Method == HttpMethod.Post && path.StartsWith("UserItems/") && path.EndsWith("/UserData")) return Json(new { });
+        if (request.Method == HttpMethod.Post && path.StartsWith("UserItems/") && path.EndsWith("/UserData"))
+        {
+            using var told = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+            if (told.RootElement.TryGetProperty("PlaybackPositionTicks", out var position)) lock (Positions) Positions.Add((path.Split('/')[1], position.GetInt64()));
+            return Json(new { });
+        }
         if (path.StartsWith("UserPlayedItems/") || path.StartsWith("UserFavoriteItems/")) return Json(new { });
         if (request.Method == HttpMethod.Post && path == "Sessions/Logout") return new HttpResponseMessage(HttpStatusCode.NoContent);
         // « En ce moment sur Jellyfin »: a friend's iPhone, converted, that takes « Arrêter ».
@@ -186,7 +195,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         });
         if (path.Contains("/Images/") || path == "Items") await Task.Delay(Slow, cancellationToken);
         if (path.Contains("/Images/")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(await ImageAsync(path)) };
-        if (path == "UserItems/Resume") return Items(_movies.Where(x => Id(x) == "movie-1"));
+        if (path == "UserItems/Resume") { await Task.Delay(SlowResume, cancellationToken); return Items(_movies.Where(x => Id(x) == "movie-1")); }
         if (path == "Shows/NextUp") return Items(query["seriesId"] is { } series ? _episodes.GetValueOrDefault(series)?.Take(1) ?? [] : _episodes["series-1"].Take(1));
         if (path == "Items/Filters2") return Json(new { Genres = new[] { new { Name = "Aventure" }, new { Name = "Animation" }, new { Name = "Comédie" } } });
         if (path == "UserViews") return Items(new object[] { new { Id = "view-movies", Name = "Films", CollectionType = "movies" }, new { Id = "view-series", Name = "Séries", CollectionType = "tvshows" } });
