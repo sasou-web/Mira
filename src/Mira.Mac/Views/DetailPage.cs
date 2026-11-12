@@ -211,7 +211,7 @@ public sealed class DetailPage : Page
         {
             var full = await session.ItemAsync(episode.Id);
             if (SeriesTarget?.Id != episode.Id) return;
-            _targetFile = (episode.Id, full.MediaSources?.FirstOrDefault()); RenderTop();
+            _targetFile = (episode.Id, full.OwnSource); RenderTop();
         }
         // Only a detail of the page: without it, the rest is complete.
         catch (Exception ex) when (Errors.Expected(ex)) { }

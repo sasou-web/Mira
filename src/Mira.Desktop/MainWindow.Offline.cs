@@ -63,7 +63,7 @@ public partial class MainWindow
         {
             foreach (var item in wanted)
             {
-                MediaSource FileOf(MediaItem x) => x.MediaSources?.FirstOrDefault() ?? throw new IOException(L("Jellyfin ne donne aucun fichier pour « " + item.DisplayTitle + " ».", "Jellyfin has no file for “" + item.DisplayTitle + "”."));
+                MediaSource FileOf(MediaItem x) => x.OwnSource ?? throw new IOException(L("Jellyfin ne donne aucun fichier pour « " + item.DisplayTitle + " ».", "Jellyfin has no file for “" + item.DisplayTitle + "”."));
                 var full = item.MediaSources is { Count: > 0 } ? item : await client.ItemAsync(item.Id);
                 if (!ReferenceEquals(client, _client)) return;
                 // A title in several files (« cd1 », « cd2 »): its other files too, or only its first would play without Jellyfin.

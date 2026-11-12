@@ -399,7 +399,7 @@ final class Keeper {
             }
             try await Self.allowed(client.url("Items/\(copy.id)/Download"), authorization: client.authorization)
             if let preferences = app?.preferences {
-                let chosen = TrackChoice.choose(copy.item.mediaSources?.first, memory: preferences.tracks(for: copy.item.seriesId),
+                let chosen = TrackChoice.choose(copy.item.ownSource, memory: preferences.tracks(for: copy.item.seriesId),
                                                 audioOrder: preferences.audioOrder, subtitleOrder: preferences.subtitleOrder)
                 copy.audioIndex = chosen.audio
             }
@@ -409,10 +409,10 @@ final class Keeper {
         do {
             info = try await client.playbackInfo(copy.id, request: PlaybackRequest(
                 bitrate: PlaybackPlan.fullBitrate, stage: 0, startTicks: 0, audioIndex: copy.audioIndex, subtitleIndex: -1,
-                mediaSourceId: copy.item.mediaSources?.first?.id, device: device))
+                mediaSourceId: copy.item.ownSource?.id, device: device))
         } catch JellyfinError.http(404) { throw KeepError.gone }
         if info.errorCode == "NotAllowed" { throw KeepError.refused }
-        guard info.errorCode == nil, let source = info.mediaSources?.first, let kind = KeptRules.kind(source) else { throw KeepError.cannotPlay }
+        guard info.errorCode == nil, let source = MediaSource.own(info.mediaSources, of: copy.id), let kind = KeptRules.kind(source) else { throw KeepError.cannotPlay }
         if copy.kind != kind {
             // First time, or Jellyfin decides otherwise now (its settings changed): from the start.
             copy.kind = kind

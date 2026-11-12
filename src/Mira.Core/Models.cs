@@ -96,6 +96,8 @@ public sealed record MediaItem
     /// <summary>The files of a film or an episode, returned by the single-item request only (<see cref="MediaQuality"/>).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<MediaSource>? MediaSources { get; init; }
+    /// <summary>The title's own file among its versions (<see cref="MediaSource.Own"/>); null without its files.</summary>
+    [JsonIgnore] public MediaSource? OwnSource => MediaSource.Own(MediaSources, Id);
     public UserData UserData { get; set; } = new();
     [JsonIgnore] public string DisplayTitle => Type == "Episode" ? SeriesName ?? Name : Name;
     [JsonIgnore]
@@ -255,6 +257,15 @@ public sealed record MediaStream
 }
 public sealed record MediaSource
 {
+    /// <summary>
+    /// The file of the title <paramref name="itemId"/> among its versions (a film in several editions or qualities): the
+    /// source with the title's id, else the first, else none. It is what Jellyfin keeps the title's length, progress,
+    /// « watched », chapters and segments of, and what <c>Items/{id}/Download</c> sends. Jellyfin 10.9 lists the
+    /// versions widest first, the title's own anywhere among them, and 10.10 still answers PlaybackInfo so (12 lists it
+    /// first everywhere): the first one played or kept another version than the one Jellyfin counts.
+    /// </summary>
+    public static MediaSource? Own(IReadOnlyList<MediaSource>? sources, string itemId) =>
+        sources?.FirstOrDefault(x => string.Equals(x.Id, itemId, StringComparison.OrdinalIgnoreCase)) ?? sources?.FirstOrDefault();
     public string Id { get; init; } = "";
     public string? Container { get; init; }
     public string? Path { get; init; }

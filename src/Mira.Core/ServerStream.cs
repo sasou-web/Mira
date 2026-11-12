@@ -200,7 +200,7 @@ public static partial class ServerStreams
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            RecentPlaybacks.Add(PlaybackTrace.Of(item, item.MediaSources?.FirstOrDefault(), client.Connection.Server, DateTimeOffset.Now, "not opened", ex.GetType().Name));
+            RecentPlaybacks.Add(PlaybackTrace.Of(item, item.OwnSource, client.Connection.Server, DateTimeOffset.Now, "not opened", ex.GetType().Name));
             throw;
         }
     }
@@ -209,13 +209,14 @@ public static partial class ServerStreams
     {
         var atHome = StreamQuality.AtHome(client.Connection.Server);
         Task<double> Measure() => client.BitrateTestAsync(ct: ct);
-        var fileBitrate = item.MediaSources?.FirstOrDefault()?.Bitrate ?? 0;
+        var fileBitrate = item.OwnSource?.Bitrate ?? 0;
         var asked = (Bitrate: await speed.BitrateAsync(quality, atHome, fileBitrate, Measure), Audio: wish.Audio, Burned: wish.Burn is >= 0 ? wish.Burn : null);
         string? sourceId = null;
         for (var round = 0; ; round++)
         {
             var info = await client.PlaybackInfoAsync(item.Id, Request(client.Connection.UserId, asked.Bitrate, wish.Start, asked.Audio, asked.Burned, sourceId), ct);
-            var source = info.MediaSources.FirstOrDefault() ?? throw new IOException(L("Aucune source lisible disponible.", "No playable source available."));
+            // The title's own file (MediaSource.Own), answered first by Jellyfin 12, among the others by 10.9 and 10.10.
+            var source = MediaSource.Own(info.MediaSources, item.Id) ?? throw new IOException(L("Aucune source lisible disponible.", "No playable source available."));
             sourceId = source.Id;
             var converted = Converts(source);
             // What the conversion carries, as Jellyfin decided: until the file is named, its own default tracks, whatever

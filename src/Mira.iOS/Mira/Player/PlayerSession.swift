@@ -228,8 +228,8 @@ final class PlayerSession: NSObject {
             // A title known without its files (what Home's lists bring, its banner's Resume among them): read first, for
             // the file's bitrate, the tracks to choose from and the file to name. Jellyfin reads the tracks asked only for
             // the file named (MediaSourceId, 12.1): without it, it played its own audio under the one the menu showed.
-            if source == nil, item.mediaSources?.first?.mediaStreams?.isEmpty != false { await loadFiles() }
-            let fileBitrate = source?.bitrate ?? item.mediaSources?.first?.bitrate ?? 0
+            if source == nil, item.ownSource?.mediaStreams?.isEmpty != false { await loadFiles() }
+            let fileBitrate = source?.bitrate ?? item.ownSource?.bitrate ?? 0
             if bitrate == nil {
                 askedUnder = app?.mobileCap
                 bitrate = await app?.bitrate(for: client, fileBitrate: fileBitrate) ?? PlaybackPlan.fullBitrate
@@ -248,16 +248,17 @@ final class PlayerSession: NSObject {
             func ask(_ limit: Int) async throws -> PlaybackInfo {
                 try await client.playbackInfo(item.id, request: PlaybackRequest(
                     bitrate: limit, stage: stage, startTicks: ticks, audioIndex: audioIndex, subtitleIndex: subtitleIndex,
-                    mediaSourceId: source?.id ?? item.mediaSources?.first?.id, device: device))
+                    mediaSourceId: source?.id ?? item.ownSource?.id, device: device))
             }
             let limit = bitrate ?? PlaybackPlan.fullBitrate
             var info = try await ask(limit)
-            if info.errorCode == nil, let first = info.mediaSources?.first, let full = PlaybackPlan.uncappedBitrate(first, stage: stage, bitrate: limit) {
+            // The title's own file (MediaSource.own), answered first by Jellyfin 12, among the others by 10.9 and 10.10.
+            if info.errorCode == nil, let own = MediaSource.own(info.mediaSources, of: item.id), let full = PlaybackPlan.uncappedBitrate(own, stage: stage, bitrate: limit) {
                 info = try await ask(full)
             }
             guard attempt == opening, !closed else { return }
             if let code = info.errorCode { throw PlayerError.refused(code) }
-            guard let next = info.mediaSources?.first else { throw PlayerError.nothing }
+            guard let next = MediaSource.own(info.mediaSources, of: item.id) else { throw PlayerError.nothing }
             let previous = playSessionId, previousMethod = playMethod
             source = next
             playSessionId = info.playSessionId
@@ -287,7 +288,7 @@ final class PlayerSession: NSObject {
             app?.sessionEnded()
         } catch {
             guard attempt == opening, !closed else { return }
-            Diagnostics.record(item, source: source ?? item.mediaSources?.first, server: client.server, how: "not opened", error: error is PlayerError ? String(describing: error) : String(describing: type(of: error)))
+            Diagnostics.record(item, source: source ?? item.ownSource, server: client.server, how: "not opened", error: error is PlayerError ? String(describing: error) : String(describing: type(of: error)))
             fail(PlayerError.text(error))
         }
     }
@@ -297,7 +298,7 @@ final class PlayerSession: NSObject {
     private func openKept(_ copy: KeptCopy, at ticks: Int64) {
         if let previous = playSessionId, playMethod != "DirectPlay" { Task { await client.stopEncoding(previous) } }
         kept = copy
-        source = copy.source ?? copy.item.mediaSources?.first
+        source = copy.source ?? copy.item.ownSource
         playSessionId = nil
         playMethod = "DirectPlay"
         inband = false
@@ -305,7 +306,7 @@ final class PlayerSession: NSObject {
         if !tracksChosen {
             tracksChosen = true
             if audioIndex == nil, subtitleIndex == nil, let preferences = app?.preferences,
-               let file = copy.source ?? copy.item.mediaSources?.first, file.mediaStreams?.isEmpty == false {
+               let file = copy.source ?? copy.item.ownSource, file.mediaStreams?.isEmpty == false {
                 let chosen = TrackChoice.choose(file, memory: preferences.tracks(for: item.seriesId), audioOrder: preferences.audioOrder, subtitleOrder: preferences.subtitleOrder)
                 audioIndex = chosen.audio
                 subtitleIndex = chosen.subtitle
@@ -333,7 +334,7 @@ final class PlayerSession: NSObject {
     /// Mira web), from the file's tracks.
     private func chooseTracks() {
         guard audioIndex == nil, subtitleIndex == nil, let preferences = app?.preferences,
-              let file = item.mediaSources?.first, file.mediaStreams?.isEmpty == false else { return }
+              let file = item.ownSource, file.mediaStreams?.isEmpty == false else { return }
         let chosen = TrackChoice.choose(file, memory: preferences.tracks(for: item.seriesId), audioOrder: preferences.audioOrder, subtitleOrder: preferences.subtitleOrder)
         audioIndex = chosen.audio
         subtitleIndex = chosen.subtitle
@@ -807,10 +808,10 @@ final class PlayerSession: NSObject {
         let keptNext = app?.keeper.playable(next.id)
         let streams: [MediaStream]
         if let keptNext {
-            streams = keptNext.source?.mediaStreams ?? keptNext.item.mediaSources?.first?.mediaStreams ?? []
+            streams = keptNext.source?.mediaStreams ?? keptNext.item.ownSource?.mediaStreams ?? []
         } else {
             let fetched = try? await client.item(next.id)
-            streams = fetched?.mediaSources?.first?.mediaStreams ?? next.mediaSources?.first?.mediaStreams ?? []
+            streams = fetched?.ownSource?.mediaStreams ?? next.ownSource?.mediaStreams ?? []
         }
         guard !closed else { return }
         let audio = source?.audio.first { $0.index == audioIndex }
@@ -885,7 +886,7 @@ final class PlayerSession: NSObject {
                 chapters.append((start: Timeline.seconds(ticks), name: name.isEmpty ? nil : name))
             }
             model.chapters = chapters.sorted { $0.start < $1.start }
-            if let set = TrickplaySet.pick(id, full.trickplay, sourceId: source?.id ?? full.mediaSources?.first?.id) {
+            if let set = TrickplaySet.pick(id, full.trickplay, sourceId: source?.id ?? full.ownSource?.id) {
                 let tiles = TrickplayTiles(set: set, client: client)
                 tiles.loaded = { [weak self] in
                     guard let self, self.model.scrubbing else { return }
@@ -1559,7 +1560,7 @@ extension PlayerSession: GroupPlayer {
         quietPause()
         Task {
             guard let next = try? await client.item(itemId), !closed else { return }
-            let streams = next.mediaSources?.first?.mediaStreams ?? []
+            let streams = next.ownSource?.mediaStreams ?? []
             let audio = source?.audio.first { $0.index == audioIndex }
             let subtitle = source?.subtitles.first { $0.index == subtitleIndex }
             if started && !stopped { await report(.stop) }

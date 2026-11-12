@@ -1845,6 +1845,52 @@ internal static class LibraryTests
             if (seen == 0) Console.WriteLine("      No other disk with its own free space here: only the path root's checked");
             return Task.CompletedTask;
         });
+        await Test("Sur ce PC : un film en deux versions gardé avec les pistes et les sous-titres du fichier que Jellyfin envoie (Jellyfin 10.9 range les versions par largeur)", async () =>
+        {
+            var root = Path.Combine(testRoot, "offline-versions");
+            var connection = new Connection("http://nas:8096/", "user-1", "Alice", "token", "device-1");
+            var cinema = Enumerable.Range(0, 2000).Select(x => (byte)(x % 239)).ToArray(); var served = cinema;
+            using var client = new JellyfinClient(connection, new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                // Items/{id}/Download sends the title's own file (« Deux Montages (2014) - Cinema.mkv », 1080p), never another version.
+                if (path == "/Items/film/Download")
+                {
+                    var from = request.Headers.Range?.Ranges.Single().From ?? 0;
+                    var response = new HttpResponseMessage(from > 0 ? HttpStatusCode.PartialContent : HttpStatusCode.OK) { Content = new ByteArrayContent(served[(int)from..]) };
+                    response.Content.Headers.ContentLength = served.Length - from;
+                    if (from > 0) response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(from, served.Length - 1, served.Length);
+                    return Task.FromResult(response);
+                }
+                // As Jellyfin 10.9.11 lists them: the widest version first (« … - Version longue.mkv », 2160p, two audio tracks),
+                // the title's own after it (10.10 and later list the title's own first).
+                if (path == "/Items/film?userId=user-1")
+                {
+                    var json = $$"""
+                        {"Id":"film","Name":"Deux Montages","Type":"Movie","MediaSources":[
+                          {"Id":"long","Container":"mkv","Size":9000,"MediaStreams":[{"Index":0,"Type":"Video","Width":3840},{"Index":1,"Type":"Audio","Language":"fre"},{"Index":2,"Type":"Audio","Language":"eng"},{"Index":3,"Type":"Subtitle","Codec":"subrip","IsExternal":true,"Language":"eng"}]},
+                          {"Id":"film","Container":"mkv","Size":{{served.Length}},"MediaStreams":[{"Index":0,"Type":"Video","Width":1920},{"Index":1,"Type":"Audio","Language":"eng"},{"Index":2,"Type":"Subtitle","Codec":"subrip","IsExternal":true,"Language":"eng"}]}]}
+                        """;
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
+                }
+                if (path == "/Videos/film/film/Subtitles/2/0/Stream.srt") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("1\n00:00:01,000 --> 00:00:02,000\nCinema cut\n") });
+                if (path == "/Videos/film/long/Subtitles/3/0/Stream.srt") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("1\n00:00:01,000 --> 00:00:02,000\nExtended cut\n") });
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            var film = await client.ItemAsync("film");
+            Assert(film.MediaSources![0].Id == "long" && film.OwnSource?.Id == "film" && (film with { Id = "FILM" }).OwnSource?.Id == "film", "The title's own file, wherever Jellyfin lists it");
+            Assert((film with { MediaSources = [film.MediaSources[0]] }).OwnSource?.Id == "long" && (film with { MediaSources = null }).OwnSource is null, "Else the first, else none");
+            var copy = await OfflineCopies.FetchAsync(client, OfflineCopies.Plan(root, connection, film, film.OwnSource!, DateTimeOffset.UnixEpoch), null, CancellationToken.None);
+            Assert(File.ReadAllBytes(copy.VideoPath).SequenceEqual(cinema) && copy is { Complete: true, Size: 2000, Source.Id: "film" } && copy.Source.MediaStreams.Count(x => x.Type == "Audio") == 1
+                && copy.Subtitles.Single() is { File: "subtitle-2.srt" } && File.ReadAllText(Path.Combine(copy.Folder, "subtitle-2.srt")).Contains("Cinema cut"), "Kept: the file Jellyfin sends, described as itself");
+            // The title's own file replaced on Jellyfin while its copy was on its way: read again, as itself again.
+            var changed = OfflineCopies.Plan(root, connection, film, film.OwnSource!, DateTimeOffset.UnixEpoch);
+            File.Delete(changed.VideoPath); File.Delete(Path.Combine(changed.Folder, "subtitle-2.srt")); File.WriteAllBytes(changed.PartPath, cinema[..1000]);
+            served = [.. Enumerable.Range(0, 2500).Select(x => (byte)(x % 233))];
+            changed = await OfflineCopies.FetchAsync(client, changed, null, CancellationToken.None);
+            Assert(File.ReadAllBytes(changed.VideoPath).SequenceEqual(served) && changed is { Complete: true, Size: 2500, Source.Id: "film" } && changed.Subtitles.Single() is { File: "subtitle-2.srt" }
+                && File.ReadAllText(Path.Combine(changed.Folder, "subtitle-2.srt")).Contains("Cinema cut"), "Read again: the title's own file still");
+        });
         await Test("Dossiers des bibliothèques : un fichier caché les garde non vides pour Jellyfin, scan demandé seulement pour un dossier déjà vidé", () =>
         {
             var folders = Path.Combine(testRoot, "library-marker"); var empty = Path.Combine(folders, "Séries"); var full = Path.Combine(folders, "Films");

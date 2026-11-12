@@ -195,6 +195,38 @@ internal static class StreamTests
             Assert(ServerStreams.Drawn("/v/master.m3u8?AudioStreamIndex=2&SubtitleMethod=Encode") is null && ServerStreams.Drawn("/v?SubtitleStreamIndex=3&SubtitleMethod=Encode") == 3
                 && ServerStreams.Drawn("/v?SubtitleStreamIndex=4&SubtitleMethod=Hls") is null && ServerStreams.Drawn(null) is null, "Drawn in: Encode with an index only");
         });
+        await Test("Qualité : un film en plusieurs versions joue son propre fichier, celui dont Jellyfin compte la progression (Jellyfin 10.9 et 10.10 répondent la plus large d’abord)", async () =>
+        {
+            var asked = new List<string?>();
+            var handler = new Handler(async request =>
+            {
+                if (!request.RequestUri!.AbsolutePath.EndsWith("/PlaybackInfo", StringComparison.Ordinal)) return new HttpResponseMessage(HttpStatusCode.NotFound);
+                var body = JsonNode.Parse(await request.Content!.ReadAsStringAsync())!;
+                var only = body["MediaSourceId"]?.GetValue<string>(); asked.Add(only);
+                var direct = body["MaxStreamingBitrate"]!.GetValue<long>() >= 50_000_000;
+                // As Jellyfin 10.9.11 and 10.10.7 answer for « Deux Montages (2014) »: the wider « Version longue » before the
+                // title's own « Cinema », whose length, progress and « watched » Jellyfin keeps (12.1 answers the title's own first).
+                (string Id, object Source) Version(string id, string file, long bitrate) => (id, new
+                {
+                    Id = id, Protocol = "File", Path = file, Bitrate = bitrate, SupportsDirectPlay = direct, DefaultAudioStreamIndex = 1, MediaStreams = Streams,
+                    TranscodingUrl = direct ? null : $"/videos/film/master.m3u8?DeviceId=device&MediaSourceId={id}&PlaySessionId=session-3&TranscodeReasons=ContainerBitrateExceedsLimit",
+                });
+                var versions = new[] { Version("long", "/media/Deux Montages (2014) - Version longue.mkv", 40_000_000), Version("film", "/media/Deux Montages (2014) - Cinema.mkv", 30_000_000) };
+                return JsonResponse(new { PlaySessionId = "session-3", MediaSources = versions.Where(x => only is null || x.Id == only).Select(x => x.Source).ToArray() });
+            });
+            var item = new MediaItem { Id = "film", Name = "Deux Montages", Type = "Movie" };
+            using var home = new JellyfinClient(new("http://127.0.0.1:8096/", "user-1", "Alice", "secret", "device"), handler);
+            var file = await ServerStreams.OpenAsync(home, new ConnectionSpeed(), StreamQuality.Max, item, new(0), "eng", _ => Task.FromResult(false));
+            Assert(file.Source.Id == "film" && file.Location == "http://127.0.0.1:8096/Videos/film/stream?static=true&mediaSourceId=film", $"The title's own file, as it is: {file.Source.Id}, {file.Location}");
+            using var away = new JellyfinClient(new("http://jellyfin.example.com/", "user-1", "Alice", "secret", "device"), handler);
+            asked.Clear();
+            var converted = await ServerStreams.OpenAsync(away, new ConnectionSpeed(), "3000000", item, new(0), "eng", _ => Task.FromResult(false));
+            Assert(converted.Converted && converted.Source.Id == "film" && converted.Location.Contains("MediaSourceId=film", StringComparison.Ordinal) && asked.Skip(1).All(x => x == "film"),
+                $"Its conversion, asked again for it alone: {converted.Location}, {string.Join(",", asked.Select(x => x ?? "-"))}");
+            var described = item with { MediaSources = [new() { Id = "long", Bitrate = 40_000_000 }, new() { Id = "film", Bitrate = 30_000_000, Path = "/media/Deux Montages (2014) - Cinema.mkv" }] };
+            Assert(described.OwnSource?.Path == "/media/Deux Montages (2014) - Cinema.mkv" && MediaSource.Own(described.MediaSources, "FILM")?.Id == "film" && MediaSource.Own([], "film") is null,
+                "The title's page and its copy describe that file too");
+        });
         await Test("Qualité : sous-titres d’une conversion (à côté, sans jeton, sur ce serveur) et choix de départ", () =>
         {
             var source = Source();
