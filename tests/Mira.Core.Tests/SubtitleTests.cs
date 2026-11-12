@@ -48,6 +48,23 @@ internal static class SubtitleTests
             Assert(SubtitleText.Parse("").Count == 0 && SubtitleText.Parse("1\n00:00:01,000 --> garbage\n").Count == 0, "Nothing read from nothing");
             return Task.CompletedTask;
         });
+        await Test("Sous-titres : un SRT lu comme ffmpeg le lit, lignes d'espaces et numéros collés compris", () =>
+        {
+            // Lines of spaces between cues (a space, a tab), as some editors write them: three cues, not one.
+            var spaced = SubtitleText.Parse("1\r\n00:00:01,000 --> 00:00:02,000\r\nHello\r\n \r\n2\r\n00:00:03,000 --> 00:00:04,000\r\nWorld\r\n\t\r\n3\r\n00:00:05,000 --> 00:00:06,000\r\nAgain\r\n");
+            Assert(spaced.Select(x => x.Text).SequenceEqual(["Hello", "World", "Again"]) && spaced[2].Start == TimeSpan.FromSeconds(5), "Lines of spaces: " + string.Join(" | ", spaced));
+            // No empty line before the next cue, a cue without its number, an empty line inside a cue: as ffmpeg reads them.
+            var packed = SubtitleText.Parse("1\n00:00:01,000 --> 00:00:02,000\nHello\n\nStill hello\n\n2\n00:00:03,000 --> 00:00:04,000\nWorld\n42\n00:00:05,000 --> 00:00:06,000\nNo number before\n00:00:07,000 --> 00:00:08,000\nLast\n");
+            Assert(packed.Select(x => x.Text).SequenceEqual(["Hello\nStill hello", "World", "No number before", "Last"]), "Packed: " + string.Join(" | ", packed));
+            Assert(packed.Select(x => x.Start.TotalSeconds).SequenceEqual([1.0, 3, 5, 7]), "Packed times: " + string.Join(" | ", packed));
+            // Written back: each cue on its own, no number nor times left in a text.
+            Assert(SubtitleText.Parse(SubtitleText.ToSrt(packed)).SequenceEqual(packed), "Round trip: " + SubtitleText.ToSrt(packed));
+            // A whole episode's file written so: set aside as unreadable (one cue) by « Sous-titres automatiques », now taken.
+            static string Stamp(int seconds) => TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm\:ss\,fff", CultureInfo.InvariantCulture);
+            var episode = string.Concat(Enumerable.Range(0, 300).Select(i => $"{i + 1}\r\n{Stamp(i * 4)} --> {Stamp(i * 4 + 2)}\r\nLine {i}\r\n \r\n"));
+            Assert(SubtitleMatch.Check(SubtitleText.Parse(episode), TimeSpan.FromMinutes(20)) is { Verdict: SubtitleCheckVerdict.Ok, Cues: 300 }, "An episode's file: " + SubtitleMatch.Check(SubtitleText.Parse(episode), TimeSpan.FromMinutes(20)));
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres : un fichier téléchargé vérifié contre la durée de la vidéo", () =>
         {
             var episode = TimeSpan.FromMinutes(24);
