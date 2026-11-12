@@ -101,6 +101,28 @@ internal static class TorLinkTests
             Assert(ReleaseName.Season("Show.S01-S03.Complete.1080p") is null, "A multi-season pack was given one season");
             return Task.CompletedTask;
         });
+        await Test("TorLink : le batch d'un anime (« (01-28) ») rejoint sa série au lieu d'en faire une seconde", () =>
+        {
+            // The episodes of a batch in parentheses stayed in the title: « Sousou no Frieren 01-28 », a second series in
+            // Jellyfin 12.1 beside « Sousou no Frieren » (two folders, two series).
+            foreach (var (name, title) in new[]
+            {
+                ("[SubsPlease] Sousou no Frieren (01-28) (1080p) [Batch]", "Sousou no Frieren"), ("[DB] Cowboy Bebop (01-26) [Dual Audio 10bit 1080p][HEVC-x265]", "Cowboy Bebop"),
+                ("[SubsPlease] One Piece (1071-1085) (1080p) [Batch]", "One Piece"), ("[Anime Time] Naruto Shippuden (001-500) [Dual Audio][1080p]", "Naruto Shippuden"),
+                ("[Group] Show (01 ~ 12) [1080p]", "Show"), ("9-1-1.S07E05.1080p.WEB.h264-ETHEL", "9-1-1"), ("[Erai-raws] Shingeki no Kyojin - The Final Season - 01 ~ 16 [1080p]", "Shingeki no Kyojin - The Final Season"),
+            })
+                Assert(ReleaseName.Show(name) == (title, null), $"{name} → {ReleaseName.Show(name)}");
+            // A range of years is not a batch: unchanged.
+            Assert(ReleaseName.Readable("The Matrix Trilogy (1999-2003) 1080p", out _) == "The Matrix Trilogy 1999-2003 1080p", "Years");
+            var dir = Path.Combine(testRoot, "torlink-batch"); var anime = Path.Combine(dir, "ANIME");
+            Directory.CreateDirectory(Path.Combine(anime, "Sousou no Frieren", "Season 01"));
+            const string Batch = "[SubsPlease] Sousou no Frieren (01-28) (1080p) [Batch]";
+            SourceFile Episode(int number) => new(Path.Combine(dir, "downloads", $"{Batch}/[SubsPlease] Sousou no Frieren - {number:00} (1080p) [ABCD12{number:00}].mkv"), $"{Batch}/[SubsPlease] Sousou no Frieren - {number:00} (1080p) [ABCD12{number:00}].mkv", 1_400_000_000);
+            var plan = MediaPlanner.Plan(Batch, "subsplease", [Episode(1), Episode(2)], new MediaLibraries(null, null, anime));
+            Assert(plan.Kind == MediaKind.Anime && plan.Title == "Sousou no Frieren · 2 épisodes" && string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(anime, x.Destination).Replace('\\', '/')))
+                == "Sousou no Frieren/Season 01/Sousou no Frieren - S01E01.mkv | Sousou no Frieren/Season 01/Sousou no Frieren - S01E02.mkv", "Batch: " + string.Join(" | ", plan.Operations.Select(x => x.Destination)));
+            return Task.CompletedTask;
+        });
         await Test("TorLink : une duologie « Part 1 », « Part 2 » rangée en deux films, les parties d'un même film (cd1, cd2) ensemble", () =>
         {
             // Two films numbered as parts in their own title (the Deathly Hallows, Mockingjay, Breaking Dawn) became one film of
