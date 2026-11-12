@@ -8,10 +8,11 @@ namespace Mira.Core.TorLink;
 /// What a release name says: title, year, the other name given in parentheses, season and episode (<see cref="Absolute"/>:
 /// numbered without a season; <see cref="Pack"/>: a whole season or more), resolution, source (remux, bluray, webdl,
 /// webrip, hdrip, hdtv, dvd, cam), codec, HDR, languages (MULTI, VFF, VFQ, VF, VOSTFR), group (<see cref="Fansub"/>: given in
-/// brackets in front, as fansub groups of anime do, « [Erai-raws] »).
+/// brackets in front, as fansub groups of anime do, « [Erai-raws] »). <see cref="Half"/>: an episode between two, a recap or a
+/// special, « Show - 07.5 » (7; <see cref="Episode"/> is null).
 /// </summary>
 public sealed record ReleaseInfo(string Title, int? Year, string? Alternate, int? Season, int? Episode, int? LastEpisode, bool Absolute, bool Pack,
-    int? Resolution, string? Source, string? Codec, bool TenBit, string? Hdr, IReadOnlyList<string> Languages, string? Group, bool Repack, bool Fansub = false);
+    int? Resolution, string? Source, string? Codec, bool TenBit, string? Hdr, IReadOnlyList<string> Languages, string? Group, bool Repack, bool Fansub = false, int? Half = null);
 
 /// <summary>A result of a search, what its name says and how good it is for us (<see cref="ReleaseRanking.Score"/>).</summary>
 public sealed record RankedRelease(RelayHit Hit, ReleaseInfo Release, int Order, int Score);
@@ -74,6 +75,7 @@ public static partial class ReleaseRanking
     [GeneratedRegex(@"(?<![a-z0-9])(?:s\d{1,2}\s*[-~]\s*s\d{1,2}|(?:seasons?|saisons?)\s*\d{1,2}\s*[-~]\s*\d{1,2})(?![0-9])", Options)] private static partial Regex SeasonRange();
     [GeneratedRegex(@"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season)", Options)] private static partial Regex SeasonMarker();
     [GeneratedRegex(@"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})(?:v\d)?(?:\s*[-~]\s*(\d{1,4})(?:v\d)?)?(?=\s|$)", Options)] private static partial Regex Numbered();
+    [GeneratedRegex(@"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})[.,]5(?:v\d)?(?=\s|$)", Options)] private static partial Regex HalfNumbered();
     [GeneratedRegex(@"(?<![a-z0-9])(?:complete(?:\s+series)?|int[ée]grale|batch)(?![a-z0-9])", Options)] private static partial Regex Complete();
     // What « Complete » and « Intégrale » may come before and still mean every episode or every film: « Complete Collection »,
     // « COMPLETE S01-S05 », « Complete Movie Series », « Complete 8-Film Collection », « Complete Trilogy », « Integrale Livres I a VI ».
@@ -207,7 +209,7 @@ public static partial class ReleaseRanking
         var plain = Parenthesized().Replace(Bracketed().Replace(spaced, " "), m => YearOnly().IsMatch(m.Groups[1].Value.Trim()) ? $" {m.Groups[1].Value} " : " ");
 
         // Season and episode.
-        int? season = null, episode = null, lastEpisode = null; bool absolute = false, pack = false; var cut = plain.Length;
+        int? season = null, episode = null, lastEpisode = null, half = null; bool absolute = false, pack = false; var cut = plain.Length;
         void Mark(int index) { if (index >= 0 && index < cut) cut = index; }
         var se = SeasonEpisode().Match(plain);
         if (se.Success)
@@ -221,14 +223,22 @@ public static partial class ReleaseRanking
         {
             // Fansub numbering: « Show - 05 », « Show - 01 ~ 12 » (a batch); never a year.
             var number = Numbered().Match(plain);
+            // « Show - 07.5 », « Show S3 - Episode 12.5 »: an episode between two (a recap, a special), never its whole season.
+            var between = HalfNumbered().Match(plain);
             var range = SeasonRange().Match(plain);
             // « Show Season 2 - 05 » is season 2, episode 5, where ReleaseName places it, never seasons 2 to 5: the dash is the episode's.
-            if (range.Success && number.Success && number.Index > range.Index && number.Index < range.Index + range.Length
+            var dashed = number.Success ? number : between;
+            if (range.Success && dashed.Success && dashed.Index > range.Index && dashed.Index < range.Index + range.Length
                 && !range.Value.StartsWith("seasons", StringComparison.OrdinalIgnoreCase) && !range.Value.StartsWith("saisons", StringComparison.OrdinalIgnoreCase)) range = Match.Empty;
             var single = SeasonMarker().Match(plain);
             if (range.Success) { pack = true; Mark(range.Index); }
             else if (single.Success) { season = Int(single.Groups[1].Success ? single.Groups[1] : single.Groups[2].Success ? single.Groups[2] : single.Groups[3]); pack = true; Mark(single.Index); }
-            if (number.Success && !YearOnly().IsMatch(number.Groups[1].Value) && (group is not null || season is not null || number.Groups[1].Length <= 3))
+            if (between.Success && (group is not null || season is not null || between.Groups[1].Length <= 3))
+            {
+                half = Int(between.Groups[1]); Mark(between.Index);
+                pack = false; absolute = season is null;
+            }
+            if (half is null && number.Success && !YearOnly().IsMatch(number.Groups[1].Value) && (group is not null || season is not null || number.Groups[1].Length <= 3))
             {
                 episode = Int(number.Groups[1]); Mark(number.Index);
                 if (number.Groups[2].Success) { lastEpisode = Int(number.Groups[2]); pack = true; }
@@ -242,7 +252,7 @@ public static partial class ReleaseRanking
             // « A Complete Unknown », « Star Wars The Bad Batch S03E15 »: words of the title, not every episode.
             var at = tokens.FindIndex(t => t.Index == complete.Index);
             if (at >= 0 && !complete.Value.Contains(' ') && !EndsTitle(tokens, at)) continue;
-            if (episode is null || lastEpisode is not null) pack = true;
+            if ((episode is null && half is null) || lastEpisode is not null) pack = true;
             Mark(complete.Index);
             break;
         }
@@ -290,7 +300,7 @@ public static partial class ReleaseRanking
         if (Has(lower, "vostfr|subfrench")) languages.Add("VOSTFR");
 
         return new(title, year, alternate, season, episode, lastEpisode, absolute, pack, resolution, source, codec, Has(lower, "10-?bits?|hi10p?|main10"),
-            vision ? (hdr is null ? "DV" : $"DV {hdr}") : hdr, languages, group, Has(lower, "repack|proper|rerip"), lead.Success);
+            vision ? (hdr is null ? "DV" : $"DV {hdr}") : hdr, languages, group, Has(lower, "repack|proper|rerip"), lead.Success, half);
     }
 
     /// <summary>
@@ -339,7 +349,7 @@ public static partial class ReleaseRanking
         return score;
     }
 
-    /// <summary>« S06E05 », « S01E01-E03 », « Épisode 5 », « Saison 2 complète », « Toutes les saisons »; empty for a film.</summary>
+    /// <summary>« S06E05 », « S01E01-E03 », « Épisode 5 », « S03E12.5 », « Saison 2 complète », « Toutes les saisons »; empty for a film.</summary>
     public static string EpisodeLabel(ReleaseInfo release)
     {
         static string Two(int? n) => (n ?? 0).ToString("00", CultureInfo.InvariantCulture);
@@ -349,6 +359,7 @@ public static partial class ReleaseRanking
                 return L($"{(release.Season is { } s ? $"Saison {s}, é" : "É")}pisodes {from} à {to}", $"{(release.Season is { } t ? $"Season {t}, e" : "E")}pisodes {from} to {to}");
             return release.Season is { } season ? L($"Saison {season} complète", $"Complete season {season}") : L("Toutes les saisons", "All seasons");
         }
+        if (release.Half is { } half) return release.Absolute ? L($"Épisode {half},5", $"Episode {half}.5") : $"S{Two(release.Season)}E{Two(half)}.5";
         if (release.Episode is not { } episode) return "";
         if (release.Absolute) return release.LastEpisode is { } last ? L($"Épisodes {episode} à {last}", $"Episodes {episode} to {last}") : L($"Épisode {episode}", $"Episode {episode}");
         return $"S{Two(release.Season)}E{Two(episode)}{(release.LastEpisode > episode ? $"-E{Two(release.LastEpisode)}" : "")}";
@@ -379,13 +390,14 @@ public static partial class ReleaseRanking
             if (entry.Release.Alternate is { } other && TitleKey(other) != own) names[TitleKey(other)] = own;
         }
         string ShowOf(ReleaseInfo release) => names.GetValueOrDefault(TitleKey(release.Title)) ?? TitleKey(release.Title);
-        static bool FilmLike(ReleaseInfo release) => release.Episode is null && !release.Pack;
+        static bool FilmLike(ReleaseInfo release) => release.Episode is null && release.Half is null && !release.Pack;
         var groups = new Dictionary<string, (string Show, string? Category, List<RankedRelease> Entries)>();
         var keys = new List<string>();
         foreach (var entry in entries)
         {
             var r = entry.Release; var show = ShowOf(r); var kind = entry.Hit.Category;
-            var key = (kind is null ? "" : kind + "|") + (FilmLike(r) ? $"{show}|{r.Year}" : r.Pack ? $"{show}|pack|{r.Season}|{r.Episode}-{r.LastEpisode}" : $"{show}|e|{(r.Absolute ? "" : r.Season)}|{r.Episode}");
+            var key = (kind is null ? "" : kind + "|") + (FilmLike(r) ? $"{show}|{r.Year}" : r.Pack ? $"{show}|pack|{r.Season}|{r.Episode}-{r.LastEpisode}"
+                : r.Half is { } half ? $"{show}|half|{(r.Absolute ? "" : r.Season)}|{half}" : $"{show}|e|{(r.Absolute ? "" : r.Season)}|{r.Episode}");
             if (!groups.TryGetValue(key, out var group)) { groups[key] = group = (show, kind, []); keys.Add(key); }
             group.Entries.Add(entry);
         }
@@ -396,7 +408,7 @@ public static partial class ReleaseRanking
             var first = group.Entries[0].Release;
             if (!first.Absolute || first.Pack) continue;
             var matches = keys.Where(k => k != key && groups.ContainsKey(k)).Select(k => (Key: k, Group: groups[k]))
-                .Where(g => g.Group.Show == group.Show && g.Group.Category == group.Category && g.Group.Entries[0].Release is { Absolute: false, Pack: false } o && o.Episode == first.Episode).ToList();
+                .Where(g => g.Group.Show == group.Show && g.Group.Category == group.Category && g.Group.Entries[0].Release is { Absolute: false, Pack: false } o && o.Episode == first.Episode && o.Half == first.Half).ToList();
             if (matches.Count != 1) continue;
             matches[0].Group.Entries.AddRange(group.Entries); groups.Remove(key); keys.Remove(key);
         }
@@ -407,11 +419,11 @@ public static partial class ReleaseRanking
             var (show, kind, list) = groups[key];
             var sorted = list.OrderByDescending(x => x.Score).ThenByDescending(x => x.Hit.Seeders).ThenBy(x => x.Order).ToList();
             var named = sorted.FirstOrDefault(x => !x.Release.Absolute && TitleKey(x.Release.Title) == show) ?? sorted[0];
-            var shown = sorted.FirstOrDefault(x => x.Release is { Absolute: false, Pack: false, Episode: not null }) ?? sorted[0];
+            var shown = sorted.FirstOrDefault(x => x.Release is { Absolute: false, Pack: false } r && (r.Episode is not null || r.Half is not null)) ?? sorted[0];
             var year = FilmLike(named.Release) && named.Release.Year is { } y ? $" ({y})" : "";
             return new ReleaseGroup(key, show, named.Release.Title + year, EpisodeLabel(shown.Release), sorted[0], sorted.Skip(1).ToList(), shown.Release.Pack, shown.Release, kind);
         })
         .OrderBy(g => showOrder[g.Show]).ThenBy(g => g.Show, StringComparer.Ordinal).ThenBy(g => g.Pack ? 0 : 1)
-        .ThenByDescending(g => g.Release.Season ?? 0).ThenByDescending(g => g.Release.Episode ?? 0).ThenBy(g => g.Best.Order).ToList();
+        .ThenByDescending(g => g.Release.Season ?? 0).ThenByDescending(g => (g.Release.Episode ?? g.Release.Half ?? 0) * 2 + (g.Release.Half is null ? 0 : 1)).ThenBy(g => g.Best.Order).ToList();
     }
 }

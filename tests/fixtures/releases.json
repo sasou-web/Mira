@@ -21,6 +21,7 @@
   ["Mr. Robot S01E01 720p HDTV x264-KILLERS", "Mr. Robot", null, "S01E01", "720p · HDTV · H.264"],
   ["The.Last.of.Us.S02E03.2160p.WEB.H265.DV.HDR-GRP", "The Last of Us", null, "S02E03", "4K · WEB-DL · HEVC · DV HDR"],
   ["[Erai-raws] Spy x Family Season 2 - 05 [1080p].mkv", "Spy x Family", null, "S02E05", "1080p · Erai-raws"],
+  ["[Erai-raws] Spy x Family Season 2 - 12.5 [1080p].mkv", "Spy x Family", null, "S02E12.5", "1080p · Erai-raws"],
   ["Charlottes.Web.2006.1080p.BluRay.x264-HANDJOB", "Charlottes Web", 2006, "", "1080p · BluRay · H.264"],
   ["Mr.Hollands.Opus.1995.1080p.BluRay.x264-SiNNERS", "Mr Hollands Opus", 1995, "", "1080p · BluRay · H.264"],
   ["The.French.Dispatch.2021.1080p.BluRay.x264-PiGNUS", "The French Dispatch", 2021, "", "1080p · BluRay · H.264"],
@@ -31,7 +32,12 @@
   ["Kaamelott.Integrale.Livres.I.a.VI.FRENCH.1080p.BluRay.x264-GRP", "Kaamelott", null, "Toutes les saisons", "1080p · BluRay · H.264 · VF"],
   ["Harry.Potter.Complete.Movie.Collection.1080p.BluRay.x264-GRP", "Harry Potter", null, "Toutes les saisons", "1080p · BluRay · H.264"],
   ["The.Godfather.Complete.Trilogy.1080p.BluRay.x264-GRP", "The Godfather", null, "Toutes les saisons", "1080p · BluRay · H.264"],
-  ["[Tsundere-Raws] Kemono Jihen - BATCH VOSTFR (WKN) [1080p]", "Kemono Jihen", null, "Toutes les saisons", "1080p · VOSTFR · Tsundere-Raws"]
+  ["[Tsundere-Raws] Kemono Jihen - BATCH VOSTFR (WKN) [1080p]", "Kemono Jihen", null, "Toutes les saisons", "1080p · VOSTFR · Tsundere-Raws"],
+  ["[SubsPlease] Solo Leveling - 07.5 (1080p) [9F8A2A07].mkv", "Solo Leveling", null, "Épisode 7,5", "1080p · SubsPlease"],
+  ["Dog Days S3 - Episode 12.5 OAD [DVDRip] [576p] [x264] [10-bit] [CRF16] [FLAC] [OGG]", "Dog Days", null, "S03E12.5", "576p · DVD · H.264"],
+  ["[Erai-raws] Tensei shitara Slime Datta Ken 3rd Season - 17.5 [1080p][HEVC][Multiple Subtitle] [ENG][POR-BR][SPA-LA][SPA][FRE][GER][ITA][RUS]", "Tensei shitara Slime Datta Ken", null, "S03E17.5", "1080p · HEVC · Erai-raws"],
+  ["2.5 Dimensional Seduction S01E24 VOSTFR 1080p WEB x264 AAC -Tsundere-Raws (ADN) (2.5-jigen no Ririsa)", "2.5 Dimensional Seduction", null, "S01E24", "1080p · WEB-DL · H.264 · VOSTFR"],
+  ["Kingdom Hearts 2.5 HD ReMIX 1080p", "Kingdom Hearts 2.5 HD ReMIX", null, "", "1080p"]
  ],
  "readable": [
     ["Dune.Part.Two.2024.MULTi.TRUEFRENCH.1080p.BluRay.x265-QTZ", "Dune Part Two (2024)", "Dune.Part.Two.2024.MULTi.TRUEFRENCH.1080p.BluRay.x265-QTZ"],
@@ -125,6 +131,21 @@
    ],
    "groups": [
     ["L'Arnacœur (2010)", "", "multi", ["lost"]]
+   ]
+  },
+  {
+   "category": "anime",
+   "note": "An episode between two (« - 07.5 », a recap or a special) is its own title between episodes 7 and 8, never a film nor a whole season",
+   "hits": [
+    ["sl8", "[SubsPlease] Solo Leveling - 08 (1080p) [ABCDEF12].mkv", 1400000000, 0, "subsplease"],
+    ["sl75", "[SubsPlease] Solo Leveling - 07.5 (1080p) [9F8A2A07].mkv", 1300000000, 0, "subsplease"],
+    ["sl7", "[SubsPlease] Solo Leveling - 07 (1080p) [12345678].mkv", 1400000000, 0, "subsplease"],
+    ["erai75", "[Erai-raws] Solo Leveling - 07.5 [1080p][Multiple Subtitle].mkv", 1350000000, 120, "nyaa"]
+   ],
+   "groups": [
+    ["Solo Leveling", "Épisode 8", "sl8", []],
+    ["Solo Leveling", "Épisode 7,5", "erai75", ["sl75"]],
+    ["Solo Leveling", "Épisode 7", "sl7", []]
    ]
   }
  ]
