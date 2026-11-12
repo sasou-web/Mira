@@ -99,13 +99,15 @@ public sealed class HomePage : Page
             Render(session, cachedResume ?? [], cachedHome.Items, [], [], []);
         var client = session.Client;
         var resume = client.ResumeAsync(); var next = client.NextUpAsync();
+        // What this account played lately on any device (the iPhone, a TV…): where each film or series stands in « Continuer à regarder ».
+        var played = TryAsync(() => client.HistoryAsync());
         var latest = client.BrowseAsync(limit: 30);
         var favorites = client.BrowseAsync(favorites: true, limit: 30);
         var libraries = TryAsync(() => client.LibrariesAsync());
         // The collections only while their row is shown.
         var collections = HomeLayout.Rows(Shell.Settings.HomeRows, []).Any(x => x.Key == HomeLayout.Collections && x.Shown)
             ? TryAsync(() => client.CollectionsAsync(30)) : Task.FromResult<List<MediaItem>?>(null);
-        await Task.WhenAll(resume, next, latest, favorites, libraries, collections);
+        await Task.WhenAll(resume, next, latest, favorites, libraries, collections, played);
         // « Nouveau dans Animes »: only the libraries whose row is shown are asked.
         var views = libraries.Result ?? [];
         var wanted = HomeLayout.Rows(Shell.Settings.HomeRows, views).Where(x => x.Shown && x.LibraryId is not null).Select(x => x.LibraryId!).ToList();
@@ -127,7 +129,7 @@ public sealed class HomePage : Page
                 foreach (var shelf in shelves.Values) store.ApplyLocalProgress(shelf);
                 store.Save("home", latest.Result); store.Save("resume", merged);
             });
-            return (merged, history, Errors.TryCache(store.HiddenFromResume) ?? []);
+            return (merged, ContinueWatching.History(history.Concat(played.Result ?? [])), Errors.TryCache(store.HiddenFromResume) ?? []);
         });
         var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(merged, next.Result.Items, history), hidden, history);
         _latestTotal = latest.Result.TotalRecordCount;
