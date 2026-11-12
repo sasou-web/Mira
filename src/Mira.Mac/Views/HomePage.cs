@@ -101,9 +101,10 @@ public sealed class HomePage : Page
         var resume = client.ResumeAsync(); var next = client.NextUpAsync();
         // What this account played lately on any device (the iPhone, a TV…): where each film or series stands in « Continuer à regarder ».
         var played = TryAsync(() => client.HistoryAsync());
-        // Every title « Ajoutés récemment » shows, not just its first 30: the grid stays as long under the reader.
-        var latest = client.BrowseAsync(limit: Math.Max(LatestPage, _latestShown));
-        var favorites = client.BrowseAsync(favorites: true, limit: 30);
+        // Every title « Ajoutés récemment » shows, not just its first 30: the grid stays as long under the reader. Home's rows
+        // list every film, even in a collection, on a server that groups them (Films and Séries follow it).
+        var latest = client.BrowseAsync(limit: Math.Max(LatestPage, _latestShown), everyTitle: true);
+        var favorites = client.BrowseAsync(favorites: true, limit: 30, everyTitle: true);
         var libraries = TryAsync(() => client.LibrariesAsync());
         // The collections only while their row is shown.
         var collections = HomeLayout.Rows(Shell.Settings.HomeRows, []).Any(x => x.Key == HomeLayout.Collections && x.Shown)
@@ -112,7 +113,7 @@ public sealed class HomePage : Page
         // « Nouveau dans Animes »: only the libraries whose row is shown are asked.
         var views = libraries.Result ?? [];
         var wanted = HomeLayout.Rows(Shell.Settings.HomeRows, views).Where(x => x.Shown && x.LibraryId is not null).Select(x => x.LibraryId!).ToList();
-        var lists = await Task.WhenAll(wanted.Select(id => TryAsync(() => client.BrowseAsync(parentId: id, limit: 30))));
+        var lists = await Task.WhenAll(wanted.Select(id => TryAsync(() => client.BrowseAsync(parentId: id, limit: 30, everyTitle: true))));
         var shelves = wanted.Zip(lists).ToDictionary(x => x.First, x => x.Second?.Items ?? []);
         if (collections.Result is { } found) shelves[HomeLayout.Collections] = found;
         var seasons = Artwork.Seasons(resume.Result.Items.Concat(next.Result.Items)).ToList();
@@ -206,7 +207,7 @@ public sealed class HomePage : Page
             more!.IsEnabled = false;
             try
             {
-                var next = await session.Client.BrowseAsync(start: grid.Children.Count, limit: LatestPage, ct: session.Lifetime);
+                var next = await session.Client.BrowseAsync(start: grid.Children.Count, limit: LatestPage, ct: session.Lifetime, everyTitle: true);
                 await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(next.Items)));
                 foreach (var item in next.Items) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
                 _latestShown = grid.Children.Count;

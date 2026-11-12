@@ -198,11 +198,19 @@ struct JellyfinClient: Sendable {
 
     /// Films and series, newest first (of one library: « New in … »); or the favourites, by title.
     func browse(favorites: Bool = false, library: String? = nil, limit: Int = 24) async throws -> [Item] {
-        try await get("Items", cards.merging([
+        try await get("Items", cards.merging(Self.homeRow(favorites: favorites, library: library, limit: limit)) { $1 }, as: ItemList.self).items ?? []
+    }
+
+    /// What a row of Home asks Jellyfin: every film and series, even on a server set to « Group movies into collections »
+    /// (or shows), which would otherwise list a collection in place of its titles, under its own date added: a film added
+    /// to an old collection would never be among the latest, and a collection would come up in the banner with a Play
+    /// that plays nothing (PlaybackInfo answers 400).
+    static func homeRow(favorites: Bool, library: String?, limit: Int) -> [String: String?] {
+        [
             "recursive": "true", "includeItemTypes": "Movie,Series", "limit": String(limit), "parentId": library,
             "sortBy": favorites ? "SortName" : "DateCreated,SortName", "sortOrder": favorites ? "Ascending" : "Descending",
-            "isFavorite": favorites ? "true" : nil, "enableTotalRecordCount": "false",
-        ]) { $1 }, as: ItemList.self).items ?? []
+            "isFavorite": favorites ? "true" : nil, "enableTotalRecordCount": "false", "collapseBoxSetItems": "false",
+        ]
     }
 
     func item(_ id: String) async throws -> Item {

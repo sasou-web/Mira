@@ -771,6 +771,32 @@ internal static class LibraryTests
             var page = await client.BrowseAsync("Movie", start: 640, limit: JellyfinClient.PageSize);
             Assert(page.Items.Count == 60 && page.Items[0].Id == "film-0640" && asked.SequenceEqual([(640, 60)]), "Next page: " + string.Join(" ", asked));
         });
+        await Test("Accueil et « Titres à corriger » : chaque film, même sur un serveur qui les regroupe en collections", async () =>
+        {
+            // Jellyfin 12.1 with « Group movies into collections » on lists a collection in place of its films, under its
+            // own date added: the newest film, added to an old collection, was never among Home's latest titles nor checked
+            // by « Titres à corriger ». Only collapseBoxSetItems=false lists every film; Films and Séries follow the server.
+            var films = Enumerable.Range(0, 1000).Select(i => new { Id = $"film-{i:0000}", Name = $"Film {i}", Type = "Movie" }).ToList();
+            var grouped = new[] { new { Id = "saga", Name = "Saga", Type = "BoxSet" } }.Concat(films.Skip(1)).ToList();
+            var asked = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query); asked.Add(request.RequestUri.Query);
+                var start = int.Parse(query["startIndex"] ?? "0", System.Globalization.CultureInfo.InvariantCulture); var limit = int.Parse(query["limit"] ?? "100000", System.Globalization.CultureInfo.InvariantCulture);
+                var listed = query["collapseBoxSetItems"] == "false" ? films : grouped;
+                return Task.FromResult(JsonResponse(new { Items = listed.Skip(start).Take(limit), TotalRecordCount = listed.Count }));
+            }));
+            var home = await client.BrowseAsync(everyTitle: true);
+            Assert(home.Items[0].Id == "film-0000" && home.Items.All(x => x.Type == "Movie"), "Home's latest: " + string.Join(", ", home.Items.Take(3).Select(x => x.Id)));
+            var library = await client.BrowseAsync("Movie");
+            Assert(library.Items[0].Type == "BoxSet", "Films no longer follows the server's grouping");
+            var check = await client.TitlesToCheckAsync();
+            Assert(check.Count == 1000 && check.Any(x => x.Id == "film-0000"), $"Titles to check: {check.Count}");
+            // Every page of Home's grid, past the first 600 too.
+            asked.Clear();
+            var long_ = await client.BrowseAsync(limit: 700, everyTitle: true);
+            Assert(long_.Items.Count == 700 && asked.Count == 2 && asked.All(x => x.Contains("collapseBoxSetItems=false")), "Pages: " + string.Join(" ", asked));
+        });
         await Test("Séries : épisodes à voir sur l’affiche d’une série commencée, rien avant ni une fois toute vue", () =>
         {
             MediaItem Item(string json) => JsonSerializer.Deserialize<MediaItem>(json, Json.Options)!;

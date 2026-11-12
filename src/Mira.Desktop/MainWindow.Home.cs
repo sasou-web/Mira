@@ -33,7 +33,7 @@ public partial class MainWindow
             try
             {
                 if (row.Key == HomeLayout.Collections) return await client.CollectionsAsync(30, ct);
-                return (await (row.LibraryId is { } library ? client.BrowseAsync(parentId: library, limit: 30, ct: ct) : client.BrowseAsync(favorites: true, limit: 30, ct: ct))).Items;
+                return (await (row.LibraryId is { } library ? client.BrowseAsync(parentId: library, limit: 30, ct: ct, everyTitle: true) : client.BrowseAsync(favorites: true, limit: 30, ct: ct, everyTitle: true))).Items;
             }
             // A row that does not come leaves the others.
             catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested) { return null; }

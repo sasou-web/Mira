@@ -40,6 +40,11 @@ struct BrowseQuery: Sendable, Hashable {
             "recursive": "true", "includeItemTypes": types, "sortBy": sortBy, "sortOrder": order,
             "genres": genre, "years": year, "isPlayed": unplayed ? "false" : nil, "isFavorite": favorite ? "true" : nil,
             "parentId": library, "searchTerm": search, "personIds": person,
+            // Every film and every series, even on a server set to « Group movies into collections » (or shows, from
+            // Jellyfin 12; its dashboard, Libraries → Display): Jellyfin would otherwise list a collection in place of
+            // its titles in Movies or Shows, sorted by date added, name, year or last played, and this iPhone has no
+            // collection page (a collection plays nothing: PlaybackInfo answers 400). Windows and Mac open its page.
+            "collapseBoxSetItems": "false",
         ]
         return base.merging(LibraryFilters.parameters(quality: quality, audio: audio, subtitles: subtitles, minRating: minRating).mapValues { Optional($0) }) { $1 }
     }
