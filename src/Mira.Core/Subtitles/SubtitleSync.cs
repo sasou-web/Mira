@@ -12,6 +12,8 @@ public sealed record SubtitleSync(TimeSpan Shift, double Ratio, double Fit, doub
 {
     /// <summary>Whether applying it changes anything worth changing (more than a frame of the reference, or another speed).</summary>
     public bool Changes => Confident && (Math.Abs(Shift.TotalMilliseconds) >= SubtitleAlign.FrameMs * 2 || Ratio != 1);
+    /// <summary>Where a time of the file goes once applied (time × Ratio + Shift), to the millisecond.</summary>
+    public TimeSpan At(TimeSpan time) => TimeSpan.FromMilliseconds(Math.Round(time.TotalMilliseconds * Ratio + Shift.TotalMilliseconds));
 }
 
 /// <summary>
@@ -164,12 +166,9 @@ public static class SubtitleAlign
     }
 
     /// <summary>The lines moved and stretched as found; a line pushed before the start is dropped.</summary>
-    public static List<SubtitleCue> Apply(IReadOnlyList<SubtitleCue> cues, SubtitleSync sync)
-    {
-        TimeSpan At(TimeSpan time) => TimeSpan.FromMilliseconds(Math.Round(time.TotalMilliseconds * sync.Ratio + sync.Shift.TotalMilliseconds));
-        return cues.Select(c => c with { Start = At(c.Start), End = At(c.End) }).Where(c => c.End > TimeSpan.Zero)
+    public static List<SubtitleCue> Apply(IReadOnlyList<SubtitleCue> cues, SubtitleSync sync) =>
+        cues.Select(c => c with { Start = sync.At(c.Start), End = sync.At(c.End) }).Where(c => c.End > TimeSpan.Zero)
             .Select(c => c.Start < TimeSpan.Zero ? c with { Start = TimeSpan.Zero } : c).ToList();
-    }
 
     /// <summary>In-place radix-2 FFT (inverse scaled by 1/n). The length is a power of two.</summary>
     public static void Fft(Complex[] data, bool inverse)

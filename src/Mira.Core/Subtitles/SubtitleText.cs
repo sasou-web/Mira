@@ -154,4 +154,57 @@ public static partial class SubtitleText
         if (time < TimeSpan.Zero) time = TimeSpan.Zero;
         return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00},{time.Milliseconds:000}";
     }
+
+    /// <summary>
+    /// A file once aligning moved its lines (<see cref="SubtitleAlign.Apply"/> gave <paramref name="moved"/>), and its
+    /// format. An ASS/SSA file stays one: each event's times moved the same way, everything else as it was (styles, signs
+    /// placed on the picture, karaoke, drawings: what mpv draws, and what an SRT has no way to say; as SRT, a drawing
+    /// would show its commands as words). Any other file becomes an SRT of the moved lines.
+    /// </summary>
+    public static (string Text, string Format) Moved(string text, IReadOnlyList<SubtitleCue> moved, SubtitleSync sync) =>
+        FormatOf(text) == "ass" ? (MovedAss(text, sync), "ass") : (ToSrt(moved), "srt");
+
+    /// <summary>
+    /// The events of an ASS/SSA file (Dialogue and Comment) with their start and end moved as <see cref="SubtitleAlign.Apply"/>
+    /// moves a line: one pushed before the start is dropped, one that would start before it starts there. Every other
+    /// line, and every other field of an event, as it was.
+    /// </summary>
+    private static string MovedAss(string text, SubtitleSync sync)
+    {
+        var lines = new List<string>();
+        int start = 1, end = 2, fields = 10; var inEvents = false;
+        foreach (var raw in text.Split('\n'))
+        {
+            var line = raw.TrimEnd('\r').Trim();
+            if (line.StartsWith('[')) inEvents = line.Equals("[Events]", StringComparison.OrdinalIgnoreCase);
+            else if (inEvents && line.StartsWith("Format:", StringComparison.OrdinalIgnoreCase))
+            {
+                var names = line[7..].Split(',').Select(x => x.Trim()).ToList();
+                (fields, start, end) = (names.Count, names.FindIndex(x => x.Equals("Start", StringComparison.OrdinalIgnoreCase)), names.FindIndex(x => x.Equals("End", StringComparison.OrdinalIgnoreCase)));
+                if (start < 0 || end < 0) (start, end) = (1, 2);
+            }
+            else if (line.StartsWith("Dialogue:", StringComparison.OrdinalIgnoreCase) || inEvents && line.StartsWith("Comment:", StringComparison.OrdinalIgnoreCase))
+            {
+                var colon = raw.IndexOf(':');
+                var parts = raw[(colon + 1)..].Split(',', fields);
+                if (parts.Length > Math.Max(start, end) && AssTime(parts[start]) is { } from && AssTime(parts[end]) is { } to)
+                {
+                    var (first, last) = (sync.At(from), sync.At(to));
+                    if (last <= TimeSpan.Zero) continue;
+                    (parts[start], parts[end]) = (AssStamp(first < TimeSpan.Zero ? TimeSpan.Zero : first), AssStamp(last));
+                    lines.Add(raw[..(colon + 1)] + string.Join(',', parts));
+                    continue;
+                }
+            }
+            lines.Add(raw);
+        }
+        return string.Join('\n', lines);
+    }
+
+    /// <summary>A time as ASS writes it: hours, minutes, seconds and hundredths (« 0:01:02.35 »).</summary>
+    private static string AssStamp(TimeSpan time)
+    {
+        var hundredths = (long)Math.Round(time.TotalMilliseconds / 10, MidpointRounding.AwayFromZero);
+        return string.Create(CultureInfo.InvariantCulture, $"{hundredths / 360000}:{hundredths / 6000 % 60:00}:{hundredths / 100 % 60:00}.{hundredths % 100:00}");
+    }
 }

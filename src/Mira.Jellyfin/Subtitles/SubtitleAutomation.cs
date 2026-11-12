@@ -219,7 +219,8 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                 if (sync is { Changes: true })
                 {
                     var moved = SubtitleAlign.Apply(cues, sync);
-                    if (SubtitleMatch.Check(moved, TimeSpan.FromTicks(video.RunTimeTicks.Value)).Verdict == SubtitleCheckVerdict.Ok) { text = SubtitleText.ToSrt(moved); format = "srt"; }
+                    // An ASS file stays one (signs, karaoke and drawings kept), any other becomes an SRT.
+                    if (SubtitleMatch.Check(moved, TimeSpan.FromTicks(video.RunTimeTicks.Value)).Verdict == SubtitleCheckVerdict.Ok) (text, format) = SubtitleText.Moved(text, moved, sync);
                     else sync = null;
                 }
                 await _subtitles.UploadSubtitle(video, new SubtitleResponse

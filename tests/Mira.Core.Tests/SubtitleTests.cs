@@ -212,6 +212,45 @@ internal static class SubtitleTests
             Assert(moved is [{ Text: "b", Start.TotalMilliseconds: 500 }], "Before the start: " + string.Join(", ", moved));
             return Task.CompletedTask;
         });
+        await Test("Sous-titres : un ASS recalé reste un ASS, panneaux, karaoké et dessins gardés ; les autres formats deviennent un SRT", () =>
+        {
+            // The fansub of an anime: a sign placed on the picture, a drawing (« \p1 »: shape commands, not words), two
+            // layers of a karaoke line, a line an hour in.
+            const string anime = "[Script Info]\r\nScriptType: v4.00+\r\n\r\n[V4+ Styles]\r\nFormat: Name, Fontname, Fontsize\r\nStyle: Default,Arial,60\r\n\r\n[Events]\r\n"
+                + "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\r\n"
+                + "Comment: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,template line,{\\k20}\r\n"
+                + "Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Bonjour, comment ça va ?\r\n"
+                + "Dialogue: 1,0:00:04.00,0:00:06.00,Sign,,0,0,0,,{\\an8\\pos(960,100)}BOULANGERIE\r\n"
+                + "Dialogue: 0,0:00:04.00,0:00:06.00,Sign,,0,0,0,,{\\p1\\pos(900,90)}m 0 0 l 120 0 120 40 0 40{\\p0}\r\n"
+                + "Dialogue: 2,0:00:07.00,0:00:09.00,Default,,0,0,0,fx,{\\pos(500,60)\\k20}Ki{\\k30}mi {\\k25}no\r\n"
+                + "Dialogue: 1,0:00:07.00,0:00:09.00,Default,,0,0,0,fx,{\\pos(500,60)\\blur4\\k20}Ki{\\k30}mi {\\k25}no\r\n"
+                + "Dialogue: 0,1:02:10.00,1:02:12.00,Default,,0,0,0,,Très bien.\\NEt toi ?\r\n";
+            var sync = new SubtitleSync(TimeSpan.FromSeconds(1.5), 25 / 23.976, 1, 0, 10, true);
+            var moved = SubtitleAlign.Apply(SubtitleText.Parse(anime), sync);
+            var (text, format) = SubtitleText.Moved(anime, moved, sync);
+            Assert(format == "ass", "Format: " + format);
+            // Every line where it was, an event's times alone changed...
+            string[] before = anime.Split('\n'), after = text.Split('\n');
+            Assert(after.Length == before.Length, "Lines: " + after.Length);
+            static string Rest(string line) => line.Split(',', 10) is { Length: 10 } parts ? string.Join(',', parts.Where((_, i) => i is not (1 or 2))) : line;
+            for (var i = 0; i < before.Length; i++) Assert(Rest(after[i]) == Rest(before[i]), "Line " + i + ": " + after[i]);
+            Assert(after[12].Contains("{\\p1\\pos(900,90)}m 0 0 l 120 0 120 40 0 40{\\p0}\r", StringComparison.Ordinal), "The drawing: " + after[12]);
+            Assert(after[10].StartsWith("Dialogue: 0,0:00:02.54,0:00:04.63,Default,", StringComparison.Ordinal), "Moved: " + after[10]);
+            // ...where the lines read from it were moved, to the hundredth ASS keeps.
+            var again = SubtitleText.Parse(text);
+            Assert(again.Count == moved.Count && again.Zip(moved).All(p => p.First.Text == p.Second.Text
+                && Math.Abs((p.First.Start - p.Second.Start).TotalMilliseconds) <= 5 && Math.Abs((p.First.End - p.Second.End).TotalMilliseconds) <= 5),
+                "Read again:\n" + string.Join("\n", again) + "\n---\n" + string.Join("\n", moved));
+            // An event pushed before the start dropped, one that would start before it starts there, as for any line.
+            var early = SubtitleText.Moved(anime, [], new SubtitleSync(TimeSpan.FromSeconds(-4.5), 1, 1, 0, 10, true)).Text;
+            Assert(!early.Contains("Bonjour", StringComparison.Ordinal) && early.Contains("Comment: 0,0:00:00.00,0:00:00.50,", StringComparison.Ordinal)
+                && early.Contains("Dialogue: 1,0:00:00.00,0:00:01.50,Sign,", StringComparison.Ordinal), "Before the start:\n" + early);
+            // Another format: an SRT of the moved lines, as before.
+            var srt = SubtitleText.Moved(Srt, SubtitleAlign.Apply(SubtitleText.Parse(Srt), sync), sync);
+            Assert(srt.Format == "srt" && SubtitleText.Parse(srt.Text) is [{ Start.TotalMilliseconds: 2543 }, _], "SRT: " + srt.Text);
+            Assert(SubtitleText.Moved(Vtt, SubtitleAlign.Apply(SubtitleText.Parse(Vtt), sync), sync).Format == "srt", "VTT");
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres : langues, empreinte du fichier, identifiants et archives des sources", () =>
         {
             Assert(SubtitleLanguages.Two("fre") == "fr" && SubtitleLanguages.Two("fra") == "fr" && SubtitleLanguages.Two("eng") == "en" && SubtitleLanguages.Two("jpn") == "ja" && SubtitleLanguages.Two("xxx") is null, "Two");
