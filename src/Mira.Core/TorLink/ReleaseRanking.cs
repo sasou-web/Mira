@@ -67,6 +67,8 @@ public static partial class ReleaseRanking
     [GeneratedRegex(@"-\s?([A-Za-z0-9][A-Za-z0-9_]{1,24})\s*(?:\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})*\s*$")] private static partial Regex TrailingGroup();
     [GeneratedRegex(@"\[[^\]]*\]|\{[^}]*\}")] private static partial Regex Bracketed();
     [GeneratedRegex(@"^(?:19|20)\d\d$")] private static partial Regex YearOnly();
+    [GeneratedRegex(@"^(\d{1,4})\s*[-~–]\s*(\d{1,4})$")] private static partial Regex EpisodeSpan();
+    [GeneratedRegex(@"^(?:(?:(?:seasons?|saisons?|temporadas?)\s*\d{1,2}(?:\s*[-~–]\s*\d{1,2})?|s\d{1,2}(?:\s*[-~–]\s*s\d{1,2})?|\d{1,2}(?:st|nd|rd|th)\s+season)(?:\s+(?:part(?:ie)?|cour)\s*\d{1,2})?|batch)$", Options)] private static partial Regex BatchWords();
     [GeneratedRegex(@"(?<![0-9])(?:19|20)[0-9]{2}(?![0-9])")] private static partial Regex AnyYear();
     [GeneratedRegex(@"^[0-9A-Fa-f]{8}$")] private static partial Regex Checksum();
     [GeneratedRegex(@"^(?:19|20)\d\d(?:[-~](?:19|20)?\d\d)?$")] private static partial Regex Years();
@@ -101,6 +103,20 @@ public static partial class ReleaseRanking
 
     // « Batch-GRP » is « batch »; « WEB-DL » stays itself.
     private static string Word(string token) { var t = Bare(token); return t.IndexOf('-') is > 0 and var dash && !Tags.Contains(t) ? t[..dash] : t; }
+
+    /// <summary>
+    /// What a part of a name in parentheses or brackets leaves to the reading: a year (in parentheses) as it is; what a
+    /// batch says of itself, its season or seasons (« (Season 2) », « (S2) », « (Saison 1) », « (Season 4 Part 2) ») and
+    /// « Batch », as they are; its episodes (« (01-28) », « [01-12] », never years) as a fansub batch writes them
+    /// (« - 01-28 »). The rest (tags, another name, the group) is left out.
+    /// </summary>
+    private static string BatchPart(string inner, bool year)
+    {
+        var value = inner.Trim();
+        if ((year && YearOnly().IsMatch(value)) || BatchWords().IsMatch(value)) return $" {value} ";
+        if (EpisodeSpan().Match(value) is { Success: true } span && !YearOnly().IsMatch(span.Groups[1].Value)) return $" - {span.Groups[1].Value}-{span.Groups[2].Value} ";
+        return " ";
+    }
 
     /// <summary>
     /// Whether the token at <paramref name="i"/> ends a title: a tag, except a word of titles that another word, an episode
@@ -206,7 +222,7 @@ public static partial class ReleaseRanking
             }
             spaced = new string(chars);
         }
-        var plain = Parenthesized().Replace(Bracketed().Replace(spaced, " "), m => YearOnly().IsMatch(m.Groups[1].Value.Trim()) ? $" {m.Groups[1].Value} " : " ");
+        var plain = Parenthesized().Replace(Bracketed().Replace(spaced, m => BatchPart(m.Value[1..^1], year: false)), m => BatchPart(m.Groups[1].Value, year: true));
 
         // Season and episode.
         int? season = null, episode = null, lastEpisode = null, half = null; bool absolute = false, pack = false; var cut = plain.Length;
@@ -247,6 +263,10 @@ public static partial class ReleaseRanking
             }
         }
         var tokens = Token().Matches(plain).ToList();
+        // « Show Season 2 - S02E05 », « [Judas] Show (Season 4 Part 3) - S04E29-31 »: the season said again before its
+        // episode ends the title too.
+        if (season is not null && tokens.Count > 0 && SeasonMarker().Match(plain) is { Success: true } said && said.Index > tokens[0].Index
+            && said.Index < cut && Int(said.Groups[1].Success ? said.Groups[1] : said.Groups[2].Success ? said.Groups[2] : said.Groups[3]) == season) Mark(said.Index);
         foreach (Match complete in Complete().Matches(plain))
         {
             // « A Complete Unknown », « Star Wars The Bad Batch S03E15 »: words of the title, not every episode.
