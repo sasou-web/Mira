@@ -57,17 +57,33 @@ public static partial class SubtitleText
         _ => [],
     };
 
+    /// <summary>
+    /// SRT read line by line, as ffmpeg (Jellyfin, mpv) reads it: a line of times starts a cue, whatever came before it;
+    /// the number just before it is the cue's, never the text of the one before; empty lines, or lines of spaces only,
+    /// are left out. Blocks split at empty lines merged a cue with the next whenever the line between them held a space
+    /// or was missing: the next one's number and times became text of the first.
+    /// </summary>
     private static List<SubtitleCue> ParseSrt(string text)
     {
         var cues = new List<SubtitleCue>();
-        foreach (var block in LineEnds().Replace(text, "\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries))
+        Match? times = null;
+        var lines = new List<string>();
+        void Close()
         {
-            var lines = block.Split('\n').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
-            var at = lines.FindIndex(x => SrtTimes().IsMatch(x));
-            if (at < 0) continue;
-            var m = SrtTimes().Match(lines[at]);
-            cues.Add(new SubtitleCue(Time(m, 1), Time(m, 5), Clean(string.Join("\n", lines.Skip(at + 1)))));
+            if (times is { } m) cues.Add(new SubtitleCue(Time(m, 1), Time(m, 5), Clean(string.Join("\n", lines))));
+            lines.Clear();
         }
+        foreach (var raw in LineEnds().Replace(text, "\n").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            var m = SrtTimes().Match(line);
+            if (!m.Success) { lines.Add(line); continue; }
+            if (lines.Count > 0 && lines[^1].All(char.IsAsciiDigit)) lines.RemoveAt(lines.Count - 1);
+            Close();
+            times = m;
+        }
+        Close();
         return cues;
     }
 
