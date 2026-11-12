@@ -1,10 +1,15 @@
 using System.Globalization;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Mira.Core.Subtitles;
 
-/// <summary>A line of subtitles: when it shows, when it goes, what it says (override tags removed, lines joined by « \n »).</summary>
+/// <summary>
+/// A line of subtitles: when it shows, when it goes, what it says (lines joined by « \n »). An SRT or WebVTT line keeps the
+/// formatting an SRT shows (« &lt;i&gt; », « &lt;b&gt; », « &lt;u&gt; », a colour, « {\an8} »), so that the file written
+/// back (<see cref="SubtitleText.ToSrt"/>) shows what the original showed; an ASS line has its override tags removed.
+/// </summary>
 public sealed record SubtitleCue(TimeSpan Start, TimeSpan End, string Text);
 
 /// <summary>
@@ -24,6 +29,7 @@ public static partial class SubtitleText
     [GeneratedRegex(@"(?:(\d{1,2}):)?(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(?:(\d{1,2}):)?(\d{2}):(\d{2})\.(\d{3})")] private static partial Regex VttTimes();
     [GeneratedRegex(@"\{[^}]*\}")] private static partial Regex AssTags();
     [GeneratedRegex(@"</?[A-Za-z][^>]*>")] private static partial Regex HtmlTags();
+    [GeneratedRegex(@"<(/?)([^\s>.]*)[^>]*>")] private static partial Regex VttTags();
     [GeneratedRegex(@"\r\n?")] private static partial Regex LineEnds();
 
     /// <summary>
@@ -104,7 +110,8 @@ public static partial class SubtitleText
     /// SRT read line by line, as ffmpeg (Jellyfin, mpv) reads it: a line of times starts a cue, whatever came before it;
     /// the number just before it is the cue's, never the text of the one before; empty lines, or lines of spaces only,
     /// are left out. Blocks split at empty lines merged a cue with the next whenever the line between them held a space
-    /// or was missing: the next one's number and times became text of the first.
+    /// or was missing: the next one's number and times became text of the first. A line's text is kept as written, its
+    /// tags with it: italics, bold, a colour, a place on the picture are what ffmpeg shows of it.
     /// </summary>
     private static List<SubtitleCue> ParseSrt(string text)
     {
@@ -113,7 +120,7 @@ public static partial class SubtitleText
         var lines = new List<string>();
         void Close()
         {
-            if (times is { } m) cues.Add(new SubtitleCue(Time(m, 1), Time(m, 5), Clean(string.Join("\n", lines))));
+            if (times is { } m) cues.Add(new SubtitleCue(Time(m, 1), Time(m, 5), string.Join("\n", lines)));
             lines.Clear();
         }
         foreach (var raw in LineEnds().Replace(text, "\n").Split('\n'))
@@ -140,7 +147,7 @@ public static partial class SubtitleText
             var at = lines.FindIndex(x => VttTimes().IsMatch(x));
             if (at < 0) continue;
             var m = VttTimes().Match(lines[at]);
-            cues.Add(new SubtitleCue(VttTime(m, 1), VttTime(m, 5), Clean(string.Join("\n", lines.Skip(at + 1)))));
+            cues.Add(new SubtitleCue(VttTime(m, 1), VttTime(m, 5), FromVtt(string.Join("\n", lines.Skip(at + 1)))));
         }
         return cues;
     }
@@ -178,6 +185,14 @@ public static partial class SubtitleText
     private static TimeSpan? AssTime(string value) =>
         TimeSpan.TryParseExact(value.Trim(), [@"h\:mm\:ss\.ff", @"h\:mm\:ss\.fff", @"hh\:mm\:ss\.ff"], CultureInfo.InvariantCulture, out var time) ? time : null;
     private static string Clean(string text) => HtmlTags().Replace(text, "").Trim();
+
+    /// <summary>
+    /// A WebVTT line as an SRT says it, as ffmpeg shows each of them: italics, bold and underline kept (read in both),
+    /// every other tag taken out (a class, a voice, a language, ruby, a karaoke time: an SRT would show « &lt;c.yellow&gt; »
+    /// or « &lt;00:01:02.500&gt; » as text), its entities read (an SRT would show « &amp;amp; » as text).
+    /// </summary>
+    private static string FromVtt(string text) =>
+        WebUtility.HtmlDecode(VttTags().Replace(text, m => m.Groups[2].Value is "i" or "b" or "u" ? $"<{m.Groups[1].Value}{m.Groups[2].Value}>" : "")).Trim();
 
     /// <summary>The cues as an SRT file (UTF-8 without a mark, CRLF as players expect), numbered from 1 in time order.</summary>
     public static string ToSrt(IEnumerable<SubtitleCue> cues)
