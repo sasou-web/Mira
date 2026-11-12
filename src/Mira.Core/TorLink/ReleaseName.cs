@@ -68,6 +68,7 @@ public static partial class ReleaseName
     [GeneratedRegex(@"\s*\((?:19|20)[0-9]{2}\)\s*$")] private static partial Regex FolderYearSuffix();
     [GeneratedRegex(@"\((?<y>(?:19|20)[0-9]{2})\)\s*$")] private static partial Regex FolderYear();
     [GeneratedRegex(@"\s+")] private static partial Regex Spaces();
+    [GeneratedRegex(@"^(?<a>\d{1,4})\s*[-~–]\s*(?<b>\d{1,4})$")] private static partial Regex EpisodeRange();
     [GeneratedRegex(@"[\s._\-\[\]()]+")] private static partial Regex TokenSeparators();
     [GeneratedRegex(@"^(?:\d{3,4}[pi]|[hx]\.?26[45]|(?:dd|ddp|eac3|ac3|aac|dts)[\d.+]*|\d{1,2}-?bit)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TagPattern();
@@ -116,6 +117,8 @@ public static partial class ReleaseName
         {
             var content = m.Groups["c"].Value.Trim();
             if (content.Length == 4 && Year().IsMatch(content)) return " " + content + " ";
+            // The episodes of a batch (« [SubsPlease] Show (01-28) (1080p) [Batch] »): not part of the title.
+            if (EpisodeRange().Match(content) is { Success: true } range && !(Year().IsMatch(range.Groups["a"].Value) && Year().IsMatch(range.Groups["b"].Value))) return " ";
             return IsTagGroup(content) ? " " : " " + content + " ";
         });
         // Scene names use dots or underscores as spaces; a few dots in a spaced title ("Mr. Robot") are kept.
