@@ -66,6 +66,21 @@ public static class Motion
         if (!active || Reduced) { target.BeginAnimation(UIElement.OpacityProperty, null); target.Opacity = 1; return; }
         target.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, .55, TimeSpan.FromMilliseconds(900)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = Ease, BeginTime = TimeSpan.FromMilliseconds(delay) });
     }
+    /// <summary>Shown at once, without a transition (Réglages turned over to Aide, the same window): any other transition of it stops.</summary>
+    public static void Show(FrameworkElement target)
+    {
+        target.SetValue(VisibilityVersionProperty, (int)target.GetValue(VisibilityVersionProperty) + 1);
+        target.BeginAnimation(UIElement.OpacityProperty, null); target.Opacity = 1;
+        if (target.RenderTransform is TranslateTransform move) { move.BeginAnimation(TranslateTransform.YProperty, null); move.Y = 0; }
+        target.ClearValue(UIElement.CacheModeProperty);
+        target.Visibility = Visibility.Visible; target.IsHitTestVisible = true;
+    }
+    /// <summary>Gone at once (<see cref="Show"/>'s other half).</summary>
+    public static void Hide(FrameworkElement target)
+    {
+        target.SetValue(VisibilityVersionProperty, (int)target.GetValue(VisibilityVersionProperty) + 1);
+        target.IsHitTestVisible = false; target.Visibility = Visibility.Collapsed;
+    }
     public static async Task HideAsync(FrameworkElement target, int ms = 140)
     {
         if (target.Visibility != Visibility.Visible) return;

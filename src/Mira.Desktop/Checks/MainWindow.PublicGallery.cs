@@ -85,6 +85,17 @@ public partial class MainWindow
             SelectSettingsTab("privacy"); await CaptureAsync(output, "10d-privacy-settings");
             // What a beginner needs first, the rest behind « Réglages avancés »: opened, it shows the picture and the decoding.
             SelectSettingsTab("playback"); PlaybackAdvanced.IsExpanded = true; await CaptureAsync(output, "10c-playback-advanced"); PlaybackAdvanced.IsExpanded = false;
+            // The search: every section's settings at once, changed right there; Échap gives the section back as it was.
+            SettingsSearchBox.Text = L("sous-titres", "subtitles"); await CaptureAsync(output, "10e-settings-search");
+            if (!SubtitleSettings.IsVisible || SettingsSectionTitle.Text == L("Aucun résultat", "No results"))
+                throw new InvalidOperationException("The settings' search did not find the subtitles in their sections: " + SettingsSectionTitle.Text);
+            if (!ClearSheetSearch() || !PlaybackSettings.IsVisible || SubtitleSettings.IsVisible || PlaybackAdvanced.IsExpanded)
+                throw new InvalidOperationException("Clearing the settings' search did not give « Lecture » back as it was.");
+            // Aide, the other side of the same window: turned over at once, on the same picture of the app.
+            SheetToHelp_Click(this, new());
+            if (!Shown(GuideOverlay) || SettingsOverlay.Visibility == Visibility.Visible || GuideBackdrop.Source is null && !SystemParameters.HighContrast)
+                throw new InvalidOperationException("« Aide » did not turn the window over.");
+            await CaptureAsync(output, "10f-help"); SheetToSettings_Click(this, new());
             await Page("library", "11-hover");
             CardHoverEntered((MediaCard)PosterCards.Children[0]);
             await CaptureAsync(output, "11-hover"); ClosePreview();
@@ -127,7 +138,7 @@ public partial class MainWindow
             }
             OpenGuide(L($@"Jellyfin est prêt. Range tes vidéos dans C:\Users\{You}\Videos\Jellyfin.", $@"Jellyfin is ready. Put your videos in C:\Users\{You}\Videos\Jellyfin."));
             // Fictional folders and address: the demo has no server to read them from.
-            await Task.Delay(50); GuideFolders.Children.Clear(); GuideFoldersHint.Visibility = Visibility.Collapsed; GuideTorLink.Visibility = Visibility.Visible;
+            await Task.Delay(50); GuideFolders.Children.Clear(); GuideFoldersHint.Visibility = Visibility.Collapsed;
             foreach (var library in new[] { L("Animes", "Anime"), L("Films", "Movies"), L("Séries", "Shows") }) GuideFolders.Children.Add(FolderRow(library, $@"C:\Users\{You}\Videos\Jellyfin\{library}", true));
             GuideJellyfinActions.Visibility = GuideRemote.Visibility = Visibility.Visible; GuideServerAddress.Text = "http://127.0.0.1:8096";
             GuideRemoteAddress.Text = "http://192.168.1.20:8096";
@@ -135,13 +146,9 @@ public partial class MainWindow
             ++_phoneVersion; _phone = null; _phoneReadAt = DateTime.MaxValue;
             ShowPhone(new PhoneSetup.Facts("http://127.0.0.1:8096", true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, TailnetAllowed: false,
                 Firewall: new(JellyfinFirewall.Verdict.Blocked, JellyfinFirewall.Private), Boot: new(true, true, false, true)));
-            foreach (var size in new[] { sizes[0], sizes[2] }) { SmoothScroll.Jump(GuideScroll); await At(size, "19-guide", null, GuideContent); }
-            // The phone's card whole, with « Tout préparer » and the address to type.
-            foreach (var size in new[] { sizes[0], sizes[2] })
-            {
-                Width = size.Width; Height = size.Height; UpdateLayout();
-                SmoothScroll.Jump(GuideScroll, GuidePhone.TranslatePoint(new Point(0, 0), GuideContent).Y); await At(size, "19-guide-phone", null, GuidePhone);
-            }
+            // « Bien démarrer », then « Mira sur ton iPhone » whole, with « Tout préparer » and the address to type.
+            foreach (var size in new[] { sizes[0], sizes[2], sizes[3] }) { SelectGuideTopic("start", animate: false); await At(size, "19-guide", null, GuideSheet); }
+            foreach (var size in new[] { sizes[0], sizes[2] }) { SelectGuideTopic("phone", animate: false); await At(size, "19-guide-phone", null, GuideSheet); }
             GuideOverlay.Visibility = Visibility.Collapsed;
             // The downloads page before TorLink is turned on: the list of downloaders.
             TorLinkOverlay.Visibility = Visibility.Visible; TorLinkOverlay.Opacity = 1; ShowDownloaders(true);

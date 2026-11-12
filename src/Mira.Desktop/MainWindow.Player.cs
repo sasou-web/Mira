@@ -508,11 +508,17 @@ public partial class MainWindow
     /// <param name="at">There at once, without its entrance.</param>
     private void RestoreDetailPage(bool refresh = true, bool at = false)
     {
-        if (_returnToSettings) { _returnToSettings = false; if (SettingsOverlay.Visibility != Visibility.Visible) Show(SettingsOverlay); }
-        if (_returnToDetail is not { } page || _detail?.Id != page.Id) { _returnToDetail = null; return; }
-        if (DetailOverlay.Visibility != Visibility.Visible) Show(DetailOverlay);
-        if (refresh) _ = RefreshDetailAsync();
-        void Show(FrameworkElement overlay)
+        var settings = _returnToSettings; _returnToSettings = false;
+        if (_returnToDetail is { } page && _detail?.Id == page.Id)
+        {
+            // Under Réglages, the page is there at once: the window's picture is taken of it.
+            if (DetailOverlay.Visibility != Visibility.Visible) Show(DetailOverlay, at || settings);
+            if (refresh) _ = RefreshDetailAsync();
+        }
+        else _returnToDetail = null;
+        if (settings && SettingsOverlay.Visibility != Visibility.Visible)
+            _ = Dispatcher.BeginInvoke(() => { if (SettingsOverlay.Visibility != Visibility.Visible && (!_playing || _miniPlayer)) ShowSheet(SettingsOverlay, at); }, System.Windows.Threading.DispatcherPriority.Loaded);
+        static void Show(FrameworkElement overlay, bool at)
         {
             if (!at) { Motion.Reveal(overlay, 260, 10); return; }
             overlay.BeginAnimation(OpacityProperty, null); overlay.Opacity = 1; overlay.IsHitTestVisible = true; overlay.Visibility = Visibility.Visible;
@@ -600,6 +606,9 @@ public partial class MainWindow
         if (IsBackKey(e)) { if (GoBack()) e.Handled = true; return; }
         // The library's shortcuts wait for « Retour »: the error screen covers the library.
         if (PlayerErrorShown) return;
+        // Ctrl+F in Réglages or Aide: their own search; Ctrl+, opens Réglages, as in most apps.
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.F && FocusSheetSearch()) { e.Handled = true; return; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma && (!_playing || _miniPlayer)) { SettingsNav_Click(this, new()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && (!_playing || _miniPlayer) && RailShortcut(e.Key)) { e.Handled = true; return; }
         if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { Guide_Click(this, new()); e.Handled = true; return; }
@@ -621,6 +630,8 @@ public partial class MainWindow
         if (CollectionOverlay.Visibility == Visibility.Visible && CollectionOverlay.IsHitTestVisible) { _ = CloseCollectionsAsync(); return true; }
         // From the welcome, one step back is the sign-in form it leads to.
         if (WelcomeOverlay.Visibility == Visibility.Visible && WelcomeOverlay.IsHitTestVisible) { WelcomeConnect_Click(this, new()); return true; }
+        // Réglages and Aide: what was typed in their search first, then the window.
+        if (ClearSheetSearch()) return true;
         if (GuideOverlay.Visibility == Visibility.Visible && GuideOverlay.IsHitTestVisible) { _ = CloseGuideAsync(); return true; }
         if (LoginOverlay.Visibility == Visibility.Visible)
         {

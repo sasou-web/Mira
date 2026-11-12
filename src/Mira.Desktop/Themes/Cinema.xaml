@@ -51,6 +51,10 @@
   <SolidColorBrush x:Key="Pill" Color="#E0161616" po:Freeze="True"/>
   <SolidColorBrush x:Key="Sheet" Color="#F0111111" po:Freeze="True"/>
   <SolidColorBrush x:Key="Scrim" Color="#F4080808" po:Freeze="True"/>
+  <!-- Réglages and Aide, a window over Mira (MainWindow.Sheet.cs): the wash over the still of the app behind, the column of its list, its rows. -->
+  <SolidColorBrush x:Key="SheetScrim" Color="#80080808" po:Freeze="True"/>
+  <SolidColorBrush x:Key="SheetSide" Color="#0C0C0C" po:Freeze="True"/>
+  <SolidColorBrush x:Key="SheetRow" Color="#181818" po:Freeze="True"/>
   <!-- Keyboard focus ring; Windows' highlight colour in high contrast (MainWindow). -->
   <SolidColorBrush x:Key="FocusRing" Color="#F5F5F5"/>
   <!-- A text field being typed in: flat, one step lighter, a quiet grey edge (3:1 on the page); high contrast: the system highlight. -->
@@ -171,6 +175,14 @@
     </DockPanel><ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="Body" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="SettingRow" TargetType="Border"><Setter Property="Background" Value="{StaticResource Surface}"/><Setter Property="CornerRadius" Value="7"/><Setter Property="Padding" Value="22,21"/><Setter Property="Margin" Value="0,0,0,10"/></Style>
+  <!-- A setting in the window of Réglages and Aide: one step lighter than its sheet (Surface). Each page there names it SettingRow. -->
+  <Style x:Key="SheetSettingRow" TargetType="Border" BasedOn="{StaticResource SettingRow}"><Setter Property="Background" Value="{StaticResource SheetRow}"/><Setter Property="CornerRadius" Value="{StaticResource RadiusCard}"/><Setter Property="Padding" Value="22,19"/><Setter Property="Margin" Value="0,0,0,8"/></Style>
+  <!-- The window itself, centred, at most 1180 × 840: it fills a small Mira, under the title bar. -->
+  <Style x:Key="SheetWindow" TargetType="v:Squircle"><Setter Property="Background" Value="{StaticResource Surface}"/><Setter Property="BorderBrush" Value="{StaticResource Line}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="{StaticResource RadiusSheet}"/><Setter Property="ClipContent" Value="True"/><Setter Property="MaxWidth" Value="1180"/><Setter Property="MaxHeight" Value="840"/><Setter Property="Margin" Value="44,52,44,36"/></Style>
+  <!-- Réglages | Aide at the top of its list: the side shown lit, the other quiet. -->
+  <Style x:Key="SheetSwitch" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="13.5"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="v:Motion.Radius" Value="9"/></Style>
+  <Style x:Key="SheetSwitchOn" TargetType="Button" BasedOn="{StaticResource SheetSwitch}"><Setter Property="Background" Value="{StaticResource Raised2}"/><Setter Property="Foreground" Value="{StaticResource Text}"/><Setter Property="BorderBrush" Value="{StaticResource LineStrong}"/></Style>
+  <Style x:Key="SheetNav" TargetType="Button" BasedOn="{StaticResource NavButton}"><Setter Property="Padding" Value="14,10"/><Setter Property="Margin" Value="0,1"/><Setter Property="FontSize" Value="14"/></Style>
   <Style x:Key="SettingDescription" TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="FontSize" Value="12"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="LineHeight" Value="19"/><Setter Property="Margin" Value="0,7,30,0"/></Style>
   <Style TargetType="ContextMenu"><Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/><Setter Property="Foreground" Value="{StaticResource Text}"/><Setter Property="FontFamily" Value="{StaticResource AppFont}"/><Setter Property="FontSize" Value="13"/>
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContextMenu"><v:Squircle Background="{StaticResource Menu}" BorderBrush="{StaticResource LineStrong}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Padding="5" MinWidth="220"><StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/></v:Squircle></ControlTemplate></Setter.Value></Setter>

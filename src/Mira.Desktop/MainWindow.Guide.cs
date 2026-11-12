@@ -119,9 +119,9 @@ public partial class MainWindow
 
     // The guide, from the ? of the rail, F1, an empty library, or once after the first connection.
     /// <summary>The ? of the rail and F1: the guide, or, already shown, back to its top without drawing it again.</summary>
-    private void Guide_Click(object sender, RoutedEventArgs e) { if (GuideOverlay.Visibility == Visibility.Visible && GuideOverlay.IsHitTestVisible) SmoothScroll.ToTop(GuideScroll); else OpenGuide(); }
+    private void Guide_Click(object sender, RoutedEventArgs e) { if (Shown(GuideOverlay)) SelectGuideTopic("start"); else OpenGuide(); }
     private async void CloseGuide_Click(object sender, RoutedEventArgs e) => await CloseGuideAsync();
-    private async Task CloseGuideAsync() { await Motion.HideAsync(GuideOverlay); UpdateNavigation(); UpdateHeroClock(); GiveFocusBack(ref _guideOrigin); }
+    private async Task CloseGuideAsync() { await HideSheetAsync(GuideOverlay, GuideSheet); ForgetBackdrop(); UpdateNavigation(); UpdateHeroClock(); GiveFocusBack(ref _guideOrigin); }
     /// <summary>Once, right after the first connection or the Jellyfin setup, with what is relevant at that moment.</summary>
     private void OfferGuide(string intro) { if (!_settings.GuideSeen) OpenGuide(intro); }
     /// <summary>The keyboard shortcuts as keycaps beside what they do, two by row on a wide guide: read at a glance.</summary>
@@ -136,7 +136,7 @@ public partial class MainWindow
             (["F", "F11"], L("plein écran", "full screen")), (["C"], L("sous-titres", "subtitles")),
             (["S"], L("passer le générique", "skip the intro")),
             (["I"], L("mini-lecteur", "mini player")), (["N"], L("épisode suivant", "next episode")),
-            ([L("Échap", "Esc")], L("revenir en arrière", "go back")), (["F1"], L("ce guide", "this guide")),
+            ([L("Échap", "Esc")], L("revenir en arrière", "go back")), (["Ctrl", ","], L("réglages", "settings")), (["F1"], L("aide", "help")),
         ];
         foreach (var (keys, text) in shortcuts)
         {
@@ -153,26 +153,137 @@ public partial class MainWindow
             GuideShortcuts.Children.Add(row);
         }
     }
-    private async void OpenGuide(string? intro = null)
+    /// <param name="topic">The subject to open on (« Mira sur ton iPhone » from the notice about the firewall), else « Bien démarrer ».</param>
+    private async void OpenGuide(string? intro = null, string? topic = null)
     {
         if (LoginOverlay.Visibility == Visibility.Visible || WelcomeOverlay.Visibility == Visibility.Visible || _playing && !_miniPlayer) return;
         _settings.GuideSeen = true;
-        RememberFocus(ref _guideOrigin, GuideOverlay);
-        if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); }
-        ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(TorLinkOverlay);
-        GuideIntro.Text = intro ?? L("L’essentiel pour bien démarrer.", "The essentials to get you started.");
-        GuideTorLink.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
-        DrawGuideShortcuts();
+        // From Réglages, the same window turned over: what had the keyboard before it gets it back.
+        if (Shown(SettingsOverlay)) { AutoSaveSettings(); _guideOrigin = _settingsOrigin; _settingsOrigin = null; } else RememberFocus(ref _guideOrigin, GuideOverlay);
+        // A title's page or Téléchargements stays under the window, as it was.
+        ClosePreview();
+        _guideIntro = intro ?? L("L’essentiel pour bien démarrer.", "The essentials to get you started.");
+        GuideTorLinkNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
+        GuideVersion.Text = SettingsVersion.Text;
+        DrawGuideNavigation(); DrawGuideShortcuts(); DrawGuideTopics();
         DescribeServerForGuide();
-        SmoothScroll.Jump(GuideScroll);
-        Motion.Reveal(GuideOverlay, 280, 10);
+        GuideSearchBox.Clear();
+        SelectGuideTopic(topic ?? "start", animate: false);
+        ShowSheet(GuideOverlay);
         UpdateNavigation(); UpdateHeroClock();
-        _ = Dispatcher.BeginInvoke(() => GuideClose.Focus(), DispatcherPriority.Input);
+        _ = Dispatcher.BeginInvoke(() => GuideNavigation.Children.OfType<Button>().FirstOrDefault(x => x.Tag?.ToString() == _guideTopic)?.Focus(), DispatcherPriority.Input);
         var version = ++_guideVersion;
         // Back from installing Tailscale or from Windows' settings, the steps read again.
         if (!_phoneWatched) { _phoneWatched = true; Activated += (_, _) => { if (GuideOverlay.Visibility == Visibility.Visible && !_preparing && DateTime.UtcNow - _phoneReadAt > TimeSpan.FromSeconds(5)) _ = DescribePhoneAsync(); }; }
         if (!_preparing) _ = DescribePhoneAsync();
         await ShowGuideFoldersAsync(version);
+    }
+
+    // Aide, one subject at a time beside their list: « Bien démarrer » lists them all, each one a row to open it.
+    private string _guideTopic = "start", _guideIntro = "";
+    /// <summary>Each subject of Aide: its page, its icon, its name and what it is about (its line in « Bien démarrer »).</summary>
+    private (string Tag, FrameworkElement Page, string Icon, string Title, string About)[] GuideTopics =>
+    [
+        ("phone", GuidePhone, "phone", L("Mira sur ton iPhone", "Mira on your iPhone"), L("L’app Mira pour iPhone trouve ton Jellyfin chez toi et ailleurs.", "Mira’s iPhone app finds your Jellyfin at home and away.")),
+        ("videos", GuideVideos, "folder", L("Ajouter tes vidéos", "Add your videos"), L("Range tes fichiers dans ces dossiers : ils apparaissent dans Mira en quelques minutes, avec leurs affiches.", "Put your files in these folders: they show up in Mira within a few minutes, with their posters.")),
+        ("jellyfin", GuideJellyfin, "tv", L("Jellyfin, TV et console", "Jellyfin, TV and consoles"), L("Gérer ton serveur sur sa page web, et le regarder sur une TV ou une console.", "Manage your server on its web page, and watch it on a TV or a console.")),
+        ("keys", GuideKeys, "keyboard", L("Raccourcis clavier", "Keyboard shortcuts"), L("Tout Mira au clavier, sans la souris.", "All of Mira from the keyboard, without the mouse.")),
+        ("downloads", GuideTorLink, "download", L("Téléchargements", "Downloads"), L("Où vont tes téléchargements, et comment ils rejoignent ta bibliothèque.", "Where your downloads go, and how they join your library.")),
+    ];
+    private void GuideTopic_Click(object sender, RoutedEventArgs e)
+    {
+        var tag = ((Button)sender).Tag?.ToString() ?? "start";
+        if (GuideSearchBox.Text.Length > 0) GuideSearchBox.Clear();
+        SelectGuideTopic(tag);
+    }
+    /// <param name="animate">False as Aide opens: the window comes as one, its page with it.</param>
+    private void SelectGuideTopic(string tag, bool animate = true)
+    {
+        if (tag == "downloads" && !_torlinkEnabled) tag = "start";
+        _guideTopic = tag;
+        GuideStart.Visibility = tag == "start" ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var topic in GuideTopics) topic.Page.Visibility = topic.Tag == tag ? Visibility.Visible : Visibility.Collapsed;
+        var shown = GuideTopics.FirstOrDefault(x => x.Tag == tag);
+        GuideTitle.Text = shown.Title ?? L("Bien démarrer", "Getting started");
+        GuideDescription.Text = shown.About ?? _guideIntro;
+        LightSheetNav(GuideNavigation, tag);
+        GuideScroll.ScrollToTop(); SmoothScroll.Jump(GuideScroll);
+        if (animate) Motion.Reveal(shown.Page ?? GuideStart, 230, 7);
+    }
+    private bool _guideNavDrawn;
+    private void DrawGuideNavigation()
+    {
+        if (_guideNavDrawn) return; _guideNavDrawn = true;
+        foreach (var button in GuideNavigation.Children.OfType<Button>())
+            DrawSheetNav(button, button.Tag?.ToString() switch { "phone" => "phone", "videos" => "folder", "jellyfin" => "tv", "keys" => "keyboard", "downloads" => "download", "whatsnew" => "sparkle", "online" => "globe", "report" => "warning", _ => "home" },
+                outside: button.Tag?.ToString() == "online");
+    }
+    /// <summary>« Bien démarrer »: each subject a row, its icon, its name and what it is about.</summary>
+    private void DrawGuideTopics()
+    {
+        GuideStart.Children.Clear();
+        foreach (var (tag, _, icon, title, about) in GuideTopics)
+        {
+            if (tag == "downloads" && !_torlinkEnabled) continue;
+            var row = new DockPanel();
+            var tile = new Squircle { Width = 40, Height = 40, CornerRadius = Palette.Card, Background = Palette.Get("Raised2"), Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center, Child = new Icon { Kind = icon, Width = 20, Height = 20 } };
+            DockPanel.SetDock(tile, Dock.Left); row.Children.Add(tile);
+            var next = new Icon { Kind = "next", Width = 16, Height = 16, Foreground = Palette.Get("Faint"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+            DockPanel.SetDock(next, Dock.Right); row.Children.Add(next);
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold });
+            text.Children.Add(new TextBlock { Text = about, Style = (Style)GuideStart.FindResource("SettingDescription"), Margin = new Thickness(0, 4, 0, 0) });
+            row.Children.Add(text);
+            var open = new Button { Content = row, Tag = tag, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(18, 16, 20, 16), Margin = new Thickness(0, 0, 0, 8), Background = Palette.Get("SheetRow"), FontWeight = FontWeights.Normal };
+            Motion.SetRadius(open, Palette.Card);
+            System.Windows.Automation.AutomationProperties.SetName(open, title);
+            open.Click += GuideTopic_Click;
+            GuideStart.Children.Add(open);
+        }
+    }
+    /// <summary>« Plus d’aide »: what’s new in Mira, its guide on the web (in the browser), a report to send with a problem.</summary>
+    private void GuideMore_Click(object sender, RoutedEventArgs e)
+    {
+        switch (((Button)sender).Tag?.ToString())
+        {
+            case "whatsnew": WhatsNewOpen_Click(sender, e); break;
+            case "online": OpenWebPage(L("https://wiki.miracinema.app/fr/windows/", "https://wiki.miracinema.app/windows/")); break;
+            case "report":
+                Settings_Click(sender, e); SelectSettingsTab("updates", animate: false);
+                _ = Dispatcher.BeginInvoke(() => { ExportReportButton.BringIntoView(); ExportReportButton.Focus(); }, DispatcherPriority.Loaded);
+                break;
+        }
+    }
+    // The search of Aide: the subjects that speak of it stay in the list, the first one shown.
+    private void GuideSearch_Changed(object sender, TextChangedEventArgs e)
+    {
+        var query = GuideSearchBox.Text.Trim();
+        GuideSearchPlaceholder.Visibility = GuideSearchKeys.Visibility = GuideSearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        GuideSearchClear.Visibility = GuideSearchBox.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        var topics = GuideTopics;
+        Button? first = null; var more = false;
+        foreach (var button in GuideNavigation.Children.OfType<Button>())
+        {
+            var tag = button.Tag?.ToString();
+            var topic = topics.FirstOrDefault(x => x.Tag == tag);
+            var words = System.Windows.Automation.AutomationProperties.GetName(button) + " " + topic.About + " " + (topic.Page is { } page ? Words(page) : tag == "start" ? _guideIntro : "");
+            var shown = (tag != "downloads" || _torlinkEnabled) && SheetWindow.Matches(words, query);
+            button.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+            if (!shown) continue;
+            if (tag is "whatsnew" or "online" or "report") more = true; else first ??= button;
+        }
+        GuideMoreLabel.Visibility = more ? Visibility.Visible : Visibility.Collapsed;
+        // The page shown follows the search while it speaks of something else.
+        if (query.Length > 0 && first is not null && GuideNavigation.Children.OfType<Button>().FirstOrDefault(x => x.Tag?.ToString() == _guideTopic)?.Visibility != Visibility.Visible)
+            SelectGuideTopic(first.Tag?.ToString() ?? "start", animate: false);
+    }
+    private void GuideSearchClear_Click(object sender, RoutedEventArgs e) { GuideSearchBox.Clear(); GuideSearchBox.Focus(); }
+    /// <summary>Entrée in the search of Aide: the first subject found (or the first of « Plus d’aide »).</summary>
+    private void OpenFirstTopic()
+    {
+        var first = GuideNavigation.Children.OfType<Button>().FirstOrDefault(x => x.Visibility == Visibility.Visible);
+        first?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, first));
+        first?.Focus();
     }
     /// <summary>
     /// « Mira sur ton iPhone »: reads what stands between Jellyfin and Mira on a phone (Mira's extension on Jellyfin, then
@@ -236,7 +347,7 @@ public partial class MainWindow
         var stale = await Task.Run(() => (uri.IsLoopback || LocalNetwork.IsThisPc(uri.Host)) && JellyfinAutostart.Program() is { } program
             && JellyfinAutostart.MiraRule(program, uri.Port) == JellyfinFirewall.RuleState.Stale);
         if (stale && Notice.Visibility != Visibility.Visible && GuideOverlay.Visibility != Visibility.Visible)
-            SetNotice(L("Pour ton téléphone et tes autres ordinateurs, la règle de Mira dans le pare-feu de Windows est à mettre à jour : le guide s’en charge.", "For your phone and your other computers, Mira’s rule in Windows’ firewall needs an update: the guide takes care of it."), L("Ouvrir le guide", "Open the guide"), () => OpenGuide());
+            SetNotice(L("Pour ton téléphone et tes autres ordinateurs, la règle de Mira dans le pare-feu de Windows est à mettre à jour : le guide s’en charge.", "For your phone and your other computers, Mira’s rule in Windows’ firewall needs an update: the guide takes care of it."), L("Ouvrir l’aide", "Open help"), () => OpenGuide(topic: "phone"));
     }
     /// <summary>
     /// At start, for a Jellyfin on this PC: this PC's connection to Tailscale expiring within two weeks, or expired, is
@@ -520,13 +631,6 @@ public partial class MainWindow
                 GuideFolders.Children.Add(FolderRow(library.Name, location, location.Length > 0 && reachable.GetValueOrDefault(location)));
         if (!reachable.Values.Any(x => x))
             ShowGuideFoldersHint(L("Ces dossiers sont sur l’ordinateur où tourne Jellyfin.", "These folders are on the computer where Jellyfin runs."));
-    }
-    /// <summary>Two columns of cards on a wide window, one on a narrow one.</summary>
-    private void GuideGrid_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        var width = GuideGrid.ActualWidth;
-        if (width <= 0) return;
-        foreach (var card in GuideGrid.Children.OfType<FrameworkElement>()) card.Width = Math.Max(0, (card == GuidePhone || width < 1000 ? width : Math.Floor(width / 2)) - card.Margin.Left - card.Margin.Right);
     }
     private void ShowGuideFoldersHint(string text) { GuideFoldersHint.Text = text; GuideFoldersHint.Visibility = Visibility.Visible; }
     private UIElement FolderRow(string library, string location, bool here)

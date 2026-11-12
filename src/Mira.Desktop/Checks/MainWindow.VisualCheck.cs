@@ -46,7 +46,8 @@ public partial class MainWindow
             SelectSettingsTab("appearance"); await CaptureAsync(output, "06-appearance-settings");
             if (HeroAutoPlayCheck.IsChecked == true && (HeroAutoPlayCheck.Template.FindName("Track", HeroAutoPlayCheck) as Squircle)?.Background is SolidColorBrush switchBrush && switchBrush.Color.R != 245) throw new InvalidOperationException("Enabled switch looks disabled.");
             SelectSettingsTab("server"); await CaptureAsync(output, "07-server-settings");
-            SettingsOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; await RefreshAsync();
+            // The title's page stayed under Réglages, opened over it.
+            SettingsOverlay.Visibility = DetailOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; await RefreshAsync();
             Width = 1920; Height = 1080; await SettleVisualAsync(); await CaptureAsync(output, "08-home-wide");
             Width = 1024; Height = 720; await CaptureAsync(output, "09-home-small");
             _catalog.View = "library"; await RefreshAsync(); await CaptureAsync(output, "10-library-small");
