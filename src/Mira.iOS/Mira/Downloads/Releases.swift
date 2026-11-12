@@ -160,12 +160,14 @@ enum Releases {
         return " "
     }
 
-    /// What a release gives in parentheses that is not a name: languages and subtitles, platforms, notes, editions.
+    /// What a release gives in parentheses that is not a name: languages and subtitles, platforms, notes (« (Weekly) »,
+    /// « (Movie) » of Judas), editions.
     private static let notNames: Set<String> = Set("""
         vostfr vostf vost vosta vf vff vfq vfi vf2 vo french truefrench subfrench multi multisub multisubs msubs sub subs subbed
         subtitles softsubs hardsub hardsubs dub dubbed dual audio raw raws eng english jpn jap japanese ad wkn wakanim adn cr
         crunchyroll funi funimation hidive netflix amazon prime disney hulu bili bilibili b-global abema iqiyi viki readnfo nfofix
-        nfo read uncensored censored batch complete integrale intégrale extended unrated uncut remastered restored criterion imax
+        nfo read uncensored censored batch complete integrale intégrale weekly movie movies extended unrated uncut remastered
+        restored criterion imax
         """.split(whereSeparator: { $0 == " " || $0 == "\n" }).map(String.init))
 
     /// Words of a release that name nothing: a language or subtitles (« VOSTFR », « Multi Subs »), a platform (« WKN »,

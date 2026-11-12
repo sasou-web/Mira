@@ -51,6 +51,9 @@ public static partial class ReleaseName
         "wkn", "wakanim", "adn", "cr", "crunchyroll", "funi", "funimation", "hidive", "netflix", "amazon", "prime", "disney", "hulu", "bili", "bilibili", "b-global", "abema", "iqiyi", "viki",
         "readnfo", "nfofix", "nfo", "read", "uncensored", "censored", "batch", "complete", "integrale", "intégrale"
     };
+    // What fansub groups note at the end of a name, in parentheses (« [Judas] Kimetsu no Yaiba (Demon Slayer) - S05E08 (Weekly) »,
+    // « [Judas] Kimi no Na wa (Your Name) (Movie) »): about the release, never a name nor a word of its title.
+    private static readonly HashSet<string> Notes = new(StringComparer.OrdinalIgnoreCase) { "weekly", "movie", "movies" };
     private static readonly HashSet<string> ExtraFolders = new(StringComparer.OrdinalIgnoreCase)
     { "extras", "extra", "featurettes", "featurette", "bonus", "bonuses", "special features", "behind the scenes", "deleted scenes", "interviews", "scenes", "shorts", "trailers", "other", "menus", "nc", "ncop", "nced", "creditless" };
     private static readonly HashSet<string> SpecialFolders = new(StringComparer.OrdinalIgnoreCase) { "specials", "special", "sp", "sps", "ova", "ovas", "oad", "oads" };
@@ -143,13 +146,20 @@ public static partial class ReleaseName
         group = null;
         var lead = LeadingGroup().Match(text);
         if (lead.Success) { group = lead.Groups["g"].Value.Trim(); text = text[lead.Length..]; }
-        text = SquareOrCurly().Replace(text, " ");
-        text = Parenthesized().Replace(text, m =>
+        var bare = SquareOrCurly().Replace(text, " ");
+        var fansub = lead.Success;
+        text = Parenthesized().Replace(bare, m =>
         {
             var content = m.Groups["c"].Value.Trim();
             if (content.Length == 4 && Year().IsMatch(content)) return " " + content + " ";
             // The episodes of a batch (« [SubsPlease] Show (01-28) (1080p) [Batch] »): not part of the title.
             if (EpisodeRange().Match(content) is { Success: true } range && !(Year().IsMatch(range.Groups["a"].Value) && Year().IsMatch(range.Groups["b"].Value))) return " ";
+            // The show's other name after its title, as fansub groups give it (« [Judas] Kimetsu no Yaiba (Demon Slayer) -
+            // S05E08 », « [Judas] Mushoku Tensei (Jobless Reincarnation) (Season 03) »), and their notes (« (Movie) »): never
+            // part of the title, which the show's folder takes. A name a group gives first (« [Raze] (Demon Slayer) Kimetsu no
+            // Yaiba ») and words in parentheses inside a title (« You Can (Not) Advance ») are left as they were.
+            if (fansub && bare[..m.Index].Any(char.IsLetterOrDigit) && ClosesTitle(bare, m.Index + m.Length) && (Notes.Contains(content) || OtherName(content) is not null))
+                return " ";
             return IsTagGroup(content) ? " " : " " + content + " ";
         });
         // Scene names use dots or underscores as spaces; a few dots in a spaced title ("Mr. Robot") are kept.
@@ -263,30 +273,39 @@ public static partial class ReleaseName
     {
         var titles = new List<string>();
         foreach (Match m in Parenthesized().Matches(StripExtension(name.Trim())))
-            foreach (var element in m.Groups["c"].Value.Split(','))
-            {
-                var first = element;
-                var dash = first.IndexOf(" - ", StringComparison.Ordinal);
-                if (dash > 0) first = first[..dash];
-                first = first.Trim();
-                if (first.Length < 3 || !first.Any(char.IsLetter) || Year().IsMatch(first) && first.Length <= 6 || IsTagGroup(first) || NamesNothing(first)) continue;
-                // « Kikansha no Mahou wa Tokubetsu desu 2nd Season »: the show, as its title would be read.
-                if (Show(first).Title is { Length: > 0 } title && !NamesNothing(title) && !titles.Contains(title, StringComparer.OrdinalIgnoreCase)) titles.Add(title);
-                break;
-            }
+            if (OtherName(m.Groups["c"].Value) is { } title && !titles.Contains(title, StringComparer.OrdinalIgnoreCase)) titles.Add(title);
         return titles;
     }
 
     /// <summary>
+    /// The name a part in parentheses gives the show: its first element that names something, read as a title (« Kikansha
+    /// no Mahou wa Tokubetsu desu 2nd Season » gives « Kikansha no Mahou wa Tokubetsu desu »); null for tags, notes
+    /// (« Weekly »), platforms, years, seasons and parts.
+    /// </summary>
+    private static string? OtherName(string content)
+    {
+        foreach (var element in content.Split(','))
+        {
+            var first = element;
+            var dash = first.IndexOf(" - ", StringComparison.Ordinal);
+            if (dash > 0) first = first[..dash];
+            first = first.Trim();
+            if (first.Length < 3 || !first.Any(char.IsLetter) || Year().IsMatch(first) && first.Length <= 6 || IsTagGroup(first) || NamesNothing(first)) continue;
+            return Show(first).Title is { Length: > 0 } title && !NamesNothing(title) ? title : null;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Words of a release that name nothing: a language or subtitles (« VOSTFR », « Multi Subs »), a platform (« WKN »,
-    /// « ADN »), a note (« READNFO »), a season or a part alone (« Season 2 », « Part 2 »), or one word in capitals.
+    /// « ADN »), a note (« READNFO », « Weekly »), a season or a part alone (« Season 2 », « Part 2 »), or one word in capitals.
     /// </summary>
     public static bool NamesNothing(string text)
     {
         var value = text.Trim();
         if (value.Length == 0 || PartAlone().IsMatch(value)) return true;
         var words = value.Split([' ', '.', '_', '+', '/', '&'], StringSplitOptions.RemoveEmptyEntries);
-        if (words.All(w => IsTag(w) || NotNames.Contains(w.Trim('-')) || TrailingTags.Contains(w.Trim('-')) || w.Split('-', StringSplitOptions.RemoveEmptyEntries) is { Length: > 1 } parts && parts.All(x => NotNames.Contains(x) || TrailingTags.Contains(x) || IsTag(x))))
+        if (words.All(w => IsTag(w) || NotNames.Contains(w.Trim('-')) || TrailingTags.Contains(w.Trim('-')) || Notes.Contains(w.Trim('-')) || w.Split('-', StringSplitOptions.RemoveEmptyEntries) is { Length: > 1 } parts && parts.All(x => NotNames.Contains(x) || TrailingTags.Contains(x) || Notes.Contains(x) || IsTag(x))))
             return true;
         return words is [var word] && word.Length <= 8 && word.All(char.IsAsciiLetter) && word == word.ToUpperInvariant();
     }
@@ -391,6 +410,13 @@ public static partial class ReleaseName
         return dash > 0 && (Tags.Contains(value[..dash]) || TagPattern().IsMatch(value[..dash]));
     }
     private static bool IsTagGroup(string content) => Checksum().IsMatch(content) || content.Split([' ', ',', '.', '_'], StringSplitOptions.RemoveEmptyEntries).Any(IsTag);
+    // Whether what follows a part in parentheses ends the title before it: nothing, another part in parentheses, a dash or a
+    // colon (« Kimetsu no Yaiba (Demon Slayer) - S05E08 »), never a word of the title (« You Can (Not) Advance (2009) »).
+    private static bool ClosesTitle(string text, int end)
+    {
+        var rest = text.AsSpan(end).TrimStart();
+        return rest.IsEmpty || rest[0] is '(' or '-' or '–' or '—' or ':';
+    }
     // The title before the first tag; <paramref name="followed"/>: a year or an episode comes after this text.
     private static string CutAtTags(string text, bool followed = false)
     {
