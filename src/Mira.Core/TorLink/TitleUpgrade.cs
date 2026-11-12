@@ -101,13 +101,16 @@ public static partial class TitleUpgrade
 
     /// <summary>
     /// Why this title's file cannot be replaced on the PC of Jellyfin, or null when it can: a film or an episode, one
-    /// file (never several versions, nor a disc's folder), its length known, inside one of <paramref name="libraries"/>
-    /// (Jellyfin's library folders, as this PC sees them).
+    /// file (never several versions, several parts nor a disc's folder), its length known, inside one of
+    /// <paramref name="libraries"/> (Jellyfin's library folders, as this PC sees them).
     /// </summary>
     public static string? Problem(MediaItem item, IEnumerable<string> libraries)
     {
         if (item.Type is not ("Movie" or "Episode")) return L("Seuls un film ou un épisode se remplacent.", "Only a film or an episode can be replaced.");
         if (item.MediaSources is { Count: > 1 }) return L("Ce titre a plusieurs versions dans Jellyfin : Mira n’en remplace pas une seule.", "This title has several versions in Jellyfin: Mira doesn’t replace just one.");
+        // « Film - cd1.mkv », « Film - cd2.mkv »: Jellyfin gives the length of the first part only (checked on 12.1), which a
+        // whole release never has, and the swap would leave the other parts beside the new file.
+        if (item.PartCount > 1) return L("Ce titre est en plusieurs parties dans Jellyfin (« cd1 », « cd2 »…) : Mira ne le remplace pas.", "This title is split into several parts in Jellyfin (“cd1”, “cd2”…): Mira doesn’t replace it.");
         var path = item.MediaSources?.FirstOrDefault()?.Path ?? item.Path;
         if (path is not { Length: > 0 } || !ReleaseName.IsVideo(path)) return L("Ce titre n’est pas un seul fichier vidéo.", "This title isn’t a single video file.");
         if (item.RunTimeTicks is not > 0) return L("Jellyfin ne connaît pas encore la durée de ce titre.", "Jellyfin doesn’t know this title’s length yet.");
