@@ -64,15 +64,19 @@ internal static class UpgradeTests
         await Test("Meilleure version : seuls un film ou un épisode d'un seul fichier, de durée connue, dans une bibliothèque, se remplacent", () =>
         {
             var libraries = new[] { @"D:\Medias\Films", "/srv/medias/Séries/" };
-            MediaItem Film(string? path, long? runtime = 72_000_000_000, string type = "Movie", int sources = 1) => new()
+            MediaItem Film(string? path, long? runtime = 72_000_000_000, string type = "Movie", int sources = 1, int? parts = null) => new()
             {
-                Type = type, Name = "Dune", RunTimeTicks = runtime,
+                Type = type, Name = "Dune", RunTimeTicks = runtime, PartCount = parts,
                 MediaSources = path is null ? null : Enumerable.Range(0, sources).Select(_ => new MediaSource { Path = path }).ToList(),
             };
             Assert(TitleUpgrade.Problem(Film(@"D:\Medias\Films\Dune (2021)\Dune.mkv"), libraries) is null, "A film in a library");
             Assert(TitleUpgrade.Problem(Film("/srv/medias/séries/The Bear/Saison 1/The Bear - S01E01.mp4", type: "Episode"), libraries) is null, "An episode, the case of a folder aside");
             Assert(TitleUpgrade.Problem(Film(@"D:\Medias\Films\Dune (2021)\Dune.mkv", type: "Series"), libraries) is { } series && series.Contains("film ou un épisode", StringComparison.Ordinal), "A series");
             Assert(TitleUpgrade.Problem(Film(@"D:\Medias\Films\Dune (2021)\Dune.mkv", sources: 2), libraries)!.Contains("plusieurs versions", StringComparison.Ordinal), "Several versions");
+            // As Jellyfin 12.1 lists « Dune - cd1.mkv » and « Dune - cd2.mkv »: one source, the length of the first part.
+            Assert(TitleUpgrade.Problem(Film(@"D:\Medias\Films\Dune (2021)\Dune - cd1.mkv", parts: 2), libraries)!.Contains("plusieurs parties", StringComparison.Ordinal), "Several parts");
+            Assert(TitleUpgrade.Problem(Film("/srv/medias/Séries/The Bear/Saison 1/The Bear - S01E01 - part1.mp4", type: "Episode", parts: 2), libraries) is not null, "An episode in several parts");
+            Assert(TitleUpgrade.Problem(Film(@"D:\Medias\Films\Dune (2021)\Dune.mkv", parts: 1), libraries) is null, "One part is one file");
             Assert(TitleUpgrade.Problem(Film(@"D:\Medias\Films\Dune (2021)\VIDEO_TS"), libraries)!.Contains("un seul fichier vidéo", StringComparison.Ordinal), "A disc's folder");
             Assert(TitleUpgrade.Problem(Film(null), libraries)!.Contains("un seul fichier vidéo", StringComparison.Ordinal), "No file");
             Assert(TitleUpgrade.Problem(Film(@"D:\Medias\Films\Dune (2021)\Dune.mkv", runtime: null), libraries)!.Contains("durée", StringComparison.Ordinal), "No length");
