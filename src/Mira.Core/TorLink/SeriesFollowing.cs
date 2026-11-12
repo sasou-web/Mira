@@ -127,7 +127,11 @@ public static partial class SeriesFollowing
             }
             // Numbered in its season, or from the first episode of the series (« Show - 31 » for S02E03).
             var season = release.Season ?? lastSeason;
-            var mapped = new[] { new FollowEpisode(season, number), new FollowEpisode(season, number - Before(season)) }.Distinct()
+            var before = Before(season);
+            // Without a season, a number past the earlier seasons that falls on an episode the library has (« - 13 » after
+            // twelve episodes in season 1 and five in season 2: S02E01) is an old release of it, never a new one further on.
+            if (release.Season is null && before > 0 && number - before >= 1 && number - before <= lastEpisode) continue;
+            var mapped = new[] { new FollowEpisode(season, number), new FollowEpisode(season, number - before) }.Distinct()
                 .Where(x => x.Episode >= 1 && (x.Season == lastSeason && x.Episode > lastEpisode && x.Episode <= lastEpisode + Window
                     || release.Season is not null && x.Season == lastSeason + 1 && x.Episode <= Window)).ToList();
             // Both readings possible (« Show - 9 » after S02E03, five episodes in season 1: S02E09 or S02E04): the one TheTVDB says is out.
