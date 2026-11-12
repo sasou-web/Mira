@@ -8,8 +8,9 @@ namespace Mira.Core.Subtitles;
 public sealed record SubtitleCue(TimeSpan Start, TimeSpan End, string Text);
 
 /// <summary>
-/// Subtitle files as text: the bytes decoded (UTF-8, UTF-16 with a mark, else Windows-1252, the encoding of old French
-/// files), the format told from the content, the cues read from SRT, WebVTT and ASS/SSA, and written back as SRT.
+/// Subtitle files as text: the bytes decoded (UTF-8, UTF-16 with a mark, else the old encoding of the file's language:
+/// Windows-1252 for French), the format told from the content, the cues read from SRT, WebVTT and ASS/SSA, and written
+/// back as SRT.
 /// What « Sous-titres automatiques » checks a downloaded file with (<see cref="SubtitleMatch.Check"/>) and what the
 /// alignment shifts.
 /// </summary>
@@ -25,18 +26,60 @@ public static partial class SubtitleText
     [GeneratedRegex(@"</?[A-Za-z][^>]*>")] private static partial Regex HtmlTags();
     [GeneratedRegex(@"\r\n?")] private static partial Regex LineEnds();
 
-    /// <summary>The file as text: by its byte order mark, else UTF-8 when every byte sequence is valid, else Windows-1252.</summary>
-    public static string Decode(ReadOnlySpan<byte> bytes)
+    /// <summary>
+    /// The file as text: by its byte order mark, else UTF-8 when every byte sequence is valid, else in the encoding that
+    /// Windows wrote files of <paramref name="language"/> in (ISO 639 code, the language asked of the source): Windows-1251
+    /// for Russian, Shift-JIS for Japanese, GBK or Big5 for Chinese… and Windows-1252, the encoding of old French files,
+    /// for the languages of Western Europe or when none is given.
+    /// </summary>
+    public static string Decode(ReadOnlySpan<byte> bytes, string? language = null)
     {
         if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) return Encoding.UTF8.GetString(bytes[3..]);
         if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) return Encoding.Unicode.GetString(bytes[2..]);
         if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) return Encoding.BigEndianUnicode.GetString(bytes[2..]);
         try { return StrictUtf8.GetString(bytes); }
         catch (DecoderFallbackException) { }
+        string? read = null;
+        var common = -1;
+        foreach (var page in OldCodePages(language))
+        {
+            if (CodePagesEncodingProvider.Instance.GetEncoding(page) is not { } encoding) continue;
+            var text = encoding.GetString(bytes);
+            // Chinese: GBK (Simplified) or Big5 (Traditional), the one whose reading has the words every dialogue has.
+            var count = 0;
+            foreach (var c in text) if (CommonHan.Contains(c)) count++;
+            if (count > common) (read, common) = (text, count);
+        }
+        if (read is not null) return read;
         var chars = new char[bytes.Length];
         for (var i = 0; i < bytes.Length; i++) chars[i] = bytes[i] is >= 0x80 and <= 0x9F ? Cp1252High[bytes[i] - 0x80] : (char)bytes[i];
         return new string(chars);
     }
+
+    // The most frequent characters of Chinese dialogue, Simplified and Traditional.
+    private const string CommonHan = "的我你是不了一在他有什要就好去到那吧这這们們个個说說会會没沒来來吗嗎么麼";
+
+    /// <summary>
+    /// The code pages Windows wrote files of a language in (ISO 639-1 or 639-2, B or T, a region after it ignored), the
+    /// likelier first; none for Windows-1252 (the languages of Western Europe).
+    /// </summary>
+    private static int[] OldCodePages(string? language) => language?.Trim().ToLowerInvariant().Split('-', '_')[0] switch
+    {
+        "pl" or "pol" or "cs" or "cze" or "ces" or "sk" or "slo" or "slk" or "hu" or "hun" or "ro" or "rum" or "ron" or "hr" or "hrv"
+            or "sl" or "slv" or "sr" or "srp" or "bs" or "bos" or "sq" or "alb" or "sqi" => [1250],
+        "ru" or "rus" or "uk" or "ukr" or "bg" or "bul" or "be" or "bel" or "mk" or "mac" or "mkd" => [1251],
+        "el" or "gre" or "ell" => [1253],
+        "tr" or "tur" => [1254],
+        "he" or "heb" => [1255],
+        "ar" or "ara" or "fa" or "per" or "fas" or "ur" or "urd" => [1256],
+        "et" or "est" or "lv" or "lav" or "lt" or "lit" => [1257],
+        "vi" or "vie" => [1258],
+        "th" or "tha" => [874],
+        "ja" or "jpn" => [932],
+        "ko" or "kor" => [949],
+        "zh" or "chi" or "zho" => [936, 950],
+        _ => [],
+    };
 
     /// <summary>« srt », « vtt » or « ass » from the content itself (a downloaded file is not always named for what it is); null for none of them.</summary>
     public static string? FormatOf(string text)

@@ -236,7 +236,7 @@ public sealed partial class MiraSubtitleProvider : ISubtitleProvider
     public async Task<FetchedSubtitle> FetchCheckedAsync(SubtitleSource source, string key, SubtitleScore? score, VideoFacts? video, string language, CancellationToken ct, Guid? item = null)
     {
         var fetched = await source.FetchAsync(key, video?.Season, video?.Episode, ct).ConfigureAwait(false);
-        var text = SubtitleText.Decode(fetched.Bytes);
+        var text = SubtitleText.Decode(fetched.Bytes, language);
         var format = SubtitleText.FormatOf(text) ?? fetched.Format;
         var cues = SubtitleText.Parse(text);
         var check = SubtitleMatch.Check(cues, video?.Duration);
