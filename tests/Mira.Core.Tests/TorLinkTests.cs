@@ -151,6 +151,49 @@ internal static class TorLinkTests
             Assert(Targets(spaced) == "Film (2019)/Film (2019) - part1.mkv | Film (2019)/Film (2019) - part2.mkv", "cd1, cd2: " + Targets(spaced));
             return Task.CompletedTask;
         });
+        await Test("TorLink : une collection de films (« Complete Collection », « Intégrale ») rangée en films, une saison aux fichiers « 01 - Titre » en épisodes", () =>
+        {
+            // Both were placed as a series whose every video went to its Extras folder: on Jellyfin 12.1, a series without
+            // seasons or episodes, the films missing from Films and the episodes from the series, only bonus videos of it.
+            var dir = Path.Combine(testRoot, "torlink-packs"); var films = Path.Combine(dir, "FILMS"); var series = Path.Combine(dir, "SERIES");
+            var libraries = new MediaLibraries(films, series, null);
+            SourceFile File(string path, long size) => new(Path.Combine(dir, "downloads", path), path, size);
+            string Targets(ImportPlan plan) => string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(plan.LibraryRoot!, x.Destination).Replace('\\', '/')));
+            const string Potter = "Harry.Potter.Complete.Collection.1080p.BluRay.x264";
+            var potter = MediaPlanner.Plan(Potter, "x1337", [File($"{Potter}/Harry.Potter.and.the.Philosophers.Stone.2001.1080p.BluRay.x264.mkv", 9_000_000_000),
+                File($"{Potter}/Harry.Potter.and.the.Chamber.of.Secrets.2002.1080p.BluRay.x264.mkv", 9_500_000_000), File($"{Potter}/Harry.Potter.and.the.Chamber.of.Secrets.2002.1080p.BluRay.x264.en.srt", 90_000)], libraries);
+            Assert(potter.Kind == MediaKind.Movie && potter.Title == "2 films" && Targets(potter) == "Harry Potter and the Chamber of Secrets (2002)/Harry Potter and the Chamber of Secrets (2002).mkv"
+                + " | Harry Potter and the Philosophers Stone (2001)/Harry Potter and the Philosophers Stone (2001).mkv"
+                + " | Harry Potter and the Chamber of Secrets (2002)/Harry Potter and the Chamber of Secrets (2002).en.srt", "Complete Collection: " + Targets(potter));
+            const string Indiana = "Indiana Jones Integrale 1981-2008 MULTi 1080p";
+            var indiana = MediaPlanner.Plan(Indiana, "x1337", [File($"{Indiana}/Les Aventuriers de l'arche perdue (1981).mkv", 8_000_000_000), File($"{Indiana}/Indiana Jones et le Temple maudit (1984).mkv", 8_200_000_000)], libraries);
+            Assert(indiana.Kind == MediaKind.Movie && Targets(indiana) == "Indiana Jones et le Temple maudit (1984)/Indiana Jones et le Temple maudit (1984).mkv | Les Aventuriers de l'arche perdue (1981)/Les Aventuriers de l'arche perdue (1981).mkv", "Intégrale: " + Targets(indiana));
+            var saga = MediaPlanner.Plan("Star.Wars.Complete.Saga.1080p", "x1337", [File("Star.Wars.Complete.Saga.1080p/Star.Wars.Episode.IV.A.New.Hope.1977.1080p.mkv", 8_000_000_000),
+                File("Star.Wars.Complete.Saga.1080p/Star.Wars.Episode.V.The.Empire.Strikes.Back.1980.1080p.mkv", 8_200_000_000)], libraries);
+            Assert(saga.Kind == MediaKind.Movie && saga.Title == "2 films", "Complete Saga: " + Targets(saga));
+            // A pack of every episode stays a show, its episodes numbered « Show - 01 ».
+            var note = MediaPlanner.Plan("Death.Note.Complete.Series.1080p", "x1337-tv", [File("Death.Note.Complete.Series.1080p/Death Note - 01.mkv", 700_000_000), File("Death.Note.Complete.Series.1080p/Death Note - 02.mkv", 700_000_000)], libraries);
+            Assert(note.Kind == MediaKind.Series && Targets(note) == "Death Note/Season 01/Death Note - S01E01.mkv | Death Note/Season 01/Death Note - S01E02.mkv", "Complete Series: " + Targets(note));
+
+            // A season's files named by their number first, with or without a season folder.
+            string Season(string torrent, params string[] names) => Targets(MediaPlanner.Plan(torrent, "x1337-tv", names.Select(n => File($"{torrent}/{n}", n.EndsWith(".srt") ? 50_000 : 700_000_000)).ToList(), libraries));
+            Assert(Season("The.Office.US.S03.1080p.WEB-DL", "01 - Gay Witch Hunt.mkv", "02 - The Convention.mkv", "01 - Gay Witch Hunt.en.srt")
+                == "The Office US/Season 03/The Office US - S03E01.mkv | The Office US/Season 03/The Office US - S03E02.mkv | The Office US/Season 03/The Office US - S03E01.en.srt", "« 01 - Title »");
+            Assert(Season("Les.Simpson.Saison.1.FRENCH", "01. Noel mortel.avi", "E02 - Bart le genie.avi") == "Les Simpson/Season 01/Les Simpson - S01E01.avi | Les Simpson/Season 01/Les Simpson - S01E02.avi", "« 01. Title », « E02 - Title »");
+            Assert(Season("The.Office.US.Complete", "Season 3/01 - Gay Witch Hunt.mkv", "Season 4/01 - Fun Run.mkv", "The.Office.US.S05.1080p/The Office - 01.mkv")
+                == "The Office US/Season 03/The Office US - S03E01.mkv | The Office US/Season 04/The Office US - S04E01.mkv | The Office US/Season 05/The Office US - S05E01.mkv", "Season folders: " + Season("The.Office.US.Complete", "Season 3/01 - Gay Witch Hunt.mkv", "Season 4/01 - Fun Run.mkv", "The.Office.US.S05.1080p/The Office - 01.mkv"));
+            Assert(Season("30.Rock.S01.1080p", "30 Rock 01 Pilot.mkv", "30 Rock 02 The Aftermath.mkv") == "30 Rock/Season 01/30 Rock - S01E01.mkv | 30 Rock/Season 01/30 Rock - S01E02.mkv", "« Show 01 Title »");
+            // The digits of the show's title are no number: unnumbered files still go to Extras.
+            Assert(Season("30.Rock.S01.1080p", "30 Rock - Pilot.mkv", "30 Rock - The Aftermath.mkv") == "30 Rock/Extras/30 Rock - Pilot.mkv | 30 Rock/Extras/30 Rock - The Aftermath.mkv", "« 30 Rock - Title »");
+            // A season's subtitles in a folder per episode, as RARBG put them: the number of « 2_English » is the stream's, not
+            // the episode's (they were never placed before).
+            const string Web = "Show.Name.S01.1080p.WEB.H264-GRP";
+            Assert(Season(Web, "Show.Name.S01E01.1080p.WEB.H264-GRP.mkv", "Show.Name.S01E02.1080p.WEB.H264-GRP.mkv", "Subs/Show.Name.S01E01.1080p.WEB.H264-GRP/2_English.srt",
+                    "Subs/Show.Name.S01E01.1080p.WEB.H264-GRP/3_French.srt", "Subs/Show.Name.S01E02.1080p.WEB.H264-GRP/2_English.srt")
+                == "Show Name/Season 01/Show Name - S01E01.mkv | Show Name/Season 01/Show Name - S01E02.mkv | Show Name/Season 01/Show Name - S01E01.en.srt"
+                + " | Show Name/Season 01/Show Name - S01E01.fr.srt | Show Name/Season 01/Show Name - S01E02.en.srt", "Subtitles in a folder per episode");
+            return Task.CompletedTask;
+        });
         await Test("TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé", async () =>
         {
             var dir = Path.Combine(testRoot, "torlink-ledger"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

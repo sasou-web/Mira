@@ -94,6 +94,9 @@ public static partial class ReleaseName
     private static partial Regex AbsoluteEpisode();
     [GeneratedRegex(@"(?<![a-z])(?:Episode|Épisode|Ep\.?)\s*(?<e>\d{1,4})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex EpisodeWord();
+    // "01 - Title", "01. Title", "E01 - Title", "01-02 - Title": the number a file starts with.
+    [GeneratedRegex(@"^(?:E|Ep\.?\s*)?(?<e>\d{1,3})(?:\s*[-~]\s*E?(?<e2>\d{1,3}))?(?=$|[\s._-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingNumber();
     [GeneratedRegex(@"(?<![a-z0-9])S(?<s>\d{1,2})(?![0-9a-z])(?![\s._-]*E\d)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonMarker();
     [GeneratedRegex(@"\b(?:Season|Saison|Temporada|Staffel)\s*(?<s>\d{1,2})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -195,6 +198,26 @@ public static partial class ReleaseName
         if (m.Groups["e"].Length == 4 && Year().IsMatch(m.Groups["e"].Value)) return null;
         var season = Season(text[..m.Index]);
         return new(season ?? 1, episode, OptionalNumber(m, "e2"), season is null);
+    }
+
+    /// <summary>
+    /// The number a file starts with (« 01 - Pilot », « 01. Pilot », « E01 - Pilot »), or that follows the show's title
+    /// (« Show 01 Pilot »), as an episode without its season: how many season packs name their files. The digits of a
+    /// title are not one (« 30 Rock - Pilot »).
+    /// </summary>
+    public static EpisodeNumber? LeadingEpisode(string fileName, string show)
+    {
+        var text = Readable(fileName, out _);
+        var title = Key(show);
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 1; title.Length > 0 && i <= words.Length; i++)
+        {
+            if (Key(string.Join(' ', words[..i])) != title) continue;
+            text = string.Join(' ', words[i..]);
+            break;
+        }
+        var m = LeadingNumber().Match(text);
+        return m.Success ? new(1, Number(m, "e"), OptionalNumber(m, "e2"), Absolute: true) : null;
     }
 
     /// <summary>Season of a pack ("Show - S01", "Season 2", "2nd Season"); null when absent or ambiguous (multi-season packs).</summary>
