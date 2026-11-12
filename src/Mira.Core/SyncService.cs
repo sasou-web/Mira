@@ -90,8 +90,14 @@ public sealed class SyncService : IAsyncDisposable
     private static bool IsPermanent(HttpStatusCode? status) => status is { } code && (int)code is >= 400 and < 500
         && code is not (HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
     /// <summary>Asks for the reports still waiting to be tried at once (Jellyfin answers again, for instance).</summary>
-    public void Wake() => Volatile.Read(ref _signal).TrySetResult();
-    private TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public void Wake()
+    {
+        try { _wake.Release(); }
+        // One wake already waits for the loop: it serves this one too.
+        catch (SemaphoreFullException) { }
+    }
+    /// <summary>Kept until the loop takes it: a wake that comes while the loop is busy, even just woken by another, is never lost.</summary>
+    private readonly SemaphoreSlim _wake = new(0, 1);
     /// <summary>
     /// Asleep while nothing waits to be sent: no timer, no SQLite query. Reports left after a failed delivery are tried
     /// again after a delay that grows from 3 to 30 s (<see cref="Cadence.RetryDelay"/>); a new report or
@@ -104,12 +110,10 @@ public sealed class SyncService : IAsyncDisposable
         {
             while (true)
             {
-                var signal = Volatile.Read(ref _signal); var waiting = PendingCount > 0;
-                if (waiting) await Task.WhenAny(signal.Task, Task.Delay(Cadence.RetryDelay(++failures), _lifetime.Token)).ConfigureAwait(false);
-                else { failures = 0; await signal.Task.WaitAsync(_lifetime.Token).ConfigureAwait(false); }
+                var waiting = PendingCount > 0;
+                if (waiting) await _wake.WaitAsync(Cadence.RetryDelay(++failures), _lifetime.Token).ConfigureAwait(false);
+                else { failures = 0; await _wake.WaitAsync(_lifetime.Token).ConfigureAwait(false); }
                 _lifetime.Token.ThrowIfCancellationRequested();
-                // Woken: the next wait needs a new signal, and a wake from now on is served by what follows.
-                Interlocked.CompareExchange(ref _signal, new(TaskCreationOptions.RunContinuationsAsynchronously), signal);
                 // A new report is being delivered by the flush that follows it; this loop only retries what failed.
                 if (!waiting || PendingCount == 0) continue;
                 try { await FlushAsync(_lifetime.Token).ConfigureAwait(false); }
