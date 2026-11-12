@@ -12,6 +12,8 @@
     { "name": "The.Bear.S03.COMPLETE.1080p.WEB.h264-ETHEL", "items": [["Series", "The Bear", null, 2022, "s2"]], "episodes": [[2, 1]], "line": ["Série dans ta bibliothèque, pas cette saison", "s2", false] },
     { "name": "The.Bear.S01-S03.1080p.WEB", "items": [["Series", "The Bear", null, 2022, "s2"]], "episodes": [[2, 1]], "line": ["Tu as déjà 1 épisode de cette série", "s2", true] },
     { "name": "[SubsPlease] Sousou no Frieren - 05 (1080p)", "items": [["Series", "Frieren", "Sousou no Frieren", 2023, "s3"]], "episodes": [[1, 5]], "line": ["Série dans ta bibliothèque", "s3", false] },
-    { "name": "[SubsPlease] Sousou no Frieren - 05 (1080p)", "items": [["Series", "Frieren", null, 2023, "s3"]], "line": null }
+    { "name": "[SubsPlease] Sousou no Frieren - 05 (1080p)", "items": [["Series", "Frieren", null, 2023, "s3"]], "line": null },
+    { "name": "A.Complete.Unknown.2024.MULTi.VFF.1080p.WEB.H264-FW", "items": [["Movie", "Un parfait inconnu", "A Complete Unknown", 2024, "f4"]], "line": ["Déjà dans ta bibliothèque", "f4", true] },
+    { "name": "Star.Wars.The.Bad.Batch.S03E15.1080p.WEB.h264-ETHEL", "items": [["Series", "Star Wars: The Bad Batch", null, 2021, "s4"]], "episodes": [[3, 14], [3, 15]], "line": ["Tu as déjà S03E15", "s4", true] }
   ]
 }
