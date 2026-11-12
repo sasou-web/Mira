@@ -469,7 +469,7 @@ struct TrackLine: View {
     }
 
     @ViewBuilder private var menus: some View {
-        if let source = playable.mediaSources?.first {
+        if let source = playable.ownSource {
             // What will play: chosen here, else the series' last tracks or the languages of Settings.
             let preferences = app.preferences
             let auto = TrackChoice.choose(source, memory: preferences.tracks(for: playable.seriesId),

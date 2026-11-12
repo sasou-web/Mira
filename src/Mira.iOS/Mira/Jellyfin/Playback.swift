@@ -22,6 +22,15 @@ struct MediaSource: Codable, Sendable, Hashable {
     var subtitles: [MediaStream] { (mediaStreams ?? []).filter { $0.type == "Subtitle" } }
     /// The text subtitles Jellyfin can send as text, in its order: the order of the HLS stream's subtitles.
     var textSubtitles: [MediaStream] { subtitles.filter { $0.isTextSubtitleStream == true } }
+
+    /// The file of the title `itemId` among its versions (a film in several editions or qualities): the source with the
+    /// title's id, else the first, else none. It is what Jellyfin keeps the title's length, progress, « watched »,
+    /// chapters and segments of, and what Items/{id}/Download sends. Jellyfin 10.9 lists the versions widest first, the
+    /// title's own anywhere among them, and 10.10 still answers PlaybackInfo so (12 lists it first everywhere): the first
+    /// one played or kept another version than the one Jellyfin counts (MediaSource.Own of Windows and Mac).
+    static func own(_ sources: [MediaSource]?, of itemId: String) -> MediaSource? {
+        sources?.first { $0.id?.lowercased() == itemId.lowercased() } ?? sources?.first
+    }
 }
 
 /// A track of a file: video, audio or subtitles.

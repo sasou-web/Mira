@@ -9,7 +9,7 @@ public static class MediaQuality
     /// « 4K · HDR10 », « 1080p », « SD », « 720p · Dolby Vision »: from the first video stream of the first file, by width or
     /// height (a film cropped to 3840 × 1600 is still 4K); null when the file is not known. Same as Mira web (tests/fixtures/quality.json).
     /// </summary>
-    public static string? Label(MediaItem? item) => Label(item?.MediaSources?.FirstOrDefault());
+    public static string? Label(MediaItem? item) => Label(item?.OwnSource);
     public static string? Label(MediaSource? source)
     {
         if (source?.MediaStreams.FirstOrDefault(s => s.Type == "Video") is not { } video) return null;

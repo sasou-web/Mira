@@ -254,7 +254,7 @@ public partial class MainWindow
         try
         {
             var full = await _metadata!.ItemAsync(episode.Id); if (version != _detailVersion) return;
-            _detailFile = (episode.Id, full.MediaSources?.FirstOrDefault()); RenderDetailMeta();
+            _detailFile = (episode.Id, full.OwnSource); RenderDetailMeta();
         }
         // Only a detail of the page: without it, the rest is complete.
         catch (Exception ex) when (IsExpected(ex)) { }

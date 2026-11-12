@@ -58,6 +58,8 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }
+    /// The title's own file among its versions (MediaSource.own); nil without its files.
+    var ownSource: MediaSource? { MediaSource.own(mediaSources, of: id) }
 }
 
 /// Someone in a title's credits, as Jellyfin lists them: an actor and their role, a director.

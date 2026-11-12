@@ -251,7 +251,7 @@ public static class OfflineCopies
     /// <summary>The copy with the file Jellyfin describes now (its tracks, its external subtitles), when it changed since.</summary>
     private static async Task<OfflineCopy> ReadAgainAsync(JellyfinClient client, OfflineCopy copy, CancellationToken ct)
     {
-        if ((await client.ItemAsync(copy.Item.Id, ct)).MediaSources?.FirstOrDefault() is not { } source) return copy;
+        if ((await client.ItemAsync(copy.Item.Id, ct)).OwnSource is not { } source) return copy;
         copy = copy with { Source = source, Size = source.Size ?? 0 };
         Save(copy);
         return copy;

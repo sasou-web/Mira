@@ -84,6 +84,20 @@ struct PlaybackTests {
         #expect(PlaybackPlan.uncappedBitrate(source { $0.supportsDirectPlay = false }, stage: 1, bitrate: 8_000_000) == nil)
     }
 
+    @Test("Un film en plusieurs versions : son propre fichier, celui que Jellyfin envoie et dont il compte la progression (Jellyfin 10.9 et 10.10 répondent la plus large d'abord)")
+    func ownVersion() {
+        let long = MediaSource(id: "long", container: "mkv"), own = MediaSource(id: "film", container: "mkv")
+        #expect(Item(id: "film", mediaSources: [long, own]).ownSource?.id == "film")
+        #expect(Item(id: "FILM", mediaSources: [long, own]).ownSource?.id == "film")
+        #expect(Item(id: "film", mediaSources: [own, long]).ownSource?.id == "film")
+        #expect(Item(id: "film", mediaSources: [long]).ownSource?.id == "long")
+        #expect(Item(id: "film").ownSource == nil)
+        // PlaybackInfo's answer when no version is asked: all of them, each with what Jellyfin decided for it.
+        #expect(MediaSource.own([long, own], of: "film")?.id == "film")
+        #expect(MediaSource.own([], of: "film") == nil)
+        #expect(MediaSource.own(nil, of: "film") == nil)
+    }
+
     @Test("Le fichier tel quel, en MP4")
     func directPlay() throws {
         let stream = try #require(PlaybackPlan.stream(source { $0.eTag = "e1" }, itemId: "item", deviceId: "phone 1", stage: 0, subtitleIndex: -1, miraHls: true))

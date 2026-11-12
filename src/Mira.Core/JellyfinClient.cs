@@ -612,11 +612,11 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>The address mpv reads a title's subtitle file from (with <see cref="AuthorizationHeader"/>), in its own format.</summary>
     public Uri SubtitleUri(string itemId, string sourceId, MediaStream subtitle) => new(_http.BaseAddress!,
         $"Videos/{Uri.EscapeDataString(itemId)}/{Uri.EscapeDataString(sourceId)}/Subtitles/{subtitle.Index}/0/Stream.{JellyfinSubtitles.Extension(subtitle.Codec)}");
-    /// <summary>A title's streams as Jellyfin lists them now: those of <paramref name="sourceId"/>, else of its first file.</summary>
+    /// <summary>A title's streams as Jellyfin lists them now: those of <paramref name="sourceId"/>, else of its own file (<see cref="MediaSource.Own"/>).</summary>
     public async Task<IReadOnlyList<MediaStream>> StreamsAsync(string itemId, string? sourceId, CancellationToken ct = default)
     {
         var sources = (await ItemAsync(itemId, ct)).MediaSources ?? [];
-        return (sources.FirstOrDefault(x => x.Id == sourceId) ?? sources.FirstOrDefault())?.MediaStreams ?? [];
+        return (sources.FirstOrDefault(x => x.Id == sourceId) ?? MediaSource.Own(sources, itemId))?.MediaStreams ?? [];
     }
     /// <summary>
     /// The subtitle file just kept on a title, once Jellyfin lists it (it reads the file about a second later): looked
