@@ -4251,6 +4251,16 @@
         }
       }
     },
+    "UP NEXT": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À SUIVRE"
+          }
+        }
+      }
+    },
     "Watched": {
       "localizations": {
         "fr": {

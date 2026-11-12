@@ -469,6 +469,8 @@ public static class SelfCheck
                 Check(shelfPage.ShowSeasonForCheck(Lang.L("Saison 2 · absente", "Season 2 · not in library")), "épisodes manquants et à venir : saison absente");
                 await Task.Delay(900); Capture(window, output, "06d-series-absent-season");
                 shelfPage.ShowSeasonForCheck(shelfPage.SeasonLabels.First());
+                Check(shelfPage.PillsShown && shelfPage.TilesShown > 0, "épisodes en grille, saisons en pastilles", $"{shelfPage.TilesShown} tuiles");
+                shelfPage.ShowEpisodesForCheck(); await Task.Delay(900); Capture(window, output, "06e-series-grid");
             }
             await Task.Delay(1200); Capture(window, output, "06-series");
             // Refreshed as after the player or a title marked watched: the episodes stay, and the page with them scrolls.

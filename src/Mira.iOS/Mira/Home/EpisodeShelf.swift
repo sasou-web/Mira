@@ -3,8 +3,9 @@ import SwiftUI
 
 /// Missing and coming episodes « à leur place » (ogsas, 2026-11-12, mock-up B), as Windows and Mac show them
 /// (EpisodeShelf of Core, cases in tests/fixtures/calendar.json, « shelf », written in French there: `french` says
-/// them so). No card above a series' episodes: in the season shown, the episodes the library lacks are one thin line
-/// where they would be, the next one to come out a hollow row at its place, those after it one more line; a season
+/// them so). No card above a series' episodes: in the season's grid of tiles, the episodes the library lacks are one
+/// hollow tile where they would be (opened into one tile each), the next one to come out a hollow tile at its place,
+/// those after it one more; a season
 /// the library has none of is among the seasons (« Season 1 · not in library »), shown as a calm card. Nothing in
 /// amber: some never want those episodes, and « Show missing episodes » off keeps only those coming.
 enum EpisodeShelf {
@@ -101,10 +102,14 @@ enum EpisodeShelf {
 
     /// « É7–9 · à venir · du 22 nov. au 6 déc. », a thin line of the episodes announced after the next one.
     static func laterText(_ run: [Item], today: Day, french: Bool = EpisodeShelf.french) -> String {
-        let when = run.count == 1
+        "\(code(run, french: french)) · \(french ? "à venir" : "coming") · \(when(run, today: today, french: french))"
+    }
+
+    /// When the episodes of a run come out: « samedi », « du 22 nov. au 6 déc. ».
+    static func when(_ run: [Item], today: Day, french: Bool = EpisodeShelf.french) -> String {
+        run.count == 1
             ? EpisodeCalendar.dayText(day(run[0]), today: today, french: french)
             : span(run, today: today, before: french ? "du " : "", between: french ? " au " : " – ", french: french)
-        return "\(code(run, french: french)) · \(french ? "à venir" : "coming") · \(when)"
     }
 
     /// « sorti mardi 20 octobre », « sortis du 8 janv. au 25 juin 2026 ».
@@ -160,6 +165,16 @@ enum EpisodeShelf {
             : EpisodeCalendar.dayTitle(when, today: today, french: french))
     }
 
+    /// The two lines of a tile standing for a run the library lacks (EpisodeTiles.GapLines of Core): « Not in your
+    /// library » + « Aired Nov 3 – Nov 10 », « Coming » + « Nov 29 – Dec 27 ».
+    static func gapLines(_ line: Line, today: Day, french: Bool = EpisodeShelf.french) -> (first: String, second: String) {
+        line.kind == .later
+            ? (french ? "À venir" : "Coming", capital(when(line.episodes, today: today, french: french)))
+            : (french ? "Pas dans ta bibliothèque" : "Not in your library", capital(aired(line.episodes, today: today, french: french)))
+    }
+
+    private static func capital(_ text: String) -> String { text.prefix(1).uppercased() + text.dropFirst() }
+
     /// A short day, « 25 oct. », « Oct 25 », with its year in another year than today's.
     static func shortDay(_ day: Day, today: Day, french: Bool = EpisodeShelf.french) -> String { short(day, year: day.year != today.year, french: french) }
 
@@ -204,98 +219,93 @@ extension EpisodeShelf {
     }
 }
 
-/// The next episode to come out, at its place: as an episode's row, hollow, its day under its name.
-struct ShelfComingRow: View {
+/// An episode the library lacks, as a tile of the grid: no picture to play, its name and its day (the next one to come
+/// out, or one of a run opened).
+struct ShelfHollowTile: View {
     let episode: Item
+    /// The next one to come out (« series.shelf.coming »), else one of a run opened.
+    let coming: Bool
 
     var body: some View {
         let today = EpisodeCalendar.Day.today()
-        let width: CGFloat = 150
-        HStack(alignment: .top, spacing: 12) {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Palette.line, lineWidth: 1)
-                .frame(width: width, height: width * 9 / 16)
+        let (_, when) = EpisodeShelf.entry(episode, today: today)
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear
+                .aspectRatio(16 / 9, contentMode: .fit)
                 .overlay { Image(systemName: "calendar").font(.title3).foregroundStyle(Palette.faint) }
+                .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.line, lineWidth: 1) }
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(verbatim: [episode.indexNumber.map { "\($0)" }, EpisodeShelf.name(episode)].compactMap(\.self).joined(separator: ". "))
-                    .font(MiraFont.headline)
-                    .foregroundStyle(Palette.muted)
-                    .lineLimit(2)
-                Text(verbatim: EpisodeCalendar.dayTitle(EpisodeCalendar.airDay(episode)!, today: today)).font(MiraFont.footnote).foregroundStyle(Palette.ink)
-                Text(verbatim: EpisodeShelf.notOut()).font(MiraFont.footnote).foregroundStyle(Palette.faint)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            EpisodeTileTitle(number: episode.indexNumber, name: EpisodeShelf.name(episode), ink: Palette.muted)
+                .padding(.top, 8)
+            Text(verbatim: when).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(1).padding(.top, 2)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("series.shelf.coming")
+        .accessibilityIdentifier(coming ? "series.shelf.coming" : "series.shelf.entry")
     }
 }
 
-/// « E3–4 · not in your library · aired Oct 25 – Nov 1 », where they would be; « Show » lists them under it.
-struct ShelfThinLine: View {
+/// A run the library lacks, the size of a picture: « E3–4 », « Not in your library », « Aired Oct 25 – Nov 1 »; it opens
+/// into one tile each.
+struct ShelfGapTile: View {
     let line: EpisodeShelf.Line
     @Binding var open: Set<String>
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let today = EpisodeCalendar.Day.today()
         let shown = open.contains(line.id)
         let text = line.kind == .later ? EpisodeShelf.laterText(line.episodes, today: today) : EpisodeShelf.missingText(line.episodes, today: today)
-        let code = EpisodeShelf.code(line.episodes)
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeOut(duration: 0.2)) { if shown { open.remove(line.id) } else { open.insert(line.id) } }
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(styled(code: code, text: text))
-                        .font(MiraFont.footnote)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .multilineTextAlignment(.leading)
-                    Text(verbatim: EpisodeShelf.show(line.episodes.count, open: shown))
+        let (first, second) = EpisodeShelf.gapLines(line, today: today)
+        Button {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.28)) { if shown { open.remove(line.id) } else { open.insert(line.id) } }
+        } label: {
+            Color.clear
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .overlay(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: EpisodeShelf.code(line.episodes)).font(MiraFont.bold(15, .subheadline)).foregroundStyle(Palette.ink)
+                        Text(verbatim: first).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(1)
+                        Text(verbatim: second).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(1)
+                        HStack(spacing: 4) {
+                            Text(verbatim: EpisodeShelf.show(line.episodes.count, open: shown))
+                            Image(systemName: shown ? "chevron.up" : "chevron.down").font(.caption2.weight(.bold))
+                        }
                         .font(MiraFont.bold(13, .footnote))
                         .foregroundStyle(Palette.ink)
+                        .padding(.top, 6)
+                    }
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 14)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
+                .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.line, lineWidth: 1) }
                 .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Palette.line, lineWidth: 1) }
-            .accessibilityLabel(Text(verbatim: text))
-            .accessibilityHint(Text(verbatim: EpisodeShelf.show(line.episodes.count, open: shown)))
-            .accessibilityIdentifier(line.kind == .later ? "series.shelf.later" : "series.shelf.missing")
-            if shown { ShelfEntries(episodes: line.episodes) }
         }
-    }
-
-    // Its code in bold, the rest quieter: « **E3–4** · not in your library · … ».
-    private func styled(code: String, text: String) -> AttributedString {
-        var head = AttributedString(code)
-        head.font = MiraFont.bold(13, .footnote)
-        head.foregroundColor = Palette.ink
-        var rest = AttributedString(String(text.dropFirst(code.count)))
-        rest.foregroundColor = Palette.muted
-        return head + rest
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(verbatim: text))
+        .accessibilityHint(Text(verbatim: EpisodeShelf.show(line.episodes.count, open: shown)))
+        .accessibilityIdentifier(line.kind == .later ? "series.shelf.later" : "series.shelf.missing")
     }
 }
 
 /// A season the library has none of: « Season 1 isn’t in your library », how many and when, where they come from; its
-/// episodes on demand.
+/// episodes on demand, as tiles.
 struct AbsentSeasonCard: View {
     let season: Int
     let episodes: [Item]
     @State private var open = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         let today = EpisodeCalendar.Day.today()
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "calendar").font(.title3).foregroundStyle(Palette.faint).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(verbatim: EpisodeShelf.seasonTitle(season)).font(MiraFont.bold(15, .subheadline)).foregroundStyle(Palette.ink)
                     Text(verbatim: EpisodeShelf.seasonText(episodes, today: today)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
                     Button {
-                        withAnimation(.easeOut(duration: 0.2)) { open.toggle() }
+                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.28)) { open.toggle() }
                     } label: {
                         Text(verbatim: EpisodeShelf.showSeason(episodes.count, open: open)).font(MiraFont.bold(13, .footnote)).foregroundStyle(Palette.ink)
                     }
@@ -310,37 +320,12 @@ struct AbsentSeasonCard: View {
             .overlay { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Palette.line, lineWidth: 1) }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("series.absentSeason")
-            if open { ShelfEntries(episodes: episodes) }
-        }
-    }
-}
-
-/// The episodes of a thin line or of an absent season, one by one: « E3 · Its name », the day on the right (under it
-/// at the largest text sizes).
-struct ShelfEntries: View {
-    let episodes: [Item]
-
-    var body: some View {
-        let today = EpisodeCalendar.Day.today()
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(episodes, id: \.id) { episode in
-                let (name, when) = EpisodeShelf.entry(episode, today: today)
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(verbatim: name).font(MiraFont.footnote).foregroundStyle(Palette.ink).lineLimit(1)
-                        Spacer(minLength: 0)
-                        Text(verbatim: when).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(1)
-                    }
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(verbatim: name).font(MiraFont.footnote).foregroundStyle(Palette.ink)
-                        Text(verbatim: when).font(MiraFont.footnote).foregroundStyle(Palette.muted)
-                    }
+            if open {
+                LazyVGrid(columns: EpisodeGrid.columns(typeSize), alignment: .leading, spacing: EpisodeGrid.rowSpacing) {
+                    ForEach(episodes, id: \.id) { ShelfHollowTile(episode: $0, coming: false) }
                 }
-                .accessibilityElement(children: .combine)
+                .transition(.opacity)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .accessibilityIdentifier("series.shelf.list")
     }
 }
