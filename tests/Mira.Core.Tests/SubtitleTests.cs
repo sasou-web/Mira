@@ -26,6 +26,33 @@ internal static class SubtitleTests
     public static async Task RunAsync(TestRun run)
     {
         var Test = run.Test;
+        await Test("Sous-titres : un fichier dans l'ancien encodage de sa langue lu dans celui-ci (russe, polonais, turc, arabe, japonais, coréen, chinois…)", () =>
+        {
+            // Each line as Windows wrote it for its language, as old files still come from the sources: read as Windows-1252
+            // until now, so kept on Jellyfin unreadable (« Ïðèâåò » for « Привет »).
+            foreach (var (language, page, line) in new[]
+            {
+                ("rus", 1251, "Привет, как дела? Всё хорошо."), ("ukr", 1251, "Що ти робиш? Їжу."), ("pol", 1250, "Zażółć gęślą jaźń."),
+                ("cze", 1250, "Příliš žluťoučký kůň."), ("tur", 1254, "Şimdi gidiyorum, görüşürüz."), ("gre", 1253, "Καλημέρα, τι κάνεις;"),
+                ("heb", 1255, "שלום, מה שלומך?"), ("ara", 1256, "مرحبا، كيف حالك؟"), ("jpn", 932, "こんにちは、元気ですか？"),
+                ("kor", 949, "안녕하세요, 잘 지내세요?"), ("tha", 874, "สวัสดีครับ"), ("est", 1257, "Tere, kuidas läheb? Šokolaad."),
+                // Chinese: Simplified in GBK, Traditional in Big5, told apart by the words of the dialogue.
+                ("chi", 936, "你好，我是你的朋友。这是什么？"), ("chi", 950, "你好，我是你的朋友。這是什麼？"), ("zh-TW", 950, "你們好嗎？我沒有說過。"),
+            })
+            {
+                var read = SubtitleText.Decode(CodePagesEncodingProvider.Instance.GetEncoding(page)!.GetBytes(line), language);
+                Assert(read == line, $"{language} ({page}): {read}");
+            }
+            // French and the languages of Western Europe: Windows-1252, as before; UTF-8 and a mark say what they are.
+            byte[] french = [0xC7, 0x61, 0x20, 0x9C, 0x92, 0x85];
+            Assert(SubtitleText.Decode(french, "fre") == "Ça œ’…" && SubtitleText.Decode(french, "spa") == "Ça œ’…" && SubtitleText.Decode(french, "und") == "Ça œ’…", "Windows-1252");
+            Assert(SubtitleText.Decode(Encoding.UTF8.GetBytes("Привет"), "rus") == "Привет" && SubtitleText.Decode(Encoding.UTF8.GetBytes("Ça va ?"), "rus") == "Ça va ?", "UTF-8 whatever the language");
+            Assert(SubtitleText.Decode([0xFF, 0xFE, .. Encoding.Unicode.GetBytes("你好")], "jpn") == "你好", "UTF-16 with a mark");
+            // A whole file: its lines read, then written back as SRT (UTF-8).
+            var russian = SubtitleText.Parse(SubtitleText.Decode(CodePagesEncodingProvider.Instance.GetEncoding(1251)!.GetBytes("1\r\n00:00:02,000 --> 00:00:07,000\r\nПривет, как дела?\r\n"), "rus"));
+            Assert(russian.Count == 1 && russian[0].Text == "Привет, как дела?" && SubtitleText.ToSrt(russian).Contains("Привет, как дела?", StringComparison.Ordinal), "Russian file: " + string.Join(" | ", russian));
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres : un fichier lu quel que soit son encodage, son format reconnu, ses lignes, et réécrit en SRT", () =>
         {
             Assert(SubtitleText.Decode(Encoding.UTF8.GetBytes("Ça va ?")) == "Ça va ?", "UTF-8");
