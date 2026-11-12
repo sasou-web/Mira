@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Mac.Services;
 using static Mira.Core.Lang;
@@ -53,6 +54,9 @@ public sealed class BrowsePage : Page
     private List<LibrarySection> _libraries = [];
     private readonly Button _favorites, _reset, _filtersToggle;
     private readonly Border _filters;
+    /// <summary>The filters that narrow the list, as chips beside « Trier par » (removed by their ✕), as on Windows.</summary>
+    private readonly StackPanel _active = new() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _filtersCount = new() { FontSize = 13, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center };
     private readonly Control _libraryField;
     private readonly TextBlock _gridTitle = Ui.SectionTitle("");
     private bool _filtersOpen;
@@ -123,29 +127,36 @@ public sealed class BrowsePage : Page
         DockPanel.SetDock(refresh, Dock.Right); DockPanel.SetDock(_favorites, Dock.Right);
         _favorites.Margin = new Thickness(0, 0, 12, 0);
         tools.Children.Add(refresh); tools.Children.Add(_favorites);
-        tools.Children.Add(Ui.Row(0, _filtersToggle, new TextBlock { Text = L("Trier par", "Sort by"), Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(22, 0, 10, 0) }, _sort));
+        tools.Children.Add(Ui.Row(0, _filtersToggle, new TextBlock { Text = L("Trier par", "Sort by"), Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(22, 0, 10, 0) }, _sort, _active));
         Control Labelled(string label, ComboBox box)
         {
             box.HorizontalAlignment = HorizontalAlignment.Stretch;
-            return Ui.Column(9, new TextBlock { Text = label, FontSize = 13, Margin = new Thickness(1, 0, 0, 0) }, box);
+            var field = Ui.Column(9, new TextBlock { Text = label, FontSize = 13, Margin = new Thickness(1, 0, 0, 0) }, box);
+            field.Width = 252;
+            return field;
         }
-        // As on Windows: genre, year, progress and library, then under them picture, rating, audio and subtitles.
-        var fields = new Grid { ColumnDefinitions = new ColumnDefinitions("*,0.75*,*,1.25*,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto") };
-        var cells = new[] { Labelled(L("Genre", "Genre"), _genre), Labelled(L("Année", "Year"), _year), Labelled(L("Progression", "Progress"), _state), _libraryField = Labelled(L("Bibliothèque", "Library"), _library),
-            Labelled(L("Image", "Picture"), _quality), Labelled(L("Note", "Rating"), _rating), _audioField = Labelled(L("Langue audio", "Audio language"), _audio), Labelled(L("Sous-titres", "Subtitles"), _subtitles), _reset };
-        for (var i = 0; i < cells.Length; i++)
-        {
-            var last = i == cells.Length - 1;
-            Grid.SetColumn(cells[i], last ? 4 : i % 4); Grid.SetRow(cells[i], last || i >= 4 ? 1 : 0);
-            if (!last) cells[i].Margin = new Thickness(0, i >= 4 ? 16 : 0, 16, 0);
-            fields.Children.Add(cells[i]);
-        }
+        // As on Windows: two columns, genre and year, progress and library, picture and rating, audio and subtitles
+        // (a field hidden leaves no hole: a wrap panel).
+        var fields = new WrapPanel { ItemSpacing = 14, LineSpacing = 14 };
+        foreach (var cell in new[] { Labelled(L("Genre", "Genre"), _genre), Labelled(L("Année", "Year"), _year), Labelled(L("Progression", "Progress"), _state), _libraryField = Labelled(L("Bibliothèque", "Library"), _library),
+            Labelled(L("Image", "Picture"), _quality), Labelled(L("Note", "Rating"), _rating), _audioField = Labelled(L("Langue audio", "Audio language"), _audio), Labelled(L("Sous-titres", "Subtitles"), _subtitles) })
+            fields.Children.Add(cell);
         _audioField.IsVisible = false;
+        var footer = new DockPanel { Margin = new Thickness(0, 10, 0, 0), MinHeight = 34 };
+        DockPanel.SetDock(_reset, Dock.Right); _reset.VerticalAlignment = VerticalAlignment.Center;
+        footer.Children.Add(_reset); footer.Children.Add(_filtersCount);
+        // « Filtrer » opens over the grid, nothing below moves (a canvas of no height, above the page's next rows);
+        // a click elsewhere, Escape or another page folds it. No slide: it is there at once.
         _filters = new Border
         {
-            IsVisible = false, Background = Ui.Brush("#111112"), BorderBrush = Ui.Brush("#29292D"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(20, 16, 20, 20), Margin = new Thickness(0, 0, 0, 26), Child = fields
+            IsVisible = false, Width = 560, Background = Ui.Brush("#111112"), BorderBrush = Ui.Brush("#3A3A3E"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(18, 16, 18, 10), Child = Ui.Column(0, fields, footer),
+            BoxShadow = BoxShadows.Parse("0 14 44 0 #9E000000")
         };
+        Canvas.SetTop(_filters, -10);
+        var filtersLayer = new Canvas { Height = 0, ZIndex = 1, Children = { _filters } };
+        AddHandler(PointerPressedEvent, FoldFiltersOnPress, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        Showing += shown => { if (!shown) CloseFilters(); };
         var gridHeader = new DockPanel { Margin = new Thickness(0, 0, 6, 22) };
         DockPanel.SetDock(_count, Dock.Right); gridHeader.Children.Add(_count); gridHeader.Children.Add(_gridTitle);
 
@@ -160,7 +171,7 @@ public sealed class BrowsePage : Page
             page.Children.Add(_search);
             Showing += shown => { if (shown) Dispatcher.UIThread.Post(() => { if (IsShowing) _search.Focus(); }, DispatcherPriority.Input); };
         }
-        else { page.Children.Add(tools); page.Children.Add(_filters); }
+        else { page.Children.Add(tools); page.Children.Add(filtersLayer); }
         _genreRow = new ScrollViewer { Content = _genreChips, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(0, 0, 0, 24), IsVisible = false };
         if (kind is BrowseKind.Movies or BrowseKind.Series && person is null && saga is null && studio is null) { page.Children.Add(_genreRow); page.Children.Add(_pickUp); }
         if (person is not null)
@@ -243,7 +254,41 @@ public sealed class BrowsePage : Page
         : _kind == BrowseKind.Search ? L("Un film, une série, un épisode, une collection, un acteur ou un studio de ta bibliothèque.", "A movie, a show, an episode, a collection, an actor or a studio from your library.")
         : L("Trouve ta prochaine séance dans ta bibliothèque.", "Find your next show in your library.");
     /// <summary>« Filtrer »: the card of filters shown or folded (the self-check).</summary>
-    public void ToggleFilters() { _filtersOpen = !_filtersOpen; ShowTools(); }
+    public void ToggleFilters() { _filtersOpen = !_filtersOpen; ShowTools(); if (_filtersOpen) _genre.Focus(); }
+    public bool FiltersOpen => _filtersOpen;
+    /// <summary>The filters folded: Escape, a click outside them, another page.</summary>
+    public void CloseFilters(bool focusToggle = false)
+    {
+        if (!_filtersOpen) return;
+        _filtersOpen = false; ShowTools();
+        if (focusToggle) _filtersToggle.Focus();
+    }
+    private ComboBox[] FilterBoxes => [_genre, _year, _state, _library, _quality, _rating, _audio, _subtitles];
+    /// <summary>
+    /// A press outside the open filters folds them; one on the grid is taken by it (a poster under the pointer is not
+    /// opened by the click meant to close). While one of their lists is dropped down, the press only closes that list.
+    /// </summary>
+    private void FoldFiltersOnPress(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (!_filtersOpen || FilterBoxes.Any(x => x.IsDropDownOpen) || e.Source is not Visual source) return;
+        if (_filters.IsVisualAncestorOf(source) || _filters == source || _filtersToggle.IsVisualAncestorOf(source) || _filtersToggle == source) return;
+        CloseFilters();
+        if (_grid.IsVisualAncestorOf(source)) e.Handled = true;
+    }
+    /// <summary>Each filter that narrows the list as a chip (Genre has its own chips on Films and Séries).</summary>
+    private void ShowActiveFilters()
+    {
+        var chosen = FilterBoxes.Where(x => x.SelectedIndex > 0 && x.SelectedItem is string && !(x == _genre && _genreRow is { IsVisible: true })).Select(x => (Box: x, Label: (string)x.SelectedItem!)).ToList();
+        if (_active.Children.OfType<Button>().Select(x => x.Tag).SequenceEqual(chosen.Select(x => (object)(x.Box.GetHashCode() + ":" + x.Label)))) return;
+        _active.Children.Clear();
+        foreach (var (box, label) in chosen)
+        {
+            var chip = Ui.Action(label, "close", "chip", () => box.SelectedIndex = 0);
+            chip.Tag = box.GetHashCode() + ":" + label;
+            Avalonia.Automation.AutomationProperties.SetName(chip, L($"Retirer le filtre {label}", $"Remove the {label} filter"));
+            _active.Children.Add(chip);
+        }
+    }
     private void ShowTools()
     {
         if (_kind == BrowseKind.Search) return;
@@ -253,6 +298,7 @@ public sealed class BrowsePage : Page
         Avalonia.Automation.AutomationProperties.SetName(_filtersToggle, Catalog.FiltersLabel(count));
         _filtersToggle.Classes.Set("on", _filtersOpen);
         _filters.IsVisible = _filtersOpen;
+        ShowActiveFilters();
         _reset.IsVisible = count > 0;
         _favorites.Classes.Set("on", _favoritesOnly);
         if (((StackPanel)_favorites.Content!).Children.OfType<Icon>().FirstOrDefault() is { } heart) heart.Kind = _favoritesOnly ? "heart-filled" : "heart";
@@ -471,7 +517,7 @@ public sealed class BrowsePage : Page
     private static string GridKind => "grid" + CardGrid.Pixels;
     /// <summary>The cards' shapes shown while titles come: for the self-check.</summary>
     public int SkeletonCards => _grid.SkeletonCards;
-    private void Count() => _count.Text = _total == 0 ? "" : Lang.Count(_total, "titre", "titres", "title", "titles");
+    private void Count() => _count.Text = _filtersCount.Text = _total == 0 ? "" : Lang.Count(_total, "titre", "titres", "title", "titles");
     /// <summary>The people found, drawn again only when they change (their photos do not flash at each refresh).</summary>
     private void ShowPeople(List<MediaItem> people)
     {

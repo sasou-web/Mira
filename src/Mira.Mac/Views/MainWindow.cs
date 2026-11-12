@@ -1125,6 +1125,7 @@ public sealed partial class MainWindow : Window
     {
         if (Watching || CurrentSheet is not null) return;
         var command = e.KeyModifiers.HasFlag(KeyModifiers.Meta) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (e.Key == Key.Escape && Current is BrowsePage { FiltersOpen: true } browse) { browse.CloseFilters(focusToggle: true); e.Handled = true; return; }
         if (e.Key == Key.Escape || command && e.Key == Key.OemOpenBrackets) { if (Back()) e.Handled = true; return; }
         if (command && e.Key == Key.OemCloseBrackets) { if (Forward()) e.Handled = true; return; }
         if (command && e.Source is not TextBox && ZoomKey(e)) { e.Handled = true; return; }

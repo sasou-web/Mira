@@ -631,6 +631,7 @@ public partial class MainWindow
         if (SettingsOverlay.Visibility == Visibility.Visible) { _ = CloseSettingsAnimatedAsync(); return true; }
         if (DetailOverlay.Visibility == Visibility.Visible && (!_playing || _miniPlayer)) { _ = BackFromDetailsAsync(); return true; }
         if (TorLinkOverlay.Visibility == Visibility.Visible && TorLinkOverlay.IsHitTestVisible && (!_playing || _miniPlayer)) { _ = CloseTorLinkAsync(); return true; }
+        if (_filtersOpen && CatalogFilters.IsVisible && (!_playing || _miniPlayer)) { CloseFilters(focusToggle: true); return true; }
         if (_playing && !_miniPlayer) { BackFromPlayer_Click(this, new()); return true; }
         // A person's titles, opened from a title page or a search: back to it.
         if ((_catalog.Person is not null || _catalog.Saga is not null) && (_personFrom is not null || _personSearch is not null)) { _ = BackFromPersonAsync(); return true; }
