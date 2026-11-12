@@ -6,9 +6,11 @@ using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Controller.Subtitles;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.IO;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Mira.Core.Subtitles;
@@ -19,8 +21,8 @@ namespace Mira.Jellyfin;
 /// « Sous-titres automatiques » by itself: each film or episode added to the library waits in <see cref="SubtitleQueue"/>
 /// for each language of the Réglages, and is tried by a loop of its own, once a minute, never while anyone is watching
 /// something on Jellyfin. A try asks the sources through « Mira » (<see cref="MiraSubtitleProvider"/>), takes only what
-/// is sure or good for the file (<see cref="SubtitleMatch.Automatic"/>), and has Jellyfin write it where the library
-/// keeps its subtitles. With « Recaler » on (the default), a subtitle not made for this very file is aligned first on
+/// is sure or good for the file (<see cref="SubtitleMatch.Automatic"/>), has Jellyfin write it where the library
+/// keeps its subtitles and read the title again (<see cref="Reread"/>). With « Recaler » on (the default), a subtitle not made for this very file is aligned first on
 /// when people speak in the video (<see cref="SubtitleReference"/>, <see cref="SubtitleAlign"/>): moved and sped up or
 /// down when it needs it, and one that was only worth taking once aligned is taken only if it fits. Nothing good yet: tried again later; a source's quota
 /// spent: everything waits for its reset. Independent of Jellyfin's own « Télécharger les sous-titres » of each
@@ -43,6 +45,8 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
     private readonly ISessionManager _sessions;
     private readonly ISubtitleManager _subtitles;
     private readonly IMediaEncoder _encoder;
+    private readonly IProviderManager _providers;
+    private readonly IFileSystem _fileSystem;
     private readonly MiraSubtitleProvider _provider;
     private readonly ILogger<SubtitleAutomation> _logger;
     private readonly CancellationTokenSource _stop = new();
@@ -50,9 +54,9 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
     private DateTimeOffset _pausedUntil;
 
     public SubtitleAutomation(ILibraryManager library, ISessionManager sessions, ISubtitleManager subtitles, IMediaSourceManager mediaSources, IMediaEncoder encoder,
-        IHttpClientFactory clients, ILogger<SubtitleAutomation> logger, ILogger<MiraSubtitleProvider> providerLogger)
+        IProviderManager providers, IFileSystem fileSystem, IHttpClientFactory clients, ILogger<SubtitleAutomation> logger, ILogger<MiraSubtitleProvider> providerLogger)
     {
-        _library = library; _sessions = sessions; _subtitles = subtitles; _encoder = encoder; _logger = logger;
+        _library = library; _sessions = sessions; _subtitles = subtitles; _encoder = encoder; _providers = providers; _fileSystem = fileSystem; _logger = logger;
         _provider = new MiraSubtitleProvider(library, mediaSources, clients, providerLogger);
     }
 
@@ -162,6 +166,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
             return Outcome.Quick;
         }
         if (video.RunTimeTicks is null || video is Episode && MiraSubtitleProvider.Numbers(video).Episode is null) { Queue.Postpone(wait.ItemId, wait.Language, DateTimeOffset.UtcNow + NotReadYet); return Outcome.Quick; }
+        foreach (var other in OtherVersions(video)) Queue.Add(other, wait.Language, wait.Backlog);
         if (Has(video, two)) { Queue.Done(wait.ItemId, wait.Language); return Outcome.Quick; }
         var sources = _provider.Sources(settings);
         if (sources.Count == 0) { Queue.Postpone(wait.ItemId, wait.Language, DateTimeOffset.UtcNow + NoSource); return Outcome.Quick; }
@@ -198,6 +203,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                 {
                     // Made for this very file (or nothing to align with): as « Chercher des sous-titres » would.
                     await _subtitles.DownloadSubtitles(video, mira.Id + "_" + MiraSubtitleProvider.Id(candidate), ct).ConfigureAwait(false);
+                    Reread(video);
                     Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, "kept", candidate.Source, candidate.ReleaseName, score.Score));
                     Queue.Done(wait.ItemId, wait.Language);
                     return Outcome.Searched;
@@ -231,6 +237,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                     IsHearingImpaired = fetched.IsHearingImpaired,
                     Stream = new MemoryStream(Encoding.UTF8.GetBytes(text)),
                 }).ConfigureAwait(false);
+                Reread(video);
                 Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, "kept", candidate.Source, candidate.ReleaseName, score.Score, null,
                     sync is { Confident: true } ? referenceKind : null, sync is { Changes: true } ? Math.Round(sync.Shift.TotalSeconds, 2) : null, sync is { Changes: true } && sync.Ratio != 1 ? Math.Round(sync.Ratio, 5) : null));
                 Queue.Done(wait.ItemId, wait.Language);
@@ -259,6 +266,25 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                 best?.Candidate.Source, best?.Candidate.ReleaseName, best?.Score, Reasons: best?.Reasons));
         return Outcome.Searched;
     }
+
+    /// <summary>
+    /// A subtitle just written beside the title: Jellyfin reads the title again, as after its own « Chercher des
+    /// sous-titres » (its <see cref="ISubtitleManager"/> writes the file and nothing more), otherwise no app lists the
+    /// subtitle before the next scan of the library, hours later.
+    /// </summary>
+    private void Reread(Video video) => _providers.QueueRefresh(video.Id, new MetadataRefreshOptions(new DirectoryService(_fileSystem)), RefreshPriority.High);
+
+    /// <summary>
+    /// The title's other versions in its folder (« Film - 720p.mkv » beside « Film - 1080p.mkv »), each with a file of its
+    /// own, so with subtitles of its own (another release, another cut). Jellyfin keeps them as items owned by this one,
+    /// read with it, which it never announces as added nor lists among the library's titles: they wait with it, as it does.
+    /// </summary>
+    private IEnumerable<string> OtherVersions(Video video) =>
+        (video.LocalAlternateVersions ?? [])
+            .Select(path => _library.GetItemById(_library.GetNewItemId(path, video.GetType())))
+            .OfType<Video>()
+            .Where(other => other.Id != video.Id && Wanted(other))
+            .Select(other => other.Id.ToString("N"));
 
     /// <summary>
     /// Whether the title already has subtitles in this language, not only forced ones: in the file itself, beside it,

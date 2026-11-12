@@ -55,14 +55,17 @@ public sealed class SubtitleQueue
         return next - firstSeen > GiveUpAfter ? null : next;
     }
 
-    /// <summary>A title that arrived, for one language; a title already waiting for it keeps its place.</summary>
-    public void Add(string itemId, string language)
+    /// <summary>
+    /// A title that arrived, for one language; a title already waiting for it keeps its place. Backlog: asked for once
+    /// only, as the title of the backlog it is another version of.
+    /// </summary>
+    public void Add(string itemId, string language, bool backlog = false)
     {
         lock (_gate)
         {
             if (_waits.Any(x => x.ItemId == itemId && x.Language == language)) return;
             var now = _now();
-            _waits.Add(new SubtitleWait(itemId, language, now, now + FirstDelay, 0));
+            _waits.Add(new SubtitleWait(itemId, language, now, now + FirstDelay, 0, backlog));
             if (_waits.Count > Keep) _waits.RemoveRange(0, _waits.Count - Keep);
             Save();
         }
