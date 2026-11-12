@@ -240,8 +240,9 @@ final class MiraUITests: XCTestCase {
     }
 
     /// « Keep on this iPhone »: a film kept as its file (Tears of Steel), another as Jellyfin's conversion (Cosmos
-    /// Laundromat, an MKV for the stand-in: its HLS segments put end to end); then Jellyfin away, « On this iPhone »
-    /// plays the copy; Jellyfin back, it hears where the copy was left.
+    /// Laundromat, an MKV for the stand-in: its HLS segments put end to end), a third in two files (Elephants Dream);
+    /// then Jellyfin away, « On this iPhone » plays the copy, and the third's two files one after the other; Jellyfin
+    /// back, it hears where the copy was left.
     @MainActor
     func testKeep() throws {
         let app = launch(language: "en", locale: "en_US")
@@ -249,7 +250,8 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
         dismissSavePassword(app)
         let movies = app.buttons["tab.movies"]
-        for (name, shot) in [("Tears of Steel, 2012", "61-keep-file"), ("Cosmos Laundromat, 2015", "62-keep-converted")] {
+        // Elephants Dream is in two files (as Jellyfin puts « cd1 » and « cd2 » together): its second one is kept with it.
+        for (name, shot) in [("Tears of Steel, 2012", "61-keep-file"), ("Cosmos Laundromat, 2015", "62-keep-converted"), ("Elephants Dream, 2006", "62b-keep-parts")] {
             XCTAssertTrue(movies.waitForExistence(timeout: 5), "No Movies tab")
             movies.tap()
             let card = app.buttons[name].firstMatch
@@ -273,7 +275,7 @@ final class MiraUITests: XCTestCase {
         kept.tap()
         XCTAssertTrue(app.navigationBars["On this iPhone"].waitForExistence(timeout: 10), "On this iPhone did not open")
         let rows = app.buttons.matching(identifier: "kept.row")
-        XCTAssertTrue(rows.element(boundBy: 1).waitForExistence(timeout: 5), "On this iPhone does not list both films")
+        XCTAssertTrue(rows.element(boundBy: 2).waitForExistence(timeout: 5), "On this iPhone does not list the three films")
         settle()
         capture("63-kept-list")
         rows.matching(NSPredicate(format: "label CONTAINS 'Tears of Steel'")).firstMatch.tap()
@@ -283,6 +285,17 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForLabel(play, "Pause", timeout: 15), "The copy does not play without Jellyfin: \(play.label)")
         Thread.sleep(forTimeInterval: 1.5)
         capture("64-kept-player")
+        closePlayer(app)
+
+        // The film in two files, still without Jellyfin: its first file to its end (the clip lasts 10 s), then its second.
+        let parted = rows.matching(NSPredicate(format: "label CONTAINS 'Elephants Dream'")).firstMatch
+        XCTAssertTrue(parted.waitForExistence(timeout: 10), "On this iPhone does not list the film in two files")
+        parted.tap()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let second = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Part 2 of 2'")).firstMatch
+        XCTAssertTrue(second.waitForExistence(timeout: 45), "The film's second file did not play after its first without Jellyfin")
+        XCTAssertTrue(reveal(play, app) && waitForLabel(play, "Pause", timeout: 15), "The second file kept does not play: \(play.label)")
+        capture("64b-kept-parts")
         closePlayer(app)
 
         // Jellyfin back: told where the copy was left, once Mira comes back on screen.

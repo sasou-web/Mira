@@ -19,6 +19,8 @@
 // As Jellyfin: Home's lists (Resume, NextUp, the latest, the favourites, what was watched) carry a title's files
 // (MediaSources) only when `fields` asks for them, and PlaybackInfo reads the tracks asked only for the file named
 // (MediaSourceId, 12.1); each ask is listed at /Mock/PlaybackInfo.
+// Elephants Dream is in two files, as Jellyfin puts « cd1 » and « cd2 » together: one title (PartCount) and its second
+// file, an item of its own hidden from the library (Videos/{id}/AdditionalParts); both play media/clip.mp4.
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
 import http from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
@@ -161,6 +163,14 @@ if (filmData) {
   console.log(`Sintel plays media/film.mp4 (${seconds.toFixed(1)} s)${trickplay ? ', with trickplay pictures' : ''}`);
 }
 for (const item of everything) if (item.Type !== 'Series') item.MediaSources = [mediaSource(item)];
+// The film in two files, and its second file: asked by its id (PlaybackInfo, Download, Items/{id}, UserData), never
+// listed.
+const parted = films[5];
+parted.PartCount = 2;
+const secondPart = { Id: 'f6a5b8c7d0e19f2a3b4c5d6e7f8a9b0d', Name: parted.Name, Type: 'Video', RunTimeTicks: parted.RunTimeTicks,
+  UserData: { Played: false, PlaybackPositionTicks: 0 } };
+secondPart.MediaSources = [mediaSource(secondPart)];
+const known = [...everything, secondPart];
 const latest = [films[1], series, films[2], films[3], films[4], films[0], films[5], films[6], films[7]];
 
 function send(res, status, body) {
@@ -370,9 +380,11 @@ const server = http.createServer(async (req, res) => {
     const from = Math.max(0, shown.findIndex((x) => x.Id === q.get('startItemId')));
     return send(res, 200, list(shown.slice(from, from + Number(q.get('limit') ?? 100))));
   }
+  const parts = /^\/Videos\/([0-9a-f]+)\/AdditionalParts$/.exec(path);
+  if (parts) return send(res, 200, list(parts[1] === parted.Id ? [secondPart] : []));
   const playback = /^\/Items\/([0-9a-f]+)\/PlaybackInfo$/.exec(path);
   if (playback && req.method === 'POST') {
-    const item = everything.find((x) => x.Id === playback[1]);
+    const item = known.find((x) => x.Id === playback[1]);
     if (!item?.MediaSources) return send(res, 404, undefined);
     const body = JSON.parse(raw || '{}'), session = `play-${reports.length}`;
     asks.push({ item: item.Id, source: body.MediaSourceId ?? null, audio: body.AudioStreamIndex ?? null, subtitles: body.SubtitleStreamIndex ?? null });
@@ -387,7 +399,7 @@ const server = http.createServer(async (req, res) => {
   }
   const download = /^\/Items\/([0-9a-f]+)\/Download$/.exec(path);
   if (download) {
-    if (!everything.some((x) => x.Id === download[1] && x.MediaSources)) return send(res, 404, undefined);
+    if (!known.some((x) => x.Id === download[1] && x.MediaSources)) return send(res, 404, undefined);
     const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
     if (!range) {
       res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': clip.length, 'Accept-Ranges': 'bytes' });
@@ -422,7 +434,7 @@ const server = http.createServer(async (req, res) => {
   }
   const userData = /^\/UserItems\/([0-9a-f]+)\/UserData$/.exec(path);
   if (userData && req.method === 'POST') {
-    const item = everything.find((x) => x.Id === userData[1]);
+    const item = known.find((x) => x.Id === userData[1]);
     if (!item) return send(res, 404, undefined);
     const body = JSON.parse(raw || '{}');
     item.UserData = { ...item.UserData, PlaybackPositionTicks: body.PlaybackPositionTicks ?? 0, ...(body.LastPlayedDate ? { LastPlayedDate: body.LastPlayedDate } : {}) };
@@ -437,7 +449,7 @@ const server = http.createServer(async (req, res) => {
   // Watched and favorites, kept until the mock stops.
   const mark = /^\/User(Played|Favorite)Items\/([0-9a-f]+)$/.exec(path);
   if (mark) {
-    const item = everything.find((x) => x.Id === mark[2]);
+    const item = known.find((x) => x.Id === mark[2]);
     if (!item) return send(res, 404, undefined);
     const on = req.method === 'POST';
     item.UserData = { ...item.UserData, ...(mark[1] === 'Played' ? { Played: on, PlaybackPositionTicks: 0 } : { IsFavorite: on }) };
@@ -448,7 +460,7 @@ const server = http.createServer(async (req, res) => {
     const term = (q.get('searchTerm') ?? '').toLowerCase();
     return send(res, 200, list(persons.filter((x) => term && x.Name.toLowerCase().includes(term))));
   }
-  if (one) { const item = [...everything, ...persons].find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
+  if (one) { const item = [...known, ...persons].find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
   if (path === '/UserViews') {
     return send(res, 200, list([
       { Id: MOVIES, Name: 'Movies', Type: 'CollectionFolder', CollectionType: 'movies' },

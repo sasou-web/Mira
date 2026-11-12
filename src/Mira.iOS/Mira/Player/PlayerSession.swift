@@ -174,11 +174,9 @@ final class PlayerSession: NSObject {
         Task {
             var ticks = first
             // A title in several files: its parts one after the other, « Play » resuming in the part left halfway
-            // (MovieParts). Not in a group, whose queue Jellyfin keeps; nor asked with no way to Jellyfin when its copy
-            // kept here plays (its first part, as before).
-            if !inGroup, MovieParts.has(item), app?.way != nil || app?.keeper.playable(item.id) == nil,
-               let others = try? await client.additionalParts(item.id), !closed {
-                let parts = MovieParts(title: item, others: others)
+            // (MovieParts). Not in a group, whose queue Jellyfin keeps. With no way to Jellyfin, those kept here with its
+            // copy (a copy kept before its other files were: its first part, as before).
+            if !inGroup, MovieParts.has(item), let parts = await partsOf(item), !closed {
                 self.parts = parts
                 let part = parts.start(fromStart: fromStart)
                 if part.id != item.id {
@@ -195,6 +193,15 @@ final class PlayerSession: NSObject {
                 await together.start(item.id, startTicks: ticks)
             }
         }
+    }
+
+    /// The parts of a title in several files: Jellyfin's list; with no way to Jellyfin (or no answer), those kept here
+    /// with its copy.
+    private func partsOf(_ title: Item) async -> MovieParts? {
+        if app?.way != nil || app?.keeper.playable(title.id) == nil, let others = try? await client.additionalParts(title.id) {
+            return MovieParts(title: title, others: others)
+        }
+        return app?.keeper.keptParts(title)
     }
 
     /// The player over the app: sideways for a film on iPhone.
@@ -771,9 +778,7 @@ final class PlayerSession: NSObject {
         }
         // The next episode in several files: its parts one after the other too.
         var nextParts: MovieParts?
-        if MovieParts.has(next), app?.way != nil || app?.keeper.playable(next.id) == nil, let others = try? await client.additionalParts(next.id) {
-            nextParts = MovieParts(title: next, others: others)
-        }
+        if MovieParts.has(next) { nextParts = await partsOf(next) }
         guard !closed else { return }
         parts = nextParts
         await switchTo(next, startedByItself: byItself)
