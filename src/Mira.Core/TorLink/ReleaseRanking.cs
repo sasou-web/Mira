@@ -164,12 +164,15 @@ public static partial class ReleaseRanking
         else if (CrossEpisode().Match(plain) is { Success: true } cross) { season = Int(cross.Groups[1]); episode = Int(cross.Groups[2]); Mark(cross.Index); }
         if (episode is null)
         {
+            // Fansub numbering: « Show - 05 », « Show - 01 ~ 12 » (a batch); never a year.
+            var number = Numbered().Match(plain);
             var range = SeasonRange().Match(plain);
+            // « Show Season 2 - 05 » is season 2, episode 5, where ReleaseName places it, never seasons 2 to 5: the dash is the episode's.
+            if (range.Success && number.Success && number.Index > range.Index && number.Index < range.Index + range.Length
+                && !range.Value.StartsWith("seasons", StringComparison.OrdinalIgnoreCase) && !range.Value.StartsWith("saisons", StringComparison.OrdinalIgnoreCase)) range = Match.Empty;
             var single = SeasonMarker().Match(plain);
             if (range.Success) { pack = true; Mark(range.Index); }
             else if (single.Success) { season = Int(single.Groups[1].Success ? single.Groups[1] : single.Groups[2].Success ? single.Groups[2] : single.Groups[3]); pack = true; Mark(single.Index); }
-            // Fansub numbering: « Show - 05 », « Show - 01 ~ 12 » (a batch); never a year.
-            var number = Numbered().Match(plain);
             if (number.Success && !YearOnly().IsMatch(number.Groups[1].Value) && (group is not null || season is not null || number.Groups[1].Length <= 3))
             {
                 episode = Int(number.Groups[1]); Mark(number.Index);

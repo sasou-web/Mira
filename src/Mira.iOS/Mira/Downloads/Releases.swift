@@ -195,15 +195,19 @@ enum Releases {
             season = m.int(1); episode = m.int(2); mark(m.start)
         }
         if episode == nil {
-            let range = Regex.first(#"(?<![a-z0-9])(?:s\d{1,2}\s*[-~]\s*s\d{1,2}|(?:seasons?|saisons?)\s*\d{1,2}\s*[-~]\s*\d{1,2})(?![0-9])"#, in: plain)
+            // Fansub numbering: « Show - 05 », « Show - 01 ~ 12 » (a batch); never a year.
+            let numbered = Regex.first(#"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})(?:v\d)?(?:\s*[-~]\s*(\d{1,4})(?:v\d)?)?(?=\s|$)"#, in: plain)
+            var range = Regex.first(#"(?<![a-z0-9])(?:s\d{1,2}\s*[-~]\s*s\d{1,2}|(?:seasons?|saisons?)\s*\d{1,2}\s*[-~]\s*\d{1,2})(?![0-9])"#, in: plain)
+            // « Show Season 2 - 05 » is season 2, episode 5, never seasons 2 to 5: the dash is the episode's.
+            if let r = range, let n = numbered, n.start > r.start, n.start < r.start + r.result.range.length,
+               let words = r.text(0)?.lowercased(), !words.hasPrefix("seasons"), !words.hasPrefix("saisons") { range = nil }
             let single = Regex.first(#"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season)"#, in: plain)
             if let range {
                 pack = true; mark(range.start)
             } else if let single {
                 season = single.int(1) ?? single.int(2) ?? single.int(3); pack = true; mark(single.start)
             }
-            // Fansub numbering: « Show - 05 », « Show - 01 ~ 12 » (a batch); never a year.
-            if let number = Regex.first(#"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})(?:v\d)?(?:\s*[-~]\s*(\d{1,4})(?:v\d)?)?(?=\s|$)"#, in: plain),
+            if let number = numbered,
                let first = number.text(1), !isYear(first), (group?.isEmpty == false) || season != nil || first.count <= 3 {
                 episode = Int(first); mark(number.start)
                 if let last = number.int(2) { lastEpisode = last; pack = true }
