@@ -38,7 +38,30 @@ public static class Volumes
     /// <summary>Both paths are on one volume (<see cref="Of"/>); false when either cannot be told.</summary>
     public static bool Shared(string a, string b, Func<string, string?>? volumeOf = null) => Same((volumeOf ?? Of)(a), (volumeOf ?? Of)(b));
 
+    /// <summary>
+    /// The bytes this account may still write on the volume holding <paramref name="path"/> (its quota counted, as the
+    /// Explorer shows), for a path that need not exist yet: its nearest existing folder decides, mount points followed. A disk
+    /// mounted in a folder (« C:\Users\Toi\Videos\MEDIAS », « /Volumes/Disque » on a Mac) has its own free space: the path
+    /// root's would be the system disk's. Null when it cannot be told.
+    /// </summary>
+    public static long? FreeSpace(string path)
+    {
+        try
+        {
+            var existing = Path.GetFullPath(path);
+            while (!Directory.Exists(existing) && Path.GetDirectoryName(existing) is { Length: > 0 } parent) existing = parent;
+            // Outside Windows, DriveInfo asks statvfs about the folder itself; on Windows it only takes a drive letter.
+            if (!OperatingSystem.IsWindows()) return new DriveInfo(existing).AvailableFreeSpace;
+            return GetDiskFreeSpaceEx(Folder(existing), out var free, out _, out _) ? (long)free : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException or UnauthorizedAccessException) { return null; }
+    }
+
     [DllImport("kernel32.dll", EntryPoint = "GetVolumePathNameW", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetVolumePathName(string fileName, [Out] char[] volumePathName, uint bufferLength);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetDiskFreeSpaceExW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetDiskFreeSpaceEx(string directoryName, out ulong freeBytesAvailable, out ulong totalNumberOfBytes, out ulong totalNumberOfFreeBytes);
 }

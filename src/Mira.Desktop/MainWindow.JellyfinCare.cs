@@ -150,7 +150,7 @@ public partial class MainWindow
         JellyfinBackupWhere.Text = !_jellyfinBacksUp ? L("Avant, sauvegarde son dossier de données à la main, Jellyfin arrêté.", "Until then, back up its data folder by hand, with Jellyfin stopped.")
             : folder.Length == 0 ? L("Elle reste sur ce PC, dans le dossier de Jellyfin. Choisis aussi une clé USB ou un autre disque : si ce PC tombe en panne, c’est elle qui compte.", "It stays on this PC, in Jellyfin’s folder. Also choose a USB key or another disk: if this PC breaks down, that’s the copy that counts.")
             : L($"Copiée aussi dans {folder}, qui garde les {JellyfinBackups.CopiesKept} dernières.", $"Also copied to {folder}, which keeps the last {JellyfinBackups.CopiesKept}.")
-                + (SameDisk(folder, BackupsFolder) ? L(" Ce dossier est sur le même disque que Jellyfin : si ce disque lâche, la copie part avec.", " This folder is on the same disk as Jellyfin: if that disk fails, the copy goes with it.") : "");
+                + (Volumes.Shared(folder, BackupsFolder) ? L(" Ce dossier est sur le même disque que Jellyfin : si ce disque lâche, la copie part avec.", " This folder is on the same disk as Jellyfin: if that disk fails, the copy goes with it.") : "");
         JellyfinBackupFolderButton.Content = folder.Length > 0 ? L("Changer de dossier…", "Change folder…") : L("Copier aussi dans…", "Also copy to…");
         JellyfinBackupNoCopyButton.Visibility = folder.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -172,11 +172,11 @@ public partial class MainWindow
 
     /// <summary>Where Jellyfin writes its backups: beside the newest one, else in its data folder.</summary>
     private string BackupsFolder => _newestBackup is { } known && Path.GetDirectoryName(known.Path) is { Length: > 0 } folder ? folder : Path.Combine(JellyfinInstaller.DataFolder(), "data", "backups");
-    private static bool SameDisk(string a, string b)
-    {
-        try { return string.Equals(Path.GetPathRoot(Path.GetFullPath(a)), Path.GetPathRoot(Path.GetFullPath(b)), StringComparison.OrdinalIgnoreCase); }
-        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException) { return false; }
-    }
+    /// <summary>
+    /// Free bytes as Jellyfin counts them before a backup (<c>StorageHelper.GetFreeSpaceOf</c>: the deepest of
+    /// <see cref="DriveInfo.GetDrives"/>, drive letters only on Windows), so that its refusal is told before it: the drive
+    /// letter's, even for a disk mounted in a folder of it, unlike <see cref="Volumes.FreeSpace"/>.
+    /// </summary>
     private static long? FreeSpace(string folder)
     {
         try { return Path.GetPathRoot(Path.GetFullPath(folder)) is { Length: > 0 } root ? new DriveInfo(root).AvailableFreeSpace : null; }
