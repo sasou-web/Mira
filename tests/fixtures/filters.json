@@ -1,5 +1,5 @@
 {
-  "comment": "Filters of Films, Séries and Ta bibliothèque beyond genre, year and progress: Mira.Core LibraryFilters (CatalogQuery, Windows and Mac) and Jellyfin/Browse.swift (iPhone). queries: the choices (null = all) and Jellyfin's Items parameters they add, nothing else of these names (checked on Jellyfin 12.1: a file tagged « fre » and a « .fr.srt » beside another, stored « fra », both found; a region Jellyfin knows keeps its code in lower case, « .fr-CA.srt » stored « fr-ca », « .es-419.srt », « .zh-CN.srt », « .zh-TW.srt », « .zh-HK.srt », « .zh-Hans.srt », « .zh-Hant.srt » likewise; « .fr-FR.srt » or « .en-US.srt » are stored without a language; is4K, isHd and the languages match a series by its episodes). sort: « runtime », shortest first. languages: the server version and whether audio and subtitle languages are offered (Jellyfin 12 on; 10.11 ignores them).",
+  "comment": "Filters of Films, Séries and Ta bibliothèque beyond genre, year and progress: Mira.Core LibraryFilters (CatalogQuery, Windows and Mac) and Jellyfin/Browse.swift (iPhone). queries: the choices (null = all) and Jellyfin's Items parameters they add, nothing else of these names (checked on Jellyfin 12.1: a file tagged « fre » and a « .fr.srt » beside another, stored « fra », both found; a region Jellyfin knows keeps its code in lower case, « .fr-CA.srt » stored « fr-ca », « .es-419.srt », « .zh-CN.srt », « .zh-TW.srt », « .zh-HK.srt », « .zh-Hans.srt », « .zh-Hant.srt » likewise; « .fr-FR.srt » or « .en-US.srt » are stored without a language; is4K, isHd and the languages match a series by its episodes). sort: each choice of « Trier par » for a list of types: « runtime » shortest first; a descending sort gives the title its own order, A → Z (Jellyfin gives the first order to every key it is not given one for: titles of a same year came Z → A); « played » of series = SeriesDatePlayed, their last episode played (a series has no play date of its own: on Jellyfin 10.9.11, 12.1 and 12.4, DatePlayed listed every series Z → A; SeriesDatePlayed with another key drops DatePlayed on 12.x, hence one or the other). languages: the server version and whether audio and subtitle languages are offered (Jellyfin 12 on; 10.11 ignores them).",
   "queries": [
     { "choices": {}, "parameters": {} },
     { "choices": { "quality": "4k" }, "parameters": { "is4K": "true" } },
@@ -18,7 +18,16 @@
       "parameters": { "is4K": "true", "audioLanguages": "fre,fra,fr-ca", "subtitleLanguages": "fre,fra,fr-ca", "minCommunityRating": "8" } },
     { "choices": { "audio": "xx", "subtitles": "xx", "quality": "xx" }, "parameters": {} }
   ],
-  "sort": { "runtime": { "sortBy": "Runtime,SortName", "sortOrder": "Ascending" } },
+  "sort": [
+    { "sort": "runtime", "types": "Movie", "sortBy": "Runtime,SortName", "sortOrder": "Ascending" },
+    { "sort": "title", "types": "Series", "sortBy": "SortName", "sortOrder": "Ascending" },
+    { "sort": "year", "types": "Movie", "sortBy": "ProductionYear,SortName", "sortOrder": "Descending,Ascending" },
+    { "sort": "rating", "types": "Series", "sortBy": "CommunityRating,SortName", "sortOrder": "Descending,Ascending" },
+    { "sort": "recent", "types": "Movie,Series", "sortBy": "DateCreated,SortName", "sortOrder": "Descending,Ascending" },
+    { "sort": "played", "types": "Movie", "sortBy": "DatePlayed,SortName", "sortOrder": "Descending,Ascending" },
+    { "sort": "played", "types": "Movie,Series", "sortBy": "DatePlayed,SortName", "sortOrder": "Descending,Ascending" },
+    { "sort": "played", "types": "Series", "sortBy": "SeriesDatePlayed,SortName", "sortOrder": "Descending,Ascending" }
+  ],
   "languages": [
     ["12.1.0", true],
     ["12.4.0", true],

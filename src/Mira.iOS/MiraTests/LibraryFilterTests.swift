@@ -36,15 +36,19 @@ struct LibraryFilterTests {
         }
     }
 
-    @Test("Plus courts d'abord")
-    func runtime() throws {
-        let sort = try #require(try fixture()["sort"] as? [String: [String: String]])
-        let wanted = try #require(sort["runtime"])
-        var query = BrowseQuery(types: "Movie")
-        query.sort = .runtime
-        let parameters = query.parameters
-        for (name, value) in wanted {
-            #expect((parameters[name] ?? nil) == value, "\(name)")
+    @Test("Tris : plus courts d'abord, ex æquo de A à Z, séries par leur dernier épisode vu")
+    func sorts() throws {
+        let rows = try #require(try fixture()["sort"] as? [[String: String]])
+        #expect(!rows.isEmpty)
+        for row in rows {
+            let types = try #require(row["types"])
+            let sort = try #require(row["sort"])
+            var query = BrowseQuery(types: types)
+            query.sort = try #require(BrowseQuery.Sort(rawValue: sort))
+            let parameters = query.parameters
+            for name in ["sortBy", "sortOrder"] {
+                #expect((parameters[name] ?? nil) == row[name], "\(row) → \(name)")
+            }
         }
     }
 

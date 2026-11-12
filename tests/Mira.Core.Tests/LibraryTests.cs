@@ -299,8 +299,12 @@ internal static class LibraryTests
                 Assert(asked.Count == wanted.Count && wanted.All(x => asked.GetValueOrDefault(x.Key) == x.Value), $"{choices}: {query.Parameters}");
                 Assert(query.CacheKey != new CatalogQuery().CacheKey || wanted.Count == 0 || choices.EnumerateObject().Any(x => x.Value.ToString() == "xx"), "Clé du cache : " + choices);
             }
-            var sort = Read(new CatalogQuery(Sort: "runtime").Parameters);
-            foreach (var wanted in root.GetProperty("sort").GetProperty("runtime").EnumerateObject()) Assert(sort.GetValueOrDefault(wanted.Name) == wanted.Value.GetString(), "Tri par durée : " + wanted.Name);
+            foreach (var row in root.GetProperty("sort").EnumerateArray())
+            {
+                var types = row.GetProperty("types").GetString()!;
+                var sort = Read(new CatalogQuery(Sort: row.GetProperty("sort").GetString()!).For(types));
+                foreach (var name in new[] { "sortBy", "sortOrder" }) Assert(sort.GetValueOrDefault(name) == row.GetProperty(name).GetString(), $"Tri : {row} → {name}={sort.GetValueOrDefault(name)}");
+            }
             foreach (var row in root.GetProperty("languages").EnumerateArray())
                 Assert(LibraryFilters.LanguagesSupported(row[0].GetString()) == row[1].GetBoolean(), "Langues offertes avec Jellyfin " + row[0]);
             var offered = root.GetProperty("offered");
