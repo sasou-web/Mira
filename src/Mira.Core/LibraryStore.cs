@@ -135,7 +135,8 @@ public sealed class LibraryStore
             return JsonSerializer.Deserialize<T>(text, Json.Options);
         }
     }
-    public void Enqueue(string kind, PlaybackReport report)
+    /// <summary>A report to send, kept until Jellyfin has it; <paramref name="recordedAt"/>: now (another time for tests).</summary>
+    public void Enqueue(string kind, PlaybackReport report, DateTimeOffset? recordedAt = null)
     {
         lock (_gate)
         {
@@ -154,7 +155,7 @@ public sealed class LibraryStore
             var completed = kind == "complete";
             cmd.Parameters.AddWithValue("$kind", completed ? "stop" : kind); cmd.Parameters.AddWithValue("$session", report.PlaySessionId);
             cmd.Parameters.AddWithValue("$item", report.ItemId); cmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(report, Json.Options));
-            cmd.Parameters.AddWithValue("$ticks", completed ? 0 : report.PositionTicks); cmd.Parameters.AddWithValue("$at", DateTimeOffset.UtcNow.ToString("O"));
+            cmd.Parameters.AddWithValue("$ticks", completed ? 0 : report.PositionTicks); cmd.Parameters.AddWithValue("$at", (recordedAt ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O"));
             cmd.ExecuteNonQuery();
             if (completed)
             {
@@ -179,6 +180,45 @@ public sealed class LibraryStore
         {
             using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "DELETE FROM outbox WHERE id=$id";
             cmd.Parameters.AddWithValue("$id", id); cmd.ExecuteNonQuery();
+        }
+    }
+    /// <summary>
+    /// The reports of a title waiting to be sent: when this device last recorded one (where it was left here), and the
+    /// last of them in the queue. Null when none waits, or when Mira forgot where it was left (marked watched or not).
+    /// </summary>
+    public (DateTimeOffset RecordedAt, long Through)? Waiting(string itemId)
+    {
+        lock (_gate)
+        {
+            using var db = Open(); using var cmd = db.CreateCommand();
+            cmd.CommandText = "SELECT updated, (SELECT MAX(id) FROM outbox WHERE item=$item) FROM progress WHERE item=$item";
+            cmd.Parameters.AddWithValue("$item", itemId);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read() || reader.IsDBNull(1)) return null;
+            return (DateTimeOffset.Parse(reader.GetString(0), System.Globalization.CultureInfo.InvariantCulture), reader.GetInt64(1));
+        }
+    }
+    /// <summary>Takes a title's waiting reports out of the queue, up to <paramref name="through"/> (later ones are a new playback): how many.</summary>
+    public int Drop(string itemId, long through)
+    {
+        lock (_gate)
+        {
+            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "DELETE FROM outbox WHERE item=$item AND id<=$through";
+            cmd.Parameters.AddWithValue("$item", itemId); cmd.Parameters.AddWithValue("$through", through);
+            return cmd.ExecuteNonQuery();
+        }
+    }
+    /// <summary>
+    /// A title's waiting reports go to Jellyfin from now on: its last play there becomes theirs, which must not read as
+    /// a play elsewhere if the sending stops halfway (<see cref="Waiting"/> is dated <paramref name="now"/>).
+    /// </summary>
+    public void Sending(string itemId, DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "UPDATE progress SET updated=$at WHERE item=$item";
+            cmd.Parameters.AddWithValue("$item", itemId); cmd.Parameters.AddWithValue("$at", now.ToUniversalTime().ToString("O"));
+            cmd.ExecuteNonQuery();
         }
     }
     /// <summary>Drops the local resume point, e.g. after marking a title watched or unwatched from Mira.</summary>
