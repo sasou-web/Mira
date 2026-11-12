@@ -323,7 +323,8 @@ public sealed class HomePage : Page
         {
             var target = i;
             var dot = new Button { Width = 52, Height = 20, Padding = new Thickness(0), Background = Brushes.Transparent, Content = new Border { Height = 8, CornerRadius = new CornerRadius(4), Background = Ui.Brush(i == _heroIndex ? "#F5F5F7" : "#55FFFFFF") } };
-            ToolTip.SetTip(dot, _heroItems[i].DisplayTitle);
+            // The bar alone, no wash or tooltip under the pointer, as on Windows.
+            dot.Classes.Add("bare");
             Avalonia.Automation.AutomationProperties.SetName(dot, L($"Afficher « {_heroItems[i].DisplayTitle} »{(i == _heroIndex ? ", affiché" : "")}", $"Show “{_heroItems[i].DisplayTitle}”{(i == _heroIndex ? ", shown" : "")}"));
             dot.Click += (_, _) => { ShowHero(target); _rotate.Stop(); if (Turns) _rotate.Start(); };
             _dots.Children.Add(dot);
