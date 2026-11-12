@@ -504,6 +504,10 @@ internal static class SubtitleTests
             Assert(again.Count == 0 && new SubtitleQueue(file).Count == 0, "Title gone");
             File.WriteAllText(file, "{ broken");
             Assert(new SubtitleQueue(file).Count == 0, "Broken file: empty queue");
+            // A film's other version waits as the film does: asked for once with the backlog, again and again when new.
+            var versions = new SubtitleQueue(null, () => now);
+            versions.Add("v", "fre", backlog: true); versions.Add("w", "fre"); versions.Add("v", "fre");
+            Assert(versions.Count == 2 && !versions.Retry("v", "fre") && versions.Retry("w", "fre") && versions.Count == 1, "Versions: once with the backlog, again when new");
             return Task.CompletedTask;
         });
         await Test("Sous-titres : réglages gardés par l'extension, secrets jamais renvoyés", () =>
