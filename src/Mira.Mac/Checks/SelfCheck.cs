@@ -874,6 +874,17 @@ public static class SelfCheck
                     await Task.Delay(1200);
                     ScreenColour(Path.Combine(output, "08d-mini-player.png"));
                     Check(player.IsMini && window.Player == player && player.Bounds.Width < 400 && window.Current is BrowsePage, "mini-lecteur : la bibliothèque autour", $"{player.Bounds.Width:0} × {player.Bounds.Height:0}, page {window.Current?.GetType().Name}");
+                    // Left alone, it tucks itself away against the right edge, a sliver showing; the pointer on it brings it out.
+                    var pointerOn = false; player.DockForCheck(() => pointerOn);
+                    double Shown() => (player.Parent as Visual)?.Bounds.Width - player.TranslatePoint(new Point(0, 0), (Visual)player.Parent!)?.X ?? 0;
+                    var tucked = await Until(() => player.IsMiniTucked && Math.Abs(Shown() - MiniDock.Peek) < 1, 4);
+                    ScreenColour(Path.Combine(output, "08f-mini-tucked.png"));
+                    Check(tucked && player.IsMini && ReferenceEquals(player.Engine, engine), "mini-lecteur : rangé tout seul contre le bord droit, un bout de la vidéo qui dépasse", $"{Shown():0.#} visibles");
+                    pointerOn = true;
+                    Check(await Until(() => !player.IsMiniTucked && Math.Abs(Shown() - MiniDock.Width - MiniDock.Gap) < 1, 3), "mini-lecteur : sorti au survol", $"{Shown():0.#} visibles");
+                    pointerOn = false;
+                    Check(await Until(() => player.IsMiniTucked && Math.Abs(Shown() - MiniDock.Peek) < 1, 3), "mini-lecteur : rangé de nouveau quand le pointeur part", $"{Shown():0.#} visibles");
+                    player.DockForCheck(null);
                     Key(window, Avalonia.Input.Key.I);
                     Check(await Until(() => !player.IsMini && player.Bounds.Width > 800, 3), "mini-lecteur : agrandi par I", $"{player.Bounds.Width:0}");
                 }

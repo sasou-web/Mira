@@ -89,7 +89,7 @@
   <Border x:Name="MiniFrame" Grid.RowSpan="2" Panel.ZIndex="29" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Black" CornerRadius="{StaticResource RadiusCard}" IsHitTestVisible="False">
    <Border.Effect><DropShadowEffect BlurRadius="34" ShadowDepth="10" Direction="270" Opacity="0.62" Color="Black" RenderingBias="Performance"/></Border.Effect>
   </Border>
-  <Grid x:Name="PlayerShell" Grid.RowSpan="2" Visibility="Collapsed" Background="Black" Panel.ZIndex="30" SizeChanged="Player_SizeChanged" MouseMove="MiniDrag_MouseMove" MouseLeftButtonUp="MiniDrag_MouseUp" LostMouseCapture="MiniDrag_LostCapture">
+  <Grid x:Name="PlayerShell" Grid.RowSpan="2" Visibility="Collapsed" Background="Black" Panel.ZIndex="30" SizeChanged="Player_SizeChanged" MouseLeftButtonDown="MiniShell_MouseDown" MouseMove="MiniDrag_MouseMove" MouseLeftButtonUp="MiniDrag_MouseUp" LostMouseCapture="MiniDrag_LostCapture">
    <Grid x:Name="VideoContainer" Background="Black"/>
    <!-- A title that cannot play: said in the player, with the way back and another try, as in Mira web (MainWindow.Player). -->
    <Grid x:Name="PlayerError" Visibility="Collapsed" Background="{StaticResource Bg}" KeyboardNavigation.TabNavigation="Cycle">
@@ -228,11 +228,6 @@
     </v:Squircle>
    </Popup>
   </Grid>
-  <!-- Handle left on the right edge when the mini-player is tucked away. Click or pull it to bring the video back. -->
-  <Button x:Name="MiniTab" Grid.RowSpan="2" Panel.ZIndex="31" Visibility="Collapsed" Style="{StaticResource MiniTabButton}" HorizontalAlignment="Right" VerticalAlignment="Top" Click="MiniTab_Click" PreviewMouseLeftButtonDown="MiniTab_MouseDown" PreviewMouseMove="MiniTab_MouseMove" ToolTip="{v:L 'Afficher le mini-lecteur', 'Show the mini player'}" AutomationProperties.Name="{v:L 'Afficher le mini-lecteur', 'Show the mini player'}">
-   <Button.RenderTransform><TranslateTransform x:Name="MiniTabShift"/></Button.RenderTransform>
-   <StackPanel><v:Icon Kind="back" Width="15" Height="15"/><v:Squircle x:Name="MiniTabPulse" Width="4" Height="4" CornerRadius="2" Background="{StaticResource Accent}" Margin="0,9,0,0"/></StackPanel>
-  </Button>
   <!-- TorLink page. Declared before the title page and the settings, which open above it and return to it. -->
   <Grid x:Name="TorLinkOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="{StaticResource Bg}" KeyboardNavigation.TabNavigation="Cycle">
    <Grid Margin="112,50,40,22"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

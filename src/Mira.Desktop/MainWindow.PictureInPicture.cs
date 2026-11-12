@@ -37,6 +37,8 @@ public partial class MainWindow
         if (!_playing || _pip is not null || _videoHost is not { } video || PlayerErrorShown || _morphing || _videoWaits || !VideoContainer.Children.Contains(video)) return;
         if (_fullscreen) ToggleFullscreen();
         ClosePlayerPopups(); ClosePreview();
+        // The mini-player sliding: its video placed by layout again before it changes window.
+        if (_miniSliding) { CancelMiniSlide(); FinishMiniSlide(); }
         var aspect = VideoAspect() ?? 16d / 9;
         var remembered = _settings.PipX is { } x && _settings.PipY is { } y && _settings.PipWidth > 0 ? new PictureInPicture.Spot(x, y, _settings.PipWidth) : (PictureInPicture.Spot?)null;
         if (PictureInPicture.Open(Screens.All(), remembered, PipWindow.Middle(new WindowInteropHelper(this).Handle), aspect) is not { } at) return;
@@ -66,7 +68,7 @@ public partial class MainWindow
             return;
         }
         // The library comes back as with the mini-player; the next tick fills in the small window.
-        _miniStowed = false;
+        _miniTucked = false;
         SetMiniPlayer(true);
         UpdatePip();
         FrameProbe.Note("picture in picture opened");
@@ -74,7 +76,7 @@ public partial class MainWindow
     /// <summary>The player's own surface hidden: the video plays in the small window, the library is alone in this one.</summary>
     private void HideForPip()
     {
-        PlayerShell.Visibility = MiniFrame.Visibility = MiniTab.Visibility = Visibility.Collapsed;
+        PlayerShell.Visibility = MiniFrame.Visibility = Visibility.Collapsed;
         _videoHost?.SetCornerRadius(0);
     }
     /// <summary>

@@ -432,6 +432,34 @@ internal static class PlayerTests
             Assert(IconPaths.TenCentre("play") is null, "Only the jumps carry it");
             return Task.CompletedTask;
         });
+        await Test("Mini-lecteur : rangé tout seul contre le bord droit, un bout de la vidéo qui dépasse, sorti au survol, rangé de nouveau après (Windows et Mac)", () =>
+        {
+            static TimeSpan At(double seconds) => TimeSpan.FromSeconds(seconds);
+            var dock = new MiniDock(); dock.Arrive(At(10));
+            Assert(dock.Out && !dock.Update(At(11), over: false, held: false) && dock.Out, "Just shrunk: out, long enough to see where the film went");
+            Assert(dock.Update(At(10) + MiniDock.FirstRest, over: false, held: false) && !dock.Out, "Then tucked away by itself");
+            // The pointer passing by on its way to the edge does not pull it; resting on the sliver does.
+            Assert(!dock.Update(At(20), over: true, held: false) && !dock.Update(At(20.05), over: true, held: false) && !dock.Out, "A pointer passing by");
+            Assert(!dock.Update(At(20.06), over: false, held: false) && !dock.Update(At(20.1), over: true, held: false) && !dock.Out, "Off the sliver, the wait starts again");
+            Assert(dock.Update(At(20.1) + MiniDock.Dwell, over: true, held: false) && dock.Out, "Resting on it: out");
+            Assert(!dock.Update(At(30), over: true, held: false) && dock.Out, "Out as long as the pointer is on it");
+            Assert(!dock.Update(At(31), over: false, held: false) && !dock.Update(At(31.5), over: true, held: false) && !dock.Update(At(32.5), over: false, held: false) && dock.Out, "A pointer that slips off its edge and back");
+            Assert(dock.Update(At(32.5) + MiniDock.Linger, over: false, held: false) && !dock.Out, "Back once the pointer has left");
+            // Dragged, a menu or a question open: out, whatever the pointer does, then back after the pointer has gone.
+            Assert(dock.Update(At(40), over: false, held: true) && dock.Out && !dock.Update(At(50), over: false, held: true), "Held out");
+            Assert(!dock.Update(At(50.1), over: false, held: false) && dock.Update(At(50.1) + MiniDock.Linger, over: false, held: false) && !dock.Out, "Let go: back after the linger");
+            dock.Show(At(60));
+            Assert(dock.Out && !dock.Update(At(60.5), over: false, held: false) && dock.Update(At(60) + MiniDock.Linger, over: false, held: false), "Shown at once, as after a drag");
+            dock.Arrive(At(70));
+            Assert(!dock.Update(At(70.1), over: true, held: false) && !dock.Update(At(80), over: true, held: false) && dock.Out, "Shrunk under the pointer: out until it leaves");
+            // Places: against the right edge, a sliver tucked away; down the window in proportion.
+            Assert(MiniDock.Left(true, 1600) == 1600 - 20 - 384 && MiniDock.Left(false, 1600) == 1600 - MiniDock.Peek, "Out, 20 from the edge; tucked, 14 showing");
+            Assert(MiniDock.Top(1, 42, 900) == 900 - 20 - 216 && MiniDock.Top(0, 42, 900) == 42 && MiniDock.Top(.5, 42, 900) == 42 + (664 - 42) / 2d, "Down the window");
+            Assert(MiniDock.Top(1, 42, 200) == 42 && MiniDock.Top(double.NaN, 42, 900) == 664 && MiniDock.Top(3, 42, 900) == 664, "No room, or nothing known: under the title bar or at the bottom");
+            Assert(MiniDock.Share(664, 42, 900) == 1 && MiniDock.Share(42, 42, 900) == 0 && MiniDock.Share(-50, 42, 900) == 0 && MiniDock.Share(353, 42, 900) == .5, "Let go: its share of the way down");
+            Assert(MiniDock.Share(100, 42, 250) == 1 && MiniDock.Top(MiniDock.Share(353, 42, 900), 42, 1200) == 42 + (964 - 42) / 2d, "Kept in proportion when the window grows");
+            return Task.CompletedTask;
+        });
         await Test("Lecture et pause au milieu de l’image : l’icône seule, là tout de suite, nette, puis partie vite en s’ouvrant, sans voile qui traîne (Windows et Mac)", () =>
         {
             Assert(PlayStateBadge.At(0) == (0, PlayStateBadge.FromScale), $"At the press: {PlayStateBadge.At(0)}");

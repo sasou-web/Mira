@@ -283,7 +283,6 @@ public partial class MainWindow
             var changed = paused != _session.Paused; _session.Paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
             if (changed) GroupPauseChanged(paused);
             WatchGroupStall(); WatchPicture(paused);
-            if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
             UpdateSkip(); CheckSleepTimer();
             UpdateWindowsPlayback(); UpdatePip();
             var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
