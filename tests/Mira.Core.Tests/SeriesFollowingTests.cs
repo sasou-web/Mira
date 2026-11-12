@@ -118,6 +118,15 @@ internal static class SeriesFollowingTests
             return Task.CompletedTask;
         });
 
+        await Test("Suivre une série : un nom à article élidé (« L'Amie prodigieuse ») se reconnaît dans les noms de ses sorties (« L.Amie.Prodigieuse.S04E01 ») ; un nom cherché tapé autrement reste cherché", () =>
+        {
+            var friend = new FollowedSeries("L'Amie prodigieuse", "L'amica geniale", 2018, Episodes(3, 1, 8));
+            var check = SeriesFollowing.Choose(Work(), friend, [], [Hit(30, "L.Amie.Prodigieuse.S04E01.FRENCH.1080p.WEB.H264-GRP", source: "1337x", category: "tv")], null);
+            Assert(check.Picks.Select(x => (x.Season, x.Episode)).SequenceEqual([(4, 1)]) && check.Note == new FollowNote("found", "S04E01"), $"Picks {check.Picks.Count}, note {check.Note}");
+            Assert(SeriesFollowing.ChosenQuery("L Amie Prodigieuse", "L'Amie prodigieuse") == "L Amie Prodigieuse" && SeriesFollowing.ChosenQuery("  l'amie   PRODIGIEUSE ", "L'Amie prodigieuse") is null
+                && SeriesFollowing.ChosenQuery(" ", "L'Amie prodigieuse") is null, "A search name typed another way is kept, the series' own is not");
+            return Task.CompletedTask;
+        });
         await Test("Suivre une série : l'épisode rangé dans le dossier de sa série, sous son numéro, rangement automatique coupé", async () =>
         {
             var dir = Path.Combine(testRoot, "series-following"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

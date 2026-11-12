@@ -142,13 +142,16 @@ enum Releases {
 
     private static func isYear(_ text: String) -> Bool { Regex.test(#"^(?:19|20)\d\d$"#, text, options: []) }
 
-    /// A title to compare: lower case, no accent, no apostrophe, « & » as « and », one space between words.
+    /// A title to compare, its letters and digits only: lower case, no accent, ligature or exponent (« œ » as « oe », « ³ »
+    /// as « 3 »), « & » as « and », without apostrophes, spaces or punctuation. Release names write a title in plain letters,
+    /// an elided article as a word of its own (« L.Arnacoeur », « Le.Fabuleux.Destin.D.Amelie.Poulain ») and an English
+    /// apostrophe as nothing (« Charlottes.Web »): « L'Arnacœur », « Charlotte's Web » and « Alien³ » are them.
     static func titleKey(_ title: String?) -> String {
-        var text = (title ?? "").decomposedStringWithCanonicalMapping
-        text = Regex.replace("[\u{0300}-\u{036f}]", in: text, with: "", options: [])
-        text = Regex.replace("['’`´]", in: text, with: "", options: [])
-        text = text.replacingOccurrences(of: "&", with: " and ").lowercased()
-        return Regex.replace(#"[^\p{L}\p{N}]+"#, in: text, with: " ", options: []).trimmingCharacters(in: .whitespaces)
+        var text = (title ?? "").decomposedStringWithCompatibilityMapping.lowercased().replacingOccurrences(of: "&", with: "and")
+        for (ligature, letters) in [("œ", "oe"), ("æ", "ae"), ("ß", "ss"), ("ø", "o"), ("ł", "l"), ("đ", "d")] {
+            text = text.replacingOccurrences(of: ligature, with: letters)
+        }
+        return Regex.replace(#"[^\p{L}\p{Nd}]+"#, in: text, with: "", options: [])
     }
 
     private static func tidy(_ text: String) -> String {

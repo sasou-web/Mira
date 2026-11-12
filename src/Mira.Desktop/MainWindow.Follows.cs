@@ -262,11 +262,7 @@ public partial class MainWindow
         actions.Children.Add(new TextBlock { Text = L("Le nom sous lequel ses épisodes sortent, par exemple son nom japonais. Vide : son nom dans Jellyfin.", "The name its episodes come out under, its Japanese name for example. Empty: its name in Jellyfin."), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
         actions.Children.Add(box);
         var buttons = new WrapPanel { Margin = new Thickness(-6, 4, 0, 0) };
-        Task Save()
-        {
-            var query = RemoteDownloads.CleanQuery(box.Text);
-            return RenameFollowAsync(follow, query is null || ReleaseRanking.TitleKey(query) == ReleaseRanking.TitleKey(follow.Name) ? null : query);
-        }
+        Task Save() => RenameFollowAsync(follow, SeriesFollowing.ChosenQuery(box.Text, follow.Name));
         box.KeyDown += async (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; await Save(); } };
         buttons.Children.Add(Named(RowButton(L("Enregistrer", "Save"), "check", Save), L("Enregistrer le nom cherché", "Save the search name")));
         buttons.Children.Add(Named(RowButton(L("Annuler", "Cancel"), "close", () =>
