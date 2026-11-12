@@ -1,26 +1,49 @@
+using System.Diagnostics;
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Transformation;
+using Avalonia.Threading;
 using Mira.Core;
+using Mira.Mac.Services;
 using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
-// The mini-player, as on Windows (MainWindow.MiniPlayer.cs): « Retour », Échap or I shrink the player to a corner of the
-// window, the library usable around it; dragged, it settles in the nearest corner. Its title, « Agrandir » and « Fermer »
-// show while the pointer is on it; a double click or I brings the whole player back.
+// The mini-player, as on Windows (MainWindow.MiniPlayer.cs): « Retour », Échap or I shrink the player against the window's
+// right edge, the library usable around it. Tucked away by itself, a sliver of the video showing, it slides out while the
+// pointer rests on it and back once the pointer has left (MiniDock); dragged up or down, it rests at that height. Its title,
+// « Agrandir » and « Fermer » show while the pointer is on it; a click on the picture or I brings the whole player back.
 public sealed partial class PlayerPage
 {
-    private const double MiniWidth = 384, MiniHeight = 216, MiniRadius = 12, MiniGap = 20;
+    private const double MiniWidth = MiniDock.Width, MiniHeight = MiniDock.Height, MiniRadius = 12, MiniGap = MiniDock.Gap;
     private Border _frame = null!;
     private Grid _miniChrome = null!;
     private readonly TextBlock _miniTitle = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly Icon _miniPauseIcon = new("pause", 19);
     private readonly ProgressLine _miniProgress = new() { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false };
-    private bool _mini, _miniRight = true, _miniBottom = true, _miniDragging;
+    private bool _mini, _miniDragging, _miniTucked;
     private Point? _miniPress;
+    /// <summary>Where it rests down the window, as a share of the way from under the title bar to the bottom.</summary>
+    private double _miniShare = 1;
+    private readonly MiniDock _dock = new();
+    private readonly Stopwatch _dockClock = Stopwatch.StartNew();
+    private readonly DispatcherTimer _dockTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    /// <summary>The pointer in the window, in the coordinates of the page the player is laid out on; null outside it.</summary>
+    private Point? _pointer;
+    /// <summary>A click on the mini-player brought the whole player back: the presses of the same double click go nowhere.</summary>
+    private long _swallowPressesUntil;
+    private static readonly Easing Glide = new SplineEasing(.4, 0, .2, 1);
+    private static readonly ITransform Rest = TransformOperations.Parse("translateX(0px)");
+    /// <summary>Tucked away against the edge, a sliver of it showing (or on its way there).</summary>
+    public bool IsMiniTucked => _mini && _miniTucked;
+    /// <summary>The pointer as the self-check puts it; null, the real one.</summary>
+    public Func<bool>? MiniPointerForCheck { get; set; }
     /// <summary>In a corner of the window, the library usable around it.</summary>
     public bool IsMini => _mini;
 
@@ -60,7 +83,7 @@ public sealed partial class PlayerPage
         if (mini == _mini || _stopped && mini) return;
         if (mini && _shell.WindowState == WindowState.FullScreen && !_shell.InCouchMode) ToggleFullscreen();
         foreach (var button in new[] { _tracks, _more, _episodesButton }) (button.Flyout as Avalonia.Controls.Flyout)?.Hide();
-        _mini = mini; _miniDragging = false; _miniPress = null; RenderTransform = null;
+        _mini = mini; _miniDragging = _miniTucked = false; _miniPress = null; Transitions = null; RenderTransform = null;
         _chrome.IsVisible = _skipHost.IsVisible = !mini;
         _miniChrome.IsVisible = _miniProgress.IsVisible = mini;
         // Clipped only in its corner, to round it: over the whole window the video's OpenGL surface goes to the screen
@@ -69,32 +92,86 @@ public sealed partial class PlayerPage
         _frame.CornerRadius = new CornerRadius(mini ? MiniRadius : 0);
         _frame.BoxShadow = mini ? BoxShadows.Parse("0 12 36 0 #99000000") : default;
         _frame.BorderThickness = new Thickness(mini ? 1 : 0); _frame.BorderBrush = Ui.Brush("#30FFFFFF");
-        if (mini) PlaceMini(); else { Width = Height = double.NaN; Margin = default; HorizontalAlignment = HorizontalAlignment.Stretch; VerticalAlignment = VerticalAlignment.Stretch; }
+        if (mini) { PlaceMini(); RenderTransform = Rest; _dock.Arrive(_dockClock.Elapsed); StartDock(); }
+        else { _dockTimer.Stop(); Width = Height = double.NaN; Margin = default; HorizontalAlignment = HorizontalAlignment.Stretch; VerticalAlignment = VerticalAlignment.Stretch; }
         _miniTitle.Text = _session.Item is { } item ? item.Type == "Episode" ? $"{item.DisplayTitle} · {_subtitle.Text}" : item.DisplayTitle : "";
         Cursor = Cursor.Default;
         ShowGroup(); UpdateSkip(); ShowControls();
         _shell.MiniChanged(this);
     }
-    /// <summary>Clear of the rail and the title bar, in the corner it was left in.</summary>
+    /// <summary>Against the right edge, clear of the title bar, at the height it was left at.</summary>
     private void PlaceMini()
     {
         Width = MiniWidth; Height = MiniHeight;
-        HorizontalAlignment = _miniRight ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-        VerticalAlignment = _miniBottom ? VerticalAlignment.Bottom : VerticalAlignment.Top;
-        Margin = new Thickness(MainWindow.RailWidth + MiniGap, _shell.TitleBarInset + 12, MiniGap, MiniGap);
+        HorizontalAlignment = HorizontalAlignment.Right; VerticalAlignment = VerticalAlignment.Top;
+        Margin = new Thickness(0, MiniDock.Top(_miniShare, MiniTop, ShellHeight), MiniGap, 0);
     }
-    private void ShowMiniControls(bool shown) => _miniChrome.Opacity = shown ? 1 : 0;
+    private double MiniTop => _shell.TitleBarInset + 12;
+    /// <summary>The height of what the player is laid out on (the window under its title bar's inset, or all of it).</summary>
+    private double ShellHeight => Parent is Control parent && parent.Bounds.Height > 0 ? parent.Bounds.Height : _shell.Bounds.Height;
+    private double ShellWidth => Parent is Control parent && parent.Bounds.Width > 0 ? parent.Bounds.Width : _shell.Bounds.Width;
+    /// <summary>Tucked away, it moves right by all but the sliver; out, it rests where layout puts it.</summary>
+    private static double TuckShift => MiniDock.Left(false, 0) - MiniDock.Left(true, 0);
+
+    /// <summary>The self-check: the dock at work with the pointer it puts, as just shrunk.</summary>
+    public void DockForCheck(Func<bool>? pointer)
+    {
+        MiniPointerForCheck = pointer;
+        if (pointer is null) { _dockTimer.Stop(); return; }
+        _dock.Arrive(_dockClock.Elapsed); StartDock();
+    }
+    private void StartDock()
+    {
+        // Only in use, and never under the other checks: they find the mini-player out, as they leave it.
+        if (!_shell.IsCheckRun || MiniPointerForCheck is not null) _dockTimer.Start();
+    }
+    private void DockTick()
+    {
+        if (!_mini || _stopped || _pip is not null || !IsVisible) { _dockTimer.Stop(); return; }
+        var held = _miniDragging || _miniPress is not null;
+        if (_dock.Update(_dockClock.Elapsed, PointerOnMini(), held)) SlideMini(_dock.Out);
+    }
+    /// <summary>The pointer on what shows of the mini-player: the sliver tucked away; out, the picture and the gap to the edge.</summary>
+    private bool PointerOnMini()
+    {
+        if (MiniPointerForCheck is { } check) return check();
+        if (_pointer is not { } point) return false;
+        var right = ShellWidth; var top = MiniDock.Top(_miniShare, MiniTop, ShellHeight);
+        var left = _miniTucked ? right - MiniDock.Peek : MiniDock.Left(true, right) - 4;
+        return point.X >= left && point.X <= right + 1 && point.Y >= top - 4 && point.Y <= top + MiniHeight + 4;
+    }
+    private void ShellPointerMoved(object? sender, PointerEventArgs e) => _pointer = Parent is Visual parent ? e.GetPosition(parent) : null;
+    private void ShellPointerExited(object? sender, PointerEventArgs e) => _pointer = null;
+    /// <summary>Listens to the pointer anywhere in the window while the player is in it (the sliver is too thin to wait for it to arrive).</summary>
+    private void FollowPointer(bool on)
+    {
+        _shell.RemoveHandler(PointerMovedEvent, ShellPointerMoved); _shell.PointerExited -= ShellPointerExited; _shell.SizeChanged -= ShellResized;
+        if (!on) return;
+        _shell.AddHandler(PointerMovedEvent, ShellPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _shell.PointerExited += ShellPointerExited; _shell.SizeChanged += ShellResized;
+    }
+    private void ShellResized(object? sender, SizeChangedEventArgs e) { if (_mini && !_miniDragging) Dispatcher.UIThread.Post(PlaceMini, DispatcherPriority.Loaded); }
+    /// <summary>Slides out, or back against the edge, on Avalonia's compositor: retaken from where it is when the pointer changes its mind.</summary>
+    private void SlideMini(bool shown)
+    {
+        _miniTucked = !shown;
+        if (!shown) ShowMiniControls(false);
+        Transitions = MacMotion.Reduced ? null : [new TransformOperationsTransition { Property = RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(shown ? MiniDock.OutMs : MiniDock.BackMs), Easing = Glide }];
+        RenderTransform = shown ? Rest : TransformOperations.Parse(FormattableString.Invariant($"translateX({TuckShift}px)"));
+        if (shown && PointerOnMini()) ShowControls();
+    }
+    private void ShowMiniControls(bool shown) => _miniChrome.Opacity = shown && !_miniTucked ? 1 : 0;
     private void MiniProgress()
     {
         if (!_mini) return;
         _miniProgress.Value = _session.Duration > 0 ? _session.Position / _session.Duration : 0;
         _miniProgress.InvalidateVisual();
     }
-    /// <summary>A press on the picture: a click pauses, a double click expands, a drag moves it to another corner.</summary>
+    /// <summary>A press on the picture: a click expands, a drag moves it up or down the edge.</summary>
     /// <param name="twice">The second of two presses on the picture (PlayerPage's own count, not Avalonia's).</param>
     private void MiniPressed(PointerPressedEventArgs e, bool twice)
     {
-        if (twice) { _click.Stop(); _miniPress = null; SetMini(false); return; }
+        if (twice) { _click.Stop(); _miniPress = null; ExpandMiniByClick(); return; }
         _miniPress = e.GetPosition(_shell); e.Pointer.Capture(_videoHost);
     }
     private void MiniMoved(PointerEventArgs e)
@@ -102,18 +179,36 @@ public sealed partial class PlayerPage
         if (_miniPress is not { } press) return;
         var point = e.GetPosition(_shell);
         if (!_miniDragging && Math.Abs(point.X - press.X) + Math.Abs(point.Y - press.Y) < 6) return;
-        if (!_miniDragging) { _miniDragging = true; _click.Stop(); }
-        RenderTransform = new TranslateTransform(point.X - press.X, point.Y - press.Y);
+        if (!_miniDragging) { _miniDragging = true; _click.Stop(); _miniTucked = false; Transitions = null; ShowMiniControls(false); }
+        // Up and down freely; across, only towards the edge it rests against, and not past it.
+        var x = Math.Clamp(point.X - press.X, -(ShellWidth - MainWindow.RailWidth - 2 * MiniGap - MiniWidth), TuckShift);
+        var top = MiniDock.Top(_miniShare, MiniTop, ShellHeight);
+        var y = Math.Clamp(point.Y - press.Y, MiniTop - top, Math.Max(MiniTop, ShellHeight - MiniGap - MiniHeight) - top);
+        RenderTransform = TransformOperations.Parse(FormattableString.Invariant($"translate({x}px, {y}px)"));
     }
     private void MiniReleased(PointerReleasedEventArgs e)
     {
-        if (_miniPress is null) return;
+        if (_miniPress is not { } press) return;
         _miniPress = null; e.Pointer.Capture(null);
-        if (!_miniDragging) { _click.Start(); return; }
+        if (!_miniDragging) { ExpandMiniByClick(); return; }
         _miniDragging = false;
-        // The corner nearest to where it was let go.
-        var middle = this.TranslatePoint(new Point(Bounds.Width / 2, Bounds.Height / 2), _shell) ?? default;
-        _miniRight = middle.X > (MainWindow.RailWidth + _shell.Bounds.Width) / 2; _miniBottom = middle.Y > _shell.Bounds.Height / 2;
-        RenderTransform = null; PlaceMini();
+        // Let go: against the right edge again, at that height, gliding there from where it was let go.
+        var point = e.GetPosition(_shell);
+        var top = MiniDock.Top(_miniShare, MiniTop, ShellHeight);
+        var x = Math.Clamp(point.X - press.X, -(ShellWidth - MainWindow.RailWidth - 2 * MiniGap - MiniWidth), TuckShift);
+        var landed = Math.Clamp(top + point.Y - press.Y, MiniTop, Math.Max(MiniTop, ShellHeight - MiniGap - MiniHeight));
+        _miniShare = MiniDock.Share(landed, MiniTop, ShellHeight);
+        var settled = MiniDock.Top(_miniShare, MiniTop, ShellHeight);
+        PlaceMini();
+        RenderTransform = TransformOperations.Parse(FormattableString.Invariant($"translate({x}px, {landed - settled}px)"));
+        _dock.Show(_dockClock.Elapsed);
+        Dispatcher.UIThread.Post(() => { if (_mini && !_miniDragging) SlideMini(true); }, DispatcherPriority.Render);
     }
+    private void ExpandMiniByClick()
+    {
+        _swallowPressesUntil = Environment.TickCount64 + 500;
+        SetMini(false);
+    }
+    /// <summary>The second press of a double click lands on the whole player: it goes nowhere.</summary>
+    private bool SwallowsPress() => Environment.TickCount64 < _swallowPressesUntil;
 }

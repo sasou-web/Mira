@@ -59,7 +59,7 @@ Mira reprend un peu avant là où tu t’es arrêté, 5 secondes par défaut, po
 
 ## Mini-lecteur et image dans l’image
 
-- **Mini-lecteur** : la vidéo continue dans un coin de la bibliothèque pendant que tu navigues. Fais-le glisser dans n’importe quel coin ; sous Windows, pousse-le au-delà du bord droit pour le ranger derrière un onglet.
+- **Mini-lecteur** : la vidéo continue contre le bord droit de la bibliothèque pendant que tu navigues. Il se range tout seul : seul un bout de la vidéo dépasse. Pose le pointeur dessus pour le faire sortir, clique sur l’image pour revenir au lecteur entier, fais-le glisser vers le haut ou le bas pour changer sa hauteur.
 - **Image dans l’image** (Windows et Mac) : la vidéo dans une petite fenêtre à elle, au-dessus de tes autres fenêtres, avec ses sous-titres. Sur iPhone, l’Image dans l’image d’Apple.
 
 ## Minuterie

@@ -1,36 +1,45 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
+using Mira.Core;
+using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
-/// <summary>Floating mini-player: rounded, shadowed, dragged anywhere and snapped to the nearest
-/// corner on release. Pushed past the right edge it tucks away behind a small handle.</summary>
+/// <summary>
+/// The mini-player, against the window's right edge. Tucked away by itself, a sliver of the video showing, it slides out
+/// while the pointer rests on it and back once the pointer has left (<see cref="MiniDock"/>); a click on the picture brings
+/// the whole player back. Dragged up or down, it rests at that height. The video's own window slides, a step at each frame
+/// of the screen, as when the player shrinks (<c>MainWindow.PlayerMorph.cs</c>): the window clips what is past its edge.
+/// </summary>
 public partial class MainWindow
 {
-    private const double MiniWidth = 384, MiniHeight = 216, MiniRadius = 11, MiniGap = 20, RailWidth = 68, TitleHeight = 34;
-    private bool _miniRight = true, _miniBottom = true, _miniStowed, _miniDragging, _miniAnimating;
-    private Point? _miniPress, _tabPress;
+    private const double MiniWidth = MiniDock.Width, MiniHeight = MiniDock.Height, MiniRadius = 11, RailWidth = 68, TitleHeight = 34, MiniTop = TitleHeight + 8;
+    /// <summary>Where it rests down the window, as a share of the way from under the title bar to the bottom.</summary>
+    private double _miniShare = 1;
+    /// <summary>Laid out against the edge, tucked away (or on its way there).</summary>
+    private bool _miniTucked;
+    private bool _miniDragging, _miniSliding;
+    private int _miniSlide;
+    private Point? _miniPress;
     private Point _miniGrab, _miniTopLeft;
-    private readonly List<(long Time, Point Position)> _miniTrail = [];
-    private int _miniAnimation;
-    private bool MiniSettled => !_miniDragging && !_miniStowed && !_miniAnimating;
+    private readonly MiniDock _dock = new();
+    private readonly Stopwatch _dockClock = Stopwatch.StartNew();
+    private DispatcherTimer? _dockTimer;
+    /// <summary>The pointer as the player check puts it; null, the real one.</summary>
+    private Func<bool>? _miniPointerForCheck;
+    /// <summary>A click on the mini-player brought the whole player back: the presses of the same double click go nowhere.</summary>
+    private long _swallowPressesUntil;
+    private bool MiniSettled => !_miniDragging && !_miniTucked && !_miniSliding;
     private FrameworkElement Root => (FrameworkElement)Content;
 
-    /// <summary>Resting area: clear of the navigation rail, the caption buttons and the window edges.</summary>
-    private Rect MiniBounds()
-    {
-        var left = RailWidth + MiniGap; var top = TitleHeight + 8;
-        return new Rect(left, top, Math.Max(MiniWidth, Root.ActualWidth - MiniGap - left), Math.Max(MiniHeight, Root.ActualHeight - MiniGap - top));
-    }
-    private Point MiniCorner(bool right, bool bottom)
-    {
-        var bounds = MiniBounds();
-        return new(right ? bounds.Right - MiniWidth : bounds.Left, bottom ? bounds.Bottom - MiniHeight : bounds.Top);
-    }
-    private Point StowedPoint() => new(Root.ActualWidth + 16, MiniCorner(true, _miniBottom).Y);
+    /// <summary>Where it rests, out or tucked away, at its height.</summary>
+    private Point MiniPoint(bool shown) => new(MiniDock.Left(shown, Root.ActualWidth), MiniDock.Top(_miniShare, MiniTop, Root.ActualHeight));
     private void PlaceMini(Point topLeft)
     {
         _miniTopLeft = topLeft;
@@ -38,23 +47,24 @@ public partial class MainWindow
     }
     private void EnterMiniLayout(bool keepPlacement)
     {
-        ++_miniAnimation; _miniAnimating = _miniDragging = false; _miniPress = null;
-        if (!keepPlacement) _miniStowed = false;
+        CancelMiniSlide(); FinishMiniSlide(); _miniDragging = false; _miniPress = null;
+        if (!keepPlacement) { _miniTucked = false; _dock.Arrive(_dockClock.Elapsed); }
         PlayerShell.HorizontalAlignment = HorizontalAlignment.Left; PlayerShell.VerticalAlignment = VerticalAlignment.Top;
         PlayerShell.Width = MiniFrame.Width = MiniWidth; PlayerShell.Height = MiniFrame.Height = MiniHeight;
         PlayerShell.Clip = new RectangleGeometry(new Rect(0, 0, MiniWidth, MiniHeight), MiniRadius, MiniRadius);
-        PlaceMini(_miniStowed ? StowedPoint() : MiniCorner(_miniRight, _miniBottom));
-        MiniFrame.Visibility = _miniStowed ? Visibility.Collapsed : Visibility.Visible;
-        if (_miniStowed) ShowMiniTab(); else MiniTab.Visibility = Visibility.Collapsed;
+        PlaceMini(MiniPoint(!_miniTucked));
+        MiniFrame.Visibility = Visibility.Visible;
         _videoHost?.SetCornerRadius(MiniRadius * VisualTreeHelper.GetDpi(this).DpiScaleX);
+        StartDock();
     }
     private void ResetMiniPlacement()
     {
-        ++_miniAnimation; _miniAnimating = _miniDragging = _miniStowed = false; _miniPress = null;
+        CancelMiniSlide(); FinishMiniSlide(); _dockTimer?.Stop();
+        _miniDragging = _miniTucked = false; _miniPress = null;
         if (PlayerShell.IsMouseCaptured) PlayerShell.ReleaseMouseCapture();
         PlayerShell.HorizontalAlignment = HorizontalAlignment.Stretch; PlayerShell.VerticalAlignment = VerticalAlignment.Stretch;
         PlayerShell.Width = PlayerShell.Height = double.NaN; PlayerShell.Margin = new Thickness(0); PlayerShell.Clip = null;
-        MiniFrame.Visibility = MiniTab.Visibility = MiniOutline.Visibility = Visibility.Collapsed;
+        MiniFrame.Visibility = MiniOutline.Visibility = Visibility.Collapsed;
         _videoHost?.SetCornerRadius(0);
     }
     /// <summary>
@@ -68,34 +78,127 @@ public partial class MainWindow
         if (_miniPlayer) { _videoHost?.SetCornerRadius(MiniRadius * newDpi.DpiScaleX); KeepMiniInPlace(); }
         else PositionPlayerControls();
     }
-    /// <summary>Keeps the mini-player in its corner when the window is resized.</summary>
+    /// <summary>Keeps the mini-player against the edge, at its height, when the window is resized.</summary>
     private void KeepMiniInPlace()
     {
         if (!_miniPlayer || _miniDragging) return;
-        ++_miniAnimation; _miniAnimating = false;
-        PlaceMini(_miniStowed ? StowedPoint() : MiniCorner(_miniRight, _miniBottom));
-        if (_miniStowed) ShowMiniTab(animate: false);
+        if (_miniSliding) { CancelMiniSlide(); FinishMiniSlide(); }
+        PlaceMini(MiniPoint(!_miniTucked));
         PositionPlayerControls();
     }
 
-    /// <param name="activating">The click brings Mira back to the front: it may still drag, never pauses.</param>
-    /// <param name="clicks">WPF's click count, less a press that only closed a menu.</param>
-    private void MiniPointerDown(MouseButtonEventArgs e, bool activating, int clicks)
+    // ---- Tucked away and out: the pointer, the clock, the slide.
+
+    private void StartDock()
+    {
+        if (_dockTimer is null)
+        {
+            _dockTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(40) };
+            _dockTimer.Tick += (_, _) => DockTick();
+        }
+        // Only in use, and never under the other checks: they find the mini-player out, as they leave it.
+        if (!ValidationRun || _miniPointerForCheck is not null) _dockTimer.Start();
+    }
+    private void DockTick()
+    {
+        if (!_miniPlayer || !_playing || _pip is not null) { _dockTimer?.Stop(); return; }
+        if (_morphing || WindowState == WindowState.Minimized || PlayerShell.Visibility != Visibility.Visible) return;
+        var held = _miniDragging || _miniPress is not null || PlayerOptionsPopup.IsOpen || PlayerErrorShown
+            || _keyboardNavigation && (PlayerSurface.IsKeyboardFocusWithin || PlayerTransport.IsKeyboardFocusWithin);
+        if (_dock.Update(_dockClock.Elapsed, PointerOnMini(), held)) SlideMini(_dock.Out);
+    }
+    /// <summary>The pointer on what shows of the mini-player, Mira's window under it (not another window over Mira).</summary>
+    private bool PointerOnMini()
+    {
+        if (_miniPointerForCheck is { } check) return check();
+        if (Screens.Pointer() is not var (x, y)) return false;
+        var window = new WindowInteropHelper(this).Handle;
+        if (window == IntPtr.Zero || GetAncestor(WindowAt(new CursorPoint { X = (int)x, Y = (int)y }), RootWindow) != window) return false;
+        Point point;
+        try { point = Root.PointFromScreen(new Point(x, y)); }
+        catch (InvalidOperationException) { return false; }
+        var top = MiniPoint(true).Y; var right = Root.ActualWidth;
+        // Out: the picture and the gap to the edge, where the sliver was; tucked away: the sliver.
+        var left = _miniTucked ? right - MiniDock.Peek : MiniPoint(true).X - 4;
+        return point.X >= left && point.X <= right + 1 && point.Y >= top - 4 && point.Y <= top + MiniHeight + 4;
+    }
+    /// <summary>Slides out, or back against the edge. Retaken from where it is when the pointer changes its mind on the way.</summary>
+    private async void SlideMini(bool shown)
+    {
+        if (!_miniPlayer || _morphing) return;
+        _miniTucked = !shown; ClosePlayerPopups();
+        var target = MiniPoint(shown);
+        if (Motion.Reduced || _videoHost is not { } host || WindowState == WindowState.Minimized)
+        {
+            CancelMiniSlide(); FinishMiniSlide(); PlaceMini(target); AfterMiniSlide(shown); return;
+        }
+        var slide = ++_miniSlide; _miniSliding = true;
+        var radius = MiniRadius * VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var from = host.BeginMove();
+        // The black under the video and its shadow wait where it goes: they come back once it is there.
+        PlayerShell.BeginAnimation(OpacityProperty, null); PlayerShell.Opacity = 0;
+        MiniFrame.BeginAnimation(OpacityProperty, null); MiniFrame.Opacity = 0;
+        PlaceMini(target); UpdateLayout();
+        var to = host.LaidOut ?? from;
+        await MoveVideoAsync(host, from, to, radius, radius, shown ? MiniDock.OutMs : MiniDock.BackMs, live: () => slide == _miniSlide);
+        if (slide != _miniSlide) return;
+        FinishMiniSlide(); AfterMiniSlide(shown);
+    }
+    private void AfterMiniSlide(bool shown)
+    {
+        PositionPlayerControls();
+        if (shown && PointerOnMini()) ShowPlayerControls();
+    }
+    /// <summary>Stops a slide where it is: what comes next (a slide, a reduction or an expansion) moves the video on from there.</summary>
+    private void CancelMiniSlide() => ++_miniSlide;
+    /// <summary>A reduction, an expansion or the closing moves the video on from where the slide left it, with its own clock.</summary>
+    private void TakeOverMiniSlide()
+    {
+        if (!_miniSliding) return;
+        CancelMiniSlide(); _miniSliding = false;
+        PlayerShell.Opacity = 1; MiniFrame.BeginAnimation(OpacityProperty, null); MiniFrame.Opacity = 1;
+    }
+    /// <summary>The video placed by layout again, the black under it and its shadow back.</summary>
+    private void FinishMiniSlide()
+    {
+        if (!_miniSliding) return;
+        _miniSliding = false;
+        if (!_morphing) _videoHost?.EndMove();
+        PlayerShell.Opacity = 1;
+        if (_miniPlayer) Motion.Fade(MiniFrame, 1, 120, MiniFrame.Opacity); else MiniFrame.Opacity = 1;
+    }
+
+    // ---- Pressed, clicked, dragged.
+
+    /// <param name="activating">The click brings Mira back to the front: it may still drag, never expands.</param>
+    private void MiniPointerDown(MouseButtonEventArgs e, bool activating)
     {
         if (!IsMiniBackground(e.OriginalSource as DependencyObject)) return;
         PlayerSurface.Focus(); e.Handled = true;
-        if (clicks == 2 && !activating) { _miniPress = null; _surfaceClick.Stop(); SetMiniPlayerSmoothly(false); return; }
-        _miniPress = Mouse.GetPosition(Root); _miniPressPauses = !activating && !InBarBand(e.GetPosition(PlayerSurface));
+        _miniPress = Mouse.GetPosition(Root); _miniPressExpands = !activating && !InBarBand(e.GetPosition(PlayerSurface));
     }
     private void MiniPointerUp(MouseButtonEventArgs e)
     {
         if (_miniPress is null || _miniDragging) return;
         _miniPress = null; e.Handled = true;
-        // A click without movement keeps its meaning: play / pause, on the picture (not on the title or the timeline's band).
-        _surfaceClick.Stop();
-        if (_miniPressPauses) _surfaceClick.Start(); else ShowPlayerControls();
+        // A click without movement on the picture (not on the title or the timeline's band) brings the whole player back.
+        if (_miniPressExpands) ExpandMiniByClick(); else ShowPlayerControls();
     }
-    private bool _miniPressPauses;
+    private bool _miniPressExpands;
+    /// <summary>A press on the sliver, tucked away or on its way: the click brings the whole player back as on the picture.</summary>
+    private void MiniShell_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!_miniPlayer || MiniSettled || _miniDragging || PlayerErrorShown) return;
+        e.Handled = true; ExpandMiniByClick();
+    }
+    private void ExpandMiniByClick()
+    {
+        _swallowPressesUntil = Environment.TickCount64 + 500;
+        SetMiniPlayerSmoothly(false);
+    }
+    /// <summary>The second press of a double click lands on the player growing over the page: it goes nowhere.</summary>
+    private bool SwallowsPress() => Environment.TickCount64 < _swallowPressesUntil;
+    private void Window_PreviewMouseDownSwallowed(object sender, MouseButtonEventArgs e) { if (SwallowsPress()) e.Handled = true; }
     /// <summary>Anything but the buttons and the timeline can be used as a grip.</summary>
     private bool IsMiniBackground(DependencyObject? node)
     {
@@ -106,23 +209,19 @@ public partial class MainWindow
     private void BeginMiniDrag()
     {
         if (_miniPress is not { } press) return;
-        _surfaceClick.Stop(); ++_miniAnimation; _miniAnimating = false;
+        if (_miniSliding) { CancelMiniSlide(); FinishMiniSlide(); }
         _miniGrab = new Point(press.X - _miniTopLeft.X, press.Y - _miniTopLeft.Y);
         // The main window follows the pointer: the overlay window can then close without ending the drag.
         if (!PlayerShell.CaptureMouse()) { _miniPress = null; return; }
-        _miniDragging = true; _miniTrail.Clear();
+        _miniDragging = true; _miniTucked = false;
         ClosePlayerPopups(); MiniFrame.Visibility = Visibility.Visible;
     }
     private void MiniDrag_MouseMove(object sender, MouseEventArgs e)
     {
         if (!_miniDragging) return;
-        var pointer = e.GetPosition(Root); var bounds = MiniBounds();
-        // Free inside the window; to the right it may be pushed mostly out of view to tuck it away.
-        PlaceMini(new Point(Math.Clamp(pointer.X - _miniGrab.X, bounds.Left, Math.Max(bounds.Left, Root.ActualWidth - 56)),
-            Math.Clamp(pointer.Y - _miniGrab.Y, bounds.Top, Math.Max(bounds.Top, bounds.Bottom - MiniHeight))));
-        var now = Stopwatch.GetTimestamp();
-        _miniTrail.Add((now, _miniTopLeft));
-        _miniTrail.RemoveAll(x => now - x.Time > Stopwatch.Frequency / 8);
+        var pointer = e.GetPosition(Root);
+        var left = RailWidth + MiniDock.Gap; var bottom = Math.Max(MiniTop, Root.ActualHeight - MiniDock.Gap - MiniHeight);
+        PlaceMini(new Point(Math.Clamp(pointer.X - _miniGrab.X, left, Math.Max(left, Root.ActualWidth - MiniDock.Peek)), Math.Clamp(pointer.Y - _miniGrab.Y, MiniTop, bottom)));
     }
     private void MiniDrag_MouseUp(object sender, MouseButtonEventArgs e)
     {
@@ -130,78 +229,17 @@ public partial class MainWindow
         e.Handled = true; EndMiniDrag(); PlayerShell.ReleaseMouseCapture();
     }
     private void MiniDrag_LostCapture(object sender, MouseEventArgs e) { if (_miniDragging) EndMiniDrag(); }
+    /// <summary>Let go: back against the right edge, at the height it was let go at, out until the pointer leaves it.</summary>
     private void EndMiniDrag()
     {
         _miniDragging = false; _miniPress = null;
-        var velocity = new Vector();
-        if (_miniTrail.Count > 1)
-        {
-            var (firstTime, first) = _miniTrail[0]; var (lastTime, last) = _miniTrail[^1];
-            var seconds = (lastTime - firstTime) / (double)Stopwatch.Frequency;
-            if (seconds > .005) velocity = (last - first) / seconds;
-        }
-        var bounds = MiniBounds();
-        var overflow = _miniTopLeft.X + MiniWidth - Root.ActualWidth;
-        // Project a flick a little forward, like a thrown card, before choosing where it lands.
-        var landing = _miniTopLeft + velocity * .12 + new Vector(MiniWidth / 2, MiniHeight / 2);
-        _miniBottom = landing.Y > bounds.Top + bounds.Height / 2;
-        if (overflow > MiniWidth * .3 || (velocity.X > 1500 && _miniTopLeft.X + MiniWidth > bounds.Right - 8)) { StowMini(); return; }
-        _miniRight = landing.X > bounds.Left + bounds.Width / 2;
-        GlideMini(MiniCorner(_miniRight, _miniBottom), () => ShowPlayerControls());
+        _miniShare = MiniDock.Share(_miniTopLeft.Y, MiniTop, Root.ActualHeight);
+        _dock.Show(_dockClock.Elapsed);
+        SlideMini(true);
     }
-    private void GlideMini(Point target, Action? completed = null)
-    {
-        var id = ++_miniAnimation; var from = _miniTopLeft;
-        if (Motion.Reduced || (target - from).Length < 1) { PlaceMini(target); _miniAnimating = false; PositionPlayerControls(); completed?.Invoke(); return; }
-        _miniAnimating = true; ClosePlayerPopups();
-        var clock = Stopwatch.StartNew(); var duration = Math.Clamp((target - from).Length * .9, 180, 320);
-        EventHandler? frame = null;
-        frame = (_, _) =>
-        {
-            if (id != _miniAnimation) { CompositionTarget.Rendering -= frame; return; }
-            var t = Math.Min(1, clock.Elapsed.TotalMilliseconds / duration);
-            PlaceMini(from + (target - from) * (1 - Math.Pow(1 - t, 3)));
-            if (t < 1) return;
-            CompositionTarget.Rendering -= frame; _miniAnimating = false; PositionPlayerControls(); completed?.Invoke();
-        };
-        CompositionTarget.Rendering += frame;
-    }
-    private void StowMini()
-    {
-        _miniStowed = true; _miniRight = true; ClosePlayerPopups();
-        GlideMini(StowedPoint(), () => { if (_miniStowed) MiniFrame.Visibility = Visibility.Collapsed; });
-        ShowMiniTab();
-    }
-    private void UnstowMini()
-    {
-        if (!_miniPlayer || !_miniStowed) return;
-        _miniStowed = false; _tabPress = null; MiniFrame.Visibility = Visibility.Visible;
-        HideMiniTab();
-        GlideMini(MiniCorner(true, _miniBottom), () => ShowPlayerControls());
-    }
-    private void ShowMiniTab(bool animate = true)
-    {
-        var corner = MiniCorner(true, _miniBottom);
-        MiniTab.Margin = new Thickness(0, corner.Y + MiniHeight / 2 - MiniTab.Height / 2, 0, 0);
-        MiniTabPulse.Opacity = _session.Paused ? .35 : 1;
-        if (MiniTab.Visibility == Visibility.Visible && !animate) return;
-        MiniTab.Visibility = Visibility.Visible; MiniTab.IsHitTestVisible = true;
-        Motion.Animate(MiniTabShift, TranslateTransform.XProperty, 0, 260, animate ? MiniTab.Width + 4 : 0, Motion.EaseOut);
-        Motion.Fade(MiniTab, 1, 200, animate ? 0 : 1);
-    }
-    private async void HideMiniTab()
-    {
-        MiniTab.IsHitTestVisible = false;
-        Motion.Animate(MiniTabShift, TranslateTransform.XProperty, MiniTab.Width + 4, 180);
-        Motion.Fade(MiniTab, 0, 180);
-        if (!Motion.Reduced) await Task.Delay(190);
-        if (!_miniStowed) MiniTab.Visibility = Visibility.Collapsed;
-    }
-    private void MiniTab_Click(object sender, RoutedEventArgs e) => UnstowMini();
-    private void MiniTab_MouseDown(object sender, MouseButtonEventArgs e) => _tabPress = e.GetPosition(Root);
-    private void MiniTab_MouseMove(object sender, MouseEventArgs e)
-    {
-        // Pulling the handle towards the centre brings the video back without waiting for the release.
-        if (_tabPress is { } press && e.LeftButton == MouseButtonState.Pressed && press.X - e.GetPosition(Root).X > 12) UnstowMini();
-    }
+
+    private const uint RootWindow = 2;
+    [StructLayout(LayoutKind.Sequential)] private struct CursorPoint { public int X, Y; }
+    [DllImport("user32.dll", EntryPoint = "WindowFromPoint")] private static extern IntPtr WindowAt(CursorPoint point);
+    [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
 }

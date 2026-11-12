@@ -37,13 +37,13 @@ public partial class MainWindow
             await shade.LiftAsync(LiftMs);
             return;
         }
-        if (Motion.Reduced || _fullscreen || _miniStowed || WindowState == WindowState.Minimized || PlayerErrorShown || !_loaded)
+        if (Motion.Reduced || _fullscreen || WindowState == WindowState.Minimized || PlayerErrorShown || !_loaded)
         {
-            FrameProbe.Note($"{(mini ? "reduce" : "expand")} without movement: reduced motion {Motion.Reduced}, fullscreen {_fullscreen}, tucked away {_miniStowed}, error {PlayerErrorShown}, loaded {_loaded}");
+            FrameProbe.Note($"{(mini ? "reduce" : "expand")} without movement: reduced motion {Motion.Reduced}, fullscreen {_fullscreen}, error {PlayerErrorShown}, loaded {_loaded}");
             SetMiniPlayer(mini); return;
         }
         FrameProbe.Begin(mini ? "reduce" : "expand");
-        var version = ++_morphVersion; _morphing = true;
+        var version = ++_morphVersion; _morphing = true; TakeOverMiniSlide();
         var host = _videoHost!; var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
         // First: their layered windows would otherwise be drawn again, whole, with the new layout.
         ClosePlayerPopups();
@@ -75,16 +75,17 @@ public partial class MainWindow
     /// late frame shows it further on, never a slower movement. WPF has nothing to draw meanwhile, and mpv goes on playing.
     /// </summary>
     /// <param name="leaving">Gathers speed instead of landing.</param>
-    private Task MoveVideoAsync(VideoHost host, Rect from, Rect to, double fromRadius, double toRadius, int ms, bool leaving = false)
+    /// <param name="live">While true, the movement goes on: by default, until another reduction or expansion.</param>
+    private Task MoveVideoAsync(VideoHost host, Rect from, Rect to, double fromRadius, double toRadius, int ms, bool leaving = false, Func<bool>? live = null)
     {
         var done = new TaskCompletionSource();
-        var version = _morphVersion; var clock = Stopwatch.StartNew(); var queued = 0; var steps = 0;
+        var version = _morphVersion; live ??= () => version == _morphVersion; var clock = Stopwatch.StartNew(); var queued = 0; var steps = 0;
         var tell = !leaving && to.Width < from.Width;
         void Step()
         {
             Interlocked.Exchange(ref queued, 0);
             if (done.Task.IsCompleted) return;
-            if (version != _morphVersion) { done.TrySetResult(); return; }
+            if (!live()) { done.TrySetResult(); return; }
             var t = Math.Min(1, clock.Elapsed.TotalMilliseconds / ms);
             var k = leaving ? t * t : Glide(t);
             static double Mix(double a, double b, double k) => a + (b - a) * k;
@@ -130,12 +131,12 @@ public partial class MainWindow
     private async Task<bool> ClosePlayerSmoothlyAsync()
     {
         var shade = _miniPlayer ? null : Shade;
-        if (Motion.Reduced || _miniStowed || PlayerShell.Visibility != Visibility.Visible || PlayerErrorShown || _mpv is not { } mpv || !_loaded || _morphing || !_miniPlayer && shade is null)
+        if (Motion.Reduced || PlayerShell.Visibility != Visibility.Visible || PlayerErrorShown || _mpv is not { } mpv || !_loaded || _morphing || !_miniPlayer && shade is null)
         {
-            FrameProbe.Note($"close without movement: reduced motion {Motion.Reduced}, tucked away {_miniStowed}, error {PlayerErrorShown}, loaded {_loaded}, moving {_morphing}, sheet {shade is not null}");
+            FrameProbe.Note($"close without movement: reduced motion {Motion.Reduced}, error {PlayerErrorShown}, loaded {_loaded}, moving {_morphing}, sheet {shade is not null}");
             return false;
         }
-        var version = ++_morphVersion; _morphing = true;
+        var version = ++_morphVersion; _morphing = true; TakeOverMiniSlide();
         mpv.Set("pause", "yes"); mpv.Set("mute", "yes"); ClosePlayerPopups();
         var moved = new TaskCompletionSource(); _releaseWhen = moved.Task;
         try
@@ -153,12 +154,12 @@ public partial class MainWindow
         }
         finally { _releaseWhen = Task.CompletedTask; moved.TrySetResult(); }
     }
-    /// <summary>The mini-player leaves by the edge of the window it rests on.</summary>
+    /// <summary>The mini-player leaves by the edge of the window it rests against.</summary>
     private Task DismissMiniAsync()
     {
         var host = _videoHost!; var scale = VisualTreeHelper.GetDpi(this).DpiScaleX; var from = host.BeginMove();
         PlayerShell.Opacity = 0; PlayerShell.IsHitTestVisible = false; Motion.Fade(MiniFrame, 0, DismissMs);
-        var to = from; to.Y = _miniBottom ? Root.ActualHeight * scale + 16 : -from.Height - 16;
+        var to = from; to.X = Root.ActualWidth * scale + 16;
         return MoveVideoAsync(host, from, to, MiniRadius * scale, MiniRadius * scale, DismissMs, leaving: true);
     }
     /// <summary>After <paramref name="frames"/> frames drawn by WPF.</summary>

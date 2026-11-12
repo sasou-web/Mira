@@ -127,22 +127,41 @@ public partial class MainWindow
     }
     private async Task RunMiniPlayerChecksAsync(string output, List<string> checks, Action<bool, string> require, MpvEngine? engine)
     {
-        var corner = MiniCorner(true, true);
-        require(Near(PlayerShell.Margin, corner) && MiniFrame.IsVisible && PlayerShell.Clip is not null && MiniOutline.IsVisible, "mini-player rests rounded and shadowed in the bottom-right corner");
+        require(Near(PlayerShell.Margin, MiniPoint(true)) && Math.Abs(PlayerShell.Margin.Left + MiniWidth + MiniDock.Gap - Root.ActualWidth) < 1 && MiniFrame.IsVisible && PlayerShell.Clip is not null && MiniOutline.IsVisible, "mini-player rests rounded and shadowed against the right edge, at the bottom");
         CaptureElement(output, "mini-player", PlayerSurface);
         if (_args.Contains("--perf-probe")) { ShowPlayerControls(); _lastPlayerInteraction = DateTimeOffset.UtcNow.AddSeconds(30); await Task.Delay(300); }
         if (_args.Contains("--perf-probe")) checks.Add($"INFO mini buttons' row animation {PlayerTransport.ActualWidth:0}x{PlayerTransport.ActualHeight:0} DIP: {await MeasureFpsAsync((UIElement)PauseButton.Template.FindName("Hover", PauseButton))}");
-        var bounds = MiniBounds();
-        PlaceMini(new Point(bounds.Left + 30, bounds.Top + 20)); _miniTrail.Clear(); _miniDragging = true; EndMiniDrag(); await Task.Delay(500);
-        require(!_miniRight && !_miniBottom && Near(PlayerShell.Margin, MiniCorner(false, false)) && ReferenceEquals(engine, _mpv), "a released mini-player glides to the nearest corner");
-        PlaceMini(new Point(Root.ActualWidth - MiniWidth * .5, bounds.Top + 20)); _miniTrail.Clear(); _miniDragging = true; EndMiniDrag(); await Task.Delay(500);
-        require(_miniStowed && MiniTab.IsVisible && PlayerShell.Margin.Left >= Root.ActualWidth && !PlayerOverlayLayer.IsOpen && ReferenceEquals(engine, _mpv), "pushed past the right edge, the mini-player tucks away behind a handle and keeps playing");
-        ShowPlayerControls();
-        require(!PlayerOverlayLayer.IsOpen, "a tucked mini-player keeps its controls closed");
-        UnstowMini(); await Task.Delay(500);
-        require(!_miniStowed && _miniRight && Near(PlayerShell.Margin, MiniCorner(true, false)) && PlayerOverlayLayer.IsOpen && !MiniTab.IsVisible, "the handle brings the mini-player back to the right edge");
-        _miniBottom = true; KeepMiniInPlace(); await Task.Delay(100);
-        checks.Add("INFO mini-player drag, snapping and tuck-away checked with the native video kept alive");
+        // By itself, with the pointer elsewhere: tucked away against the edge, a sliver of the video showing, still playing.
+        var pointerOn = false; _miniPointerForCheck = () => pointerOn;
+        try
+        {
+            _dock.Arrive(_dockClock.Elapsed); StartDock();
+            await Task.Delay(MiniDock.FirstRest + TimeSpan.FromMilliseconds(MiniDock.BackMs + 400));
+            var video = _videoHost!; var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            GetWindowRect(video.Handle, out var tucked); var edge = Root.PointToScreen(new Point(Root.ActualWidth, 0)).X;
+            require(_miniTucked && !_miniSliding && !video.Moving && Near(PlayerShell.Margin, MiniPoint(false)) && !PlayerOverlayLayer.IsOpen && ReferenceEquals(engine, _mpv),
+                $"left alone, the mini-player tucks itself away against the right edge and keeps playing (margin {PlayerShell.Margin.Left:0} of {Root.ActualWidth:0})");
+            require(Math.Abs(edge - tucked.Left - MiniDock.Peek * scale) < 2 && tucked.Right > edge, $"its video's own window slid with it, {MiniDock.Peek} showing ({tucked.Left} to {tucked.Right}, window to {edge:0})");
+            ShowPlayerControls();
+            require(!PlayerOverlayLayer.IsOpen, "a tucked mini-player keeps its controls closed");
+            // The pointer resting on the sliver: out; gone from it: back after a moment.
+            pointerOn = true; await Task.Delay(MiniDock.Dwell + TimeSpan.FromMilliseconds(MiniDock.OutMs + 400));
+            GetWindowRect(video.Handle, out var shown);
+            require(!_miniTucked && !_miniSliding && Near(PlayerShell.Margin, MiniPoint(true)) && PlayerOverlayLayer.IsOpen && shown.Right < edge, "the pointer on the sliver brings the mini-player out, its controls with it");
+            pointerOn = false; await Task.Delay(MiniDock.Linger + TimeSpan.FromMilliseconds(MiniDock.BackMs + 400));
+            require(_miniTucked && Near(PlayerShell.Margin, MiniPoint(false)), "once the pointer has left, it goes back against the edge");
+            // Changing its mind on the way: out again from where it is.
+            pointerOn = true; await Task.Delay(MiniDock.Dwell + TimeSpan.FromMilliseconds(120));
+            pointerOn = false; await Task.Delay(MiniDock.Linger + TimeSpan.FromMilliseconds(MiniDock.BackMs + 500));
+            require(_miniTucked && !_miniSliding && !video.Moving && Near(PlayerShell.Margin, MiniPoint(false)) && ReferenceEquals(engine, _mpv), "a slide turned back halfway lands where it should");
+            // Dragged up and let go: against the right edge again, at that height, out until the pointer leaves it.
+            pointerOn = true; await Task.Delay(MiniDock.Dwell + TimeSpan.FromMilliseconds(MiniDock.OutMs + 300));
+            PlaceMini(new Point(RailWidth + 60, MiniTop + 20)); _miniDragging = true; EndMiniDrag(); await Task.Delay(MiniDock.OutMs + 300);
+            require(!_miniTucked && _miniShare < .1 && Near(PlayerShell.Margin, MiniPoint(true)) && Math.Abs(PlayerShell.Margin.Top - MiniTop - 20) < 1 && ReferenceEquals(engine, _mpv), $"let go up the window, it rests against the right edge at that height ({PlayerShell.Margin.Left:0}, {PlayerShell.Margin.Top:0})");
+        }
+        finally { pointerOn = true; _miniPointerForCheck = null; _dockTimer?.Stop(); }
+        _miniShare = 1; _miniTucked = false; KeepMiniInPlace(); await Task.Delay(150);
+        checks.Add("INFO mini-player tucked away, brought out by the pointer and dragged with the native video kept alive");
     }
     [System.Runtime.InteropServices.DllImport("user32")] private static extern int GetWindowLong(IntPtr hwnd, int index);
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }

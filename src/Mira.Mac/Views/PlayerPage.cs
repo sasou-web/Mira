@@ -202,11 +202,15 @@ public sealed partial class PlayerPage : UserControl
         _tick.Tick += (_, _) => Tick();
         _hide.Tick += (_, _) => { _hide.Stop(); SetControls(false); };
         _click.Tick += (_, _) => { _click.Stop(); TogglePause(); };
+        _dockTimer.Tick += (_, _) => DockTick();
+        AttachedToVisualTree += (_, _) => FollowPointer(true);
+        DetachedFromVisualTree += (_, _) => { FollowPointer(false); _dockTimer.Stop(); };
         _groupSeekSoon.Tick += (_, _) => { _groupSeekSoon.Stop(); if (Group.PlaysFor(this)) Group.Send("Seek", new JsonObject { ["PositionTicks"] = WatchGroup.Ticks(_session.Position) }); };
         _groupPlaySoon.Tick += (_, _) => { _groupPlaySoon.Stop(); if (Group.PlaysFor(this)) { MoveForGroup(_groupPlayAt); QuietPause(false); } };
         _videoHost.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(_videoHost).Properties.IsLeftButtonPressed) return;
+            if (SwallowsPress()) { e.Handled = true; return; }
             _click.Stop();
             // A double click is two presses on the picture. The press that closed a menu went to Avalonia's dismiss
             // layer, never here, but counts in the click count: the quick press after it is a first click.

@@ -59,7 +59,7 @@ Mira resumes a little before where you stopped, 5 seconds by default, to pick up
 
 ## Mini player and picture in picture
 
-- **Mini player**: the video keeps playing in a corner of the library while you browse. Drag it to any corner; on Windows, push it past the right edge to tuck it behind a tab.
+- **Mini player**: the video keeps playing against the right edge of the library while you browse. It tucks itself away, a sliver of the video showing. Rest the pointer on it to bring it out, click the picture to get the whole player back, drag it up or down to change its height.
 - **Picture in picture** (Windows and Mac): the video in a small window of its own, above your other windows, with its subtitles. On iPhone, Apple's Picture in Picture.
 
 ## Sleep timer

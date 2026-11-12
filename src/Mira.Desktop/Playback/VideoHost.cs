@@ -60,9 +60,14 @@ public sealed class VideoHost : HwndHost
     /// </summary>
     public Rect BeginMove()
     {
-        _moving = true; _laidOut = null; _toldSize = default;
-        _mpvWindow = GetWindow(Handle, FirstChild);
-        if (_mpvWindow != IntPtr.Zero) { _mpvProcedure = SetWindowLongPtr(_mpvWindow, WindowProcedureSlot, Marshal.GetFunctionPointerForDelegate(_heldProcedure)); }
+        // Already moving (the mini-player's slide, taken over by a reduction or an expansion): where it is now, mpv's
+        // window kept as it is (holding it a second time would lose its own procedure).
+        if (!_moving)
+        {
+            _moving = true; _laidOut = null; _toldSize = default;
+            _mpvWindow = GetWindow(Handle, FirstChild);
+            if (_mpvWindow != IntPtr.Zero) { _mpvProcedure = SetWindowLongPtr(_mpvWindow, WindowProcedureSlot, Marshal.GetFunctionPointerForDelegate(_heldProcedure)); }
+        }
         GetWindowRect(Handle, out var box); var corner = new Dot { X = box.Left, Y = box.Top }; ScreenToClient(GetParent(Handle), ref corner);
         return new Rect(corner.X, corner.Y, box.Right - box.Left, box.Bottom - box.Top);
     }
@@ -118,6 +123,8 @@ public sealed class VideoHost : HwndHost
         else ApplyRegion();
     }
     private bool _moving;
+    /// <summary>Its window is moved by Mira rather than placed by layout (<see cref="BeginMove"/>).</summary>
+    public bool Moving => _moving;
     private Rect? _laidOut;
     /// <summary>
     /// Nothing of the window shows, and it keeps its size: mpv draws its first picture unseen, to be revealed from black.

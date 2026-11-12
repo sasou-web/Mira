@@ -194,7 +194,8 @@ public partial class MainWindow
         // spot are counted without it (the next one is a first click, the one after it a double click).
         if (e.ClickCount == 1) _pressClosedMenu = false;
         var clicks = _pressClosedMenu ? e.ClickCount - 1 : e.ClickCount;
-        if (_miniPlayer) { MiniPointerDown(e, activating, clicks); return; }
+        if (SwallowsPress()) { e.Handled = true; return; }
+        if (_miniPlayer) { MiniPointerDown(e, activating); return; }
         if (e.OriginalSource != PlayerSurface) return;
         PlayerSurface.Focus(); ShowPlayerControls(); e.Handled = true;
         _surfaceClick.Stop();
