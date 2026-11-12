@@ -30,6 +30,8 @@ enum Releases {
         var repack = false
         /// The group was given in brackets in front, a fansub's (« [Erai-raws] »).
         var fansub = false
+        /// An episode between two, a recap or a special: « Show - 07.5 » (7; `episode` is nil).
+        var half: Int?
     }
 
     /// A result of a search, as the relay gives it (without its magnet link).
@@ -248,7 +250,7 @@ enum Releases {
         let plainLength = plain.utf16.count
 
         // Season and episode.
-        var season: Int?, episode: Int?, lastEpisode: Int?, absolute = false, pack = false, cut = plainLength
+        var season: Int?, episode: Int?, lastEpisode: Int?, half: Int?, absolute = false, pack = false, cut = plainLength
         func mark(_ index: Int) { if index >= 0, index < cut { cut = index } }
         var found = Regex.first(#"(?<![a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?:-?e(\d{1,4})|-(\d{1,4})(?![0-9p]))?(?![0-9])"#, in: plain)
         if let m = found {
@@ -261,9 +263,11 @@ enum Releases {
         if episode == nil {
             // Fansub numbering: « Show - 05 », « Show - 01 ~ 12 » (a batch); never a year.
             let numbered = Regex.first(#"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})(?:v\d)?(?:\s*[-~]\s*(\d{1,4})(?:v\d)?)?(?=\s|$)"#, in: plain)
+            // « Show - 07.5 », « Show S3 - Episode 12.5 »: an episode between two (a recap, a special), never its whole season.
+            let between = Regex.first(#"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})[.,]5(?:v\d)?(?=\s|$)"#, in: plain)
             var range = Regex.first(#"(?<![a-z0-9])(?:s\d{1,2}\s*[-~]\s*s\d{1,2}|(?:seasons?|saisons?)\s*\d{1,2}\s*[-~]\s*\d{1,2})(?![0-9])"#, in: plain)
             // « Show Season 2 - 05 » is season 2, episode 5, never seasons 2 to 5: the dash is the episode's.
-            if let r = range, let n = numbered, n.start > r.start, n.start < r.start + r.result.range.length,
+            if let r = range, let n = numbered ?? between, n.start > r.start, n.start < r.start + r.result.range.length,
                let words = r.text(0)?.lowercased(), !words.hasPrefix("seasons"), !words.hasPrefix("saisons") { range = nil }
             let single = Regex.first(#"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season)"#, in: plain)
             if let range {
@@ -271,7 +275,11 @@ enum Releases {
             } else if let single {
                 season = single.int(1) ?? single.int(2) ?? single.int(3); pack = true; mark(single.start)
             }
-            if let number = numbered,
+            if let between, let number = between.text(1), (group?.isEmpty == false) || season != nil || number.count <= 3 {
+                half = Int(number); mark(between.start)
+                pack = false; absolute = season == nil
+            }
+            if half == nil, let number = numbered,
                let first = number.text(1), !isYear(first), (group?.isEmpty == false) || season != nil || first.count <= 3 {
                 episode = Int(first); mark(number.start)
                 if let last = number.int(2) { lastEpisode = last; pack = true }
@@ -283,7 +291,7 @@ enum Releases {
         for complete in Regex.all(#"(?<![a-z0-9])(?:complete(?:\s+series)?|int[ée]grale|batch)(?![a-z0-9])"#, in: plain) {
             // « A Complete Unknown », « Star Wars The Bad Batch S03E15 »: words of the title, not every episode.
             if let at = tokens.firstIndex(where: { $0.index == complete.start }), !(complete.text(0) ?? "").contains(" "), !endsTitle(tokens, at) { continue }
-            if episode == nil || lastEpisode != nil { pack = true }
+            if (episode == nil && half == nil) || lastEpisode != nil { pack = true }
             mark(complete.start)
             break
         }
@@ -343,7 +351,7 @@ enum Releases {
             title: title, year: year, alternate: alternate, season: season, episode: episode, lastEpisode: lastEpisode,
             absolute: absolute, pack: pack, resolution: resolution, source: source, codec: codec, tenBit: has(lower, "10-?bits?|hi10p?|main10"),
             hdr: vision ? (hdr.map { "DV \($0)" } ?? "DV") : hdr, languages: languages, group: group,
-            repack: has(lower, "repack|proper|rerip"), fansub: fansub)
+            repack: has(lower, "repack|proper|rerip"), fansub: fansub, half: half)
     }
 
     // MARK: Words
@@ -358,8 +366,13 @@ enum Releases {
 
     private static func two(_ n: Int) -> String { n < 10 ? "0\(n)" : "\(n)" }
 
-    /// « S06E05 », « S01E01-E03 », « Episode 5 », « Complete season 2 », « All seasons », « Episodes 1–12 »; empty for a film.
+    /// « S06E05 », « S01E01-E03 », « Episode 5 », « S03E12.5 », « Complete season 2 », « All seasons », « Episodes 1–12 »; empty
+    /// for a film.
     static func episodeLabel(_ release: Release) -> String {
+        if let half = release.half {
+            if release.absolute { return String(localized: "Episode \(half).5") }
+            return "S\(release.season.map(two) ?? "null")E\(two(half)).5"
+        }
         if release.pack {
             if let first = release.episode, let last = release.lastEpisode {
                 if let season = release.season { return String(localized: "Season \(season), episodes \(first)–\(last)") }
@@ -442,7 +455,7 @@ enum Releases {
             if let alternate = entry.release.alternate, titleKey(alternate) != own { names[titleKey(alternate)] = own }
         }
         func showOf(_ release: Release) -> String { names[titleKey(release.title)] ?? titleKey(release.title) }
-        func filmLike(_ release: Release) -> Bool { release.episode == nil && !release.pack }
+        func filmLike(_ release: Release) -> Bool { release.episode == nil && release.half == nil && !release.pack }
         func text(_ n: Int?) -> String { n.map(String.init) ?? "" }
 
         struct Bucket { var key: String; var show: String; var category: String?; var entries: [Entry] }
@@ -454,6 +467,7 @@ enum Releases {
             let kind = entry.hit.category
             let rest = filmLike(release) ? "\(show)|\(text(release.year))"
                 : release.pack ? "\(show)|pack|\(text(release.season))|\(text(release.episode))-\(text(release.lastEpisode))"
+                : release.half != nil ? "\(show)|half|\(release.absolute ? "" : release.season.map(String.init) ?? "null")|\(text(release.half))"
                 : "\(show)|e|\(release.absolute ? "" : release.season.map(String.init) ?? "null")|\(text(release.episode))"
             let key = (kind.map { "\($0)|" } ?? "") + rest
             if groups[key] == nil { keys.append(key); groups[key] = Bucket(key: key, show: show, category: kind, entries: []) }
@@ -464,7 +478,8 @@ enum Releases {
             guard let group = groups[key], let first = group.entries.first, first.release.absolute, !first.release.pack else { continue }
             let matches = keys.filter { other in
                 guard other != key, let g = groups[other], let head = g.entries.first else { return false }
-                return g.show == group.show && g.category == group.category && !head.release.absolute && !head.release.pack && head.release.episode == first.release.episode
+                return g.show == group.show && g.category == group.category && !head.release.absolute && !head.release.pack
+                    && head.release.episode == first.release.episode && head.release.half == first.release.half
             }
             if matches.count == 1 {
                 groups[matches[0]]?.entries.append(contentsOf: group.entries)
@@ -483,7 +498,7 @@ enum Releases {
             let sorted = group.entries.sorted(by: ranks)
             // The name of the group: the one of a release giving a season (« JoJos Bizarre Adventure »), else the best's.
             let named = sorted.first { !$0.release.absolute && titleKey($0.release.title) == group.show } ?? sorted[0]
-            let shown = sorted.first { !$0.release.absolute && !$0.release.pack && $0.release.episode != nil } ?? sorted[0]
+            let shown = sorted.first { !$0.release.absolute && !$0.release.pack && ($0.release.episode != nil || $0.release.half != nil) } ?? sorted[0]
             let year = filmLike(named.release) ? named.release.year.map { " (\($0))" } ?? "" : ""
             return Group(key: group.key, show: group.show, title: "\(named.release.title)\(year)", label: episodeLabel(shown.release),
                          best: sorted[0], others: Array(sorted.dropFirst()), pack: shown.release.pack, release: shown.release, category: group.category)
@@ -492,7 +507,9 @@ enum Releases {
             if a.show != b.show { return (showOrder[a.show] ?? 0) < (showOrder[b.show] ?? 0) }
             if a.pack != b.pack { return a.pack }
             if (a.release.season ?? 0) != (b.release.season ?? 0) { return (a.release.season ?? 0) > (b.release.season ?? 0) }
-            if (a.release.episode ?? 0) != (b.release.episode ?? 0) { return (a.release.episode ?? 0) > (b.release.episode ?? 0) }
+            // A half (« 07.5 ») between its two episodes.
+            func place(_ release: Release) -> Int { (release.episode ?? release.half ?? 0) * 2 + (release.half == nil ? 0 : 1) }
+            if place(a.release) != place(b.release) { return place(a.release) > place(b.release) }
             return a.best.order < b.best.order
         }
     }

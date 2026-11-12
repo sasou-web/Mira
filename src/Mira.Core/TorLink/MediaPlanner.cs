@@ -115,7 +115,7 @@ public static class MediaPlanner
         {
             MediaKind.Movie => false,
             MediaKind.Series or MediaKind.Anime => true,
-            _ => !collection && (mains.Any(v => EpisodeOf(v, context, single) is not null) || (mains.Count > 1 && (context.PackSeason is not null || everyPart)))
+            _ => !collection && (mains.Any(v => EpisodeOf(v, context, single) is not null || HalfOf(v, context, single) is not null) || (mains.Count > 1 && (context.PackSeason is not null || everyPart)))
         };
         return episodic ? PlanShow(context, videos, subtitles, forced) : PlanMovies(context, videos, subtitles);
     }
@@ -179,6 +179,20 @@ public static class MediaPlanner
             ?? (single ? ReleaseName.Episode(context.TorrentName, context.AbsoluteAllowed) : null);
         if (episode is not { Absolute: true }) return episode;
         return season is { } value ? episode with { Season = value, Absolute = false } : episode;
+    }
+
+    // « Show - 07.5 », « Show S3 - Episode 12.5 »: an episode between two (a recap, a special), numbered as none of the
+    // show's episodes: never one of them, and never a film. Its season as EpisodeOf finds it.
+    private static HalfEpisodeNumber? HalfOf(SourceFile file, Context context, bool single)
+    {
+        if (context.Target is not null && file == context.Main) return null;
+        var name = Path.GetFileName(file.RelativePath);
+        var folder = Path.GetFileName(Path.GetDirectoryName(file.RelativePath) ?? "") ?? "";
+        var season = ReleaseName.InSpecialsFolder(file.RelativePath) ? 0 : ReleaseName.SeasonOfFolder(folder) ?? ReleaseName.Season(folder) ?? context.PackSeason;
+        var allowed = context.AbsoluteAllowed || season is not null;
+        var half = ReleaseName.HalfEpisode(name, allowed)
+            ?? (single && ReleaseName.Episode(name, allowed) is null ? ReleaseName.HalfEpisode(context.TorrentName, allowed) : null);
+        return half is { Season: null } && season is not null ? half with { Season = season } : half;
     }
 
     // "Subs/Show.S01E01.1080p/2_English.srt": a subtitle with no episode in its name, in a folder named after one episode
@@ -320,6 +334,7 @@ public static class MediaPlanner
         var operations = new List<ImportOperation>();
         var episodes = new Dictionary<string, (SourceFile File, EpisodeNumber Number)>(StringComparer.OrdinalIgnoreCase);
         var bonus = new List<(SourceFile File, string? Label)>();
+        var halves = new Dictionary<string, SourceFile>(StringComparer.OrdinalIgnoreCase);
         var duplicates = 0;
         foreach (var video in videos.OrderByDescending(v => v.Length))
         {
@@ -329,6 +344,11 @@ public static class MediaPlanner
             {
                 // Two files for one episode (v2, second release): the larger one is kept.
                 if (!episodes.TryAdd(number.Label, (video, number))) duplicates++;
+                continue;
+            }
+            if (HalfOf(video, context, single) is { } half)
+            {
+                if (!halves.TryAdd(half.Label, video)) duplicates++;
                 continue;
             }
             bonus.Add((video, ReleaseName.CreditlessLabel(name, bare: true)));
@@ -349,17 +369,31 @@ public static class MediaPlanner
             operations.Add(Operation(file, Unique(Path.Combine(showPath, "Extras", stem), Path.GetExtension(file.RelativePath), used), "extra"));
         }
         if (unnumbered > 0) context.Notes.Add(Count(unnumbered, "vidéo sans numéro placée dans Extras", "vidéos sans numéro placées dans Extras", "unnumbered video put in Extras", "unnumbered videos put in Extras"));
+        // Among the extras too, under its number: Jellyfin has no place for an episode « 7.5 » among the others.
+        var halfStems = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (label, file) in halves.OrderBy(x => x.Key, StringComparer.Ordinal))
+        {
+            var destination = Unique(Path.Combine(showPath, "Extras", $"{show} - {label}"), Path.GetExtension(file.RelativePath), used);
+            halfStems[label] = destination[..^Path.GetExtension(destination).Length];
+            operations.Add(Operation(file, destination, "extra"));
+        }
+        if (halves.Count > 0) context.Notes.Add(Count(halves.Count, "épisode « .5 » (récap, spécial) placé dans Extras", "épisodes « .5 » (récaps, spéciaux) placés dans Extras", "« .5 » episode (recap, special) put in Extras", "« .5 » episodes (recaps, specials) put in Extras"));
         var unmatched = 0;
         foreach (var subtitle in subtitles)
         {
             var number = FolderEpisode(subtitle) ?? EpisodeOf(subtitle, context, single: false);
-            var stem = number is not null && episodeStems.TryGetValue(number.Label, out var match) ? match : episodeStems.Count == 1 ? episodeStems.Values.Single() : null;
+            var half = number is null ? HalfOf(subtitle, context, single: false) : null;
+            var stem = number is not null && episodeStems.TryGetValue(number.Label, out var match) ? match
+                : half is not null && halfStems.TryGetValue(half.Label, out var halfMatch) ? halfMatch
+                : episodeStems.Count == 1 ? episodeStems.Values.Single()
+                : episodeStems.Count == 0 && halfStems.Count == 1 ? halfStems.Values.Single() : null;
             if (stem is null) { unmatched++; continue; }
             operations.Add(Operation(subtitle, Unique(stem + ReleaseName.SubtitleTags(subtitle.RelativePath), Path.GetExtension(subtitle.RelativePath), used), "subtitle"));
         }
         if (unmatched > 0) context.Notes.Add(Count(unmatched, "sous-titre non attribué", "sous-titres non attribués", "unmatched subtitle", "unmatched subtitles"));
         var cleanTitle = ReleaseName.Key(show).Length > 0 ? show : title;
-        var display = episodes.Count == 1 ? $"{cleanTitle} · {episodes.Keys.Single()}" : episodes.Count > 1 ? $"{cleanTitle} · " + Count(episodes.Count, "épisode", "épisodes", "episode", "episodes") : cleanTitle;
+        var display = episodes.Count == 1 ? $"{cleanTitle} · {episodes.Keys.Single()}" : episodes.Count > 1 ? $"{cleanTitle} · " + Count(episodes.Count, "épisode", "épisodes", "episode", "episodes")
+            : halves.Count == 1 ? $"{cleanTitle} · {halves.Keys.Single()}" : cleanTitle;
         return new(kind, display, root, [showPath], operations, context.Notes);
     }
 

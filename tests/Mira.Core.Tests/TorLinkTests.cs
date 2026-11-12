@@ -194,6 +194,42 @@ internal static class TorLinkTests
                 + " | Show Name/Season 01/Show Name - S01E01.fr.srt | Show Name/Season 01/Show Name - S01E02.en.srt", "Subtitles in a folder per episode");
             return Task.CompletedTask;
         });
+        await Test("TorLink : un épisode « .5 » d'anime (récap, spécial) rangé dans les Extras de sa série, jamais en film ni à la place d'un épisode", () =>
+        {
+            // « Show - 07.5 » went to Films as a film « Show - 07.5 »; « Show S4 - 12.5 » too; « Show S3 - Episode 12.5 » and
+            // « Show - Ep 12.5 » took the place of episode 12 (the real one, coming later, was never imported: the importer
+            // never overwrites). Jellyfin 12.1 lists the videos of a series' Extras folder with the series.
+            var dir = Path.Combine(testRoot, "torlink-halves");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), Path.Combine(dir, "ANIMES"));
+            SourceFile File(string path, long size) => new(Path.Combine(dir, "downloads", path), path, size);
+            string Targets(ImportPlan plan) => string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(plan.LibraryRoot!, x.Destination).Replace('\\', '/')));
+            ImportPlan One(string name, string source = "nyaa") => MediaPlanner.Plan(name, source, [File(name, 1_400_000_000)], libraries);
+            var recap = One("[SubsPlease] Solo Leveling - 07.5 (1080p) [9F8A2A07].mkv");
+            Assert(recap.Kind == MediaKind.Anime && recap.Title == "Solo Leveling · 07.5" && Targets(recap) == "Solo Leveling/Extras/Solo Leveling - 07.5.mkv"
+                && recap.Notes.SequenceEqual(["1 épisode « .5 » (récap, spécial) placé dans Extras"]), $"« - 07.5 »: {recap.Kind} {recap.Title} {Targets(recap)} {string.Join(", ", recap.Notes)}");
+            foreach (var (name, expected) in new[] {
+                ("[Erai-raws] Osomatsu-san S4 - 12.5 [1080p][Multiple Subtitle].mkv", "Osomatsu-san/Extras/Osomatsu-san - S04 12.5.mkv"),
+                ("[ANi] Dr. Stone Season 2 - 12.5 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4", "Dr. Stone/Extras/Dr. Stone - S02 12.5.mp4"),
+                ("[Doki] Dog Days S3 - Episode 12.5 OAD (1280x720 Hi10P AAC) [ABCDEF12].mkv", "Dog Days/Extras/Dog Days - S03 12.5.mkv"),
+                ("[Group] Show Name - Ep 12.5 [1080p].mkv", "Show Name/Extras/Show Name - 12.5.mkv"),
+                ("[Group] Show Name - 12.5v2 [1080p].mkv", "Show Name/Extras/Show Name - 12.5.mkv") })
+                Assert(Targets(One(name)) == expected, $"« {name} »: {Targets(One(name))}");
+            // A batch: the « .5 » next to the episodes, each with its subtitles; in a season pack, the pack's season.
+            const string Batch = "[Group] Show Name (01-13) [Batch]";
+            var batch = MediaPlanner.Plan(Batch, "nyaa", [File($"{Batch}/[Group] Show Name - 12 [1080p].mkv", 700_000_000), File($"{Batch}/[Group] Show Name - 12.5 [1080p].mkv", 700_000_000),
+                File($"{Batch}/[Group] Show Name - 12 [1080p].ass", 50_000), File($"{Batch}/[Group] Show Name - 12.5 [1080p].ass", 50_000)], libraries);
+            Assert(Targets(batch) == "Show Name/Season 01/Show Name - S01E12.mkv | Show Name/Extras/Show Name - 12.5.mkv | Show Name/Season 01/Show Name - S01E12.ass | Show Name/Extras/Show Name - 12.5.ass", "Batch: " + Targets(batch));
+            const string Pack = "Show Name S02 1080p WEB-DL";
+            var pack = MediaPlanner.Plan(Pack, "x1337-tv", [File($"{Pack}/Show Name - 12.mkv", 700_000_000), File($"{Pack}/Show Name - 12.5.mkv", 700_000_000)], libraries);
+            Assert(Targets(pack) == "Show Name/Season 02/Show Name - S02E12.mkv | Show Name/Extras/Show Name - S02 12.5.mkv", "Season pack: " + Targets(pack));
+            const string Folder = "[SubsPlease] Solo Leveling - 07.5 (1080p) [9F8A2A07]";
+            var withSubtitle = MediaPlanner.Plan(Folder, "nyaa", [File($"{Folder}/{Folder}.mkv", 1_400_000_000), File($"{Folder}/{Folder}.en.srt", 50_000)], libraries);
+            Assert(Targets(withSubtitle) == "Solo Leveling/Extras/Solo Leveling - 07.5.mkv | Solo Leveling/Extras/Solo Leveling - 07.5.en.srt", "Subtitle: " + Targets(withSubtitle));
+            // A « 2.5 » in a title is no episode.
+            Assert(Targets(One("2.5 Dimensional Seduction S01E24 VOSTFR 1080p WEB x264 AAC -Tsundere-Raws (ADN) (2.5-jigen no Ririsa).mkv")) == "2.5 Dimensional Seduction/Season 01/2.5 Dimensional Seduction - S01E24.mkv"
+                && One("[Group] Kingdom Hearts 2.5 HD ReMIX [1080p].mkv").Kind == MediaKind.Movie && One("[Group] Evangelion 2.22 You Can (Not) Advance (2009) [1080p].mkv").Kind == MediaKind.Movie, "Titles with « 2.5 »");
+            return Task.CompletedTask;
+        });
         await Test("TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé", async () =>
         {
             var dir = Path.Combine(testRoot, "torlink-ledger"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

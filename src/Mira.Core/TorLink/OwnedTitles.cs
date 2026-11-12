@@ -18,7 +18,7 @@ public static partial class OwnedTitles
     // Jellyfin names a film without metadata after its folder: « Dune (2021) ».
     [GeneratedRegex(@"\s*\((?:19|20)\d\d\)\s*$")] private static partial Regex Year();
     private static string NameKey(string? name) => ReleaseRanking.TitleKey(Year().Replace(name ?? "", ""));
-    private static bool FilmLike(ReleaseGroup group) => group.Release.Episode is null && !group.Release.Pack;
+    private static bool FilmLike(ReleaseGroup group) => group.Release.Episode is null && group.Release.Half is null && !group.Release.Pack;
 
     /// <summary>A film and an episode of the same name are looked for apart: one among the films, the other among the series.</summary>
     public static string LookupKey(ReleaseGroup group) => (FilmLike(group) ? "film|" : "show|") + group.Show;

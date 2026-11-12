@@ -5811,6 +5811,16 @@
         }
       }
     },
+    "Episode %lld.5": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisode %lld,5"
+          }
+        }
+      }
+    },
     "Episodes %lld–%lld": {
       "localizations": {
         "fr": {

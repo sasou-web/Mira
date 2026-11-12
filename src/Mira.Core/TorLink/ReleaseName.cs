@@ -10,6 +10,13 @@ public sealed record EpisodeNumber(int Season, int Episode, int? LastEpisode = n
     public string Label => $"S{Season:00}E{Episode:00}" + (LastEpisode is { } last && last > Episode ? $"-E{last:00}" : "");
 }
 
+/// <summary>An episode between two (« Show - 07.5 »): its number as written, and the season the name gives.</summary>
+public sealed record HalfEpisodeNumber(int? Season, string Number)
+{
+    /// <summary>« S03 12.5 », or the number alone: its name among the show's extras.</summary>
+    public string Label => Season is { } season ? $"S{season:00} {Number}" : Number;
+}
+
 /// <summary>Titles, years, seasons and episode numbers read from release and file names, and safe Windows names for them.</summary>
 public static partial class ReleaseName
 {
@@ -92,10 +99,13 @@ public static partial class ReleaseName
     private static partial Regex WordsEpisode();
     [GeneratedRegex(@"(?:^|\s)[-–]\s*(?:Ep\.?\s*|Episode\s*|E|#)?(?<e>\d{1,4})(?:v\d{1,2})?(?:\s*[-~]\s*(?<e2>\d{1,4})(?:v\d{1,2})?)?(?=\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AbsoluteEpisode();
-    [GeneratedRegex(@"(?<![a-z])(?:Episode|Épisode|Ep\.?)\s*(?<e>\d{1,4})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![a-z])(?:Episode|Épisode|Ep\.?)\s*(?<e>\d{1,4})\b(?![.,]\d)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex EpisodeWord();
+    // « Show - 07.5 », « Show S3 - Episode 12.5 »: an episode between two (a recap, a special), numbered as none of them.
+    [GeneratedRegex(@"(?:(?:^|\s)[-–]\s*(?:Ep\.?\s*|Episode\s*|Épisode\s*|E|#)?|(?<![a-z])(?:Episode|Épisode|Ep\.?)\s*)(?<e>\d{1,4})[.,]5(?:v\d{1,2})?(?=\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex HalfNumber();
     // "01 - Title", "01. Title", "E01 - Title", "01-02 - Title": the number a file starts with.
-    [GeneratedRegex(@"^(?:E|Ep\.?\s*)?(?<e>\d{1,3})(?:\s*[-~]\s*E?(?<e2>\d{1,3}))?(?=$|[\s._-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:E|Ep\.?\s*)?(?<e>\d{1,3})(?![.,]\d)(?:\s*[-~]\s*E?(?<e2>\d{1,3}))?(?=$|[\s._-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex LeadingNumber();
     [GeneratedRegex(@"(?<![a-z0-9])S(?<s>\d{1,2})(?![0-9a-z])(?![\s._-]*E\d)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonMarker();
@@ -166,7 +176,7 @@ public static partial class ReleaseName
     {
         var text = Readable(name, out _);
         var cut = text.Length;
-        foreach (var marker in new[] { SeasonEpisode(), CrossEpisode(), WordsEpisode(), AbsoluteEpisode(), SeasonMarker(), SeasonWord(), OrdinalSeason(), SeasonRange(), EpisodeWord() })
+        foreach (var marker in new[] { SeasonEpisode(), CrossEpisode(), WordsEpisode(), AbsoluteEpisode(), HalfNumber(), SeasonMarker(), SeasonWord(), OrdinalSeason(), SeasonRange(), EpisodeWord() })
         {
             var m = marker.Match(text);
             if (m.Success && m.Index < cut) cut = m.Index;
@@ -198,6 +208,19 @@ public static partial class ReleaseName
         if (m.Groups["e"].Length == 4 && Year().IsMatch(m.Groups["e"].Value)) return null;
         var season = Season(text[..m.Index]);
         return new(season ?? 1, episode, OptionalNumber(m, "e2"), season is null);
+    }
+
+    /// <summary>
+    /// An episode between two (« Show - 07.5 », « Show S3 - Episode 12.5 »: a recap or a special), numbered as none of the
+    /// show's: its number as the name writes it and the season the name gives; null for any other name. Read as
+    /// <see cref="Episode"/> reads a number without a season.
+    /// </summary>
+    public static HalfEpisodeNumber? HalfEpisode(string name, bool allowAbsolute)
+    {
+        var text = Readable(name, out var group);
+        if (SeasonEpisode().IsMatch(text) || WordsEpisode().IsMatch(text) || CrossEpisode().IsMatch(text) || !allowAbsolute && group is null) return null;
+        var m = HalfNumber().Match(text);
+        return m.Success ? new(Season(text[..m.Index]), m.Groups["e"].Value + ".5") : null;
     }
 
     /// <summary>
