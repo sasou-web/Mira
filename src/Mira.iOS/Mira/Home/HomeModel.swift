@@ -45,21 +45,37 @@ struct HomeContent: Codable, Sendable, Equatable {
     }
 
     /// Continue watching as Mira orders it everywhere: a real resume point wins over the next episode of the same
-    /// series, and each film or series stands where its last activity puts it (orderContinue of Mira web). A title
-    /// watched again and left halfway is resumed too: Jellyfin 12 keeps it watched, with its position (ItemText.progress).
+    /// series (unless the series went on past it since: `leftBehind`), and each film or series stands where its last
+    /// activity puts it (Order of Core). A title watched again and left halfway is resumed too: Jellyfin 12 keeps it
+    /// watched, with its position (ItemText.progress).
     static func orderContinue(resume: [Item], next: [Item], history: [Item]) -> [Item] {
         func group(_ item: Item) -> String { item.seriesId ?? item.id }
         func played(_ item: Item) -> Date { item.userData?.lastPlayedDate.flatMap(parseDate) ?? .distantPast }
         var activity: [String: Date] = [:]
         for item in history { activity[group(item)] = max(activity[group(item)] ?? .distantPast, played(item)) }
-        let resumed = resume.filter { ($0.userData?.playbackPositionTicks ?? 0) > 0 }
+        let upNext = next.filter { $0.userData?.played != true }
+        let resumed = resume.filter { ($0.userData?.playbackPositionTicks ?? 0) > 0 && !leftBehind($0, next: upNext, history: history) }
             .enumerated().sorted { played($0.element) > played($1.element) || played($0.element) == played($1.element) && $0.offset < $1.offset }.map(\.element)
         var seen = Set<String>(), candidates: [Item] = []
-        for item in resumed + next.filter({ $0.userData?.played != true }) where seen.insert(group(item)).inserted {
+        for item in resumed + upNext where seen.insert(group(item)).inserted {
             candidates.append(item)
         }
         func key(_ item: Item) -> Date { max(played(item), activity[group(item)] ?? .distantPast) }
         return candidates.enumerated().sorted { key($0.element) > key($1.element) || key($0.element) == key($1.element) && $0.offset < $1.offset }.map(\.element)
+    }
+
+    /// An episode left halfway that its series went on past: Jellyfin offers one after it (NextUp), and an episode after
+    /// it was played since it was left (skipped with the next-episode button, finished on another device). Its series is
+    /// where that episode left it (LeftBehind of Core; checked on Jellyfin 12.1: S01E02 left at 30 %, then S01E03 and
+    /// S01E04 watched, keeps S01E02 in UserItems/Resume while Shows/NextUp says S01E05).
+    static func leftBehind(_ resumed: Item, next: [Item], history: [Item]) -> Bool {
+        guard resumed.isEpisode, let series = resumed.seriesId, let left = resumed.userData?.lastPlayedDate.flatMap(parseDate) else { return false }
+        func later(_ episode: Item) -> Bool {
+            (episode.parentIndexNumber ?? 0, episode.indexNumber ?? 0) > (resumed.parentIndexNumber ?? 0, resumed.indexNumber ?? 0)
+        }
+        func played(_ item: Item) -> Date { item.userData?.lastPlayedDate.flatMap(parseDate) ?? .distantPast }
+        return next.contains { $0.seriesId == series && later($0) }
+            && history.contains { $0.seriesId == series && $0.id != resumed.id && later($0) && played($0) > left }
     }
 
     /// Jellyfin's dates: « 2026-10-27T21:14:03.1234567Z », seven decimals that ISO8601DateFormatter does not read.

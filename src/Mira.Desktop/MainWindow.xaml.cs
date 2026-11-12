@@ -485,15 +485,18 @@ public partial class MainWindow : Window
             var sagas = !more && _catalog.SearchesPeople(search) ? client.SearchOthersAsync("BoxSet", search, ct) : null;
             Task<ItemsResult>? resume = home ? client.ResumeAsync(ct) : null;
             Task<ItemsResult>? next = home ? client.NextUpAsync(ct) : null;
+            // What this account played lately on any device (the iPhone, a TV…): where each film or series stands in « Continuer à regarder ».
+            var played = home ? client.HistoryAsync(ct) : null;
             var shelving = home ? LoadShelvesAsync(client, ct) : null;
             var result = await browse;
-            // The people, studios, episodes and sagas are a bonus: the titles show even if Jellyfin does not answer for them.
+            // The people, studios, episodes, sagas and plays elsewhere are a bonus: the titles show even if Jellyfin does not answer for them.
             async Task<List<MediaItem>> Bonus(Task<List<MediaItem>>? asked)
             {
                 if (asked is not null) try { return await asked; } catch (Exception ex) when (!ct.IsCancellationRequested && IsExpected(ex)) { }
                 return [];
             }
             var found = await Bonus(people); var foundStudios = await Bonus(studios); var foundEpisodes = await Bonus(episodes); var foundSagas = await Bonus(sagas);
+            var playedLately = await Bonus(played);
             if (home) { await Task.WhenAll(resume!, next!, shelving!); await _seasonThumbs.LoadAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return false;
             var resumeItems = home ? resume!.Result.Items : null;
@@ -509,7 +512,7 @@ public partial class MainWindow : Window
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return false;
             _catalog.Receive(result, more);
             if (!more) (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = (found, foundStudios, foundEpisodes, foundSagas);
-            if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? [])); }
+            if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? []).Concat(playedLately)); }
             _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; RenderLibrary();
             // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.
             if (_sync is { PendingCount: > 0 } sync) sync.Wake();

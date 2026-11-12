@@ -211,6 +211,48 @@ internal static class LibraryTests
             Assert(list.Count == 2 && list[0].Id == "again", "Watched again and left halfway (still watched on Jellyfin 12): in « Continuer à regarder »");
             return Task.CompletedTask;
         });
+        await Test("Continuer à regarder : un épisode laissé en cours puis dépassé cède la place au suivant", () =>
+        {
+            var night = new DateTimeOffset(2026, 11, 11, 20, 0, 0, TimeSpan.Zero);
+            MediaItem Episode(string id, int number, DateTimeOffset? at, long position = 0, bool played = false) => new() { Id = id, Type = "Episode", SeriesId = "s", ParentIndexNumber = 1, IndexNumber = number, RunTimeTicks = 1000, UserData = new() { PlaybackPositionTicks = position, Played = played, LastPlayedDate = at } };
+            // Checked on Jellyfin 12.1: S01E02 left at 30 %, then S01E03 and S01E04 watched (on the iPhone, say): E02 stays
+            // in UserItems/Resume, Shows/NextUp says E05.
+            var left = Episode("e2", 2, night.AddDays(-1), position: 300);
+            var film = new MediaItem { Id = "film", Type = "Movie", RunTimeTicks = 1000, UserData = new() { PlaybackPositionTicks = 300, LastPlayedDate = night.AddDays(-20) } };
+            var history = new[] { Episode("e4", 4, night.AddMinutes(30), played: true), Episode("e3", 3, night, played: true), left, film };
+            var row = ContinueWatching.Order([left, film], [Episode("e5", 5, null)], history).Select(x => x.Id).ToList();
+            Assert(row.SequenceEqual(["e5", "film"]), "Left behind by its series: " + string.Join(", ", row));
+            // Gone back to it after the later ones, nothing played after it, or nothing after it to watch: it stays.
+            var back = Episode("e2", 2, night.AddHours(2), position: 300);
+            Assert(ContinueWatching.Order([back], [Episode("e5", 5, null)], history.Prepend(back)).Single().Id == "e2", "Gone back to it after the later episodes: its resume point was dropped");
+            Assert(ContinueWatching.Order([left], [Episode("e5", 5, null)], [left]).Single().Id == "e2", "Nothing played after it: its resume point was dropped");
+            Assert(ContinueWatching.Order([left], [], history).Single().Id == "e2", "Nothing after it to watch: its resume point was dropped");
+            return Task.CompletedTask;
+        });
+        await Test("Continuer à regarder : ce qui a été lu sur les autres appareils vient de Jellyfin", async () =>
+        {
+            string? requested = null;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                requested = request.RequestUri!.PathAndQuery;
+                return Task.FromResult(JsonResponse(new
+                {
+                    Items = new object[]
+                    {
+                        new { Id = "x1", Type = "Episode", SeriesId = "x", ParentIndexNumber = 1, IndexNumber = 1, UserData = new { Played = true, LastPlayedDate = "2026-11-11T21:00:00.0000000Z" } },
+                        new { Id = "never", Type = "Movie", UserData = new { Played = false } },
+                    },
+                    TotalRecordCount = 2,
+                }));
+            }));
+            var history = await client.HistoryAsync();
+            Assert(requested == "/Items?userId=user-1&recursive=true&includeItemTypes=Movie,Episode&sortBy=DatePlayed&sortOrder=Descending&limit=40&enableImages=false&enableUserData=true&enableTotalRecordCount=false", "Request: " + requested);
+            Assert(history.Select(x => x.Id).SequenceEqual(["x1"]) && history[0].SeriesId == "x" && history[0].IndexNumber == 1, "Plays read, titles never played left out: " + string.Join(", ", history.Select(x => x.Id)));
+            // The next episode of a series watched on the iPhone last night comes before a film resumed here weeks ago.
+            var film = new MediaItem { Id = "film", Type = "Movie", RunTimeTicks = 1000, UserData = new() { PlaybackPositionTicks = 300, LastPlayedDate = new DateTimeOffset(2026, 10, 22, 20, 0, 0, TimeSpan.Zero) } };
+            var next = new MediaItem { Id = "x2", Type = "Episode", SeriesId = "x", ParentIndexNumber = 1, IndexNumber = 2, RunTimeTicks = 1000 };
+            Assert(ContinueWatching.Order([film], [next], ContinueWatching.History(history)).Select(x => x.Id).SequenceEqual(["x2", "film"]), "A series watched elsewhere stayed behind an old film");
+        });
         await Test("Reprise : ordre persistant et réponse serveur retardée après une lecture locale", () =>
         {
             var store = Store("recent-playback"); var now = DateTimeOffset.UtcNow;

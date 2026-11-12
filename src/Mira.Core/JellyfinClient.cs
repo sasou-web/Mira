@@ -117,6 +117,14 @@ public sealed class JellyfinClient : IDisposable
         $"UserItems/Resume?userId={Connection.UserId}&limit=16&mediaTypes=Video&fields=Overview,Genres&enableImageTypes=Primary,Backdrop,Thumb,Logo", ct);
     public Task<ItemsResult> NextUpAsync(CancellationToken ct = default) => GetAsync<ItemsResult>(
         $"Shows/NextUp?userId={Connection.UserId}&limit=16&fields=Overview,Genres", ct);
+    /// <summary>
+    /// The films and episodes this account played lately, on any device, newest first (Jellyfin's record of each title's
+    /// last play, as the iPhone asks it): « Continuer à regarder » puts each film or series where its last activity is,
+    /// even when it happened elsewhere (<see cref="ContinueWatching.Order"/>).
+    /// </summary>
+    public async Task<List<MediaItem>> HistoryAsync(CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Episode&sortBy=DatePlayed&sortOrder=Descending&limit=40" +
+            "&enableImages=false&enableUserData=true&enableTotalRecordCount=false", ct)).Items.Where(x => x.UserData.LastPlayedDate is not null).ToList();
     public const int PageSize = 60;
     public Task<ItemsResult> BrowseAsync(string types = "Movie,Series", string? parentId = null, string? search = null, int start = 0, bool favorites = false, CancellationToken ct = default, CatalogQuery? filters = null, int limit = PageSize) =>
         GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={types}&limit={Math.Clamp(limit, 1, 600)}&startIndex={start}" +

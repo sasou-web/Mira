@@ -153,6 +153,27 @@ struct HomeTests {
         #expect(ordered == ["x2", "e3", "film"])
     }
 
+    @Test("Continuer à regarder : un épisode laissé en cours puis dépassé cède la place à l'épisode suivant")
+    func leftBehind() {
+        func episode(_ id: String, _ number: Int, position: Int64 = 0, played: Bool = false, last: String? = nil) -> Item {
+            var episode = item(id, series: "s", position: position, played: played, last: last)
+            episode.parentIndexNumber = 1
+            episode.indexNumber = number
+            return episode
+        }
+        // Checked on Jellyfin 12.1: S01E02 left at 30 %, then S01E03 and S01E04 watched (on another device, say): E02
+        // stays in UserItems/Resume, Shows/NextUp says E05.
+        let left = episode("e2", 2, position: 100, last: "2026-11-10T20:00:00Z")
+        let film = item("film", position: 100, last: "2026-10-22T20:00:00Z")
+        let history = [episode("e4", 4, played: true, last: "2026-11-11T20:30:00Z"), episode("e3", 3, played: true, last: "2026-11-11T20:00:00Z"), left, film]
+        #expect(HomeContent.orderContinue(resume: [left, film], next: [episode("e5", 5)], history: history).map(\.id) == ["e5", "film"])
+        // Gone back to it after the later ones, nothing played after it, or nothing after it to watch: it stays.
+        let back = episode("e2", 2, position: 100, last: "2026-11-11T22:00:00Z")
+        #expect(HomeContent.orderContinue(resume: [back], next: [episode("e5", 5)], history: [back] + history).map(\.id) == ["e2"])
+        #expect(HomeContent.orderContinue(resume: [left], next: [episode("e5", 5)], history: [left]).map(\.id) == ["e2"])
+        #expect(HomeContent.orderContinue(resume: [left], next: [], history: history).map(\.id) == ["e2"])
+    }
+
     @Test("Un titre sans position n'est pas repris ; revu et laissé en cours, il l'est (Jellyfin 12 le garde vu)")
     func notResumed() {
         let resume = [item("revu", position: 100, played: true), item("vu", played: true), item("zero")]
