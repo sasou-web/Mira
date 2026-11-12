@@ -67,7 +67,7 @@ public partial class MainWindow
         DetailBackdropPrevious.Source = null; DetailLogo.Source = null; DetailLogo.Visibility = Visibility.Collapsed; DetailTitle.Visibility = Visibility.Visible;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
         if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), true), animate: false);
-        RenderDetailText(item); EpisodesPanel.Children.Clear(); _calendar = ([], []); _calendarOpen = false; RenderCalendar();
+        RenderDetailText(item); EpisodesPanel.Children.Clear(); _seriesVirtuals = []; _shelfOpen.Clear(); _episodesRead = false;
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
         EpisodesHead.Visibility = EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
         // The facts and the cast after a series' episodes, a little apart from them.
@@ -224,19 +224,8 @@ public partial class MainWindow
             _episodes = result.Items;
             if (_store is { } store) { var episodes = _episodes; await Task.Run(() => store.ApplyLocalProgress(episodes)); if (version != _detailVersion) return; }
             _detailNext = next is null ? null : _episodes.FirstOrDefault(x => x.Id == next.Id) ?? next;
-            var previous = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
-            _seasonBusy = true; SeasonSelector.Items.Clear();
-            var pages = EpisodePages.From(_episodes);
-            foreach (var page in pages) SeasonSelector.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
-            // « Saison 1 · 1001–1100 » needs more room than « Saison 1 ».
-            SeasonSelector.Width = pages.GroupBy(x => x.Season).Any(x => x.Count() > 1) ? 230 : 180;
-            // The page shown before a refresh, else the one of the episode found by a search, of the next episode, of an
-            // episode in progress, of the first unwatched, of S01E01 (a series watched to its end: not its specials).
-            var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip))
-                ?? EpisodePages.Holding(pages, _episodes, _episodes.FirstOrDefault(x => x.Id == _detailEpisode?.Id))
-                ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? EpisodePages.Start(_episodes));
-            SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
-            _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta(); ShowOfflineButton();
+            _episodesRead = true; FillSeasons();
+            RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta(); ShowOfflineButton();
             if (_detailNext is { } target && _detailFile?.Id != target.Id) await LoadDetailFileAsync(target, version);
         }
         catch (Exception ex) when (IsExpected(ex))
@@ -530,6 +519,7 @@ public partial class MainWindow
     {
         EpisodesPanel.Children.Clear(); _episodeCopyLabels.Clear();
         var page = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
+        if (page is { Absent: true }) { RenderAbsentSeason(page); return; }
         var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
         // The whole season's count, also on a slice of a long one.
         EpisodeHeading.Text = $"{L("Épisodes", "Episodes")}  ·  {(page is null ? 0 : _episodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
@@ -538,45 +528,50 @@ public partial class MainWindow
         // The episode Lecture plays is in another season than the one shown (a long anime opened on its first): a click brings it.
         if (_detailEpisode is null && _detailNext is { } next && EpisodePages.NextElsewhere(SeasonPages(), _episodes, page, next) is { } elsewhere)
             EpisodesPanel.Children.Add(NextElsewhereButton(next, elsewhere));
-        foreach (var episode in episodes)
+        // Those the library lacks at their place (TheTVDB's, EpisodeShelf): a thin line, the next one hollow.
+        var today = EpisodeCalendar.Today();
+        var last = page!.Skip + page.Take >= _episodes.Count(x => EpisodePages.Season(x) == page.Season);
+        foreach (var line in EpisodeShelf.Lines(episodes, _seriesVirtuals, page.Season, page.Skip == 0, last, today, _settings.ShowMissingEpisodes))
+            EpisodesPanel.Children.Add(line.Kind == ShelfKind.Episode ? SeasonEpisodeRow(line.First) : ShelfRow(line, today));
+    }
+    private Button SeasonEpisodeRow(MediaItem episode)
+    {
+        var isNext = _detailNext?.Id == episode.Id; var wanted = _detailEpisode?.Id == episode.Id;
+        var button = new Button { Background = Palette.Get(isNext || wanted ? "Raised" : "Surface"), BorderBrush = isNext || wanted ? Palette.Get("Line") : Brushes.Transparent, Padding = new Thickness(15), Margin = new Thickness(0, 0, 0, 9), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
+        var thumb = new Grid { Width = 160, Height = 90, Clip = new RectangleGeometry(new Rect(0, 0, 160, 90), 4, 4), Background = Palette.Get("Raised2") };
+        // « Cacher les spoilers »: an episode not started shows Jellyfin's BlurHash of its still, the still never fetched.
+        var hidden = Spoilers.Hides(episode, _settings.HideSpoilers);
+        var image = new Image { Stretch = Stretch.UniformToFill }; thumb.Children.Add(image);
+        if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
+        thumb.Children.Add(new Border { Background = Brush("#44000000") });
+        thumb.Children.Add(new Icon { Kind = "play", Width = 23, Height = 23, Foreground = Brushes.White });
+        if (episode.Resumable) thumb.Children.Add(new Border { Height = 3, Width = 160 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
+        grid.Children.Add(thumb);
+        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(21, 0, 20, 0) }; Grid.SetColumn(copy, 1);
+        var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
+        copy.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+        copy.Children.Add(new TextBlock { Text = hidden ? Spoilers.HiddenSummary : OverviewText.Plain(episode.Overview, flat: true), FontSize = 12, FontWeight = FontWeights.Normal, FontStyle = hidden ? FontStyles.Italic : FontStyles.Normal, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 7, 0, 0) });
+        grid.Children.Add(copy);
+        var status = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right }; Grid.SetColumn(status, 2);
+        status.Children.Add(new TextBlock { Text = episode.DurationLabel, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Right });
+        var state = episode.UserData.Played ? L("✓ Vu", "✓ Watched") : isNext ? episode.Progress > 0 ? L("En cours", "In progress") : L("À suivre", "Up next") : null;
+        if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 11, Foreground = Palette.Get(episode.UserData.Played ? "Success" : "TextBody"), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Right });
+        if (CanKeep(episode)) status.Children.Add(EpisodeCopyLabel(episode));
+        grid.Children.Add(status); button.Content = grid;
+        var keptText = CopyState(episode.Id) is { } kept ? ", " + kept.ToLowerInvariant() : "";
+        AutomationProperties.SetName(button, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}{keptText}",
+            $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", watched" : isNext ? ", up next" : "")}{keptText}"));
+        button.Click += async (_, _) => await PlayAsync(episode, chosen: true);
+        button.ContextMenu = EpisodeMenu(episode);
+        if (_images is not null && !hidden) _ = LoadEpisodeImageAsync(image, episode);
+        // The episode found by a search comes into view the first time its season shows.
+        if (wanted && !_detailEpisodeShown)
         {
-            var isNext = _detailNext?.Id == episode.Id; var wanted = _detailEpisode?.Id == episode.Id;
-            var button = new Button { Background = Palette.Get(isNext || wanted ? "Raised" : "Surface"), BorderBrush = isNext || wanted ? Palette.Get("Line") : Brushes.Transparent, Padding = new Thickness(15), Margin = new Thickness(0, 0, 0, 9), HorizontalContentAlignment = HorizontalAlignment.Stretch };
-            var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
-            var thumb = new Grid { Width = 160, Height = 90, Clip = new RectangleGeometry(new Rect(0, 0, 160, 90), 4, 4), Background = Palette.Get("Raised2") };
-            // « Cacher les spoilers »: an episode not started shows Jellyfin's BlurHash of its still, the still never fetched.
-            var hidden = Spoilers.Hides(episode, _settings.HideSpoilers);
-            var image = new Image { Stretch = Stretch.UniformToFill }; thumb.Children.Add(image);
-            if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
-            thumb.Children.Add(new Border { Background = Brush("#44000000") });
-            thumb.Children.Add(new Icon { Kind = "play", Width = 23, Height = 23, Foreground = Brushes.White });
-            if (episode.Resumable) thumb.Children.Add(new Border { Height = 3, Width = 160 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
-            grid.Children.Add(thumb);
-            var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(21, 0, 20, 0) }; Grid.SetColumn(copy, 1);
-            var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
-            copy.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            copy.Children.Add(new TextBlock { Text = hidden ? Spoilers.HiddenSummary : OverviewText.Plain(episode.Overview, flat: true), FontSize = 12, FontWeight = FontWeights.Normal, FontStyle = hidden ? FontStyles.Italic : FontStyles.Normal, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 7, 0, 0) });
-            grid.Children.Add(copy);
-            var status = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right }; Grid.SetColumn(status, 2);
-            status.Children.Add(new TextBlock { Text = episode.DurationLabel, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Right });
-            var state = episode.UserData.Played ? L("✓ Vu", "✓ Watched") : isNext ? episode.Progress > 0 ? L("En cours", "In progress") : L("À suivre", "Up next") : null;
-            if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 11, Foreground = Palette.Get(episode.UserData.Played ? "Success" : "TextBody"), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Right });
-            if (CanKeep(episode)) status.Children.Add(EpisodeCopyLabel(episode));
-            grid.Children.Add(status); button.Content = grid;
-            var keptText = CopyState(episode.Id) is { } kept ? ", " + kept.ToLowerInvariant() : "";
-            AutomationProperties.SetName(button, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}{keptText}",
-                $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", watched" : isNext ? ", up next" : "")}{keptText}"));
-            button.Click += async (_, _) => await PlayAsync(episode, chosen: true);
-            button.ContextMenu = EpisodeMenu(episode);
-            EpisodesPanel.Children.Add(button);
-            if (_images is not null && !hidden) _ = LoadEpisodeImageAsync(image, episode);
-            // The episode found by a search comes into view the first time its season shows.
-            if (wanted && !_detailEpisodeShown)
-            {
-                _detailEpisodeShown = true;
-                _ = Dispatcher.BeginInvoke(() => button.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
-            }
+            _detailEpisodeShown = true;
+            _ = Dispatcher.BeginInvoke(() => button.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
         }
+        return button;
     }
     private List<EpisodePage> SeasonPages() => SeasonSelector.Items.OfType<ComboBoxItem>().Select(x => x.Tag).OfType<EpisodePage>().ToList();
     /// <summary>« À suivre : S02 E01 · Le titre », above the episodes of another season; « Saison 2 › » shows its own.</summary>

@@ -687,24 +687,38 @@ final class MiraUITests: XCTestCase {
         let series = app.buttons["Pioneer One, 2010"].firstMatch
         XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
         tapCard(app, series)
-        let calendar = app.buttons["series.calendar"]
-        for _ in 0..<5 where !(calendar.exists && calendar.isHittable) { app.swipeUp() }
-        XCTAssertTrue(calendar.waitForExistence(timeout: 10), "The series page says nothing of its missing episode")
-        XCTAssertTrue(calendar.label.contains("1 missing episode: S1 · E4"), "Not the missing episode: \(calendar.label)")
-        XCTAssertTrue(calendar.label.contains("Next episode: S1 · E5"), "Not the next episode: \(calendar.label)")
-        calendar.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["series.calendar.list"].waitForExistence(timeout: 5), "The line did not open into its list")
+        // TheTVDB's episodes « à leur place » (EpisodeShelf): the missing one a thin line after the third episode, the
+        // coming one a hollow row after it, nothing above the seasons.
+        let missing = app.buttons["series.shelf.missing"]
+        for _ in 0..<5 where !(missing.exists && missing.isHittable) { app.swipeUp() }
+        XCTAssertTrue(missing.waitForExistence(timeout: 10), "The series page says nothing of its missing episode")
+        XCTAssertTrue(missing.label.hasPrefix("E4 · not in your library · aired"), "Not the missing episode: \(missing.label)")
+        let coming = app.descendants(matching: .any)["series.shelf.coming"]
+        XCTAssertTrue(coming.exists && coming.label.contains("The Sun Never Sets"), "The coming episode is not at its place: \(coming.label)")
+        XCTAssertFalse(app.buttons["series.calendar"].exists, "The old card above the episodes is still there")
+        missing.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["series.shelf.list"].waitForExistence(timeout: 5), "The line did not open into its list")
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Triangle'")).firstMatch.exists, "The list does not name the missing episode")
         settle()
         capture("60-series-calendar")
         // An account that shows missing episodes in Jellyfin (the stand-in lists them so unless asked isMissing=false):
-        // they are on this line only, never a season of their own nor rows to play (they play nothing).
-        XCTAssertFalse(app.buttons["Season 2"].exists, "A season of missing episodes only is offered")
+        // never rows to play (they play nothing), nor Jellyfin's own season of missing episodes.
+        XCTAssertFalse(app.buttons["Season 2"].exists, "Jellyfin's season of missing episodes only is offered")
         let third = app.buttons["episode.play.3"]
-        for _ in 0..<5 where !(third.exists && third.isHittable) { app.swipeUp() }
-        app.swipeUp()
+        for _ in 0..<5 where !(third.exists && third.isHittable) { app.swipeDown() }
         XCTAssertTrue(third.exists, "The series page lists no third episode")
         XCTAssertFalse(app.buttons["episode.play.4"].exists || app.buttons["episode.play.5"].exists, "A missing episode is listed to play")
+        // The season the library has none of: among the seasons, a calm card once chosen.
+        let absent = app.buttons["Season 2 · not in library"]
+        for _ in 0..<5 where !(absent.exists && absent.isHittable) { app.swipeDown() }
+        XCTAssertTrue(absent.waitForExistence(timeout: 5), "The season the library has none of is not among the seasons")
+        absent.tap()
+        let card = app.descendants(matching: .any)["series.absentSeason"]
+        XCTAssertTrue(card.waitForExistence(timeout: 5), "No card for the season the library has none of")
+        XCTAssertTrue(app.staticTexts["Season 2 isn’t in your library"].exists, "The card does not say which season")
+        XCTAssertFalse(app.buttons["episode.play.1"].exists, "Episodes of another season are listed under the absent one")
+        settle()
+        capture("60b-series-absent-season")
         app.navigationBars.buttons.firstMatch.tap()
 
         for _ in 0..<3 { app.swipeDown() }

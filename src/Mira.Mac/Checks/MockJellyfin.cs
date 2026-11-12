@@ -251,6 +251,14 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "Items")
         {
             IEnumerable<object> items = All;
+            // TheTVDB's episodes, as its plugin adds them (EpisodeShelf): « Longue série » lacks its last episodes of season 1,
+            // aired, and has the next ones coming; it has no season 2, aired, nor its season 3, coming.
+            if (query["locationTypes"] == "Virtual")
+            {
+                var today = DateTime.UtcNow.Date;
+                object Virtual(int season, int number, int days) => new { Id = $"series-2-v{season}-{number}", Name = "", Type = "Episode", LocationType = "Virtual", SeriesId = "series-2", SeriesName = "Longue série", ParentIndexNumber = season, IndexNumber = number, PremiereDate = today.AddDays(days).ToString("yyyy-MM-ddT00:00:00.0000000Z", System.Globalization.CultureInfo.InvariantCulture) };
+                return Items([Virtual(1, 131, -9), Virtual(1, 132, -2), Virtual(1, 133, 3), Virtual(1, 134, 10), Virtual(1, 135, 17), Virtual(2, 1, -30), Virtual(2, 2, -23), Virtual(2, 3, -16), Virtual(3, 1, 5)]);
+            }
             // « Nouvel épisode »: Jellyfin's newest episodes not watched yet, and the series they belong to (a favourite).
             if (query["includeItemTypes"] == "Episode" && query["sortBy"] == "DateCreated")
                 return Items(NewEpisodeAt is { } added ? [new { Id = "series-1-e4", Name = "Le retour", Type = "Episode", SeriesId = "series-1", SeriesName = "Petite série", ParentIndexNumber = 1, IndexNumber = 4, DateCreated = added, ImageTags = new Dictionary<string, string>(), UserData = new { Played = false } }] : []);

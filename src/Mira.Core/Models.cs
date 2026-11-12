@@ -344,6 +344,8 @@ public sealed class PlayerSettings
     public bool TrailerFirst { get; set; }
     /// <summary>« Cacher les spoilers » (<see cref="Spoilers"/>): episodes not started yet show a blurred picture and no summary.</summary>
     public bool HideSpoilers { get; set; }
+    /// <summary>« Montrer les épisodes manquants » (<see cref="EpisodeShelf"/>): aired episodes the library lacks, between a season's own and as absent seasons; off, only those coming.</summary>
+    public bool ShowMissingEpisodes { get; set; } = true;
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
     public bool AutoSkip { get; set; }
     public int SubtitleSize { get; set; } = 40;

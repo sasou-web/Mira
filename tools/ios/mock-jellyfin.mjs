@@ -131,10 +131,11 @@ const episodes = [
 ];
 const everything = [...films, series, ...episodes];
 // What TheTVDB's extension adds to a series (virtual episodes with their air day): one aired 5 days ago that the
-// library lacks, one coming in 3 days (EpisodeCalendar).
+// library lacks, one coming in 3 days, and a season 2 the library has none of, aired (EpisodeShelf).
 const virtualEpisodes = [
   { ...episode(4, 'Triangle', { PremiereDate: days(5) }), LocationType: 'Virtual' },
   { ...episode(5, 'The Sun Never Sets', { PremiereDate: days(-3) }), LocationType: 'Virtual' },
+  { ...episode(1, 'Back Home', { PremiereDate: days(40), ParentIndexNumber: 2, SeasonId: MISSING_SEASON, Id: 'e2a1b2c3d4e5f60718293a4b5c6d7e8f' }), LocationType: 'Virtual' },
 ];
 // Collections made by hand, kept until the mock stops: one there from the start, empty.
 const boxSets = [{ Id: 'b0c1d2e3f4a5968778695a4b3c2d1e0f', Name: 'Movie nights', Type: 'BoxSet', ChildCount: 0, Path: '/config/data/collections/Movie nights [boxset]', titles: [] }];

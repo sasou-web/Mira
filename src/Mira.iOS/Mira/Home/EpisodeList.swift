@@ -14,24 +14,26 @@ struct EpisodeList: View {
     /// A season chosen by hand: the episode to watch next no longer moves the list.
     @State private var picked = false
     @State private var marking = false
-    /// Missing and coming episodes, loaded here: a line with nothing to say is no view at all, and a task on no view
-    /// never runs.
-    @State private var calendar = EpisodeCalendar.Schedule()
+    /// This series' episodes from TheTVDB (through Jellyfin), « à leur place » (EpisodeShelf): the seasons the library
+    /// has none of among the seasons, the episodes it lacks between those it has; the thin lines opened.
+    @State private var virtuals: [Item] = []
+    @State private var shelfOpen: Set<String> = []
 
     var body: some View {
+        let today = EpisodeCalendar.Day.today()
+        let showMissing = app.preferences.showMissingEpisodes
+        let chips = self.chips(today: today, showMissing: showMissing)
         VStack(alignment: .leading, spacing: 14) {
-            // Missing and coming episodes (TheTVDB, through Jellyfin), above the seasons, as on Windows and Mac.
-            EpisodeCalendarLine(schedule: calendar)
-            if seasons.count > 1 {
+            if chips.count > 1 {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
-                        ForEach(seasons) { entry in
+                        ForEach(chips) { entry in
                             let chosen = entry.id == season
                             Button {
                                 picked = true
                                 season = entry.id
                             } label: {
-                                Text(verbatim: entry.name ?? "")
+                                Text(verbatim: entry.name)
                                     .font(MiraFont.callout)
                                     .foregroundStyle(chosen ? Palette.onAccent : Palette.ink)
                                     .padding(.horizontal, 14)
@@ -45,11 +47,11 @@ struct EpisodeList: View {
                 }
                 .scrollIndicators(.hidden)
                 .accessibilityIdentifier("series.seasons")
-            } else if let only = seasons.first?.name {
+            } else if let only = chips.first?.name {
                 Text(verbatim: only).font(MiraFont.section).foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
             }
             // « Mark the season as watched »: only beside another season (with one, the series' own button does it).
-            if seasons.count > 1, !episodes.isEmpty {
+            if seasons.count > 1, !episodes.isEmpty, absentSeason == nil {
                 let mark = SeasonMark.of(episodes)
                 Button {
                     Task { await markSeason(mark) }
@@ -72,14 +74,27 @@ struct EpisodeList: View {
             if failed && episodes.isEmpty {
                 Text(verbatim: Messages.text(JellyfinError.unreachable)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
             }
-            LazyVStack(alignment: .leading, spacing: 16) {
-                ForEach(episodes) { episode in
-                    EpisodeRow(episode: episode)
+            if let absent = absentSeason {
+                // A season the library has none of: a calm card for its aired episodes, then those coming.
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(EpisodeShelf.lines([], virtuals: virtuals, season: absent, today: today, showMissing: showMissing)) { line in
+                        if line.kind == .missing { AbsentSeasonCard(season: absent, episodes: line.episodes) } else { shelfRow(line) }
+                    }
+                }
+            } else {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    ForEach(shelf(today: today, showMissing: showMissing)) { line in
+                        if line.kind == .episode { EpisodeRow(episode: line.first) } else { shelfRow(line) }
+                    }
                 }
             }
         }
         .task(id: series.id) { await loadSeasons() }
-        .task(id: series.id) { calendar = await EpisodeCalendar.schedule(of: series, app: app) }
+        .task(id: series.id) {
+            virtuals = await EpisodeShelf.virtuals(of: series, app: app)
+            // A series the library holds no season of: its first season known to TheTVDB.
+            if season == nil, seasons.isEmpty { season = self.chips(today: .today(), showMissing: app.preferences.showMissingEpisodes).first?.id }
+        }
         .task(id: season) { await loadEpisodes() }
         // A title stopped or marked: the season shown is read again in place (same episodes, same rows).
         .onChange(of: app.playback) { Task { await loadEpisodes() } }
@@ -87,6 +102,37 @@ struct EpisodeList: View {
         .onChange(of: next?.seasonId) { _, id in
             if !picked, let id, seasons.contains(where: { $0.id == id }) { season = id }
         }
+    }
+
+    /// The seasons to choose from: Jellyfin's, then those the library has none of (« Season 1 · not in library »).
+    private struct Chip: Identifiable {
+        let id: String
+        let name: String
+    }
+
+    private func chips(today: EpisodeCalendar.Day, showMissing: Bool) -> [Chip] {
+        let held = Set(seasons.compactMap(\.indexNumber))
+        let absent = EpisodeShelf.absentSeasons(held: held, virtuals: virtuals, today: today, showMissing: showMissing)
+        return seasons.map { Chip(id: $0.id, name: $0.name ?? "") }
+            + absent.map { Chip(id: Self.absentPrefix + "\($0)", name: EpisodeShelf.seasonLabel($0, virtuals: virtuals, today: today)) }
+    }
+
+    private static let absentPrefix = "absent-"
+
+    /// The season shown, when it is one the library has none of.
+    private var absentSeason: Int? {
+        guard let season, season.hasPrefix(Self.absentPrefix) else { return nil }
+        return Int(season.dropFirst(Self.absentPrefix.count))
+    }
+
+    /// The season shown: its episodes, those it lacks at their place.
+    private func shelf(today: EpisodeCalendar.Day, showMissing: Bool) -> [EpisodeShelf.Line] {
+        guard let number = seasons.first(where: { $0.id == season })?.indexNumber else { return episodes.map { EpisodeShelf.Line(kind: .episode, episodes: [$0]) } }
+        return EpisodeShelf.lines(episodes, virtuals: virtuals, season: number, today: today, showMissing: showMissing)
+    }
+
+    @ViewBuilder private func shelfRow(_ line: EpisodeShelf.Line) -> some View {
+        if line.kind == .coming { ShelfComingRow(episode: line.first) } else { ShelfThinLine(line: line, open: $shelfOpen) }
     }
 
     private func markSeason(_ mark: SeasonMark) async {
@@ -107,7 +153,7 @@ struct EpisodeList: View {
         guard let client = app.client else { return }
         do {
             seasons = try await client.seasons(series.id)
-            if season == nil || !seasons.contains(where: { $0.id == season }) {
+            if absentSeason == nil, season == nil || !seasons.contains(where: { $0.id == season }) {
                 season = seasons.first { $0.id == next?.seasonId }?.id ?? seasons.first?.id
             } else {
                 await loadEpisodes()
@@ -117,6 +163,8 @@ struct EpisodeList: View {
 
     private func loadEpisodes() async {
         guard let client = app.client, let season else { return }
+        // A season the library has none of: nothing to ask Jellyfin.
+        if absentSeason != nil { episodes = []; failed = false; return }
         do {
             episodes = try await client.episodes(series.id, season: season)
             failed = false

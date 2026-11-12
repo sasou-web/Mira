@@ -38,6 +38,10 @@ Un titre compte comme vu quand il se termine, quand tu t’arrêtes après 90 %,
 
 Dans **Réglages → Lecture**, **Cacher les spoilers** (coupé par défaut) floute l’image d’un épisode que tu n’as pas commencé et remplace son résumé par « Pas encore vu » : son nom et son numéro restent. Sur les cartes larges (**Continuer à regarder**, **À suivre**), un épisode pas commencé montre l’image de sa saison. Commencé ou vu : tout revient. L’image cachée n’est même pas téléchargée.
 
+## Épisodes manquants et à venir
+
+Avec l’extension TheTVDB sur ton Jellyfin (**Réglages → Entretien → Épisodes manquants et sorties** de Mira pour Windows l’active, pour un administrateur), la page d’une série montre ce que ta bibliothèque n’a pas, chacun à sa place. Les épisodes sortis qui n’y sont pas forment une ligne fine entre ceux que tu as (« É3–4 · pas dans ta bibliothèque · sortis du 25 oct. au 1 nov. ») ; **Voir** les liste. Le prochain épisode à sortir est une ligne vide à sa place, avec son jour. Une saison dont tu n’as aucun épisode est dans la liste des saisons (« Saison 1 · absente »), montrée par une carte qui dit combien d’épisodes elle compte et quand ils sont sortis. Rien à lancer, rien d’urgent : **Réglages → Lecture → Montrer les épisodes manquants** coupé ne garde que ceux à venir.
+
 ## Lire sur un autre appareil
 
 Sur iPhone, **…** d’un titre → **Lire sur…** liste les apps Jellyfin qu’on peut piloter (Mira pour Windows ou Mac, une app de télé) : le titre y démarre, puis une télécommande met en pause, avance et règle le volume. Mira pour Windows et Mac apparaissent dans cette liste tout seuls tant qu’ils sont ouverts.

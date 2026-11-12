@@ -447,6 +447,19 @@ public static class SelfCheck
             Check(await Until(() => window.Current is DetailPage { Episodes.Count: > 0 }, 20), "fiche d’une série : épisodes", $"{series.Name} : {(window.Current as DetailPage)?.Episodes.Count} épisodes");
             if (window.Current is DetailPage { Episodes.Count: > 100 } longSeries)
                 Check(longSeries.SeasonLabels.Any(x => x.Contains("1–100")) && longSeries.SeasonLabels.Count() > 1, "longue saison par tranches", string.Join(" | ", longSeries.SeasonLabels));
+            // TheTVDB's episodes « à leur place »: the seasons the library has none of at the end of the list, none above the episodes.
+            if (window.Current is DetailPage { Episodes.Count: > 100 } shelfSeries)
+                Check(await Until(() => shelfSeries.SeasonLabels.Contains(Lang.L("Saison 2 · absente", "Season 2 · not in library")) && shelfSeries.SeasonLabels.Last() == Lang.L("Saison 3 · à venir", "Season 3 · coming"), 10),
+                    "épisodes manquants et à venir : saisons absentes dans la liste", string.Join(" | ", shelfSeries.SeasonLabels));
+            if (window.Current is DetailPage { Episodes.Count: > 100 } shelfPage && shelfPage.SeasonLabels.FirstOrDefault(x => x.EndsWith("–130", StringComparison.Ordinal)) is { } lastSlice)
+            {
+                // The end of season 1: two missing at their place, the next one hollow, those after it; then season 2, a card.
+                Check(shelfPage.ShowSeasonForCheck(lastSlice), "épisodes manquants et à venir : fin de saison");
+                await Task.Delay(900); Capture(window, output, "06c-series-shelf");
+                Check(shelfPage.ShowSeasonForCheck(Lang.L("Saison 2 · absente", "Season 2 · not in library")), "épisodes manquants et à venir : saison absente");
+                await Task.Delay(900); Capture(window, output, "06d-series-absent-season");
+                shelfPage.ShowSeasonForCheck(shelfPage.SeasonLabels.First());
+            }
             await Task.Delay(1200); Capture(window, output, "06-series");
             // Refreshed as after the player or a title marked watched: the episodes stay, and the page with them scrolls.
             if (window.Current is DetailPage seriesPage)

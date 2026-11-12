@@ -1310,16 +1310,6 @@
         }
       }
     },
-    "Hides the list": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Masque la liste"
-          }
-        }
-      }
-    },
     "In a group · %@ · %@": {
       "localizations": {
         "fr": {
@@ -1937,16 +1927,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Partager un rapport pour signaler un problème"
-          }
-        }
-      }
-    },
-    "Shows the list": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Montre la liste"
           }
         }
       }
@@ -7379,6 +7359,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quand un titre a une piste japonaise, comme la plupart des animes."
+          }
+        }
+      }
+    },
+    "Show missing episodes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Montrer les épisodes manquants"
+          }
+        }
+      }
+    },
+    "On a series’ page, aired episodes that aren’t in your library, from TheTVDB. Coming ones stay.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur la page d’une série, les épisodes sortis qui ne sont pas dans ta bibliothèque, d’après TheTVDB. Ceux à venir restent."
           }
         }
       }
