@@ -20,7 +20,7 @@ Filters add up: "4K, not watched, French audio" is one list. **Picture** is 4K, 
 
 On a series' poster, a number says how many episodes are left to watch: a new episode of a series you follow shows up in the library.
 
-A title's page shows the picture of the file you would play ("4K · HDR10", "1080p") and the time it would end if you started now. On a series, it shows the next episode ("Resume · S01 E07"). Below: the cast and crew (a click shows their titles in your library), the extras (making-of, deleted scenes; trailers have [their own button](library.md#trailers)), similar titles and the other films of the same collection.
+A title's page shows the picture of the file you would play ("4K · HDR10", "1080p") and the time it would end if you started now. On a series, it shows the next episode ("Resume · S01 E07"), and its episodes as a grid of pictures, the seasons as pills above: the episode **Play** plays is framed in white with **UP NEXT**, a watched one has a check on its picture, one begun its progress bar. A click on a picture plays the episode; on its name, it opens the episode's page. Below: the cast and crew (a click shows their titles in your library), the extras (making-of, deleted scenes; trailers have [their own button](library.md#trailers)), similar titles and the other films of the same collection.
 
 The buttons next to **Play** keep their shape and only change state: **Favorite**, **Watched**, and **Keep on this PC** (Windows) or **Keep on this Mac**. Their names show on hover.
 
@@ -40,7 +40,7 @@ In **Settings → Playback**, **Hide spoilers** (off by default) blurs the pictu
 
 ## Missing and coming episodes
 
-With TheTVDB's plugin on your Jellyfin (**Settings → Maintenance → Missing episodes and air dates** in Mira for Windows turns it on, for an administrator), a series' page shows what your library doesn't have, each where it belongs. Episodes that aired and aren't in your library are one thin line between those you have ("E3–4 · not in your library · aired Oct 25 – Nov 1"); **Show** lists them. The next episode to come out is a hollow row at its place, with its day. A season you have none of is in the season list ("Season 1 · not in library"), shown as a card that tells how many episodes it has and when they aired. Nothing to play, nothing urgent: **Settings → Playback → Show missing episodes** off keeps only the coming ones.
+With TheTVDB's plugin on your Jellyfin (**Settings → Maintenance → Missing episodes and air dates** in Mira for Windows turns it on, for an administrator), a series' page shows what your library doesn't have, each where it belongs. Episodes that aired and aren't in your library are one hollow tile between those you have ("E3–4", "Not in your library", "Aired Oct 25 – Nov 1"); **Show all** opens it into one tile each. The next episode to come out is a hollow tile at its place, with its day. A season you have none of is in the season list ("Season 1 · not in library"), shown as a card that tells how many episodes it has and when they aired. Nothing to play, nothing urgent: **Settings → Playback → Show missing episodes** off keeps only the coming ones.
 
 ## Play on another device
 

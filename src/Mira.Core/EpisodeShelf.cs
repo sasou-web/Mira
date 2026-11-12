@@ -110,7 +110,11 @@ public static class EpisodeShelf
 
     /// <summary>« É7–9 · à venir · du 22 nov. au 6 déc. », a thin line of the episodes announced after the next one.</summary>
     public static string LaterText(IReadOnlyList<MediaItem> run, DateOnly today) =>
-        $"{Code(run)} · {L("à venir", "coming")} · {(run.Count == 1 ? EpisodeCalendar.DayText(Day(run[0]), today) : Span(run, today, L("du ", ""), L(" au ", " – ")))}";
+        $"{Code(run)} · {L("à venir", "coming")} · {When(run, today)}";
+
+    /// <summary>When the episodes of a run come out: « samedi », « du 22 nov. au 6 déc. ».</summary>
+    public static string When(IReadOnlyList<MediaItem> run, DateOnly today) =>
+        run.Count == 1 ? EpisodeCalendar.DayText(Day(run[0]), today) : Span(run, today, L("du ", ""), L(" au ", " – "));
 
     /// <summary>« sorti mardi 20 octobre », « sortis du 8 janv. au 25 juin 2026 ».</summary>
     public static string Aired(IReadOnlyList<MediaItem> run, DateOnly today) => run.Count == 1

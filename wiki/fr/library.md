@@ -20,7 +20,7 @@ Les filtres s’additionnent : « 4K, pas vus, en VF » donne une seule liste. *
 
 Sur l’affiche d’une série, un nombre dit combien d’épisodes restent à voir : un nouvel épisode d’une série que tu suis se voit dans la bibliothèque.
 
-La fiche d’un titre montre l’image du fichier que tu lirais (« 4K · HDR10 », « 1080p ») et l’heure de fin si tu lançais maintenant. Sur une série, elle montre l’épisode suivant (« Reprendre · S01 E07 »). Dessous : la distribution et l’équipe (un clic montre leurs titres dans ta bibliothèque), les bonus (making-of, scènes coupées ; les bandes-annonces ont [leur bouton](library.md#bandes-annonces)), les titres similaires et les autres films de la même collection.
+La fiche d’un titre montre l’image du fichier que tu lirais (« 4K · HDR10 », « 1080p ») et l’heure de fin si tu lançais maintenant. Sur une série, elle montre l’épisode suivant (« Reprendre · S01 E07 »), et ses épisodes en grille d’images, les saisons en pastilles au-dessus : l’épisode que lance **Lecture** est encadré de blanc avec **À SUIVRE**, un épisode vu a une coche sur son image, un épisode commencé sa barre de progression. Un clic sur l’image lance l’épisode ; sur son nom, il ouvre sa page. Dessous : la distribution et l’équipe (un clic montre leurs titres dans ta bibliothèque), les bonus (making-of, scènes coupées ; les bandes-annonces ont [leur bouton](library.md#bandes-annonces)), les titres similaires et les autres films de la même collection.
 
 Les boutons à côté de **Lecture** gardent leur forme et ne changent que d’état : **Favori**, **Vu**, et **Garder sur ce PC** (Windows) ou **Garder sur ce Mac**. Leur nom s’affiche au survol.
 
@@ -40,7 +40,7 @@ Dans **Réglages → Lecture**, **Cacher les spoilers** (coupé par défaut) flo
 
 ## Épisodes manquants et à venir
 
-Avec l’extension TheTVDB sur ton Jellyfin (**Réglages → Entretien → Épisodes manquants et sorties** de Mira pour Windows l’active, pour un administrateur), la page d’une série montre ce que ta bibliothèque n’a pas, chacun à sa place. Les épisodes sortis qui n’y sont pas forment une ligne fine entre ceux que tu as (« É3–4 · pas dans ta bibliothèque · sortis du 25 oct. au 1 nov. ») ; **Voir** les liste. Le prochain épisode à sortir est une ligne vide à sa place, avec son jour. Une saison dont tu n’as aucun épisode est dans la liste des saisons (« Saison 1 · absente »), montrée par une carte qui dit combien d’épisodes elle compte et quand ils sont sortis. Rien à lancer, rien d’urgent : **Réglages → Lecture → Montrer les épisodes manquants** coupé ne garde que ceux à venir.
+Avec l’extension TheTVDB sur ton Jellyfin (**Réglages → Entretien → Épisodes manquants et sorties** de Mira pour Windows l’active, pour un administrateur), la page d’une série montre ce que ta bibliothèque n’a pas, chacun à sa place. Les épisodes sortis qui n’y sont pas forment une case vide entre ceux que tu as (« É3–4 », « Pas dans ta bibliothèque », « Sortis du 25 oct. au 1 nov. ») ; **Voir les 2** l’ouvre en une case par épisode. Le prochain épisode à sortir est une case vide à sa place, avec son jour. Une saison dont tu n’as aucun épisode est dans la liste des saisons (« Saison 1 · absente »), montrée par une carte qui dit combien d’épisodes elle compte et quand ils sont sortis. Rien à lancer, rien d’urgent : **Réglages → Lecture → Montrer les épisodes manquants** coupé ne garde que ceux à venir.
 
 ## Lire sur un autre appareil
 

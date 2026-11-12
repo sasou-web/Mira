@@ -687,8 +687,8 @@ final class MiraUITests: XCTestCase {
         let series = app.buttons["Pioneer One, 2010"].firstMatch
         XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
         tapCard(app, series)
-        // TheTVDB's episodes « à leur place » (EpisodeShelf): the missing one a thin line after the third episode, the
-        // coming one a hollow row after it, nothing above the seasons.
+        // TheTVDB's episodes « à leur place » (EpisodeShelf), in the grid of tiles: the missing one a gap tile after the
+        // third episode, the coming one a hollow tile after it, nothing above the seasons.
         let missing = app.buttons["series.shelf.missing"]
         for _ in 0..<5 where !(missing.exists && missing.isHittable) { app.swipeUp() }
         XCTAssertTrue(missing.waitForExistence(timeout: 10), "The series page says nothing of its missing episode")
@@ -697,8 +697,8 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(coming.exists && coming.label.contains("The Sun Never Sets"), "The coming episode is not at its place: \(coming.label)")
         XCTAssertFalse(app.buttons["series.calendar"].exists, "The old card above the episodes is still there")
         missing.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["series.shelf.list"].waitForExistence(timeout: 5), "The line did not open into its list")
-        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Triangle'")).firstMatch.exists, "The list does not name the missing episode")
+        XCTAssertTrue(app.descendants(matching: .any)["series.shelf.entry"].waitForExistence(timeout: 5), "The gap did not open into a tile per episode")
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Triangle'")).firstMatch.exists, "The opened tiles do not name the missing episode")
         settle()
         capture("60-series-calendar")
         // An account that shows missing episodes in Jellyfin (the stand-in lists them so unless asked isMissing=false):

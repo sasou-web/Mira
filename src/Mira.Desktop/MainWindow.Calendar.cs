@@ -9,7 +9,7 @@ namespace Mira.Desktop;
 
 // Missing episodes and coming ones, from TheTVDB's plugin on Jellyfin (TvdbExtension), « à leur place » (EpisodeShelf,
 // tests/fixtures/calendar.json): in the season list (a season the library has none of), between a season's episodes
-// (one thin line for those it lacks, a hollow row for the next one to come out); « Épisodes manquants et sorties » in
+// (hollow tiles of the grid, MainWindow.EpisodeGrid.cs); « Épisodes manquants et sorties » in
 // Réglages → Jellyfin installs the plugin, its names and pictures turned off.
 public partial class MainWindow
 {
@@ -53,6 +53,10 @@ public partial class MainWindow
         var own = EpisodePages.From(_episodes);
         var pages = EpisodeShelf.Pages(own, _episodes, _seriesVirtuals, EpisodeCalendar.Today(), _settings.ShowMissingEpisodes);
         foreach (var page in pages) SeasonSelector.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
+        // Two to ten pages: pills under the heading (EpisodeTiles); more (slices of a long anime): the list.
+        var pills = EpisodeTiles.Pills(pages);
+        SeasonSelector.Visibility = pills || pages.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        FillSeasonPills(pills ? pages : []);
         // « Saison 1 · 1001–1100 » and « Season 1 · not in library » need more room than « Saison 1 ».
         SeasonSelector.Width = pages.Any(x => x.Absent) ? 250 : pages.GroupBy(x => x.Season).Any(x => x.Count() > 1) ? 230 : 180;
         var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip && x.Absent == previous.Absent))
@@ -62,67 +66,28 @@ public partial class MainWindow
         _seasonBusy = false;
     }
 
-    /// <summary>A season the library has none of: a calm card for its aired episodes, then those coming, as in a season.</summary>
+    /// <summary>A season the library has none of: a calm card for its aired episodes (their tiles on demand), then those coming.</summary>
     private void RenderAbsentSeason(EpisodePage page)
     {
         EpisodeHeading.Text = L("Épisodes", "Episodes"); SeasonMarkButton.Visibility = Visibility.Collapsed;
         var today = EpisodeCalendar.Today();
+        var grid = TileGrid();
         foreach (var line in EpisodeShelf.Lines([], _seriesVirtuals, page.Season, true, true, today, _settings.ShowMissingEpisodes))
-            EpisodesPanel.Children.Add(line.Kind == ShelfKind.Missing ? AbsentSeasonCard(page.Season, line.Episodes, today) : ShelfRow(line, today));
-    }
-
-    /// <summary>The row of a line that isn't an episode of the library: hollow for the next to come out, else a thin line.</summary>
-    private UIElement ShelfRow(ShelfLine line, DateOnly today) => line.Kind == ShelfKind.Coming ? ComingRow(line.First, today) : ThinLine(line, today);
-
-    // As an episode's row, hollow: no picture to play, its day on the right.
-    private Border ComingRow(MediaItem episode, DateOnly today)
-    {
-        var row = new Border { BorderBrush = Palette.Get("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(15), Margin = new Thickness(0, 0, 0, 9) };
-        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var thumb = new Border { Width = 160, Height = 90, CornerRadius = new CornerRadius(4), Background = Palette.Get("Bg"), BorderBrush = Palette.Get("Raised2"), BorderThickness = new Thickness(1) };
-        thumb.Child = new Icon { Kind = "calendar", Width = 22, Height = 22, Foreground = Palette.Get("Faint") };
-        grid.Children.Add(thumb);
-        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(21, 0, 20, 0) }; Grid.SetColumn(copy, 1);
-        copy.Children.Add(new TextBlock { Text = episode.IndexNumber is { } number ? $"{number:00}   {EpisodeShelf.Name(episode)}" : EpisodeShelf.Name(episode), FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextTertiary"), TextTrimming = TextTrimming.CharacterEllipsis });
-        copy.Children.Add(new TextBlock { Text = EpisodeShelf.NotOut, FontSize = 12, Foreground = Palette.Get("Faint"), Margin = new Thickness(0, 7, 0, 0) });
-        grid.Children.Add(copy);
-        var day = new TextBlock { Text = EpisodeCalendar.DayTitle(EpisodeCalendar.AirDay(episode)!.Value, today), FontSize = 12, Foreground = Palette.Get("TextSecondary"), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(day, 2); grid.Children.Add(day);
-        row.Child = grid;
-        return row;
-    }
-
-    // « É3–4 · pas dans ta bibliothèque · sortis du 25 oct. au 1 nov. », where they would be; « Voir » lists them under it.
-    private StackPanel ThinLine(ShelfLine line, DateOnly today)
-    {
-        var key = line.First.Id; var open = _shelfOpen.Contains(key);
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 9) };
-        var button = new Button { Background = Brushes.Transparent, BorderBrush = Palette.Get("Line"), Padding = new Thickness(15, 11, 15, 11), HorizontalContentAlignment = HorizontalAlignment.Stretch };
-        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.Children.Add(new Icon { Kind = line.Kind == ShelfKind.Later ? "calendar" : "next", Width = 14, Height = 14, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Palette.Get("Faint") });
-        var text = line.Kind == ShelfKind.Later ? EpisodeShelf.LaterText(line.Episodes, today) : EpisodeShelf.MissingText(line.Episodes, today);
-        var words = new TextBlock { FontSize = 13, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetColumn(words, 1);
-        var code = EpisodeShelf.Code(line.Episodes);
-        words.Inlines.Add(new System.Windows.Documents.Run(code) { FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextTertiary") });
-        words.Inlines.Add(new System.Windows.Documents.Run(text[code.Length..]));
-        grid.Children.Add(words);
-        var show = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) }; Grid.SetColumn(show, 2);
-        show.Children.Add(new TextBlock { Text = EpisodeShelf.Show(line.Episodes.Count, open), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextSecondary") });
-        show.Children.Add(new Icon { Kind = open ? "up" : "down", Width = 12, Height = 12, Margin = new Thickness(6, 0, 0, 0), Foreground = Palette.Get("TextSecondary") });
-        grid.Children.Add(show); button.Content = grid;
-        AutomationProperties.SetName(button, text); AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open));
-        button.Click += (_, _) => Toggle(key);
-        panel.Children.Add(button);
-        if (open) panel.Children.Add(ShelfEntries(line.Episodes, today));
-        return panel;
+        {
+            if (line.Kind != ShelfKind.Missing) { AddTiles(grid, line, today); continue; }
+            var key = "season-" + line.First.Id;
+            EpisodesPanel.Children.Add(AbsentSeasonCard(page.Season, line.Episodes, today, key));
+            if (_shelfOpen.Contains(key)) foreach (var episode in line.Episodes) grid.Children.Add(HollowTile(episode, today));
+        }
+        if (grid.Children.Count > 0) EpisodesPanel.Children.Add(grid);
+        LayoutTiles();
     }
 
     // « La saison 1 n’est pas dans ta bibliothèque », how many and when, where they come from; its episodes on demand.
-    private StackPanel AbsentSeasonCard(int season, IReadOnlyList<MediaItem> run, DateOnly today)
+    private Border AbsentSeasonCard(int season, IReadOnlyList<MediaItem> run, DateOnly today, string key)
     {
-        var key = "season-" + run[0].Id; var open = _shelfOpen.Contains(key);
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 9) };
-        var card = new Border { BorderBrush = Palette.Get("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(22) };
+        var open = _shelfOpen.Contains(key);
+        var card = new Border { BorderBrush = Palette.Get("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(22), Margin = new Thickness(0, 0, 0, EpisodeTiles.RowGap) };
         var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.Children.Add(new Icon { Kind = "calendar", Width = 26, Height = 26, Margin = new Thickness(0, 2, 18, 0), VerticalAlignment = VerticalAlignment.Top, Foreground = Palette.Get("Faint") });
         var copy = new StackPanel(); Grid.SetColumn(copy, 1);
@@ -136,25 +101,7 @@ public partial class MainWindow
         show.Click += (_, _) => Toggle(key);
         copy.Children.Add(show);
         grid.Children.Add(copy); card.Child = grid;
-        panel.Children.Add(card);
-        if (open) panel.Children.Add(ShelfEntries(run, today));
-        return panel;
-    }
-
-    // The episodes of a thin line or of an absent season, one by one: « É3 · Le nom », when it aired or comes out.
-    private StackPanel ShelfEntries(IReadOnlyList<MediaItem> run, DateOnly today)
-    {
-        var list = new StackPanel { Margin = new Thickness(15, 6, 15, 6) };
-        foreach (var episode in run)
-        {
-            var (name, when) = EpisodeShelf.Entry(episode, today);
-            var line = new DockPanel { Margin = new Thickness(0, 5, 0, 5) };
-            var day = new TextBlock { Text = when, FontSize = 13, Foreground = Palette.Get("Muted"), Margin = new Thickness(16, 0, 0, 0) };
-            DockPanel.SetDock(day, Dock.Right); line.Children.Add(day);
-            line.Children.Add(new TextBlock { Text = name, FontSize = 13, Foreground = Palette.Get("TextTertiary"), TextTrimming = TextTrimming.CharacterEllipsis });
-            list.Children.Add(line);
-        }
-        return list;
+        return card;
     }
 
     private void Toggle(string key)

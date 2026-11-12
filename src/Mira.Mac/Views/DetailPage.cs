@@ -25,7 +25,13 @@ public sealed class DetailPage : Page
     private readonly StackPanel _top = new() { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(56 + MainWindow.RailWidth, 0, 56, 56) };
     private readonly StackPanel _body = new() { Spacing = 36, Margin = new Thickness(56, 8, 56, 64) };
     private readonly ComboBox _seasons = new() { MinWidth = 200 };
-    private readonly StackPanel _episodes = new() { Spacing = 10 };
+    private readonly StackPanel _episodes = new() { Spacing = 0 };
+    /// <summary>The seasons as pills (EpisodeTiles): two to ten pages; more, the list.</summary>
+    private readonly WrapPanel _pills = new() { IsVisible = false, Margin = new Thickness(0, 2, 0, 8) };
+    /// <summary>The tiles of the season shown (stills, hollow ones for those the library lacks), sized again with the page.</summary>
+    private readonly List<(Control Tile, Control Picture)> _tiles = [];
+    private WrapPanel? _tileGrid;
+    private double _tileWidth;
     private readonly TextBlock _episodeHeading = new() { FontSize = 24, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     /// <summary>Its logo from Jellyfin once loaded: it takes the place of its name.</summary>
     private Avalonia.Media.Imaging.Bitmap? _logo;
@@ -45,10 +51,6 @@ public sealed class DetailPage : Page
     /// <summary>« Suivre une série »: known once the relay answered for an administrator; the series as it follows it, null when it does not.</summary>
     private bool _followKnown;
     private RelayFollow? _follow;
-    /// <summary>
-    /// Missing episodes and coming ones (TheTVDB's plugin on Jellyfin, <see cref="TvdbExtension"/>): one line above the
-    /// episodes, opened into their list, as Mira web and Windows (<see cref="EpisodeCalendar"/>).
-    /// </summary>
     // This series' episodes from TheTVDB (EpisodeShelf): missing and coming ones at their place; the lines opened.
     private List<MediaItem> _virtuals = [];
     private readonly HashSet<string> _shelfOpen = [];
@@ -57,6 +59,10 @@ public sealed class DetailPage : Page
     public IReadOnlyList<MediaItem> Episodes => _allEpisodes;
     /// <summary>For the self-check: the list of episodes on the page, as many rows as the season shown.</summary>
     public bool EpisodesShown => TopLevel.GetTopLevel(_episodes) is not null && _episodes.Children.Count > 0;
+    /// <summary>For the self-check: the seasons as pills, the tiles of the season shown, the top of the grid brought into view.</summary>
+    public bool PillsShown => _pills.IsVisible && _pills.Children.Count > 1;
+    public int TilesShown => _tiles.Count;
+    public void ShowEpisodesForCheck() => Avalonia.Threading.Dispatcher.UIThread.Post(() => _episodeHeading.BringIntoView(), Avalonia.Threading.DispatcherPriority.Background);
     public IEnumerable<string> SeasonLabels => _seasons.Items.OfType<ComboBoxItem>().Select(x => x.Content as string ?? "");
 
     public DetailPage(MainWindow shell, MediaItem item, MediaItem? atEpisode = null) : base(shell, underRail: true)
@@ -80,6 +86,7 @@ public sealed class DetailPage : Page
         SizeChanged += (_, e) => { _viewport = e.NewSize.Height; SizeHero(); };
         _top.SizeChanged += (_, e) => { if (e.HeightChanged) SizeHero(); };
         _seasons.SelectionChanged += (_, _) => { if (!_filling) { RenderEpisodes(); ShowOffline(); } };
+        _episodes.SizeChanged += (_, e) => { if (e.WidthChanged && _tiles.Count > 0 && EpisodeTiles.Width(e.NewSize.Width) != _tileWidth) LayoutTiles(); };
         // « Garder sur ce Mac »: the button and the episodes follow the copies as they come.
         void OfflineUpdated() { ShowOffline(); if (_item.Type == "Series" && _allEpisodes.Count > 0) RenderEpisodes(); }
         void OfflineProgressed() => ShowOffline();
@@ -459,7 +466,7 @@ public sealed class DetailPage : Page
     {
         if (_seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Content as string == label) is not { } item) return false;
         _seasons.SelectedItem = item;
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => _episodes.Children.OfType<Control>().LastOrDefault()?.BringIntoView(), Avalonia.Threading.DispatcherPriority.Background);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => (_tileGrid?.Children.OfType<Control>().LastOrDefault() ?? _episodes.Children.OfType<Control>().LastOrDefault())?.BringIntoView(), Avalonia.Threading.DispatcherPriority.Background);
         return true;
     }
 
@@ -755,9 +762,9 @@ public sealed class DetailPage : Page
         DockPanel.SetDock(_seasons, Dock.Right); DockPanel.SetDock(_seasonMark, Dock.Right);
         // Kept from one refresh to the next (after the player, a title marked watched): each leaves the section it was in,
         // the heading too, or adding it again throws and the page is left without its episodes, nothing to scroll.
-        foreach (var kept in new Control[] { _seasons, _seasonMark, _episodeHeading, _episodes }) (kept.Parent as Panel)?.Children.Remove(kept);
+        foreach (var kept in new Control[] { _seasons, _seasonMark, _episodeHeading, _pills, _episodes }) (kept.Parent as Panel)?.Children.Remove(kept);
         header.Children.Add(_seasons); header.Children.Add(_seasonMark); header.Children.Add(_episodeHeading);
-        return Ui.Column(14, header, _episodes);
+        return Ui.Column(14, header, _pills, _episodes);
     }
     /// <summary>
     /// The season list: the library's seasons (slices of a long one), then those it has none of (« Saison 1 · absente »);
@@ -772,6 +779,10 @@ public sealed class DetailPage : Page
         _filling = true;
         _seasons.Items.Clear();
         foreach (var page in pages) _seasons.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
+        // Two to ten pages: pills under the heading; more (slices of a long anime): the list.
+        var pills = EpisodeTiles.Pills(pages);
+        _seasons.IsVisible = !pills && pages.Count > 0;
+        FillPills(pills ? pages : []);
         var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip && x.Absent == previous.Absent))
             ?? EpisodePages.Holding(own, _allEpisodes, _allEpisodes.FirstOrDefault(x => x.Id == _found?.Id))
             ?? EpisodePages.Holding(own, _allEpisodes, SeriesTarget);
@@ -780,16 +791,25 @@ public sealed class DetailPage : Page
     }
     private void RenderEpisodes()
     {
-        _episodes.Children.Clear();
+        _episodes.Children.Clear(); _tiles.Clear(); _tileGrid = null;
         if (Shell.Session is not { } session) return;
         var page = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
+        UpdatePills(page);
         var today = EpisodeCalendar.Today(); var showMissing = Shell.Settings.ShowMissingEpisodes;
+        var grid = TileGrid();
         if (page is { Absent: true })
         {
-            // A season the library has none of: a calm card for its aired episodes, then those coming, as in a season.
+            // A season the library has none of: a calm card for its aired episodes (their tiles on demand), then those coming.
             _episodeHeading.Text = L("Épisodes", "Episodes"); _seasonMark.IsVisible = false;
             foreach (var line in EpisodeShelf.Lines([], _virtuals, page.Season, true, true, today, showMissing))
-                _episodes.Children.Add(line.Kind == ShelfKind.Missing ? AbsentSeasonCard(page.Season, line.Episodes, today) : ShelfRow(line, today));
+            {
+                if (line.Kind != ShelfKind.Missing) { AddTiles(session, grid, line, today); continue; }
+                var key = "season-" + line.First.Id;
+                _episodes.Children.Add(AbsentSeasonCard(page.Season, line.Episodes, today, key));
+                if (_shelfOpen.Contains(key)) foreach (var episode in line.Episodes) grid.Children.Add(HollowTile(episode, today));
+            }
+            if (grid.Children.Count > 0) _episodes.Children.Add(grid);
+            LayoutTiles();
             return;
         }
         var episodes = page is null ? [] : EpisodePages.Episodes(_allEpisodes, page);
@@ -798,11 +818,13 @@ public sealed class DetailPage : Page
         if (episodes.Count == 0) { _episodes.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Ui.Muted }); return; }
         // The episode Lecture plays is in another season than the one shown (a long anime opened on its first): a click brings it.
         var pages = _seasons.Items.OfType<ComboBoxItem>().Select(x => x.Tag).OfType<EpisodePage>().ToList();
-        if (_found is null && _next is { } next && EpisodePages.NextElsewhere(pages, _allEpisodes, page, next) is { } elsewhere) _episodes.Children.Add(NextElsewhereRow(next, elsewhere));
-        // Those the library lacks at their place: a thin line, the next one to come out hollow.
+        if (_found is null && _next is { } next && EpisodePages.NextElsewhere(pages, _allEpisodes, page, next) is { } elsewhere) { var row = NextElsewhereRow(next, elsewhere); row.Margin = new Thickness(0, 0, 0, 16); _episodes.Children.Add(row); }
+        // A grid of stills (EpisodeTiles); those the library lacks at their place (TheTVDB's, EpisodeShelf), hollow.
         var last = page!.Skip + page.Take >= _allEpisodes.Count(x => EpisodePages.Season(x) == page.Season);
         foreach (var line in EpisodeShelf.Lines(episodes, _virtuals, page.Season, page.Skip == 0, last, today, showMissing))
-            _episodes.Children.Add(line.Kind == ShelfKind.Episode ? EpisodeRow(session, line.First) : ShelfRow(line, today));
+            AddTiles(session, grid, line, today);
+        _episodes.Children.Add(grid);
+        LayoutTiles();
     }
     private async Task LoadCalendarAsync(Session session)
     {
@@ -815,46 +837,80 @@ public sealed class DetailPage : Page
         FillSeasons(); RenderEpisodes();
     }
     private static readonly IBrush ShelfBorder = Ui.Brush("#2A2A2E");
-    private Control ShelfRow(ShelfLine line, DateOnly today) => line.Kind == ShelfKind.Coming ? ComingRow(line.First, today) : ThinLine(line, today);
-    // As an episode's row, hollow: no picture to play, its day on the right.
-    private Border ComingRow(MediaItem episode, DateOnly today)
+    // The tiles' panel: as wide as the page plus one gap, each tile followed by its gap.
+    private WrapPanel TileGrid() => _tileGrid = new WrapPanel { Margin = new Thickness(0, 0, -EpisodeTiles.Gap, 0) };
+    private void AddTiles(Session session, WrapPanel grid, ShelfLine line, DateOnly today)
     {
-        var thumb = new Border { Width = 176, Height = 99, CornerRadius = new CornerRadius(6), Background = Ui.Brush("#0B0B0C"), BorderBrush = Ui.Brush("#1F1F23"), BorderThickness = new Thickness(1), Child = new Icon("calendar", 22) { Foreground = Ui.Faint } };
-        var copy = Ui.Column(6,
-            new TextBlock { Text = episode.IndexNumber is { } number ? $"{number:00}   {EpisodeShelf.Name(episode)}" : EpisodeShelf.Name(episode), FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextTertiary, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
-            new TextBlock { Text = EpisodeShelf.NotOut, FontSize = 13, Foreground = Ui.Faint });
-        copy.VerticalAlignment = VerticalAlignment.Center; copy.Margin = new Thickness(20, 0);
-        var day = new TextBlock { Text = EpisodeCalendar.DayTitle(EpisodeCalendar.AirDay(episode)!.Value, today), FontSize = 12.5, Foreground = Ui.Brush("#C7C7CC"), VerticalAlignment = VerticalAlignment.Center };
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        grid.Children.Add(thumb); Grid.SetColumn(copy, 1); grid.Children.Add(copy); Grid.SetColumn(day, 2); grid.Children.Add(day);
-        return new Border { Child = grid, BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(14) };
+        switch (line.Kind)
+        {
+            case ShelfKind.Episode: grid.Children.Add(EpisodeTile(session, line.First)); break;
+            case ShelfKind.Coming: grid.Children.Add(HollowTile(line.First, today)); break;
+            default:
+                grid.Children.Add(GapTile(line, today));
+                if (_shelfOpen.Contains(line.First.Id)) foreach (var episode in line.Episodes) grid.Children.Add(HollowTile(episode, today));
+                break;
+        }
     }
-    // « É3–4 · pas dans ta bibliothèque · sortis du 25 oct. au 1 nov. », where they would be; « Voir » lists them under it.
-    private StackPanel ThinLine(ShelfLine line, DateOnly today)
+    /// <summary>The tiles at the page's width: <see cref="EpisodeTiles.Columns"/> a row, pictures in 16:9.</summary>
+    private void LayoutTiles()
+    {
+        var width = _episodes.Bounds.Width;
+        if (width <= 0 || _tiles.Count == 0) return;
+        _tileWidth = EpisodeTiles.Width(width);
+        foreach (var (tile, picture) in _tiles) SizeTile(tile, picture);
+    }
+    private void SizeTile(Control tile, Control picture)
+    {
+        var width = _tileWidth > 0 ? _tileWidth : 300;
+        tile.Width = width; picture.Width = width; picture.Height = Math.Round(width * 9 / 16);
+    }
+    private T Tile<T>(T tile, Control picture) where T : Control
+    {
+        tile.Margin = new Thickness(0, 0, EpisodeTiles.Gap, EpisodeTiles.RowGap); tile.VerticalAlignment = VerticalAlignment.Top;
+        _tiles.Add((tile, picture)); SizeTile(tile, picture);
+        return tile;
+    }
+    private static TextBlock TileTitle(MediaItem episode, string name, IBrush? ink = null)
+    {
+        var title = new TextBlock { FontSize = 15, FontWeight = FontWeight.Bold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, Margin = new Thickness(0, 11, 0, 0) };
+        if (ink is not null) title.Foreground = ink;
+        if (EpisodeTiles.Number(episode) is { Length: > 0 } number) title.Inlines!.Add(new Avalonia.Controls.Documents.Run(number + "  ") { FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted });
+        title.Inlines!.Add(new Avalonia.Controls.Documents.Run(name));
+        return title;
+    }
+    // An episode the library lacks: no picture to play, its name and its day (the next to come out, or one of an opened run).
+    private StackPanel HollowTile(MediaItem episode, DateOnly today)
+    {
+        var picture = new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#0B0B0C"), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), Child = new Icon("calendar", 26) { Foreground = Ui.Faint } };
+        var (_, when) = EpisodeShelf.Entry(episode, today);
+        var tile = new StackPanel { Children = { picture, TileTitle(episode, EpisodeShelf.Name(episode), Ui.TextTertiary), new TextBlock { Text = when, FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 } } };
+        Avalonia.Automation.AutomationProperties.SetName(tile, $"{EpisodeShelf.Code([episode])} {EpisodeShelf.Name(episode)}, {when}");
+        return Tile(tile, picture);
+    }
+    // « É5 · Pas dans ta bibliothèque · Sorti le 8 nov. » or « É8–12 · À venir », the size of a picture; it opens its episodes.
+    private Button GapTile(ShelfLine line, DateOnly today)
     {
         var key = line.First.Id; var open = _shelfOpen.Contains(key);
+        var (first, second) = EpisodeTiles.GapLines(line, today);
+        var copy = Ui.Column(0,
+            new TextBlock { Text = EpisodeShelf.Code(line.Episodes), FontSize = 15.5, FontWeight = FontWeight.Bold, Foreground = Ui.TextTertiary },
+            new TextBlock { Text = first, FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
+            new TextBlock { Text = second, FontSize = 13, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
+            Ui.Row(5, new TextBlock { Text = EpisodeShelf.Show(line.Episodes.Count, open), FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#C7C7CC"), VerticalAlignment = VerticalAlignment.Center }, new Icon(open ? "up" : "down", 12) { Foreground = Ui.Brush("#C7C7CC") }));
+        ((Control)copy.Children[^1]).Margin = new Thickness(0, 10, 0, 0);
+        copy.VerticalAlignment = VerticalAlignment.Center;
+        var picture = new Border { CornerRadius = new CornerRadius(10), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), Padding = new Thickness(20, 0), Child = copy };
+        var button = new Button { Content = picture, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top };
         var text = line.Kind == ShelfKind.Later ? EpisodeShelf.LaterText(line.Episodes, today) : EpisodeShelf.MissingText(line.Episodes, today);
-        var code = EpisodeShelf.Code(line.Episodes);
-        var words = new TextBlock { FontSize = 13.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 };
-        words.Inlines!.Add(new Avalonia.Controls.Documents.Run(code) { FontWeight = FontWeight.SemiBold, Foreground = Ui.TextTertiary });
-        words.Inlines.Add(new Avalonia.Controls.Documents.Run(text[code.Length..]));
-        var show = Ui.Row(6, new TextBlock { Text = EpisodeShelf.Show(line.Episodes.Count, open), FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#C7C7CC"), VerticalAlignment = VerticalAlignment.Center }, new Icon(open ? "up" : "down", 12) { Foreground = Ui.Brush("#C7C7CC") });
-        show.VerticalAlignment = VerticalAlignment.Center; show.Margin = new Thickness(16, 0, 0, 0);
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        grid.Children.Add(new Icon(line.Kind == ShelfKind.Later ? "calendar" : "next", 14) { Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.Faint });
-        Grid.SetColumn(words, 1); grid.Children.Add(words); Grid.SetColumn(show, 2); grid.Children.Add(show);
-        var button = new Button { Content = grid, Classes = { "row" }, Background = Brushes.Transparent, BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), Padding = new Thickness(16, 11) };
         Avalonia.Automation.AutomationProperties.SetName(button, text);
         Avalonia.Automation.AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open));
         button.Click += (_, _) => Toggle(key);
-        var panel = new StackPanel { Children = { button } };
-        if (open) panel.Children.Add(ShelfEntries(line.Episodes, today));
-        return panel;
+        return Tile(button, picture);
     }
     // « La saison 1 n’est pas dans ta bibliothèque », how many and when, where they come from; its episodes on demand.
-    private StackPanel AbsentSeasonCard(int season, IReadOnlyList<MediaItem> run, DateOnly today)
+    private Border AbsentSeasonCard(int season, IReadOnlyList<MediaItem> run, DateOnly today, string key)
     {
-        var key = "season-" + run[0].Id; var open = _shelfOpen.Contains(key);
+        var open = _shelfOpen.Contains(key);
         var label = EpisodeShelf.ShowSeason(run.Count, open);
         var show = new Button { Content = Ui.Row(6, new TextBlock { Text = label, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center }, new Icon(open ? "up" : "down", 12)), Classes = { "link" }, FontSize = 13.5, Foreground = Ui.Brush("#C7C7CC"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
         Avalonia.Automation.AutomationProperties.SetName(show, label);
@@ -866,24 +922,26 @@ public sealed class DetailPage : Page
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         grid.Children.Add(new Icon("calendar", 26) { Margin = new Thickness(0, 2, 18, 0), VerticalAlignment = VerticalAlignment.Top, Foreground = Ui.Faint });
         Grid.SetColumn(copy, 1); grid.Children.Add(copy);
-        var panel = new StackPanel { Children = { new Border { Child = grid, BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(22) } } };
-        if (open) panel.Children.Add(ShelfEntries(run, today));
-        return panel;
+        return new Border { Child = grid, BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(22), Margin = new Thickness(0, 0, 0, EpisodeTiles.RowGap) };
     }
-    // The episodes of a thin line or of an absent season, one by one: « É3 · Le nom », when it aired or comes out.
-    private static StackPanel ShelfEntries(IReadOnlyList<MediaItem> run, DateOnly today)
+    /// <summary>The seasons as pills under the heading; a click shows that one (the hidden list stays the source).</summary>
+    private void FillPills(IReadOnlyList<EpisodePage> pages)
     {
-        var list = new StackPanel { Spacing = 10, Margin = new Thickness(16, 10, 16, 6) };
-        foreach (var episode in run)
+        _pills.Children.Clear(); _pills.IsVisible = pages.Count > 0;
+        foreach (var page in pages)
         {
-            var (name, when) = EpisodeShelf.Entry(episode, today);
-            var row = new DockPanel();
-            var day = new TextBlock { Text = when, FontSize = 13.5, Foreground = Ui.Muted, Margin = new Thickness(16, 0, 0, 0) };
-            DockPanel.SetDock(day, Dock.Right); row.Children.Add(day);
-            row.Children.Add(new TextBlock { Text = name, FontSize = 13.5, Foreground = Ui.TextTertiary, TextTrimming = TextTrimming.CharacterEllipsis });
-            list.Children.Add(row);
+            var (name, note) = EpisodeTiles.Pill(page);
+            var label = Ui.Row(7, new TextBlock { Text = name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeight.SemiBold, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center });
+            var pill = new Button { Content = label, Classes = { "chip" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Margin = new Thickness(0, 0, 8, 8), Tag = page };
+            Avalonia.Automation.AutomationProperties.SetName(pill, page.Label);
+            pill.Click += (_, _) => _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? _seasons.SelectedItem;
+            _pills.Children.Add(pill);
         }
-        return list;
+    }
+    private void UpdatePills(EpisodePage? shown)
+    {
+        foreach (var pill in _pills.Children.OfType<Button>()) pill.Classes.Set("on", ReferenceEquals(pill.Tag, shown));
     }
     private void Toggle(string key)
     {
@@ -934,40 +992,52 @@ public sealed class DetailPage : Page
         finally { _marking = false; _seasonMark.IsEnabled = true; }
         await Shell.RefreshPagesAsync();
     }
-    private Button EpisodeRow(Session session, MediaItem episode)
+    private Button EpisodeTile(Session session, MediaItem episode)
     {
         var isNext = _next?.Id == episode.Id;
         // « Cacher les spoilers »: an episode not started shows Jellyfin's BlurHash of its still, the still never fetched.
         var hidden = Spoilers.Hides(episode, Shell.Settings.HideSpoilers);
         var image = new Image { Stretch = Stretch.UniformToFill };
         if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? Cards.Blur(hash, 16 / 9d) : null;
-        var thumb = new Grid { Width = 176, Height = 99, ClipToBounds = true };
-        thumb.Children.Add(new Border { Background = Ui.Brush("#222225") });
-        thumb.Children.Add(image);
-        thumb.Children.Add(new Border { Background = Ui.Brush("#33000000") });
-        thumb.Children.Add(new Icon("play", 22) { Foreground = Brushes.White });
-        if (episode.Resumable) thumb.Children.Add(new ProgressLine { Value = episode.Progress, Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(8, 0, 8, 7) });
-        var art = new Border { CornerRadius = new CornerRadius(6), ClipToBounds = true, Child = thumb };
-        var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
-        var copy = Ui.Column(6,
-            new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
-            new TextBlock { Text = hidden ? Spoilers.HiddenSummary : OverviewText.Plain(episode.Overview, flat: true), FontSize = 13, FontStyle = hidden ? FontStyle.Italic : FontStyle.Normal, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19 });
-        copy.VerticalAlignment = VerticalAlignment.Center; copy.Margin = new Thickness(20, 0);
-        var state = episode.UserData.Played ? L("✓ Vu", "✓ Watched") : isNext ? episode.Progress > 0 ? L("En cours", "In progress") : L("À suivre", "Up next") : null;
-        var status = Ui.Column(8, new TextBlock { Text = episode.DurationLabel, FontSize = 12.5, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Right });
-        if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 12, Foreground = Ui.Brush(episode.UserData.Played ? "#A0C7A8" : "#DADAE0"), HorizontalAlignment = HorizontalAlignment.Right });
+        var still = new Grid();
+        still.Children.Add(new Border { Background = Ui.Brush("#222225") });
+        still.Children.Add(image);
+        var progress = episode.UserData.Played ? 1 : episode.Resumable ? episode.Progress : 0;
+        if (progress > 0)
+        {
+            var bar = new Grid { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = Ui.Brush("#38FFFFFF"), ColumnDefinitions = new ColumnDefinitions($"{progress.ToString(System.Globalization.CultureInfo.InvariantCulture)}*,{(1 - progress).ToString(System.Globalization.CultureInfo.InvariantCulture)}*") };
+            bar.Children.Add(new Border { Background = Ui.Ink });
+            still.Children.Add(bar);
+        }
+        if (episode.UserData.Played)
+            still.Children.Add(new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Background = Ui.Brush("#A0000000"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 8, 8, 0), Child = new Icon("check", 13) { Foreground = Brushes.White } });
+        // Play: always on the one to watch, on the others under the pointer.
+        var play = new Border { Width = 46, Height = 46, CornerRadius = new CornerRadius(23), Background = Ui.Brush("#80000000"), Child = new Icon("play", 20) { Foreground = Brushes.White, Margin = new Thickness(3, 0, 0, 0) }, Opacity = isNext ? 1 : 0, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        still.Children.Add(play);
+        if (isNext)
+        {
+            still.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(6), Background = Ui.Ink, Padding = new Thickness(9, 3), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 10, 0, 0),
+                Child = new TextBlock { Text = EpisodeTiles.UpNext, FontSize = 11, FontWeight = FontWeight.ExtraBold, Foreground = Ui.Brush("#0B0B0C") }
+            });
+            still.Children.Add(new Border { BorderBrush = Ui.Ink, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false });
+        }
+        var picture = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = still };
+        var root = new StackPanel { Background = Brushes.Transparent, Children = { picture, TileTitle(episode, episode.Name) } };
+        root.Children.Add(new TextBlock { Text = EpisodeTiles.Meta(episode, EpisodeCalendar.Today()), FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });
+        var overview = hidden ? Spoilers.HiddenSummary : OverviewText.Plain(episode.Overview, flat: true);
+        if (overview.Length > 0)
+            root.Children.Add(new TextBlock { Text = overview, FontSize = 13, FontStyle = hidden ? FontStyle.Italic : FontStyle.Normal, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19, Margin = new Thickness(0, 6, 0, 0) });
         // « Sur ce Mac », « 42 % », « En attente »: a copy kept on this Mac.
-        if (Shell.CopyState(episode.Id) is { } kept) status.Children.Add(new TextBlock { Text = kept, FontSize = 12, Foreground = Ui.Brush("#DADAE0"), HorizontalAlignment = HorizontalAlignment.Right });
-        status.VerticalAlignment = VerticalAlignment.Center; status.Width = 90;
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        grid.Children.Add(art); Grid.SetColumn(copy, 1); grid.Children.Add(copy); Grid.SetColumn(status, 2); grid.Children.Add(status);
-        var button = new Button { Content = grid, Classes = { "row" } };
-        if (isNext || _found?.Id == episode.Id) button.Background = Ui.Brush("#18181B");
+        if (Shell.CopyState(episode.Id) is { } kept) root.Children.Add(new TextBlock { Text = kept, FontSize = 12, Foreground = Ui.Brush("#DADAE0"), Margin = new Thickness(0, 6, 0, 0) });
+        var button = new Button { Content = root, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top };
+        if (!isNext) { button.PointerEntered += (_, _) => play.Opacity = 1; button.PointerExited += (_, _) => play.Opacity = 0; }
         button.Click += (_, _) => _ = Shell.PlayAsync(episode);
         button.ContextMenu = Shell.Menu(episode);
         Avalonia.Automation.AutomationProperties.SetName(button, $"{L("Épisode", "Episode")} {episode.IndexNumber}, {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? L(", vu", ", watched") : isNext ? L(", à suivre", ", up next") : "")}");
-        if (!hidden) Ui.LoadWhenVisible(button, image, () => session.Images.EpisodeAsync(episode, 352));
-        return button;
+        if (!hidden) Ui.LoadWhenVisible(button, image, () => session.Images.EpisodeAsync(episode, 420));
+        return Tile(button, picture);
     }
 
     /// <summary>The film's saga, then the similar titles: a film of the saga is not shown again among them.</summary>

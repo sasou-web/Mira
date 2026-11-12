@@ -1432,6 +1432,24 @@ internal static class LibraryTests
             Assert(EpisodeShelf.Name(Find("S4E1")) == "Épisode 1", "A coming episode without a name");
             return Task.CompletedTask;
         });
+        await Test("Épisodes en grille : colonnes, largeur, pastilles des saisons, cases des manquants", () =>
+        {
+            Assert(EpisodeTiles.Columns(1180) == 4 && EpisodeTiles.Columns(800) == 3 && EpisodeTiles.Columns(600) == 2 && EpisodeTiles.Columns(200) == 1 && EpisodeTiles.Columns(9000) == EpisodeTiles.MaxColumns, "Columns");
+            var width = EpisodeTiles.Width(1180);
+            Assert(width == Math.Floor((1180 - 3 * EpisodeTiles.Gap) / 4) && width >= EpisodeTiles.MinWidth, $"Width {width}");
+            Assert(EpisodeTiles.Width(0) >= 1, "Never a tile without width");
+            EpisodePage Page(string label) => new(1, 0, 10, label, false);
+            Assert(!EpisodeTiles.Pills([Page("Saison 1")]) && EpisodeTiles.Pills([Page("Saison 1"), Page("Saison 2")]) && !EpisodeTiles.Pills(Enumerable.Range(1, 11).Select(n => Page($"Saison {n}")).ToList()), "Pills from 2 to 10 pages");
+            Assert(EpisodeTiles.Pill(Page("Saison 2")) == ("Saison 2", null) && EpisodeTiles.Pill(Page("Saison 1 · absente")) == ("Saison 1", "absente"), "A pill and its note");
+            Assert(EpisodeTiles.Number(new MediaItem { IndexNumber = 3 }) == "03" && EpisodeTiles.Number(new MediaItem { IndexNumber = 121 }) == "121" && EpisodeTiles.Number(new MediaItem()) == "", "Numbers");
+            var today = new DateOnly(2026, 11, 12);
+            MediaItem Virtual(int number, int days) => new() { Type = "Episode", LocationType = "Virtual", ParentIndexNumber = 1, IndexNumber = number, PremiereDate = new DateTimeOffset(today.AddDays(days).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) };
+            var missing = EpisodeTiles.GapLines(new ShelfLine(ShelfKind.Missing, [Virtual(3, -9), Virtual(4, -2)]), today);
+            var later = EpisodeTiles.GapLines(new ShelfLine(ShelfKind.Later, [Virtual(6, 17), Virtual(7, 24)]), today);
+            Assert(missing.First == "Pas dans ta bibliothèque" && char.IsUpper(missing.Second[0]) && later.First == "À venir" && char.IsUpper(later.Second[0]), $"{missing} {later}");
+            Assert(EpisodeTiles.UpNext == "À SUIVRE", "Up next");
+            return Task.CompletedTask;
+        });
         await Test("Épisodes manquants et à venir : tous lus, même au-delà de 5 000 épisodes virtuels", async () =>
         {
             // As Jellyfin 12.1 sorts them (by air day, those without one first): 5,050 old missing episodes of a long series

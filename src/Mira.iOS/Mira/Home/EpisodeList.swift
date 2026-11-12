@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A series' episodes on its page: its seasons to choose from, then each episode with its picture, how far it was
-/// watched and a Play of its own; the season shown first is the one of the episode to watch next.
+/// A series' episodes on its page: its seasons to choose from, then a grid of tiles, each episode with its still, how
+/// far it was watched and a Play of its own; the season shown first is the one of the episode to watch next.
 struct EpisodeList: View {
     let series: Item
     /// The episode Play plays on the series' page.
@@ -18,6 +18,8 @@ struct EpisodeList: View {
     /// has none of among the seasons, the episodes it lacks between those it has; the thin lines opened.
     @State private var virtuals: [Item] = []
     @State private var shelfOpen: Set<String> = []
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let today = EpisodeCalendar.Day.today()
@@ -75,20 +77,24 @@ struct EpisodeList: View {
                 Text(verbatim: Messages.text(JellyfinError.unreachable)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
             }
             if let absent = absentSeason {
-                // A season the library has none of: a calm card for its aired episodes, then those coming.
+                // A season the library has none of: a calm card for its aired episodes, then those coming, as tiles.
+                let lines = EpisodeShelf.lines([], virtuals: virtuals, season: absent, today: today, showMissing: showMissing)
                 VStack(alignment: .leading, spacing: 16) {
-                    ForEach(EpisodeShelf.lines([], virtuals: virtuals, season: absent, today: today, showMissing: showMissing)) { line in
-                        if line.kind == .missing { AbsentSeasonCard(season: absent, episodes: line.episodes) } else { shelfRow(line) }
+                    ForEach(lines.filter { $0.kind == .missing }) { AbsentSeasonCard(season: absent, episodes: $0.episodes) }
+                    LazyVGrid(columns: EpisodeGrid.columns(typeSize), alignment: .leading, spacing: EpisodeGrid.rowSpacing) {
+                        ForEach(tiles(lines.filter { $0.kind != .missing })) { tileView($0) }
                     }
                 }
             } else {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    ForEach(shelf(today: today, showMissing: showMissing)) { line in
-                        if line.kind == .episode { EpisodeRow(episode: line.first) } else { shelfRow(line) }
-                    }
+                // A grid of stills (EpisodeTiles of Core), those the library lacks hollow at their place.
+                LazyVGrid(columns: EpisodeGrid.columns(typeSize), alignment: .leading, spacing: EpisodeGrid.rowSpacing) {
+                    ForEach(tiles(shelf(today: today, showMissing: showMissing))) { tileView($0) }
                 }
+                .id(season)
+                .transition(.opacity)
             }
         }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: season)
         .task(id: series.id) { await loadSeasons() }
         .task(id: series.id) {
             virtuals = await EpisodeShelf.virtuals(of: series, app: app)
@@ -131,8 +137,37 @@ struct EpisodeList: View {
         return EpisodeShelf.lines(episodes, virtuals: virtuals, season: number, today: today, showMissing: showMissing)
     }
 
-    @ViewBuilder private func shelfRow(_ line: EpisodeShelf.Line) -> some View {
-        if line.kind == .coming { ShelfComingRow(episode: line.first) } else { ShelfThinLine(line: line, open: $shelfOpen) }
+    /// A tile of the grid: an episode, one the library lacks, or a run of them (opened into one tile each).
+    private enum Tile: Identifiable {
+        case episode(Item)
+        case hollow(Item, coming: Bool)
+        case gap(EpisodeShelf.Line)
+
+        var id: String {
+            switch self {
+            case .episode(let item): "episode-\(item.id)"
+            case .hollow(let item, _): "hollow-\(item.id)"
+            case .gap(let line): "gap-\(line.id)"
+            }
+        }
+    }
+
+    private func tiles(_ lines: [EpisodeShelf.Line]) -> [Tile] {
+        lines.flatMap { line -> [Tile] in
+            switch line.kind {
+            case .episode: [.episode(line.first)]
+            case .coming: [.hollow(line.first, coming: true)]
+            case .missing, .later: [.gap(line)] + (shelfOpen.contains(line.id) ? line.episodes.map { .hollow($0, coming: false) } : [])
+            }
+        }
+    }
+
+    @ViewBuilder private func tileView(_ tile: Tile) -> some View {
+        switch tile {
+        case .episode(let item): EpisodeTile(episode: item, isNext: item.id == next?.id)
+        case .hollow(let item, let coming): ShelfHollowTile(episode: item, coming: coming).transition(.opacity)
+        case .gap(let line): ShelfGapTile(line: line, open: $shelfOpen)
+        }
     }
 
     private func markSeason(_ mark: SeasonMark) async {
@@ -172,75 +207,135 @@ struct EpisodeList: View {
     }
 }
 
-/// One episode: its picture with its progress and a play mark, its number, name, length and summary. The row opens the
-/// episode's page (its languages); the picture plays it at once.
-struct EpisodeRow: View {
+/// The grid of a series' episodes: two columns on a phone, one at the largest text sizes.
+enum EpisodeGrid {
+    static let rowSpacing: CGFloat = 20
+
+    static func columns(_ size: DynamicTypeSize) -> [GridItem] {
+        size.isAccessibilitySize
+            ? [GridItem(.flexible(), alignment: .top)]
+            : [GridItem(.adaptive(minimum: 150), spacing: 12, alignment: .top)]
+    }
+}
+
+/// « 03  The name », the number quieter.
+struct EpisodeTileTitle: View {
+    let number: Int?
+    let name: String
+    var ink: Color = Palette.ink
+
+    private var title: AttributedString {
+        var lead = AttributedString(number.map { String(format: "%02d  ", $0) } ?? "")
+        lead.foregroundColor = Palette.muted
+        var rest = AttributedString(name)
+        rest.foregroundColor = ink
+        return lead + rest
+    }
+
+    var body: some View {
+        Text(title)
+            .font(MiraFont.bold(15, .subheadline))
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+    }
+}
+
+/// One episode as a tile: its still (a check on it once watched, its progress, framed in white with « UP NEXT » for the
+/// one Play plays), then its number, name, length and summary. The still plays it at once; the text opens its page.
+struct EpisodeTile: View {
     let episode: Item
+    let isNext: Bool
     @Environment(AppModel.self) private var app
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
-        let width: CGFloat = 150
+        let width: CGFloat = 200
         let hidden = Spoilers.hides(episode, on: app.preferences.hideSpoilers)
-        HStack(alignment: .top, spacing: 12) {
+        let watched = episode.userData?.played == true
+        let progress = watched ? 1 : ItemText.progress(episode)
+        VStack(alignment: .leading, spacing: 0) {
             Button {
                 app.play(episode)
             } label: {
-                ZStack {
-                    if hidden {
-                        // Jellyfin's BlurHash of its still, the still itself never fetched.
-                        RemoteImage(url: nil, blurHash: Spoilers.stillBlurHash(episode), width: width)
-                    } else if let client = app.client {
-                        let art = Artwork.of(episode, .wide)
-                        RemoteImage(url: art.map { client.imageURL($0, width: width, scale: displayScale) }, blurHash: art?.blurHash, label: episode.name ?? "", width: width)
+                Color.clear
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .overlay {
+                        if hidden {
+                            // Jellyfin's BlurHash of its still, the still itself never fetched.
+                            RemoteImage(url: nil, blurHash: Spoilers.stillBlurHash(episode), width: width)
+                        } else if let client = app.client {
+                            let art = Artwork.of(episode, .wide)
+                            RemoteImage(url: art.map { client.imageURL($0, width: width, scale: displayScale) }, blurHash: art?.blurHash, label: episode.name ?? "", width: width)
+                        }
                     }
-                    Image(systemName: "play.fill")
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(Palette.ink)
-                        .frame(width: 34, height: 34)
-                        .glassEffect(.clear, in: .circle)
-                }
-                .frame(width: width, height: width * 9 / 16)
-                .overlay(alignment: .bottom) {
-                    let progress = ItemText.progress(episode)
-                    if progress > 0 { ProgressLine(value: progress).padding(6) }
-                }
-                .clipShape(.rect(cornerRadius: 10, style: .continuous))
-                .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.06)) }
+                    .overlay(alignment: .bottom) {
+                        if progress > 0 {
+                            Rectangle().fill(.white.opacity(0.22)).frame(height: 3)
+                                .overlay(alignment: .leading) { GeometryReader { g in Rectangle().fill(Palette.ink).frame(width: g.size.width * progress) } }
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if watched {
+                            Image(systemName: "checkmark")
+                                .font(.caption2.weight(.heavy))
+                                .foregroundStyle(.white)
+                                .frame(width: 22, height: 22)
+                                .background(.black.opacity(0.62), in: .circle)
+                                .padding(7)
+                        }
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if isNext {
+                            Text("UP NEXT")
+                                .font(MiraFont.extraBold(11, .caption2))
+                                .foregroundStyle(Palette.onAccent)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Palette.ink, in: .rect(cornerRadius: 6, style: .continuous))
+                                .padding(8)
+                        }
+                    }
+                    .overlay {
+                        if isNext {
+                            Image(systemName: "play.fill")
+                                .font(.footnote.weight(.bold))
+                                .foregroundStyle(Palette.ink)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.clear, in: .circle)
+                        }
+                    }
+                    .clipShape(.rect(cornerRadius: 10, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(isNext ? Palette.ink : .white.opacity(0.06), lineWidth: isNext ? 2 : 1)
+                    }
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Play \(heading)"))
+            .accessibilityValue(watched ? Text("Watched") : isNext ? Text("UP NEXT") : Text(verbatim: ""))
             .accessibilityIdentifier("episode.play.\(episode.indexNumber ?? 0)")
 
-            NavigationLink(value: TitleRoute(item: episode, source: "episode-\(episode.id)")) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(verbatim: heading)
-                            .font(MiraFont.headline)
-                            .foregroundStyle(Palette.ink)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        if episode.userData?.played == true {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.footnote)
-                                .foregroundStyle(Palette.muted)
-                                .accessibilityLabel(Text("Watched"))
+            HStack(alignment: .top, spacing: 4) {
+                NavigationLink(value: TitleRoute(item: episode, source: "episode-\(episode.id)")) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        EpisodeTileTitle(number: episode.indexNumber, name: episode.name ?? "")
+                        if let detail {
+                            Text(verbatim: detail).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(1)
+                        }
+                        if hidden {
+                            Text("Not watched yet: summary hidden.").font(MiraFont.footnote).italic().foregroundStyle(Palette.faint).lineLimit(2)
+                        } else if case let overview = OverviewText.plain(episode.overview, flat: true), !overview.isEmpty {
+                            Text(verbatim: overview).font(MiraFont.footnote).foregroundStyle(Palette.faint).lineLimit(2).multilineTextAlignment(.leading)
                         }
                     }
-                    if let detail {
-                        Text(verbatim: detail).font(MiraFont.footnote).foregroundStyle(Palette.muted)
-                    }
-                    if hidden {
-                        Text("Not watched yet: summary hidden.").font(MiraFont.footnote).italic().foregroundStyle(Palette.muted).lineLimit(2)
-                    } else if case let overview = OverviewText.plain(episode.overview, flat: true), !overview.isEmpty {
-                        Text(verbatim: overview).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(2).multilineTextAlignment(.leading)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(.rect)
+                .buttonStyle(.plain)
+                if app.party.guest == nil { KeepButton(item: episode, compact: true) }
             }
-            .buttonStyle(.plain)
-            if app.party.guest == nil { KeepButton(item: episode, compact: true) }
+            .padding(.top, 8)
         }
         .titleMenu(episode)
     }
@@ -250,11 +345,12 @@ struct EpisodeRow: View {
             .compactMap(\.self).filter { !$0.isEmpty }.joined(separator: ". ")
     }
 
-    /// « 45 min », « 32 min left ».
+    /// « 45 min · Oct 25 », « 32 min left · Oct 25 » (EpisodeTiles.Meta of Core).
     private var detail: String? {
-        if let left = ItemText.remaining(episode) { return left }
-        guard let ticks = episode.runTimeTicks, ticks > 0 else { return nil }
-        return ItemText.duration(seconds: ticks / ItemText.ticksPerSecond)
+        let length = ItemText.remaining(episode) ?? episode.runTimeTicks.flatMap { $0 > 0 ? ItemText.duration(seconds: $0 / ItemText.ticksPerSecond) : nil }
+        let day = EpisodeCalendar.airDay(episode).map { EpisodeShelf.shortDay($0, today: .today()) }
+        let parts = [length, day].compactMap(\.self)
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 

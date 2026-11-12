@@ -19,6 +19,8 @@ public sealed class ImageCache
     public const double PosterWidth = 230;
     /// <summary>The episode thumbnails of a title page, and the banner's logo at most.</summary>
     public const double EpisodeWidth = 160, LogoWidth = 540;
+    /// <summary>An episode's still in a series' grid (EpisodeTiles), whatever its tile's width up to it: one size kept.</summary>
+    public const double EpisodeTileWidth = 420;
     private readonly JellyfinClient _client;
     private readonly string _directory;
     private readonly SemaphoreSlim _downloads = new(6);
@@ -71,10 +73,11 @@ public sealed class ImageCache
         var width = Pixels(LogoWidth);
         return Cached($"{id}-Logo-{tag}-{width}", id, "Logo", width);
     }
-    public Task<BitmapSource?> EpisodeAsync(MediaItem item)
+    /// <param name="shown">The width it is shown at: <see cref="EpisodeWidth"/> in a list, <see cref="EpisodeTileWidth"/> in a series' grid.</param>
+    public Task<BitmapSource?> EpisodeAsync(MediaItem item, double shown = EpisodeWidth)
     {
         var type = item.ImageTags.ContainsKey("Primary") ? "Primary" : "Thumb";
-        var width = Pixels(EpisodeWidth);
+        var width = Pixels(shown);
         return Cached($"{item.Id}-{type}-{item.ImageTags.GetValueOrDefault(type)}-{width}", item.Id, type, width);
     }
     /// <summary>
