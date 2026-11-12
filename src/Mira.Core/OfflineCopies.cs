@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -29,8 +30,18 @@ public sealed record OfflineCopy
     [JsonIgnore] public string Folder { get; init; } = "";
     [JsonIgnore] public string VideoPath => Path.Combine(Folder, File);
     [JsonIgnore] public string PartPath => VideoPath + ".part";
-    /// <summary>What is on the disk now, the part of a download included.</summary>
-    [JsonIgnore] public long BytesOnDisk => Folder.Length == 0 ? 0 : (Length(VideoPath) ?? Length(PartPath) ?? 0) + Subtitles.Sum(x => Length(Path.Combine(Folder, x.File)) ?? 0);
+    /// <summary>
+    /// The other files of a title in several parts (« cd2 »…, <see cref="MovieParts"/>), in Jellyfin's order: each a copy
+    /// of its own, in a folder of the title's (« part-2 »), fetched before the title's own file, so that a title is
+    /// complete only whole. Read from the disk with the title, never written in its manifest.
+    /// </summary>
+    [JsonIgnore] public List<OfflineCopy> Parts { get; init; } = [];
+    /// <summary>What the title takes once complete: its file and those of its other parts.</summary>
+    [JsonIgnore] public long TotalSize => Size + Parts.Sum(x => x.Size);
+    /// <summary>Its video and those of its other parts: the files the player may have open.</summary>
+    [JsonIgnore] public IEnumerable<string> VideoPaths => [VideoPath, .. Parts.Select(x => x.VideoPath)];
+    /// <summary>What is on the disk now, the part of a download and the title's other parts included.</summary>
+    [JsonIgnore] public long BytesOnDisk => Folder.Length == 0 ? 0 : (Length(VideoPath) ?? Length(PartPath) ?? 0) + Subtitles.Sum(x => Length(Path.Combine(Folder, x.File)) ?? 0) + Parts.Sum(x => x.BytesOnDisk);
     private static long? Length(string path) { try { var file = new FileInfo(path); return file.Exists ? file.Length : null; } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; } }
 }
 /// <summary>An external subtitle file kept beside the video (embedded ones are in the video).</summary>
@@ -51,15 +62,26 @@ public static class OfflineCopies
     /// <summary>The folder of an account's copies under <paramref name="root"/>, named like its artwork's (no server name on the disk).</summary>
     public static string AccountFolder(string root, Connection connection) =>
         Path.Combine(root, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JellyfinClient.NormalizeServer(connection.Server) + connection.UserId)))[..16]);
-    /// <summary>A new copy of <paramref name="item"/>, not fetched yet: its manifest is written at once, so that a closed Mira resumes it.</summary>
-    public static OfflineCopy Plan(string root, Connection connection, MediaItem item, MediaSource source, DateTimeOffset now)
+    /// <summary>
+    /// A new copy of <paramref name="item"/>, not fetched yet: its manifest is written at once, so that a closed Mira resumes
+    /// it. A title in several files (« cd1 », « cd2 ») keeps its other <paramref name="parts"/> with it, each in a folder of
+    /// its own inside the title's, written first.
+    /// </summary>
+    public static OfflineCopy Plan(string root, Connection connection, MediaItem item, MediaSource source, DateTimeOffset now, IReadOnlyList<(MediaItem Item, MediaSource Source)>? parts = null)
     {
         var folder = Path.Combine(AccountFolder(root, connection), SafeName(item.Id));
-        var copy = new OfflineCopy { Account = AccountData.LibraryProfile(connection), Item = item with { MediaSources = null }, Source = source, File = "video." + Extension(source), Size = source.Size ?? 0, Added = now, Folder = folder };
+        OfflineCopy New(MediaItem title, MediaSource file, string where) =>
+            new() { Account = AccountData.LibraryProfile(connection), Item = title with { MediaSources = null }, Source = file, File = "video." + Extension(file), Size = file.Size ?? 0, Added = now, Folder = where };
+        // Jellyfin may give the title again among its parts (MovieParts): never fetched twice.
+        var kept = (parts ?? []).Where(x => x.Item.Id != item.Id).Select((x, i) => New(x.Item, x.Source, Path.Combine(folder, PartFolder(i + 2)))).ToList();
+        foreach (var part in kept) { Directory.CreateDirectory(part.Folder); Save(part); }
+        var copy = New(item, source, folder) with { Parts = kept };
         Directory.CreateDirectory(folder);
         Save(copy);
         return copy;
     }
+    /// <summary>The folder of a title's <paramref name="number"/>th file (2 for « cd2 »), in the title's.</summary>
+    private static string PartFolder(int number) => "part-" + number.ToString(CultureInfo.InvariantCulture);
     /// <summary>Every copy of this account under these folders, newest first; a folder that does not read is left out.</summary>
     public static List<OfflineCopy> List(IEnumerable<string> roots, Connection connection)
     {
@@ -77,7 +99,19 @@ public static class OfflineCopies
         }
         return copies.GroupBy(x => x.Item.Id).Select(x => x.OrderByDescending(c => c.Complete).First()).OrderByDescending(x => x.Added).ToList();
     }
+    /// <summary>A copy from its folder, with the other files of a title in several parts (none for one kept before them).</summary>
     public static OfflineCopy? Read(string folder)
+    {
+        if (ReadOne(folder) is not { } copy) return null;
+        var parts = new List<OfflineCopy>();
+        for (var number = 2; number <= Math.Min(copy.Item.PartCount ?? 0, 99); number++)
+        {
+            if (ReadOne(Path.Combine(folder, PartFolder(number))) is not { } part) break;
+            parts.Add(part);
+        }
+        return parts.Count == 0 ? copy : copy with { Parts = parts };
+    }
+    private static OfflineCopy? ReadOne(string folder)
     {
         try
         {
@@ -113,6 +147,40 @@ public static class OfflineCopies
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { erased = false; }
         }
         return erased;
+    }
+
+    /// <summary>
+    /// Every file of a title: the other files of a title in several parts first, each read again from its folder (one
+    /// already whole is not fetched again), then its own, which completes it (<see cref="FetchAsync"/>).
+    /// <paramref name="progress"/> gets the bytes of all of them.
+    /// </summary>
+    public static async Task<OfflineCopy> FetchTitleAsync(JellyfinClient client, OfflineCopy copy, IProgress<(long Done, long Total)>? progress, CancellationToken ct)
+    {
+        if (copy.Parts.Count == 0) return await FetchAsync(client, copy, progress, ct);
+        var parts = copy.Parts.Select(x => ReadOne(x.Folder) ?? x).ToList();
+        long before = 0;
+        for (var i = 0; i < parts.Count; i++)
+        {
+            var after = parts.Skip(i + 1).Sum(x => x.Size) + copy.Size;
+            parts[i] = await FetchAsync(client, parts[i], progress is null ? null : new Within(progress, before, after), ct);
+            before += parts[i].Size;
+        }
+        return await FetchAsync(client, copy with { Parts = parts }, progress is null ? null : new Within(progress, before, 0), ct);
+    }
+    /// <summary>One file's progress as its title's: the files before it come, those after it still to come.</summary>
+    private sealed class Within(IProgress<(long Done, long Total)> title, long before, long after) : IProgress<(long Done, long Total)>
+    {
+        public void Report((long Done, long Total) value) => title.Report((before + value.Done, before + value.Total + after));
+    }
+    /// <summary>The copy kept under this id: a title, or one of the other files of a title in several parts.</summary>
+    public static OfflineCopy? Find(IEnumerable<OfflineCopy> copies, string id)
+    {
+        foreach (var copy in copies)
+        {
+            if (copy.Item.Id == id) return copy;
+            if (copy.Parts.FirstOrDefault(x => x.Item.Id == id) is { } part) return part;
+        }
+        return null;
     }
 
     /// <summary>

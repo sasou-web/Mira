@@ -28,8 +28,19 @@ public sealed partial class MainWindow
     private List<string> OfflineRoots => [DefaultOfflineFolder, .. Settings.OfflineFolders, OfflineFolder];
     public IReadOnlyList<OfflineCopy> OfflineCopiesKept => _offline;
     public OfflineCopy? CopyOf(string id) => _offline.FirstOrDefault(x => x.Item.Id == id);
-    /// <summary>A complete copy whose file is there (a disk unplugged: Jellyfin streams it again).</summary>
-    public OfflineCopy? KeptCopy(string id) => CopyOf(id) is { Complete: true } copy && File.Exists(copy.VideoPath) ? copy : null;
+    /// <summary>A complete copy whose file is there (a disk unplugged: Jellyfin streams it again); a title's other part too.</summary>
+    public OfflineCopy? KeptCopy(string id) => OfflineCopies.Find(_offline, id) is { Complete: true } copy && File.Exists(copy.VideoPath) ? copy : null;
+    /// <summary>
+    /// The other files of a title in several parts kept on this Mac with it, with the progress made here meanwhile: what
+    /// plays after its first part out of reach of Jellyfin. None for a title kept whole in one file, or before them.
+    /// </summary>
+    public async Task<MovieParts?> KeptPartsAsync(MediaItem title)
+    {
+        if (KeptCopy(title.Id) is not { Parts.Count: > 0 } kept) return null;
+        var parts = kept.Parts.Select(x => x.Item with { UserData = x.Item.UserData with { } }).ToList();
+        if (Session is { } session) await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(parts)));
+        return new MovieParts(title, parts);
+    }
     public static bool CanKeep(MediaItem item) => item.Type is "Movie" or "Episode" && item.ExtraType is null;
 
     /// <summary>The copies of the account just opened; those not finished go on.</summary>
@@ -55,16 +66,20 @@ public sealed partial class MainWindow
         if (Session is not { } session) return;
         var wanted = items.Where(x => CanKeep(x) && CopyOf(x.Id) is null).DistinctBy(x => x.Id).ToList();
         if (wanted.Count == 0) return;
-        var folder = OfflineFolder; var sources = new List<(MediaItem Item, MediaSource Source)>();
+        var folder = OfflineFolder; var sources = new List<(MediaItem Item, MediaSource Source, List<(MediaItem Item, MediaSource Source)> Parts)>();
         try
         {
             foreach (var item in wanted)
             {
+                MediaSource FileOf(MediaItem x) => x.MediaSources?.FirstOrDefault() ?? throw new IOException(L("Jellyfin ne donne aucun fichier pour « " + item.DisplayTitle + " ».", "Jellyfin has no file for “" + item.DisplayTitle + "”."));
                 var full = item.MediaSources is { Count: > 0 } ? item : await session.Client.ItemAsync(item.Id);
                 if (!ReferenceEquals(session, Session)) return;
-                sources.Add((full, full.MediaSources?.FirstOrDefault() ?? throw new IOException(L("Jellyfin ne donne aucun fichier pour « " + item.DisplayTitle + " ».", "Jellyfin has no file for “" + item.DisplayTitle + "”."))));
+                // A title in several files (« cd1 », « cd2 »): its other files too, or only its first would play without Jellyfin.
+                var parts = MovieParts.Has(full) ? (await session.Client.AdditionalPartsAsync(full.Id)).Select(x => (Item: x, Source: FileOf(x))).ToList() : [];
+                if (!ReferenceEquals(session, Session)) return;
+                sources.Add((full, FileOf(full), parts));
             }
-            var needed = sources.Sum(x => x.Source.Size ?? 0);
+            var needed = sources.Sum(x => (x.Source.Size ?? 0) + x.Parts.Sum(p => p.Source.Size ?? 0));
             var free = await Task.Run(() => { Directory.CreateDirectory(folder); return OfflineCopies.FreeSpace(folder); });
             if (free is { } room && needed > room - OfflineCopies.Reserve)
             {
@@ -72,7 +87,7 @@ public sealed partial class MainWindow
                 return;
             }
             var now = DateTimeOffset.Now; var connection = session.Connection;
-            var planned = await Task.Run(() => sources.Select((x, i) => OfflineCopies.Plan(folder, connection, x.Item, x.Source, now.AddTicks(-i))).ToList());
+            var planned = await Task.Run(() => sources.Select((x, i) => OfflineCopies.Plan(folder, connection, x.Item, x.Source, now.AddTicks(-i), x.Parts)).ToList());
             if (!ReferenceEquals(session, Session)) return;
             RememberOfflineFolder(folder);
             foreach (var copy in planned) { _offline.Insert(0, copy); _offlinePending.Enqueue(copy.Item.Id); }
@@ -104,11 +119,11 @@ public sealed partial class MainWindow
                 var id = _offlinePending.Peek();
                 if (CopyOf(id) is not { Complete: false } copy) { _offlinePending.Dequeue(); continue; }
                 using var cancel = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime);
-                _offlineCancel = cancel; _offlineProgress = (id, 0, copy.Size); OfflineChanged();
+                _offlineCancel = cancel; _offlineProgress = (id, 0, copy.TotalSize); OfflineChanged();
                 var progress = new Progress<(long Done, long Total)>(x => { if (_offlineProgress?.Id == id) { _offlineProgress = (id, x.Done, x.Total); OfflineProgressed?.Invoke(); } });
                 try
                 {
-                    var done = await Task.Run(() => OfflineCopies.FetchAsync(session.Client, copy, progress, cancel.Token));
+                    var done = await Task.Run(() => OfflineCopies.FetchTitleAsync(session.Client, copy, progress, cancel.Token));
                     if (ReferenceEquals(session, Session) && _offline.IndexOf(copy) is var index and >= 0) _offline[index] = done;
                     if (_offlinePending.TryPeek(out var head) && head == id) _offlinePending.Dequeue();
                 }
@@ -152,7 +167,7 @@ public sealed partial class MainWindow
     /// <summary>Removes copies from this Mac; one still arriving stops first. Not the one playing.</summary>
     public async Task ForgetOfflineAsync(IReadOnlyList<OfflineCopy> copies)
     {
-        if (Player?.Location is { } playing && copies.Any(x => x.VideoPath == playing)) { Notice(L("Ferme le lecteur avant de retirer de ce Mac le titre qu’il lit.", "Close the player before removing the title it’s playing from this Mac.")); return; }
+        if (Player?.Location is { } playing && copies.Any(x => x.VideoPaths.Contains(playing))) { Notice(L("Ferme le lecteur avant de retirer de ce Mac le titre qu’il lit.", "Close the player before removing the title it’s playing from this Mac.")); return; }
         foreach (var copy in copies) _offline.Remove(copy);
         if (_offlineProgress is { } running && copies.Any(x => x.Item.Id == running.Id))
         {
@@ -209,7 +224,7 @@ public sealed partial class MainWindow
     public string OfflineSummary()
     {
         var kept = _offline.Count(x => x.Complete);
-        var parts = new List<string> { kept == 0 ? L("Rien de prêt pour l’instant", "Nothing ready yet") : L($"{kept} titre{(kept > 1 ? "s" : "")} à regarder sans connexion · {OfflineCopies.SizeText(_offline.Where(x => x.Complete).Sum(x => x.Size))}", $"{kept} {(kept == 1 ? "title" : "titles")} to watch offline · {OfflineCopies.SizeText(_offline.Where(x => x.Complete).Sum(x => x.Size))}") };
+        var parts = new List<string> { kept == 0 ? L("Rien de prêt pour l’instant", "Nothing ready yet") : L($"{kept} titre{(kept > 1 ? "s" : "")} à regarder sans connexion · {OfflineCopies.SizeText(_offline.Where(x => x.Complete).Sum(x => x.TotalSize))}", $"{kept} {(kept == 1 ? "title" : "titles")} to watch offline · {OfflineCopies.SizeText(_offline.Where(x => x.Complete).Sum(x => x.TotalSize))}") };
         if (_offlineProgress is { } running && CopyOf(running.Id) is { } copy) parts.Add(L($"« {copy.Item.DisplayTitle}{(copy.Item.Type == "Episode" ? $" S{copy.Item.ParentIndexNumber ?? 1:00} E{copy.Item.IndexNumber ?? 1:00}" : "")} » arrive : {CopyState(running.Id)}", $"Copying “{copy.Item.DisplayTitle}{(copy.Item.Type == "Episode" ? $" S{copy.Item.ParentIndexNumber ?? 1:00} E{copy.Item.IndexNumber ?? 1:00}" : "")}”: {CopyState(running.Id)}"));
         var waiting = _offlinePending.Count(x => x != _offlineProgress?.Id);
         if (waiting > 0) parts.Add(L($"{waiting} en attente", $"{waiting} waiting"));
@@ -222,6 +237,6 @@ public sealed partial class MainWindow
         MenuItem Entry(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); return entry; }
         if (CopyOf(item.Id) is not { } copy) return Entry(L("Garder sur ce Mac", "Keep on this Mac"), () => _ = KeepOfflineAsync([item]));
         if (CopyPaused(item.Id)) return Entry(L("Reprendre l’arrivée sur ce Mac", "Resume copying to this Mac"), () => ResumeOffline([copy]));
-        return Entry(copy.Complete ? L($"Retirer de ce Mac · {OfflineCopies.SizeText(copy.Size)}", $"Remove from this Mac · {OfflineCopies.SizeText(copy.Size)}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), () => _ = ForgetOfflineAsync([copy]));
+        return Entry(copy.Complete ? L($"Retirer de ce Mac · {OfflineCopies.SizeText(copy.TotalSize)}", $"Remove from this Mac · {OfflineCopies.SizeText(copy.TotalSize)}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), () => _ = ForgetOfflineAsync([copy]));
     }
 }

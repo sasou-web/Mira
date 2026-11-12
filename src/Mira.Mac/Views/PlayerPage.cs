@@ -267,7 +267,7 @@ public sealed partial class PlayerPage : UserControl
             if (groupStart is not null) _parts = null;
             else if (MovieParts.Has(item))
             {
-                _parts = await PartsAsync(session, item);
+                _parts = await PartsAsync(session, item) ?? await _shell.KeptPartsAsync(item);
                 if (generation != _generation) return true;
                 if (_parts is not null) item = _parts.Start(fromStart);
             }
@@ -334,8 +334,8 @@ public sealed partial class PlayerPage : UserControl
         }
     }
     /// <summary>
-    /// The parts of a title in several files; none when Jellyfin does not give them (out of reach: its copy kept on this
-    /// Mac plays, its first part only, as before).
+    /// The parts of a title in several files; none when Jellyfin does not give them (out of reach: those kept on this Mac
+    /// with it, <see cref="MainWindow.KeptPartsAsync"/>).
     /// </summary>
     private static async Task<MovieParts?> PartsAsync(Session session, MediaItem title)
     {

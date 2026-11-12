@@ -439,13 +439,19 @@ public partial class MainWindow
     }
     private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false) => (await EpisodeContextAsync(current, quiet)).Next;
     /// <summary>
-    /// The parts of a title in several files; none when Jellyfin does not give them (out of reach: its copy kept on this
-    /// PC plays, its first part only, as before).
+    /// The parts of a title in several files; out of reach of Jellyfin, those kept on this PC with it (« Garder sur ce PC »),
+    /// with the progress made here meanwhile; none otherwise (its first part plays alone).
     /// </summary>
     private async Task<MovieParts?> PartsAsync(JellyfinClient client, MediaItem title)
     {
         try { return new MovieParts(title, await client.AdditionalPartsAsync(title.Id)); }
-        catch (Exception ex) when (IsExpected(ex)) { return null; }
+        catch (Exception ex) when (IsExpected(ex))
+        {
+            if (KeptCopy(title.Id) is not { Parts.Count: > 0 } kept) return null;
+            var parts = kept.Parts.Select(x => x.Item with { UserData = x.Item.UserData with { } }).ToList();
+            if (_store is { } store) await Task.Run(() => TryCache(() => store.ApplyLocalProgress(parts)));
+            return new MovieParts(title, parts);
+        }
     }
     /// <summary>The episode after <paramref name="current"/> and every episode of its series (for "Épisode 3 / 12").</summary>
     private async Task<(MediaItem? Next, List<MediaItem> Episodes)> EpisodeContextAsync(MediaItem current, bool quiet = false)
