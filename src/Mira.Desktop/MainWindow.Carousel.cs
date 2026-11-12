@@ -96,8 +96,9 @@ public partial class MainWindow
         {
             var candidate = _heroCandidates[i];
             var track = new CarouselProgress { Width = 34, Height = 5, Accent = _heroAccent }; _heroSegments.Add(track);
-            var button = new Button { Content = track, Style = (Style)FindResource("Quiet"), Width = 44, Height = 32, Padding = new Thickness(5, 13, 5, 14), BorderThickness = new Thickness(0), ToolTip = candidate.DisplayTitle };
-            Motion.SetRadius(button, new CornerRadius(15));
+            var button = new Button { Content = track, Style = (Style)FindResource("Quiet"), Width = 44, Height = 32, Padding = new Thickness(5, 13, 5, 14), BorderThickness = new Thickness(0) };
+            // The bar alone, no wash or tooltip under the pointer (ogsas, 2026-11-12): its title is in the banner already.
+            Motion.SetInteractive(button, false);
             System.Windows.Automation.AutomationProperties.SetName(button, L("À l’affiche : ", "Featured: ") + candidate.DisplayTitle);
             button.Click += (_, _) => { _heroReady = SelectHeroAsync(candidate); }; HeroDots.Children.Add(button);
         }
