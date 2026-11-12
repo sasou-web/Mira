@@ -181,11 +181,15 @@ public static class MediaPlanner
         var targets = new List<(string Folder, List<(SourceFile File, string Name, string Role)> Files)>();
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var stacked = mains.Count > 1 && mains.All(v => ReleaseName.StackPart(Path.GetFileName(v.RelativePath)) is not null);
+        var named = mains.Select(v => (File: v, Movie: ReleaseName.Movie(Path.GetFileName(v.RelativePath)))).ToList();
+        // Each file another film, with its year: « Mockingjay Part 1 (2014) » and « Mockingjay Part 2 (2015) » are two.
+        static bool Films(IReadOnlyCollection<(SourceFile File, (string Title, int? Year) Movie)> files) =>
+            files.All(p => p.Movie.Title.Length > 0 && p.Movie.Year is not null) && files.Select(p => ReleaseName.Key(p.Movie.Title) + "|" + p.Movie.Year).Distinct().Count() == files.Count;
+        // The parts of one film (« cd1 », « part2 »), unless their names say they are different films.
+        var stacked = mains.Count > 1 && mains.All(v => ReleaseName.StackPart(Path.GetFileName(v.RelativePath)) is not null) && !Films(named);
         var large = mains.Where(v => v.Length >= main.Length * .5).ToList();
-        var parsed = large.Select(v => (File: v, Movie: ReleaseName.Movie(Path.GetFileName(v.RelativePath)))).ToList();
-        var pack = !stacked && large.Count > 1 && parsed.All(p => p.Movie.Title.Length > 0 && p.Movie.Year is not null)
-            && parsed.Select(p => ReleaseName.Key(p.Movie.Title) + "|" + p.Movie.Year).Distinct().Count() == large.Count;
+        var parsed = named.Where(p => large.Contains(p.File)).ToList();
+        var pack = !stacked && large.Count > 1 && Films(parsed);
         if (pack)
         {
             // A collection: each feature becomes its own film, named from its own file.

@@ -101,6 +101,33 @@ internal static class TorLinkTests
             Assert(ReleaseName.Season("Show.S01-S03.Complete.1080p") is null, "A multi-season pack was given one season");
             return Task.CompletedTask;
         });
+        await Test("TorLink : une duologie « Part 1 », « Part 2 » rangée en deux films, les parties d'un même film (cd1, cd2) ensemble", () =>
+        {
+            // Two films numbered as parts in their own title (the Deathly Hallows, Mockingjay, Breaking Dawn) became one film of
+            // two parts named after the torrent: Jellyfin 12.1 lists that folder as one title (PartCount 2), both films one
+            // after the other under the length of the first.
+            var dir = Path.Combine(testRoot, "torlink-parts"); var films = Path.Combine(dir, "FILMS");
+            var libraries = new MediaLibraries(films, null, null);
+            SourceFile File(string path, long size) => new(Path.Combine(dir, "downloads", path), path, size);
+            string Targets(ImportPlan plan) => string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(films, x.Destination).Replace('\\', '/')));
+            const string Hallows = "Harry.Potter.and.the.Deathly.Hallows.Part.1.and.2.2010-2011.1080p.BluRay.x264";
+            var duology = MediaPlanner.Plan(Hallows, "x1337", [File($"{Hallows}/Harry.Potter.and.the.Deathly.Hallows.Part.1.2010.1080p.BluRay.x264.mkv", 9_000_000_000),
+                File($"{Hallows}/Harry.Potter.and.the.Deathly.Hallows.Part.2.2011.1080p.BluRay.x264.mkv", 8_500_000_000), File($"{Hallows}/Harry.Potter.and.the.Deathly.Hallows.Part.2.2011.1080p.BluRay.x264.en.srt", 90_000)], libraries);
+            Assert(duology.Title == "2 films" && Targets(duology) == "Harry Potter and the Deathly Hallows Part 1 (2010)/Harry Potter and the Deathly Hallows Part 1 (2010).mkv"
+                + " | Harry Potter and the Deathly Hallows Part 2 (2011)/Harry Potter and the Deathly Hallows Part 2 (2011).mkv"
+                + " | Harry Potter and the Deathly Hallows Part 2 (2011)/Harry Potter and the Deathly Hallows Part 2 (2011).en.srt", "Deathly Hallows: " + Targets(duology));
+            var dawn = MediaPlanner.Plan("Twilight.Breaking.Dawn.Duology.1080p", "tpb", [File("Twilight.Breaking.Dawn.Part.1.2011.1080p.mkv", 2_000_000_000), File("Twilight.Breaking.Dawn.Part.2.2012.1080p.mkv", 2_100_000_000)], libraries);
+            Assert(Targets(dawn) == "Twilight Breaking Dawn Part 2 (2012)/Twilight Breaking Dawn Part 2 (2012).mkv | Twilight Breaking Dawn Part 1 (2011)/Twilight Breaking Dawn Part 1 (2011).mkv", "Breaking Dawn: " + Targets(dawn));
+            // The parts of one film stay one film, as Jellyfin stacks them: « CD1 » after the year, uneven parts, no year at all.
+            const string Rip = "Some.Movie.2010.DVDRip.XviD-GRP";
+            var cds = MediaPlanner.Plan(Rip, "tpb", [File($"{Rip}/{Rip}.CD1.avi", 700_000_000), File($"{Rip}/{Rip}.CD2.avi", 300_000_000)], libraries);
+            Assert(Targets(cds) == "Some Movie (2010)/Some Movie (2010) - part1.avi | Some Movie (2010)/Some Movie (2010) - part2.avi", "CD1, CD2: " + Targets(cds));
+            var bare = MediaPlanner.Plan("Old.Film.DVDRip", null, [File("Old.Film.DVDRip/Old.Film.DVDRip.part2.avi", 690_000_000), File("Old.Film.DVDRip/Old.Film.DVDRip.part1.avi", 700_000_000)], libraries);
+            Assert(Targets(bare) == "Old Film/Old Film - part1.avi | Old Film/Old Film - part2.avi", "Without a year: " + Targets(bare));
+            var spaced = MediaPlanner.Plan("Film (2019) [1080p]", null, [File("Film (2019) [1080p]/Film (2019) - cd1.mkv", 4_000_000_000), File("Film (2019) [1080p]/Film (2019) - cd2.mkv", 3_000_000_000)], libraries);
+            Assert(Targets(spaced) == "Film (2019)/Film (2019) - part1.mkv | Film (2019)/Film (2019) - part2.mkv", "cd1, cd2: " + Targets(spaced));
+            return Task.CompletedTask;
+        });
         await Test("TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé", async () =>
         {
             var dir = Path.Combine(testRoot, "torlink-ledger"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
