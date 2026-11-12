@@ -80,6 +80,19 @@ internal static class SeriesFollowingTests
             var split = new FollowedSeries("Show", null, null, [.. Episodes(1, 1, 5), .. Episodes(2, 1, 2)]);
             Assert(SeriesFollowing.Choose(Work(), split, [], [Hit(19, "[Group] Show - 08 (1080p).mkv")], null).Picks.Count == 0, "S02E08 or S02E03: not chosen");
             Assert(SeriesFollowing.Choose(Work(), split, [], [Hit(19, "[Group] Show - 16 (1080p).mkv")], null).Picks.Single() is { Season: 2, Episode: 11 }, "Only S02E11 fits");
+            // Twelve episodes in season 1, and a fansub that numbers season 2 on from 13: the results also list the
+            // episodes the library has (« - 13 » is S02E01), never taken again as S02E13 (nor every later one with them).
+            var cour = new FollowedSeries("Show", null, null, [.. Episodes(1, 1, 12), .. Episodes(2, 1, 5)]);
+            var weekly = Enumerable.Range(13, 6).Select(e => Hit(60 + e, $"[SubsPlease] Show - {e} (1080p) [ABCD00{e}].mkv", seeders: 0, source: "subsplease")).ToList();
+            var next = SeriesFollowing.Choose(Work(), cour, [], weekly, null);
+            Assert(next.Picks.Select(x => (x.Season, x.Episode, x.Magnet)).SequenceEqual([(2, 6, Magnet(78))]), "Season 2 numbered on: " + string.Join(", ", next.Picks.Select(x => $"S{x.Season}E{x.Episode} {x.Name}")));
+            Assert(SeriesFollowing.Choose(Work(taken: [new(2, 6)]), cour, [], [.. weekly, Hit(79, "[SubsPlease] Show - 19 (1080p) [ABCD0019].mkv", seeders: 0, source: "subsplease")], null).Picks.Single() is { Season: 2, Episode: 7 },
+                "The one taken before, then the next");
+            // « Show Season 2 - 13 »: season 2 said in words, its episode 13 (never episode 1 numbered on), and its first one.
+            var second = new FollowedSeries("Show", null, null, [.. Episodes(1, 1, 12), .. Episodes(2, 1, 12)]);
+            Assert(SeriesFollowing.Choose(Work(), second, [], [Hit(80, "[Erai-raws] Show Season 2 - 13 [1080p].mkv")], null).Picks.Single() is { Season: 2, Episode: 13 }, "Season 2 in words, episode 13");
+            Assert(SeriesFollowing.Choose(Work(), new FollowedSeries("Show", null, null, Episodes(1, 1, 12)), [], [Hit(81, "[Erai-raws] Show Season 2 - 01 [1080p].mkv")], null).Picks.Single() is { Season: 2, Episode: 1 },
+                "Season 2 in words, its first episode");
             Assert(SeriesFollowing.Choose(Work(), show, [], Enumerable.Range(13, 9).Select(e => Hit(20 + e, $"The.Bear.S01E{e}.1080p.WEB.h264-ETHEL", category: "tv")).ToList(), null).Picks.Count == SeriesFollowing.MaxPicks, "A few at a time");
 
             // The same language as before, the sources, the size.
