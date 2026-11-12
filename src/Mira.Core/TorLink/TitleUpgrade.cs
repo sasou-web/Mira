@@ -4,8 +4,11 @@ using System.Text.RegularExpressions;
 
 namespace Mira.Core.TorLink;
 
-/// <summary>A file's picture as Mira judges it: its resolution (2160, 1440, 1080, 720, 480) and its source (<see cref="ReleaseInfo.Source"/>); null when unknown.</summary>
-public sealed record TitleQuality(int? Resolution, string? Source);
+/// <summary>
+/// A file's picture as Mira judges it: its resolution (2160, 1440, 1080, 720, 480) and its source (<see cref="ReleaseInfo.Source"/>);
+/// its size in bytes and its video codec as Jellyfin names it (« h264 », « hevc »); null when unknown.
+/// </summary>
+public sealed record TitleQuality(int? Resolution, string? Source, long? Size = null, string? Codec = null);
 
 /// <summary>
 /// « Chercher une meilleure version » of a film or an episode (an administrator): the results of TorLink that are this
@@ -23,6 +26,8 @@ public static partial class TitleUpgrade
     { ["cam"] = 0, ["dvd"] = 1, ["hdtv"] = 2, ["hdrip"] = 2, ["webrip"] = 3, ["webdl"] = 4, ["bluray"] = 5, ["remux"] = 6 };
     // A release that does not say where it comes from: often a re-encode of anything.
     private const int UnknownRelease = 2;
+    // A file whose source is unknown, against a release of its resolution: a better picture is this much heavier.
+    private const double Heavier = 1.25;
 
     // Jellyfin names a film without metadata after its folder: « Dune (2021) ».
     [GeneratedRegex(@"\s*\((?:19|20)\d\d\)\s*$")] private static partial Regex Year();
@@ -34,26 +39,34 @@ public static partial class TitleUpgrade
 
     /// <summary>
     /// The picture of a title's file: its resolution by the width or height of its first video stream (a film cropped to
-    /// 3840 × 1600 is still 4K, as <see cref="MediaQuality"/> says it), its source by its file's name, else its folder's.
+    /// 3840 × 1600 is still 4K, as <see cref="MediaQuality"/> says it), its source by its file's name, else its folder's;
+    /// its size and its video codec, as Jellyfin has them.
     /// </summary>
     public static TitleQuality Current(MediaItem item)
     {
         var source = item.MediaSources?.FirstOrDefault();
         var path = source?.Path ?? item.Path;
-        return Current(source?.MediaStreams.FirstOrDefault(x => x.Type == "Video") is { } video ? (video.Width ?? 0, video.Height ?? 0) : (0, 0), path);
+        var video = source?.MediaStreams.FirstOrDefault(x => x.Type == "Video");
+        return Current(video is { } v ? (v.Width ?? 0, v.Height ?? 0) : (0, 0), path) with { Size = source?.Size, Codec = video?.Codec };
     }
 
-    /// <summary>The picture of a file of <paramref name="size"/> (width, height; 0 when unknown) at <paramref name="path"/>.</summary>
+    /// <summary>
+    /// The picture of a file of <paramref name="size"/> (width, height; 0 when unknown) at <paramref name="path"/>. A name
+    /// that says another resolution than the file's says nothing of its source either: it is the old release's name, which a
+    /// swap keeps (<see cref="TitleSwap.Destination"/>), not the file's.
+    /// </summary>
     public static TitleQuality Current((int Width, int Height) size, string? path)
     {
         var (width, height) = size;
         int? resolution = width >= 3800 || height >= 2000 ? 2160 : width >= 2500 || height >= 1400 ? 1440 : width >= 1800 || height >= 1000 ? 1080
             : width >= 1200 || height >= 700 ? 720 : width > 0 || height > 0 ? 480 : null;
         string? source = null;
-        if (path is { Length: > 0 })
+        var parts = (path ?? "").Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 0)
         {
-            var parts = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            source = ReleaseRanking.Parse(parts[^1]).Source ?? (parts.Length > 1 ? ReleaseRanking.Parse(parts[^2]).Source : null);
+            var named = ReleaseRanking.Parse(parts[^1]);
+            if (named.Source is null && parts.Length > 1) named = ReleaseRanking.Parse(parts[^2]);
+            if (!(named.Resolution is { } said && resolution is not null && ResolutionTier(said) != ResolutionTier(resolution))) source = named.Source;
         }
         return new(resolution, source);
     }
@@ -61,22 +74,32 @@ public static partial class TitleUpgrade
     private static int ResolutionTier(int? resolution) => resolution switch { >= 2160 => 4, >= 1080 => 3, >= 720 => 2, > 0 => 1, _ => 0 };
 
     /// <summary>
-    /// Whether <paramref name="release"/> has a better picture than <paramref name="current"/>: a higher resolution from a
-    /// source as good or one step below (a 1080p WEB-DL beats a 720p BluRay), never a 4K from a lesser source (a 1080p
-    /// BluRay beats a 4K WEB-DL); the same resolution from a better source. Anything beats a version filmed in a theatre;
-    /// a release that does not say its resolution, a whole season or a version filmed in a theatre is never offered. A
-    /// file whose source is unknown counts as a WEB-DL (a DVD under 720p), the most common.
+    /// Whether <paramref name="release"/>, of <paramref name="size"/> bytes (0 when unknown), has a better picture than
+    /// <paramref name="current"/>: a higher resolution from a source as good or one step below (a 1080p WEB-DL beats a 720p
+    /// BluRay), never a 4K from a lesser source (a 1080p BluRay beats a 4K WEB-DL); the same resolution from a better
+    /// source, never lighter than the file. Anything beats a version filmed in a theatre; a release that does not say its
+    /// resolution, a whole season or a version filmed in a theatre is never offered. A file whose source is unknown (the
+    /// names Mira gives what it files, « Dune (2021).mkv ») counts as a WEB-DL (a DVD under 720p), the most common, and,
+    /// when both sizes are known, is judged by what it weighs: a release never lighter, from a WEB-DL or better a quarter
+    /// heavier at its resolution (HEVC, AV1 and VP9 count half again: they need fewer bytes for the same picture).
     /// </summary>
-    public static bool Better(TitleQuality current, ReleaseInfo release)
+    public static bool Better(TitleQuality current, ReleaseInfo release, long size = 0)
     {
         if (release.Pack || release.Source == "cam" || release.Resolution is not { } resolution) return false;
         int r = ResolutionTier(resolution), c = ResolutionTier(current.Resolution);
         if (current.Source == "cam") return r >= 2;
         var rs = release.Source is { } s && SourceTier.TryGetValue(s, out var tier) ? tier : UnknownRelease;
-        var cs = current.Source is { } k && SourceTier.TryGetValue(k, out var known) ? known : c <= 1 ? SourceTier["dvd"] : SourceTier["webdl"];
-        if (r > c) return rs >= cs - (resolution >= 2160 ? 0 : 1);
-        return r == c && rs > cs;
+        int? known = current.Source is { } k && SourceTier.TryGetValue(k, out var named) ? named : null;
+        var cs = known ?? (c <= 1 ? SourceTier["dvd"] : SourceTier["webdl"]);
+        // How many times what the file weighs the release weighs; null when either size is unknown.
+        double? weight = size > 0 && current.Size is > 0 ? size * Denser(release.Codec) / (current.Size.Value * Denser(current.Codec)) : null;
+        if (r > c) return rs >= cs - (resolution >= 2160 ? 0 : 1) && (known is not null || weight is not < 1);
+        if (r < c) return false;
+        if (known is not null) return rs > cs && weight is not < 1;
+        return weight is { } heavier ? rs >= cs && heavier >= Heavier : rs > cs;
     }
+
+    private static double Denser(string? codec) => codec?.ToLowerInvariant() is "hevc" or "h265" or "av1" or "vp9" ? 1.5 : 1;
 
     /// <summary>
     /// Whether <paramref name="release"/> is this very title: a film of the same name (or original name) and year (±1, a
@@ -137,7 +160,7 @@ public static partial class TitleUpgrade
     public static List<RelayHit> Candidates(MediaItem item, IEnumerable<RelayHit> hits)
     {
         var current = Current(item);
-        return hits.Where(hit => ReleaseRanking.Parse(hit.Name) is var release && Fits(item, release) && Better(current, release)).ToList();
+        return hits.Where(hit => ReleaseRanking.Parse(hit.Name) is var release && Fits(item, release) && Better(current, release, hit.Size)).ToList();
     }
 
     /// <summary>
@@ -163,11 +186,12 @@ public static partial class TitleUpgrade
     /// <summary>The new file lasts as long as the old one, within <see cref="LengthTolerance"/>.</summary>
     public static bool SameLength(TimeSpan old, TimeSpan found) => old > TimeSpan.Zero && found > TimeSpan.Zero && Math.Abs((found - old).Ticks) <= old.Ticks * LengthTolerance;
 
-    /// <summary>« 720p · WEBRip », « 1080p · source inconnue », « Filmé en salle »: the picture of a file, in the words of the page.</summary>
+    /// <summary>« 720p · WEBRip », « 1080p · source inconnue · 31 Go », « Filmé en salle »: the picture of a file, and its size when known, in the words of the page.</summary>
     public static string Line(TitleQuality quality)
     {
         var resolution = quality.Resolution switch { 2160 => "4K", 480 => "SD", { } r => $"{r}p", null => L("Définition inconnue", "Unknown resolution") };
-        return string.Join(" · ", resolution, quality.Source is { } source ? ReleaseRanking.SourceLabel(source) : L("source inconnue", "unknown source"));
+        var line = string.Join(" · ", resolution, quality.Source is { } source ? ReleaseRanking.SourceLabel(source) : L("source inconnue", "unknown source"));
+        return quality.Size is > 0 and { } size ? $"{line} · {RemoteLines.Size(size)}" : line;
     }
 
     /// <summary>« Dune (2021) », « The Bear · S01E02 »: the title replaced, in a list or a sentence.</summary>
