@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Mira.Core;
+using Mira.Core.TorLink;
 using Mira.Core.Updates;
 using Mira.Desktop.Services;
 using static TestSupport;
@@ -252,6 +253,41 @@ internal static class TorLinkTests
                 Placed('1', English.Replace("S06E04", "S06E03"), Path.Combine(show, "Season 06", "a.mkv"), 1), Placed('2', English, Path.Combine(show, "Season 06", "b.mkv"), 2),
                 Placed('3', Romaji, Path.Combine(stray, "c.mkv"), 3)]);
             Assert(known.Single(x => x.Key == ReleaseName.Key("JoJo no Kimyou na Bouken Steel Ball Run")) is { Folder: "JoJo's Bizarre Adventure (2012)", Season: 6 }, "The stray folder won: " + string.Join(" | ", known));
+        });
+        await Test("TorLink : une plateforme entre parenthèses (« (WKN) ») n’est pas un autre nom de série", () =>
+        {
+            // Real names of nyaa (Tsundere-Raws). Their batches gave Wakanim in parentheses: taken for another name of the
+            // show, the second batch of the platform joined the first one's folder, L'Attaque des Titans S4 placed as
+            // « Kemono Jihen - S04E01 ».
+            var dir = Path.Combine(testRoot, "torlink-platform"); var anime = Path.Combine(dir, "ANIME"); var libraries = new MediaLibraries(null, null, anime);
+            Directory.CreateDirectory(anime);
+            var journal = new List<TorLinkImportEntry>();
+            ImportPlan Batch(string torrent, string show, int count)
+            {
+                var files = Enumerable.Range(1, count).Select(i => $"{torrent}/[Tsundere-Raws] {show} - {i:00} VOSTFR [WEBRIP 1080p].mp4").Select(x => new SourceFile(Path.Combine(dir, "downloads", x), x, 700_000_000)).ToList();
+                var plan = MediaPlanner.Plan(torrent, "nyaa", files, libraries, null, MediaPlanner.KnownShows(journal));
+                foreach (var folder in plan.Operations.Select(x => Path.GetDirectoryName(x.Destination)!).Distinct()) Directory.CreateDirectory(folder);
+                journal.Add(new() { Id = new string((char)('a' + journal.Count), 40), Name = torrent, Kind = plan.Kind, LibraryRoot = plan.LibraryRoot, Files = plan.Operations.Select(x => new TorLinkImportedFile(x.RelativePath, x.Destination, x.Role)).ToList() });
+                return plan;
+            }
+            string Placed(ImportPlan plan) => Path.GetRelativePath(anime, plan.Operations[0].Destination).Replace('\\', '/');
+            Assert(Placed(Batch("[Tsundere-Raws] Kemono Jihen - BATCH VOSTFR (WKN) [1080p]", "Kemono Jihen", 12)) == "Kemono Jihen/Season 01/Kemono Jihen - S01E01.mp4", "First batch");
+            var titans = Batch("[Tsundere-Raws] Shingeki no Kyojin S4 - BATCH VOSTFR (WKN) [1080p]", "Shingeki no Kyojin S4", 16);
+            Assert(Placed(titans) == "Shingeki no Kyojin/Season 04/Shingeki no Kyojin - S04E01.mp4", "The second batch of the platform joined the first one's show: " + Placed(titans));
+
+            // The other name after the tags: « (VOSTFR, …) », « (READNFO, VOSTFR, …) », never the tag itself.
+            foreach (var (name, other) in new[]
+            {
+                ("Battle Spirits Re ZEKKAI NO KU S01E06 SUBFRENCH 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws (VOSTFR, Battle Spirits Re Zekkai no Kuu)", "Battle Spirits Re Zekkai no Kuu"),
+                ("A Returners Magic Should Be Special S02E06 REPACK SUBFRENCH 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws (READNFO, VOSTFR, Kikansha no Mahou wa Tokubetsu desu 2nd Season, Gwihwanja ui Mabeop eun Teukbyeol haeya Hamnida)", "Kikansha no Mahou wa Tokubetsu desu"),
+                ("Magic Knight Rayearth (2026) S01E03 MULTi AD 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws (VF, FRENCH, SUBFRENCH, VOSTFR, Mahou Kishi Rayearth)", "Mahou Kishi Rayearth"),
+                ("Reincarnated as a Sword S02E07 SUBFRENCH 1080p ADN WEB-DL AAC2.0 x264-Tsundere-Raws (VOSTFR, Multi Subs, Tensei shitara Ken deshita II, TenKen 2, Reincarnated as a Sword Season 2)", "Tensei shitara Ken deshita II"),
+                ("[ToonsHub] JoJos Bizarre Adventure S06E05 1080p NF WEB-DL DUAL AAC2.0 H.264 (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio, Multi-Subs)", "JoJo no Kimyou na Bouken: Steel Ball Run"),
+            })
+                Assert(ReleaseName.AlternateTitles(name) is [var title] && title == other && ReleaseRanking.Parse(name).Alternate == other, $"{name} → {string.Join(" ; ", ReleaseName.AlternateTitles(name))} / {ReleaseRanking.Parse(name).Alternate}");
+            foreach (var name in new[] { "[Tsundere-Raws] Kemono Jihen - BATCH VOSTFR (WKN) [1080p]", "[Group] Show (ADN) [1080p]", "[Group] Show (VOSTFR) [1080p]", "[Group] Show (MULTi) [1080p]", "[Group] Show (Season 2) [1080p]", "[Group] Show (Part 2) [1080p]", "[Group] Show (Dual Audio, 1080p, English Sub)" })
+                Assert(ReleaseName.AlternateTitles(name).Count == 0 && ReleaseRanking.Parse(name).Alternate is null, $"{name} → {string.Join(" ; ", ReleaseName.AlternateTitles(name))} / {ReleaseRanking.Parse(name).Alternate}");
+            return Task.CompletedTask;
         });
         await Test("TorLink : dossier de téléchargement sur le disque de la bibliothèque, choisi seulement si TorLink n’en a pas", () =>
         {

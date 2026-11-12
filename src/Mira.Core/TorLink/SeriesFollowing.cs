@@ -36,7 +36,7 @@ public static partial class SeriesFollowing
     public static List<string> Queries(string? query, string name, string? releaseTitle)
     {
         if (RemoteDownloads.CleanQuery(query) is { } chosen) return [chosen];
-        return new[] { releaseTitle, Year().Replace(name, "") }.Select(RemoteDownloads.CleanQuery).OfType<string>()
+        return new[] { releaseTitle is null || ReleaseName.NamesNothing(releaseTitle) ? null : releaseTitle, Year().Replace(name, "") }.Select(RemoteDownloads.CleanQuery).OfType<string>()
             .DistinctBy(ReleaseRanking.TitleKey).Take(MaxQueries).ToList();
     }
 
@@ -96,7 +96,8 @@ public static partial class SeriesFollowing
         var seasonEnds = known.GroupBy(x => x.Season).ToDictionary(x => x.Key, x => x.Max(e => e.Episode));
         int Before(int season) => seasonEnds.Where(x => x.Key >= 1 && x.Key < season).Sum(x => x.Value);
         var refused = (follow.Refused ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var learned = (follow.Names ?? []).ToList();
+        // A word learned before that names nothing (« READNFO » of « (READNFO, VOSTFR, …) ») is forgotten.
+        var learned = (follow.Names ?? []).Where(x => !ReleaseName.NamesNothing(x)).ToList();
         var keys = new[] { series.Name, Year().Replace(series.Name, ""), series.OriginalTitle, follow.Query }.Concat(names).Concat(learned)
             .Select(ReleaseRanking.TitleKey).Where(x => x.Length > 0).ToHashSet();
 

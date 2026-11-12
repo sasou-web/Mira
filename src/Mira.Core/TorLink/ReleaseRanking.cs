@@ -118,15 +118,9 @@ public static partial class ReleaseRanking
         var lead = LeadingGroup().Match(text);
         if (lead.Success) { group = lead.Groups[1].Value.Trim(); text = text[lead.Length..]; }
 
-        // The other name, in parentheses after the release's own: « (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio) ».
-        string? alternate = null;
-        foreach (Match m in Parenthesized().Matches(text))
-        {
-            var first = m.Groups[1].Value.Split(',')[0];
-            if (first.Contains(" - ", StringComparison.Ordinal)) first = first[..first.IndexOf(" - ", StringComparison.Ordinal)];
-            first = first.Trim();
-            if (first.Length >= 3 && first.Any(char.IsLetter) && !YearOnly().IsMatch(first) && !Token().Matches(first).Any(t => IsTag(t.Value))) { alternate = Tidy(first); break; }
-        }
+        // The other name, in parentheses after the release's own: « (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio) »,
+        // « (VOSTFR, Battle Spirits Re Zekkai no Kuu) »; never a tag, a platform or a note (« (READNFO, …) », « (WKN) »).
+        var alternate = ReleaseName.AlternateTitles(text).FirstOrDefault();
 
         // The group at the end of a scene name: « …H.264-VARYG (…) ».
         if (group is null && TrailingGroup().Match(text) is { Success: true } tail)

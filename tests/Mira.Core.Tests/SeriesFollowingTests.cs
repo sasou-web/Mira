@@ -53,6 +53,11 @@ internal static class SeriesFollowingTests
             var learned = SeriesFollowing.Choose(Work(), frieren, [], [Hit(9, "[Judas] Frieren: Beyond Journey's End (Sousou no Frieren) - S02E03 [1080p][HEVC x265 10bit][Multi-Subs]")], null);
             Assert(learned.Picks.Count == 1 && learned.Names.SequenceEqual(["Sousou no Frieren"]), "The other name of a release is learned: " + string.Join(", ", learned.Names));
             Assert(SeriesFollowing.Choose(Work(), frieren, ["Sousou no Frieren"], hits, null).Picks.Count == 2 && SeriesFollowing.Choose(Work(query: "Sousou no Frieren"), frieren, [], hits, null).Picks.Count == 2, "Names known on the PC, or searched");
+            // A tag before the other name (« (READNFO, VOSTFR, …) » of Tsundere-Raws) is never learned, nor searched; one learned before is forgotten.
+            var returner = new FollowedSeries("A Returner's Magic Should Be Special", null, 2023, Episodes(2, 1, 5));
+            var tagged = SeriesFollowing.Choose(Work(["READNFO"]), returner, [], [Hit(17, "A Returners Magic Should Be Special S02E06 REPACK SUBFRENCH 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws (READNFO, VOSTFR, Kikansha no Mahou wa Tokubetsu desu 2nd Season, Gwihwanja ui Mabeop eun Teukbyeol haeya Hamnida)")], null);
+            Assert(tagged.Picks.Count == 1 && tagged.Names.SequenceEqual(["Kikansha no Mahou wa Tokubetsu desu"]) && SeriesFollowing.Queries(null, "Show", "READNFO").SequenceEqual(["Show"]),
+                "Learned: " + string.Join(", ", tagged.Names));
 
             // Both numbers possible: « - 9 » after S02E03 with five episodes in season 1 is S02E09 or S02E04; TheTVDB says which is out.
             var short1 = new FollowedSeries("Frieren: Beyond Journey's End", null, 2023, [.. Episodes(1, 1, 5), .. Episodes(2, 1, 3)]);

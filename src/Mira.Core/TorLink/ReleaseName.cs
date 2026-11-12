@@ -33,6 +33,14 @@ public static partial class ReleaseName
     // Edition or dub markers left at the end of a title ("Film EXTENDED", "Film TRUEFRENCH").
     private static readonly HashSet<string> TrailingTags = new(StringComparer.OrdinalIgnoreCase)
     { "extended", "unrated", "uncut", "remastered", "restored", "criterion", "imax", "multi", "multisub", "msubs", "subbed", "dubbed", "vostfr", "vost", "vff", "vfq", "vfi", "truefrench", "subfrench" };
+    // What a release gives in parentheses that is not a name: languages and subtitles, platforms, notes.
+    private static readonly HashSet<string> NotNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "vostfr", "vostf", "vost", "vosta", "vf", "vff", "vfq", "vfi", "vf2", "vo", "french", "truefrench", "subfrench", "multi", "multisub", "multisubs", "msubs",
+        "sub", "subs", "subbed", "subtitles", "softsubs", "hardsub", "hardsubs", "dub", "dubbed", "dual", "audio", "raw", "raws", "eng", "english", "jpn", "jap", "japanese", "ad",
+        "wkn", "wakanim", "adn", "cr", "crunchyroll", "funi", "funimation", "hidive", "netflix", "amazon", "prime", "disney", "hulu", "bili", "bilibili", "b-global", "abema", "iqiyi", "viki",
+        "readnfo", "nfofix", "nfo", "read", "uncensored", "censored", "batch", "complete", "integrale", "intégrale"
+    };
     private static readonly HashSet<string> ExtraFolders = new(StringComparer.OrdinalIgnoreCase)
     { "extras", "extra", "featurettes", "featurette", "bonus", "bonuses", "special features", "behind the scenes", "deleted scenes", "interviews", "scenes", "shorts", "trailers", "other", "menus", "nc", "ncop", "nced", "creditless" };
     private static readonly HashSet<string> SpecialFolders = new(StringComparer.OrdinalIgnoreCase) { "specials", "special", "sp", "sps", "ova", "ovas", "oad", "oads" };
@@ -103,6 +111,8 @@ public static partial class ReleaseName
     private static partial Regex OpeningEnding();
     [GeneratedRegex(@"^(?:Season|Saison|S)\s*0*(?<n>\d{1,3})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonFolder();
+    [GeneratedRegex(@"^(?:(?:part|partie|cour|vol(?:ume)?|chapter|chapitre|arc|ep(?:isode)?|e|s|season|saison)\s*\d{1,3}|\d{1,2}(?:st|nd|rd|th)\s+(?:season|cour|part))$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PartAlone();
 
     /// <summary>A release name without extension, site prefix, fansub group, bracketed tags and separators.</summary>
     public static string Readable(string name, out string? group)
@@ -191,20 +201,39 @@ public static partial class ReleaseName
     /// Other names a release gives its show in parentheses, as fansub and anime groups do: "[ToonsHub] JoJos Bizarre
     /// Adventure S06E05 1080p … (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio, Multi-Subs)" gives "JoJo no Kimyou
     /// na Bouken: Steel Ball Run". What follows " - " (a part or a stage) is left out; tags and years are not names.
+    /// The first element of the parentheses that names something: "(VOSTFR, Battle Spirits Re Zekkai no Kuu)" gives the
+    /// second one, "(WKN)" (Wakanim) and "(Season 2)" none: two shows of one platform never meet under its name.
     /// </summary>
     public static IReadOnlyList<string> AlternateTitles(string name)
     {
         var titles = new List<string>();
         foreach (Match m in Parenthesized().Matches(StripExtension(name.Trim())))
-        {
-            var first = m.Groups["c"].Value.Split(',')[0];
-            var dash = first.IndexOf(" - ", StringComparison.Ordinal);
-            if (dash > 0) first = first[..dash];
-            first = first.Trim();
-            if (first.Length < 3 || !first.Any(char.IsLetter) || Year().IsMatch(first) && first.Length <= 6 || IsTagGroup(first)) continue;
-            if (Tidy(first) is { Length: > 0 } title && !titles.Contains(title, StringComparer.OrdinalIgnoreCase)) titles.Add(title);
-        }
+            foreach (var element in m.Groups["c"].Value.Split(','))
+            {
+                var first = element;
+                var dash = first.IndexOf(" - ", StringComparison.Ordinal);
+                if (dash > 0) first = first[..dash];
+                first = first.Trim();
+                if (first.Length < 3 || !first.Any(char.IsLetter) || Year().IsMatch(first) && first.Length <= 6 || IsTagGroup(first) || NamesNothing(first)) continue;
+                // « Kikansha no Mahou wa Tokubetsu desu 2nd Season »: the show, as its title would be read.
+                if (Show(first).Title is { Length: > 0 } title && !NamesNothing(title) && !titles.Contains(title, StringComparer.OrdinalIgnoreCase)) titles.Add(title);
+                break;
+            }
         return titles;
+    }
+
+    /// <summary>
+    /// Words of a release that name nothing: a language or subtitles (« VOSTFR », « Multi Subs »), a platform (« WKN »,
+    /// « ADN »), a note (« READNFO »), a season or a part alone (« Season 2 », « Part 2 »), or one word in capitals.
+    /// </summary>
+    public static bool NamesNothing(string text)
+    {
+        var value = text.Trim();
+        if (value.Length == 0 || PartAlone().IsMatch(value)) return true;
+        var words = value.Split([' ', '.', '_', '+', '/', '&'], StringSplitOptions.RemoveEmptyEntries);
+        if (words.All(w => IsTag(w) || NotNames.Contains(w.Trim('-')) || TrailingTags.Contains(w.Trim('-')) || w.Split('-', StringSplitOptions.RemoveEmptyEntries) is { Length: > 1 } parts && parts.All(x => NotNames.Contains(x) || TrailingTags.Contains(x) || IsTag(x))))
+            return true;
+        return words is [var word] && word.Length <= 8 && word.All(char.IsAsciiLetter) && word == word.ToUpperInvariant();
     }
     public static bool IsCompletePack(string name) => CompleteMarker().IsMatch(Readable(name, out _));
     public static bool HasGroupPrefix(string name) { Readable(name, out var group); return group is not null; }
