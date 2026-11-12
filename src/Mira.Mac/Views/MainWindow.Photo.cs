@@ -69,7 +69,7 @@ public sealed partial class MainWindow
     internal static byte[] SquareJpeg(Stream stream)
     {
         using var data = SKData.Create(stream) ?? throw new InvalidOperationException("unreadable");
-        using var codec = SKCodec.Create(data) ?? throw new NotSupportedException("format");
+        using var codec = SKCodec.Create(data) ?? ReadByMacOS(data) ?? throw new NotSupportedException("format");
         using var decoded = SKBitmap.Decode(codec) ?? throw new NotSupportedException("format");
         var side = Math.Min(decoded.Width, decoded.Height);
         var size = Math.Min(PhotoSide, side);
@@ -87,4 +87,8 @@ public sealed partial class MainWindow
         using var jpeg = image.Encode(SKEncodedImageFormat.Jpeg, 90);
         return jpeg.ToArray();
     }
+    // HEIC, an iPhone's photos: the Skia of the Mac is built without HEIF, so it never opened one. macOS reads it (and
+    // TIFF, a camera's RAW…), already turned, as a PNG no larger than the square needs.
+    private static SKCodec? ReadByMacOS(SKData data) =>
+        MacImages.UprightPng(data.ToArray(), PhotoSide) is { } png ? SKCodec.Create(new SKMemoryStream(png)) : null;
 }

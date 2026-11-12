@@ -57,6 +57,8 @@ public static class SelfCheck
             if (Arg("--track-media") is { Length: > 0 } tracks)
                 foreach (var line in await Mira.Checks.PlayerSafety.TracksAsync(languages => Playback.MpvPlayer.Probe(new PlayerSettings { MpvPath = window.Settings.MpvPath, AudioLanguage = languages.Audio, SubtitleLanguage = languages.Subtitles }), tracks))
                     Check(line.Passed, "lecteur : " + line.Message);
+            // The account's photo from an iPhone's HEIC (--photos: tools/mac/check).
+            if (Arg("--photos") is { Length: > 0 } photos) PhotoCheck.Run(Path.GetFullPath(photos), Check);
             window.Settings.AutoNext = true; window.Settings.RememberPosition = true; window.Settings.Volume = 150;
             // The trackpad read as a Mac's out of the box (natural scrolling, two fingers between pages), whatever this machine says.
             MacTrackpad.Override(natural: true, swipes: true);
