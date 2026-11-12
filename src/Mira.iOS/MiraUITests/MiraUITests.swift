@@ -306,6 +306,39 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/UserData", item: Self.tearsOfSteel, timeout: 40, after: before), "Jellyfin never heard where the copy was left")
     }
 
+    /// An administrator on a Jellyfin without Mira's extension, as most are: « Download on the server PC » could only
+    /// say the extension is out of date (Jellyfin answers 404 at Mira/torlink), so Settings offers it only where the
+    /// extension answers; « Now on Jellyfin » needs nothing but Jellyfin.
+    @MainActor
+    func testAdministration() throws {
+        mock("/Mock/Admin")
+        var app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        openSettings(app)
+        // The section's first row and its footer both drawn: any row between them is too (a list draws what it shows).
+        var now = app.buttons["settings.now"]
+        var footer = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Profiles, titles to fix'")).firstMatch
+        for _ in 0..<8 where !(now.exists && footer.exists) { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(now.exists && footer.exists, "An administrator has no Administration section")
+        XCTAssertFalse(app.buttons["settings.downloads"].exists, "Download on the server PC offered by a Jellyfin without Mira's extension")
+        settle()
+        capture("71-administration")
+
+        // The extension installed on Jellyfin: offered the next time Settings opens.
+        mock("/Mock/Extension")
+        app = launch(language: "en", locale: "en_US", reset: false)
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        openSettings(app)
+        now = app.buttons["settings.now"]
+        footer = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Profiles, titles to fix'")).firstMatch
+        for _ in 0..<8 where !(now.exists && footer.exists) { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(app.buttons["settings.downloads"].exists, "Download on the server PC not offered with Mira's extension")
+        settle()
+        capture("72-administration-extension")
+    }
+
     /// The largest text a person may choose short of the accessibility sizes' last ones, in French (the longer
     /// language): every screen still reads, nothing cut.
     @MainActor
@@ -953,11 +986,14 @@ final class MiraUITests: XCTestCase {
     }
 
     /// iOS offers to save the password after a sign-in, over Home, from 2 to more than 6 seconds later on a busy
-    /// runner: waited for long enough that no later tap lands on it.
+    /// runner: waited for long enough that no later tap lands on it, then until it has left, for a tap while it leaves
+    /// never reaches Mira (the Settings tab, touched less than a second after « Not Now », never opened them).
     @MainActor
     private func dismissSavePassword(_ app: XCUIApplication, timeout: TimeInterval = 20) {
         let button = app.buttons.matching(NSPredicate(format: "label IN %@", ["Not Now", "Pas maintenant"])).firstMatch
-        if button.waitForExistence(timeout: timeout) { button.tap() }
+        guard button.waitForExistence(timeout: timeout) else { return }
+        button.tap()
+        XCTAssertTrue(button.waitForNonExistence(timeout: 10), "« Save Password? » stayed over Mira")
     }
 
     /// A card's touch, once « Save Password? » is out of its way: iOS may show it more than 20 s after Home.
@@ -1089,6 +1125,25 @@ final class MiraUITests: XCTestCase {
             }
         }
         return count == 0 ? 0 : Double(total) / Double(count)
+    }
+
+    /// Settings from the tab bar, in English; when they don't open, a capture (70-settings-missed) and what holds the
+    /// screen (Mira's alerts, sheets, bars and buttons, SpringBoard's alerts) say why.
+    @MainActor
+    private func openSettings(_ app: XCUIApplication) {
+        let settings = app.buttons["tab.settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5), "No Settings tab")
+        settings.tap()
+        guard !app.navigationBars["Settings"].waitForExistence(timeout: 10) else { return }
+        capture("70-settings-missed")
+        let lines = { (tree: String, kinds: [String]) in
+            tree.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { line in kinds.contains { line.hasPrefix($0) } }
+                .prefix(80).joined(separator: " | ")
+        }
+        let mira = lines(app.debugDescription, ["Alert", "Sheet", "NavigationBar", "Button", "Keyboard"])
+        let springboard = lines(XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription, ["Alert", "Sheet", "Button"])
+        XCTFail("Settings did not open. Mira: \(mira) ### SpringBoard: \(springboard)")
     }
 
     @MainActor

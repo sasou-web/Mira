@@ -9,6 +9,8 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @State private var confirmSignOut = false
     @State private var me: AccountInfo?
+    /// « Download on the server PC » offered: an administrator, with Mira's extension on Jellyfin (RemoteLines.offered).
+    @State private var downloadsOffered = false
     @State private var jellyfinVersion: String?
     @State private var quickConnect = false
     @State private var approving = false
@@ -77,12 +79,14 @@ struct SettingsView: View {
                             row("Now on Jellyfin", "Who watches what, and whether Jellyfin converts it.", symbol: "server.rack")
                         }
                         .accessibilityIdentifier("settings.now")
-                        NavigationLink {
-                            DownloadsView()
-                        } label: {
-                            row("Download on the server PC", "Search for a title: TorLink downloads it there, Mira files it in your library.", symbol: "arrow.down.circle")
+                        if downloadsOffered {
+                            NavigationLink {
+                                DownloadsView()
+                            } label: {
+                                row("Download on the server PC", "Search for a title: TorLink downloads it there, Mira files it in your library.", symbol: "arrow.down.circle")
+                            }
+                            .accessibilityIdentifier("settings.downloads")
                         }
-                        .accessibilityIdentifier("settings.downloads")
                     } header: {
                         Text("Administration")
                     } footer: {
@@ -277,7 +281,11 @@ struct SettingsView: View {
         async let account = try? client.me()
         async let info = try? client.publicInfo()
         async let quick = client.quickConnectEnabled()
-        me = await account
+        async let found = client.miraExtension()
+        let mine = await account
+        // Shown with the Administration section, not a moment after it.
+        downloadsOffered = RemoteLines.offered(administrator: mine?.isAdministrator, miraExtension: await found, before: downloadsOffered)
+        me = mine
         jellyfinVersion = await info?.version
         quickConnect = await quick
     }
