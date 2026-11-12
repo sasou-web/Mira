@@ -65,14 +65,42 @@ internal static class SubtitleTests
             {
                 var cues = SubtitleText.Parse(text);
                 Assert(cues.Count == 2 && cues[0] == new SubtitleCue(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2.5), "Ça va ?"), name + ": " + string.Join(" | ", cues));
-                Assert(cues[1].Text.StartsWith("Oui", StringComparison.Ordinal) && !cues[1].Text.Contains('<') && !cues[1].Text.Contains('{'), name + " tags: " + cues[1].Text);
+                // An SRT line keeps what an SRT shows (« <i> »); an ASS line has its override tags removed.
+                Assert(cues[1].Text.StartsWith(name == "SRT" ? "<i>Oui</i>," : "Oui", StringComparison.Ordinal) && !cues[1].Text.Contains('{'), name + " text: " + cues[1].Text);
             }
             Assert(SubtitleText.Parse(Vtt)[1].Start == new TimeSpan(1, 0, 3), "VTT hours");
             Assert(SubtitleText.Parse(Ass)[1].Text == "Oui, très bien.\nEt toi ?", "ASS line break: " + SubtitleText.Parse(Ass)[1].Text);
             var written = SubtitleText.ToSrt(SubtitleText.Parse(Srt));
-            Assert(written == Srt.Replace("<i>", "").Replace("</i>", ""), "Written back:\n" + written);
+            Assert(written == Srt, "Written back:\n" + written);
             Assert(SubtitleText.Parse(written).SequenceEqual(SubtitleText.Parse(Srt)), "Round trip");
             Assert(SubtitleText.Parse("").Count == 0 && SubtitleText.Parse("1\n00:00:01,000 --> garbage\n").Count == 0, "Nothing read from nothing");
+            return Task.CompletedTask;
+        });
+        await Test("Sous-titres : un fichier gardé ou recalé garde l'italique, le gras, la couleur et la place de l'original", () =>
+        {
+            // What an SRT says beyond its words, as ffmpeg (Jellyfin, mpv) shows it: italics for a voice off screen, a song or
+            // a thought, a line placed at the top, a colour for a speaker. Taken out of every file « Sous-titres automatiques »
+            // kept, and of every file it realigned: the words alone came back.
+            const string srt = "1\r\n00:00:01,000 --> 00:00:03,000\r\n<i>Previously on…</i>\r\n\r\n"
+                + "2\r\n00:00:05,000 --> 00:00:07,000\r\n{\\an8}<b>PARIS, 1942</b>\r\n\r\n"
+                + "3\r\n00:00:09,000 --> 00:00:11,000\r\n<font color=\"#ffff00\">Who's there?</font>\r\n\r\n"
+                + "4\r\n00:00:13,000 --> 00:00:15,000\r\n<u>Never</u> again.\r\n\r\n"
+                + "5\r\n00:00:17,000 --> 00:00:19,000\r\n- <i>Hello?</i>\r\n- I'm here.\r\n\r\n";
+            string[] said = ["<i>Previously on…</i>", "{\\an8}<b>PARIS, 1942</b>", "<font color=\"#ffff00\">Who's there?</font>", "<u>Never</u> again.", "- <i>Hello?</i>\n- I'm here."];
+            Assert(SubtitleText.Parse(srt).Select(x => x.Text).SequenceEqual(said), "Read: " + string.Join(" | ", SubtitleText.Parse(srt)));
+            Assert(SubtitleText.ToSrt(SubtitleText.Parse(srt)) == srt, "Kept: " + SubtitleText.ToSrt(SubtitleText.Parse(srt)));
+            var sync = new SubtitleSync(TimeSpan.FromSeconds(1.5), 1, 1, 0, 10, true);
+            var moved = SubtitleText.Moved(srt, SubtitleAlign.Apply(SubtitleText.Parse(srt), sync), sync);
+            Assert(moved.Format == "srt" && SubtitleText.Parse(moved.Text).Select(x => x.Text).SequenceEqual(said) && SubtitleText.Parse(moved.Text)[0].Start == TimeSpan.FromSeconds(2.5), "Realigned: " + moved.Text);
+            // A WebVTT file realigned becomes an SRT: its italics, bold and underline kept; its voices, classes, languages and
+            // karaoke times are no SRT tags (an SRT would show « <c.yellow> » or « <00:00:09.500> » as words); its entities read
+            // (an SRT would show « &amp; »).
+            const string vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\n<v Bob><i>Previously</i> on…</v>\n\n00:00:05.000 --> 00:00:07.000\n<c.yellow>Tom &amp; Jerry</c> <b.loud>run</b>\n\n"
+                + "00:00:09.000 --> 00:00:11.000\nOne <00:00:09.500>two <u>three</u>\n\n00:00:13.000 --> 00:00:15.000\n&lt;3 you\n\n00:00:17.000 --> 00:00:19.000\n<lang fr>Bonjour</lang>\n";
+            string[] vttSaid = ["<i>Previously</i> on…", "Tom & Jerry <b>run</b>", "One two <u>three</u>", "<3 you", "Bonjour"];
+            Assert(SubtitleText.Parse(vtt).Select(x => x.Text).SequenceEqual(vttSaid), "WebVTT: " + string.Join(" | ", SubtitleText.Parse(vtt)));
+            var written = SubtitleText.Moved(vtt, SubtitleAlign.Apply(SubtitleText.Parse(vtt), sync), sync);
+            Assert(written.Format == "srt" && SubtitleText.Parse(written.Text).Select(x => x.Text).SequenceEqual(vttSaid), "WebVTT realigned: " + written.Text);
             return Task.CompletedTask;
         });
         await Test("Sous-titres : un SRT lu comme ffmpeg le lit, lignes d'espaces et numéros collés compris", () =>
