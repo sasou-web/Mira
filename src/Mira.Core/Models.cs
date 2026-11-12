@@ -429,6 +429,8 @@ public sealed class PlayerSettings
     /// <summary>The account (« server user ») and Jellyfin's date of the newest episode already looked at for those notices.</summary>
     public string EpisodesSeenFor { get; set; } = "";
     public DateTimeOffset? EpisodesSeenUntil { get; set; }
+    /// <summary>The episodes that look listed, dated up to a week before its mark (<see cref="NewEpisodes.Known"/>); null when it could not list them all.</summary>
+    public List<string>? EpisodesKnown { get; set; }
     /// <summary>Windows: where « Garder sur ce PC » puts new copies (<see cref="OfflineCopies"/>); empty: « offline » in the profile.</summary>
     public string OfflineFolder { get; set; } = "";
     /// <summary>Every other folder copies were put in: choosing another leaves the earlier copies listed where they are.</summary>

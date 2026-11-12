@@ -35,19 +35,24 @@ public partial class MainWindow
         {
             // Read down to the mark: what came since, however much.
             var since = _settings.EpisodesSeenFor == account ? _settings.EpisodesSeenUntil : null;
-            var (episodes, series) = await client.RecentEpisodesAsync(since, _connectionLifetime.Token);
+            var (episodes, series, whole) = await client.RecentEpisodesAsync(since, _connectionLifetime.Token);
             if (!ReferenceEquals(client, _client) || _closing || !_settings.EpisodeNotices) return;
             // The first look for this account only sets the mark: what was already there is not news.
             var seen = _settings.EpisodesSeenFor == account ? _settings.EpisodesSeenUntil : null;
             if (_settings.EpisodesSeenFor == account && seen is { } mark)
             {
-                var (notices, more) = NewEpisodes.Pick(episodes, series, mark);
+                var (notices, more) = NewEpisodes.Pick(episodes, series, mark, _settings.EpisodesKnown);
                 foreach (var notice in notices) await NotifyAsync(client, notice);
                 if (more is not null) Toasts.Show(L("Nouveaux épisodes", "New episodes"), more, null, () => Dispatcher.BeginInvoke(RestoreFromWindows));
             }
             // A library without an episode to watch yet: the next one is news.
             var newest = NewEpisodes.Newest(episodes, seen) ?? DateTimeOffset.MinValue;
-            if (_settings.EpisodesSeenFor != account || newest != seen) { _settings.EpisodesSeenFor = account; _settings.EpisodesSeenUntil = newest; TrySaveSettings(); }
+            // And what was there: an episode dated before the mark, but not among them, came since.
+            var known = whole ? NewEpisodes.Known(episodes, newest) : null;
+            if (_settings.EpisodesSeenFor != account || newest != seen || !NewEpisodes.Same(known, _settings.EpisodesKnown))
+            {
+                _settings.EpisodesSeenFor = account; _settings.EpisodesSeenUntil = newest; _settings.EpisodesKnown = known; TrySaveSettings();
+            }
             ForgetOldNoticeImages();
         }
         // A server that does not answer now is asked again at the next change or on the clock.

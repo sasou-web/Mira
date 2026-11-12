@@ -1699,25 +1699,30 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>The most episodes one look reads past the mark (Mira closed for long, or a whole library added).</summary>
     public const int MostRecentEpisodes = 2000;
     /// <summary>
-    /// The episodes Jellyfin added since <paramref name="since"/>, not watched yet, newest first (the 50 it added last
-    /// without a mark: the first look only sets it), and their series with what this account watched of them
-    /// (RecursiveItemCount gives the share watched): what <see cref="NewEpisodes"/> picks from. Read page by page down to
-    /// the mark, <see cref="MostRecentEpisodes"/> at most: a whole season of another series added at once never hides the
-    /// episode of a followed one (only the 50 newest were read, and the mark went past the rest).
+    /// The episodes Jellyfin added lately, watched or not, newest first, and their series with what this account watched
+    /// of them (RecursiveItemCount gives the share watched): what <see cref="NewEpisodes"/> picks from. Read page by page
+    /// down to <see cref="NewEpisodes.Floor"/> of the mark <paramref name="since"/> (of the newest episode on the first
+    /// look), <see cref="MostRecentEpisodes"/> at most: a whole season of another series added at once never hides the
+    /// episode of a followed one, and the next look knows every episode there (<see cref="NewEpisodes.Known"/>). Whole:
+    /// listed down to there, not stopped at the most.
     /// </summary>
-    public async Task<(List<MediaItem> Episodes, Dictionary<string, MediaItem> Series)> RecentEpisodesAsync(DateTimeOffset? since = null, CancellationToken ct = default)
+    public async Task<(List<MediaItem> Episodes, Dictionary<string, MediaItem> Series, bool Whole)> RecentEpisodesAsync(DateTimeOffset? since = null, CancellationToken ct = default)
     {
         const int first = 50, page = 200;
-        var episodes = new List<MediaItem>(); var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var start = 0; var asked = first;
+        var episodes = new List<MediaItem>(); var listed = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var start = 0; var asked = first;
+        var floor = since is { } mark ? NewEpisodes.Floor(mark) : (DateTimeOffset?)null; var whole = false;
         while (true)
         {
-            var result = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Episode&isMissing=false&isPlayed=false" +
+            var result = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Episode&isMissing=false" +
                 $"&sortBy=DateCreated&sortOrder=Descending&startIndex={start}&limit={asked}&fields=DateCreated&enableImageTypes=Primary&imageTypeLimit=1", ct);
             start += result.Items.Count;
-            var fresh = result.Items.Where(x => known.Add(x.Id)).ToList(); episodes.AddRange(fresh);
-            // Down to the mark, the end of the list, or enough.
-            if (since is not { } mark || result.Items.Count < asked || fresh.Count == 0 || start >= result.TotalRecordCount || episodes.Count >= MostRecentEpisodes
-                || result.Items[^1].DateCreated is not { } last || last <= mark) break;
+            var fresh = result.Items.Where(x => listed.Add(x.Id)).ToList(); episodes.AddRange(fresh);
+            // Without a mark yet, down to a week before the newest episode: the next look must know them all.
+            floor ??= episodes.Count > 0 && episodes[0].DateCreated is { } newest ? NewEpisodes.Floor(newest) : null;
+            // Down to the floor or the end of the list, else enough.
+            if (result.Items.Count < asked || start >= result.TotalRecordCount || floor is null) { whole = true; break; }
+            if (result.Items[^1].DateCreated is not { } last || fresh.Count == 0 || episodes.Count >= MostRecentEpisodes) break;
+            if (last <= floor) { whole = true; break; }
             asked = Math.Min(page, MostRecentEpisodes - episodes.Count);
         }
         // A hundred series a request: a few thousand characters of address, where Jellyfin's server takes 8 KB.
@@ -1727,7 +1732,7 @@ public sealed class JellyfinClient : IDisposable
             var found = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&ids={string.Join(',', ids.Select(Uri.EscapeDataString))}&fields=RecursiveItemCount&enableImages=false", ct);
             foreach (var item in found.Items) if (item.Type == "Series") series.TryAdd(item.Id, item);
         }
-        return (episodes, series);
+        return (episodes, series, whole);
     }
     /// <summary>The episode Jellyfin would play next for one series (resumable first, then the following one).</summary>
     public async Task<MediaItem?> NextEpisodeAsync(string seriesId, CancellationToken ct = default) =>

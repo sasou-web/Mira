@@ -3,8 +3,9 @@ import SwiftUI
 /// « Nouvel épisode »: the episodes Jellyfin added since the last look, of the series this account follows (one already
 /// started, or a favourite), one line for each series, as Mira web says them when it opens (new-episodes.js) and Mira
 /// for Windows notifies them (NewEpisodes in Core), with the cases of tests/fixtures/new-episodes.json. The mark is
-/// Jellyfin's own date of the newest episode seen, never this iPhone's clock. Said in Mira, never as a notification:
-/// nothing leaves the iPhone and Jellyfin.
+/// Jellyfin's own date of the newest episode seen, never this iPhone's clock; with it, the episodes the last look listed
+/// (`known`): Jellyfin dates an episode by its file, so one can arrive after the mark yet be dated before it (`late`).
+/// Said in Mira, never as a notification: nothing leaves the iPhone and Jellyfin.
 enum NewEpisodes {
     static let maxNotices = 3
 
@@ -31,6 +32,23 @@ enum NewEpisodes {
     /// Started (part of it watched: a new episode makes it unwatched again) or in the favourites.
     static func follows(_ series: Item?) -> Bool {
         series?.userData?.isFavorite == true || (series?.userData?.playedPercentage ?? 0) > 0
+    }
+
+    /// How much older than the mark (ms) an episode new since the last look may be dated, as `Late` in Core: Jellyfin
+    /// dates an episode by its file (its creation time on Windows, kept by a move on the same disk and a hard link), so a
+    /// download started before another and finished after it, or a file moved in days later, comes in dated before the
+    /// mark. Older than a week, it is not news.
+    static let late: Double = 7 * 24 * 3600 * 1000
+
+    /// The ids of the episodes listed, watched or not, dated after the mark (ms) less `late`: what the next look knows
+    /// was already there (an episode dated before the mark but not among them came since).
+    static func known(_ episodes: [Item], mark: Double) -> [String] {
+        var ids: [String] = [], listed = Set<String>()
+        for episode in episodes {
+            guard let added = date(episode.dateCreated), added > mark - late, listed.insert(episode.id.lowercased()).inserted else { continue }
+            ids.append(episode.id)
+        }
+        return ids
     }
 
     /// The newest date of these episodes when it is past `seen` (ms, or nil): the next mark.
@@ -63,11 +81,16 @@ enum NewEpisodes {
     }
 
     /// The lines for the episodes added after `seen` (ms), not watched yet, of the followed series among `series` (by
-    /// id): the most recent series first, three at most, and a line for the rest.
-    static func pick(_ episodes: [Item], series: [String: Item], seen: Double) -> Pick {
+    /// id): the most recent series first, three at most, and a line for the rest. Added since the last look: dated
+    /// after the mark, or less than `late` before it and not among the episodes that look listed (`known`, nil when it
+    /// did not list them all).
+    static func pick(_ episodes: [Item], series: [String: Item], seen: Double, known: [String]? = nil) -> Pick {
+        let there = known.map { Set($0.map { $0.lowercased() }) }
         var order: [String] = [], groups: [String: [Item]] = [:]
         for x in episodes {
-            guard x.isEpisode, let added = date(x.dateCreated), added > seen, x.userData?.played != true, let id = x.seriesId, follows(series[id]) else { continue }
+            guard x.isEpisode, let added = date(x.dateCreated),
+                  added > seen || (there.map { added > seen - late && !$0.contains(x.id.lowercased()) } ?? false),
+                  x.userData?.played != true, let id = x.seriesId, follows(series[id]) else { continue }
             if groups[id] == nil { order.append(id) }
             groups[id, default: []].append(x)
         }
@@ -98,26 +121,31 @@ extension JellyfinClient {
     /// The most episodes one look reads past the mark (Mira not opened for long, or a whole library added).
     static let mostRecentEpisodes = 2000
 
-    /// The episodes Jellyfin added since `since` (ms), not watched yet, newest first (the 50 it added last without a
-    /// mark: the first look only sets it), and their series (whether followed). Read page by page down to the mark, as
-    /// RecentEpisodesAsync in Core: a whole season of another series added at once never hides the episode of a
-    /// followed one (only the 50 newest were read, and the mark went past the rest).
-    func recentEpisodes(since: Double? = nil) async throws -> (episodes: [Item], series: [String: Item]) {
+    /// The episodes Jellyfin added lately, watched or not, newest first, and their series (whether followed). Read page
+    /// by page down to `late` before the mark `since` (ms; before the newest episode on the first look), as
+    /// RecentEpisodesAsync in Core: a whole season of another series added at once never hides the episode of a followed
+    /// one, and the next look knows every episode there (`NewEpisodes.known`). Whole: listed down to there, not stopped
+    /// at the most.
+    func recentEpisodes(since: Double? = nil) async throws -> (episodes: [Item], series: [String: Item], whole: Bool) {
         let first = 50, page = 200, most = Self.mostRecentEpisodes
-        var episodes: [Item] = [], known = Set<String>(), start = 0, asked = first
+        var episodes: [Item] = [], read = Set<String>(), start = 0, asked = first, whole = false
+        var floor = since.map { $0 - NewEpisodes.late }
         while true {
             let found: ItemList = try await get("Items", [
-                "userId": userId, "recursive": "true", "includeItemTypes": "Episode", "isMissing": "false", "isPlayed": "false",
+                "userId": userId, "recursive": "true", "includeItemTypes": "Episode", "isMissing": "false",
                 "sortBy": "DateCreated", "sortOrder": "Descending", "startIndex": String(start), "limit": String(asked),
                 "fields": "DateCreated", "enableImageTypes": "Primary,Thumb", "imageTypeLimit": "1",
             ])
             let items = found.items ?? []
             start += items.count
-            let fresh = items.filter { known.insert($0.id.lowercased()).inserted }
+            let fresh = items.filter { read.insert($0.id.lowercased()).inserted }
             episodes += fresh
-            // Down to the mark, the end of the list, or enough.
-            guard let since, items.count == asked, !fresh.isEmpty, start < found.totalRecordCount ?? 0, episodes.count < most,
-                  let last = NewEpisodes.date(items.last?.dateCreated), last > since else { break }
+            // Without a mark yet, down to a week before the newest episode: the next look must know them all.
+            if floor == nil, let newest = NewEpisodes.date(episodes.first?.dateCreated) { floor = newest - NewEpisodes.late }
+            // Down to the floor or the end of the list, else enough.
+            guard let floor, items.count == asked, start < found.totalRecordCount ?? 0 else { whole = true; break }
+            guard let last = NewEpisodes.date(items.last?.dateCreated), !fresh.isEmpty, episodes.count < most else { break }
+            if last <= floor { whole = true; break }
             asked = min(page, most - episodes.count)
         }
         var ids: [String] = [], listed = Set<String>()
@@ -129,7 +157,7 @@ extension JellyfinClient {
             let shows: ItemList = try await get("Items", ["userId": userId, "ids": chunk.joined(separator: ","), "enableImages": "false"])
             for show in shows.items ?? [] where show.isSeries && series[show.id] == nil { series[show.id] = show }
         }
-        return (episodes, series)
+        return (episodes, series, whole)
     }
 }
 
@@ -142,6 +170,8 @@ final class NewEpisodesWatch {
     @ObservationIgnored private var lastLook = Date.distantPast
 
     private static func key(_ account: String) -> String { "mira.home.\(account).episodes" }
+    /// The episodes the last look listed (`NewEpisodes.known`), beside the mark.
+    private static func knownKey(_ account: String) -> String { "mira.home.\(account).episodes.known" }
 
     func look(_ client: JellyfinClient, account: String, comingBack: Bool = false) async {
         if looking || comingBack && Date().timeIntervalSince(lastLook) < 15 * 60 { return }
@@ -154,17 +184,24 @@ final class NewEpisodesWatch {
         lastLook = Date()
         let seen = defaults.object(forKey: Self.key(account)) as? Double
         if let seen {
-            let pick = NewEpisodes.pick(found.episodes, series: found.series, seen: seen)
+            let known = defaults.stringArray(forKey: Self.knownKey(account))
+            let pick = NewEpisodes.pick(found.episodes, series: found.series, seen: seen, known: known)
             if !pick.notices.isEmpty { self.pick = pick }
         }
         // A library without an episode to watch yet: the next one is news.
         let mark = NewEpisodes.newest(found.episodes, seen: seen) ?? 0
         if mark != seen { defaults.set(mark, forKey: Self.key(account)) }
+        // And what was there: an episode dated before the mark, but not among them, came since.
+        if found.whole { defaults.set(NewEpisodes.known(found.episodes, mark: mark), forKey: Self.knownKey(account)) }
+        else { defaults.removeObject(forKey: Self.knownKey(account)) }
     }
 
     func dismiss() { pick = nil }
 
-    static func forget(account: String) { UserDefaults.standard.removeObject(forKey: key(account)) }
+    static func forget(account: String) {
+        UserDefaults.standard.removeObject(forKey: key(account))
+        UserDefaults.standard.removeObject(forKey: knownKey(account))
+    }
 }
 
 /// The new episodes over the top of the app: one series, its line and See; several, how many and See (a list).

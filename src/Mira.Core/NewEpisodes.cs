@@ -3,7 +3,9 @@ namespace Mira.Core;
 /// <summary>
 /// « Nouvel épisode » notices of Mira for Windows: the episodes Jellyfin added since the last look, of the series this
 /// account follows (one already started, or a favourite), one notice for each series. The mark is Jellyfin's own date
-/// of the newest episode seen, never this PC's clock; the first look only sets it.
+/// of the newest episode seen, never this PC's clock; the first look only sets it. With it, the episodes the last look
+/// listed (<see cref="Known"/>): Jellyfin dates an episode by its file, so one can arrive after the mark yet be dated
+/// before it (<see cref="Late"/>).
 /// </summary>
 public static class NewEpisodes
 {
@@ -12,6 +14,28 @@ public static class NewEpisodes
     public sealed record Notice(string SeriesId, string Title, string Text, MediaItem Episode, int Count);
     /// <summary>Started (part of it watched, a new episode makes it unwatched again) or in the favourites.</summary>
     public static bool Follows(MediaItem series) => series.UserData.IsFavorite || series.UserData.PlayedPercentage > 0;
+    /// <summary>
+    /// How much older than the mark an episode new since the last look may be dated. Jellyfin dates an episode by its
+    /// file (« UseFileCreationTimeForDateAdded », on by default: the creation time on Windows, kept by a move on the same
+    /// disk and by a hard link), so a file comes into the library after others dated later: a download started before
+    /// another and finished after it, a season pack still downloading while a single episode lands, a file downloaded on
+    /// Monday and moved in on Wednesday. Older than this, it is not news.
+    /// </summary>
+    public static readonly TimeSpan Late = TimeSpan.FromDays(7);
+    /// <summary>Where the episodes a look must list go down to, from the mark: <see cref="Late"/> before it.</summary>
+    public static DateTimeOffset Floor(DateTimeOffset mark) => mark > DateTimeOffset.MinValue + Late ? mark - Late : DateTimeOffset.MinValue;
+    /// <summary>
+    /// The ids of the episodes listed, watched or not, dated after <see cref="Floor"/> of <paramref name="mark"/>: what the
+    /// next look knows was already there (an episode dated before the mark but not among them came since).
+    /// </summary>
+    public static List<string> Known(IEnumerable<MediaItem> episodes, DateTimeOffset mark)
+    {
+        var floor = Floor(mark);
+        return episodes.Where(x => x.DateCreated > floor).Select(x => x.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+    /// <summary>Whether two lists of <see cref="Known"/> hold the same episodes (both null, or neither).</summary>
+    public static bool Same(IReadOnlyCollection<string>? a, IReadOnlyCollection<string>? b) =>
+        a is null || b is null ? a is null && b is null : a.Count == b.Count && a.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(b);
     /// <summary>The newest date of these episodes when it is past <paramref name="seen"/>: the next mark.</summary>
     public static DateTimeOffset? Newest(IEnumerable<MediaItem> episodes, DateTimeOffset? seen)
     {
@@ -22,11 +46,16 @@ public static class NewEpisodes
     /// <summary>
     /// The notices for the episodes added after <paramref name="seen"/>, not watched yet, of the followed series among
     /// <paramref name="series"/>; the most recent series first, <see cref="MaxNotices"/> at most, and a line for the rest.
+    /// Added since the last look: dated after the mark, or after its <see cref="Floor"/> and not among the episodes that
+    /// look listed (<paramref name="known"/>, null when it did not list them all).
     /// </summary>
-    public static (List<Notice> Notices, string? More) Pick(IEnumerable<MediaItem> episodes, IReadOnlyDictionary<string, MediaItem> series, DateTimeOffset seen)
+    public static (List<Notice> Notices, string? More) Pick(IEnumerable<MediaItem> episodes, IReadOnlyDictionary<string, MediaItem> series, DateTimeOffset seen, IEnumerable<string>? known = null)
     {
+        var there = known is null ? null : new HashSet<string>(known, StringComparer.OrdinalIgnoreCase);
+        var floor = Floor(seen);
         var groups = episodes
-            .Where(x => x.Type == "Episode" && x.DateCreated > seen && !x.UserData.Played && x.SeriesId is { } id && series.TryGetValue(id, out var s) && Follows(s))
+            .Where(x => x.Type == "Episode" && x.DateCreated is { } added && (added > seen || there is not null && added > floor && !there.Contains(x.Id))
+                && !x.UserData.Played && x.SeriesId is { } id && series.TryGetValue(id, out var s) && Follows(s))
             .GroupBy(x => x.SeriesId!)
             .OrderByDescending(g => g.Max(x => x.DateCreated))
             .Select(g => g.OrderBy(x => x.ParentIndexNumber ?? 0).ThenBy(x => x.IndexNumber ?? 0).ToList())
