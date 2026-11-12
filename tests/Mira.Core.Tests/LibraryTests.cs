@@ -1794,6 +1794,34 @@ internal static class LibraryTests
             Assert(OfflineCopies.SubtitleExtension("ass") == "ass" && OfflineCopies.SubtitleExtension("PGSSUB") == "srt" && OfflineCopies.SubtitleExtension("webvtt") == "vtt", "Subtitle formats");
             Assert(OfflineCopies.Erase([root, other], connection) && OfflineCopies.List([root, other], connection).Count == 0, "Erased with the account");
         });
+        await Test("Place libre : celle du disque du dossier lui-même, disque monté dans un dossier compris (« /Volumes/Disque », lecteur monté dans C:\\…), jamais celle de la racine du chemin", () =>
+        {
+            var notYet = Path.Combine(testRoot, "free-space", "pas", "encore");
+            Assert(Volumes.FreeSpace(notYet) is > 0 && OfflineCopies.FreeSpace(notYet) is > 0, "A folder not made yet: its nearest folder's disk");
+            Assert(Volumes.FreeSpace("") is null, "No path: not told");
+            // Every other disk mounted here (Linux: /mnt, /boot, /dev/shm… in folders of « / » ; Windows: D:\), asked by a folder
+            // below it that does not exist: its own free space, never that of the disk the path root is on.
+            var system = Path.GetPathRoot(testRoot)!; var systemFree = new DriveInfo(system).AvailableFreeSpace; var seen = 0;
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                string mount; long free;
+                try
+                {
+                    mount = drive.RootDirectory.FullName;
+                    if (!drive.IsReady || drive.TotalSize == 0 || !Directory.Exists(mount) || Volumes.Same(mount, system)) continue;
+                    free = drive.AvailableFreeSpace;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
+                // Only a disk told apart from the path root's: a few hundred megabytes of difference.
+                if (Math.Abs(free - systemFree) < 256L << 20) continue;
+                var below = Path.Combine(mount, "mira-pas-ici", "plus-bas");
+                Assert(Volumes.FreeSpace(below) is { } told && Math.Abs(told - free) < 64L << 20, $"{mount}: {Volumes.FreeSpace(below)} told, {free} free on it ({systemFree} on {system})");
+                Assert(OfflineCopies.FreeSpace(below) is { } kept && Math.Abs(kept - free) < 64L << 20, $"{mount}: the offline copies ask the same");
+                seen++;
+            }
+            if (seen == 0) Console.WriteLine("      No other disk with its own free space here: only the path root's checked");
+            return Task.CompletedTask;
+        });
         await Test("Dossiers des bibliothèques : un fichier caché les garde non vides pour Jellyfin, scan demandé seulement pour un dossier déjà vidé", () =>
         {
             var folders = Path.Combine(testRoot, "library-marker"); var empty = Path.Combine(folders, "Séries"); var full = Path.Combine(folders, "Films");

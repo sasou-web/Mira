@@ -286,11 +286,8 @@ public static class OfflineCopies
     }
     /// <summary>Kept free beyond the file, so that a copy never fills the disk.</summary>
     public const long Reserve = 1L << 30;
-    public static long? FreeSpace(string folder)
-    {
-        try { return new DriveInfo(Path.GetPathRoot(Path.GetFullPath(folder))!).AvailableFreeSpace; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return null; }
-    }
+    /// <summary>Free bytes on the disk of <paramref name="folder"/> itself (<see cref="Volumes.FreeSpace"/>), or null when it cannot be told.</summary>
+    public static long? FreeSpace(string folder) => Volumes.FreeSpace(folder);
 
     /// <summary>
     /// The episode after <paramref name="episode"/> among the copies, in the order of the series: what plays next when
