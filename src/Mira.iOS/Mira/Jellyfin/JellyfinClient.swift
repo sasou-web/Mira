@@ -208,7 +208,7 @@ struct JellyfinClient: Sendable {
     static func homeRow(favorites: Bool, library: String?, limit: Int) -> [String: String?] {
         [
             "recursive": "true", "includeItemTypes": "Movie,Series", "limit": String(limit), "parentId": library,
-            "sortBy": favorites ? "SortName" : "DateCreated,SortName", "sortOrder": favorites ? "Ascending" : "Descending",
+            "sortBy": favorites ? "SortName" : "DateCreated,SortName", "sortOrder": favorites ? "Ascending" : "Descending,Ascending",
             "isFavorite": favorites ? "true" : nil, "enableTotalRecordCount": "false", "collapseBoxSetItems": "false",
         ]
     }

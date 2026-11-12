@@ -158,7 +158,7 @@ public sealed class JellyfinClient : IDisposable
     }
     private Task<ItemsResult> BrowsePageAsync(string types, string? parentId, string? search, int start, bool favorites, CatalogQuery? filters, int limit, bool everyTitle, CancellationToken ct) =>
         GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={types}&limit={limit}&startIndex={start}" +
-            "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (filters ?? new CatalogQuery()).Parameters +
+            "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (filters ?? new CatalogQuery()).For(types) +
             (parentId is null ? "" : $"&parentId={Uri.EscapeDataString(parentId)}") +
             (string.IsNullOrWhiteSpace(search) ? "" : $"&searchTerm={Uri.EscapeDataString(search)}") +
             (favorites ? "&isFavorite=true" : "") + (everyTitle ? "&collapseBoxSetItems=false" : ""), ct);

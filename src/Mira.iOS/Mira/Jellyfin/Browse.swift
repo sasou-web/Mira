@@ -28,12 +28,15 @@ struct BrowseQuery: Sendable, Hashable {
     var filtered: Bool { genre != nil || year != nil || unplayed || favorite || quality != nil || audio != nil || subtitles != nil || minRating != nil }
 
     var parameters: [String: String?] {
+        // A descending sort gives each key its own order (one order only would be given to the title too: titles of a
+        // same year Z → A); « Recently watched » of shows sorts them by their last episode played, a series having no
+        // play date of its own (Jellyfin 10.9 to 12.4). As Core's CatalogQuery, cases in tests/fixtures/filters.json.
         let (sortBy, order): (String, String) = switch sort {
         case .title: ("SortName", "Ascending")
-        case .year: ("ProductionYear,SortName", "Descending")
-        case .rating: ("CommunityRating,SortName", "Descending")
-        case .played: ("DatePlayed,SortName", "Descending")
-        case .recent: ("DateCreated,SortName", "Descending")
+        case .year: ("ProductionYear,SortName", "Descending,Ascending")
+        case .rating: ("CommunityRating,SortName", "Descending,Ascending")
+        case .played: (types == "Series" ? "SeriesDatePlayed,SortName" : "DatePlayed,SortName", "Descending,Ascending")
+        case .recent: ("DateCreated,SortName", "Descending,Ascending")
         case .runtime: ("Runtime,SortName", "Ascending")
         }
         let base: [String: String?] = [

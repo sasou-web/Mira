@@ -180,7 +180,14 @@ public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? 
     public string CacheKey => $"{Genre}|{Year}|{Played}|{Sort}|{PersonId}|{StudioId}|{Quality}|{Audio}|{Subtitles}|{MinRating}";
     /// <summary>How many of the filters of <see cref="LibraryFilters"/> narrow the list.</summary>
     public int MoreFilters => (Quality is null ? 0 : 1) + (Audio is null ? 0 : 1) + (Subtitles is null ? 0 : 1) + (MinRating is null ? 0 : 1);
-    public string Parameters =>
+    public string Parameters => For("Movie,Series");
+    /// <summary>
+    /// The Items parameters of these filters and of the sort, for a list of <paramref name="types"/> (Jellyfin's
+    /// includeItemTypes). A descending sort gives each key its own order (one order only would be given to the title
+    /// too: titles of a same year Z → A); « Dernière lecture » of series sorts them by their last episode played, a series
+    /// having no play date of its own (Jellyfin 10.9 to 12.4: without it, all of them come Z → A).
+    /// </summary>
+    public string For(string types) =>
         (string.IsNullOrWhiteSpace(Genre) ? "" : "&genres=" + Uri.EscapeDataString(Genre)) +
         (string.IsNullOrWhiteSpace(PersonId) ? "" : "&personIds=" + Uri.EscapeDataString(PersonId)) +
         (string.IsNullOrWhiteSpace(StudioId) ? "" : "&studioIds=" + Uri.EscapeDataString(StudioId)) +
@@ -190,13 +197,13 @@ public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? 
         (Sort switch
         {
             "title" => "&sortBy=SortName&sortOrder=Ascending",
-            "year" => "&sortBy=ProductionYear,SortName&sortOrder=Descending",
-            "rating" => "&sortBy=CommunityRating,SortName&sortOrder=Descending",
-            "played" => "&sortBy=DatePlayed,SortName&sortOrder=Descending",
+            "year" => "&sortBy=ProductionYear,SortName&sortOrder=Descending,Ascending",
+            "rating" => "&sortBy=CommunityRating,SortName&sortOrder=Descending,Ascending",
+            "played" => (types == "Series" ? "&sortBy=SeriesDatePlayed,SortName" : "&sortBy=DatePlayed,SortName") + "&sortOrder=Descending,Ascending",
             "runtime" => "&sortBy=Runtime,SortName&sortOrder=Ascending",
             // A saga's titles in the order they came out.
             "saga" => "&sortBy=ProductionYear,PremiereDate,SortName&sortOrder=Ascending",
-            _ => "&sortBy=DateCreated,SortName&sortOrder=Descending"
+            _ => "&sortBy=DateCreated,SortName&sortOrder=Descending,Ascending"
         });
 }
 public sealed record LibrarySection(string Id, string Name, string? CollectionType)

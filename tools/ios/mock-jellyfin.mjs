@@ -498,11 +498,19 @@ const server = http.createServer(async (req, res) => {
       && (!q.get('years') || String(x.ProductionYear) === q.get('years'))
       && (q.get('isPlayed') !== 'false' || !x.UserData?.Played)
       && (q.get('isFavorite') !== 'true' || x.UserData?.IsFavorite));
-    const by = (q.get('sortBy') ?? 'SortName').split(',')[0];
-    const key = { SortName: (x) => x.Name, ProductionYear: (x) => x.ProductionYear, CommunityRating: (x) => x.CommunityRating ?? 0,
-      DatePlayed: (x) => x.UserData?.LastPlayedDate ?? '', DateCreated: (x) => everything.length - everything.indexOf(x) }[by] ?? ((x) => x.Name);
-    found = [...found].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) || a.Name.localeCompare(b.Name));
-    if (q.get('sortOrder') === 'Descending') found.reverse();
+    // As Jellyfin: each key its own order, the first order for a key given none; a series' play date is its last
+    // episode watched to the end (SeriesDatePlayed).
+    const keys = (q.get('sortBy') ?? 'SortName').split(','), orders = (q.get('sortOrder') ?? 'Ascending').split(',');
+    const pick = { SortName: (x) => x.Name, ProductionYear: (x) => x.ProductionYear, CommunityRating: (x) => x.CommunityRating ?? 0,
+      DatePlayed: (x) => x.UserData?.LastPlayedDate ?? '', DateCreated: (x) => everything.length - everything.indexOf(x),
+      SeriesDatePlayed: (x) => everything.filter((e) => e.SeriesId === x.Id && e.UserData?.Played).map((e) => e.UserData.LastPlayedDate ?? '').sort().at(-1) ?? '' };
+    found = [...found].sort((a, b) => {
+      for (const [i, by] of keys.entries()) {
+        const key = pick[by] ?? ((x) => x.Name), sign = (orders[i] ?? orders[0]) === 'Descending' ? -1 : 1;
+        if (key(a) !== key(b)) return (key(a) < key(b) ? -1 : 1) * sign;
+      }
+      return 0;
+    });
     const start = Number(q.get('startIndex') ?? 0), limit = Number(q.get('limit') ?? 60);
     return send(res, 200, { Items: found.slice(start, start + limit), TotalRecordCount: found.length, StartIndex: start });
   }
