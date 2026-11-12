@@ -584,7 +584,7 @@ public partial class MainWindow
             List<MediaItem> items, episodes = [];
             try
             {
-                items = (await client.OwnedAsync(lookup.Title, ct)).Items;
+                items = await OwnedTitles.FindAsync(lookup.Title, [.. mine.Select(x => x.Group)], async text => (await client.OwnedAsync(text, ct)).Items);
                 if (!lookup.Film && OwnedTitles.Line(mine[0].Group, items)?.ItemId is { } series && mine.Any(x => !x.Group.Release.Absolute))
                     episodes = (await client.OwnedEpisodesAsync(series, ct)).Items;
             }
