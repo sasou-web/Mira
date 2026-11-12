@@ -54,7 +54,7 @@ public sealed partial class PlayerPage
         return _status = new Border
         {
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(40, 132, 40, 0),
-            Padding = new Thickness(16, 9), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#E0151517"), BorderBrush = Ui.Brush("#30FFFFFF"), BorderThickness = new Thickness(1),
+            Padding = new Thickness(16, 9), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#E0161616"), BorderBrush = Ui.Brush("#30FFFFFF"), BorderThickness = new Thickness(1),
             IsHitTestVisible = false, IsVisible = false, Child = _statusText,
             Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) }]
         };

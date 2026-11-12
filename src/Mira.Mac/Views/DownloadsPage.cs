@@ -31,7 +31,7 @@ public sealed class DownloadsPage : Page
     private static string PageLine => L("Chaque téléchargement terminé rejoint ta bibliothèque.", "Each finished download joins your library.");
     // The Windows app's states and secondary ink (Themes/Cinema.xaml).
     private static readonly IBrush Success = Ui.Brush("#86C6A2"), Warning = Ui.Brush("#D5B787"), WarningText = Ui.Brush("#E9DCC3"), Danger = Ui.Brush("#F3AD99"),
-        Secondary = Ui.Brush("#C5C5CA"), Line = Ui.Brush("#26262A"), Surface = Ui.Brush("#111113"), Accent = Ui.Brush("#F5F5F7"), OnAccent = Ui.Brush("#0B0B0C");
+        Secondary = Ui.Brush("#C5C5CA"), Line = Ui.Brush("#272727"), Surface = Ui.Brush("#121212"), Accent = Ui.Brush("#F5F5F7"), OnAccent = Ui.Brush("#0B0B0B");
     private readonly Session? _session;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(3) };
     private readonly TextBlock _subtitle = new() { Text = L("Lecture du PC serveur…", "Reading the server PC…"), FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
@@ -54,7 +54,7 @@ public sealed class DownloadsPage : Page
     private readonly TextBlock _placedTitle = new() { Text = L("Rangés dans ta bibliothèque", "Added to your library"), FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(2, 14, 0, 10), IsVisible = false };
     private readonly ScrollViewer _queueScroll;
     private readonly Control _queueEmpty;
-    private readonly Grid _problem = new() { Background = Ui.Brush("#070708"), IsVisible = false };
+    private readonly Grid _problem = new() { Background = Ui.Brush("#000000"), IsVisible = false };
     private readonly Icon _problemIcon = new("server", 40) { Foreground = Ui.Faint, Margin = new Thickness(0, 0, 0, 16) };
     private readonly TextBlock _problemTitle = new() { FontSize = 20, FontWeight = FontWeight.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _problemHint = new() { FontSize = 14, Foreground = Ui.Muted, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0) };

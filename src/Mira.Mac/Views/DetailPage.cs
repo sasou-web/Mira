@@ -69,11 +69,11 @@ public sealed class DetailPage : Page
     {
         _item = item; _found = atEpisode;
         _backdrop.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(380) }];
-        _header.Children.Add(new Border { Background = Ui.Brush("#0E0E10") });
+        _header.Children.Add(new Border { Background = Ui.Brush("#0F0F0F") });
         _header.Children.Add(_backdrop);
         // Shaded from the left and the bottom, where the text and the buttons sit, as on Windows.
-        _header.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F0070708", 0), ("#C4070708", 0.3), ("#40070708", 0.62), ("#00070708", 0.86)) });
-        _header.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#66070708", 0), ("#00070708", 0.2), ("#00070708", 0.5), ("#A6070708", 0.8), ("#FF070708", 1)) });
+        _header.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F0000000", 0), ("#C4000000", 0.3), ("#40000000", 0.62), ("#00000000", 0.86)) });
+        _header.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#66000000", 0), ("#00000000", 0.2), ("#00000000", 0.5), ("#A6000000", 0.8), ("#FF000000", 1)) });
         var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => Shell.Back(), "icon", 24);
         back.HorizontalAlignment = HorizontalAlignment.Left; back.VerticalAlignment = VerticalAlignment.Top; back.Margin = new Thickness(44 + MainWindow.RailWidth, 30 + shell.TitleBarInset, 0, 0);
         back.Width = back.Height = 46;
@@ -836,7 +836,7 @@ public sealed class DetailPage : Page
         _virtuals = found;
         FillSeasons(); RenderEpisodes();
     }
-    private static readonly IBrush ShelfBorder = Ui.Brush("#2A2A2E");
+    private static readonly IBrush ShelfBorder = Ui.Brush("#2B2B2B");
     // The tiles' panel: as wide as the page plus one gap, each tile followed by its gap.
     private WrapPanel TileGrid() => _tileGrid = new WrapPanel { Margin = new Thickness(0, 0, -EpisodeTiles.Gap, 0) };
     private void AddTiles(Session session, WrapPanel grid, ShelfLine line, DateOnly today)
@@ -881,7 +881,7 @@ public sealed class DetailPage : Page
     // An episode the library lacks: no picture to play, its name and its day (the next to come out, or one of an opened run).
     private StackPanel HollowTile(MediaItem episode, DateOnly today)
     {
-        var picture = new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#0B0B0C"), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), Child = new Icon("calendar", 26) { Foreground = Ui.Faint } };
+        var picture = new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#0B0B0B"), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), Child = new Icon("calendar", 26) { Foreground = Ui.Faint } };
         var (_, when) = EpisodeShelf.Entry(episode, today);
         var tile = new StackPanel { Children = { picture, TileTitle(episode, EpisodeShelf.Name(episode), Ui.TextTertiary), new TextBlock { Text = when, FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 } } };
         Avalonia.Automation.AutomationProperties.SetName(tile, $"{EpisodeShelf.Code([episode])} {EpisodeShelf.Name(episode)}, {when}");
@@ -961,7 +961,7 @@ public sealed class DetailPage : Page
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         var play = new Icon("play", 18) { Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
         grid.Children.Add(play); Grid.SetColumn(text, 1); grid.Children.Add(text); Grid.SetColumn(go, 2); grid.Children.Add(go);
-        var button = new Button { Content = grid, Classes = { "row" }, Background = Ui.Brush("#18181B"), Padding = new Thickness(16, 12) };
+        var button = new Button { Content = grid, Classes = { "row" }, Background = Ui.Brush("#191919"), Padding = new Thickness(16, 12) };
         Avalonia.Automation.AutomationProperties.SetName(button, L($"À suivre : {code} {next.Name}, afficher {elsewhere.Label}", $"Up next: {code} {next.Name}, show {elsewhere.Label}"));
         button.Click += (_, _) => _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, elsewhere)) ?? _seasons.SelectedItem;
         return button;
@@ -1000,7 +1000,7 @@ public sealed class DetailPage : Page
         var image = new Image { Stretch = Stretch.UniformToFill };
         if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? Cards.Blur(hash, 16 / 9d) : null;
         var still = new Grid();
-        still.Children.Add(new Border { Background = Ui.Brush("#222225") });
+        still.Children.Add(new Border { Background = Ui.Brush("#232323") });
         still.Children.Add(image);
         var progress = episode.UserData.Played ? 1 : episode.Resumable ? episode.Progress : 0;
         if (progress > 0)
@@ -1019,7 +1019,7 @@ public sealed class DetailPage : Page
             still.Children.Add(new Border
             {
                 CornerRadius = new CornerRadius(6), Background = Ui.Ink, Padding = new Thickness(9, 3), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 10, 0, 0),
-                Child = new TextBlock { Text = EpisodeTiles.UpNext, FontSize = 11, FontWeight = FontWeight.ExtraBold, Foreground = Ui.Brush("#0B0B0C") }
+                Child = new TextBlock { Text = EpisodeTiles.UpNext, FontSize = 11, FontWeight = FontWeight.ExtraBold, Foreground = Ui.Brush("#0B0B0B") }
             });
             still.Children.Add(new Border { BorderBrush = Ui.Ink, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false });
         }

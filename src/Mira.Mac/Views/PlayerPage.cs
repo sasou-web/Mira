@@ -191,7 +191,7 @@ public sealed partial class PlayerPage : UserControl
         _groupPill = new Border
         {
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(120, 76 + shell.TitleBarInset, 120, 0),
-            Padding = new Thickness(13, 8, 16, 8), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#E0151517"), BorderBrush = Ui.Brush("#30FFFFFF"), BorderThickness = new Thickness(1),
+            Padding = new Thickness(13, 8, 16, 8), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#E0161616"), BorderBrush = Ui.Brush("#30FFFFFF"), BorderThickness = new Thickness(1),
             IsHitTestVisible = false, IsVisible = false, Opacity = 0, Child = Ui.Row(9, new Icon("users", 16) { VerticalAlignment = VerticalAlignment.Center }, _groupText),
             Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) }]
         };

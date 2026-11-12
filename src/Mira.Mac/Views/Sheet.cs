@@ -27,7 +27,7 @@ public sealed class Sheet : Grid
     /// <param name="width">The card's own width, as on Windows: 600, 660 for « Identifier… », 560 for a collection.</param>
     public Sheet(string kicker, string icon, string title, string? lead = null, double width = 600, double titleSize = 32)
     {
-        Background = Ui.Brush("#F4080808");
+        Background = Ui.Brush("#F4000000");
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new Icon(icon, 16) { Foreground = Ui.TextTertiary }, new TextBlock { Text = kicker, FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextTertiary, LetterSpacing = 0.4, VerticalAlignment = VerticalAlignment.Center } } };
         var heading = Ui.Heading(title, titleSize, 1);
@@ -39,7 +39,7 @@ public sealed class Sheet : Grid
     /// <summary>A sheet whose card is <paramref name="content"/> alone, edge to edge (« Nouveautés »: its own head, list and foot).</summary>
     public Sheet(Control content, double width)
     {
-        Background = Ui.Brush("#F4080808");
+        Background = Ui.Brush("#F4000000");
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         Place(content, width, new Thickness(0));
     }

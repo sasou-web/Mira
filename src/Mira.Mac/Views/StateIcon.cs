@@ -19,7 +19,7 @@ public sealed class StateIcon : Control
     public IBrush? Foreground { get => GetValue(ForegroundProperty); set => SetValue(ForegroundProperty, value); }
     static StateIcon() => AffectsRender<StateIcon>(ForegroundProperty);
     /// <summary>Lecture's dark ink, for the marks cut in a solid glyph.</summary>
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B0B0C"));
+    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B0B0B"));
     private static readonly Dictionary<string, (Geometry Off, Geometry Solid, Geometry? Lines, Geometry? Marks, Geometry? Ring)> Shapes =
         IconPaths.States.ToDictionary(x => x.Key, x => (Geometry.Parse(x.Value.Off), Geometry.Parse(x.Value.Solid), Optional(x.Value.Lines), Optional(x.Value.Marks),
             x.Value.Off.StartsWith(IconPaths.Ring, StringComparison.Ordinal) ? Geometry.Parse(IconPaths.Ring) : null));

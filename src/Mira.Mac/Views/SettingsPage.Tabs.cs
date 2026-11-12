@@ -163,7 +163,7 @@ public sealed partial class SettingsPage
         _window.Margin = new Thickness(44, Math.Max(52, shell.TitleBarInset + 22), 44, 36);
 
         // —— Behind it: the app as it was, blurred and dimmed; a click there closes the window ——
-        var scrim = new Border { Background = Ui.Brush(shell.SheetBackdrop is null ? "#F2080808" : "#80080808") };
+        var scrim = new Border { Background = Ui.Brush(shell.SheetBackdrop is null ? "#F2000000" : "#80000000") };
         var pressed = false;
         scrim.PointerPressed += (_, e) => { pressed = true; e.Handled = true; };
         scrim.PointerReleased += (_, e) => { if (!pressed) return; pressed = false; e.Handled = true; shell.CloseSettingsWindow(); };
@@ -217,7 +217,7 @@ public sealed partial class SettingsPage
     private static Border Keycap(string text) => new()
     {
         MinWidth = 26, Height = 24, Padding = new Thickness(7, 0), CornerRadius = new CornerRadius(6), VerticalAlignment = VerticalAlignment.Center,
-        Background = Ui.Raised, BorderBrush = Ui.Brush("#34343A"), BorderThickness = new Thickness(1),
+        Background = Ui.Raised, BorderBrush = Ui.Brush("#363636"), BorderThickness = new Thickness(1),
         Child = new TextBlock { Text = text, FontSize = 11.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
     };
     /// <summary>Réglages | Aide: the side shown, its switch lit.</summary>

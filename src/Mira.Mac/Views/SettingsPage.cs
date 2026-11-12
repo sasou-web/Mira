@@ -173,7 +173,7 @@ public sealed partial class SettingsPage : Page
     {
         var (size, path) = PhoneLink.Qr(link);
         var module = Math.Max(3, Math.Round(136.0 / size));
-        var code = new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse(path), Fill = Ui.Brush("#070708"), Stretch = Stretch.Uniform, Width = module * size, Height = module * size };
+        var code = new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse(path), Fill = Ui.Brush("#000000"), Stretch = Stretch.Uniform, Width = module * size, Height = module * size };
         RenderOptions.SetEdgeMode(code, EdgeMode.Aliased);
         var qr = new Border { Background = Ui.Ink, CornerRadius = new CornerRadius(10), Padding = new Thickness(10), Margin = new Thickness(0, 0, 20, 0), VerticalAlignment = VerticalAlignment.Top, Child = code };
         Avalonia.Automation.AutomationProperties.SetName(qr, L("QR code à scanner avec l’iPhone", "QR code to scan with the iPhone"));
@@ -450,7 +450,7 @@ public sealed partial class SettingsPage : Page
     {
         var picture = new Avalonia.Controls.Shapes.Ellipse { Width = 64, Height = 64 };
         var letter = new TextBlock { Text = Shell.Session?.Connection.UserName is { Length: > 0 } name ? name[..1].ToUpperInvariant() : "?", FontSize = 24, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        var face = new Grid { Width = 64, Height = 64, Margin = new Thickness(0, 0, 18, 0), VerticalAlignment = VerticalAlignment.Top, Children = { new Border { CornerRadius = new CornerRadius(32), Background = Ui.Brush("#3D3D43") }, letter, picture } };
+        var face = new Grid { Width = 64, Height = 64, Margin = new Thickness(0, 0, 18, 0), VerticalAlignment = VerticalAlignment.Top, Children = { new Border { CornerRadius = new CornerRadius(32), Background = Ui.Brush("#3F3F3F") }, letter, picture } };
         var status = new TextBlock { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, IsVisible = false };
         Button? choose = null, remove = null;
         async Task Run(Func<Task<string?>> change)

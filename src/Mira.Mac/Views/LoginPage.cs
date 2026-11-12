@@ -79,12 +79,12 @@ public sealed class LoginPage : UserControl
         form.Width = 420;
         Content = new Grid
         {
-            Background = new RadialGradientBrush { Center = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), GradientOrigin = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), RadiusX = new RelativeScalar(0.9, RelativeUnit.Relative), RadiusY = new RelativeScalar(0.9, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#1A1D22"), 0), new GradientStop(Color.Parse("#070708"), 1) } },
+            Background = new RadialGradientBrush { Center = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), GradientOrigin = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), RadiusX = new RelativeScalar(0.9, RelativeUnit.Relative), RadiusY = new RelativeScalar(0.9, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#1C1C1C"), 0), new GradientStop(Color.Parse("#000000"), 1) } },
             Children =
             {
                 new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(38, 40 + _shell.TitleBarInset, 0, 0), IsHitTestVisible = false,
                     Children = { new Icon("brand", 31) { Foreground = Ui.Ink }, new TextBlock { Text = "mira", FontSize = 25, FontWeight = FontWeight.ExtraBold, VerticalAlignment = VerticalAlignment.Center } } },
-                new Border { Child = form, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(40), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#C00E0E10"), BorderBrush = Ui.Brush("#1F1F23"), BorderThickness = new Thickness(1) } }
+                new Border { Child = form, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(40), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#C00F0F0F"), BorderBrush = Ui.Brush("#202020"), BorderThickness = new Thickness(1) } }
         };
         AttachedToVisualTree += (_, _) =>
         {

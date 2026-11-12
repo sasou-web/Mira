@@ -36,7 +36,7 @@ public sealed partial class MainWindow
     {
         MacTrackpad.Refresh();
         CardGrid.Zoom = double.IsFinite(Settings.GridZoom) && Settings.GridZoom > 0 ? Math.Clamp(Settings.GridZoom, Trackpad.ZoomMin, Trackpad.ZoomMax) : 1;
-        _slideSheet.Children.Add(new Border { Background = Ui.Brush("#070708") });
+        _slideSheet.Children.Add(new Border { Background = Ui.Brush("#000000") });
         // The shadow the page on top casts on the one under it, at its left edge.
         _slideSheet.Children.Add(new Border
         {

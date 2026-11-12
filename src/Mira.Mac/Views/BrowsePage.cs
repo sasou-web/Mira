@@ -64,7 +64,7 @@ public sealed class BrowsePage : Page
     /// <summary>Films and Séries: their genres as chips (the same choice as Genre), and on top the title to pick up, as on Windows.</summary>
     private readonly StackPanel _genreChips = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly ScrollViewer _genreRow;
-    private readonly Border _pickUp = new() { IsVisible = false, Height = 210, CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 0, 0, 34), Background = Ui.Brush("#111112"), ClipToBounds = true };
+    private readonly Border _pickUp = new() { IsVisible = false, Height = 210, CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 0, 0, 34), Background = Ui.Brush("#111111"), ClipToBounds = true };
     private MediaItem? _pickUpItem;
     private readonly DispatcherTimer _typing = new() { Interval = TimeSpan.FromMilliseconds(320) };
     private readonly List<MediaItem> _items = [];
@@ -149,7 +149,7 @@ public sealed class BrowsePage : Page
         // a click elsewhere, Escape or another page folds it. No slide: it is there at once.
         _filters = new Border
         {
-            IsVisible = false, Width = 560, Background = Ui.Brush("#111112"), BorderBrush = Ui.Brush("#3A3A3E"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
+            IsVisible = false, Width = 560, Background = Ui.Brush("#111111"), BorderBrush = Ui.Brush("#3B3B3B"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
             Padding = new Thickness(18, 16, 18, 10), Child = Ui.Column(0, fields, footer),
             BoxShadow = BoxShadows.Parse("0 14 44 0 #9E000000")
         };
@@ -403,7 +403,7 @@ public sealed class BrowsePage : Page
         _pickUpItem = item;
         var image = new Image { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top };
         var gradient = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative) };
-        gradient.GradientStops.Add(new GradientStop(Color.Parse("#F2070708"), 0)); gradient.GradientStops.Add(new GradientStop(Color.Parse("#A6070708"), 0.45)); gradient.GradientStops.Add(new GradientStop(Color.Parse("#14070708"), 1));
+        gradient.GradientStops.Add(new GradientStop(Color.Parse("#F2000000"), 0)); gradient.GradientStops.Add(new GradientStop(Color.Parse("#A6000000"), 0.45)); gradient.GradientStops.Add(new GradientStop(Color.Parse("#14000000"), 1));
         var shade = new Border { Background = gradient };
         var resume = item.Progress > 0;
         var actions = Ui.Row(12, Ui.Action(resume ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", "primary", () => _ = Shell.PlayAsync(item)),
