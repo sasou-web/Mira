@@ -25,8 +25,8 @@ public partial class MainWindow
     private void InitializeSmoothness()
     {
         // Pictures while they come and go (Motion.Page). The library's background, the window's under it until now, makes
-        // its picture opaque: its text keeps ClearType in it.
-        foreach (var page in new FrameworkElement[] { LibraryScroll, DetailOverlay, TorLinkOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, PartyOverlay }) Motion.SetPage(page, true);
+        // its picture opaque: its text keeps ClearType in it. Réglages and Aide keep their window alone as one (RiseSheet).
+        foreach (var page in new FrameworkElement[] { LibraryScroll, DetailOverlay, TorLinkOverlay, LoginOverlay, PartyOverlay }) Motion.SetPage(page, true);
         _libraryCovers = [TorLinkOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, PartyOverlay, StartupVeil];
         var opacity = DependencyPropertyDescriptor.FromProperty(OpacityProperty, typeof(UIElement));
         foreach (var cover in _libraryCovers) { cover.IsVisibleChanged += (_, _) => UpdateLibraryCover(); opacity.AddValueChanged(cover, (_, _) => UpdateLibraryCover()); }
@@ -63,6 +63,7 @@ public partial class MainWindow
     /// </summary>
     private void UpdateLibraryCover()
     {
+        UpdateSheetCover();
         var covered = false;
         foreach (var cover in _libraryCovers) if (cover.IsVisible && cover.Opacity >= .995) { covered = true; break; }
         if (covered == _libraryCovered) return;

@@ -55,6 +55,28 @@ internal static class AccessibilityTests
             Assert(faults.Count == 0, "Text under 4.5:1 on Mira's backgrounds: " + string.Join(", ", faults));
             return Task.CompletedTask;
         });
+        await test("Réglages en fenêtre : la recherche trouve sans casse ni accents, l’app derrière devient une image douce et sombre", () =>
+        {
+            Assert(SheetWindow.Matches("Langue des sous-titres préférée", "SOUS-TITRES") && SheetWindow.Matches("Réglages avancés", "reglage avance"), "Case and accents");
+            Assert(SheetWindow.Matches("Taille et style des sous-titres", "style taille") && !SheetWindow.Matches("Taille des sous-titres", "taille couleur"), "Every word, in any order");
+            Assert(SheetWindow.Matches("Reprendre là où tu t’étais arrêté", "t'étais") && SheetWindow.Matches("Œuvres", "oeuvre"), "Apostrophes and ligatures");
+            Assert(SheetWindow.Matches("Lecture", "  ") && !SheetWindow.Matches("Lecture", "audio"), "Empty and missed searches");
+            // A white dot in the dark spreads into its neighbours and stays as bright in all, a little dimmer than it was.
+            const int size = 15;
+            var pixels = new byte[size * size * 4];
+            var middle = (7 * size + 7) * 4; pixels[middle] = pixels[middle + 1] = pixels[middle + 2] = pixels[middle + 3] = 255;
+            SheetWindow.Soften(pixels, size, size);
+            var total = 0;
+            for (var i = 0; i < pixels.Length; i += 4) { total += pixels[i]; Assert(pixels[i + 3] == 255, "The picture is opaque"); }
+            Assert(pixels[middle] > 0 && pixels[middle] < 40 && pixels[(7 * size + 9) * 4] > 0, $"The dot is blurred: {pixels[middle]}");
+            Assert(Math.Abs(total - 255 * .62) < 40, $"The light is kept, dimmed: {total}");
+            // A red picture keeps its colour, a little less of it.
+            var red = new byte[4 * 4 * 4];
+            for (var i = 0; i < red.Length; i += 4) { red[i + 2] = 200; red[i + 3] = 255; }
+            SheetWindow.Soften(red, 4, 4);
+            Assert(red[2] > red[1] + 60 && red[2] < 200 && red[1] > 0, $"Colour: {red[2]}, {red[1]}");
+            return Task.CompletedTask;
+        });
         await test("Lisibilité : un message reste le temps d’être lu, la taille du texte de Windows agrandit les pages", () =>
         {
             Assert(Legibility.NoticeDuration("Ajouté.") == TimeSpan.FromSeconds(6), "Short message");

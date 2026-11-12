@@ -16,7 +16,7 @@ namespace Mira.Desktop;
 
 public partial class MainWindow
 {
-    private async Task CloseSettingsAnimatedAsync() { AutoSaveSettings(); await Motion.HideAsync(SettingsOverlay); UpdateNavigation(); UpdateHeroClock(); GiveFocusBack(ref _settingsOrigin); }
+    private async Task CloseSettingsAnimatedAsync() { AutoSaveSettings(); await HideSheetAsync(SettingsOverlay, SettingsSheet); ForgetBackdrop(); UpdateNavigation(); UpdateHeroClock(); GiveFocusBack(ref _settingsOrigin); }
     /// <summary>What had the keyboard focus when a page opened (settings, guide, collections): it gets it back on closing.</summary>
     private IInputElement? _settingsOrigin, _guideOrigin, _collectionOrigin;
     private static void RememberFocus(ref IInputElement? origin, UIElement page) { if (page.Visibility != Visibility.Visible) origin = Keyboard.FocusedElement; }
@@ -98,8 +98,10 @@ public partial class MainWindow
     {
         // Opened again from a notice while the page is open, it refills from the saved settings: what was changed is kept first.
         AutoSaveSettings();
-        RememberFocus(ref _settingsOrigin, SettingsOverlay);
-        ClosePreview(); ++_detailVersion; _returnToDetail = null;
+        // From Aide, the same window turned over: what had the keyboard before it gets it back.
+        if (Shown(GuideOverlay)) { _settingsOrigin = _guideOrigin; _guideOrigin = null; } else RememberFocus(ref _settingsOrigin, SettingsOverlay);
+        // A title's page stays under the window, as it was.
+        ClosePreview();
         _settingsBusy = true;
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; StillWatchingCheck.IsChecked = _settings.StillWatching; TrailerFirstCheck.IsChecked = _settings.TrailerFirst; HideSpoilersCheck.IsChecked = _settings.HideSpoilers; AutoSkipCheck.IsChecked = _settings.AutoSkip;
         SelectChoice(ResumeBackChoice, ResumeShown());
@@ -124,7 +126,7 @@ public partial class MainWindow
         _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync();
         DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _ = ShowPhotoAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowOfflineSettings();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
-        Motion.Reveal(SettingsOverlay, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
+        SettingsSearchBox.Clear(); ShowSheet(SettingsOverlay); UpdateHeroClock();
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
         SelectSettingsTab("playback", animate: false); UpdateNavigation();
         SettingsSaveStatus.Text = SettingsApplyAtOnce;
@@ -136,7 +138,12 @@ public partial class MainWindow
         : (PlaybackSession.ResumeBackChoices.Contains(_settings.ResumeBack) ? _settings.ResumeBack : 5).ToString(CultureInfo.InvariantCulture);
     private static string SettingsApplyAtOnce => L("Chaque changement s’applique et s’enregistre tout de suite.", "Each change applies and is saved at once.");
     private static void SelectChoice(ComboBox box, string value) => box.SelectedItem = box.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == value) ?? box.Items.OfType<ComboBoxItem>().Last();
-    private void SettingsTab_Click(object sender, RoutedEventArgs e) => SelectSettingsTab((string)((Button)sender).Tag);
+    private void SettingsTab_Click(object sender, RoutedEventArgs e)
+    {
+        // During a search, a section of the list ends it there.
+        if (_settingsSearching) { _settingsTab = (string)((Button)sender).Tag; SettingsSearchBox.Clear(); return; }
+        SelectSettingsTab((string)((Button)sender).Tag);
+    }
     /// <summary>
     /// « Amis & invités » and « Entretien » hold only what an administrator sees: listed while one of their rows shows,
     /// and said empty otherwise. Each row's visibility, set as Jellyfin answers, draws them again.
@@ -163,24 +170,20 @@ public partial class MainWindow
     /// <summary>A section's lines at most 940 wide, beside its list: a description across a whole screen is hard to follow.</summary>
     private void SettingsScroll_SizeChanged(object sender, SizeChangedEventArgs e) => SettingsPage.Width = Math.Max(0, Math.Min(940, e.NewSize.Width - 8));
     private bool _settingsNavDrawn;
-    /// <summary>Each section of the list with its icon, read by its text (Accessible.ContentName).</summary>
+    /// <summary>Each section of the list with its icon, read by its text (<see cref="DrawSheetNav"/>).</summary>
     private void DrawSettingsNavigation()
     {
         if (_settingsNavDrawn) return; _settingsNavDrawn = true;
         foreach (var button in SettingsNavigation.Children.OfType<Button>())
-        {
-            if (button.Content is not string label) continue;
-            var icon = button.Tag?.ToString() switch { "subtitles" => "subtitles", "appearance" => "sparkle", "server" => "server", "sharing" => "users", "care" => "sliders", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", _ => "play" };
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            row.Children.Add(new Icon { Kind = icon, Width = 19, Height = 19, Margin = new Thickness(0, 0, 13, 0) });
-            row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-            button.Content = row; System.Windows.Automation.AutomationProperties.SetName(button, label);
-        }
+            DrawSheetNav(button, button.Tag?.ToString() switch { "subtitles" => "subtitles", "appearance" => "sparkle", "server" => "server", "sharing" => "users", "care" => "sliders", "report" => "clock", "torlink" => "download", "updates" => "laptop", "privacy" => "shield", _ => "play" });
     }
     /// <param name="animate">False as Réglages opens: the page comes as one, its section with it.</param>
     private void SelectSettingsTab(string tab, bool animate = true)
     {
         DrawSettingsNavigation();
+        // Asked for a section while a search shows: the search ends there.
+        if (_settingsSearching) { _settingsTab = tab; SettingsSearchBox.Clear(); return; }
+        _settingsTab = tab;
         PlaybackSettings.Visibility = tab == "playback" ? Visibility.Visible : Visibility.Collapsed;
         SubtitleSettings.Visibility = tab == "subtitles" ? Visibility.Visible : Visibility.Collapsed;
         AppearanceSettings.Visibility = tab == "appearance" ? Visibility.Visible : Visibility.Collapsed;
@@ -205,7 +208,7 @@ public partial class MainWindow
             "report" => L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices."),
             _ => L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")
         };
-        foreach (var button in SettingsNavigation.Children.OfType<Button>()) { var active = button.Tag?.ToString() == tab; button.Background = active ? Palette.Get("Text") : Brushes.Transparent; button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextBody"); }
+        LightSheetNav(SettingsNavigation, tab);
         SettingsScroll.ScrollToTop();
         var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "sharing" => SharingSettings, "care" => CareSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "privacy" => PrivacySettings, "report" => ReportSettings, _ => PlaybackSettings };
         SmoothScroll.Jump(SettingsScroll); if (animate) Motion.Reveal(body, 230, 7);

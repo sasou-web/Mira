@@ -44,7 +44,7 @@ public partial class MainWindow
         var row = new DockPanel();
         if (PrivacyControlFor(connection) is { } control) { DockPanel.SetDock(control, Dock.Right); row.Children.Add(control); }
         row.Children.Add(text);
-        return new Border { Style = (Style)FindResource("SettingRow"), Child = row };
+        return new Border { Style = (Style)PrivacySettings.FindResource("SettingRow"), Child = row };
     }
 
     private TextBlock Fact(string label, string value)

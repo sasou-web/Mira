@@ -106,6 +106,10 @@ public static class IconPaths
         ["sparkle"] = "M12 3Q12.9 10.2 20 12Q12.9 13.8 12 21Q11.1 13.8 4 12Q11.1 10.2 12 3Z M19 3V6M17.5 4.5H20.5",
         ["globe"] = "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M3.5 12H20.5 M12 3Q8 7 8 12Q8 17 12 21 M12 3Q16 7 16 12Q16 17 12 21",
         // Réglages → Confidentialité: a shield with its check.
-        ["shield"] = "M12 3L18.6 5.5Q19.5 5.8 19.5 6.8V11.5Q19.5 17.5 12 21Q4.5 17.5 4.5 11.5V6.8Q4.5 5.8 5.4 5.5Z M8.8 12.2L11 14.4L15.3 10"
+        ["shield"] = "M12 3L18.6 5.5Q19.5 5.8 19.5 6.8V11.5Q19.5 17.5 12 21Q4.5 17.5 4.5 11.5V6.8Q4.5 5.8 5.4 5.5Z M8.8 12.2L11 14.4L15.3 10",
+        // Aide's subjects and links (MainWindow.Sheet): keys, a screen on its foot, a page that opens elsewhere.
+        ["keyboard"] = "M6 6H18Q21 6 21 9V15Q21 18 18 18H6Q3 18 3 15V9Q3 6 6 6Z M7 10H7.1 M10.5 10H10.6 M14 10H14.1 M17 10H17.1 M8 14.2H16",
+        ["tv"] = "M5.5 4.5H18.5Q21.5 4.5 21.5 7.5V14.5Q21.5 17.5 18.5 17.5H5.5Q2.5 17.5 2.5 14.5V7.5Q2.5 4.5 5.5 4.5Z M8 21H16 M12 17.5V21",
+        ["external"] = "M10 5H7Q4 5 4 8V17Q4 20 7 20H16Q19 20 19 17V14 M14 4H20V10 M20 4L11.5 12.5"
     };
 }
