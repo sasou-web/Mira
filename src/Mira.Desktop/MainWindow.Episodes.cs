@@ -62,11 +62,12 @@ public partial class MainWindow
     private async Task NotifyAsync(JellyfinClient client, NewEpisodes.Notice notice)
     {
         string? image = null;
-        if (notice.Episode.ImageTags.ContainsKey("Primary"))
+        // « Cacher les spoilers »: the series' art, never the new episode's still (NewEpisodes.Picture).
+        if (NewEpisodes.Picture(notice.Episode) is { } picture)
         {
             try
             {
-                var bytes = await client.ImageAsync(notice.Episode.Id, "Primary", 728, _connectionLifetime.Token);
+                var bytes = await client.ImageAsync(picture.ItemId, picture.Type, 728, _connectionLifetime.Token);
                 Directory.CreateDirectory(NoticeImages);
                 var path = Path.Combine(NoticeImages, notice.Episode.Id + ".jpg");
                 await File.WriteAllBytesAsync(path, bytes);

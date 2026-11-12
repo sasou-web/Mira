@@ -155,7 +155,7 @@ public partial class MainWindow
     private async Task LoadDetailBackdropAsync(MediaItem item, int version)
     {
         if (_images is not { } cache) return;
-        var bitmap = await cache.GetAsync(item, true);
+        var bitmap = await cache.PageBackdropAsync(item);
         if (version != _detailVersion || bitmap is null) return;
         SetDetailBackdrop(bitmap, animate: true);
     }

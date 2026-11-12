@@ -218,7 +218,7 @@ public sealed class DetailPage : Page
     }
     private async Task LoadArtAsync(Session session)
     {
-        var art = await session.Images.BackdropAsync(_item, 1920);
+        var art = await session.Images.BackdropAsync(_item, 1920, ownPage: true);
         if (art is not null) { _backdrop.Source = art; _backdrop.Opacity = 1; }
         if (await session.Images.LogoAsync(_item) is not { } logo) return;
         _logo = logo;

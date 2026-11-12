@@ -30,7 +30,8 @@ public sealed class Images
     public Task<Bitmap?> PosterAsync(MediaItem item, int width = 360) => item.Type == "Episode" && item.SeriesId is not null
         ? Get(new ImageRef(item.SeriesId, "Primary", item.SeriesPrimaryImageTag ?? ""), width)
         : Get(new ImageRef(item.Id, "Primary", item.ImageTags.GetValueOrDefault("Primary") ?? ""), width);
-    public Task<Bitmap?> BackdropAsync(MediaItem item, int width = 1920) => Get(Artwork.Backdrop(item), width);
+    /// <summary>A banner's or a title page's backdrop; <paramref name="ownPage"/>: an episode opened on purpose shows everything (see Artwork.Backdrop).</summary>
+    public Task<Bitmap?> BackdropAsync(MediaItem item, int width = 1920, bool ownPage = false) => Get(Artwork.Backdrop(item, ownPage), width);
     /// <summary>A wide card: for an episode, art of its season or of the episode itself before the series' (see Artwork.Landscape).</summary>
     public Task<Bitmap?> LandscapeAsync(MediaItem item, int width = 560) => Get(Artwork.Landscape(item), width);
     public Task<Bitmap?> EpisodeAsync(MediaItem item, int width = 400)
