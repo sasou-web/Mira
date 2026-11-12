@@ -12,6 +12,8 @@ struct NewEpisodesTests {
         struct Case: Decodable {
             struct Notice: Decodable { var seriesId: String; var title: String; var episode: String; var count: Int }
             var seen: String
+            /// The episodes the last look listed, when the case gives them.
+            var known: [String]?
             var notices: [Notice]
             var more: String?
         }
@@ -33,8 +35,8 @@ struct NewEpisodesTests {
         #expect(NewEpisodes.newest(fixture.episodes, seen: nil) == NewEpisodes.date(fixture.newest))
         for entry in fixture.cases {
             let seen = try #require(NewEpisodes.date(entry.seen))
-            let pick = NewEpisodes.pick(fixture.episodes, series: series, seen: seen)
-            #expect(pick.notices.map(\.seriesId) == entry.notices.map(\.seriesId), "\(entry.seen)")
+            let pick = NewEpisodes.pick(fixture.episodes, series: series, seen: seen, known: entry.known)
+            #expect(pick.notices.map(\.seriesId) == entry.notices.map(\.seriesId), "\(entry.seen) \(entry.known ?? [])")
             #expect(pick.notices.map(\.title) == entry.notices.map(\.title))
             #expect(pick.notices.map(\.episode.id) == entry.notices.map(\.episode))
             #expect(pick.notices.map(\.count) == entry.notices.map(\.count))

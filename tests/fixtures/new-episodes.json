@@ -1,5 +1,5 @@
 {
-  "about": "« Nouvel épisode »: the episodes added since the mark, of the series followed (started or favourite). Read by tests/Mira.Core.Tests (NewEpisodes, Windows notifications) and tools/web/unit (new-episodes.js, Mira web's notice): both must agree. episodes and series: as Jellyfin 12.1 answers (cut down); cases: a mark (seen, ISO) and what comes of it; texts: episodes and their line.",
+  "about": "« Nouvel épisode »: the episodes added since the mark, of the series followed (started or favourite). Read by tests/Mira.Core.Tests (NewEpisodes, Windows notifications) and tools/web/unit (new-episodes.js, Mira web's notice): both must agree. episodes and series: as Jellyfin 12.1 answers (cut down); cases: a mark (seen, ISO), the episodes the last look listed (known, when given) and what comes of it; texts: episodes and their line.",
   "episodes": [
     { "Id": "a1", "Name": "Courte Anime S01E01", "Type": "Episode", "SeriesId": "anime", "SeriesName": "Courte Anime", "DateCreated": "2026-10-14T14:07:20.2982336Z", "ParentIndexNumber": 1, "IndexNumber": 1, "UserData": { "Played": false } },
     { "Id": "h2", "Name": "Courte HLS S01E02", "Type": "Episode", "SeriesId": "hls", "SeriesName": "Courte HLS", "DateCreated": "2026-10-14T14:07:17.7782335Z", "ParentIndexNumber": 1, "IndexNumber": 2, "UserData": { "Played": false } },
@@ -32,7 +32,28 @@
         { "seriesId": "web", "title": "Courte Web", "text": "3 nouveaux épisodes : S1 É2 à É4", "episode": "w2", "count": 3 }
       ],
       "more": null
-    }
+    },
+    {
+      "about": "known: the episodes the last look listed (watched or not, up to a week before its mark). w3 was not there: it came since, its file dated before the newest one (Jellyfin dates an episode by its file).",
+      "seen": "2026-10-14T14:07:20.2982336Z",
+      "known": ["a1", "h2", "w4", "w5", "w2"],
+      "notices": [
+        { "seriesId": "web", "title": "Courte Web", "text": "Nouvel épisode : S1 É3 · Le départ", "episode": "w3", "count": 1 }
+      ],
+      "more": null
+    },
+    { "seen": "2026-10-14T14:07:20.2982336Z", "known": ["a1", "h2", "w4", "w3", "w5", "w2"], "notices": [], "more": null },
+    {
+      "about": "None there at the last look, all dated within a week before its mark: all news.",
+      "seen": "2026-10-20T12:00:00Z",
+      "known": [],
+      "notices": [
+        { "seriesId": "anime", "title": "Courte Anime", "text": "Nouvel épisode : S1 É1 · Courte Anime S01E01", "episode": "a1", "count": 1 },
+        { "seriesId": "web", "title": "Courte Web", "text": "3 nouveaux épisodes : S1 É2 à É4", "episode": "w2", "count": 3 }
+      ],
+      "more": null
+    },
+    { "about": "Dated over a week before the mark: never news.", "seen": "2026-10-22T00:00:00Z", "known": [], "notices": [], "more": null }
   ],
   "many": { "series": 5, "notices": ["s4", "s3", "s2"], "more": "Et 2 autres séries que tu suis ont de nouveaux épisodes." },
   "four": { "more": "Et une autre série que tu suis a un nouvel épisode." },

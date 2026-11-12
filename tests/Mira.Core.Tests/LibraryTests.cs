@@ -1244,8 +1244,9 @@ internal static class LibraryTests
                 var body = path.Contains("includeItemTypes=Episode", StringComparison.Ordinal) ? episodes : path.Contains("ids=", StringComparison.Ordinal) ? series : null;
                 return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
             }));
-            var (recent, shows) = await client.RecentEpisodesAsync();
-            Assert(asked.Count == 2 && asked[0].Contains("isPlayed=false", StringComparison.Ordinal) && asked[0].Contains("sortBy=DateCreated&sortOrder=Descending", StringComparison.Ordinal) && asked[0].Contains("fields=DateCreated", StringComparison.Ordinal)
+            var (recent, shows, _) = await client.RecentEpisodesAsync();
+            // Watched ones too: the next look must know every episode there (NewEpisodes.Known).
+            Assert(asked.Count == 2 && !asked[0].Contains("isPlayed", StringComparison.Ordinal) && asked[0].Contains("sortBy=DateCreated&sortOrder=Descending", StringComparison.Ordinal) && asked[0].Contains("fields=DateCreated", StringComparison.Ordinal)
                 && asked[1].Contains("ids=anime,hls,web", StringComparison.Ordinal) && asked[1].Contains("fields=RecursiveItemCount", StringComparison.Ordinal), string.Join(" | ", asked));
             Assert(NewEpisodes.Newest(recent, null) == DateTimeOffset.Parse("2026-10-14T14:07:20.2982336Z", System.Globalization.CultureInfo.InvariantCulture), "Newest");
             var seen = DateTimeOffset.Parse("2026-10-14T14:07:16Z", System.Globalization.CultureInfo.InvariantCulture);
@@ -1260,51 +1261,80 @@ internal static class LibraryTests
             var picked = NewEpisodes.Pick(many, followed, seen);
             Assert(picked.Notices.Select(x => x.SeriesId).SequenceEqual(["s4", "s3", "s2"]) && picked.More == "Et 2 autres séries que tu suis ont de nouveaux épisodes.", $"{string.Join(",", picked.Notices.Select(x => x.SeriesId))} {picked.More}");
         });
-        await Test("Nouveaux épisodes : lus jusqu'à la marque, une saison entière d'une autre série ne cache plus l'épisode suivi", async () =>
+        await Test("Nouveaux épisodes : lus jusqu'à une semaine avant la marque, une saison entière d'une autre série ne cache plus l'épisode suivi", async () =>
         {
             // As Jellyfin 12.1 answered: an episode of a followed series came after the mark, then 260 of series nobody
-            // follows (two episodes each), copied at once; 39 older ones were already there. Only the 50 newest were
-            // read, the mark went past the followed one: never told.
+            // follows (two episodes each), copied at once; 300 older ones (over a week) were already there. Only the 50
+            // newest were read, the mark went past the followed one: never told.
             var mark = DateTimeOffset.Parse("2026-11-11T21:45:20.9827509Z", System.Globalization.CultureInfo.InvariantCulture);
             List<MediaItem> Library(int lot)
             {
                 var items = Enumerable.Range(0, lot).Select(i => new MediaItem { Id = $"l{i}", Type = "Episode", SeriesId = $"lot{i / 2}", Name = "x", ParentIndexNumber = 1, IndexNumber = i % 2 + 1, DateCreated = mark.AddSeconds(lot + 140 - i) }).ToList();
                 items.Add(new MediaItem { Id = "f1", Type = "Episode", SeriesId = "suivie", SeriesName = "Deux Temps", Name = "Le retour", ParentIndexNumber = 2, IndexNumber = 3, DateCreated = mark.AddSeconds(60) });
-                items.AddRange(Enumerable.Range(0, 39).Select(i => new MediaItem { Id = $"o{i}", Type = "Episode", SeriesId = $"old{i}", Name = "x", DateCreated = mark.AddMinutes(-1 - i) }));
+                items.AddRange(Enumerable.Range(0, 300).Select(i => new MediaItem { Id = $"o{i}", Type = "Episode", SeriesId = $"old{i % 40}", Name = "x", DateCreated = mark.AddDays(-8).AddMinutes(-1 - i) }));
                 return items;
             }
             var library = Library(260);
-            var pages = new List<(int Start, int Limit)>(); var lookups = new List<string[]>();
+            var pages = new List<(int Start, int Limit)>(); var lookups = new List<string[]>(); var played = new List<string?>();
             using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
             {
                 var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
                 if (query["includeItemTypes"] == "Episode")
                 {
                     var (start, limit) = (int.Parse(query["startIndex"]!, System.Globalization.CultureInfo.InvariantCulture), int.Parse(query["limit"]!, System.Globalization.CultureInfo.InvariantCulture));
-                    pages.Add((start, limit));
+                    pages.Add((start, limit)); played.Add(query["isPlayed"]);
                     return Task.FromResult(JsonResponse(new { Items = library.Skip(start).Take(limit), TotalRecordCount = library.Count }));
                 }
                 var ids = query["ids"]!.Split(','); lookups.Add(ids);
                 return Task.FromResult(JsonResponse(new { Items = ids.Select(id => new { Id = id, Name = id == "suivie" ? "Deux Temps" : "Série " + id, Type = "Series", UserData = new { IsFavorite = id == "suivie", PlayedPercentage = 0 } }), TotalRecordCount = ids.Length }));
             }));
-            var (episodes, series) = await client.RecentEpisodesAsync(mark);
-            Assert(pages.SequenceEqual([(0, 50), (50, 200), (250, 200)]) && episodes.Count == 300, string.Join(" ", pages) + " " + episodes.Count);
-            // 170 series, a hundred a request: an address under Jellyfin's 8 KB (414 past about 245 ids, on 12.1).
-            Assert(lookups.Count == 2 && lookups.All(x => x.Length <= 100) && lookups.SelectMany(x => x).Distinct().Count() == 170 && series.Count == 170, string.Join(" ", lookups.Select(x => x.Length)));
+            var (episodes, series, whole) = await client.RecentEpisodesAsync(mark);
+            // Down to a week before the mark, watched episodes too (the next look must know them).
+            Assert(pages.SequenceEqual([(0, 50), (50, 200), (250, 200)]) && episodes.Count == 450 && whole && played.All(x => x is null), string.Join(" ", pages) + " " + episodes.Count);
+            // 171 series, a hundred a request: an address under Jellyfin's 8 KB (414 past about 245 ids, on 12.1).
+            Assert(lookups.Count == 2 && lookups.All(x => x.Length <= 100) && lookups.SelectMany(x => x).Distinct().Count() == 171 && series.Count == 171, string.Join(" ", lookups.Select(x => x.Length)));
             var (notices, more) = NewEpisodes.Pick(episodes, series, mark);
             Assert(notices.Count == 1 && more is null && notices[0] is { SeriesId: "suivie", Title: "Deux Temps", Text: "Nouvel épisode : S2 É3 · Le retour" }, string.Join(" | ", notices));
-            Assert(NewEpisodes.Newest(episodes, mark) == mark.AddSeconds(400), "Newest");
-            // The first look (no mark yet) and a look with nothing new: one page, as before.
+            var newest = NewEpisodes.Newest(episodes, mark);
+            Assert(newest == mark.AddSeconds(400), "Newest");
+            // What the next look knows: the 261 of the last week, not the 189 older ones listed.
+            var known = NewEpisodes.Known(episodes, newest!.Value);
+            Assert(known.Count == 261 && known.Contains("f1") && !known.Contains("o0"), "Known " + known.Count);
+            // The first look (no mark yet) goes down to a week before the newest episode too.
             pages.Clear();
-            var (first, _) = await client.RecentEpisodesAsync();
-            Assert(pages.SequenceEqual([(0, 50)]) && first.Count == 50, string.Join(" ", pages));
-            pages.Clear();
-            await client.RecentEpisodesAsync(mark.AddSeconds(400));
-            Assert(pages.SequenceEqual([(0, 50)]), string.Join(" ", pages));
-            // Mira closed for months: 2,000 at most.
+            var (first, _, firstWhole) = await client.RecentEpisodesAsync();
+            Assert(pages.SequenceEqual([(0, 50), (50, 200), (250, 200)]) && first.Count == 450 && firstWhole, string.Join(" ", pages));
+            // Mira closed for months: 2,000 at most, and not whole (the next look keeps to the mark alone).
             library = Library(3000); pages.Clear();
-            var (most, _) = await client.RecentEpisodesAsync(mark);
-            Assert(most.Count == JellyfinClient.MostRecentEpisodes && pages.Count == 11 && pages.All(x => x.Limit <= 200), $"{most.Count} in {pages.Count}");
+            var (most, _, mostWhole) = await client.RecentEpisodesAsync(mark);
+            Assert(most.Count == JellyfinClient.MostRecentEpisodes && !mostWhole && pages.Count == 11 && pages.All(x => x.Limit <= 200), $"{most.Count} in {pages.Count}");
+        });
+        await Test("Nouveaux épisodes : un épisode arrivé après la marque mais daté d'avant (fichier déplacé, téléchargement commencé plus tôt) est annoncé", () =>
+        {
+            // Jellyfin 12.1 dates an episode by its file (UseFileCreationTimeForDateAdded): checked in the container, an
+            // episode moved in after the last look, its file dated half an hour before the episode that look saw, went
+            // unannounced. On Windows the date is the file's creation: kept by a move on the same disk or a hard link,
+            // where TorLink and qBittorrent put their downloads.
+            var mark = DateTimeOffset.Parse("2026-11-12T02:57:19.8359336Z", System.Globalization.CultureInfo.InvariantCulture);
+            MediaItem Episode(string id, int number, DateTimeOffset date, bool played = false) =>
+                new() { Id = id, Type = "Episode", SeriesId = "suivie", SeriesName = "Courte Fin", Name = $"Courte Fin S01E0{number}", ParentIndexNumber = 1, IndexNumber = number, DateCreated = date, UserData = new() { Played = played } };
+            var series = new Dictionary<string, MediaItem> { ["suivie"] = new() { Id = "suivie", Type = "Series", Name = "Courte Fin", UserData = new() { IsFavorite = true } } };
+            // The last look: E01 watched, E02 and E03 there.
+            var before = new List<MediaItem> { Episode("e3", 3, mark), Episode("e2", 2, mark.AddDays(-2)), Episode("e1", 1, mark.AddDays(-3), played: true) };
+            var known = NewEpisodes.Known(before, mark);
+            Assert(known.Count == 3, "Known: watched ones too");
+            // Since: E04, its file half an hour older than E03; E05, ten days older (past a week: not news).
+            var now = before.Concat([Episode("e4", 4, mark.AddMinutes(-30)), Episode("e5", 5, mark.AddDays(-10))]).OrderByDescending(x => x.DateCreated).ToList();
+            var (notices, _) = NewEpisodes.Pick(now, series, mark, known);
+            Assert(notices.Count == 1 && notices[0] is { Text: "Nouvel épisode : S1 É4 · Courte Fin S01E04", Count: 1 }, string.Join(" | ", notices));
+            // Without the list of the last look (an older Mira, or a look stopped at 2,000), only the mark counts.
+            Assert(NewEpisodes.Pick(now, series, mark).Notices.Count == 0, "Mark alone");
+            // E01 marked unwatched again since: it was there, never news.
+            var unwatched = now.Select(x => x.Id == "e1" ? Episode("e1", 1, mark.AddDays(-3)) : x).ToList();
+            Assert(NewEpisodes.Pick(unwatched, series, mark, known).Notices.Single().Count == 1, "Marked unwatched");
+            Assert(NewEpisodes.Same(known, [.. known.AsEnumerable().Reverse()]) && !NewEpisodes.Same(known, null) && NewEpisodes.Same(null, null) && !NewEpisodes.Same(known, ["e3"]), "Same");
+            Assert(NewEpisodes.Floor(DateTimeOffset.MinValue) == DateTimeOffset.MinValue && NewEpisodes.Known(before, DateTimeOffset.MinValue).Count == 3, "MinValue");
+            return Task.CompletedTask;
         });
         await Test("Épisodes manquants et prochaines sorties : comme Mira web (tests/fixtures/calendar.json)", () =>
         {
@@ -1437,7 +1467,9 @@ internal static class LibraryTests
             Assert(series.Values.Select(NewEpisodes.Follows).SequenceEqual([true, false, true]), "Follows");
             foreach (var row in root.GetProperty("cases").EnumerateArray())
             {
-                var (notices, more) = NewEpisodes.Pick(episodes, series, Date(row.GetProperty("seen")));
+                // The episodes the last look listed, when the case gives them.
+                var known = row.TryGetProperty("known", out var listed) ? listed.EnumerateArray().Select(x => x.GetString()!).ToList() : null;
+                var (notices, more) = NewEpisodes.Pick(episodes, series, Date(row.GetProperty("seen")), known);
                 var got = string.Join(" | ", notices.Select(x => $"{x.SeriesId} {x.Title} {x.Text} {x.Episode.Id} {x.Count}"));
                 var wanted = string.Join(" | ", row.GetProperty("notices").EnumerateArray().Select(x =>
                     $"{x.GetProperty("seriesId").GetString()} {x.GetProperty("title").GetString()} {x.GetProperty("text").GetString()} {x.GetProperty("episode").GetString()} {x.GetProperty("count").GetInt32()}"));

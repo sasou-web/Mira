@@ -51,18 +51,23 @@ public sealed partial class MainWindow
         {
             // Read down to the mark: what came since, however much.
             var since = Settings.EpisodesSeenFor == account ? Settings.EpisodesSeenUntil : null;
-            var (episodes, series) = await client.RecentEpisodesAsync(since, session.Lifetime);
+            var (episodes, series, whole) = await client.RecentEpisodesAsync(since, session.Lifetime);
             if (!ReferenceEquals(session, Session) || _closing || InParty || !Settings.EpisodeNotices) return;
             var seen = Settings.EpisodesSeenFor == account ? Settings.EpisodesSeenUntil : null;
             if (Settings.EpisodesSeenFor == account && seen is { } mark)
             {
-                var (notices, more) = NewEpisodes.Pick(episodes, series, mark);
+                var (notices, more) = NewEpisodes.Pick(episodes, series, mark, Settings.EpisodesKnown);
                 foreach (var notice in notices) await NotifyAsync(session, notice);
                 if (more is not null) MacNotifications.Show(L("Nouveaux épisodes", "New episodes"), more, null, BringForward);
             }
             // A library without an episode to watch yet: the next one is news.
             var newest = NewEpisodes.Newest(episodes, seen) ?? DateTimeOffset.MinValue;
-            if (Settings.EpisodesSeenFor != account || newest != seen) { Settings.EpisodesSeenFor = account; Settings.EpisodesSeenUntil = newest; Profile.SaveSettings(Settings); }
+            // And what was there: an episode dated before the mark, but not among them, came since.
+            var known = whole ? NewEpisodes.Known(episodes, newest) : null;
+            if (Settings.EpisodesSeenFor != account || newest != seen || !NewEpisodes.Same(known, Settings.EpisodesKnown))
+            {
+                Settings.EpisodesSeenFor = account; Settings.EpisodesSeenUntil = newest; Settings.EpisodesKnown = known; Profile.SaveSettings(Settings);
+            }
             ForgetOldNoticeImages();
         }
         // A server that does not answer now is asked again at the next change or on the clock.
