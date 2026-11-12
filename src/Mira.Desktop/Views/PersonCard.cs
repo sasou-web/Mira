@@ -14,21 +14,25 @@ namespace Mira.Desktop.Views;
 public sealed class PersonCard : Button
 {
     public const double Size = 88;
+    /// <summary>On a title's page: one row of smaller photos after its episodes and facts.</summary>
+    public const double Small = 72;
     public MediaItem Person { get; }
-    private readonly Ellipse _photo = new() { Width = Size, Height = Size, Opacity = 0 };
-    private readonly Ellipse _ring = new() { Width = Size, Height = Size, StrokeThickness = 2, Opacity = 0, IsHitTestVisible = false };
-    public PersonCard(MediaItem person, string? role = null)
+    private readonly double _size;
+    private readonly Ellipse _photo, _ring;
+    public PersonCard(MediaItem person, string? role = null, double size = Size)
     {
-        Person = person;
+        Person = person; _size = size;
+        _photo = new() { Width = size, Height = size, Opacity = 0 };
+        _ring = new() { Width = size, Height = size, StrokeThickness = 2, Opacity = 0, IsHitTestVisible = false };
         Style = (Style)Application.Current.FindResource("Quiet");
         Background = Brushes.Transparent; Padding = new Thickness(0); BorderThickness = new Thickness(0);
-        Width = 112; Margin = new Thickness(0, 0, 18, 22); VerticalContentAlignment = VerticalAlignment.Top;
+        Width = size < Size ? 104 : 112; Margin = new Thickness(0, 0, 18, 22); VerticalContentAlignment = VerticalAlignment.Top;
         System.Windows.Automation.AutomationProperties.SetName(this, person.Name);
         ToolTip = L($"Les titres avec {person.Name} dans ta bibliothèque", $"Titles with {person.Name} in your library");
         _ring.Stroke = Palette.Get("Text");
-        var circle = new Grid { Width = Size, Height = Size, HorizontalAlignment = HorizontalAlignment.Center };
+        var circle = new Grid { Width = size, Height = size, HorizontalAlignment = HorizontalAlignment.Center };
         circle.Children.Add(new Ellipse { Fill = Palette.Get("Raised") });
-        circle.Children.Add(new TextBlock { Text = Catalog.Initials(person.Name), FontSize = 26, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        circle.Children.Add(new TextBlock { Text = Catalog.Initials(person.Name), FontSize = size * 26 / Size, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
         circle.Children.Add(_photo); circle.Children.Add(_ring);
         var root = new StackPanel();
         root.Children.Add(circle);
@@ -45,7 +49,7 @@ public sealed class PersonCard : Button
     public async Task LoadImageAsync(ImageCache images)
     {
         if (!Person.ImageTags.ContainsKey("Primary")) return;
-        var bitmap = await images.GetAsync(Person, false, images.Pixels(Size));
+        var bitmap = await images.GetAsync(Person, false, images.Pixels(_size));
         if (bitmap is null) return;
         _photo.Fill = new ImageBrush(bitmap) { Stretch = Stretch.UniformToFill };
         Motion.Fade(_photo, 1, 180, 0, Motion.Soft);

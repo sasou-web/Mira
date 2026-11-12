@@ -70,6 +70,8 @@ public partial class MainWindow
         RenderDetailText(item); EpisodesPanel.Children.Clear(); _calendar = ([], []); _calendarOpen = false; RenderCalendar();
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
         EpisodesHead.Visibility = EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
+        // The facts and the cast after a series' episodes, a little apart from them.
+        EpisodesPanel.Margin = new Thickness(0, 0, 0, item.Type == "Series" ? 30 : 0);
         if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
         Motion.Reveal(DetailOverlay, 300, 14); UpdateHeroClock();
         // Focus moves into the page: Enter plays, Tab stays inside, Escape goes back.
@@ -487,7 +489,7 @@ public partial class MainWindow
     }
     /// <summary>A green dot: on and live (a group, a series followed).</summary>
     private static System.Windows.Shapes.Ellipse LiveDot() => new() { Width = 8, Height = 8, Fill = Palette.Get("Success"), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-    /// <summary>The cast with their photos under the picture; each one their titles in the library.</summary>
+    /// <summary>The cast in one row of photos after the episodes and the facts; each one their titles in the library.</summary>
     private void ShowCast(MediaItem item)
     {
         // The same people drawn again (the page refreshed after « Vu ») keep their cards and photos.
@@ -495,10 +497,11 @@ public partial class MainWindow
         if (cast == _castShown && DetailCastCards.Children.Count > 0) return;
         _castShown = cast;
         DetailCastCards.Children.Clear();
+        SmoothScroll.Cancel(CastScroll); CastScroll.ScrollToHorizontalOffset(0);
         foreach (var person in item.CastPeople)
         {
             var photo = person.PrimaryImageTag is { } tag ? new Dictionary<string, string> { ["Primary"] = tag } : [];
-            var card = new PersonCard(new MediaItem { Id = person.Id ?? "", Name = person.Name, Type = "Person", ImageTags = photo }, person.Role);
+            var card = new PersonCard(new MediaItem { Id = person.Id ?? "", Name = person.Name, Type = "Person", ImageTags = photo }, person.Role, PersonCard.Small) { Margin = new Thickness(0, 0, 18, 4) };
             if (person.Id is { Length: > 0 }) card.Click += async (_, _) => await ShowPersonAsync(person, false);
             else { card.Focusable = false; card.IsHitTestVisible = false; }
             DetailCastCards.Children.Add(card);
@@ -506,6 +509,14 @@ public partial class MainWindow
         }
         DetailCastSection.Visibility = DetailCastCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+    /// <summary>The cast row's arrows only when it goes past the window, the one at an end dimmed (as « Continuer à regarder »).</summary>
+    private void CastScroll_Changed(object sender, ScrollChangedEventArgs e)
+    {
+        CastArrows.Visibility = CastScroll.ScrollableWidth > 1 ? Visibility.Visible : Visibility.Collapsed;
+        CastPreviousButton.IsEnabled = CastScroll.HorizontalOffset > 1; CastNextButton.IsEnabled = CastScroll.HorizontalOffset < CastScroll.ScrollableWidth - 1;
+    }
+    private void CastPrevious_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(CastScroll, -624, true);
+    private void CastNext_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(CastScroll, 624, true);
     /// <param name="detail">Said lighter after the label: « 1 h 27 restantes » beside Reprendre.</param>
     private static StackPanel ActionLabel(string icon, string label, string? detail = null)
     {

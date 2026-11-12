@@ -452,8 +452,8 @@ public sealed class DetailPage : Page
     public void ClickForCheck(string kind) => (kind == "favorite" ? _favorite : _watched)?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
     /// <summary>For the self-check: the picture's height, and the cast shown under it.</summary>
     public double HeroHeight => _header.Bounds.Height;
-    public int CastShown => _cast?.Children.Count ?? 0;
-    public void ShowCastForCheck() => (_cast?.Parent as Control)?.BringIntoView();
+    public int CastShown => _castCount;
+    public void ShowCastForCheck() => _cast?.BringIntoView();
 
     // —— « Garder sur ce Mac », as Windows' « Garder sur ce PC » ——
     private Button? _offlineButton;
@@ -661,28 +661,15 @@ public sealed class DetailPage : Page
         Ui.OpenUnder(menu, button);
     }
 
-    /// <summary>The cast's cards under the picture, null without a cast.</summary>
-    private WrapPanel? _cast;
+    /// <summary>The cast's row after the episodes and the facts, null without a cast.</summary>
+    private CardRow? _cast;
+    private int _castCount;
     private void RenderBody(Session session)
     {
         _body.Children.Clear();
-        // The cast with their photos, each one their titles in the library; then the facts, two by two, as on Windows.
-        _cast = null;
-        if (_item.CastPeople.Length > 0)
-        {
-            _cast = new WrapPanel();
-            foreach (var person in _item.CastPeople)
-            {
-                var photo = person.PrimaryImageTag is { } tag ? new Dictionary<string, string> { ["Primary"] = tag } : [];
-                var known = person.Id is { Length: > 0 };
-                var card = Cards.Person(new MediaItem { Id = person.Id ?? "", Name = person.Name, Type = "Person", ImageTags = photo }, known ? session.Images : null, _ => Shell.OpenPerson(person, false), person.Role);
-                card.Margin = new Thickness(0, 0, 18, 22);
-                if (known) ToolTip.SetTip(card, L($"Les titres avec {person.Name} dans ta bibliothèque", $"Titles with {person.Name} in your library"));
-                else { card.IsHitTestVisible = false; card.Focusable = false; }
-                _cast.Children.Add(card);
-            }
-            _body.Children.Add(Ui.Column(18, new TextBlock { Text = L("Distribution", "Cast"), FontSize = 24, FontWeight = FontWeight.SemiBold }, _cast));
-        }
+        // A series' episodes first, right under its buttons; then the facts, two by two, and the cast in one row of
+        // smaller photos, as on Windows (under the buttons, the cast stood in the way of the episodes).
+        if (_item.Type == "Series") _body.Children.Add(EpisodeSection());
         var left = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 40, 0) };
         var right = new StackPanel { Spacing = 10 }; Grid.SetColumn(right, 1);
         // Each genre: Films or Séries (as the title is) filtered on it, as in Mira web.
@@ -699,7 +686,23 @@ public sealed class DetailPage : Page
             facts.Children.Add(left); facts.Children.Add(right);
             _body.Children.Add(facts);
         }
-        if (_item.Type == "Series") _body.Children.Add(EpisodeSection());
+        _cast = null; _castCount = 0;
+        if (_item.CastPeople.Length > 0)
+        {
+            var cards = new List<Control>();
+            foreach (var person in _item.CastPeople)
+            {
+                var photo = person.PrimaryImageTag is { } tag ? new Dictionary<string, string> { ["Primary"] = tag } : [];
+                var known = person.Id is { Length: > 0 };
+                var card = Cards.Person(new MediaItem { Id = person.Id ?? "", Name = person.Name, Type = "Person", ImageTags = photo }, known ? session.Images : null, _ => Shell.OpenPerson(person, false), person.Role, 72);
+                if (known) ToolTip.SetTip(card, L($"Les titres avec {person.Name} dans ta bibliothèque", $"Titles with {person.Name} in your library"));
+                else { card.IsHitTestVisible = false; card.Focusable = false; }
+                cards.Add(card);
+            }
+            _castCount = cards.Count;
+            _cast = new CardRow(L("Distribution", "Cast"), cards, sidePadding: 0, people: true);
+            _body.Children.Add(_cast);
+        }
     }
     /// <summary>« GENRES   Aventure · Animation »: a small label in its column, the names beside it.</summary>
     private static Control Fact(string title, Control content)
@@ -938,7 +941,7 @@ public sealed class DetailPage : Page
         if (saga is null && studio is null && extras.Count == 0 && similar.Count == 0) return;
         try { await Task.Run(() => { if (saga is not null) session.Store.ApplyLocalProgress(saga.Items); if (studio is { } found) session.Store.ApplyLocalProgress(found.Items); session.Store.ApplyLocalProgress(similar); }); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
-        foreach (var old in _body.Children.OfType<CardRow>().ToList()) _body.Children.Remove(old);
+        foreach (var old in _body.Children.OfType<CardRow>().Where(x => x != _cast).ToList()) _body.Children.Remove(old);
         CardRow Row(string title, List<MediaItem> items) => new(title, items.Select(x => { var card = Cards.Poster(x, session.Images, Shell.Open, Shell.Menu); card.Width = 168; return (Control)card; }), sidePadding: 0);
         if (saga is not null) _body.Children.Add(Row(saga.Name, saga.Items));
         if (studio is { } titles) _body.Children.Add(Row(L($"Du même studio · {titles.Studio.Name}", $"More from {titles.Studio.Name}"), titles.Items));
