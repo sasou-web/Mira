@@ -223,8 +223,9 @@ jobs:
           cp .artifacts/media/tracks/lines.srt .artifacts/media/tracks/french.srt
           app=dist/mac/Mira.app/Contents/MacOS/Mira
           status=0
-          # Quitting as macOS asks it to ends the process: checked apart below, in a Mira of its own.
-          MIRA_CHECK_QUIT=apart "$app" --data "$PWD/.artifacts/profile" --self-check "$PWD/.artifacts/check" --mock --media "$PWD/.artifacts/media/test.mkv" --short "$PWD/.artifacts/media/short.mkv" --track-media "$PWD/.artifacts/media/tracks" > .artifacts/check.log 2>&1 &
+          # Quitting as macOS asks it to ends the process: checked apart below, in a Mira of its own. --photos: the
+          # account's photo from an iPhone's HEIC (tools/mac/check, PhotoCheck).
+          MIRA_CHECK_QUIT=apart "$app" --data "$PWD/.artifacts/profile" --self-check "$PWD/.artifacts/check" --mock --media "$PWD/.artifacts/media/test.mkv" --short "$PWD/.artifacts/media/short.mkv" --track-media "$PWD/.artifacts/media/tracks" --photos "$PWD/tools/mac/check" > .artifacts/check.log 2>&1 &
           pid=$!
           for i in $(seq 1 420); do kill -0 $pid 2>/dev/null || break; sleep 1; done
           if kill -0 $pid 2>/dev/null; then echo "self-check still running after 7 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi

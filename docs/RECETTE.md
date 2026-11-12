@@ -75,6 +75,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] ⌘Q le PC de Jellyfin éteint : Mira disparaît du Dock en 5 s au plus
 - [ ] Mise à jour depuis le Dock : une nouvelle version prête (avis « elle s’installera… »), fenêtre fermée par ⌘W ; quelques minutes après, Mira se relance seule, cachée (le point sous l'icône reste) ; un clic sur l'icône montre la nouvelle version (« Nouveautés »)
 - [ ] Veille en plein film (depuis Jellyfin, pas une copie gardée) : capot refermé quelques minutes, puis rouvert : le film est en pause là où il était, Lecture le relance sans roue sans fin (Jellyfin injoignable au réveil : « Lecture impossible » et « Réessayer », le lecteur reste) ; Wi-Fi coupé en pleine lecture : « Connexion au serveur perdue », puis le film reprend quand le Wi-Fi revient
+- [ ] Photo du compte depuis une photo d’iPhone (HEIC, prise en portrait, par AirDrop ou Photos) : Réglages → Compte & serveur → « Choisir une photo… » ; elle apparaît droite (pas couchée) dans la barre, puis sur l’iPhone
 
 ## Regarder ensemble 👥
 - [ ] Ta party par le lien (Funnel) : Sam rejoint depuis Windows sans compte
