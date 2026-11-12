@@ -144,6 +144,22 @@ enum Releases {
 
     private static func isYear(_ text: String) -> Bool { Regex.test(#"^(?:19|20)\d\d$"#, text, options: []) }
 
+    /// What a part of a name in parentheses or brackets leaves to the reading: a year (in parentheses) as it is; what a
+    /// batch says of itself, its season or seasons (« (Season 2) », « (S2) », « (Saison 1) », « (Season 4 Part 2) ») and
+    /// « Batch », as they are; its episodes (« (01-28) », « [01-12] », never years) as a fansub batch writes them
+    /// (« - 01-28 »). The rest (tags, another name, the group) is left out.
+    private static func batchPart(_ inner: String, year: Bool) -> String {
+        let value = inner.trimmingCharacters(in: .whitespaces)
+        if (year && isYear(value))
+            || Regex.test(#"^(?:(?:(?:seasons?|saisons?|temporadas?)\s*\d{1,2}(?:\s*[-~–]\s*\d{1,2})?|s\d{1,2}(?:\s*[-~–]\s*s\d{1,2})?|\d{1,2}(?:st|nd|rd|th)\s+season)(?:\s+(?:part(?:ie)?|cour)\s*\d{1,2})?|batch)$"#, value) {
+            return " \(value) "
+        }
+        if let span = Regex.first(#"^(\d{1,4})\s*[-~–]\s*(\d{1,4})$"#, in: value, options: []), let first = span.text(1), let last = span.text(2), !isYear(first) {
+            return " - \(first)-\(last) "
+        }
+        return " "
+    }
+
     /// What a release gives in parentheses that is not a name: languages and subtitles, platforms, notes, editions.
     private static let notNames: Set<String> = Set("""
         vostfr vostf vost vosta vf vff vfq vfi vf2 vo french truefrench subfrench multi multisub multisubs msubs sub subs subbed
@@ -242,11 +258,8 @@ enum Releases {
             }
             spaced = String(decoding: out, as: UTF16.self)
         }
-        var plain = Regex.replace(#"\[[^\]]*\]|\{[^}]*\}"#, in: spaced, with: " ", options: [])
-        plain = Regex.replace(#"\(([^()]*)\)"#, in: plain, options: []) { m in
-            let inner = m.text(1) ?? ""
-            return Regex.test(#"^\s*(?:19|20)\d\d\s*$"#, inner, options: []) ? " \(inner) " : " "
-        }
+        var plain = Regex.replace(#"\[([^\]]*)\]|\{([^}]*)\}"#, in: spaced, options: []) { m in batchPart(m.text(1) ?? m.text(2) ?? "", year: false) }
+        plain = Regex.replace(#"\(([^()]*)\)"#, in: plain, options: []) { m in batchPart(m.text(1) ?? "", year: true) }
         let plainLength = plain.utf16.count
 
         // Season and episode.
@@ -288,6 +301,11 @@ enum Releases {
             }
         }
         let tokens = tokenize(plain)
+        // « Show Season 2 - S02E05 », « [Judas] Show (Season 4 Part 3) - S04E29-31 »: the season said again before its
+        // episode ends the title too.
+        if let season, let first = tokens.first,
+           let said = Regex.first(#"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season)"#, in: plain),
+           said.start > first.index, said.start < cut, (said.int(1) ?? said.int(2) ?? said.int(3)) == season { mark(said.start) }
         for complete in Regex.all(#"(?<![a-z0-9])(?:complete(?:\s+series)?|int[ée]grale|batch)(?![a-z0-9])"#, in: plain) {
             // « A Complete Unknown », « Star Wars The Bad Batch S03E15 »: words of the title, not every episode.
             if let at = tokens.firstIndex(where: { $0.index == complete.start }), !(complete.text(0) ?? "").contains(" "), !endsTitle(tokens, at) { continue }

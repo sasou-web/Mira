@@ -22,6 +22,14 @@
   ["The.Last.of.Us.S02E03.2160p.WEB.H265.DV.HDR-GRP", "The Last of Us", null, "S02E03", "4K · WEB-DL · HEVC · DV HDR"],
   ["[Erai-raws] Spy x Family Season 2 - 05 [1080p].mkv", "Spy x Family", null, "S02E05", "1080p · Erai-raws"],
   ["[Erai-raws] Spy x Family Season 2 - 12.5 [1080p].mkv", "Spy x Family", null, "S02E12.5", "1080p · Erai-raws"],
+  ["[SubsPlease] Sousou no Frieren (01-28) (1080p) [Batch]", "Sousou no Frieren", null, "Épisodes 1 à 28", "1080p · SubsPlease"],
+  ["[Judas] Jujutsu Kaisen (Season 2) [1080p][HEVC x265 10bit][Multi-Subs] (Batch)", "Jujutsu Kaisen", null, "Saison 2 complète", "1080p · HEVC · Judas"],
+  ["[Judas] Shingeki no Kyojin (Attack on Titan) (Season 4 Part 2) [1080p][HEVC x265 10bit][Multi-Subs] (Batch)", "Shingeki no Kyojin", null, "Saison 4 complète", "1080p · HEVC · Judas"],
+  ["[Judas] Shingeki no Kyojin (Attack on Titan) (Season 4 Part 3) - S04E29-31 [1080p][HEVC x265 10bit][Multi-Subs] (Weekly)", "Shingeki no Kyojin", null, "S04E29-E31", "1080p · HEVC · Judas"],
+  ["[Group] Show (Season 2) - S02E05 [1080p].mkv", "Show", null, "S02E05", "1080p · Group"],
+  ["Spy.x.Family.Season.2.S02E05.1080p.WEB.h264-GRP", "Spy x Family", null, "S02E05", "1080p · WEB-DL · H.264"],
+  ["[EMBER] Vinland Saga (2019) (Season 1) [BDRip] [1080p Dual Audio HEVC 10 bits DD] (Batch)", "Vinland Saga", 2019, "Saison 1 complète", "1080p · BluRay · HEVC · EMBER"],
+  ["[Anime Time] Death Note [BD][Dual Audio][1080p][HEVC 10bit x265][AAC][Batch]", "Death Note", null, "Toutes les saisons", "1080p · BluRay · HEVC · Anime Time"],
   ["Charlottes.Web.2006.1080p.BluRay.x264-HANDJOB", "Charlottes Web", 2006, "", "1080p · BluRay · H.264"],
   ["Mr.Hollands.Opus.1995.1080p.BluRay.x264-SiNNERS", "Mr Hollands Opus", 1995, "", "1080p · BluRay · H.264"],
   ["The.French.Dispatch.2021.1080p.BluRay.x264-PiGNUS", "The French Dispatch", 2021, "", "1080p · BluRay · H.264"],
@@ -146,6 +154,22 @@
     ["Solo Leveling", "Épisode 8", "sl8", []],
     ["Solo Leveling", "Épisode 7,5", "erai75", ["sl75"]],
     ["Solo Leveling", "Épisode 7", "sl7", []]
+   ]
+  },
+  {
+   "category": "anime",
+   "note": "A batch says in parentheses or brackets its episodes (« (01-28) ») or its season (« (Season 2) », Judas, EMBER, Anime Time) and « [Batch] »: never a film, and the batches of two seasons stay two",
+   "hits": [
+    ["jjk1", "[Judas] Jujutsu Kaisen (Season 1) [1080p][HEVC x265 10bit][Multi-Subs] (Batch)", 9000000000, 300, "nyaa"],
+    ["jjk2", "[Judas] Jujutsu Kaisen (Season 2) [1080p][HEVC x265 10bit][Multi-Subs] (Batch)", 8000000000, 90, "nyaa"],
+    ["frb", "[SubsPlease] Sousou no Frieren (01-28) (1080p) [Batch]", 39000000000, 200, "nyaa"],
+    ["fr28", "[SubsPlease] Sousou no Frieren - 28 (1080p) [ABCDEF12].mkv", 1400000000, 0, "subsplease"]
+   ],
+   "groups": [
+    ["Jujutsu Kaisen", "Saison 2 complète", "jjk2", []],
+    ["Jujutsu Kaisen", "Saison 1 complète", "jjk1", []],
+    ["Sousou no Frieren", "Épisodes 1 à 28", "frb", []],
+    ["Sousou no Frieren", "Épisode 28", "fr28", []]
    ]
   }
  ]
