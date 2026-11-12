@@ -104,17 +104,41 @@ struct PlaybackTests {
             $0.mediaStreams = [subtitle(2, "fre"), subtitle(3, "eng"), subtitle(4, "eng", text: false, codec: "PGSSUB")]
         }
         let stream = try #require(PlaybackPlan.stream(file, itemId: "item", deviceId: "d", stage: 0, subtitleIndex: 3, miraHls: true))
-        #expect(stream.hls && stream.inband)
+        #expect(stream.hls && stream.inband && !stream.lateSubtitles)
         #expect(stream.playMethod == "DirectStream")
         #expect(stream.path.hasPrefix("Mira/hls/abcdef01-2345-6789-abcd-ef0123456789/master.m3u8?"))
         #expect(!stream.path.contains("SubtitleMethod=Encode"))
         #expect(stream.path.contains("&SubtitleStreamIndex=3&SubtitleMethod=Hls&MiraNames="))
-        // Without the extension, Jellyfin's own playlists.
+        // Without the extension, Jellyfin's own playlists: their WebVTT say MPEGTS:900000 (MPEG-TS segments start at
+        // 10 s, fMP4 ones at 0, as Jellyfin 12.1 makes them), 10 s late in Apple's player: Mira draws them.
         let plain = try #require(PlaybackPlan.stream(file, itemId: "item", deviceId: "d", stage: 0, subtitleIndex: -1, miraHls: false))
         #expect(plain.path.hasPrefix("/videos/") && plain.path.hasSuffix("&SubtitleMethod=Hls"))
+        #expect(plain.inband && plain.lateSubtitles)
+        // MPEG-TS segments: in time, Apple's draw them.
+        let ts = source {
+            $0.supportsDirectPlay = false
+            $0.transcodingUrl = address.replacingOccurrences(of: "SegmentContainer=mp4", with: "SegmentContainer=ts")
+            $0.transcodingSubProtocol = "hls"
+            $0.mediaStreams = [subtitle(2, "fre")]
+        }
+        let inTime = try #require(PlaybackPlan.stream(ts, itemId: "item", deviceId: "d", stage: 0, subtitleIndex: 2, miraHls: false))
+        #expect(inTime.inband && !inTime.lateSubtitles)
         // Pictures chosen: Jellyfin draws them into the video, nothing in the stream.
         let burned = try #require(PlaybackPlan.stream(file, itemId: "item", deviceId: "d", stage: 0, subtitleIndex: 4, miraHls: true))
-        #expect(burned.path == address && !burned.inband)
+        #expect(burned.path == address && !burned.inband && !burned.lateSubtitles)
+        let burnedHere = try #require(PlaybackPlan.stream(file, itemId: "item", deviceId: "d", stage: 0, subtitleIndex: 4, miraHls: false))
+        #expect(!burnedHere.inband && !burnedHere.lateSubtitles)
+    }
+
+    @Test("Sous-titres dessinés par Mira : décalés, ou en retard dans le flux ; jamais en image dans l'image ni sur AirPlay")
+    func drawnSubtitles() {
+        #expect(!PlaybackPlan.drawsSubtitles(delay: 0, late: false, pictureInPicture: false, external: false))
+        #expect(PlaybackPlan.drawsSubtitles(delay: 0, late: true, pictureInPicture: false, external: false))
+        #expect(PlaybackPlan.drawsSubtitles(delay: -1.5, late: false, pictureInPicture: false, external: false))
+        #expect(PlaybackPlan.drawsSubtitles(delay: 2, late: true, pictureInPicture: false, external: false))
+        // Picture in Picture and an AirPlay television show only Apple's.
+        #expect(!PlaybackPlan.drawsSubtitles(delay: 0, late: true, pictureInPicture: true, external: false))
+        #expect(!PlaybackPlan.drawsSubtitles(delay: 2, late: false, pictureInPicture: false, external: true))
     }
 
     @Test("Vidéo copiée ou convertie, d'après TranscodeReasons")

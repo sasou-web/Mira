@@ -20,13 +20,15 @@ final class PlayerSession: NSObject {
     private var playSessionId: String?
     private var playMethod = "DirectPlay"
     private var inband = false
+    /// The stream's subtitles would come 10 s late in Apple's player (PlaybackPlan.Stream.lateSubtitles): Mira draws them.
+    private var lateSubtitles = false
     private var bitrate: Int?
     /// The cap of mobile data when the bitrate was chosen (nil: none): the stream follows a new one (capChanged).
     private var askedUnder: Int?
     private var miraHls: Bool?
     /// The subtitles' delay chosen in the player (seconds); kept from one episode to the next, until it closes.
     private var subtitleDelay: Double = 0
-    /// The text subtitle Mira draws itself while shifted, read once: « item/source/index ».
+    /// The text subtitle Mira draws itself (shifted, or late in the stream), read once: « item/source/index ».
     private var drawn: (key: String, cues: SubtitleCues)?
     /// AirPlay was on at the last look: the television draws Apple's subtitles, never Mira's.
     private var wasExternal = false
@@ -271,6 +273,7 @@ final class PlayerSession: NSObject {
             player.allowsExternalPlayback = !WayPlan.isLoopback(address)
             playMethod = stream.playMethod
             inband = stream.inband
+            lateSubtitles = stream.lateSubtitles
             let how = ["DirectPlay": "file as it is", "DirectStream": "repackaged"][stream.playMethod] ?? "converted (stage \(stage)) at \(limit / 1_000_000) Mb/s"
             Diagnostics.record(item, source: next, server: client.server, how: how + (WayPlan.isLoopback(address) ? " through the built-in Tailscale relay" : ""))
             describeTracks()
@@ -298,6 +301,7 @@ final class PlayerSession: NSObject {
         playSessionId = nil
         playMethod = "DirectPlay"
         inband = false
+        lateSubtitles = false
         if !tracksChosen {
             tracksChosen = true
             if audioIndex == nil, subtitleIndex == nil, let preferences = app?.preferences,
@@ -341,6 +345,9 @@ final class PlayerSession: NSObject {
         let next = AVPlayerItem(url: url)
         next.nowPlayingInfo = nowPlayingInfo()
         player.replaceCurrentItem(with: next)
+        // The subtitles drawn for the stream before are not this one's (a picture subtitle now drawn into the video by
+        // Jellyfin, another stream): drawn again once it is ready, if they are to be (chooseSubtitles, showKept).
+        model.drawnSubtitles = nil
         pendingStart = startSeconds
         look = StallWatch()
         let center = NotificationCenter.default
@@ -423,7 +430,7 @@ final class PlayerSession: NSObject {
         let television = AVAudioSession.sharedInstance().currentRoute.outputs.first { $0.portType == .airPlay }?.portName
         if player.isExternalPlaybackActive != wasExternal {
             wasExternal = player.isExternalPlaybackActive
-            if subtitleDelay != 0 && inband { Task { await chooseSubtitles() } }
+            if drawsInband { Task { await chooseSubtitles() } }
         }
         model.set(\.externalName, player.isExternalPlaybackActive ? television ?? String(localized: "AirPlay") : nil)
         let sleep = app?.sleep
@@ -449,13 +456,15 @@ final class PlayerSession: NSObject {
             model.drawnSubtitles = nil
             return
         }
-        // Shifted: Mira draws them itself, from the whole track, Apple's off. Not in Picture in Picture nor on an
-        // AirPlay television, which only show Apple's.
-        if subtitleDelay != 0, !inPictureInPicture, !player.isExternalPlaybackActive, stream.isTextSubtitleStream == true,
-           let cues = await loadCues(index), player.currentItem === current, subtitleIndex == index {
+        // Shifted, or late in the stream (Jellyfin's own playlists on fMP4: 10 s late in Apple's player): Mira draws them
+        // itself, from the whole track, Apple's off at once (late or unshifted while the track loads). Not in Picture in
+        // Picture nor on an AirPlay television, which only show Apple's.
+        if stream.isTextSubtitleStream == true, drawsOwnSubtitles {
             if group.allowsEmptySelection { current.select(nil, in: group) }
-            model.drawnSubtitles = cues
-            return
+            if let cues = await loadCues(index), player.currentItem === current, subtitleIndex == index, drawsOwnSubtitles {
+                model.drawnSubtitles = cues
+                return
+            }
         }
         guard player.currentItem === current, subtitleIndex == index else { return }
         model.drawnSubtitles = nil
@@ -466,6 +475,14 @@ final class PlayerSession: NSObject {
             ?? group.options.first { $0.extendedLanguageTag?.lowercased().hasPrefix(String((stream.language ?? "-").prefix(2)).lowercased()) == true }
         if let option { current.select(option, in: group) }
     }
+
+    /// Mira draws the stream's text subtitle now (PlaybackPlan.drawsSubtitles): shifted, or late, and on this screen.
+    private var drawsOwnSubtitles: Bool {
+        PlaybackPlan.drawsSubtitles(delay: subtitleDelay, late: lateSubtitles, pictureInPicture: inPictureInPicture, external: player.isExternalPlaybackActive)
+    }
+
+    /// The stream's subtitles are Mira's own while on this screen: Picture in Picture and AirPlay switch them to Apple's.
+    private var drawsInband: Bool { inband && (subtitleDelay != 0 || lateSubtitles) }
 
     /// The whole text subtitle, as WebVTT from Jellyfin, read once per track; nil when Jellyfin does not give it.
     private func loadCues(_ index: Int) async -> SubtitleCues? {
@@ -1448,8 +1465,8 @@ extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         inPictureInPicture = true
         model.hideControls()
-        // Its window shows only Apple's subtitles: those, unshifted, while it is there.
-        if subtitleDelay != 0 && inband { Task { await chooseSubtitles() } }
+        // Its window shows only Apple's subtitles: those, unshifted (late without Mira's extension), while it is there.
+        if drawsInband { Task { await chooseSubtitles() } }
     }
 
     /// In its window, the title leaves the player: the app is free under it.
@@ -1459,7 +1476,7 @@ extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         inPictureInPicture = false
-        if subtitleDelay != 0 && inband { Task { await chooseSubtitles() } }
+        if drawsInband { Task { await chooseSubtitles() } }
         // Closed from its window, not brought back into the app: the title stops there.
         if !restoring && controller.presentingViewController == nil && !minimized { close() }
         restoring = false

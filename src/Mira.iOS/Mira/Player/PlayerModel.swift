@@ -110,7 +110,7 @@ final class PlayerModel {
     /// The subtitles' delay (seconds, later when positive), and whether the chosen ones can be shifted (text ones).
     var subtitleDelay: Double = 0
     var canShiftSubtitles = false
-    /// The subtitles Mira draws itself while they are shifted; nil when Apple's player draws them.
+    /// The subtitles Mira draws itself (shifted, late in the stream, kept on this iPhone); nil when Apple's player draws them.
     var drawnSubtitles: SubtitleCues?
     var sleep: SleepTimer.Status?
     /// The sleep timer's choice: minutes, 0 for the end of the episode, -1 when off.
