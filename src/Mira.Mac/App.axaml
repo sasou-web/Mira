@@ -56,10 +56,10 @@
       <Setter Property="FontSize" Value="14"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Cursor" Value="Hand"/>
-      <Setter Property="Transitions">
-        <Transitions><BrushTransition Property="Background" Duration="0:0:0.12"/></Transitions>
-      </Setter>
+      <!-- Still buttons, a static hover (ogsas, 2026-11-12): no colour transition, and not the Fluent theme's shrink on press. -->
+      <Setter Property="Transitions"><Transitions/></Setter>
     </Style>
+    <Style Selector="Button:pressed"><Setter Property="RenderTransform" Value="none"/></Style>
     <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#2C2C30"/><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
     <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#34343A"/><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
     <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Opacity" Value="0.4"/></Style>
@@ -73,8 +73,7 @@
     <Style Selector="Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1E1E21"/></Style>
     <!-- A choice that is on (« Dans tes favoris », « Vu », « Ensemble · 2 personnes »): white, the size of the buttons beside it. -->
     <Style Selector="Button.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <!-- A title page's buttons beside Lecture: the same rounded square on or off, only their glyph changes (StateIcon); the hover eases. -->
-    <Style Selector="Button.state /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions"><Transitions><BrushTransition Property="Background" Duration="0:0:0.16" Easing="CubicEaseOut"/></Transitions></Setter></Style>
+    <!-- A title page's buttons beside Lecture: the same rounded square on or off, only their glyph changes (StateIcon), at once. -->
     <Style Selector="Button.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
     <Style Selector="Button.on:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
     <Style Selector="Button.icon"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="CornerRadius" Value="20"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
@@ -95,12 +94,16 @@
     <Style Selector="Button.row"><Setter Property="Background" Value="#101011"/><Setter Property="Padding" Value="14"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FontWeight" Value="Normal"/></Style>
     <Style Selector="Button.row:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#18181A"/></Style>
     <!-- The player's title and episode line (PlayerPage.Heading): plain text that opens its page, underlined under the pointer. -->
-    <Style Selector="Button.heading"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="CornerRadius" Value="4"/><Setter Property="HorizontalAlignment" Value="Left"/><Setter Property="Cursor" Value="Hand"/></Style>
+    <Style Selector="Button.heading"><Setter Property="ToolTip.ServiceEnabled" Value="False"/><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="CornerRadius" Value="4"/><Setter Property="HorizontalAlignment" Value="Left"/><Setter Property="Cursor" Value="Hand"/></Style>
     <Style Selector="Button.heading:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.heading:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.heading:pointerover TextBlock, Button.heading:focus-visible TextBlock"><Setter Property="Foreground" Value="White"/></Style>
     <Style Selector="Button.heading:pointerover TextBlock"><Setter Property="TextDecorations" Value="Underline"/></Style>
     <Style Selector="Button.player"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="Width" Value="44"/><Setter Property="Height" Value="44"/><Setter Property="CornerRadius" Value="22"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Foreground" Value="White"/></Style>
-    <Style Selector="Button.player:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#30FFFFFF"/><Setter Property="Foreground" Value="White"/></Style>
+    <!-- Over the picture: no disc under the glyph, which alone lights up under the pointer, as on Windows; no tooltip either. -->
+    <Style Selector="Button.player"><Setter Property="Opacity" Value="0.8"/><Setter Property="ToolTip.ServiceEnabled" Value="False"/></Style>
+    <Style Selector="Button.player:pointerover, Button.player:focus-visible"><Setter Property="Opacity" Value="1"/></Style>
+    <Style Selector="Button.player:pressed"><Setter Property="Opacity" Value="0.6"/></Style>
+    <Style Selector="Button.player:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.player:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="White"/></Style>
     <Style Selector="Button.player:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="Opacity" Value="0.4"/></Style>
     <!-- The player's menus, as on Windows: a dark rounded card, its sections in one column, choices as chips. -->
     <Style Selector="FlyoutPresenter"><Setter Property="Background" Value="#F5141417"/><Setter Property="BorderBrush" Value="#30FFFFFF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="6"/><Setter Property="MaxWidth" Value="900"/><Setter Property="MaxHeight" Value="640"/><Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/></Style>

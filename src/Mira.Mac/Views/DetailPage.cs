@@ -139,8 +139,8 @@ public sealed class DetailPage : Page
     private string WatchedTip(bool on) => on ? L("Vu. Clique pour le marquer comme non vu", "Watched. Click to mark it as unwatched") : WatchedLabel(false);
     /// <summary>
     /// A state button of the page (Favori, Vu, Suivre, Garder sur ce Mac), as on Windows: the same rounded square on or
-    /// off, its glyph alone telling which (<see cref="StateIcon"/>: an outline off, solid white on, a short pop between
-    /// the two). Never a word that comes, an outline or a new width: a click on the page moves nothing.
+    /// off, its glyph alone telling which (<see cref="StateIcon"/>: an outline off, solid white on, swapped at once).
+    /// Never a word that comes, an outline or a new width: a click on the page moves nothing.
     /// </summary>
     /// <param name="name">What VoiceOver calls it, its state included (« Favori », « Ajouter aux favoris »).</param>
     /// <param name="tip">Its tooltip, also its help for VoiceOver: what it is and what a click does.</param>
