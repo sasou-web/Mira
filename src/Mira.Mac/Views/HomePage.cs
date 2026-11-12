@@ -44,10 +44,10 @@ public sealed class HomePage : Page
     public HomePage(MainWindow shell) : base(shell, underRail: true)
     {
         _heroImage.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(420) }];
-        _hero.Children.Add(new Border { Background = Ui.Brush("#0E0E10") });
+        _hero.Children.Add(new Border { Background = Ui.Brush("#0F0F0F") });
         _hero.Children.Add(_heroImage);
-        _hero.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F0070708", 0), ("#9A070708", 0.42), ("#00070708", 0.75)) });
-        _hero.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#00070708", 0.45), ("#C0070708", 0.82), ("#FF070708", 1)) });
+        _hero.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F0000000", 0), ("#9A000000", 0.42), ("#00000000", 0.75)) });
+        _hero.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#00000000", 0.45), ("#C0000000", 0.82), ("#FF000000", 1)) });
         _hero.Children.Add(_heroText); _hero.Children.Add(_heroSide); _hero.Children.Add(_dots);
         _hero.PointerEntered += (_, _) => _rotate.Stop();
         _hero.PointerExited += (_, _) => { if (Turns && IsShowing) _rotate.Start(); };
@@ -60,7 +60,7 @@ public sealed class HomePage : Page
         _groupLine = new Border
         {
             IsVisible = false, HorizontalAlignment = HorizontalAlignment.Left, MaxWidth = 760, Margin = new Thickness(56, 0, 56, 30), Padding = new Thickness(18, 10, 10, 10),
-            CornerRadius = new CornerRadius(12), Background = Ui.Brush("#111112"), BorderBrush = Ui.Brush("#26262A"), BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12), Background = Ui.Brush("#111111"), BorderBrush = Ui.Brush("#272727"), BorderThickness = new Thickness(1),
             Child = new DockPanel { Children = { _groupJoin, groupText } }
         };
         _groupFor = Shell.Group.Active ? Shell.Group.Group?.GroupId : null;

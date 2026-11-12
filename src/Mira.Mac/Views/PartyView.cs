@@ -52,7 +52,7 @@ public sealed class PartyView : UserControl
         // As the sign-in page: Mira's mark top left, the card in the middle on the same dark glow.
         Content = new Grid
         {
-            Background = new RadialGradientBrush { Center = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), GradientOrigin = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), RadiusX = new RelativeScalar(0.9, RelativeUnit.Relative), RadiusY = new RelativeScalar(0.9, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#1A1D22"), 0), new GradientStop(Color.Parse("#070708"), 1) } },
+            Background = new RadialGradientBrush { Center = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), GradientOrigin = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), RadiusX = new RelativeScalar(0.9, RelativeUnit.Relative), RadiusY = new RelativeScalar(0.9, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#1C1C1C"), 0), new GradientStop(Color.Parse("#000000"), 1) } },
             Children =
             {
                 new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(38, 40 + shell.TitleBarInset, 0, 0), IsHitTestVisible = false,
@@ -60,7 +60,7 @@ public sealed class PartyView : UserControl
                 new ScrollViewer
                 {
                     HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24, 24 + shell.TitleBarInset, 24, 24),
-                    Content = new Border { Child = card, Padding = new Thickness(40), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#C00E0E10"), BorderBrush = Ui.Brush("#1F1F23"), BorderThickness = new Thickness(1) }
+                    Content = new Border { Child = card, Padding = new Thickness(40), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#C00F0F0F"), BorderBrush = Ui.Brush("#202020"), BorderThickness = new Thickness(1) }
                 }
             }
         };

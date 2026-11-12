@@ -1,20 +1,20 @@
 <Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Mira.Mac.App" RequestedThemeVariant="Dark" Name="Mira">
   <Application.Resources>
-    <!-- The Windows app's cinema palette: near-black, soft greys, a white accent. -->
-    <SolidColorBrush x:Key="Bg" Color="#070708"/>
-    <SolidColorBrush x:Key="Surface" Color="#111112"/>
-    <SolidColorBrush x:Key="Raised" Color="#1B1B1D"/>
-    <SolidColorBrush x:Key="Line" Color="#26262A"/>
+    <!-- The Windows app's cinema palette: true black (OLED), neutral greys, a white accent. -->
+    <SolidColorBrush x:Key="Bg" Color="#000000"/>
+    <SolidColorBrush x:Key="Surface" Color="#111111"/>
+    <SolidColorBrush x:Key="Raised" Color="#1C1C1C"/>
+    <SolidColorBrush x:Key="Line" Color="#272727"/>
     <SolidColorBrush x:Key="Muted" Color="#A2A2A6"/>
     <SolidColorBrush x:Key="Faint" Color="#8A8A90"/>
     <SolidColorBrush x:Key="Ink" Color="#F4F4F5"/>
     <SolidColorBrush x:Key="Accent" Color="#F5F5F7"/>
     <FontFamily x:Key="AppFont">avares://Mira/Assets/Fonts#Nunito</FontFamily>
     <!-- Switches: white when on, so their knob is dark to stay visible. -->
-    <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#0B0B0C"/>
-    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#0B0B0C"/>
-    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#0B0B0C"/>
+    <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#0B0B0B"/>
+    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#0B0B0B"/>
+    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#0B0B0B"/>
   </Application.Resources>
   <!-- The Mira menu of the menu bar (macOS adds Hide and Quit itself), its headers in Mira's language by App.NameMenu. -->
   <NativeMenu.Menu>
@@ -28,7 +28,7 @@
   <Application.Styles>
     <FluentTheme>
       <FluentTheme.Palettes>
-        <ColorPaletteResources x:Key="Dark" Accent="#F5F5F7" AltHigh="#070708" RegionColor="#070708" BaseHigh="#F4F4F5" ChromeMediumLow="#141416" ChromeMedium="#1B1B1D" ChromeLow="#1B1B1D"/>
+        <ColorPaletteResources x:Key="Dark" Accent="#F5F5F7" AltHigh="#000000" RegionColor="#000000" BaseHigh="#F4F4F5" ChromeMediumLow="#151515" ChromeMedium="#1C1C1C" ChromeLow="#1C1C1C"/>
       </FluentTheme.Palettes>
     </FluentTheme>
 
@@ -48,7 +48,7 @@
     <Style Selector="Window.couch :is(Control)"><Setter Property="FocusAdorner" Value="{x:Null}"/></Style>
     <!-- Buttons: drawn by Mira, with a gentle hover wash in their own ink. -->
     <Style Selector="Button">
-      <Setter Property="Background" Value="#202022"/>
+      <Setter Property="Background" Value="#212121"/>
       <Setter Property="Foreground" Value="{StaticResource Ink}"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="CornerRadius" Value="8"/>
@@ -60,40 +60,40 @@
       <Setter Property="Transitions"><Transitions/></Setter>
     </Style>
     <Style Selector="Button:pressed"><Setter Property="RenderTransform" Value="none"/></Style>
-    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#2C2C30"/><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
-    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#34343A"/><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#2D2D2D"/><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#363636"/><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
     <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Opacity" Value="0.4"/></Style>
-    <Style Selector="Button.primary"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
     <!-- Menus: the Windows app's (Menu, Line), rounded, with room around each line. -->
-    <Style Selector="ContextMenu"><Setter Property="Background" Value="#F5141417"/><Setter Property="BorderBrush" Value="#29292D"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="6"/><Setter Property="MinWidth" Value="220"/></Style>
+    <Style Selector="ContextMenu"><Setter Property="Background" Value="#F5151515"/><Setter Property="BorderBrush" Value="#2A2A2A"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="6"/><Setter Property="MinWidth" Value="220"/></Style>
     <Style Selector="ContextMenu MenuItem"><Setter Property="Padding" Value="12,9"/><Setter Property="FontSize" Value="14"/><Setter Property="CornerRadius" Value="6"/></Style>
     <Style Selector="Button.quiet"><Setter Property="Background" Value="Transparent"/></Style>
-    <Style Selector="Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1E1E21"/></Style>
+    <Style Selector="Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1F1F1F"/></Style>
     <!-- A choice that is on (« Dans tes favoris », « Vu », « Ensemble · 2 personnes »): white, the size of the buttons beside it. -->
-    <Style Selector="Button.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
+    <Style Selector="Button.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
     <!-- A title page's buttons beside Lecture: the same rounded square on or off, only their glyph changes (StateIcon), at once. -->
-    <Style Selector="Button.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <Style Selector="Button.on:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
+    <Style Selector="Button.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
+    <Style Selector="Button.on:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
     <Style Selector="Button.icon"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="CornerRadius" Value="20"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
     <Style Selector="Button.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#26FFFFFF"/></Style>
     <Style Selector="Button.icon:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.rail"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="Width" Value="48"/><Setter Property="Height" Value="46"/><Setter Property="CornerRadius" Value="15"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Foreground" Value="#B6B6BD"/></Style>
-    <Style Selector="Button.rail:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1A1A1D"/><Setter Property="Foreground" Value="#F4F4F5"/></Style>
-    <Style Selector="Button.rail.active"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <Style Selector="Button.rail.active:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <Style Selector="Button.chip"><Setter Property="Background" Value="#1B1B1D"/><Setter Property="Padding" Value="12,7"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="CornerRadius" Value="16"/></Style>
-    <Style Selector="Button.chip.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <Style Selector="Button.chip.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
+    <Style Selector="Button.rail:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1B1B1B"/><Setter Property="Foreground" Value="#F4F4F5"/></Style>
+    <Style Selector="Button.rail.active"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
+    <Style Selector="Button.rail.active:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
+    <Style Selector="Button.chip"><Setter Property="Background" Value="#1C1C1C"/><Setter Property="Padding" Value="12,7"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="CornerRadius" Value="16"/></Style>
+    <Style Selector="Button.chip.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
+    <Style Selector="Button.chip.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
     <Style Selector="Button.bare:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bare:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.link"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="FontSize" Value="15"/></Style>
     <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="TextBlock.TextDecorations" Value="Underline"/></Style>
     <Style Selector="Button.card"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="CornerRadius" Value="10"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style>
     <Style Selector="Button.card:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.card:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
-    <Style Selector="Button.row"><Setter Property="Background" Value="#101011"/><Setter Property="Padding" Value="14"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FontWeight" Value="Normal"/></Style>
-    <Style Selector="Button.row:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#18181A"/></Style>
+    <Style Selector="Button.row"><Setter Property="Background" Value="#101010"/><Setter Property="Padding" Value="14"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FontWeight" Value="Normal"/></Style>
+    <Style Selector="Button.row:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#191919"/></Style>
     <!-- The player's title and episode line (PlayerPage.Heading): plain text that opens its page, underlined under the pointer. -->
     <Style Selector="Button.heading"><Setter Property="ToolTip.ServiceEnabled" Value="False"/><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="CornerRadius" Value="4"/><Setter Property="HorizontalAlignment" Value="Left"/><Setter Property="Cursor" Value="Hand"/></Style>
     <Style Selector="Button.heading:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.heading:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
@@ -107,29 +107,29 @@
     <Style Selector="Button.player:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.player:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="White"/></Style>
     <Style Selector="Button.player:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="Opacity" Value="0.4"/></Style>
     <!-- The player's menus, as on Windows: a dark rounded card, its sections in one column, choices as chips. -->
-    <Style Selector="FlyoutPresenter"><Setter Property="Background" Value="#F5141417"/><Setter Property="BorderBrush" Value="#30FFFFFF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="6"/><Setter Property="MaxWidth" Value="900"/><Setter Property="MaxHeight" Value="640"/><Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/></Style>
+    <Style Selector="FlyoutPresenter"><Setter Property="Background" Value="#F5151515"/><Setter Property="BorderBrush" Value="#30FFFFFF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="6"/><Setter Property="MaxWidth" Value="900"/><Setter Property="MaxHeight" Value="640"/><Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/></Style>
     <Style Selector="Button.menuchip"><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="#DEDEE4"/><Setter Property="FontSize" Value="12.5"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="Padding" Value="0,7"/><Setter Property="Margin" Value="2,0"/><Setter Property="MinHeight" Value="32"/><Setter Property="CornerRadius" Value="6"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Center"/></Style>
     <Style Selector="Button.menuchip:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1CFFFFFF"/><Setter Property="Foreground" Value="White"/></Style>
-    <Style Selector="Button.menuchip.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#111113"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
-    <Style Selector="Button.menuchip.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#111113"/></Style>
-    <Style Selector="Button.pill"><Setter Property="Background" Value="#E0151517"/><Setter Property="BorderBrush" Value="#5CFFFFFF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="20,12,17,12"/><Setter Property="CornerRadius" Value="9"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="White"/></Style>
-    <Style Selector="Button.pill:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#F0202024"/><Setter Property="Foreground" Value="White"/></Style>
+    <Style Selector="Button.menuchip.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#121212"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+    <Style Selector="Button.menuchip.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#121212"/></Style>
+    <Style Selector="Button.pill"><Setter Property="Background" Value="#E0161616"/><Setter Property="BorderBrush" Value="#5CFFFFFF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="20,12,17,12"/><Setter Property="CornerRadius" Value="9"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="White"/></Style>
+    <Style Selector="Button.pill:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#F0212121"/><Setter Property="Foreground" Value="White"/></Style>
 
     <Style Selector="TextBox">
       <!-- Selected text: macOS's blue under white ink (the theme's accent, white, hid the text it selected). -->
       <Setter Property="SelectionBrush" Value="#3F6FB5"/>
       <Setter Property="SelectionForegroundBrush" Value="#FFFFFF"/>
-      <Setter Property="Background" Value="#161618"/>
-      <Setter Property="BorderBrush" Value="#2A2A2E"/>
+      <Setter Property="Background" Value="#171717"/>
+      <Setter Property="BorderBrush" Value="#2B2B2B"/>
       <Setter Property="CornerRadius" Value="8"/>
       <Setter Property="Padding" Value="14,11"/>
       <Setter Property="FontSize" Value="15"/>
     </Style>
     <!-- Being typed in: flat, one step lighter, a quiet grey edge (FieldFocus of Windows, field-focus of Mira web). -->
-    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement"><Setter Property="Background" Value="#1B1B1D"/><Setter Property="BorderBrush" Value="#6A6A70"/></Style>
-    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement"><Setter Property="Background" Value="#1A1A1C"/></Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement"><Setter Property="Background" Value="#1C1C1C"/><Setter Property="BorderBrush" Value="#6A6A70"/></Style>
+    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement"><Setter Property="Background" Value="#1B1B1B"/></Style>
     <Style Selector="ComboBox">
-      <Setter Property="Background" Value="#1B1B1D"/>
+      <Setter Property="Background" Value="#1C1C1C"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="CornerRadius" Value="8"/>
       <Setter Property="Padding" Value="12,8"/>

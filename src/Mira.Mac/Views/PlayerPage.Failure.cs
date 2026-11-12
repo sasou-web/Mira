@@ -92,7 +92,7 @@ public sealed partial class PlayerPage
         // The picture's last frame and the controls stay under it: nothing of them shows nor takes a click.
         _failure = new Grid
         {
-            Background = Ui.Brush("#070708"), IsVisible = false, Opacity = 0, Children = { body },
+            Background = Ui.Brush("#000000"), IsVisible = false, Opacity = 0, Children = { body },
             Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(220) }]
         };
         KeyboardNavigation.SetTabNavigation(_failure, KeyboardNavigationMode.Cycle);

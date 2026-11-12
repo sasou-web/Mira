@@ -4,17 +4,18 @@ import UIKit
 /// Mira's palette: the tokens of Mira web (`:root` of app.css) and of Mira for Windows (Themes/Cinema.xaml), same
 /// names. Dark only, as everywhere else in Mira.
 enum Palette {
-    static let bg = Color(hex: 0x070708)
-    static let surface = Color(hex: 0x111112)
-    static let raised = Color(hex: 0x1B1B1D)
-    static let raised2 = Color(hex: 0x242427)
-    static let line = Color(hex: 0x26262A)
+    /// True black: the screen off on an OLED (ogsas, 2026-11-12).
+    static let bg = Color(hex: 0x000000)
+    static let surface = Color(hex: 0x111111)
+    static let raised = Color(hex: 0x1C1C1C)
+    static let raised2 = Color(hex: 0x252525)
+    static let line = Color(hex: 0x272727)
     static let ink = Color(hex: 0xF4F4F5)
     static let muted = Color(hex: 0xA2A2A6)
     /// Never for text: below the contrast text needs on `bg` (as Dim on Windows).
     static let faint = Color(hex: 0x8A8A90)
     static let accent = Color(hex: 0xF5F5F7)
-    static let onAccent = Color(hex: 0x0B0B0C)
+    static let onAccent = Color(hex: 0x0B0B0B)
     static let danger = Color(hex: 0xFF6B5F)
     static let warning = Color(hex: 0xD5B787)
     /// Something going well: in a group of Watch together (Success of Mira for Windows).
@@ -106,7 +107,7 @@ struct MiraIcon: View {
     var size: CGFloat = 72
     var body: some View {
         RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-            .fill(LinearGradient(colors: [Color(hex: 0x252528), Color(hex: 0x0D0D0F)], startPoint: .top, endPoint: .bottom))
+            .fill(LinearGradient(colors: [Color(hex: 0x262626), Color(hex: 0x0E0E0E)], startPoint: .top, endPoint: .bottom))
             .overlay { MiraMark().fill(Palette.accent).padding(size * 0.02) }
             .overlay { RoundedRectangle(cornerRadius: size * 0.225, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 1) }
             .frame(width: size, height: size)

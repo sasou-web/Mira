@@ -102,7 +102,7 @@ public sealed partial class PlayerPage
         var image = new Image { Stretch = Stretch.UniformToFill };
         if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? Cards.Blur(hash, 16 / 9d) : null;
         var thumb = new Grid { Width = 112, Height = 63 };
-        thumb.Children.Add(new Border { Background = Ui.Brush("#222225") });
+        thumb.Children.Add(new Border { Background = Ui.Brush("#232323") });
         thumb.Children.Add(image);
         if (episode.Resumable) thumb.Children.Add(new Border { Height = 3, Width = 112 * episode.Progress, Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
         var art = new Border { CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = thumb };
@@ -116,7 +116,7 @@ public sealed partial class PlayerPage
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         grid.Children.Add(art); Grid.SetColumn(text, 1); grid.Children.Add(text);
         var row = new Button { Content = grid, Classes = { "quiet" }, Tag = episode.Id, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8, 6, 10, 6) };
-        if (playing) row.Background = Ui.Brush("#26262A");
+        if (playing) row.Background = Ui.Brush("#272727");
         Avalonia.Automation.AutomationProperties.SetName(row, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Progress > 0 ? ", en cours" : "")}",
             $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(playing ? ", playing" : episode.UserData.Played ? ", watched" : episode.Progress > 0 ? ", in progress" : "")}"));
         row.Click += (_, _) =>

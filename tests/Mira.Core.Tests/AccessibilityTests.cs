@@ -21,10 +21,10 @@ internal static class AccessibilityTests
             // A translucent text is blended over its background: half-transparent white on black is a mid grey.
             Assert(Math.Abs(Legibility.Contrast("#80FFFFFF", "#000000") - Legibility.Contrast("#808080", "#000000")) < .05, "Translucent text not blended");
             // The darkest backgrounds Mira draws text on, and its secondary text: the old greys were under the floor.
-            foreach (var background in new[] { "#070708", "#101011", "#111112", "#101012" })
+            foreach (var background in new[] { "#000000", "#101010", "#111111", "#191919" })
                 foreach (var text in new[] { "#8A8A90", "#A2A2A6" })
                     Assert(Legibility.Contrast(text, background) >= 4.5, $"{text} on {background}: {Legibility.Contrast(text, background):0.00}");
-            Assert(Legibility.Contrast("#696972", "#070708") < 4.5, "The old faint grey is not caught");
+            Assert(Legibility.Contrast("#696972", "#000000") < 4.5 && Legibility.Contrast("#696972", "#111111") < 4.5, "The old faint grey is not caught");
             // Every opaque, light text colour written in the windows' markup and code: the text of a dark ink (a light
             // button) and the translucent ones (over artwork) are judged where they are drawn, not here.
             var repository = TestSupport.Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

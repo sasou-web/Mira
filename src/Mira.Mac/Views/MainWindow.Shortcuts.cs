@@ -57,7 +57,7 @@ public sealed partial class MainWindow
             row.Children.Add(new Border
             {
                 MinWidth = 28, Height = 26, Padding = new Thickness(8, 0), CornerRadius = new CornerRadius(6),
-                Background = Ui.Raised, BorderBrush = Ui.Brush("#34343A"), BorderThickness = new Thickness(1),
+                Background = Ui.Raised, BorderBrush = Ui.Brush("#363636"), BorderThickness = new Thickness(1),
                 Child = new TextBlock { Text = key, FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
             });
         row.Children.Add(new TextBlock { Text = text, FontSize = 13.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(5, 0, 0, 0), MaxWidth = 250 });

@@ -11,7 +11,7 @@
   <CornerRadius x:Key="RadiusCard">11</CornerRadius>
   <CornerRadius x:Key="RadiusSheet">20</CornerRadius>
   <!-- Surfaces, darkest first: the window, panels and rows, fields and lists, raised tiles, buttons, lines. -->
-  <SolidColorBrush x:Key="Bg" Color="#080808"/>
+  <SolidColorBrush x:Key="Bg" Color="#000000"/>
   <SolidColorBrush x:Key="Surface" Color="#111111"/>
   <SolidColorBrush x:Key="Field" Color="#121212" po:Freeze="True"/>
   <SolidColorBrush x:Key="Raised" Color="#1C1C1C" po:Freeze="True"/>
@@ -50,9 +50,9 @@
   <SolidColorBrush x:Key="Toast" Color="#F0242424" po:Freeze="True"/>
   <SolidColorBrush x:Key="Pill" Color="#E0161616" po:Freeze="True"/>
   <SolidColorBrush x:Key="Sheet" Color="#F0111111" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Scrim" Color="#F4080808" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Scrim" Color="#F4000000" po:Freeze="True"/>
   <!-- Réglages and Aide, a window over Mira (MainWindow.Sheet.cs): the wash over the still of the app behind, the column of its list, its rows. -->
-  <SolidColorBrush x:Key="SheetScrim" Color="#80080808" po:Freeze="True"/>
+  <SolidColorBrush x:Key="SheetScrim" Color="#80000000" po:Freeze="True"/>
   <SolidColorBrush x:Key="SheetSide" Color="#0C0C0C" po:Freeze="True"/>
   <SolidColorBrush x:Key="SheetRow" Color="#181818" po:Freeze="True"/>
   <!-- Keyboard focus ring; Windows' highlight colour in high contrast (MainWindow). -->

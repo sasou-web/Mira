@@ -103,7 +103,7 @@ public sealed partial class MainWindow : Window
     private readonly Button _toastAction = new() { Classes = { "primary" }, Padding = new Thickness(16, 8), Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
     private readonly Icon _toastIcon = new("info", 21);
     private readonly Border _toastTile = new() { Width = 40, Height = 40, CornerRadius = new CornerRadius(12), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 13, 0) };
-    private readonly Border _toastTime = new() { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = Ui.Brush("#3D3D43"), RenderTransformOrigin = new RelativePoint(0, 0.5, RelativeUnit.Relative), IsHitTestVisible = false };
+    private readonly Border _toastTime = new() { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = Ui.Brush("#3F3F3F"), RenderTransformOrigin = new RelativePoint(0, 0.5, RelativeUnit.Relative), IsHitTestVisible = false };
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(6) };
     /// <summary>Jellyfin's change notifications come in bursts (a scan, a playback elsewhere): one refresh after the last.</summary>
     private readonly DispatcherTimer _serverChanged = new() { Interval = TimeSpan.FromSeconds(2) };
@@ -230,7 +230,7 @@ public sealed partial class MainWindow : Window
         _railButtons["offline"].IsVisible = false;
         var settings = Ui.IconButton("settings", L("Réglages · ⌘,", "Settings · ⌘,"), () => NavigateRoot("settings"), "rail", 22);
         _railButtons["settings"] = settings;
-        var avatar = new Grid { Width = 29, Height = 29, Margin = new Thickness(0, 12, 0, 0), Children = { new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3D3D43"), Child = _avatar }, _avatarPhoto } };
+        var avatar = new Grid { Width = 29, Height = 29, Margin = new Thickness(0, 12, 0, 0), Children = { new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3F3F3F"), Child = _avatar }, _avatarPhoto } };
         ToolTip.SetTip(avatar, L("Compte Jellyfin", "Jellyfin account"));
         // Its count of accounts in a corner, as the title page's « En groupe · 2 personnes ».
         _groupRail.Classes.Add("rail"); Avalonia.Automation.AutomationProperties.SetName(_groupRail, L("Groupe", "Group"));
@@ -264,7 +264,7 @@ public sealed partial class MainWindow : Window
         var card = new Grid(); card.Children.Add(row); card.Children.Add(_toastTime);
         var toast = new Border
         {
-            Background = Ui.Brush("#F21A1A1D"), BorderBrush = Ui.Brush("#3D3D43"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(16), ClipToBounds = true,
+            Background = Ui.Brush("#F21B1B1B"), BorderBrush = Ui.Brush("#3F3F3F"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(16), ClipToBounds = true,
             Margin = new Thickness(0, 0, 0, 28), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom,
             Child = card, IsVisible = false, Opacity = 0, MinWidth = 380, MaxWidth = 580, MinHeight = 64,
             Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }]
@@ -288,7 +288,7 @@ public sealed partial class MainWindow : Window
             _toastTime.RenderTransform = TransformOperations.Parse("scaleX(0)");
         }, TimeSpan.FromMilliseconds(16));
     }
-    private static readonly IBrush NoticeDanger = Ui.Brush("#F3AD99"), NoticeDangerTile = Ui.Brush("#2EF3AD99"), NoticeTile = Ui.Brush("#30FFFFFF"), NoticeOnAccent = Ui.Brush("#111113"), NoticeAccent = Ui.Brush("#F5F5F7");
+    private static readonly IBrush NoticeDanger = Ui.Brush("#F3AD99"), NoticeDangerTile = Ui.Brush("#2EF3AD99"), NoticeTile = Ui.Brush("#30FFFFFF"), NoticeOnAccent = Ui.Brush("#121212"), NoticeAccent = Ui.Brush("#F5F5F7");
 
     /// <summary>
     /// A short message at the bottom of the window, as on Windows: said by VoiceOver, it leaves on its own once there was

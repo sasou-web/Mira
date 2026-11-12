@@ -16,7 +16,7 @@ namespace Mira.Mac.Views;
 /// <summary>Small builders for the interface, written in code like the Windows app's dynamic parts.</summary>
 public static class Ui
 {
-    public static readonly IBrush Muted = Brush("#A2A2A6"), Faint = Brush("#8A8A90"), Ink = Brush("#F4F4F5"), Raised = Brush("#1B1B1D"), TextTertiary = Brush("#B6B6BD");
+    public static readonly IBrush Muted = Brush("#A2A2A6"), Faint = Brush("#8A8A90"), Ink = Brush("#F4F4F5"), Raised = Brush("#1C1C1C"), TextTertiary = Brush("#B6B6BD");
     /// <summary>The glyph of a poster without artwork, as on Windows (MediaCard): decorative, never text.</summary>
     public static readonly IBrush Glyph = Brush("#4E4E57");
     public static SolidColorBrush Brush(string color) => new(Color.Parse(color));
@@ -91,7 +91,7 @@ public static class Ui
     /// <summary>A small rounded tag (« 2025 », « 1 h 58 », « ★ 8.1 »).</summary>
     public static Border Tag(string text) => new()
     {
-        Background = Brush("#CC1B1B1D"), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6),
+        Background = Brush("#CC1C1C1C"), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6),
         Child = new TextBlock { Text = text, FontSize = 13, Foreground = Ink }
     };
 
@@ -428,14 +428,14 @@ public static class Cards
     {
         Background = Ui.Brush("#F5F5F7"), CornerRadius = new CornerRadius(12), BoxShadow = BadgeShadow, Width = 24, Height = 24, Margin = new Thickness(8),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
-        Child = new Icon("check", 14) { Foreground = Ui.Brush("#0B0B0C") }
+        Child = new Icon("check", 14) { Foreground = Ui.Brush("#0B0B0B") }
     };
     /// <summary>Episodes left in a series under way: new ones show from the library.</summary>
     private static Control ToWatch(string count) => new Border
     {
         Background = Ui.Brush("#F5F5F7"), CornerRadius = new CornerRadius(12), BoxShadow = BadgeShadow, MinWidth = 24, Height = 24, Padding = new Thickness(7, 0), Margin = new Thickness(8),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
-        Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0C"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+        Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0B"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
     };
     private static readonly ITransform Lifted = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1.03)"), Resting = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1)");
     /// <summary>
@@ -460,7 +460,7 @@ public static class Cards
 /// </summary>
 public sealed class SkeletonCard : StackPanel
 {
-    private static readonly IBrush Surface = Ui.Brush("#111112");
+    private static readonly IBrush Surface = Ui.Brush("#111111");
     private CancellationTokenSource? _pulse;
 
     public SkeletonCard()
