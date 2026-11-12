@@ -5,6 +5,17 @@ import Foundation
 /// again there), and the lines the screen writes of the PC, a result, a request and a download: the rules of Mira for
 /// Windows and Mac (Mira.Core RemoteLines), with their shared cases in tests/fixtures/torlink-lines.json.
 enum RemoteLines {
+    // MARK: Where it is offered
+
+    /// « Download on the server PC » in Settings: only where the page can work, the relay of Mira's extension, which only
+    /// an administrator may use (RemoteDownloads.Offered of Mira for Windows and Mac). Without the extension (most
+    /// servers: Jellyfin answers 404 at Mira/torlink), the page could only say the extension is out of date.
+    /// `administrator` and `miraExtension` are nil when Jellyfin did not say: `before` stays.
+    static func offered(administrator: Bool?, miraExtension: Bool?, before: Bool) -> Bool {
+        if administrator == false || miraExtension == false { return false }
+        return administrator == true && miraExtension == true || before
+    }
+
     // MARK: What the relay says
 
     /// Mira for Windows on the PC of Jellyfin, as the relay last heard from it.

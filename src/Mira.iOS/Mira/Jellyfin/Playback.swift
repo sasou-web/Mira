@@ -146,11 +146,18 @@ extension JellyfinClient {
         // A party's guest reaches Jellyfin through the extension's gateway, which lets its player through to Mira/hls
         // but answers 404 at Mira/ (checked on 12.1): asked there, a guest's subtitles of a conversion came 10 s late.
         if SyncRules.isGuestServer(server) { return true }
+        return await miraExtension() == true
+    }
+
+    /// Jellyfin's Mira extension, asked at its page (Mira/, served to anyone): true when it answers, false when Jellyfin
+    /// has no such page (404: the extension is not installed, as on most servers), nil when nothing said (Jellyfin out
+    /// of reach, Built-in Tailscale's relay failing).
+    func miraExtension() async -> Bool? {
         // A GET: Jellyfin answers 405 to a HEAD on its controllers, the extension's page among them (12.1), and the
         // subtitles of every conversion came 10 s late.
         let request = URLRequest(url: await Way.shared.map(server.appending(path: "Mira/")), timeoutInterval: 6)
-        guard let answer = try? await Self.session.data(for: request) else { return false }
-        return (answer.1 as? HTTPURLResponse)?.statusCode == 200
+        guard let answer = try? await Self.session.data(for: request), let status = (answer.1 as? HTTPURLResponse)?.statusCode else { return nil }
+        return status == 200 ? true : status == 404 ? false : nil
     }
 
     /// Jellyfin is there and ready (System/Ping; while it starts, it answers 503): 5 s at most. Silent, or out of

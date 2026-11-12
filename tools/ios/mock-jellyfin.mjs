@@ -9,8 +9,9 @@
 // pictures of media/trickplay (tools/ios/trickplay.sh): the player's captures.
 // The tests switch it (POST): /Mock/Slow?ms=… answers the account's requests that much later (pictures and the server's
 // public answer stay quick), /Mock/Down cuts every connection but /Mock's (a PC switched off), /Mock/Revoke refuses the
-// account's token from then on (its session ended from Jellyfin's dashboard; signing in again gives it back), /Mock/Up
-// undoes them all;
+// account's token from then on (its session ended from Jellyfin's dashboard; signing in again gives it back),
+// /Mock/Admin makes the account an administrator, /Mock/Extension serves the page of Mira's extension at /Mira/ (as a
+// server with it; not its HLS playlists: no player test asks for it), /Mock/Up undoes them all;
 // /Mock/Mark?name=… notes when a moment of a filmed test came (/Mock/Marks, read by ios.yml to cut the film).
 // « Keep on this iPhone »: Items/{id}/Download sends the file (ranges), and Cosmos Laundromat's PlaybackInfo, asked with
 // no subtitles from its start (as the app asks to keep a title), is a conversion of an MKV: its HLS playlists cut
@@ -43,7 +44,7 @@ function mp4Seconds(data) {
 const reports = [];
 /** PlaybackInfo's asks: the title, the file named, the tracks asked. */
 const asks = [];
-let slow = 0, down = false, revoked = false;
+let slow = 0, down = false, revoked = false, administrator = false, extension = false;
 const marks = [];
 
 const port = Number(process.argv[2] ?? 18097);
@@ -270,11 +271,20 @@ const server = http.createServer(async (req, res) => {
     revoked = path === '/Mock/Revoke';
     if (revoked) for (const socket of sockets) socket.destroy();
     if (down) for (const socket of sockets) socket.destroy();
+    if (path === '/Mock/Up') administrator = extension = false;
     return send(res, 204, undefined);
   }
+  if (req.method === 'POST' && path === '/Mock/Admin') { administrator = true; return send(res, 204, undefined); }
+  if (req.method === 'POST' && path === '/Mock/Extension') { extension = true; return send(res, 204, undefined); }
   if (path === '/Mock/Mark' && req.method === 'POST') { marks.push({ name: q.get('name') ?? '', at: Date.now() }); return send(res, 204, undefined); }
   if (path === '/Mock/Marks') return send(res, 200, marks);
   if (down && !path.startsWith('/Mock/')) { req.socket.destroy(); return; }
+  // The page of Mira's extension, served to anyone; without the extension, as on most servers, Jellyfin has none (404).
+  if (url.pathname === '/Mira/') {
+    if (!extension) return send(res, 404, undefined);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end('<!doctype html><title>Mira</title>');
+  }
   if (url.pathname === `/Mira/party/${PARTY}`) return send(res, 200, { host: 'Sam' });
   if (url.pathname === '/Mira/guest/open' && req.method === 'POST') {
     const body = JSON.parse(raw || '{}');
@@ -347,8 +357,8 @@ const server = http.createServer(async (req, res) => {
     syncPlay(sync[1], JSON.parse(raw || '{}'), guest ? 'Guest' + sync[1] : sync[1]);
     return send(res, 204, undefined);
   }
-  // The account's policy: allowed to manage collections, not an administrator.
-  if (path === '/Users/Me') return send(res, 200, { Id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f', Name: 'ogsas', Policy: { IsAdministrator: false, EnableCollectionManagement: true } });
+  // The account's policy: allowed to manage collections, not an administrator (but after /Mock/Admin).
+  if (path === '/Users/Me') return send(res, 200, { Id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f', Name: 'ogsas', Policy: { IsAdministrator: administrator, EnableCollectionManagement: true } });
   if (path === '/Items' && q.get('locationTypes') === 'Virtual') return send(res, 200, list(virtualEpisodes));
   if (path === '/Items' && q.get('includeItemTypes') === 'BoxSet') return send(res, 200, list(boxSets.map(boxSet)));
   const holding = /^\/Items\/([0-9a-f]+)\/Collections$/.exec(path);

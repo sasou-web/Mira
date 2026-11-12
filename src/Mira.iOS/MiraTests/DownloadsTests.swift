@@ -125,4 +125,16 @@ struct DownloadsTests {
         #expect(RemoteLines.controllable(.init(id: "a", name: "x", status: "paused")))
         #expect(!RemoteLines.controllable(.init(id: "a", name: "x", status: "completed")))
     }
+
+    /// The cases of RemoteDownloads.Offered (Mira.Core.Tests RemoteDownloadTests), but the PC of Jellyfin's own.
+    @Test("Proposé dans les Réglages seulement à un administrateur, avec l'extension de Mira sur Jellyfin")
+    func offered() {
+        #expect(RemoteLines.offered(administrator: true, miraExtension: true, before: false), "Un administrateur avec l'extension : le relais.")
+        #expect(!RemoteLines.offered(administrator: true, miraExtension: false, before: true), "Jellyfin sans l'extension : jamais une page qui ne peut pas marcher.")
+        #expect(!RemoteLines.offered(administrator: false, miraExtension: nil, before: true), "Un compte qui n'administre pas : rien.")
+        #expect(!RemoteLines.offered(administrator: false, miraExtension: true, before: true), "Un compte qui n'administre pas : rien.")
+        #expect(RemoteLines.offered(administrator: true, miraExtension: nil, before: true), "Jellyfin n'a pas répondu : l'entrée reste.")
+        #expect(!RemoteLines.offered(administrator: true, miraExtension: nil, before: false), "Jellyfin n'a pas répondu : l'entrée reste absente.")
+        #expect(!RemoteLines.offered(administrator: nil, miraExtension: nil, before: false), "Jellyfin n'a rien dit : rien.")
+    }
 }
