@@ -654,6 +654,22 @@ internal static class PlayerTests
             }
             Assert(positions.Max() - positions.Min() < .001, "Frame rate changes the easing speed"); return Task.CompletedTask;
         });
+        await Test("Défilement : arrêt net à la fin, rien qui traîne après", () =>
+        {
+            foreach (var fps in new[] { 30, 60, 144, 240 })
+            {
+                // One notch, then three quick ones: the list stands still at the end of the easing, never later.
+                var motion = new ScrollMotion(); motion.Add(108, 5000);
+                var frames = 0;
+                while (motion.Moving) { motion.Step(1d / fps, 5000); frames++; }
+                Assert(motion.Position == 108 && frames <= Math.Ceiling(ScrollMotion.Duration * fps) + 1, $"{fps} images/s : arrêt après {frames} images");
+                motion.Add(108, 5000); motion.Step(.03, 5000); motion.Add(108, 5000); motion.Step(.03, 5000); motion.Add(108, 5000);
+                frames = 0;
+                while (motion.Moving) { motion.Step(1d / fps, 5000); frames++; }
+                Assert(motion.Position == 432 && frames <= Math.Ceiling(ScrollMotion.Duration * fps) + 1, $"{fps} images/s : trois crans arrêtés après {frames} images");
+            }
+            return Task.CompletedTask;
+        });
         await Test("Défilement : inversion immédiate et bornes après changement du contenu", () =>
         {
             var motion = new ScrollMotion(); motion.Reset(300); motion.Add(600, 1000); motion.Step(.04, 1000);
