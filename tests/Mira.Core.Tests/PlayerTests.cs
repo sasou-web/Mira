@@ -203,9 +203,25 @@ internal static class PlayerTests
                 Spoilers.On = true;
                 Assert(Artwork.Landscape(next) == new ImageRef("series", "Backdrop", "backdrop") && Artwork.Landscape(started) == new ImageRef("e", "Thumb", "thumb"), "Wide card with spoilers hidden");
                 Assert(Spoilers.Still(next) == new ImageRef("e", "Primary", "still") && BlurHash.Of(next, Spoilers.Still(next)) is not null, "The still's BlurHash stands in for it");
+                // A series without art of its own (Jellyfin found no metadata for it: its episodes keep the frame it took
+                // from each video, as « Bord Test » on Jellyfin 12.1): never the still either, on a wide card nor on a
+                // banner (Home's, « À suivre » on top of Séries); no picture rather than the still.
+                var bare = next with { ParentBackdropItemId = null, ParentBackdropImageTags = [] };
+                var bareThumb = bare with { ImageTags = new() { ["Thumb"] = "thumb" } };
+                Assert(Artwork.Landscape(bare) == Artwork.None && Artwork.Landscape(bareThumb) == Artwork.None && Artwork.Backdrop(bare) == Artwork.None
+                    && Artwork.Backdrop(bareThumb with { BackdropImageTags = ["own"] }) == Artwork.None && BlurHash.Of(bare, Artwork.Landscape(bare)) is null,
+                    $"Series without art: {Artwork.Landscape(bare)} | {Artwork.Landscape(bareThumb)} | {Artwork.Backdrop(bare)}");
+                Assert(Artwork.Backdrop(next) == new ImageRef("series", "Backdrop", "backdrop") && Artwork.Backdrop(next with { BackdropImageTags = ["own"] }) == new ImageRef("series", "Backdrop", "backdrop"),
+                    "Banner: the series' backdrop");
+                // Its own title page, opened on purpose, shows everything; started, it shows as before.
+                Assert(Artwork.Backdrop(bare, ownPage: true) == new ImageRef("e", "Thumb", "thumb") && Artwork.Backdrop(started with { ParentBackdropItemId = null, ParentBackdropImageTags = [] }) == new ImageRef("e", "Thumb", "thumb"),
+                    "Title page, started");
+                // A new episode's notice: the series' backdrop, else nothing; its still when spoilers are shown.
+                Assert(NewEpisodes.Picture(next) == new ImageRef("series", "Backdrop", "backdrop") && NewEpisodes.Picture(bare) is null, $"Notice: {NewEpisodes.Picture(next)} | {NewEpisodes.Picture(bare)}");
             }
             finally { Spoilers.On = false; }
-            Assert(Artwork.Landscape(next) == new ImageRef("e", "Thumb", "thumb"), "Off: as before");
+            Assert(Artwork.Landscape(next) == new ImageRef("e", "Thumb", "thumb") && Artwork.Backdrop(next with { ParentBackdropItemId = null }) == new ImageRef("e", "Thumb", "thumb")
+                && NewEpisodes.Picture(next) == new ImageRef("e", "Primary", "still") && NewEpisodes.Picture(next with { ImageTags = [] }) is null, "Off: as before");
             return Task.CompletedTask;
         });
         await Test("Touches média du Mac : « Now Playing » redit seulement ce qui change, touches comme sous Windows", () =>

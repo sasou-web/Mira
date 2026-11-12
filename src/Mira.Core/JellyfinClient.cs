@@ -1707,7 +1707,9 @@ public sealed class JellyfinClient : IDisposable
     /// down to <see cref="NewEpisodes.Floor"/> of the mark <paramref name="since"/> (of the newest episode on the first
     /// look), <see cref="MostRecentEpisodes"/> at most: a whole season of another series added at once never hides the
     /// episode of a followed one, and the next look knows every episode there (<see cref="NewEpisodes.Known"/>). Whole:
-    /// listed down to there, not stopped at the most.
+    /// listed down to there, not stopped at the most. Backdrops and thumbnails asked too: the series' backdrop
+    /// (ParentBackdropItemId) is the notice's picture when spoilers are hidden, and Jellyfin 12.1 looks up the parents'
+    /// images only when a thumbnail or a logo is asked (Primary,Backdrop alone: none).
     /// </summary>
     public async Task<(List<MediaItem> Episodes, Dictionary<string, MediaItem> Series, bool Whole)> RecentEpisodesAsync(DateTimeOffset? since = null, CancellationToken ct = default)
     {
@@ -1717,7 +1719,7 @@ public sealed class JellyfinClient : IDisposable
         while (true)
         {
             var result = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Episode&isMissing=false" +
-                $"&sortBy=DateCreated&sortOrder=Descending&startIndex={start}&limit={asked}&fields=DateCreated&enableImageTypes=Primary&imageTypeLimit=1", ct);
+                $"&sortBy=DateCreated&sortOrder=Descending&startIndex={start}&limit={asked}&fields=DateCreated&enableImageTypes=Primary,Backdrop,Thumb&imageTypeLimit=1", ct);
             start += result.Items.Count;
             var fresh = result.Items.Where(x => listed.Add(x.Id)).ToList(); episodes.AddRange(fresh);
             // Without a mark yet, down to a week before the newest episode: the next look must know them all.

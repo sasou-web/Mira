@@ -77,11 +77,12 @@ public sealed partial class MainWindow
     private async Task NotifyAsync(Session session, NewEpisodes.Notice notice)
     {
         string? image = null;
-        if (notice.Episode.ImageTags.ContainsKey("Primary"))
+        // « Cacher les spoilers »: the series' art, never the new episode's still (NewEpisodes.Picture).
+        if (NewEpisodes.Picture(notice.Episode) is { } picture)
         {
             try
             {
-                var bytes = await session.Client.ImageAsync(notice.Episode.Id, "Primary", 728, session.Lifetime);
+                var bytes = await session.Client.ImageAsync(picture.ItemId, picture.Type, 728, session.Lifetime);
                 Directory.CreateDirectory(NoticeImages);
                 var path = Path.Combine(NoticeImages, notice.Episode.Id + ".jpg");
                 await File.WriteAllBytesAsync(path, bytes);

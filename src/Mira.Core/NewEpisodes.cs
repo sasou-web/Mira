@@ -64,6 +64,15 @@ public static class NewEpisodes
         var rest = groups.Count - notices.Count;
         return (notices, rest switch { <= 0 => null, 1 => L("Et une autre série que tu suis a un nouvel épisode.", "And another show you follow has a new episode."), _ => L($"Et {rest} autres séries que tu suis ont de nouveaux épisodes.", $"And {rest} other shows you follow have new episodes.") });
     }
+    /// <summary>
+    /// The picture of a notice: the episode's own still, unless <see cref="Spoilers"/> hides it (an episode just added
+    /// is not started yet): then its season's or series' art, as on a wide card, or none.
+    /// </summary>
+    public static ImageRef? Picture(MediaItem episode)
+    {
+        var image = Spoilers.Hides(episode) ? Artwork.Landscape(episode) : new ImageRef(episode.Id, "Primary", episode.ImageTags.GetValueOrDefault("Primary") ?? "");
+        return image.ItemId.Length > 0 && image.Tag.Length > 0 ? image : null;
+    }
     /// <summary>« Nouvel épisode : S2 É5 · Le départ », « 3 nouveaux épisodes : S2 É5 à É7 », « 4 nouveaux épisodes, dès S1 É9 »; "3 new episodes: S2 E5 to E7".</summary>
     public static string Text(IReadOnlyList<MediaItem> episodes)
     {

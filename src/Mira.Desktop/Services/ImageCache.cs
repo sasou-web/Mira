@@ -56,9 +56,13 @@ public sealed class ImageCache
         var image = backdrop ? Artwork.Backdrop(item) : Artwork.Poster(item);
         return Load(image, targetWidth ?? (backdrop ? BackdropPixels : Pixels(PosterWidth)));
     }
+    /// <summary>A title page's backdrop: an episode opened on purpose shows everything, its own still too (see Artwork.Backdrop).</summary>
+    public Task<BitmapSource?> PageBackdropAsync(MediaItem item) => Load(Artwork.Backdrop(item, ownPage: true), BackdropPixels);
     /// <summary>A wide card: for an episode, art of its season or of the episode itself before the series' (see Artwork.Landscape).</summary>
     public Task<BitmapSource?> LandscapeAsync(MediaItem item, int width) => Load(Artwork.Landscape(item), width);
-    private Task<BitmapSource?> Load(ImageRef image, int width) => Cached($"{image.ItemId}-{image.Type}-{image.Tag}-{width}", image.ItemId, image.Type, width);
+    // No picture (Artwork.None): nothing asked, Jellyfin would answer with the item's own picture whatever the tag.
+    private Task<BitmapSource?> Load(ImageRef image, int width) => image.ItemId.Length == 0 ? Task.FromResult<BitmapSource?>(null)
+        : Cached($"{image.ItemId}-{image.Type}-{image.Tag}-{width}", image.ItemId, image.Type, width);
     public Task<BitmapSource?> LogoAsync(MediaItem item)
     {
         var id = item.ImageTags.ContainsKey("Logo") ? item.Id : item.ParentLogoItemId ?? item.SeriesId;
