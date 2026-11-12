@@ -56,6 +56,13 @@ public static class SubtitleLanguages
         return Table.FirstOrDefault(x => x.Three == code).Two;
     }
 
+    /// <summary>
+    /// The language of a track or a file Jellyfin lists, as a source knows it: « fre », « fra », « fr », and also a tag with
+    /// its region or script, which Jellyfin keeps as it reads it from a file's name (« fr-ca » for « Film.fr-CA.srt »,
+    /// « pt-br », « es-419 », « zh-hant »): the language before them. Null for one no source is asked for.
+    /// </summary>
+    public static string? Of(string? tag) => tag is null ? null : Two(tag.Trim().Split('-', '_')[0]);
+
     /// <summary>« fr », « pt-br », « PT » → « fre », « por »; the code itself when unknown (Jellyfin keeps it).</summary>
     public static string Three(string? two)
     {
@@ -141,7 +148,9 @@ public static class SubtitleArchive
 /// <summary>Subtitle files already beside a video.</summary>
 public static class SubtitleFiles
 {
-    /// <summary>A subtitle file beside the video whose name carries the language (any of its codes), after the video's own name.</summary>
+    /// <summary>A subtitle file beside the video whose name carries the language (any of its codes, a region or a script after it
+    /// or not: « fr-CA », « pt-BR »), after the video's own name; not a forced one, which only has the lines of the other
+    /// languages spoken.</summary>
     public static bool HasBeside(string videoPath, string two)
     {
         var folder = Path.GetDirectoryName(videoPath);
@@ -156,12 +165,16 @@ public static class SubtitleFiles
             {
                 if (!Mira.Core.ReleaseName.IsSubtitle(file)) continue;
                 var tags = Path.GetFileNameWithoutExtension(file)[stem.Length..].Split('.', StringSplitOptions.RemoveEmptyEntries);
-                if (tags.Any(names.Contains)) return true;
+                if (tags.Any(tag => names.Contains(tag) || SubtitleLanguages.Of(tag) == two) && !tags.Any(Forced)) return true;
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         return false;
     }
+
+    /// <summary>A tag Jellyfin reads as a forced file (its MediaForcedFlags, found inside a tag as Jellyfin finds them).</summary>
+    private static bool Forced(string tag) =>
+        tag.Contains("forced", StringComparison.OrdinalIgnoreCase) || tag.Contains("foreign", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>

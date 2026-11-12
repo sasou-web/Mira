@@ -266,5 +266,5 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
     /// </summary>
     private bool Has(Video video, string two) =>
         MiraSubtitleProvider.AlreadyHas(video, two)
-        || _provider.Streams(video.Id).Any(s => s.Type == MediaStreamType.Subtitle && !s.IsForced && SubtitleLanguages.Two(s.Language) == two);
+        || _provider.Streams(video.Id).Any(s => s.Type == MediaStreamType.Subtitle && !s.IsForced && SubtitleLanguages.Of(s.Language) == two);
 }
