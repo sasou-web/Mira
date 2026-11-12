@@ -26,7 +26,7 @@ internal static class ConnectionTests
             { try { JellyfinClient.NormalizeServer(bad); throw new Exception("Accepted invalid URI"); } catch (ArgumentException) { } }
             return Task.CompletedTask;
         });
-        await Test("Adresse saisie : sans http://, avec port, ou copiée depuis la page web de Jellyfin", () =>
+        await Test("Adresse saisie : sans http://, avec port, ou copiée depuis la page web de Jellyfin ou de Mira", () =>
         {
             void Expect(string input, params string[] expected)
             { var actual = ServerAddress.Candidates(input); Assert(actual.SequenceEqual(expected), $"{input} → {string.Join(" ; ", actual)}"); }
@@ -38,6 +38,11 @@ internal static class ConnectionTests
             Expect("https://example.test/jellyfin/web/index.html#!/details?id=1", "https://example.test/jellyfin/");
             Expect("localhost:8096/web", "http://localhost:8096/", "https://localhost:8096/");
             Expect("http://web:8096/", "http://web:8096/");
+            // Mira web's address, which its people still have since it ended (the iPhone takes it too).
+            Expect("http://192.168.1.20:8096/Mira/#/titre/abc", "http://192.168.1.20:8096/");
+            Expect("192.168.1.20:8096/Mira", "http://192.168.1.20:8096/", "https://192.168.1.20:8096/");
+            Expect("https://example.test/jellyfin/mira/", "https://example.test/jellyfin/");
+            Expect("http://mira:8096/miracle", "http://mira:8096/miracle/");
             Expect("[::1]:8096", "http://[::1]:8096/", "https://[::1]:8096/");
             foreach (var bad in new[] { "", "   ", "http://user:secret@localhost", "ftp://example.test" })
             { try { ServerAddress.Candidates(bad); throw new Exception("Accepted invalid address: " + bad); } catch (ArgumentException) { } }

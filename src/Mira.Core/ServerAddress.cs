@@ -160,12 +160,15 @@ public static partial class ServerAddress
     /// <summary>"10.10.7" or "10.11.0-rc2" → the version; null when the server says something else.</summary>
     public static Version? ParseVersion(string? text) =>
         Version.TryParse((text ?? "").Split('-', '+')[0].Trim(), out var version) ? version : null;
-    /// <summary>Jellyfin's own page ("…:8096/web/#/home.html") stands for its server: keep what is before /web.</summary>
+    /// <summary>
+    /// Jellyfin's own page ("…:8096/web/#/home.html") or Mira's on it ("…:8096/Mira/", Mira web's address, which the
+    /// people who used it still have) stands for its server: keep what is before /web or /Mira, as the iPhone does.
+    /// </summary>
     private static string WithoutWebPage(string url)
     {
         var cut = url.IndexOfAny(['#', '?']);
         if (cut >= 0) url = url[..cut];
-        // Only the path counts: a server simply named "web" keeps its name.
+        // Only the path counts: a server simply named "web" or "mira" keeps its name.
         var path = url.IndexOf('/', url.IndexOf("://", StringComparison.Ordinal) + 3);
         var web = path < 0 ? Match.Empty : WebPage().Match(url, path);
         return web.Success ? url[..web.Index] : url;
@@ -206,5 +209,5 @@ public static partial class ServerAddress
         catch (ArgumentException) { return new(null, ProbeFailure.NotJellyfin); }
     }
     [GeneratedRegex(@":(\d{1,5})$")] private static partial Regex PortSuffix();
-    [GeneratedRegex(@"/web(/|$)", RegexOptions.IgnoreCase)] private static partial Regex WebPage();
+    [GeneratedRegex(@"/(web|mira)(/|$)", RegexOptions.IgnoreCase)] private static partial Regex WebPage();
 }
