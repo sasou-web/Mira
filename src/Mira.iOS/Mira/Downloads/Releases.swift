@@ -142,6 +142,31 @@ enum Releases {
 
     private static func isYear(_ text: String) -> Bool { Regex.test(#"^(?:19|20)\d\d$"#, text, options: []) }
 
+    /// What a release gives in parentheses that is not a name: languages and subtitles, platforms, notes, editions.
+    private static let notNames: Set<String> = Set("""
+        vostfr vostf vost vosta vf vff vfq vfi vf2 vo french truefrench subfrench multi multisub multisubs msubs sub subs subbed
+        subtitles softsubs hardsub hardsubs dub dubbed dual audio raw raws eng english jpn jap japanese ad wkn wakanim adn cr
+        crunchyroll funi funimation hidive netflix amazon prime disney hulu bili bilibili b-global abema iqiyi viki readnfo nfofix
+        nfo read uncensored censored batch complete integrale intégrale extended unrated uncut remastered restored criterion imax
+        """.split(whereSeparator: { $0 == " " || $0 == "\n" }).map(String.init))
+
+    /// Words of a release that name nothing: a language or subtitles (« VOSTFR », « Multi Subs »), a platform (« WKN »,
+    /// « ADN »), a note (« READNFO »), a season or a part alone (« Season 2 », « Part 2 »), or one word in capitals.
+    static func namesNothing(_ text: String) -> Bool {
+        let value = text.trimmingCharacters(in: .whitespaces)
+        if value.isEmpty || Regex.test(#"^(?:(?:part|partie|cour|vol(?:ume)?|chapter|chapitre|arc|ep(?:isode)?|e|s|season|saison)\s*\d{1,3}|\d{1,2}(?:st|nd|rd|th)\s+(?:season|cour|part))$"#, value) {
+            return true
+        }
+        let words = value.split(whereSeparator: { " ._+/&".contains($0) }).map(String.init)
+        func plain(_ word: String) -> Bool { isTag(word) || notNames.contains(word.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "-"))) }
+        if words.allSatisfy({ word in
+            let parts = word.lowercased().split(separator: "-").map(String.init)
+            return plain(word) || parts.count > 1 && parts.allSatisfy(plain)
+        }) { return true }
+        guard words.count == 1, let word = words.first else { return false }
+        return word.utf16.count <= 8 && word.allSatisfy { $0.isASCII && $0.isLetter } && word == word.uppercased()
+    }
+
     /// A title to compare, its letters and digits only: lower case, no accent, ligature or exponent (« œ » as « oe », « ³ »
     /// as « 3 »), « & » as « and », without apostrophes, spaces or punctuation. Release names write a title in plain letters,
     /// an elided article as a word of its own (« L.Arnacoeur », « Le.Fabuleux.Destin.D.Amelie.Poulain ») and an English
@@ -180,14 +205,19 @@ enum Releases {
             fansub = true
         }
 
-        // The other name, in parentheses after the release's own: « (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio) ».
+        // The other name, in parentheses after the release's own: « (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio) »,
+        // « (VOSTFR, Battle Spirits Re Zekkai no Kuu) »; never a tag, a platform or a note (« (READNFO, …) », « (WKN) »).
         var alternate: String?
-        for m in Regex.all(#"\(([^()]*)\)"#, in: text, options: []) {
-            var first = String((m.text(1) ?? "").split(separator: ",", omittingEmptySubsequences: false).first ?? "")
-            if let dash = first.range(of: " - ") { first = String(first[..<dash.lowerBound]) }
-            first = first.trimmingCharacters(in: .whitespaces)
-            if first.utf16.count >= 3, Regex.test(#"\p{L}"#, first, options: []), !isYear(first), !tokenize(first).contains(where: { isTag($0.text) }) {
-                alternate = tidy(first)
+        parentheses: for m in Regex.all(#"\(([^()]*)\)"#, in: text, options: []) {
+            for element in (m.text(1) ?? "").split(separator: ",", omittingEmptySubsequences: false) {
+                var first = String(element)
+                if let dash = first.range(of: " - ") { first = String(first[..<dash.lowerBound]) }
+                first = first.trimmingCharacters(in: .whitespaces)
+                if first.utf16.count < 3 || !Regex.test(#"\p{L}"#, first, options: []) || first.utf16.count <= 6 && Regex.test(#"(?<![0-9])(?:19|20)[0-9]{2}(?![0-9])"#, first, options: [])
+                    || Regex.test(#"^[0-9A-F]{8}$"#, first) || tokenize(first).contains(where: { isTag($0.text) }) || namesNothing(first) { continue }
+                // « Kikansha no Mahou wa Tokubetsu desu 2nd Season »: the show, as its title would be read.
+                let title = parse(first).title
+                if !title.isEmpty, !namesNothing(title) { alternate = title; break parentheses }
                 break
             }
         }
