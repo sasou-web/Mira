@@ -412,13 +412,16 @@ final class MiraUITests: XCTestCase {
         // The slide on screen, whichever the banner turned to: each plays a title of Home's lists. The banner turns every
         // 9 s and each slide has its button at the same place: touched where it is now (a button found before a turn is
         // another slide's at the touch), and again if the touch fell during a turn or under a late « Save Password? ».
+        // Found by its frame, never by isHittable: asked of a slide beside the screen, XCTest fails the test (« Failed to
+        // determine hittability … Activation point invalid »), and the banner has turned by now (CI, 2026-11-12).
         let buttons = app.buttons.matching(identifier: "banner.play")
         XCTAssertTrue(buttons.firstMatch.waitForExistence(timeout: 10), "Pas de Reprendre dans le bandeau")
+        let screen = app.windows.firstMatch.frame
         let before = playbackAsks().count
         var asked: [[String: Any]] = []
         for _ in 0..<3 where asked.isEmpty {
             dismissSavePassword(app, timeout: 1)
-            if let shown = buttons.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+            if let shown = buttons.allElementsBoundByIndex.first(where: { screen.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }) {
                 let frame = shown.frame
                 app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
             }
