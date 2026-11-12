@@ -42,6 +42,7 @@ public sealed partial class SettingsPage : Page
             Toggle(StillWatching.Setting, StillWatching.SettingHelp, settings.StillWatching, v => settings.StillWatching = v),
             Toggle(Trailers.BeforeFilmLabel, Trailers.BeforeFilmHint, settings.TrailerFirst, v => settings.TrailerFirst = v),
             Toggle(Spoilers.Setting, Spoilers.SettingHelp, settings.HideSpoilers, v => settings.HideSpoilers = Spoilers.On = v),
+            Toggle(EpisodeShelf.Setting, EpisodeShelf.SettingHelp, settings.ShowMissingEpisodes, v => settings.ShowMissingEpisodes = v),
             Toggle(L("Passer les intros et les récaps", "Skip intros and recaps"), L("Tout seul, quand Jellyfin les a repérés. Sinon, touche S.", "On its own, when Jellyfin has found them. Otherwise, press S."), settings.AutoSkip, v => settings.AutoSkip = v),
             Choice(L("Qualité", "Quality"), [.. StreamQuality.Choices.Select(x => (x.Label, x.Key))], StreamQuality.Known(settings.Quality), v => settings.Quality = v,
                 L("« Automatique » s’adapte à ta connexion, chez toi comme ailleurs. Aussi dans le lecteur, sous ⋮.", "“Automatic” adapts to your connection, at home or away. Also in the player, under ⋮."))));

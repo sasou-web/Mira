@@ -38,6 +38,10 @@ A title counts as watched when it ends, when you stop past 90 %, or when you go 
 
 In **Settings → Playback**, **Hide spoilers** (off by default) blurs the picture of an episode you have not started and replaces its summary with "Not watched yet": its name and number stay. On the wide cards (**Continue watching**, **Up next**), an unstarted episode shows its season's picture. Started or watched: everything comes back. The hidden picture is not even downloaded.
 
+## Missing and coming episodes
+
+With TheTVDB's plugin on your Jellyfin (**Settings → Maintenance → Missing episodes and air dates** in Mira for Windows turns it on, for an administrator), a series' page shows what your library doesn't have, each where it belongs. Episodes that aired and aren't in your library are one thin line between those you have ("E3–4 · not in your library · aired Oct 25 – Nov 1"); **Show** lists them. The next episode to come out is a hollow row at its place, with its day. A season you have none of is in the season list ("Season 1 · not in library"), shown as a card that tells how many episodes it has and when they aired. Nothing to play, nothing urgent: **Settings → Playback → Show missing episodes** off keeps only the coming ones.
+
 ## Play on another device
 
 On iPhone, **…** on a title → **Play on…** lists the Jellyfin apps that can be controlled (Mira for Windows or Mac, a TV app): the title starts there, and a remote then pauses, seeks and sets the volume. Mira for Windows and Mac show up in that list on their own while they are open.

@@ -131,6 +131,10 @@ struct SettingsView: View {
                         row("Hide spoilers", "Episodes you haven’t started yet show a blurred picture and no summary.")
                     }
                     .accessibilityIdentifier("settings.hideSpoilers")
+                    Toggle(isOn: $preferences.showMissingEpisodes) {
+                        row("Show missing episodes", "On a series’ page, aired episodes that aren’t in your library, from TheTVDB. Coming ones stay.")
+                    }
+                    .accessibilityIdentifier("settings.showMissingEpisodes")
                     Toggle(isOn: $preferences.autoSkip) {
                         row("Skip intros and recaps", "When Jellyfin or the file’s chapters mark them, playback jumps over them. Otherwise, a button offers it.")
                     }

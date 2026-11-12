@@ -13,7 +13,7 @@ Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on M
 
 | Part | What is in it |
 | --- | --- |
-| **Playback** | Skip intros and recaps, play episodes back to back, trailer before the film, hide spoilers, "still watching?", resume where you left off, picture, quality away from home, hardware decoding, the mpv engine (Windows) |
+| **Playback** | Skip intros and recaps, play episodes back to back, trailer before the film, hide spoilers, show missing episodes, "still watching?", resume where you left off, picture, quality away from home, hardware decoding, the mpv engine (Windows) |
 | **Audio & subtitles** | Preferred audio and subtitle languages, subtitle size and style, audio output and amplifier |
 | **Appearance** | Mira's language, couch mode, home rows, library density, automatic carousel, reduce animations |
 | **Account & server** | Your Jellyfin account and photo, sign out, Built-in Tailscale, new episode notifications, who is watching on Jellyfin right now |
@@ -35,7 +35,7 @@ The guide (**?** in the rail, <kbd>F1</kbd> on Windows) is separate: where your 
 The **Settings** tab has:
 
 - **Account**: your server, your account, your photo, **Sign out**.
-- **Playback**: languages, intros and recaps, next episode, resume a little earlier, hide spoilers, and **Mobile data** (quality cap on cellular, 2 Mb/s by default).
+- **Playback**: languages, intros and recaps, next episode, resume a little earlier, hide spoilers, show missing episodes, and **Mobile data** (quality cap on cellular, 2 Mb/s by default).
 - **Away from home**: Built-in Tailscale and the path Mira takes to Jellyfin.
 - **Administration** (Jellyfin administrator): who is watching on Jellyfin right now.
 - **This iPhone → Privacy**: everything Mira sends, to whom and when, and Built-in Tailscale's switch.

@@ -136,16 +136,6 @@ enum EpisodeCalendar {
         }
         return days
     }
-
-    // The words of the list, as Windows and Mac write them.
-    static func missingHeading(_ count: Int, french: Bool = EpisodeCalendar.french) -> String { french ? (count == 1 ? "Manquant" : "Manquants") : "Missing" }
-    static func comingHeading(french: Bool = EpisodeCalendar.french) -> String { french ? "À venir" : "Coming up" }
-    static func aired(_ day: Day, today: Day, french: Bool = EpisodeCalendar.french) -> String { (french ? "Sorti " : "Aired ") + dayText(day, today: today, french: french) }
-    static func others(_ count: Int, french: Bool = EpisodeCalendar.french) -> String { french ? "Et \(count) " + (count == 1 ? "autre" : "autres") : "And \(count) more" }
-    static func source(french: Bool = EpisodeCalendar.french) -> String {
-        french ? "D’après TheTVDB, que ton serveur Jellyfin consulte avec son extension : ces épisodes ne sont pas dans ta bibliothèque."
-            : "From TheTVDB, which your Jellyfin server checks with its plugin: these episodes aren’t in your library."
-    }
 }
 
 extension JellyfinClient {
@@ -175,29 +165,6 @@ extension JellyfinClient {
     }
 }
 
-extension EpisodeCalendar {
-    /// What a series' page shows above its episodes.
-    struct Schedule {
-        var missing: [Item] = []
-        var coming: [Item] = []
-    }
-
-    /// The schedule of a series, nothing when Jellyfin is out of reach (the episodes say it), as on Windows and Mac.
-    @MainActor
-    static func schedule(of series: Item, app: AppModel) async -> Schedule {
-        // A friend's party's guest reaches only what the party lets through.
-        guard let client = app.client, app.party.guest == nil else { return Schedule() }
-        do {
-            let episodes = try await VirtualEpisodes.of(series: series.id, client: client)
-            let (missing, coming) = read(episodes, today: .today())
-            return Schedule(missing: missing, coming: coming)
-        } catch JellyfinError.unauthorized {
-            app.sessionEnded()
-        } catch {}
-        return Schedule()
-    }
-}
-
 /// The virtual episodes, read once for the whole library and kept a minute, as Windows and Mac keep them: every
 /// series page opened in that minute reads them from here.
 @MainActor
@@ -215,94 +182,4 @@ enum VirtualEpisodes {
     }
 
     static func forget() { kept = nil }
-}
-
-/// Above a series' episodes: « 2 missing episodes: S1 · E3, S2 · E2 » or « Next episode: S2 · E3, Saturday », opened
-/// into their list (TheTVDB, through Jellyfin). Nothing without Jellyfin's TheTVDB extension.
-struct EpisodeCalendarLine: View {
-    let schedule: EpisodeCalendar.Schedule
-    @State private var open = false
-
-    var body: some View {
-        let today = EpisodeCalendar.Day.today()
-        let missing = schedule.missing, coming = schedule.coming
-        let first = missing.isEmpty ? EpisodeCalendar.nextText(coming, today: today) : EpisodeCalendar.missingText(missing)
-        Group {
-            if !first.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.2)) { open.toggle() }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: missing.isEmpty ? "calendar" : "exclamationmark.triangle")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(missing.isEmpty ? Palette.muted : Palette.warning)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(verbatim: first).font(MiraFont.subheadline).foregroundStyle(Palette.ink)
-                                if !missing.isEmpty, !coming.isEmpty {
-                                    Text(verbatim: EpisodeCalendar.nextText(coming, today: today)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .multilineTextAlignment(.leading)
-                            Image(systemName: "chevron.down")
-                                .font(.footnote.weight(.bold))
-                                .foregroundStyle(Palette.muted)
-                                .rotationEffect(.degrees(open ? 180 : 0))
-                                .accessibilityHidden(true)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(Text(open ? "Hides the list" : "Shows the list"))
-                    .accessibilityIdentifier("series.calendar")
-                    if open { list(missing: missing, coming: coming, today: today) }
-                }
-                .background(Palette.raised, in: .rect(cornerRadius: 14, style: .continuous))
-            }
-        }
-    }
-
-    @ViewBuilder private func list(missing: [Item], coming: [Item], today: EpisodeCalendar.Day) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(verbatim: EpisodeCalendar.source()).font(MiraFont.footnote).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)
-            if !missing.isEmpty {
-                heading(EpisodeCalendar.missingHeading(missing.count))
-                ForEach(missing.prefix(30), id: \.id) { x in line(x, EpisodeCalendar.aired(EpisodeCalendar.airDay(x)!, today: today)) }
-                if missing.count > 30 { Text(verbatim: EpisodeCalendar.others(missing.count - 30)).font(MiraFont.footnote).foregroundStyle(Palette.muted) }
-            }
-            if !coming.isEmpty {
-                heading(EpisodeCalendar.comingHeading())
-                ForEach(coming.prefix(12), id: \.id) { x in line(x, EpisodeCalendar.dayTitle(EpisodeCalendar.airDay(x)!, today: today)) }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 14)
-        .accessibilityIdentifier("series.calendar.list")
-    }
-
-    private func heading(_ text: String) -> some View {
-        Text(verbatim: text).font(MiraFont.footnote).foregroundStyle(Palette.faint).padding(.top, 6).accessibilityAddTraits(.isHeader)
-    }
-
-    /// « S2 · E3 · Its name », the day on the right (under it at the largest text sizes).
-    private func line(_ episode: Item, _ when: String) -> some View {
-        let name = [EpisodeCalendar.code(episode), episode.name ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
-        return ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(verbatim: name).font(MiraFont.footnote).foregroundStyle(Palette.ink).lineLimit(1)
-                Spacer(minLength: 0)
-                Text(verbatim: when).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(1)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: name).font(MiraFont.footnote).foregroundStyle(Palette.ink)
-                Text(verbatim: when).font(MiraFont.footnote).foregroundStyle(Palette.muted)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
 }

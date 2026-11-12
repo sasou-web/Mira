@@ -72,4 +72,55 @@ struct CalendarTests {
         #expect(EpisodeCalendar.dayText(saturday, today: today, french: false) == "Saturday")
         #expect(EpisodeCalendar.dayText(thursday, today: today, french: false) == "Thursday, November 5")
     }
+
+    // MARK: « À leur place » (EpisodeShelf), the « shelf » cases
+
+    @Test("Manquants et à venir à leur place : lignes, saisons absentes, textes")
+    func shelf() throws {
+        let x = try fixture()
+        let today = try #require(EpisodeCalendar.Day(x["today"] as? String))
+        let shelf = try #require(x["shelf"] as? [String: Any])
+        let all = try items(x["episodes"]) + items(shelf["more"])
+        let library = all.filter { $0.locationType != "Virtual" }
+        let virtuals = all.filter { $0.locationType == "Virtual" }
+        func find(_ text: String) throws -> Item { try #require(all.first { code($0) == text }, "\(text)") }
+        let lines = try #require(shelf["lines"] as? [[Any]])
+        #expect(!lines.isEmpty)
+        for row in lines {
+            let season = try #require(row[0] as? Int)
+            let show = try #require(row[1] as? Bool)
+            let first = try #require(row[2] as? Bool)
+            let last = try #require(row[3] as? Bool)
+            let shown = try (try #require(row[4] as? [String])).map(find)
+            let made = EpisodeShelf.lines(shown, virtuals: virtuals, season: season, firstPage: first, lastPage: last, today: today, showMissing: show)
+                .map { "\($0.kind.rawValue) \(EpisodeShelf.code($0.episodes, french: true))" }
+            #expect(made == row[5] as? [String], "Season \(season): \(made)")
+        }
+        // The seasons the library has none of, as the season list ends with them (« Saison 1 » and « Saison 2 » are the library's).
+        let held = Set(library.compactMap(\.parentIndexNumber))
+        for row in try #require(shelf["pages"] as? [[Any]]) {
+            let show = try #require(row[0] as? Bool)
+            let expected = try #require(row[1] as? [String]).filter { $0.contains(" · ") }
+            let made = EpisodeShelf.absentSeasons(held: held, virtuals: virtuals, today: today, showMissing: show)
+                .map { EpisodeShelf.seasonLabel($0, virtuals: virtuals, today: today, french: true) }
+            #expect(made == expected)
+        }
+        for row in try #require(shelf["texts"] as? [[Any]]) {
+            let what = try #require(row[0] as? String)
+            let run = try (try #require(row[1] as? [String])).map(find)
+            let text: String
+            switch what {
+            case "missing": text = EpisodeShelf.missingText(run, today: today, french: true)
+            case "later": text = EpisodeShelf.laterText(run, today: today, french: true)
+            case "season": text = EpisodeShelf.seasonText(run, today: today, french: true)
+            default:
+                let entry = EpisodeShelf.entry(run[0], today: today, french: true)
+                text = "\(entry.name) | \(entry.when)"
+            }
+            #expect(text == row[2] as? String)
+        }
+        #expect(EpisodeShelf.show(1, open: false, french: true) == "Voir" && EpisodeShelf.show(25, open: false, french: true) == "Voir les 25")
+        let unnamed = try find("S4E1")
+        #expect(EpisodeShelf.name(unnamed, french: true) == "Épisode 1")
+    }
 }

@@ -15,7 +15,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Téléchargement qui atterrit sur le disque USB de 6 To monté dans `MEDIAS` (dès qu'il est là)
 - [ ] Suivre une série : l'épisode suivant arrive tout seul (laisser tourner une semaine)
 - [ ] Sous-titres automatiques activés : un film sans sous-titres en reçoit, bien calés
-- [ ] Épisodes à venir (TheTVDB) activés : une ligne « manquant » ou « sort … » sur une série
+- [ ] Épisodes à venir (TheTVDB) activés : sur une série, une ligne fine « É3–4 · pas dans ta bibliothèque » entre les épisodes, ou le prochain en ligne vide au bout de sa saison ; une saison absente dans la liste des saisons
 - [ ] « Chercher une meilleure version » : l'ancien fichier part à la Corbeille, le titre garde sa progression
 
 ## Ton PC 🖥
@@ -51,7 +51,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Un film Dolby Vision profil 8 (Jellyfin 12.2 ou plus) puis HDR10 : lus sans conversion, couleurs justes
 - [ ] Tailscale intégré en 4G (sans l'app Tailscale) : lecture, puis arrière-plan et retour
 - [ ] Données mobiles : un film en 4G, ⋮ → Qualité dit « Données mobiles · 2 Mb/s » et l'image reste correcte ; quitter le Wi-Fi en pleine lecture : le film reprend au même endroit en 2 Mb/s, puis revient en qualité normale au retour du Wi-Fi
-- [ ] Épisodes manquants et à venir (extension TheTVDB installée par Mira pour Windows) : sur une série suivie, la ligne au-dessus des saisons (« 1 épisode manquant : … » ou « Prochain épisode : …, samedi »), touchée = la liste avec les jours
+- [ ] Épisodes manquants et à venir (extension TheTVDB installée par Mira pour Windows) : sur une série suivie, rien au-dessus des saisons ; les manquants en ligne fine à leur place (Voir = la liste avec les jours), le prochain à sortir en ligne vide avec son jour, une saison absente (« Saison 1 · absente ») = une carte ; Réglages → Lecture → « Montrer les épisodes manquants » coupé = seulement ceux à venir
 - [ ] Collections : « … » d'un film → « Ajouter à une collection… » : coché dans une collection existante, puis une nouvelle nommée avec lui ; vues dans Mira pour Windows ; même chose par l'appui long sur une affiche
 - [ ] Bandes-annonces : « … » → « Bande-annonce » d'un film qui en a une sur le serveur, lue dans Mira ; « Bande-annonce sur YouTube » ouvre Safari
 - [ ] Ouverture avec le PC de Jellyfin éteint : message clair, puis l'Accueil quand il revient

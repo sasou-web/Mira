@@ -1,5 +1,5 @@
 {
-  "about": "« Épisodes manquants et prochaines sorties »: what Jellyfin's TheTVDB extension adds to a series (virtual episodes with the day they air). Read by tests/Mira.Core.Tests (EpisodeCalendar) and tools/web/unit (calendar.js): both must agree, in French. today: the day of the device; episodes: a series as Jellyfin lists it; missing, coming: the episodes as « S·E » in order; texts: what the series page says; ranges: [episodes « S·E », text]; days: [day, as a sentence says it]; byDay: the coming episodes by day.",
+  "about": "« Épisodes manquants et prochaines sorties »: what Jellyfin's TheTVDB extension adds to a series (virtual episodes with the day they air). Read by tests/Mira.Core.Tests (EpisodeCalendar, EpisodeShelf) and the iPhone's MiraTests (CalendarTests): both must agree, in French. today: the day of the device; episodes: a series as Jellyfin lists it; missing, coming: the episodes as « S·E » in order; texts: what the series page says; ranges: [episodes « S·E », text]; days: [day, as a sentence says it]; byDay: the coming episodes by day.",
   "today": "2026-10-29",
   "episodes": [
     { "Id": "e11", "Type": "Episode", "ParentIndexNumber": 1, "IndexNumber": 1, "Name": "Deux Temps S01E01", "LocationType": "FileSystem" },
@@ -35,5 +35,37 @@
     ["2026-10-20", "mardi 20 octobre"],
     ["2027-01-02", "samedi 2 janvier 2027"]
   ],
-  "byDay": [["2026-10-31", ["S2E3"]], ["2026-11-07", ["S2E4"]]]
+  "byDay": [["2026-10-31", ["S2E3"]], ["2026-11-07", ["S2E4"]]],
+  "shelf": {
+    "about": "« À leur place » (EpisodeShelf): missing and coming episodes inside the season list. more: virtual episodes added to the series above for these cases; lines: [season, show missing, first page, last page, the library's episodes shown « S·E », lines as « kind É… »]; pages: [show missing, labels of the season list]; texts: [what, « S·E » episodes, text], what = missing, later, season, entry (name | when).",
+    "more": [
+      { "Id": "e41", "Type": "Episode", "ParentIndexNumber": 4, "IndexNumber": 1, "Name": "", "LocationType": "Virtual", "PremiereDate": "2026-03-01T00:00:00.0000000Z" },
+      { "Id": "e42", "Type": "Episode", "ParentIndexNumber": 4, "IndexNumber": 2, "Name": "", "LocationType": "Virtual", "PremiereDate": "2026-03-08T00:00:00.0000000Z" },
+      { "Id": "e51", "Type": "Episode", "ParentIndexNumber": 5, "IndexNumber": 1, "Name": "Le début", "LocationType": "Virtual", "PremiereDate": "2027-01-02T00:00:00.0000000Z" },
+      { "Id": "e25", "Type": "Episode", "ParentIndexNumber": 2, "IndexNumber": 5, "Name": "La fin", "LocationType": "Virtual", "PremiereDate": "2026-11-14T00:00:00.0000000Z" }
+    ],
+    "lines": [
+      [2, true, true, true, ["S2E1"], ["episode É1", "missing É2", "coming É3", "later É4–5"]],
+      [2, false, true, true, ["S2E1"], ["episode É1", "coming É3", "later É4–5"]],
+      [1, true, true, true, ["S1E1", "S1E2"], ["episode É1", "episode É2", "missing É3"]],
+      [1, false, true, true, ["S1E1", "S1E2"], ["episode É1", "episode É2"]],
+      [2, true, true, false, ["S2E1"], ["episode É1"]],
+      [4, true, true, true, [], ["missing É1–2"]],
+      [5, false, true, true, [], ["coming É1"]]
+    ],
+    "pages": [
+      [true, ["Saison 1", "Saison 2", "Saison 4 · absente", "Saison 5 · à venir"]],
+      [false, ["Saison 1", "Saison 2", "Saison 5 · à venir"]]
+    ],
+    "texts": [
+      ["missing", ["S2E2"], "É2 · pas dans ta bibliothèque · sorti mardi 27 octobre"],
+      ["missing", ["S4E1", "S4E2"], "É1–2 · pas dans ta bibliothèque · sortis du 1 mars au 8 mars"],
+      ["later", ["S2E4", "S2E5"], "É4–5 · à venir · du 7 nov. au 14 nov."],
+      ["later", ["S5E1"], "É1 · à venir · samedi 2 janvier 2027"],
+      ["season", ["S4E1", "S4E2"], "2 épisodes, sortis du 1 mars au 8 mars. D’après TheTVDB, par ton serveur Jellyfin."],
+      ["entry", ["S2E2"], "É2 · La veille | Sorti mardi 27 octobre"],
+      ["entry", ["S4E1"], "É1 | Sorti dimanche 1 mars"],
+      ["entry", ["S2E3"], "É3 · Le lendemain | Samedi"]
+    ]
+  }
 }

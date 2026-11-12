@@ -1,7 +1,10 @@
 namespace Mira.Core;
 
-/// <summary>An entry of the season list on a series page: a season, or a slice of a long one.</summary>
-public sealed record EpisodePage(int Season, int Skip, int Take, string Label);
+/// <summary>
+/// An entry of the season list on a series page: a season, or a slice of a long one; <paramref name="Absent"/>: a season
+/// the library has none of, known from TheTVDB (<see cref="EpisodeShelf.Pages"/>).
+/// </summary>
+public sealed record EpisodePage(int Season, int Skip, int Take, string Label, bool Absent = false);
 
 /// <summary>
 /// The season list of a series page. A season of more than <see cref="Size"/> episodes (a long anime numbered from 1 to

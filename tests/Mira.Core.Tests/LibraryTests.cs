@@ -1393,6 +1393,45 @@ internal static class LibraryTests
             Assert(EpisodeCalendar.DayTitle(today, today) == "Aujourd’hui" && EpisodeCalendar.NextText([], today) == "", "Title of a day, no next episode");
             return Task.CompletedTask;
         });
+        await Test("Épisodes manquants et à venir à leur place : lignes, saisons absentes, textes (tests/fixtures/calendar.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "calendar.json")));
+            var root = fixture.RootElement; var shelf = root.GetProperty("shelf");
+            var today = DateOnly.ParseExact(root.GetProperty("today").GetString()!, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            var all = root.GetProperty("episodes").Deserialize<List<MediaItem>>(Json.Options)!.Concat(shelf.GetProperty("more").Deserialize<List<MediaItem>>(Json.Options)!).ToList();
+            var library = all.Where(x => x.LocationType != "Virtual").ToList(); var virtuals = all.Where(x => x.LocationType == "Virtual").ToList();
+            static List<string> Strings(JsonElement x) => x.EnumerateArray().Select(e => e.GetString()!).ToList();
+            MediaItem Find(string code) => all.First(x => $"S{x.ParentIndexNumber}E{x.IndexNumber}" == code);
+            foreach (var row in shelf.GetProperty("lines").EnumerateArray())
+            {
+                var shown = Strings(row[4]).Select(Find).ToList();
+                var lines = EpisodeShelf.Lines(shown, virtuals, row[0].GetInt32(), row[2].GetBoolean(), row[3].GetBoolean(), today, row[1].GetBoolean())
+                    .Select(x => $"{x.Kind.ToString().ToLowerInvariant()} {EpisodeShelf.Code(x.Episodes)}").ToList();
+                Assert(lines.SequenceEqual(Strings(row[5])), $"Season {row[0].GetInt32()}: " + string.Join(", ", lines));
+            }
+            foreach (var row in shelf.GetProperty("pages").EnumerateArray())
+            {
+                var pages = EpisodeShelf.Pages(EpisodePages.From(library), library, virtuals, today, row[0].GetBoolean());
+                Assert(pages.Select(x => x.Label).SequenceEqual(Strings(row[1])), "Pages: " + string.Join(", ", pages.Select(x => x.Label)));
+                Assert(pages.All(x => x.Absent == (x.Take == 0)), "An absent season is an empty page");
+            }
+            foreach (var row in shelf.GetProperty("texts").EnumerateArray())
+            {
+                var run = Strings(row[1]).Select(Find).ToList();
+                var text = row[0].GetString() switch
+                {
+                    "missing" => EpisodeShelf.MissingText(run, today),
+                    "later" => EpisodeShelf.LaterText(run, today),
+                    "season" => EpisodeShelf.SeasonText(run, today),
+                    _ => $"{EpisodeShelf.Entry(run[0], today).Name} | {EpisodeShelf.Entry(run[0], today).When}",
+                };
+                Assert(text == row[2].GetString(), $"{text} ≠ {row[2].GetString()}");
+            }
+            Assert(EpisodeShelf.Show(1, false) == "Voir" && EpisodeShelf.Show(25, false) == "Voir les 25" && EpisodeShelf.Show(25, true) == "Masquer", "The buttons");
+            Assert(EpisodeShelf.Name(Find("S4E1")) == "Épisode 1", "A coming episode without a name");
+            return Task.CompletedTask;
+        });
         await Test("Épisodes manquants et à venir : tous lus, même au-delà de 5 000 épisodes virtuels", async () =>
         {
             // As Jellyfin 12.1 sorts them (by air day, those without one first): 5,050 old missing episodes of a long series
