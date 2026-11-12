@@ -11,6 +11,7 @@ public sealed class SyncService : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly object _writeGate = new();
     private readonly Task _loop;
+    private readonly TimeProvider _time;
     private Task _writes = Task.CompletedTask;
     private int _pending;
     public event Action? Changed;
@@ -19,9 +20,10 @@ public sealed class SyncService : IAsyncDisposable
     public string? Error { get; private set; }
     public int Discarded { get; private set; }
     public DateTimeOffset? LastSynced { get; private set; }
-    public SyncService(JellyfinClient client, LibraryStore store)
+    /// <summary>Reports of <paramref name="client"/>'s account kept in <paramref name="store"/>; <paramref name="time"/>: the clock that says how long they waited (another one for tests).</summary>
+    public SyncService(JellyfinClient client, LibraryStore store, TimeProvider? time = null)
     {
-        _client = client; _store = store; RefreshPending();
+        _client = client; _store = store; _time = time ?? TimeProvider.System; RefreshPending();
         // The retry loop and its SQLite reads run on the thread pool, never on the caller's UI thread.
         _loop = Task.Run(RetryLoopAsync);
     }
@@ -64,10 +66,13 @@ public sealed class SyncService : IAsyncDisposable
         if (!await _flush.WaitAsync(0, ct).ConfigureAwait(false)) return;
         try
         {
+            // Each title whose reports waited is looked at once a flush (WatchedElsewhereSinceAsync).
+            var looked = new HashSet<string>();
             while (_store.Peek() is { } next)
             {
                 try
                 {
+                    if (looked.Add(next.Report.ItemId) && await WatchedElsewhereSinceAsync(next.Report.ItemId, ct).ConfigureAwait(false)) continue;
                     await _client.ReportAsync(next.Kind, next.Report, ct).ConfigureAwait(false);
                     _store.Acknowledge(next.Id); LastSynced = DateTimeOffset.Now; Error = null;
                 }
@@ -86,6 +91,31 @@ public sealed class SyncService : IAsyncDisposable
         catch (Exception ex) when (IsStorage(ex)) { Error = StorageError; }
         // Released first: a failing count must not leave every later flush, and the shutdown, waiting for it.
         finally { _flush.Release(); RefreshPending(); Changed?.Invoke(); }
+    }
+    /// <summary>Reports that waited longer than this (a copy kept here watched without Jellyfin, Jellyfin out of reach) are checked first.</summary>
+    public static readonly TimeSpan Late = TimeSpan.FromMinutes(1);
+    /// <summary>How much later Jellyfin's last play must be to come from elsewhere: its clock is not this device's.</summary>
+    public static readonly TimeSpan ClockMargin = TimeSpan.FromMinutes(5);
+    /// <summary>
+    /// Whether a title whose reports waited was played on another device since, its reports then dropped. Sent anyway,
+    /// they would put the title back where it was left here, in « Continuer à regarder » on every device, after it was
+    /// watched to the end elsewhere (Jellyfin 12.1: still watched, position and last play taken from them). Jellyfin's
+    /// last play later than this device's: Jellyfin's stays, as the iPhone does for its copies (KeptRules.progressStep).
+    /// Not when Jellyfin no longer has the title: the reports go as they would.
+    /// </summary>
+    private async Task<bool> WatchedElsewhereSinceAsync(string itemId, CancellationToken ct)
+    {
+        if (_store.Waiting(itemId) is not { } waiting || _time.GetUtcNow() - waiting.RecordedAt < Late) return false;
+        DateTimeOffset? last;
+        try { last = (await _client.ItemAsync(itemId, ct).ConfigureAwait(false)).UserData.LastPlayedDate; }
+        catch (HttpRequestException ex) when (IsPermanent(ex.StatusCode)) { last = null; }
+        if (last > waiting.RecordedAt + ClockMargin)
+        {
+            Discarded += _store.Drop(itemId, waiting.Through); LastSynced = DateTimeOffset.Now; Error = null;
+            return true;
+        }
+        _store.Sending(itemId, _time.GetUtcNow());
+        return false;
     }
     private static bool IsPermanent(HttpStatusCode? status) => status is { } code && (int)code is >= 400 and < 500
         && code is not (HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);

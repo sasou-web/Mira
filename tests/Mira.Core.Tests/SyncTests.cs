@@ -60,6 +60,51 @@ internal static class SyncTests
             Assert(store.PendingCount == 3, "Offline reports missing"); online = true; await sync.FlushAsync(); await WaitUntil(() => store.PendingCount == 0);
             Assert(received.SequenceEqual(new[] { "/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Stopped" }), "Protocol ordering incorrect");
         });
+        await Test("Rapports en attente d’un titre revu ailleurs depuis : laissés, il ne revient pas dans « Continuer à regarder »", async () =>
+        {
+            // Watched here without Jellyfin yesterday (a copy kept on this PC): the start, then where it was left.
+            var store = Store("watched-elsewhere"); var played = DateTimeOffset.UtcNow.AddHours(-20);
+            store.Enqueue("start", Report(), played.AddMinutes(-40)); store.Enqueue("progress", Report(24_000), played); store.Enqueue("stop", Report(24_000), played);
+            // Two others watched here since, without Jellyfin either: one not played anywhere since, one Jellyfin no longer has.
+            store.Enqueue("stop", Report(5) with { ItemId = "item-2" }, played.AddHours(2)); store.Enqueue("stop", Report(7) with { ItemId = "item-3" }, played.AddHours(3));
+            var sent = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.AbsolutePath;
+                lock (sent) sent.Add(request.Method + " " + path);
+                // item-1 was watched to the end on another device this morning.
+                if (path == "/Items/item-1") return Task.FromResult(JsonResponse(new { Id = "item-1", UserData = new { Played = true, LastPlayedDate = DateTimeOffset.UtcNow.AddHours(-3) } }));
+                if (path == "/Items/item-2") return Task.FromResult(JsonResponse(new { Id = "item-2", UserData = new { Played = false, LastPlayedDate = played.AddDays(-3) } }));
+                if (path == "/Items/item-3") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            }));
+            await using var sync = new SyncService(client, store);
+            await sync.FlushAsync(); await WaitUntil(() => store.PendingCount == 0);
+            Assert(sent.SequenceEqual(new[] { "GET /Items/item-1", "GET /Items/item-2", "POST /Sessions/Playing/Stopped", "GET /Items/item-3", "POST /Sessions/Playing/Stopped" }), string.Join(", ", sent));
+            Assert(sync.Discarded == 3 && sync.Error is null, $"Dropped {sync.Discarded}, {sync.Error}");
+        });
+        await Test("Rapports en attente coupés en route : la suite part quand même, la lecture qu’ils ont donnée à Jellyfin n’est pas d’ailleurs", async () =>
+        {
+            var store = Store("late-halfway"); var clock = new HandClock(DateTimeOffset.UtcNow); var played = clock.Now.AddHours(-20);
+            store.Enqueue("start", Report(), played.AddMinutes(-40)); store.Enqueue("stop", Report(24_000), played);
+            var online = true; DateTimeOffset? last = played.AddDays(-2); var sent = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.AbsolutePath;
+                if (path == "/Items/item-1") return Task.FromResult(JsonResponse(new { Id = "item-1", UserData = new { LastPlayedDate = last } }));
+                if (!Volatile.Read(ref online)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+                lock (sent) sent.Add(path);
+                // Jellyfin dates the last play when it hears of it, as 12.1 does; the connection goes right after the start.
+                last = clock.Now; if (path == "/Sessions/Playing") Volatile.Write(ref online, false);
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            }));
+            await using var sync = new SyncService(client, store, clock);
+            await sync.FlushAsync(); Assert(sent.SequenceEqual(new[] { "/Sessions/Playing" }) && store.PendingCount == 1, "First try: " + string.Join(", ", sent));
+            // Ten minutes later: Jellyfin's last play is the start sent then, not a play elsewhere.
+            clock.Now = clock.Now.AddMinutes(10); Volatile.Write(ref online, true);
+            await sync.FlushAsync(); await WaitUntil(() => store.PendingCount == 0);
+            Assert(sent.SequenceEqual(new[] { "/Sessions/Playing", "/Sessions/Playing/Stopped" }) && sync.Discarded == 0, "Second try: " + string.Join(", ", sent));
+        });
         await Test("Fin de lecture locale : au-delà de 90 %, titre vu et reprise à zéro", () =>
         {
             var store = Store("finished"); var runtime = 1_000 * TimeSpan.TicksPerSecond;
@@ -271,4 +316,10 @@ internal static class SyncTests
             Assert(update.AutoSkip == true && update.Hidden is { Count: 0 } && pc.HiddenFromResume().Count == 0, "PC after the Mac: " + update);
         });
     }
+}
+/// <summary>A clock the tests move by hand.</summary>
+internal sealed class HandClock(DateTimeOffset now) : TimeProvider
+{
+    public DateTimeOffset Now { get; set; } = now;
+    public override DateTimeOffset GetUtcNow() => Now;
 }
