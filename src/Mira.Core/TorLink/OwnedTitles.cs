@@ -7,8 +7,8 @@ public sealed record OwnedLine(string Text, string ItemId, bool Owned);
 
 /// <summary>
 /// « Télécharger sur le PC serveur »: whether a title found is already in the library, so that it is not downloaded twice,
-/// as Mira web says it (src/Mira.Web/js/owned.js; cases shared in tests/fixtures/owned.json). Jellyfin is asked once per
-/// title, never anything else.
+/// as Mira web says it (src/Mira.Web/js/owned.js; cases shared in tests/fixtures/owned.json). Jellyfin is asked twice at
+/// most per title (<see cref="Searches"/>), never anything else.
 /// </summary>
 public static partial class OwnedTitles
 {
@@ -17,6 +17,7 @@ public static partial class OwnedTitles
 
     // Jellyfin names a film without metadata after its folder: « Dune (2021) ».
     [GeneratedRegex(@"\s*\((?:19|20)\d\d\)\s*$")] private static partial Regex Year();
+    [GeneratedRegex(@"[\p{L}\p{N}]+")] private static partial Regex Words();
     private static string NameKey(string? name) => ReleaseRanking.TitleKey(Year().Replace(name ?? "", ""));
     private static bool FilmLike(ReleaseGroup group) => group.Release.Episode is null && group.Release.Half is null && !group.Release.Pack;
 
@@ -33,6 +34,38 @@ public static partial class OwnedTitles
             if (found.Count < MaxLookups && !found.Any(x => x.Key == key)) found.Add((key, Year().Replace(group.Title, ""), FilmLike(group)));
         }
         return found;
+    }
+
+    /// <summary>
+    /// What Jellyfin is asked for a title found, in turn (<see cref="FindAsync"/>): the title, then its longest word, a final
+    /// « s » left out. Jellyfin's search reads punctuation as a space and finds the words as written (12.1): a release's
+    /// name, which drops apostrophes and writes « and » for « &amp; » (« Oceans.Eight », « Schindlers.List »,
+    /// « Fast.and.Furious », « Greys.Anatomy »), never finds « Ocean's Eight », « Schindler's List », « Fast &amp; Furious »,
+    /// « Grey's Anatomy »; a word of it does (« Ocean », « Schindler », « Furiou », « Anatomy »), and <see cref="Line"/>
+    /// then keeps only the same title among what it found.
+    /// </summary>
+    public static IEnumerable<string> Searches(string title)
+    {
+        yield return title;
+        var word = Words().Matches(title).Select(m => m.Value.Length > 3 && m.Value[^1] is 's' or 'S' ? m.Value[..^1] : m.Value)
+            .Where(w => w.Length >= 3 && !w.Equals("and", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(w => w.Length).FirstOrDefault();
+        if (word is not null && !string.Equals(word, title.Trim(), StringComparison.OrdinalIgnoreCase)) yield return word;
+    }
+
+    /// <summary>
+    /// The films and series Jellyfin has for a lookup of <see cref="Lookups"/>: those <paramref name="search"/> finds for its
+    /// title, else (none of them named as one of <paramref name="groups"/>) those it finds for its longest word.
+    /// </summary>
+    public static async Task<List<MediaItem>> FindAsync(string title, IReadOnlyCollection<ReleaseGroup> groups, Func<string, Task<List<MediaItem>>> search)
+    {
+        List<MediaItem> items = [];
+        foreach (var text in Searches(title))
+        {
+            items = await search(text).ConfigureAwait(false);
+            if (groups.Any(group => Line(group, items) is not null)) break;
+        }
+        return items;
     }
 
     /// <summary>

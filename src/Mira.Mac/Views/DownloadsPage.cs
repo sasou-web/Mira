@@ -672,7 +672,7 @@ public sealed class DownloadsPage : Page
             List<MediaItem> items, episodes = [];
             try
             {
-                items = (await session.Client.OwnedAsync(lookup.Title)).Items;
+                items = await OwnedTitles.FindAsync(lookup.Title, [.. mine.Select(x => x.Group)], async text => (await session.Client.OwnedAsync(text)).Items);
                 if (!lookup.Film && OwnedTitles.Line(mine[0].Group, items)?.ItemId is { } series && mine.Any(x => !x.Group.Release.Absolute))
                     episodes = (await session.Client.OwnedEpisodesAsync(series)).Items;
             }

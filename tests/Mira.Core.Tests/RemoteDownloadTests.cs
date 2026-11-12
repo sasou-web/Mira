@@ -100,6 +100,36 @@ internal static class RemoteDownloadTests
             Assert(lookups.Count == OwnedTitles.MaxLookups && lookups[0] == ("show|miracheck", "Mira Check", false) && lookups[1] == ("film|miracheck", "Mira Check", true), "Lookups: " + string.Join(" ; ", lookups));
             return Task.CompletedTask;
         });
+        await Test("Télécharger sur le PC serveur : « Déjà dans ta bibliothèque » pour un titre à apostrophe ou à « & », que la recherche de Jellyfin ne trouve pas sous le nom de la sortie", async () =>
+        {
+            // Jellyfin 12.1's search, as it answers: accents and case ignored, punctuation read as a space, the words as written.
+            static string Clean(string text) => string.Join(' ', new string(text.Normalize(System.Text.NormalizationForm.FormD)
+                .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                .Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' ').ToArray()).Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            List<MediaItem> library =
+            [
+                new() { Type = "Movie", Name = "Ocean's Eight", ProductionYear = 2018, Id = "oceans" }, new() { Type = "Movie", Name = "Ocean Waves", ProductionYear = 1993, Id = "waves" },
+                new() { Type = "Movie", Name = "Schindler's List", ProductionYear = 1993, Id = "schindler" }, new() { Type = "Movie", Name = "Fast & Furious", ProductionYear = 2009, Id = "fast" },
+                new() { Type = "Series", Name = "Grey's Anatomy", Id = "greys" }, new() { Type = "Movie", Name = "A Bug's Life", ProductionYear = 1998, Id = "bug" },
+            ];
+            var asked = new List<string>();
+            Task<List<MediaItem>> Search(string text) { asked.Add(text); return Task.FromResult(library.Where(x => Clean(x.Name).Contains(Clean(text), StringComparison.Ordinal)).ToList()); }
+            foreach (var (name, id, searches) in new[]
+            {
+                ("Oceans.Eight.2018.1080p.WEB-DL.DD5.1.H264-FGT", "oceans", "Oceans Eight|Ocean"), ("Schindlers.List.1993.1080p.BluRay.x264-AMIABLE", "schindler", "Schindlers List|Schindler"),
+                ("Fast.and.Furious.2009.1080p.BluRay.x264-HDMI", "fast", "Fast and Furious|Furiou"), ("Greys.Anatomy.S20E01.1080p.WEB.h264-ETHEL", "greys", "Greys Anatomy|Anatomy"),
+                ("A.Bugs.Life.1998.1080p.BluRay.x264-HDEX", "bug", "A Bugs Life|Life"), ("Ocean.Waves.1993.1080p.BluRay.x264-USURY", "waves", "Ocean Waves"),
+            })
+            {
+                var group = ReleaseRanking.Group([new RelayHit("x", name, 2L << 30, 10, 0, "check", null)])[0];
+                var lookup = OwnedTitles.Lookups([group])[0];
+                Assert(OwnedTitles.Line(group, library.Where(x => Clean(x.Name).Contains(Clean(lookup.Title), StringComparison.Ordinal))) is null == (searches.Contains('|')), $"{name}: Jellyfin's search alone");
+                asked.Clear();
+                var line = OwnedTitles.Line(group, await OwnedTitles.FindAsync(lookup.Title, [group], Search));
+                Assert(line?.ItemId == id && string.Join('|', asked) == searches, $"{name}: {line} after {string.Join(" | ", asked)}");
+            }
+            Assert(OwnedTitles.Searches("Up").SequenceEqual(["Up"]) && OwnedTitles.Searches("Dune").SequenceEqual(["Dune"]) && OwnedTitles.Searches("Fast and Furious").Last() == "Furiou", "One search when no word says more");
+        });
         await Test("Télécharger sur le PC serveur : l'écran des apps écrit le PC, un résultat, une demande et un téléchargement comme Mira web (tests/fixtures/torlink-lines.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
