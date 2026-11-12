@@ -379,7 +379,7 @@ public sealed partial class SettingsPage : Page
             folder.Text = Shell.OfflineFolder;
             var done = Shell.OfflineCopiesKept.Where(x => x.Complete).ToList();
             kept.Text = L("Sur la fiche d’un film ou d’une série, « Garder sur ce Mac » garde son fichier ici, pour le regarder sans connexion.", "On a movie’s or a show’s page, “Keep on this Mac” keeps its file here, to watch it offline.")
-                + (done.Count > 0 ? L($" Ici : {Lang.Count(done.Count, "titre", "titres", "", "")}, {OfflineCopies.SizeText(done.Sum(x => x.Size))}.", $" Here: {Lang.Count(done.Count, "", "", "title", "titles")}, {OfflineCopies.SizeText(done.Sum(x => x.Size))}.") : "");
+                + (done.Count > 0 ? L($" Ici : {Lang.Count(done.Count, "titre", "titres", "", "")}, {OfflineCopies.SizeText(done.Sum(x => x.TotalSize))}.", $" Here: {Lang.Count(done.Count, "", "", "title", "titles")}, {OfflineCopies.SizeText(done.Sum(x => x.TotalSize))}.") : "");
             kept.IsVisible = true; clear.IsVisible = Shell.OfflineCopiesKept.Count > 0;
         }
         Show();

@@ -484,7 +484,7 @@ public sealed class DetailPage : Page
             ShowState(button, "offline", false, keep, keep);
         }
         else if (complete == targets.Count)
-            ShowState(button, "offline", true, L("Sur ce Mac", "On this Mac"), L($"Sur ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Clique pour le retirer", $"On this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Click to remove it"));
+            ShowState(button, "offline", true, L("Sur ce Mac", "On this Mac"), L($"Sur ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.TotalSize))}. Clique pour le retirer", $"On this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.TotalSize))}. Click to remove it"));
         else
         {
             var running = copies.FirstOrDefault(x => !x.Complete && Shell.CopyState(x.Item.Id) is { } state && state.Any(char.IsDigit));
@@ -506,7 +506,7 @@ public sealed class DetailPage : Page
         var paused = copies.Where(x => Shell.CopyPaused(x.Item.Id)).ToList();
         if (paused.Count > 0) Add(L("Reprendre", "Resume"), () => Shell.ResumeOffline(paused));
         var whole = _item.Type == "Series" ? L("la saison", "the season") : L("le film", "the movie");
-        Add(copies.All(x => x.Complete) ? L($"Retirer {whole} de ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}", $"Remove {whole} from this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), () => _ = Shell.ForgetOfflineAsync(copies));
+        Add(copies.All(x => x.Complete) ? L($"Retirer {whole} de ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.TotalSize))}", $"Remove {whole} from this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.TotalSize))}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), () => _ = Shell.ForgetOfflineAsync(copies));
         Ui.OpenUnder(menu, button);
     }
 
