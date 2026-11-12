@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -66,33 +67,88 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// The still of the app under the window: the window drawn small (<see cref="SheetWindow.BackdropScale"/>), then
-    /// blurred and dimmed (<see cref="SheetWindow.Soften"/>) and stretched back. Made once: a live blur would be drawn
-    /// again at each frame of a scroll in the window. In high contrast, no picture: the wash alone, over the window's
-    /// background. Video drawn by mpv (the mini-player) is not in it: it stays above, live.
+    /// The still of the app under the window: what the screen shows of Mira, copied small (<see cref="SheetWindow.BackdropScale"/>),
+    /// then blurred and dimmed (<see cref="SheetWindow.Soften"/>) and stretched back. Made once: a live blur would be drawn
+    /// again at each frame of a scroll in the window. Copied from the screen, as Windows composed it (mpv's picture
+    /// included), in a few milliseconds: WPF drawing the whole window again by itself (RenderTargetBitmap) held the
+    /// interface 100 ms on a runner. Only while Mira is in front and whole on its screens: otherwise the screen holds
+    /// something else there, and the window opens over the page dimmed, without its picture. In high contrast, no picture.
     /// </summary>
     private void TakeBackdrop()
     {
         BitmapSource? picture = null;
-        if (!SystemParameters.HighContrast && Content is FrameworkElement root && root.ActualWidth >= 1 && root.ActualHeight >= 1)
+        var handle = new WindowInteropHelper(this).Handle;
+        if (!SystemParameters.HighContrast && Content is FrameworkElement root && root.ActualWidth >= 1 && root.ActualHeight >= 1
+            && handle != IntPtr.Zero && ForegroundWindow() == handle && !IsIconic(handle))
         {
             try
             {
                 var scale = SheetWindow.BackdropScale;
                 int width = Math.Max(1, (int)Math.Ceiling(root.ActualWidth * scale)), height = Math.Max(1, (int)Math.Ceiling(root.ActualHeight * scale));
-                var target = new RenderTargetBitmap(width, height, 96 * scale, 96 * scale, PixelFormats.Pbgra32);
-                target.Render(root);
-                var pixels = new byte[width * height * 4];
-                target.CopyPixels(pixels, width * 4, 0);
-                SheetWindow.Soften(pixels, width, height);
-                picture = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
-                picture.Freeze();
+                var from = root.PointToScreen(new Point(0, 0)); var to = root.PointToScreen(new Point(root.ActualWidth, root.ActualHeight));
+                int left = (int)Math.Round(from.X), top = (int)Math.Round(from.Y), right = (int)Math.Round(to.X), bottom = (int)Math.Round(to.Y);
+                int screenLeft = GetSystemMetrics(76), screenTop = GetSystemMetrics(77), screenRight = screenLeft + GetSystemMetrics(78), screenBottom = screenTop + GetSystemMetrics(79);
+                if (right > left && bottom > top && left >= screenLeft && top >= screenTop && right <= screenRight && bottom <= screenBottom
+                    && CopyScreen(left, top, right - left, bottom - top, width, height) is { } pixels)
+                {
+                    SheetWindow.Soften(pixels, width, height);
+                    picture = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+                    picture.Freeze();
+                }
             }
             // Without its picture, the window still opens: the wash over the page.
             catch (Exception ex) when (ex is COMException or ArgumentException or InvalidOperationException) { picture = null; }
         }
         SettingsBackdrop.Source = GuideBackdrop.Source = picture;
     }
+    /// <summary>The screen's pixels in this rectangle, shrunk to <paramref name="toWidth"/> × <paramref name="toHeight"/> (blue, green, red, then a byte to ignore).</summary>
+    private static byte[]? CopyScreen(int left, int top, int width, int height, int toWidth, int toHeight)
+    {
+        var screen = GetDC(IntPtr.Zero);
+        if (screen == IntPtr.Zero) return null;
+        IntPtr memory = IntPtr.Zero, bitmap = IntPtr.Zero;
+        try
+        {
+            memory = CreateCompatibleDC(screen);
+            // Top-down rows (a negative height), 32 bits a pixel: the order SheetWindow.Soften reads.
+            var header = new BitmapHeader { Size = 40, Width = toWidth, Height = -toHeight, Planes = 1, BitCount = 32 };
+            bitmap = CreateDIBSection(screen, ref header, 0, out var bits, IntPtr.Zero, 0);
+            if (memory == IntPtr.Zero || bitmap == IntPtr.Zero || bits == IntPtr.Zero) return null;
+            var previous = SelectObject(memory, bitmap);
+            // Each pixel the mean of those it stands for: no shimmer from the text left out.
+            SetStretchBltMode(memory, 4);
+            SetBrushOrgEx(memory, 0, 0, IntPtr.Zero);
+            var copied = StretchBlt(memory, 0, 0, toWidth, toHeight, screen, left, top, width, height, 0x00CC0020);
+            GdiFlush();
+            SelectObject(memory, previous);
+            if (!copied) return null;
+            var pixels = new byte[toWidth * toHeight * 4];
+            Marshal.Copy(bits, pixels, 0, pixels.Length);
+            return pixels;
+        }
+        finally
+        {
+            if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
+            if (memory != IntPtr.Zero) DeleteDC(memory);
+            _ = ReleaseDC(IntPtr.Zero, screen);
+        }
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BitmapHeader { public int Size, Width, Height; public short Planes, BitCount; public int Compression, SizeImage, XPixelsPerMeter, YPixelsPerMeter, ColoursUsed, ColoursImportant; }
+    [DllImport("user32.dll", EntryPoint = "GetForegroundWindow")] private static extern IntPtr ForegroundWindow();
+    [DllImport("user32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsIconic(IntPtr window);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr window);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr context);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr context);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateDIBSection(IntPtr context, ref BitmapHeader header, uint usage, out IntPtr bits, IntPtr section, uint offset);
+    [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr context, IntPtr picture);
+    [DllImport("gdi32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool DeleteObject(IntPtr picture);
+    [DllImport("gdi32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool DeleteDC(IntPtr context);
+    [DllImport("gdi32.dll")] private static extern int SetStretchBltMode(IntPtr context, int mode);
+    [DllImport("gdi32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetBrushOrgEx(IntPtr context, int x, int y, IntPtr previous);
+    [DllImport("gdi32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool StretchBlt(IntPtr target, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, int sourceWidth, int sourceHeight, uint operation);
+    [DllImport("gdi32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool GdiFlush();
 
     /// <summary>
     /// The pages under the window (a title's page, Téléchargements, a party) are no longer drawn while the window covers
