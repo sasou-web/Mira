@@ -60,14 +60,16 @@ public static class JellyfinSubtitles
 
     /// <summary>
     /// What a file's name says of it: its format, then the language, « forced » and « sdh » tags its name ends with
-    /// (« Film.2021.fr.forced.srt »), else the first language of the preferences. Null for a format Mira does not send.
+    /// (« Film.2021.fr.forced.srt »), else the first language of the preferences. A language may carry its region or
+    /// script (« Film.fr-CA.srt », « Film.pt-BR.forced.srt », « Film.es-419.srt »: as Bazarr and streaming services name
+    /// subtitles, and as Jellyfin reads them): it is that language. Null for a format Mira does not send.
     /// </summary>
     public static (string Format, string Language, bool Forced, bool HearingImpaired)? Guess(string fileName, string? preferences)
     {
         var format = Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
         if (!Formats.Contains(format)) return null;
         string? language = null; bool forced = false, hearing = false;
-        var words = Path.GetFileNameWithoutExtension(fileName).Split(['.', '-', '_', ' ', '[', ']', '(', ')'], StringSplitOptions.RemoveEmptyEntries);
+        var words = Path.GetFileNameWithoutExtension(fileName).Split(['.', ' ', '[', ']', '(', ')'], StringSplitOptions.RemoveEmptyEntries).SelectMany(NameWords).ToArray();
         // From the end of the name: the tags stop at the first word that is none (« Movie.It.Follows.en » is English).
         foreach (var word in words.Reverse().Select(x => x.ToLowerInvariant()))
         {
@@ -78,6 +80,23 @@ public static class JellyfinSubtitles
         }
         return (format, language ?? SearchLanguages(preferences)[0], forced, hearing);
     }
+    /// <summary>
+    /// The words of one part of a file's name, cut at its dashes and underscores; but a language followed by its region or
+    /// script (« fr-CA », « en_US », « es-419 », « zh-Hant-TW ») is one word, the language's: « CA » is Canada there, not
+    /// Catalan. « hi » and « cc » after a language stay tags (« en-hi » is English for the deaf and hard of hearing).
+    /// </summary>
+    private static IEnumerable<string> NameWords(string part)
+    {
+        var words = part.Split(['-', '_'], StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < words.Length; i++)
+        {
+            yield return words[i];
+            if (!Known.Any(x => x.Names.Contains(words[i].ToLowerInvariant()))) continue;
+            while (i + 1 < words.Length && Subtag.IsMatch(words[i + 1]) && !HearingNames.Contains(words[i + 1].ToLowerInvariant())) i++;
+        }
+    }
+    /// <summary>A region (ISO 3166, UN M49) or script (ISO 15924) subtag, as BCP 47 writes them after a language.</summary>
+    private static readonly Regex Subtag = new(@"^(?:[a-z]{2}|[a-z]{4}|[0-9]{3})$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     /// <summary>
     /// The search's results: the version of this very file first (its hash), then those people wrote; among them, by how
