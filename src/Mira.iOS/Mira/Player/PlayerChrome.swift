@@ -60,8 +60,8 @@ private struct Scrims: View {
     }
 }
 
-/// The subtitles while they are shifted: drawn by Mira over the picture, at the video's time minus the delay, low on
-/// the screen and above the timeline while the controls show. Apple's player draws them otherwise.
+/// The subtitles Mira draws (shifted, late in the stream, kept on this iPhone): over the picture, at the video's time
+/// minus the delay, low on the screen and above the timeline while the controls show. Apple's player draws them otherwise.
 private struct DrawnSubtitles: View {
     @Bindable var model: PlayerModel
     let shown: Bool

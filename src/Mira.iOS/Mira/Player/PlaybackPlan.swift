@@ -94,6 +94,9 @@ enum PlaybackPlan {
         var hls: Bool
         /// Text subtitles come in the HLS stream itself.
         var inband: Bool
+        /// Those subtitles are timed for MPEG-TS segments while the stream's are fMP4 (Jellyfin's own playlists, without
+        /// Mira's extension): Apple's player would show every line 10 s late, Mira draws them itself (`drawsSubtitles`).
+        var lateSubtitles = false
     }
 
     /// The stream to play from PlaybackInfo's media source: the file as it is at stage 0 when Jellyfin allows it (MP4
@@ -110,7 +113,7 @@ enum PlaybackPlan {
         guard let address = source.transcodingUrl else { return nil }
         let hls = source.transcodingSubProtocol?.lowercased() == "hls" || address.range(of: ".m3u8", options: .caseInsensitive) != nil
         var stream = Stream(path: address, playMethod: copiesVideo(address) ? "DirectStream" : "Transcode", hls: hls, inband: false)
-        if hls { (stream.path, stream.inband) = appleStream(address, source: source, subtitleIndex: subtitleIndex, miraHls: miraHls) }
+        if hls { (stream.path, stream.inband, stream.lateSubtitles) = appleStream(address, source: source, subtitleIndex: subtitleIndex, miraHls: miraHls) }
         return stream
     }
 
@@ -124,22 +127,32 @@ enum PlaybackPlan {
     /// The address of a conversion for Apple's player: every text subtitle in the HLS stream, the chosen one first.
     /// Jellyfin lists them there only with SubtitleMethod=Hls; it writes SubtitleMethod=Encode even with none chosen.
     /// Never for pictures: Jellyfin draws those into the video. Jellyfin times these subtitles for MPEG-TS segments
-    /// (10 s late on fMP4 in Apple's player): fMP4 goes through Mira's extension, which serves the same playlists with
-    /// the subtitles in time and with Mira's names.
-    static func appleStream(_ address: String, source: MediaSource, subtitleIndex: Int?, miraHls: Bool) -> (String, Bool) {
+    /// (X-TIMESTAMP-MAP=MPEGTS:900000, 10 s late on fMP4 in Apple's player): fMP4 goes through Mira's extension, which
+    /// serves the same playlists with the subtitles in time and with Mira's names. Without it, they come late (the
+    /// third value): Mira draws them itself, Apple's are left for Picture in Picture and AirPlay.
+    static func appleStream(_ address: String, source: MediaSource, subtitleIndex: Int?, miraHls: Bool) -> (String, Bool, Bool) {
         let chosen = source.subtitles.first { $0.index == subtitleIndex }
-        if source.textSubtitles.isEmpty || (chosen != nil && chosen?.isTextSubtitleStream != true) { return (address, false) }
+        if source.textSubtitles.isEmpty || (chosen != nil && chosen?.isTextSubtitleStream != true) { return (address, false, false) }
         var next = address.replacingOccurrences(of: "&SubtitleMethod=[^&]*", with: "", options: [.regularExpression, .caseInsensitive])
         if let chosen, next.range(of: "[?&]SubtitleStreamIndex=", options: [.regularExpression, .caseInsensitive]) == nil {
             next += "&SubtitleStreamIndex=\(chosen.index)"
         }
         next += (next.contains("?") ? "&" : "?") + "SubtitleMethod=Hls"
-        if miraHls, next.range(of: "[?&]SegmentContainer=mp4", options: [.regularExpression, .caseInsensitive]) != nil {
+        let fmp4 = next.range(of: "[?&]SegmentContainer=mp4", options: [.regularExpression, .caseInsensitive]) != nil
+        if miraHls, fmp4 {
             next = next.replacingOccurrences(of: "^/?videos/([0-9a-fA-F-]+)/master\\.m3u8", with: "Mira/hls/$1/master.m3u8", options: [.regularExpression, .caseInsensitive])
             let names = TrackNames.menuNames(source).sorted { $0.key < $1.key }.map { "\($0.key):\($0.value.replacingOccurrences(of: "|", with: "/"))" }.joined(separator: "|")
             next += "&MiraNames=\(encode(names))"
+            return (next, true, false)
         }
-        return (next, true)
+        return (next, true, fmp4)
+    }
+
+    /// Mira draws the chosen text subtitle itself, from the whole track, Apple's off: shifted by the person, or late in
+    /// the stream (`Stream.lateSubtitles`). Never in Picture in Picture nor on an AirPlay television, which show only
+    /// Apple's.
+    static func drawsSubtitles(delay: Double, late: Bool, pictureInPicture: Bool, external: Bool) -> Bool {
+        (delay != 0 || late) && !pictureInPicture && !external
     }
 
     // MARK: Where a title starts
