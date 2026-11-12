@@ -354,16 +354,16 @@ public static class Cards
     /// An actor or director found by a search: their photo in a circle (their initials without one) and their name, and on
     /// a title's page the part they play; a click shows their titles.
     /// </summary>
-    public static Button Person(MediaItem person, Images? images, Action<MediaItem> open, string? role = null)
+    /// <param name="size">Smaller on a title's page (72), its cast in one row after the episodes and facts.</param>
+    public static Button Person(MediaItem person, Images? images, Action<MediaItem> open, string? role = null, double size = 88)
     {
-        const double size = 88;
         var image = new Image { Stretch = Stretch.UniformToFill, Width = size, Height = size };
         var circle = new Border
         {
             Width = size, Height = size, CornerRadius = new CornerRadius(size / 2), ClipToBounds = true, Background = Ui.Raised, HorizontalAlignment = HorizontalAlignment.Center,
-            Child = new Grid { Children = { new TextBlock { Text = Catalog.Initials(person.Name), FontSize = 26, FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }, image } }
+            Child = new Grid { Children = { new TextBlock { Text = Catalog.Initials(person.Name), FontSize = size * 26 / 88, FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }, image } }
         };
-        var body = new StackPanel { Spacing = 10, Width = 112 };
+        var body = new StackPanel { Spacing = 10, Width = size < 88 ? 104 : 112 };
         body.Children.Add(circle);
         body.Children.Add(new TextBlock { Text = person.Name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis });
         if (role?.Trim() is { Length: > 0 } part)
@@ -544,15 +544,18 @@ public sealed class CardRow : StackPanel
     private readonly ScrollMotion _motion = new();
     private bool _running;
     private TimeSpan? _last;
-    public CardRow(string title, IEnumerable<Control> cards, double sidePadding = 56)
+    /// <param name="people">A row of people (a title's cast): its arrows named for them, not for titles.</param>
+    public CardRow(string title, IEnumerable<Control> cards, double sidePadding = 56, bool people = false)
     {
         Spacing = 16;
         _items.Children.AddRange(cards);
         _items.Margin = new Thickness(sidePadding, 4, sidePadding, 8);
         _scroll = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _items };
         var header = new DockPanel { Margin = new Thickness(sidePadding, 0, sidePadding - 8, 0) };
-        _previous = Ui.IconButton("back", L("Titres précédents", "Previous titles"), () => Glide(-1), "icon", 17, L($"Titres précédents dans « {title} »", $"Previous titles in “{title}”"));
-        _next = Ui.IconButton("next", L("Titres suivants", "Next titles"), () => Glide(1), "icon", 17, L($"Titres suivants dans « {title} »", $"Next titles in “{title}”"));
+        _previous = people ? Ui.IconButton("back", L("Personnes précédentes", "Previous people"), () => Glide(-1), "icon", 17)
+            : Ui.IconButton("back", L("Titres précédents", "Previous titles"), () => Glide(-1), "icon", 17, L($"Titres précédents dans « {title} »", $"Previous titles in “{title}”"));
+        _next = people ? Ui.IconButton("next", L("Personnes suivantes", "Next people"), () => Glide(1), "icon", 17)
+            : Ui.IconButton("next", L("Titres suivants", "Next titles"), () => Glide(1), "icon", 17, L($"Titres suivants dans « {title} »", $"Next titles in “{title}”"));
         _arrows = Ui.Row(2, _previous, _next);
         _arrows.IsVisible = false;
         DockPanel.SetDock(_arrows, Dock.Right); header.Children.Add(_arrows);
