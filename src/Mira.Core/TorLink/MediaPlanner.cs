@@ -98,19 +98,24 @@ public static class MediaPlanner
             TvSource = source is not null && TvSources.Contains(source),
             Grouped = ReleaseName.HasGroupPrefix(torrentName),
             PackSeason = target?.Season ?? ReleaseName.Season(torrentName),
+            Show = ReleaseName.Show(torrentName).Title,
             Target = target
         };
-        context.AbsoluteAllowed = context.AnimeSource || context.Grouped || context.PackSeason is not null || forced is MediaKind.Anime or MediaKind.Series;
         var mains = videos.Where(v => !IsBonus(v)).ToList();
         // The one episode of a series followed: its number is the one chosen, not what the file says.
         if (target is not null && mains.Count == 1) context.Main = mains[0];
         if (mains.Count == 0) mains = videos;
         var single = videos.Count == 1;
+        // "Complete Collection", "Complete Saga", "Intégrale 1981-2008" of films: each file another film with its year.
+        var everyPart = ReleaseName.IsCompletePack(torrentName);
+        var collection = forced is null && target is null && context.PackSeason is null && everyPart && mains.Count > 1 && Films(mains);
+        // A pack of every episode ("Complete Series") numbers them "Show - 01" as often as an anime does.
+        context.AbsoluteAllowed = context.AnimeSource || context.Grouped || context.PackSeason is not null || forced is MediaKind.Anime or MediaKind.Series || everyPart && !collection;
         var episodic = target is not null || forced switch
         {
             MediaKind.Movie => false,
             MediaKind.Series or MediaKind.Anime => true,
-            _ => mains.Any(v => EpisodeOf(v, context, single) is not null) || (mains.Count > 1 && (context.PackSeason is not null || ReleaseName.IsCompletePack(torrentName)))
+            _ => !collection && (mains.Any(v => EpisodeOf(v, context, single) is not null) || (mains.Count > 1 && (context.PackSeason is not null || everyPart)))
         };
         return episodic ? PlanShow(context, videos, subtitles, forced) : PlanMovies(context, videos, subtitles);
     }
@@ -123,6 +128,8 @@ public static class MediaPlanner
         public List<string> Notes { get; } = notes;
         public bool AnimeSource, TvSource, Grouped, AbsoluteAllowed;
         public int? PackSeason;
+        /// <summary>The show's title in the torrent's name.</summary>
+        public string Show = "";
         public IReadOnlyList<KnownShow> Known = [];
         public ImportTarget? Target;
         public SourceFile? Main;
@@ -161,13 +168,40 @@ public static class MediaPlanner
     private static EpisodeNumber? EpisodeOf(SourceFile file, Context context, bool single)
     {
         if (context.Target is { } target && file == context.Main) return new(target.Season, target.Episode);
-        var episode = ReleaseName.Episode(Path.GetFileName(file.RelativePath), context.AbsoluteAllowed)
+        var name = Path.GetFileName(file.RelativePath);
+        // The season of the file's folder inside the pack ("Season 03", "Specials", "Show.S03.1080p" in a complete pack), or
+        // the pack's own season.
+        var folder = Path.GetFileName(Path.GetDirectoryName(file.RelativePath) ?? "") ?? "";
+        var season = ReleaseName.InSpecialsFolder(file.RelativePath) ? 0 : ReleaseName.SeasonOfFolder(folder) ?? ReleaseName.Season(folder) ?? context.PackSeason;
+        // The season known, a number alone is the episode's: "Show - 05", or the number the file starts with ("05 - Title").
+        var episode = ReleaseName.Episode(name, context.AbsoluteAllowed || season is not null)
+            ?? (season is not null ? ReleaseName.LeadingEpisode(name, context.Show) : null)
             ?? (single ? ReleaseName.Episode(context.TorrentName, context.AbsoluteAllowed) : null);
         if (episode is not { Absolute: true }) return episode;
-        // Numbered without a season: the season folder inside the pack, a Specials folder, or the pack's own season.
-        var folder = Path.GetFileName(Path.GetDirectoryName(file.RelativePath) ?? "");
-        var season = ReleaseName.InSpecialsFolder(file.RelativePath) ? 0 : ReleaseName.SeasonOfFolder(folder ?? "") ?? context.PackSeason;
         return season is { } value ? episode with { Season = value, Absolute = false } : episode;
+    }
+
+    // "Subs/Show.S01E01.1080p/2_English.srt": a subtitle with no episode in its name, in a folder named after one episode
+    // (the number is the stream's, as RARBG numbered them).
+    private static EpisodeNumber? FolderEpisode(SourceFile subtitle)
+    {
+        if (ReleaseName.Episode(Path.GetFileName(subtitle.RelativePath), allowAbsolute: false) is not null) return null;
+        var folder = Path.GetFileName(Path.GetDirectoryName(subtitle.RelativePath) ?? "") ?? "";
+        return ReleaseName.Episode(folder, allowAbsolute: false) is { LastEpisode: null, Absolute: false } episode ? episode : null;
+    }
+
+    // Each file another film, with its year: « Mockingjay Part 1 (2014) » and « Mockingjay Part 2 (2015) » are two.
+    private static bool Films(IReadOnlyCollection<(SourceFile File, (string Title, int? Year) Movie)> files) =>
+        files.All(p => p.Movie.Title.Length > 0 && p.Movie.Year is not null) && files.Select(p => ReleaseName.Key(p.Movie.Title) + "|" + p.Movie.Year).Distinct().Count() == files.Count;
+
+    // The features of a pack (the files at least half as large as the largest, as PlanMovies keeps them) are each another
+    // film, none numbered as an episode.
+    private static bool Films(List<SourceFile> mains)
+    {
+        var largest = mains.Max(v => v.Length);
+        var features = mains.Where(v => v.Length >= largest * .5).ToList();
+        return features.Count > 1 && features.All(v => ReleaseName.Episode(Path.GetFileName(v.RelativePath), allowAbsolute: false) is null)
+            && Films(features.Select(v => (v, ReleaseName.Movie(Path.GetFileName(v.RelativePath)))).ToList());
     }
 
     private static ImportPlan PlanMovies(Context context, List<SourceFile> videos, List<SourceFile> subtitles)
@@ -182,9 +216,6 @@ public static class MediaPlanner
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var named = mains.Select(v => (File: v, Movie: ReleaseName.Movie(Path.GetFileName(v.RelativePath)))).ToList();
-        // Each file another film, with its year: « Mockingjay Part 1 (2014) » and « Mockingjay Part 2 (2015) » are two.
-        static bool Films(IReadOnlyCollection<(SourceFile File, (string Title, int? Year) Movie)> files) =>
-            files.All(p => p.Movie.Title.Length > 0 && p.Movie.Year is not null) && files.Select(p => ReleaseName.Key(p.Movie.Title) + "|" + p.Movie.Year).Distinct().Count() == files.Count;
         // The parts of one film (« cd1 », « part2 »), unless their names say they are different films.
         var stacked = mains.Count > 1 && mains.All(v => ReleaseName.StackPart(Path.GetFileName(v.RelativePath)) is not null) && !Films(named);
         var large = mains.Where(v => v.Length >= main.Length * .5).ToList();
@@ -321,7 +352,7 @@ public static class MediaPlanner
         var unmatched = 0;
         foreach (var subtitle in subtitles)
         {
-            var number = EpisodeOf(subtitle, context, single: false);
+            var number = FolderEpisode(subtitle) ?? EpisodeOf(subtitle, context, single: false);
             var stem = number is not null && episodeStems.TryGetValue(number.Label, out var match) ? match : episodeStems.Count == 1 ? episodeStems.Values.Single() : null;
             if (stem is null) { unmatched++; continue; }
             operations.Add(Operation(subtitle, Unique(stem + ReleaseName.SubtitleTags(subtitle.RelativePath), Path.GetExtension(subtitle.RelativePath), used), "subtitle"));
