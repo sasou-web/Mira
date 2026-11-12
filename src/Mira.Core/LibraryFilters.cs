@@ -12,11 +12,17 @@ public sealed record FilterChoice(string Key, string Label);
 public static class LibraryFilters
 {
     /// <summary>
-    /// The languages offered, with the ISO 639-2 codes Jellyfin may have stored for them: a file's tag says « fre »
-    /// (bibliographic) where a subtitle file named « .fr.srt » becomes « fra » (terminological); both are asked.
+    /// The languages offered, with every code Jellyfin may have stored for them (seen on 12.1), all asked: a file's tag
+    /// says « fre » (ISO 639-2 bibliographic) where a subtitle file named « .fr.srt » becomes « fra » (terminological),
+    /// and the regions Jellyfin knows keep their own code, in lower case: « .fr-CA.srt » is « fr-ca », likewise
+    /// « es-419 », « zh-cn », « zh-tw », « zh-hk », « zh-hans », « zh-hant ». Other regions (« .fr-FR.srt »,
+    /// « .en-US.srt ») are stored without a language: no filter can find them.
     /// </summary>
     public static readonly IReadOnlyList<(string Key, string Codes)> Languages =
-        [("fr", "fre,fra"), ("en", "eng"), ("ja", "jpn"), ("es", "spa"), ("de", "ger,deu"), ("it", "ita"), ("ko", "kor"), ("zh", "chi,zho")];
+    [
+        ("fr", "fre,fra,fr-ca"), ("en", "eng"), ("ja", "jpn"), ("es", "spa,es-419"), ("de", "ger,deu"), ("it", "ita"), ("ko", "kor"),
+        ("zh", "chi,zho,zh-cn,zh-tw,zh-hk,zh-hans,zh-hant"),
+    ];
 
     public static string? Codes(string? language) => Languages.FirstOrDefault(x => x.Key == language).Codes;
     public static string LanguageName(string key) => key switch

@@ -54,10 +54,13 @@ struct BrowseQuery: Sendable, Hashable {
 /// subtitle languages, community rating; every one a parameter of Jellyfin's Items request, combined with the others.
 /// Cases shared in tests/fixtures/filters.json.
 enum LibraryFilters {
-    /// The languages offered, with the ISO 639-2 codes Jellyfin may have stored: « fre » in a file's tag, « fra » for a
-    /// « .fr.srt » beside it; both are asked.
+    /// The languages offered, with every code Jellyfin may have stored for them (seen on 12.1), all asked: « fre » in a
+    /// file's tag, « fra » for a « .fr.srt » beside it, and the regions Jellyfin knows in lower case (« .fr-CA.srt » is
+    /// « fr-ca », likewise « es-419 », « zh-cn », « zh-tw », « zh-hk », « zh-hans », « zh-hant »). Other regions
+    /// (« .fr-FR.srt », « .en-US.srt ») are stored without a language: no filter can find them.
     static let languages: [(key: String, codes: String)] = [
-        ("fr", "fre,fra"), ("en", "eng"), ("ja", "jpn"), ("es", "spa"), ("de", "ger,deu"), ("it", "ita"), ("ko", "kor"), ("zh", "chi,zho"),
+        ("fr", "fre,fra,fr-ca"), ("en", "eng"), ("ja", "jpn"), ("es", "spa,es-419"), ("de", "ger,deu"), ("it", "ita"), ("ko", "kor"),
+        ("zh", "chi,zho,zh-cn,zh-tw,zh-hk,zh-hans,zh-hant"),
     ]
     static let qualities = ["4k", "hd", "sd"]
     static let ratings = [6, 7, 8]
