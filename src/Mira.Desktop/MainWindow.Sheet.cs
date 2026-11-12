@@ -72,7 +72,8 @@ public partial class MainWindow
     /// again at each frame of a scroll in the window. Copied from the screen, as Windows composed it (mpv's picture
     /// included), in a few milliseconds: WPF drawing the whole window again by itself (RenderTargetBitmap) held the
     /// interface 100 ms on a runner. Only while Mira is in front and whole on its screens: otherwise the screen holds
-    /// something else there, and the window opens over the page dimmed, without its picture. In high contrast, no picture.
+    /// something else there, and WPF draws it (no mpv picture then; a check's window, or one half off its screen).
+    /// In high contrast, no picture.
     /// </summary>
     private void TakeBackdrop()
     {
@@ -90,16 +91,33 @@ public partial class MainWindow
                 int screenLeft = GetSystemMetrics(76), screenTop = GetSystemMetrics(77), screenRight = screenLeft + GetSystemMetrics(78), screenBottom = screenTop + GetSystemMetrics(79);
                 if (right > left && bottom > top && left >= screenLeft && top >= screenTop && right <= screenRight && bottom <= screenBottom
                     && CopyScreen(left, top, right - left, bottom - top, width, height) is { } pixels)
-                {
-                    SheetWindow.Soften(pixels, width, height);
-                    picture = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
-                    picture.Freeze();
-                }
+                    picture = Softened(pixels, width, height);
             }
             // Without its picture, the window still opens: the wash over the page.
             catch (Exception ex) when (ex is COMException or ArgumentException or InvalidOperationException) { picture = null; }
         }
+        if (picture is null && !SystemParameters.HighContrast && Content is FrameworkElement drawn && drawn.ActualWidth >= 1 && drawn.ActualHeight >= 1)
+        {
+            try
+            {
+                var scale = SheetWindow.BackdropScale;
+                int width = Math.Max(1, (int)Math.Ceiling(drawn.ActualWidth * scale)), height = Math.Max(1, (int)Math.Ceiling(drawn.ActualHeight * scale));
+                var target = new RenderTargetBitmap(width, height, 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+                target.Render(drawn);
+                var pixels = new byte[width * height * 4];
+                target.CopyPixels(pixels, width * 4, 0);
+                picture = Softened(pixels, width, height);
+            }
+            catch (Exception ex) when (ex is COMException or ArgumentException or InvalidOperationException) { picture = null; }
+        }
         SettingsBackdrop.Source = GuideBackdrop.Source = picture;
+    }
+    private static BitmapSource Softened(byte[] pixels, int width, int height)
+    {
+        SheetWindow.Soften(pixels, width, height);
+        var picture = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+        picture.Freeze();
+        return picture;
     }
     /// <summary>The screen's pixels in this rectangle, shrunk to <paramref name="toWidth"/> × <paramref name="toHeight"/> (blue, green, red, then a byte to ignore).</summary>
     private static byte[]? CopyScreen(int left, int top, int width, int height, int toWidth, int toHeight)
