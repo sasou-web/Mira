@@ -52,10 +52,17 @@ public sealed class OpenSubtitlesApi : SubtitleSource
     public override bool Ready => _apiKey.Length > 0;
     public bool HasAccount => _username is not null && _password is not null;
 
+    /// <summary>
+    /// The languages asked for one: OpenSubtitles files Portuguese and Chinese under their variants only, and finds
+    /// nothing for « pt » or « zh » (the real API, The Matrix: « pt » 0, « pt-br » 35, « pt-pt » 34; « zh » 0,
+    /// « zh-cn » 5, « zh-tw » 4). Both variants are asked at once: Jellyfin's « por » and « chi » are either.
+    /// </summary>
+    public static string Languages(string two) => two switch { "pt" => "pt-br,pt-pt", "zh" => "zh-cn,zh-tw", _ => two };
+
     /// <summary>The query as sent: for the tests, and for the journal (nothing of the file's name in it).</summary>
     public static string SearchQuery(SubtitleQuery query, string language)
     {
-        var parts = new List<string> { "languages=" + Uri.EscapeDataString(language) };
+        var parts = new List<string> { "languages=" + Uri.EscapeDataString(Languages(language)) };
         if (query.Hash is { } hash) { parts.Add("moviehash=" + hash); if (query.HashOnly) parts.Add("moviehash_match=only"); }
         parts.Add("type=" + (query.IsEpisode ? "episode" : "movie"));
         if (query.IsEpisode)

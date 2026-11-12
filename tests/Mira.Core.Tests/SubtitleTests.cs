@@ -285,6 +285,8 @@ internal static class SubtitleTests
             // A track's language as Jellyfin 12.1 keeps it from a file's name: « fr-ca », « pt-br », « es-419 », « zh-hant » are their language.
             Assert(SubtitleLanguages.Of("fr-ca") == "fr" && SubtitleLanguages.Of("pt-br") == "pt" && SubtitleLanguages.Of("es-419") == "es" && SubtitleLanguages.Of("zh-hant") == "zh"
                 && SubtitleLanguages.Of("fra") == "fr" && SubtitleLanguages.Of("eng") == "en" && SubtitleLanguages.Of("und") is null && SubtitleLanguages.Of(null) is null, "Of");
+            // The variants the sources answer with: OpenSubtitles' « pt-BR », « zh-TW », SubDL's « BR_PT », « ZH_BG ».
+            Assert(new[] { "pt-BR", "pt-PT", "BR_PT", "PT" }.All(x => SubtitleLanguages.Three(x) == "por") && new[] { "zh-CN", "zh-TW", "ZH", "ZH_BG" }.All(x => SubtitleLanguages.Three(x) == "chi"), "Variants");
             // OpenSubtitles' hash: the size, plus the little-endian 64-bit words of the first and last 64 KiB.
             Assert(MovieHash.Compute(new MemoryStream(new byte[131072])) == "0000000000020000", "Zeros: the size alone");
             var bytes = new byte[200000]; bytes[0] = 1; bytes[^8] = 2; bytes[^1] = 0x80;
@@ -327,6 +329,9 @@ internal static class SubtitleTests
             var film = new SubtitleQuery(false, null, null, null, null, null, null, null, null, "Dune: Part Two", 2024);
             Assert(OpenSubtitlesApi.SearchQuery(film, "en") == "languages=en&type=movie&query=Dune%3A%20Part%20Two&year=2024&order_by=download_count", "Film without ids: " + OpenSubtitlesApi.SearchQuery(film, "en"));
             Assert(OpenSubtitlesApi.SearchQuery(film with { ImdbId = "tt15239678", HashOnly = true, Hash = "ab" }, "en") == "languages=en&moviehash=ab&moviehash_match=only&type=movie&imdb_id=15239678&order_by=download_count", "Film with an id: the name stays home");
+            // Portuguese and Chinese only by their variants (« pt » and « zh » find nothing at OpenSubtitles), both at once.
+            Assert(OpenSubtitlesApi.SearchQuery(film with { ImdbId = "tt15239678" }, "pt").StartsWith("languages=pt-br%2Cpt-pt&type=movie&", StringComparison.Ordinal)
+                && OpenSubtitlesApi.SearchQuery(film with { ImdbId = "tt15239678" }, "zh").StartsWith("languages=zh-cn%2Czh-tw&type=movie&", StringComparison.Ordinal), "Variants: " + OpenSubtitlesApi.SearchQuery(film, "pt"));
 
             var calls = new List<string>(); var downloads = 0;
             HttpResponseMessage Answer(HttpRequestMessage request)
@@ -358,6 +363,9 @@ internal static class SubtitleTests
             Assert(found[1] is { Language: "por", MachineTranslated: true, Fps: null }, "Second: " + found[1]);
             Assert(calls.All(x => x.Contains("key=key-1") && x.Contains("agent=Mira v0.8.6")) && !calls[0].Contains("Dune"), "Headers, and no name with an id: " + calls[0]);
             calls.Clear();
+            var portuguese = await api.SearchAsync(film with { ImdbId = "tt15239678" }, "pt", default);
+            Assert(calls.Count == 1 && calls[0].Contains("languages=pt-br%2Cpt-pt&", StringComparison.Ordinal) && portuguese.Any(x => x.Language == "por"), "Portuguese asked by its variants: " + string.Join("\n", calls));
+            calls.Clear();
             var file = await api.FetchAsync("9001", null, null, default);
             Assert(Encoding.UTF8.GetString(file.Bytes).Contains("Ça va") && api.Quota is (19, { }), "Fetched, quota: " + api.Quota);
             Assert(calls.Any(x => x.StartsWith("POST /api/v1/login", StringComparison.Ordinal)) && calls.Any(x => x.StartsWith("POST /api/v1/download", StringComparison.Ordinal) && x.Contains("auth=Bearer jwt-1")), "Logged in, token sent: " + string.Join("\n", calls));
@@ -370,6 +378,11 @@ internal static class SubtitleTests
         {
             var episode = new SubtitleQuery(true, "0123456789abcdef", 1, null, null, "tt22248376", null, 2, 3, "Frieren", 2023);
             Assert(SubDlApi.SearchQuery(episode, "fr") == "languages=FR&type=tv&releases=1&subs_per_page=30&imdb_id=tt22248376&season_number=2&episode_number=3", "Episode: " + SubDlApi.SearchQuery(episode, "fr"));
+            // Brazilian Portuguese and traditional Chinese under codes of their own, asked with the language.
+            Assert(SubDlApi.SearchQuery(episode, "pt").StartsWith("languages=PT,BR_PT&type=tv&", StringComparison.Ordinal) && SubDlApi.SearchQuery(episode, "zh").StartsWith("languages=ZH,ZH_BG&type=tv&", StringComparison.Ordinal), "Variants: " + SubDlApi.SearchQuery(episode, "pt"));
+            var brazilian = SubDlApi.Candidate(System.Text.Json.Nodes.JsonNode.Parse("""{"release_name":"Sousou.no.Frieren.S02E03.1080p.WEB-DL","language":"BR_PT","season":2,"episode":3,"url":"/subtitle/1-9.zip"}""")!.AsObject(), "pt", episode)!;
+            var brazilianId = SubtitleIds.Make(SubtitleIds.SubDl, brazilian.Language, brazilian.Id);
+            Assert(brazilian.Language == "por" && !brazilianId.Contains('_') && SubtitleIds.Parse(brazilianId) == (SubtitleIds.SubDl, "por", "/subtitle/1-9.zip"), "Brazilian Portuguese: " + brazilian.Language + " " + brazilianId);
             var calls = new List<string>();
             HttpResponseMessage Answer(HttpRequestMessage request)
             {
@@ -419,6 +432,13 @@ internal static class SubtitleTests
                 var check = SubtitleMatch.Check(cues, video.Duration);
                 Console.WriteLine($"      OpenSubtitles file: {file.FileName}, {cues.Count} lines, {check.Verdict}; quota {os.Quota}");
                 Assert(cues.Count > 300 && check.Verdict == SubtitleCheckVerdict.Ok && os.Quota is { }, "OpenSubtitles file: " + check);
+                // Portuguese and Chinese: OpenSubtitles finds nothing for « pt » or « zh », only for their variants.
+                foreach (var (two, three) in new[] { ("pt", "por"), ("zh", "chi") })
+                {
+                    var variants = await os.SearchAsync(matrix, two, default);
+                    Console.WriteLine($"      OpenSubtitles {two}: {variants.Count} candidates");
+                    Assert(variants.Count > 0 && variants.All(x => x.Language == three), $"OpenSubtitles {two}: {variants.Count}");
+                }
                 if (Environment.GetEnvironmentVariable("MIRA_SUBDL_KEY") is { Length: > 0 } key)
                 {
                     var sd = new SubDlApi(http, key, "Mira v0.0.0-check");
@@ -441,6 +461,13 @@ internal static class SubtitleTests
                         catch (SubtitleSourceException e) { failures.Add(e.Message); }
                     }
                     Assert(failures.Count == 0, "SubDL files: " + string.Join(" · ", failures));
+                    // Portuguese with Brazilian Portuguese (« BR_PT »), Chinese with traditional Chinese (« ZH_BG »).
+                    foreach (var (two, three) in new[] { ("pt", "por"), ("zh", "chi") })
+                    {
+                        var variants = await sd.SearchAsync(matrix, two, default);
+                        Console.WriteLine($"      SubDL {two}: {variants.Count} candidates");
+                        Assert(variants.Count > 0 && variants.All(x => x.Language == three && !SubtitleIds.Make(SubtitleIds.SubDl, x.Language, x.Id).Contains('_')), $"SubDL {two}: {string.Join(" ", variants.Select(x => x.Language))}");
+                    }
                 }
                 else Console.WriteLine("      SubDL: no key (MIRA_SUBDL_KEY), not tried");
             });
