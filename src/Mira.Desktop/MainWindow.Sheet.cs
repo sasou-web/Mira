@@ -90,12 +90,21 @@ public partial class MainWindow
                 int left = (int)Math.Round(from.X), top = (int)Math.Round(from.Y), right = (int)Math.Round(to.X), bottom = (int)Math.Round(to.Y);
                 int screenLeft = GetSystemMetrics(76), screenTop = GetSystemMetrics(77), screenRight = screenLeft + GetSystemMetrics(78), screenBottom = screenTop + GetSystemMetrics(79);
                 if (right > left && bottom > top && left >= screenLeft && top >= screenTop && right <= screenRight && bottom <= screenBottom
-                    && CopyScreen(left, top, right - left, bottom - top, width, height) is { } pixels)
+                    && CopyScreen(IntPtr.Zero, left, top, right - left, bottom - top, width, height) is { } pixels)
                     picture = Softened(pixels, width, height);
             }
             // Without its picture, the window still opens: the wash over the page.
             catch (Exception ex) when (ex is COMException or ArgumentException or InvalidOperationException) { picture = null; }
         }
+        // Not in front, or partly off its screens: the window as Windows composed it all the same, asked of Windows.
+        if (picture is null && !SystemParameters.HighContrast && handle != IntPtr.Zero && !IsIconic(handle) && ClientArea(handle, out var client)
+            && client.Right > 0 && client.Bottom > 0 && Content is FrameworkElement whole && whole.ActualWidth >= 1 && whole.ActualHeight >= 1)
+        {
+            var scale = SheetWindow.BackdropScale;
+            int width = Math.Max(1, (int)Math.Ceiling(whole.ActualWidth * scale)), height = Math.Max(1, (int)Math.Ceiling(whole.ActualHeight * scale));
+            if (CopyScreen(handle, 0, 0, client.Right, client.Bottom, width, height) is { } pixels) picture = Softened(pixels, width, height);
+        }
+        // Last, WPF drawing it all again itself (long: a tenth of a second on a runner).
         if (picture is null && !SystemParameters.HighContrast && Content is FrameworkElement drawn && drawn.ActualWidth >= 1 && drawn.ActualHeight >= 1)
         {
             try
@@ -119,14 +128,29 @@ public partial class MainWindow
         picture.Freeze();
         return picture;
     }
-    /// <summary>The screen's pixels in this rectangle, shrunk to <paramref name="toWidth"/> × <paramref name="toHeight"/> (blue, green, red, then a byte to ignore).</summary>
-    private static byte[]? CopyScreen(int left, int top, int width, int height, int toWidth, int toHeight)
+    /// <summary>
+    /// The screen's pixels in this rectangle, shrunk to <paramref name="toWidth"/> × <paramref name="toHeight"/> (blue,
+    /// green, red, then a byte to ignore). With a <paramref name="window"/>, its client area as Windows composed it
+    /// (PrintWindow, whole content), wherever it is and whatever covers it.
+    /// </summary>
+    private static byte[]? CopyScreen(IntPtr window, int left, int top, int width, int height, int toWidth, int toHeight)
     {
         var screen = GetDC(IntPtr.Zero);
         if (screen == IntPtr.Zero) return null;
-        IntPtr memory = IntPtr.Zero, bitmap = IntPtr.Zero;
+        IntPtr memory = IntPtr.Zero, bitmap = IntPtr.Zero, printed = IntPtr.Zero, printedBitmap = IntPtr.Zero, printedPrevious = IntPtr.Zero;
         try
         {
+            var source = screen;
+            if (window != IntPtr.Zero)
+            {
+                printed = CreateCompatibleDC(screen);
+                printedBitmap = CreateCompatibleBitmap(screen, width, height);
+                if (printed == IntPtr.Zero || printedBitmap == IntPtr.Zero) return null;
+                printedPrevious = SelectObject(printed, printedBitmap);
+                // PW_CLIENTONLY | PW_RENDERFULLCONTENT: what DWM composed, DirectX content included.
+                if (!PrintWholeWindow(window, printed, 3)) return null;
+                source = printed;
+            }
             memory = CreateCompatibleDC(screen);
             // Top-down rows (a negative height), 32 bits a pixel: the order SheetWindow.Soften reads.
             var header = new BitmapHeader { Size = 40, Width = toWidth, Height = -toHeight, Planes = 1, BitCount = 32 };
@@ -136,7 +160,7 @@ public partial class MainWindow
             // Each pixel the mean of those it stands for: no shimmer from the text left out.
             SetStretchBltMode(memory, 4);
             SetBrushOrgEx(memory, 0, 0, IntPtr.Zero);
-            var copied = StretchBlt(memory, 0, 0, toWidth, toHeight, screen, left, top, width, height, 0x00CC0020);
+            var copied = StretchBlt(memory, 0, 0, toWidth, toHeight, source, left, top, width, height, 0x00CC0020);
             GdiFlush();
             SelectObject(memory, previous);
             if (!copied) return null;
@@ -148,6 +172,9 @@ public partial class MainWindow
         {
             if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
             if (memory != IntPtr.Zero) DeleteDC(memory);
+            if (printedPrevious != IntPtr.Zero) SelectObject(printed, printedPrevious);
+            if (printedBitmap != IntPtr.Zero) DeleteObject(printedBitmap);
+            if (printed != IntPtr.Zero) DeleteDC(printed);
             _ = ReleaseDC(IntPtr.Zero, screen);
         }
     }
@@ -156,6 +183,10 @@ public partial class MainWindow
     [DllImport("user32.dll", EntryPoint = "GetForegroundWindow")] private static extern IntPtr ForegroundWindow();
     [DllImport("user32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsIconic(IntPtr window);
     [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
+    private readonly record struct ClientRect(int Left, int Top, int Right, int Bottom);
+    [DllImport("user32.dll", EntryPoint = "GetClientRect")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool ClientArea(IntPtr window, out ClientRect rect);
+    [DllImport("user32.dll", EntryPoint = "PrintWindow")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool PrintWholeWindow(IntPtr window, IntPtr context, uint flags);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleBitmap(IntPtr context, int width, int height);
     [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr window);
     [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr context);
     [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr context);
