@@ -182,11 +182,23 @@ internal static class SyncTests
             await sync.RecordAsync("start", Report()); await WaitUntil(() => sync.Error is not null);
             // Nothing new recorded: the loop tries again by itself, 3 s later.
             Volatile.Write(ref online, true); await WaitUntil(() => store.PendingCount == 0, 6);
-            // Offline again, a failure, then Jellyfin answers: Wake sends at once, without waiting for the next try.
-            Volatile.Write(ref online, false); await sync.RecordAsync("progress", Report(5)); await WaitUntil(() => sync.Error is not null && sync.PendingCount == 1);
-            Volatile.Write(ref online, true); var watch = Stopwatch.StartNew(); sync.Wake();
-            await WaitUntil(() => store.PendingCount == 0, 6);
-            Assert(watch.Elapsed < TimeSpan.FromSeconds(1.5), "Wake did not send at once: " + watch.Elapsed);
+            // Offline again, a failure, then Jellyfin answers: Wake sends at once, without waiting for the next try,
+            // even right after the failure, while the loop is still waking up for that report: a wake lost there waited 3 s.
+            // Every core kept busy, as on a loaded runner, so that the loop wakes up late.
+            var busy = true;
+            var spinners = Enumerable.Range(0, Environment.ProcessorCount).Select(_ => new Thread(() => { while (Volatile.Read(ref busy)) { } }) { IsBackground = true }).ToList();
+            spinners.ForEach(x => x.Start());
+            try
+            {
+                for (var round = 0; round < 20; round++)
+                {
+                    Volatile.Write(ref online, false); await sync.RecordAsync("progress", Report(5 + round)); await WaitUntil(() => sync.Error is not null && sync.PendingCount == 1);
+                    Volatile.Write(ref online, true); var watch = Stopwatch.StartNew(); sync.Wake();
+                    await WaitUntil(() => store.PendingCount == 0, 6);
+                    Assert(watch.Elapsed < TimeSpan.FromSeconds(1.5), $"Wake did not send at once (round {round}): " + watch.Elapsed);
+                }
+            }
+            finally { Volatile.Write(ref busy, false); spinners.ForEach(x => x.Join()); }
         });
         await Test("Tes choix gardés sur ton Jellyfin : ce qui change ici, le plus récent l'emporte, comme Mira web (tests/fixtures/choices.json)", () =>
         {
