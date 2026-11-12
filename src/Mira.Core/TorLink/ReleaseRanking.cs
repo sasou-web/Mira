@@ -66,6 +66,8 @@ public static partial class ReleaseRanking
     [GeneratedRegex(@"-\s?([A-Za-z0-9][A-Za-z0-9_]{1,24})\s*(?:\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})*\s*$")] private static partial Regex TrailingGroup();
     [GeneratedRegex(@"\[[^\]]*\]|\{[^}]*\}")] private static partial Regex Bracketed();
     [GeneratedRegex(@"^(?:19|20)\d\d$")] private static partial Regex YearOnly();
+    [GeneratedRegex(@"(?<![0-9])(?:19|20)[0-9]{2}(?![0-9])")] private static partial Regex AnyYear();
+    [GeneratedRegex(@"^[0-9A-Fa-f]{8}$")] private static partial Regex Checksum();
     [GeneratedRegex(@"^(?:19|20)\d\d(?:[-~](?:19|20)?\d\d)?$")] private static partial Regex Years();
     [GeneratedRegex(@"(?<![a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?:-?e(\d{1,4})|-(\d{1,4})(?![0-9p]))?(?![0-9])", Options)] private static partial Regex SeasonEpisode();
     [GeneratedRegex(@"(?<![a-z0-9])(\d{1,2})x(\d{2,3})(?![a-z0-9])", Options)] private static partial Regex CrossEpisode();
@@ -165,7 +167,22 @@ public static partial class ReleaseRanking
 
         // The other name, in parentheses after the release's own: « (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio) »,
         // « (VOSTFR, Battle Spirits Re Zekkai no Kuu) »; never a tag, a platform or a note (« (READNFO, …) », « (WKN) »).
-        var alternate = ReleaseName.AlternateTitles(text).FirstOrDefault();
+        string? alternate = null;
+        foreach (Match m in Parenthesized().Matches(text))
+        {
+            foreach (var element in m.Groups[1].Value.Split(','))
+            {
+                var first = element;
+                if (first.Contains(" - ", StringComparison.Ordinal)) first = first[..first.IndexOf(" - ", StringComparison.Ordinal)];
+                first = first.Trim();
+                if (first.Length < 3 || !first.Any(char.IsLetter) || first.Length <= 6 && AnyYear().IsMatch(first) || Checksum().IsMatch(first)
+                    || Token().Matches(first).Any(t => IsTag(t.Value)) || ReleaseName.NamesNothing(first)) continue;
+                // « Kikansha no Mahou wa Tokubetsu desu 2nd Season »: the show, as its title would be read.
+                if (Parse(first).Title is { Length: > 0 } named && !ReleaseName.NamesNothing(named)) alternate = named;
+                break;
+            }
+            if (alternate is not null) break;
+        }
 
         // The group at the end of a scene name: « …H.264-VARYG (…) ».
         if (group is null && TrailingGroup().Match(text) is { Success: true } tail)

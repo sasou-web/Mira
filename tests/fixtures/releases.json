@@ -58,6 +58,21 @@
    ]
   },
   {
+   "category": "anime",
+   "note": "Another name given after a language in parentheses (« (VOSTFR, …) », Tsundere-Raws' 2026 names) meets the releases under that name; a platform alone (« (WKN) », Wakanim) names nothing, and two shows of one platform stay two",
+   "hits": [
+    ["tsun6", "Battle Spirits Re ZEKKAI NO KU S01E06 SUBFRENCH 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws (VOSTFR, Battle Spirits Re Zekkai no Kuu)", 1395864371, 25, "nyaa"],
+    ["erai6", "[Erai-raws] Battle Spirits Re Zekkai no Kuu - 06 [1080p CR WEB-DL AVC AAC][MultiSub][4E1B9C2A]", 1395864371, 40, "nyaa"],
+    ["kemono", "[Tsundere-Raws] Kemono Jihen - BATCH VOSTFR (WKN) [1080p]", 8589934592, 30, "nyaa"],
+    ["titans", "[Tsundere-Raws] Shingeki no Kyojin S4 - BATCH VOSTFR (WKN) [1080p]", 12884901888, 60, "nyaa"]
+   ],
+   "groups": [
+    ["Battle Spirits Re ZEKKAI NO KU", "S01E06", "tsun6", ["erai6"]],
+    ["Kemono Jihen", "Toutes les saisons", "kemono", []],
+    ["Shingeki no Kyojin", "Saison 4 complète", "titans", []]
+   ]
+  },
+  {
    "category": "movies",
    "hits": [
     ["cam", "Dune.Part.Two.2024.HDCAM.x264", 1610612736, 9000, "1337x"],
