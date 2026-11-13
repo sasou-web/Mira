@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -719,6 +719,43 @@ internal static class PlayerTests
             }
             return Task.CompletedTask;
         });
+        await Test("Défilement : la vitesse suit la molette sans à-coup", () =>
+        {
+            // A notch every 30 to 150 ms, as a hand turns a wheel: from one frame to the next, the speed changes by 12 % at
+            // most at 144 images/s and more, as the list eases between notches (a curve started again from rest at each
+            // notch: 28 to 165 %), never backwards, never past.
+            foreach (var fps in new[] { 60, 144, 240 })
+            foreach (var gap in new[] { .03, .045, .075, .11, .15 })
+            {
+                var (positions, notches) = Wheel(fps, gap, 14);
+                var speeds = positions.Zip(positions.Skip(1), (a, b) => b - a).ToList();
+                Assert(speeds.All(x => x >= 0) && positions.Max() <= 14 * 108, $"{fps} images/s, cran toutes les {gap * 1000} ms : recul ou dépassement");
+                // Between the third notch and the last: the list goes on, its speed even.
+                var steady = Enumerable.Range(1, speeds.Count - 1).Where(i => i >= notches[2] && i < notches[^1]).ToList();
+                var mean = steady.Average(i => speeds[i]);
+                var jolt = steady.Max(i => Math.Abs(speeds[i] - speeds[i - 1])) / mean;
+                Assert(jolt < (fps >= 144 ? .16 : .3), $"{fps} images/s, cran toutes les {gap * 1000} ms : la vitesse saute de {jolt:P0} d’une image à l’autre");
+            }
+            // From rest, the first notch moves as before: the cubic ease-out over Duration.
+            var first = new ScrollMotion(); first.Add(108, 5000); first.Step(.05, 5000);
+            Assert(Math.Abs(first.Position - 108 * (1 - Math.Pow(1 - .05 / ScrollMotion.Duration, 3))) < 1e-9, $"Premier cran : {first.Position}");
+            return Task.CompletedTask;
+        });
+        await Test("Défilement : arrêt net après le dernier cran, même lancé vite", () =>
+        {
+            foreach (var fps in new[] { 60, 144, 240 })
+            {
+                // Spun fast (a notch every 45 ms): the list stands still the shortest curve after its last notch.
+                var (positions, notches) = Wheel(fps, .045, 30);
+                var still = positions.FindIndex(notches[^1], x => x == 30 * 108);
+                Assert(still >= 0 && (still - notches[^1]) / (double)fps <= ScrollMotion.Shortest + 1.5 / fps, $"{fps} images/s : arrêt {(still - notches[^1]) * 1000d / fps:0} ms après le dernier cran");
+                // Notches far apart: at most Duration after the last.
+                (positions, notches) = Wheel(fps, .2, 5);
+                still = positions.FindIndex(notches[^1], x => x == 5 * 108);
+                Assert(still >= 0 && (still - notches[^1]) / (double)fps <= ScrollMotion.Duration + 1.5 / fps, $"{fps} images/s, crans espacés : arrêt {(still - notches[^1]) * 1000d / fps:0} ms après le dernier");
+            }
+            return Task.CompletedTask;
+        });
         await Test("Défilement : inversion immédiate et bornes après changement du contenu", () =>
         {
             var motion = new ScrollMotion(); motion.Reset(300); motion.Add(600, 1000); motion.Step(.04, 1000);
@@ -997,5 +1034,23 @@ internal static class PlayerTests
             Assert(await Wait(5) is not null && fetched.Count(x => x.Contains("/0.jpg")) == 2 && decoded == 4 && loaded == 4, "Two tiles kept: the oldest fetched again: " + string.Join(",", fetched));
             Assert(await Wait(9 * 1000 + 5) is null && fetched.Count(x => x.Contains("/9.jpg")) == 1, "A missing tile is asked for once: " + string.Join(",", fetched));
         });
+    }
+
+    /// <summary>
+    /// <paramref name="notches"/> notches of 108 px, one every <paramref name="gap"/> s, as the Windows wheel steps a
+    /// list (each between two frames, as WPF delivers it), drawn at <paramref name="fps"/>: the list's place at each frame
+    /// until it stands still, and the frame before which each notch came.
+    /// </summary>
+    private static (List<double> Positions, List<int> Notches) Wheel(int fps, double gap, int notches)
+    {
+        var motion = new ScrollMotion(); var positions = new List<double> { 0 }; var at = new List<int>();
+        var given = 0;
+        for (var frame = 1; frame < fps * 30; frame++)
+        {
+            while (given < notches && given * gap <= (frame - 1d) / fps + 1e-9) { motion.Add(108, 100_000); at.Add(frame); given++; }
+            positions.Add(motion.Step(1d / fps, 100_000));
+            if (given == notches && !motion.Moving) break;
+        }
+        return (positions, at);
     }
 }
