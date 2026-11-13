@@ -3,9 +3,10 @@ name: Release banner
 # the README's library (tools/banner/media.sh, a real Jellyfin 12.1 with its TMDb artwork): Mira for Windows (the
 # README's Windows job, gallery.yml), Mira for Mac (Mira --gallery under a virtual display, at ×2), Mira for iPhone (the
 # README's iPhone job, gallery.yml), lit by a film's backdrop (tools/banner/stills.mjs). What it shows comes from tools/banner/scenes.json and
-# the version's entry of WhatsNew.json (tools/banner/plan.mjs): a card per point for a patch, Mira on every screen
-# for x.y.0. Run on request (Run workflow) from the release's preparation branch: docs/releases/<version>.jpg is
-# committed to it, to reach main and the release's tag through its pull request; from main, only kept as an artifact.
+# the version's entry of WhatsNew.json (tools/banner/plan.mjs): for a patch, the release's film over a band of real
+# pieces of screens, each under its point's title (« film »); for x.y.0, Mira on every screen (« lineup »). Run on
+# request (Run workflow) from the release's preparation branch: docs/releases/<version>.jpg is committed to it, to
+# reach main and the release's tag through its pull request; from main, only kept as an artifact.
 on:
   workflow_dispatch:
     inputs:
