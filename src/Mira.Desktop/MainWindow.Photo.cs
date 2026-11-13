@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using Mira.Core;
+using Mira.Desktop.Services;
 
 namespace Mira.Desktop;
 
@@ -33,8 +34,7 @@ public partial class MainWindow
         {
             try
             {
-                var image = new BitmapImage();
-                image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.DecodePixelWidth = 160; image.StreamSource = new MemoryStream(bytes); image.EndInit(); image.Freeze();
+                var image = PictureBytes.Decode(bytes, 160);
                 brush = new ImageBrush(image) { Stretch = Stretch.UniformToFill }; brush.Freeze();
             }
             catch (Exception ex) when (ex is NotSupportedException or FileFormatException or IOException or InvalidOperationException) { brush = null; }

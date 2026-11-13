@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Mira.Core;
+using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
@@ -120,12 +121,7 @@ public partial class MainWindow
         try
         {
             if (await client.MatchImageAsync(url, _connectionLifetime.Token) is not { } bytes || version != _identifyVersion) return;
-            target.Source = await Task.Run(() =>
-            {
-                using var stream = new MemoryStream(bytes);
-                var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.DecodePixelWidth = 112; bitmap.StreamSource = stream; bitmap.EndInit(); bitmap.Freeze();
-                return bitmap;
-            });
+            target.Source = await Task.Run(() => PictureBytes.Decode(bytes, 112));
         }
         // Only a picture: the proposal is there without it.
         catch (Exception ex) when (ex is NotSupportedException or FileFormatException or InvalidOperationException || IsExpected(ex)) { }
