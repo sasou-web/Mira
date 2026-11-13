@@ -185,10 +185,17 @@ public static class SelfCheck
             rowWindow.Show();
             await Task.Delay(400);
             var shown = row.ArrowsShown;
+            // Where the row is at each frame, as drawn: a glide shows steps on the way, a jump none. Read by frames, not by
+            // the clock: a wait of 50 ms once lasted the whole glide on a slow runner.
+            var rowFrames = new List<double>(); var watching = true;
+            void Watch(TimeSpan _) { rowFrames.Add(row.Offset); if (watching) rowWindow.RequestAnimationFrame(Watch); }
+            rowWindow.RequestAnimationFrame(Watch);
             row.Glide(1);
-            await Task.Delay(50); var midway = row.Offset;
-            await Task.Delay(1000);
-            Check(shown && midway > 0 && midway < CardRow.Step - 1 && Math.Abs(row.Offset - CardRow.Step) < 1, "rangée : défilement fluide d’environ trois affiches", $"flèches {shown}, {midway:0} px à 50 ms, {row.Offset:0} px à la fin");
+            await Until(() => Math.Abs(row.Offset - CardRow.Step) < 1, 3);
+            await Task.Delay(100); watching = false;
+            var midway = rowFrames.Where(x => x > .5 && x < CardRow.Step - 1).Distinct().ToList();
+            Check(shown && midway.Count >= 2 && Math.Abs(row.Offset - CardRow.Step) < 1, "rangée : défilement fluide d’environ trois affiches",
+                $"flèches {shown}, {midway.Count} images en chemin ({string.Join(", ", midway.Take(8).Select(x => x.ToString("0")))} px), {row.Offset:0} px à la fin");
             rowWindow.Close();
 
             // The page scrolls whatever the pointer is over: a row given a swipe down with a little sideways, and a pointer
@@ -403,12 +410,17 @@ public static class SelfCheck
                 foreach (var kind in new[] { "favorite", "watched", "watched", "favorite" })
                 {
                     window.HideNotice(); await Task.Delay(300);
+                    // Places as drawn: laid out first. Jellyfin's answer draws the page's texts again (RefreshAsync), and
+                    // a look taken between that and the next layout pass, which comes before any frame, saw new texts at
+                    // 0 × 0 that never show (a slow runner landed there three times).
+                    still.UpdateLayout();
                     var before = still.TopPlaces();
                     still.ClickForCheck(kind);
                     var clock = System.Diagnostics.Stopwatch.StartNew();
                     while (clock.ElapsedMilliseconds < 1200)
                     {
                         await Task.Delay(16);
+                        still.UpdateLayout();
                         foreach (var (part, now) in still.TopPlaces())
                             if (!before.TryGetValue(part, out var was)) moved.Add($"{kind}: {part} appeared");
                             else if (new[] { now.X - was.X, now.Y - was.Y, now.Width - was.Width, now.Height - was.Height }.Max(Math.Abs) > .5)
@@ -1339,8 +1351,8 @@ public static class SelfCheck
         opening = window.PlayAsync(movie, fromStart: true);
         var player = await Until(() => window.Player is { Engine: not null }, 15) ? window.Player : null;
         var engine = player?.Engine;
-        // From its first second: resumed where the checks before left the film (its file lasts 30 s, the slower the
-        // runner, the later), it reached its end during the wait below, and the player rightly closed with it.
+        // From its first second: resumed where the checks before left the film (the slower the runner, the later), it
+        // reached the end of its file during the wait below (when it lasted 30 s), and the player rightly closed with it.
         var newer = player?.PlayAgainForCheck(movie with { UserData = movie.UserData with { PlaybackPositionTicks = 0 } });
         await opening;
         if (newer is not null) await newer;

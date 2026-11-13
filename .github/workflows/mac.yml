@@ -208,7 +208,7 @@ jobs:
       - name: Self-check
         run: |
           mkdir -p .artifacts/media
-          ffmpeg -loglevel error -y -f lavfi -i testsrc2=duration=30:size=1280x720:rate=24 -f lavfi -i sine=frequency=440:duration=30 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest .artifacts/media/test.mkv
+          ffmpeg -loglevel error -y -f lavfi -i testsrc2=duration=120:size=1280x720:rate=24 -f lavfi -i sine=frequency=440:duration=120 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest .artifacts/media/test.mkv
           ffmpeg -loglevel error -y -f lavfi -i testsrc2=duration=6:size=1280x720:rate=24 -f lavfi -i sine=frequency=550:duration=6 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest .artifacts/media/short.mkv
           # The subtitles a film starts with (PlayerSafety.TracksAsync), as tools/player-check.ps1 makes them for Windows.
           mkdir -p .artifacts/media/tracks

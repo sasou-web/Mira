@@ -31,6 +31,11 @@ public sealed class MockJellyfin : HttpMessageHandler
     public bool PluginInstalled { get; private set; }
     /// <summary>Every request to the friend's Jellyfin, « POST Mira/guest/open ».</summary>
     public List<string> FriendCalls { get; } = [];
+    /// <summary>
+    /// The length of the test film (--media, made by mac.yml): long enough that no check of a playback reaches its end on
+    /// a slow runner (at 30 s, the picture-in-picture checks did, and the player rightly closed under them).
+    /// </summary>
+    public const long FilmSeconds = 120;
     private readonly string _media, _short;
     private readonly List<object> _movies, _series;
     private readonly Dictionary<string, List<object>> _episodes = [];
@@ -63,14 +68,14 @@ public sealed class MockJellyfin : HttpMessageHandler
         object Blurs(string id) => new Dictionary<string, Dictionary<string, string>> { ["Primary"] = new() { ["p" + id] = hashes[Math.Abs(id.Sum(x => x)) % hashes.Length] } };
         object Movie(string id, string name, int year, double progress, string overview) => new
         {
-            Id = id, Name = name, Type = "Movie", ProductionYear = year, RunTimeTicks = 30L * TimeSpan.TicksPerSecond, CommunityRating = 7.8,
+            Id = id, Name = name, Type = "Movie", ProductionYear = year, RunTimeTicks = FilmSeconds * TimeSpan.TicksPerSecond, CommunityRating = 7.8,
             Overview = overview, Genres = new[] { "Aventure", "Animation" }, ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + id }, ImageBlurHashes = Blurs(id),
             BackdropImageTags = new[] { "b" + id }, OfficialRating = "Tous publics",
             // « Bande-annonce »: « Ciel ouvert » keeps one beside it on the server, « Brume basse » has one on the web only.
             LocalTrailerCount = id == "movie-3" ? 1 : 0,
             RemoteTrailers = id == "movie-2" ? new object[] { new { Url = "https://www.youtube.com/watch?v=mira-check", Name = "Trailer" } } : Array.Empty<object>(), Taglines = id == "movie-1" ? new[] { "Quand le jour tombe, la forêt s’allume." } : [],
             People = new[] { Person("actor-1", "Jeanne Essai", "Actor", "Lina"), Person("actor-2", "Paul Témoin", "Actor", "Le passeur"), Person("director-1", "Réa Lisatrice", "Director") },
-            UserData = new { PlaybackPositionTicks = (long)(progress * 30 * TimeSpan.TicksPerSecond), Played = false, IsFavorite = id == "movie-2", LastPlayedDate = progress > 0 ? DateTimeOffset.UtcNow.AddHours(-2) : (DateTimeOffset?)null }
+            UserData = new { PlaybackPositionTicks = (long)(progress * FilmSeconds * TimeSpan.TicksPerSecond), Played = false, IsFavorite = id == "movie-2", LastPlayedDate = progress > 0 ? DateTimeOffset.UtcNow.AddHours(-2) : (DateTimeOffset?)null }
         };
         _movies =
         [
@@ -274,7 +279,7 @@ public sealed class MockJellyfin : HttpMessageHandler
             {
                 object Filler(int i, string name) => new
                 {
-                    Id = $"filler-{i}", Name = name, Type = "Movie", ProductionYear = 2020, RunTimeTicks = 30L * TimeSpan.TicksPerSecond,
+                    Id = $"filler-{i}", Name = name, Type = "Movie", ProductionYear = 2020, RunTimeTicks = FilmSeconds * TimeSpan.TicksPerSecond,
                     ImageTags = new Dictionary<string, string>(), BackdropImageTags = Array.Empty<string>(), UserData = new { PlaybackPositionTicks = 0L, Played = false, IsFavorite = false }
                 };
                 var latest = (LatestAdded ? [Filler(0, "Arrivé à l’instant")] : new List<object>()).Concat(items).Concat(Enumerable.Range(1, Fillers).Select(i => Filler(i, $"Titre {i}"))).ToList();
