@@ -71,7 +71,7 @@ public sealed partial class SettingsPage : Page
             // « Mode canapé »: applied at once, the window full screen (MainWindow.Couch.cs).
             Toggle(Couch.Title, Couch.Description + " " + Couch.Keys, settings.CouchMode, shell.SetCouchMode),
             // « Animer l’accueil », as on Windows: the banner turns by itself, or stays on its title.
-            Toggle(L("Animer l’accueil", "Animate Home"), L("Le titre en vedette change toutes les 9 s.", "The featured title changes every 9 s."), settings.HeroAutoPlay, v => settings.HeroAutoPlay = v)));
+            Toggle(L("Animer l’accueil", "Animate Home"), L("Le titre en vedette change toutes les 6,5 s.", "The featured title changes every 6.5 s."), settings.HeroAutoPlay, v => settings.HeroAutoPlay = v)));
         // « Accueil à ta main »: the libraries come from Jellyfin, for their « Nouveau dans … ».
         Tab("appearance").Children.Add(_home);
         DrawHome();

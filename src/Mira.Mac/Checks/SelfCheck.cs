@@ -177,6 +177,21 @@ public static class SelfCheck
                 var bannerStill = await Until(() => window.Current is HomePage { Turning: false }, 3);
                 window.Settings.HeroAutoPlay = true; window.Go("search"); window.Go("home");
                 Check(bannerStill && await Until(() => window.Current is HomePage { Turning: true } || MacMotion.Reduced, 3), "accueil : animer l’accueil coupé, puis remis");
+                // Its clock as on Windows: counted while it turns, held where it is once the page is scrolled past it, going on when it comes back.
+                if (window.Current is HomePage { Turning: true } turning)
+                {
+                    await Task.Delay(600);
+                    var counted = turning.HeroElapsed;
+                    turning.ScrollForCheck(10_000);
+                    var held = await Until(() => !turning.Turning, 2);
+                    var heldAt = turning.HeroElapsed; await Task.Delay(500);
+                    var kept = turning.HeroElapsed;
+                    turning.ScrollForCheck(0);
+                    var turnsAgain = await Until(() => turning.Turning, 2);
+                    Check(counted > 0 && held && kept == heldAt && turnsAgain && turning.HeroBars is var (bars, titles) && bars == titles && titles > 1,
+                        "accueil : bandeau tenu une fois la page défilée au-delà, son temps gardé, une barre par titre",
+                        $"compté {counted:0.00} s, tenu {held} ({heldAt:0.00} → {kept:0.00} s), reparti {turnsAgain}, {turning.HeroBars.Bars} barres pour {turning.HeroBars.Titles} titres");
+                }
             }
             // A row's arrows only when it goes past the window, and a press glides about three posters along, not a page.
             Check(home.GetVisualDescendants().OfType<CardRow>().All(x => x.GetVisualDescendants().OfType<ScrollViewer>().First() is var s && x.ArrowsShown == s.Extent.Width > s.Viewport.Width + 1), "accueil : flèches des rangées seulement si elles débordent");
