@@ -686,8 +686,7 @@ public sealed partial class DetailPage : Page
             catch (UnauthorizedAccessException) { Shell.Notice(WatchGroup.NoSyncPlay); return; }
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
             if (!ReferenceEquals(session, Shell.Session) || Shell.Current != this) return;
-            // Nothing to join: a menu of one line would only stand in the way of the group.
-            if (groups.Count == 0) { _ = CreateGroupAsync(); return; }
+            // Nothing to join: still the menu, with its one line, as on Windows: a click never makes a group the others see by itself.
             foreach (var g in groups)
                 Add(L($"Rejoindre « {g.GroupName} »", $"Join “{g.GroupName}”") + $" · {Together.People(Math.Max(1, g.Participants.Count))}", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
