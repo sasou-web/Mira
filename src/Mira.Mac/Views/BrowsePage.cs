@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -44,7 +45,8 @@ public sealed class BrowsePage : Page
     private List<MediaItem> _foundEpisodes = [], _foundSagas = [];
     private readonly ScrollViewer _scroll;
     private readonly TextBlock _count = new() { FontSize = 12, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
-    private readonly TextBox _search = new() { Watermark = L("Un film, une série, un acteur…", "A movie, a show, an actor…"), FontSize = 18, Padding = new Thickness(18, 14) };
+    /// <summary>The search, as on Windows: 760 wide at most, its magnifier at the left, × to clear it at the right.</summary>
+    private readonly TextBox _search = new() { Watermark = L("Un film, une série, un acteur, un studio…", "A movie, a show, an actor, a studio…"), FontSize = 16, Height = 52, Padding = new Thickness(44, 14, 44, 14), VerticalContentAlignment = VerticalAlignment.Center };
     private readonly ComboBox _genre = new(), _year = new(), _state = new(), _sort = new(), _library = new();
     /// <summary>Picture, rating, audio and subtitles (<see cref="LibraryFilters"/>): their choices, in the order of their lists.</summary>
     private readonly ComboBox _quality = new(), _rating = new(), _audio = new(), _subtitles = new();
@@ -93,6 +95,9 @@ public sealed class BrowsePage : Page
     public void SelectSearch() { _search.Focus(); _search.SelectAll(); }
     /// <summary>The field itself: the self-check types in it from the menu bar (Édition).</summary>
     public TextBox SearchBox => _search;
+    /// <summary>The × of the search, shown with some text: for the self-check.</summary>
+    public Button? SearchClear => _searchClear;
+    private Button? _searchClear;
 
     public BrowsePage(MainWindow shell, BrowseKind kind, PersonInfo? person = null, bool? director = false, MediaItem? saga = null, StudioInfo? studio = null, string? genre = null) : base(shell)
     {
@@ -166,11 +171,20 @@ public sealed class BrowsePage : Page
         page.Children.Add(header);
         if (kind == BrowseKind.Search)
         {
-            _search.Margin = new Thickness(0, 0, 0, 22);
+            // × beside the text, only with some; Échap first clears it, a second goes back (as on Windows).
+            var clear = Ui.IconButton("close", L("Effacer · Échap", "Clear · Esc"), () => { _search.Text = ""; _search.Focus(); }, "icon", 14, L("Effacer la recherche", "Clear the search"));
+            clear.Width = clear.Height = 32; clear.HorizontalAlignment = HorizontalAlignment.Right; clear.VerticalAlignment = VerticalAlignment.Center;
+            clear.Margin = new Thickness(0, 0, 10, 0); clear.Foreground = Ui.Muted; clear.IsVisible = false;
+            _searchClear = clear;
+            var glass = new Icon("search", 19) { Foreground = Ui.Brush("#757575"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(15, 0, 0, 0), IsHitTestVisible = false };
+            var field = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star) { MaxWidth = 760 }, new ColumnDefinition(0, GridUnitType.Pixel) }, Margin = new Thickness(0, 0, 0, 22), Children = { _search, glass, clear } };
+            // Its Text property, not TextChanged, which Avalonia says later: the × goes with the text cleared by Échap or by itself.
+            _search.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) clear.IsVisible = !string.IsNullOrEmpty(_search.Text); };
             _search.TextChanged += (_, _) => { _typing.Stop(); _typing.Start(); };
+            _search.AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && !string.IsNullOrEmpty(_search.Text)) { _search.Text = ""; e.Handled = true; } }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
             _typing.Tick += (_, _) => { _typing.Stop(); _ = ReloadAsync(); };
             Avalonia.Automation.AutomationProperties.SetName(_search, L("Rechercher dans la bibliothèque", "Search the library"));
-            page.Children.Add(_search);
+            page.Children.Add(field);
             Showing += shown => { if (shown) Dispatcher.UIThread.Post(() => { if (IsShowing) _search.Focus(); }, DispatcherPriority.Input); };
         }
         else { page.Children.Add(tools); page.Children.Add(filtersLayer); }

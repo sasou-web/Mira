@@ -22,9 +22,10 @@ public sealed class Icon : Control
     // Two joined arches form a lowercase m, with the rhythm of two film loops.
     private static readonly Geometry BrandTile = Shape(IconPaths.BrandTile);
     private static readonly Geometry BrandM = Shape(IconPaths.BrandM);
-    // The mini-player's own, as on Windows.
+    // The mini-player's own, and the rail's « ? », as on Windows.
     private static readonly Dictionary<string, string> Player = new()
     {
+        ["help"] = "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M9.4 9.4Q9.6 7 12 7Q14.6 7 14.6 9.4Q14.6 11.1 12.8 11.9Q12 12.3 12 13.4V13.8 M12 17V17.15",
         ["expand"] = "M3 8V6Q3 3 6 3H8M16 3H18Q21 3 21 6V8M21 16V18Q21 21 18 21H16M8 21H6Q3 21 3 18V16",
         ["mini"] = "M9 20H7Q3 20 3 16V8Q3 4 7 4H17Q21 4 21 8V10 M14 13H19Q21 13 21 15V18Q21 20 19 20H14Q12 20 12 18V15Q12 13 14 13Z"
     };

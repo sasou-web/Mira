@@ -120,6 +120,9 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, Button> _railButtons = [];
     /// <summary>« Regarder ensemble »: the rail's group button, above Réglages, in sight while this Mac is in a group (ShowGroupRail).</summary>
     private readonly Button _groupRail = new() { IsVisible = false };
+    /// <summary>The rail's « ? » (Aide) and its avatar (the account), under the group button, as on Windows.</summary>
+    private Button _helpRail = null!;
+    private readonly Button _accountRail = new() { Padding = new Thickness(0) };
     private readonly TextBlock _groupCount = new() { FontSize = 10, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#121212"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private Action? _toastClick;
     public PlayerPage? Player { get; private set; }
@@ -235,10 +238,17 @@ public sealed partial class MainWindow : Window
         _railButtons["downloads"].IsVisible = false;
         // Shown once this account keeps a title on this Mac.
         _railButtons["offline"].IsVisible = false;
+        // As on Windows: Aide (here its keyboard shortcuts, the guide and the report), Réglages, then the account.
+        _helpRail = Ui.IconButton("help", L("Aide · ⌘/", "Help · ⌘/"), () => OpenSheet("keys"), "rail", 22);
         var settings = Ui.IconButton("settings", L("Réglages · ⌘,", "Settings · ⌘,"), () => NavigateRoot("settings"), "rail", 22);
         _railButtons["settings"] = settings;
-        var avatar = new Grid { Width = 29, Height = 29, Margin = new Thickness(0, 12, 0, 0), Children = { new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3F3F3F"), Child = _avatar }, _avatarPhoto } };
-        ToolTip.SetTip(avatar, L("Compte Jellyfin", "Jellyfin account"));
+        // The avatar is a button, as Windows' (its « Ton compte »): Réglages on « Compte et serveur », where the account,
+        // its server and « Se déconnecter » are.
+        _accountRail.Classes.Add("rail");
+        _accountRail.Content = new Grid { Width = 29, Height = 29, Children = { new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3F3F3F"), Child = _avatar }, _avatarPhoto } };
+        ToolTip.SetTip(_accountRail, L("Compte Jellyfin", "Jellyfin account"));
+        Avalonia.Automation.AutomationProperties.SetName(_accountRail, L("Compte Jellyfin", "Jellyfin account"));
+        _accountRail.Click += (_, _) => OpenAccount();
         // Its count of accounts in a corner, as the title page's « En groupe · 2 personnes ».
         _groupRail.Classes.Add("rail"); Avalonia.Automation.AutomationProperties.SetName(_groupRail, L("Groupe", "Group"));
         _groupRail.Content = new Grid
@@ -250,7 +260,7 @@ public sealed partial class MainWindow : Window
             }
         };
         _groupRail.Click += async (_, _) => await GroupMenuAsync();
-        var bottom = Ui.Column(8, _groupRail, settings, avatar); bottom.HorizontalAlignment = HorizontalAlignment.Center;
+        var bottom = Ui.Column(8, _groupRail, _helpRail, settings, _accountRail); bottom.HorizontalAlignment = HorizontalAlignment.Center;
         var dock = new DockPanel { Margin = new Thickness(0, TitleBarInset, 0, 18) };
         DockPanel.SetDock(brand, Dock.Top); DockPanel.SetDock(bottom, Dock.Bottom);
         dock.Children.Add(brand); dock.Children.Add(bottom); dock.Children.Add(_railItems);

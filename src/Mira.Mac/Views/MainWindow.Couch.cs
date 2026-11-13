@@ -284,7 +284,8 @@ public sealed partial class MainWindow
     {
         if (CurrentSheet is not null || Player is { IsMini: false }) return;
         var keys = _railButtons.Where(x => x.Value.IsVisible).Select(x => x.Key).ToList();
-        var at = Current is { } page ? keys.IndexOf(page.Rail) : -1;
+        // From a title, the entry it came from (Films → a film, RB: Séries).
+        var at = Current is { } page ? keys.IndexOf(page.Lit) : -1;
         var next = at < 0 ? 0 : Math.Clamp(at + step, 0, keys.Count - 1);
         if (next == at) return;
         NavigateRoot(keys[next]);
