@@ -60,6 +60,17 @@ jobs:
       - name: The library
         shell: bash
         run: tools/banner/media.sh "$PWD/.artifacts/media"
+      # For a release's banner only: a stand-in for TheTVDB's plugin, whose missing episodes of Invincible the banner's
+      # windows-missing shows (tools/web/fake-tvdb), in Jellyfin's plugins before it starts.
+      - name: Missing episodes (banner)
+        if: inputs.windows_only
+        shell: pwsh
+        run: |
+          $plugin = Join-Path $PWD '.artifacts/jf-data/data/plugins/FakeTvdb_9999.0.0.0'
+          New-Item -ItemType Directory -Force -Path $plugin | Out-Null
+          dotnet build tools/web/fake-tvdb/FakeTvdb.csproj -c Release -o .artifacts/fake-tvdb -nologo -v q
+          if ($LASTEXITCODE -ne 0) { throw 'tools/web/fake-tvdb did not build.' }
+          Copy-Item .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll $plugin
       - name: Jellyfin, its library and a viewer's traces
         shell: pwsh
         run: |
@@ -69,6 +80,25 @@ jobs:
           Start-Process -FilePath dotnet -ArgumentList @('.artifacts/jf/jellyfin.dll', '--datadir', "$j/data", '--cachedir', "$j/cache", '--configdir', "$j/config", '--logdir', "$j/log", '--nowebclient', '--ffmpeg', $ffmpeg) -WindowStyle Hidden
           node tools/gallery/setup.mjs http://127.0.0.1:8096 (Join-Path $PWD '.artifacts/media') $env:GALLERY_USER $env:GALLERY_PASSWORD
           if ($LASTEXITCODE -ne 0) { throw 'Jellyfin setup failed.' }
+      # For a release's banner only: the mini-player plays a film (windows-mini), so libmpv as Mira installs it, in the
+      # profile, and that film's video made of its backdrop (the library's videos are black).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: inputs.windows_only
+        with:
+          path: .artifacts/player-work/libmpv.7z
+          key: libmpv-${{ hashFiles('src/Mira.Core/MpvPackage.cs') }}
+      - name: libmpv and a film made of its backdrop (banner)
+        if: inputs.windows_only
+        shell: bash
+        run: |
+          pwsh -NoProfile -File tools/mpv-engine.ps1 -Work .artifacts/player-work -ProfileFolder .artifacts/gallery-profile
+          node tools/banner/stills.mjs http://127.0.0.1:8096 "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/stills
+          name="Spider-Man Across the Spider-Verse (2023)"
+          ffmpeg -loglevel error -y -loop 1 -framerate 1 -i .artifacts/stills/still-spider-verse.jpg -f lavfi -i anullsrc=r=48000:cl=stereo -t 600 \
+            -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,format=yuv420p" \
+            -c:v libx264 -preset ultrafast -tune stillimage -crf 20 -g 600 -c:a aac -b:a 32k .artifacts/still-master.mkv
+          ffmpeg -loglevel error -y -stream_loop -1 -i .artifacts/still-master.mkv -t $((140 * 60)) -c copy -metadata:s:a:0 language=eng .artifacts/still-film.mkv
+          mv -f .artifacts/still-film.mkv ".artifacts/media/Films/$name/$name.mkv"
       # The runner's screen is 1024 × 768, smaller than the window captured: Windows would shrink it to fit.
       - name: Screen of 1920 × 1080
         shell: pwsh
@@ -81,6 +111,8 @@ jobs:
         shell: pwsh
         env:
           MIRA_GALLERY_SERVER: http://127.0.0.1:8096
+          # A release's banner: its own screens too (filters, missing episodes, the mini-player).
+          MIRA_GALLERY_BANNER: ${{ inputs.windows_only && '1' || '0' }}
         run: |
           $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
           $output = Join-Path $PWD '.artifacts/gallery'
@@ -88,7 +120,7 @@ jobs:
           $env:MIRA_GALLERY_USER = $env:GALLERY_USER; $env:MIRA_GALLERY_PASSWORD = $env:GALLERY_PASSWORD
           # In the language asked for (en by default, fr for docs/README.fr.md): the runner's Windows is in English, which Mira would otherwise follow.
           $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', $env:GALLERY_LANGUAGE, '--readme-gallery', "`"$output`"") -PassThru
-          if (-not $run.WaitForExit(300000)) { $run.Kill(); throw 'The captures did not finish within 5 minutes.' }
+          if (-not $run.WaitForExit(420000)) { $run.Kill(); throw 'The captures did not finish within 7 minutes.' }
           $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
           Write-Output $result
           if ($run.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'The captures failed.' }

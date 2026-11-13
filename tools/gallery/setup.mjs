@@ -66,7 +66,8 @@ const query = `Items?userId=${userId}&recursive=true&includeItemTypes=Movie,Seri
 let scans = 0;
 await until('the library scan', async () => {
   const result = await call('GET', query, { token });
-  if ((result.Items ?? []).length >= titleCount) return true;
+  // Without the episodes of tools/web/fake-tvdb (the release banners' captures): no file, nothing to wait for.
+  if ((result.Items ?? []).filter((x) => x.LocationType !== 'Virtual').length >= titleCount) return true;
   if (scans++ % 10 === 0) await call('POST', 'Library/Refresh', { token });
   return false;
 }, 300);

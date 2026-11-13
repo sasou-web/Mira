@@ -42,6 +42,9 @@ public sealed class MissingEpisodes(IProviderManager providers, ILibraryManager 
     {
         ["Deux Temps"] = [(1, 3, -9, "Le retour"), (2, 2, -2, "La veille"), (2, 3, 2, "Le lendemain"), (2, 4, 9, "La suite"), (3, 1, null, "Saison trois")],
         ["Courte Anime"] = [(1, 2, 0, "Ce soir"), (1, 3, 7, "La semaine prochaine")],
+        // The release banners' library (tools/banner/media.sh, three episodes of its first season): the rest of the season
+        // aired and missing, the next season coming (banner.yml, gallery.yml: windows-missing, mac-missing).
+        ["Invincible"] = [(1, 4, -1800, "Episode 4"), (1, 5, -1793, "Episode 5"), (1, 6, -1786, "Episode 6"), (1, 7, -1779, "Episode 7"), (1, 8, -1772, "Episode 8"), (2, 1, 12, "Episode 1")],
     };
 
     private readonly object _gate = new();

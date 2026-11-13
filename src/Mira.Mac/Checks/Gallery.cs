@@ -7,8 +7,8 @@ namespace Mira.Mac.Checks;
 /// <summary>
 /// Mira --gallery &lt;folder&gt;: the window signed in to a real Jellyfin (the README's library of tools/gallery/setup.mjs,
 /// MIRA_GALLERY_SERVER, _USER and _PASSWORD), each screen captured as Avalonia draws it (mac-home, mac-film,
-/// mac-series, mac-films, mac-settings). For the release banners (tools/banner); on Linux under a virtual display too,
-/// where AVALONIA_GLOBAL_SCALE_FACTOR=2 gives a Retina window. gallery-result.txt says PASS or FAIL.
+/// mac-series, mac-films, mac-filters, mac-missing, mac-settings). For the release banners (tools/banner); on Linux
+/// under a virtual display too, where AVALONIA_GLOBAL_SCALE_FACTOR=2 gives a Retina window. gallery-result.txt says PASS or FAIL.
 /// </summary>
 public static class Gallery
 {
@@ -43,6 +43,14 @@ public static class Gallery
             await Until(() => window.Current is DetailPage { Episodes.Count: > 0 }, 20); await Shot("mac-series");
             window.Go("Movie");
             await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15); await Shot("mac-films");
+            // The filters open over the grid, then a series' missing episodes at their place: Invincible's, from
+            // tools/web/fake-tvdb, which banner.yml puts in Jellyfin's plugins.
+            ((BrowsePage)window.Current!).ToggleFilters(); await Shot("mac-filters"); ((BrowsePage)window.Current!).CloseFilters();
+            window.Go("Series");
+            await Until(() => window.Current is BrowsePage { Items.Count: > 0 } page && page.Items.Any(x => x.Name == "Invincible"), 15);
+            window.Open(((BrowsePage)window.Current!).Items.FirstOrDefault(x => x.Name == "Invincible") ?? throw new InvalidOperationException("No series named Invincible in the library."));
+            if (!await Until(() => window.Current is DetailPage { Episodes.Count: > 0, Missing.Count: > 0 }, 30)) throw new InvalidOperationException("No missing episode of Invincible: is tools/web/fake-tvdb in Jellyfin's plugins?");
+            await Task.Delay(500); ((DetailPage)window.Current!).ShowEpisodesForCheck(); await Shot("mac-missing");
             window.Go("settings"); await Shot("mac-settings");
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: Mira signed in to {server} as {user}.");
             exit = 0;

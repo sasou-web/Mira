@@ -57,6 +57,8 @@ public sealed partial class DetailPage : Page
     public override string Rail => "";
     public MediaItem Item => _item;
     public IReadOnlyList<MediaItem> Episodes => _allEpisodes;
+    /// <summary>The series' episodes the library lacks (TheTVDB's, through Jellyfin), once read.</summary>
+    public IReadOnlyList<MediaItem> Missing => _virtuals;
     /// <summary>For the self-check: the list of episodes on the page, as many rows as the season shown.</summary>
     public bool EpisodesShown => TopLevel.GetTopLevel(_episodes) is not null && _episodes.Children.Count > 0;
     /// <summary>For the self-check: the seasons as pills, the tiles of the season shown, the top of the grid brought into view.</summary>
