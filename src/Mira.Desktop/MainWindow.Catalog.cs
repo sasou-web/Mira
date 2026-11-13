@@ -288,7 +288,8 @@ public partial class MainWindow
         move.BeginAnimation(TranslateTransform.XProperty, null); move.BeginAnimation(TranslateTransform.YProperty, null);
         move.X = at.X; move.Y = at.Y; RailIndicator.Opacity = 1;
     }
-    private void RenderLibrary()
+    /// <param name="grow">The grid's next page arrived: added over the next frames (<see cref="GrowGrid"/>).</param>
+    private void RenderLibrary(bool grow = false)
     {
         using var timed = FrameProbe.Time("RenderLibrary");
         var search = SearchBox.Text.Trim(); var home = _catalog.IsHome(search);
@@ -325,7 +326,7 @@ public partial class MainWindow
             if (candidate is not null && !_heroBusy) RenderHero(candidate);
             if (previousCandidates != string.Join('|', _heroCandidates.Select(x => x.Id))) BuildHeroDots();
         }
-        AddCards(ResumeCards, row, true); AddCards(PosterCards, _catalog.Items, false);
+        AddCards(ResumeCards, row, true); AddCards(PosterCards, _catalog.Items, false, grow: grow);
         ResizePosters();
         var empty = grid && !found && !_catalog.Loading && _catalog.Items.Count == 0;
         if (empty) DescribeEmptyState(search);
@@ -412,32 +413,21 @@ public partial class MainWindow
         ResumePreviousButton.IsEnabled = ResumeScroll.HorizontalOffset > 1; ResumeNextButton.IsEnabled = ResumeScroll.HorizontalOffset < ResumeScroll.ScrollableWidth - 1;
     }
     /// <param name="found">Found by a search: an episode opens its series at it, a saga its titles; neither plays from its card.</param>
-    private void AddCards(Panel panel, List<MediaItem> items, bool wide, bool found = false)
+    /// <param name="grow">The grid's next page, come while the page scrolls: its new cards come over the next frames (<see cref="GrowGrid"/>).</param>
+    private void AddCards(Panel panel, List<MediaItem> items, bool wide, bool found = false, bool grow = false)
     {
+        if (panel == PosterCards) StopGrowingGrid();
         // One lookup table instead of a scan of every card for every item.
         var existing = new Dictionary<string, MediaCard>(); var made = 0;
         foreach (var known in panel.Children.OfType<MediaCard>()) existing.TryAdd(known.RenderKey, known);
         for (var i = 0; i < items.Count; i++)
         {
+            // Past the cards already there (each in its place), only new ones are left to add: a few at each frame.
+            if (grow && panel == PosterCards && i == panel.Children.Count) { StartGrowingGrid(items, i, found); break; }
             var item = items[i]; var key = MediaCard.Key(item, _settings);
             if (!existing.Remove(key, out var card))
             {
-                // A card of a page shown before (Films, Séries, Films again) comes back as it was left.
-                if (_cardShelf.Take(key, wide, found) is not { } kept)
-                {
-                    card = new MediaCard(item, wide, i, _settings, _demo) { Found = found }; ++made;
-                    card.Click += async (_, _) =>
-                    {
-                        ClosePreview();
-                        if (item.Type == "BoxSet") await ShowSagaAsync(item, SearchBox.Text.Trim());
-                        else if (found && item.Type == "Episode") await ShowDetailsAsync(await PageItemAsync(item), item);
-                        else if (wide || _catalog.View == "offline") await PlayAsync(item, chosen: true);
-                        else await ShowDetailsAsync(item);
-                    };
-                    card.HoverEntered += CardHoverEntered; card.FocusEntered += CardFocusEntered; card.HoverLeft += CardHoverLeft;
-                    card.ContextMenu = CardMenu(card, wide && !found);
-                }
-                else card = kept;
+                card = CardFor(item, key, wide, found, i, ref made);
                 panel.Children.Insert(Math.Min(i, panel.Children.Count), card);
                 // Page navigation already animates the page. Refreshing progress must not animate it again per card.
             }
@@ -454,6 +444,23 @@ public partial class MainWindow
         if (made > 0) FrameProbe.Mark($"{made} new card{(made > 1 ? "s" : "")} in {panel.Name}");
         RefreshHover();
         if (panel == PosterCards) ScheduleVisibleArtwork();
+    }
+    /// <summary>The card of <paramref name="item"/>: the one of a page shown before (Films, Séries, Films again) as it was left, else a new one.</summary>
+    private MediaCard CardFor(MediaItem item, string key, bool wide, bool found, int index, ref int made)
+    {
+        if (_cardShelf.Take(key, wide, found) is { } kept) return kept;
+        var card = new MediaCard(item, wide, index, _settings, _demo) { Found = found }; ++made;
+        card.Click += async (_, _) =>
+        {
+            ClosePreview();
+            if (item.Type == "BoxSet") await ShowSagaAsync(item, SearchBox.Text.Trim());
+            else if (found && item.Type == "Episode") await ShowDetailsAsync(await PageItemAsync(item), item);
+            else if (wide || _catalog.View == "offline") await PlayAsync(item, chosen: true);
+            else await ShowDetailsAsync(item);
+        };
+        card.HoverEntered += CardHoverEntered; card.FocusEntered += CardFocusEntered; card.HoverLeft += CardHoverLeft;
+        card.ContextMenu = CardMenu(card, wide && !found);
+        return card;
     }
     private bool _artworkScheduled;
     /// <summary>Once the layout is done (positions known), at most once per frame however often the page scrolls.</summary>
