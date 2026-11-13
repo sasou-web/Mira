@@ -69,7 +69,9 @@ public partial class MainWindow
         if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), true), animate: false);
         RenderDetailText(item); EpisodesPanel.Children.Clear(); _seriesVirtuals = []; _shelfOpen.Clear(); _episodesRead = false;
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
-        EpisodesHead.Visibility = EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
+        // The previous series' seasons go with it (its pills stayed under a film's buttons); this one's come with its episodes (FillSeasons).
+        _tiles.Clear(); FillSeasonPills([]); SeasonSelector.Visibility = Visibility.Collapsed;
+        EpisodesHead.Visibility = EpisodeHeading.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
         // The facts and the cast after a series' episodes, a little apart from them.
         EpisodesPanel.Margin = new Thickness(0, 0, 0, item.Type == "Series" ? 30 : 0);
         if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
