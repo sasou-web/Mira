@@ -142,6 +142,8 @@ public partial class MainWindow
     {
         // During a search, a section of the list ends it there.
         if (_settingsSearching) { _settingsTab = (string)((Button)sender).Tag; SettingsSearchBox.Clear(); return; }
+        // The section already shown, as the rail's page already shown: back to its top, nothing drawn again (ogsas, 2026-11-13).
+        if ((string)((Button)sender).Tag == _settingsTab) { SmoothScroll.ToTop(SettingsScroll); return; }
         SelectSettingsTab((string)((Button)sender).Tag);
     }
     /// <summary>
