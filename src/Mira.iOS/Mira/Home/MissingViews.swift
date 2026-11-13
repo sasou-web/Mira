@@ -19,13 +19,16 @@ final class MissingWatch {
     var asked: Asked?
     /// Changes when something asked from this page was placed: the page reads its episodes again.
     private(set) var placedRound = 0
+    /// Changes now and then while a tile says « Adding to your library »: the page reads its seasons and episodes again, the
+    /// tile goes once Jellyfin lists them.
+    private(set) var lookRound = 0
     /// Changes when something was sent: the page looks at the relay again, every 3 s while it is on its way.
     private(set) var round = 0
     private var placedSeen: Set<String> = []
     private var seriesId = ""
 
     func progress(season: Int, episodes: [Int]?) -> MissingDownloads.Progress? {
-        MissingDownloads.progress(state, seriesId: seriesId, season: season, episodes: episodes)
+        MissingDownloads.progress(state, seriesId: seriesId, season: season, episodes: episodes, now: Date())
     }
 
     func ask(_ ask: MissingDownloads.Ask, heading: String) { asked = Asked(ask: ask, heading: heading) }
@@ -35,11 +38,14 @@ final class MissingWatch {
         round += 1
     }
 
-    /// Looks at the relay for this series: once, then every 3 s while something asked is on its way.
+    /// Looks at the relay for this series: once, then every 3 s while something asked is on its way, and every 10 s while
+    /// what was placed waits for Jellyfin to list it (half an hour at most: then it did not see it, the tile says so).
     func watch(_ series: Item, app: AppModel) async {
         if seriesId != series.id { seriesId = series.id; offered = false; state = nil; placedSeen = [] }
         guard app.party.guest == nil, let client = app.client else { return }
         var first = true
+        var lookedAt = Date()
+        var waitingSince: Date?
         while !Task.isCancelled {
             // A server without Mira's extension answers 404, an account that is not an administrator 403: no buttons.
             guard let read = try? await client.torLink() else { if first { offered = false }; return }
@@ -50,16 +56,21 @@ final class MissingWatch {
             else if !Set(placed).isSubset(of: placedSeen) {
                 placedSeen.formUnion(placed)
                 placedRound += 1
-                // Jellyfin reads the folder first: once more a little later.
-                Task { [weak self] in try? await Task.sleep(for: .seconds(30)); self?.placedRound += 1 }
+                lookedAt = Date()
             }
             first = false
-            let active = (read.missing ?? []).contains { m in
-                guard let p = MissingDownloads.progress(read, seriesId: series.id, season: m.season, episodes: nil) else { return false }
-                return p.stage != .placed && p.stage != .failed
-            }
-            guard offered, active else { return }
-            try? await Task.sleep(for: .seconds(3))
+            let stages = (read.missing ?? []).compactMap { MissingDownloads.progress(read, seriesId: series.id, season: $0.season, episodes: nil)?.stage }
+            let underWay = stages.contains { $0 == .waiting || $0 == .downloading }
+            let awaits = stages.contains { $0 == .adding || $0 == .placed }
+            guard offered, underWay || awaits else { return }
+            if awaits {
+                let now = Date()
+                let since = waitingSince ?? now
+                waitingSince = since
+                if now.timeIntervalSince(since) > 30 * 60, !underWay { return }
+                if now.timeIntervalSince(lookedAt) >= MissingDownloads.lookAgain(sincePlaced: now.timeIntervalSince(since)) { lookedAt = now; lookRound += 1 }
+            } else { waitingSince = nil }
+            try? await Task.sleep(for: .seconds(underWay ? 3 : 10))
         }
     }
 

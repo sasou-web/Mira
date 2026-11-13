@@ -68,8 +68,9 @@ internal static class MissingDownloadTests
         {
             var now = DateTimeOffset.Parse("2026-11-13T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
             var relay = new TorLinkRelay(() => now);
-            AgentReport Report(bool seasons = true, List<AgentSearchOutcome>? searches = null, List<AgentOutcome>? requests = null, List<RelayDownload>? downloads = null, List<RelayPlaced>? placed = null) =>
-                new("PC-SALON", true, null, downloads, placed, searches, requests, [], Seasons: seasons);
+            AgentReport Report(bool seasons = true, List<AgentSearchOutcome>? searches = null, List<AgentOutcome>? requests = null, List<RelayDownload>? downloads = null, List<RelayPlaced>? placed = null,
+                List<string>? sorting = null) =>
+                new("PC-SALON", true, null, downloads, placed, searches, requests, [], Seasons: seasons, Sorting: sorting);
             relay.Exchange("pc-1", Report(seasons: false));
             var (search, _) = relay.Search("Arcane S02", "tv");
             relay.Exchange("pc-1", Report(seasons: false));
@@ -98,12 +99,30 @@ internal static class MissingDownloadTests
             Assert(MissingDownloads.Progress(status, SeriesId, 1, [6]) is null && MissingDownloads.Progress(status, "ffffffffffffffffffffffffffffffff", 2, [6]) is null, "Another season, another series");
 
             relay.Exchange("pc-1", Report(downloads: [new(Hash(1), "Arcane", "seeding", 100, 0, 3, 2L << 30, 2L << 30)]));
-            Assert(MissingDownloads.Progress(relay.Status(), SeriesId, 2, [6]) is { Stage: MissingStage.Adding }, "Finished: being placed");
+            Assert(MissingDownloads.Progress(relay.Status(), SeriesId, 2, [6]) is { Stage: MissingStage.Adding, Title: "Rangement dans ta bibliothèque…" }, "Finished: being placed");
+            // TorLink moves it to its history, Mira waits for its files, then places it: never the button again meanwhile.
+            relay.Exchange("pc-1", Report());
+            Assert(relay.Status().Missing!.Single(x => x.Id == episode) is { Finished: true, Listed: true } && MissingDownloads.Progress(relay.Status(), SeriesId, 2, [6]) is { Stage: MissingStage.Adding }, "Gone from TorLink once finished: still being placed");
+            now = now.AddMinutes(5);
+            relay.Exchange("pc-1", Report(sorting: [Hash(1)]));
+            Assert(MissingDownloads.Progress(relay.Status(), SeriesId, 2, [6]) is { Stage: MissingStage.Adding }, "Mira places it");
             relay.Exchange("pc-1", Report(downloads: [new(Hash(1), "Arcane", "seeding", 100, 0, 3, 2L << 30, 2L << 30)], placed: [new(Hash(1), "Arcane · S02E06", "Rangé", null, true)]));
-            Assert(MissingDownloads.Progress(relay.Status(), SeriesId, 2, [6]) is { Stage: MissingStage.Placed }, "Placed");
+            var placedAt = now;
+            var filed = MissingDownloads.Progress(relay.Status(), SeriesId, 2, [6], now.AddMinutes(1));
+            Assert(filed is { Stage: MissingStage.Placed, Title: "Rangement dans ta bibliothèque…", Rescan: false } && filed.Line == "Rangé. Jellyfin l’ajoute à la série…", $"Placed: Jellyfin adds it ({filed})");
+            Assert(MissingDownloads.Progress(relay.Status(), SeriesId, 2, [6], now.AddMinutes(4)) is { Stage: MissingStage.Placed, Rescan: true, Line: "Jellyfin ne l’a pas encore ajouté à la série." }, "Placed long ago and still missing: a scan offered");
+            Assert(MissingDownloads.Pill(filed!) == "", "The pill can't tell whether Jellyfin has it already");
             now = now.AddMinutes(20);
-            relay.Exchange("pc-1", Report(downloads: [new(Hash(1), "Arcane", "seeding", 100, 0, 3, 2L << 30, 2L << 30)], placed: [new(Hash(1), "Arcane · S02E06", "Rangé", null, true)]));
-            Assert(relay.Status().Missing is [], "Forgotten a while after placed, and after failed");
+            relay.Exchange("pc-1", Report(downloads: [new(Hash(1), "Arcane", "seeding", 100, 0, 3, 2L << 30, 2L << 30)]));
+            Assert(relay.Status().Missing is [{ PlacedAt: var at }] && at == placedAt && MissingDownloads.Progress(relay.Status(), SeriesId, 2, [6]) is { Stage: MissingStage.Placed },
+                "Placed, kept while Jellyfin may not list it yet, even once the agent no longer lists it");
+            now = now.AddDays(1);
+            relay.Exchange("pc-1", Report());
+            Assert(relay.Status().Missing is [], "Forgotten a day after placed, and after failed");
+
+            Assert(MissingDownloads.Arrived([new MediaItem { Id = "a" }], [new MediaItem { Id = "A" }, new MediaItem { Id = "b" }]) && !MissingDownloads.Arrived([new MediaItem { Id = "a" }, new MediaItem { Id = "b" }], [new MediaItem { Id = "a" }]),
+                "A new episode in Jellyfin: the page shows it");
+            Assert(MissingDownloads.LookAgain(TimeSpan.FromMinutes(1)) == TimeSpan.FromSeconds(10) && MissingDownloads.LookAgain(TimeSpan.FromMinutes(6)) == TimeSpan.FromMinutes(1), "Often at first, then once a minute");
 
             // Cancelled in TorLink after it listed it: forgotten, the button comes back.
             var (again, _) = relay.Search("Arcane S02", "tv");
@@ -113,6 +132,9 @@ internal static class MissingDownloadTests
             relay.Exchange("pc-1", Report());
             relay.Exchange("pc-1", Report(requests: [new(seven!, "sent", null)], downloads: [new(Hash(3), "Arcane", "downloading", 5, 0, 0)]));
             Assert(relay.Status().Missing is [{ State: "sent" }], "Under way");
+            relay.Exchange("pc-1", Report());
+            Assert(relay.Status().Missing is [{ Listed: true, Finished: false }], "Gone from TorLink's list before it finished: a minute's grace");
+            now = now.AddMinutes(2);
             relay.Exchange("pc-1", Report());
             Assert(relay.Status().Missing is [], "Gone from TorLink's list: forgotten");
             return Task.CompletedTask;

@@ -27,13 +27,17 @@ public partial class MainWindow
     private DispatcherTimer? _missingTimer;
     private Popup? _missingPopup;
     private CancellationTokenSource? _missingSearch;
-    // The requests already seen placed: each reloads the episodes once.
+    // The requests already seen placed: each looks at the series' episodes at once.
     private readonly HashSet<string> _missingPlaced = [];
+    // While a tile says « Adding to your library »: when the series' episodes were last read, since when it waits for Jellyfin.
+    private DateTime _missingLookedAt;
+    private DateTimeOffset? _missingWaitingSince;
+    private DateTime _missingScannedAt;
 
     /// <summary>Whether this series' page offers the buttons: an administrator, and a Mira on the PC of Jellyfin that places them.</summary>
     private async Task ShowMissingDownloadsAsync(MediaItem item)
     {
-        if (_missingFor != item.Id) { _missingFor = item.Id; _missingOffered = false; _missingStatus = null; _missingPlaced.Clear(); StopMissingTimer(); }
+        if (_missingFor != item.Id) { _missingFor = item.Id; _missingOffered = false; _missingStatus = null; _missingPlaced.Clear(); _missingWaitingSince = null; StopMissingTimer(); }
         if (_demo || item.Type != "Series" || _client is not { } client) return;
         RelayStatus status;
         try
@@ -45,40 +49,80 @@ public partial class MainWindow
         if (_detail?.Id != item.Id || !ReferenceEquals(client, _client)) return;
         var offered = status.Agent is { Seasons: true };
         _missingStatus = status;
-        foreach (var placed in status.Missing ?? []) if (MissingDownloads.Progress(status with { Missing = [placed] }, item.Id, placed.Season, null) is { Stage: MissingStage.Placed }) _missingPlaced.Add(placed.Id);
+        // Placed before the page opened: its episodes were just read.
+        foreach (var placed in status.Missing ?? []) if (IsPlaced(placed)) _missingPlaced.Add(placed.Id);
+        _missingLookedAt = DateTime.UtcNow;
         if (offered != _missingOffered) { _missingOffered = offered; if (_episodesRead) { FillSeasons(); RenderEpisodes(); } }
         else UpdateMissingViews();
         WatchMissing();
     }
 
+    private bool IsPlaced(RelayMissing x) =>
+        _missingFor is { } id && _missingStatus is { } status && MissingDownloads.Progress(status with { Missing = [x] }, id, x.Season, null) is { Stage: MissingStage.Placed };
+
     private void StopMissingTimer() { _missingTimer?.Stop(); _missingTimer = null; }
 
-    /// <summary>Looks at the relay every 3 s while something asked from this page is on its way.</summary>
+    /// <summary>Something asked from this page is on its way: TorLink has it, or Mira places it.</summary>
+    private bool MissingUnderWay() => _missingFor is { } id && _missingStatus is { } status
+        && status.Missing?.Any(x => MissingDownloads.Progress(status with { Missing = [x] }, id, x.Season, null) is { Stage: MissingStage.Waiting or MissingStage.Downloading }) == true;
+
+    /// <summary>A tile or a card of this page says « Adding to your library »: what it shows comes once Jellyfin lists it.</summary>
+    private bool MissingAwaitsJellyfin() => _missingFor is { } id
+        && _missingViews.Any(v => !v.Pill && MissingDownloads.Progress(_missingStatus, id, v.Season, v.Episodes) is { Stage: MissingStage.Adding or MissingStage.Placed });
+
+    /// <summary>
+    /// Looks at the relay every 3 s while something asked from this page downloads, and every 10 s while a tile waits for
+    /// Jellyfin (the series' episodes read again now and then: <see cref="MissingDownloads.LookAgain"/>), until the episodes take
+    /// their place.
+    /// </summary>
     private void WatchMissing()
     {
-        var active = _missingStatus?.Missing?.Any(x => _missingFor is { } id && MissingDownloads.Progress(_missingStatus with { Missing = [x] }, id, x.Season, null) is { Stage: not MissingStage.Placed and not MissingStage.Failed }) == true;
-        if (!active || !_missingOffered) { StopMissingTimer(); return; }
-        if (_missingTimer is not null) return;
-        _missingTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, async (_, _) => await LookAtMissingAsync(), Dispatcher);
+        var underWay = MissingUnderWay(); var awaits = MissingAwaitsJellyfin();
+        if (!awaits) _missingWaitingSince = null;
+        if (!_missingOffered || !underWay && !awaits) { StopMissingTimer(); return; }
+        var every = TimeSpan.FromSeconds(underWay ? 3 : 10);
+        if (_missingTimer is not null) { if (_missingTimer.Interval != every) _missingTimer.Interval = every; return; }
+        _missingTimer = new DispatcherTimer(every, DispatcherPriority.Background, async (_, _) => await LookAtMissingAsync(), Dispatcher);
         _missingTimer.Start();
     }
+
+    private bool _missingLooking;
 
     private async Task LookAtMissingAsync()
     {
         if (_client is not { } client || _detail is not { Type: "Series" } series || series.Id != _missingFor || DetailOverlay.Visibility != Visibility.Visible) { StopMissingTimer(); return; }
-        try { _missingStatus = await client.TorLinkStatusAsync(_connectionLifetime.Token); }
-        catch (Exception ex) when (IsExpected(ex)) { return; }
-        if (_detail?.Id != series.Id) return;
-        UpdateMissingViews();
-        // Placed: the episodes take their place once Jellyfin has them (now, and again a little later: it reads the folder first).
-        var placed = (_missingStatus.Missing ?? []).Where(x => !_missingPlaced.Contains(x.Id) && MissingDownloads.Progress(_missingStatus with { Missing = [x] }, series.Id, x.Season, null) is { Stage: MissingStage.Placed }).ToList();
-        if (placed.Count > 0)
+        if (_missingLooking) return;
+        _missingLooking = true;
+        try
         {
+            try { _missingStatus = await client.TorLinkStatusAsync(_connectionLifetime.Token); }
+            catch (Exception ex) when (IsExpected(ex)) { return; }
+            if (_detail?.Id != series.Id) return;
+            UpdateMissingViews();
+            // Newly placed: the series' episodes read at once; then, while a tile still waits, now and then (Jellyfin lists a
+            // placed file about a minute later, after its folder monitor's delay).
+            var placed = (_missingStatus.Missing ?? []).Where(x => !_missingPlaced.Contains(x.Id) && IsPlaced(x)).ToList();
             foreach (var x in placed) _missingPlaced.Add(x.Id);
-            await ReloadSeriesEpisodesAsync(series);
-            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ => Dispatcher.InvokeAsync(() => _detail?.Id == series.Id ? ReloadSeriesEpisodesAsync(series) : Task.CompletedTask), TaskScheduler.Default);
+            if (MissingAwaitsJellyfin())
+            {
+                var now = DateTimeOffset.UtcNow;
+                var since = _missingWaitingSince ??= now;
+                if (placed.Count > 0 || DateTime.UtcNow - _missingLookedAt >= MissingDownloads.LookAgain(now - since)) await LookForPlacedEpisodesAsync(client, series);
+            }
         }
-        WatchMissing();
+        finally { _missingLooking = false; }
+        if (_detail?.Id == series.Id) WatchMissing();
+    }
+
+    /// <summary>The series' episodes read again; when Jellyfin lists new ones, the page shows them in place of the hollow tiles.</summary>
+    private async Task LookForPlacedEpisodesAsync(JellyfinClient client, MediaItem series)
+    {
+        _missingLookedAt = DateTime.UtcNow;
+        ItemsResult now;
+        try { now = await client.EpisodesAsync(series.Id, _connectionLifetime.Token); }
+        catch (Exception ex) when (IsExpected(ex)) { return; }
+        if (_detail?.Id != series.Id || !MissingDownloads.Arrived(_episodes, now.Items)) return;
+        await ReloadSeriesEpisodesAsync(series);
     }
 
     private async Task ReloadSeriesEpisodesAsync(MediaItem series)
@@ -92,7 +136,8 @@ public partial class MainWindow
     private void UpdateMissingViews()
     {
         if (_missingFor is not { } id) return;
-        foreach (var (season, episodes, _, show) in _missingViews.ToList()) show(MissingDownloads.Progress(_missingStatus, id, season, episodes));
+        var now = DateTimeOffset.UtcNow;
+        foreach (var (season, episodes, _, show) in _missingViews.ToList()) show(MissingDownloads.Progress(_missingStatus, id, season, episodes, now));
     }
 
     // ---- In the tiles, the card and the pills -------------------------------------------------------------------------
@@ -123,7 +168,7 @@ public partial class MainWindow
             bar.Visibility = progress.Stage == MissingStage.Failed ? Visibility.Collapsed : Visibility.Visible;
         }
         _missingViews.Add((season, numbers, false, Show));
-        Show(MissingDownloads.Progress(_missingStatus, series.Id, season, numbers));
+        Show(MissingDownloads.Progress(_missingStatus, series.Id, season, numbers, DateTimeOffset.UtcNow));
         return (part, bar);
     }
 
@@ -138,7 +183,7 @@ public partial class MainWindow
         get.Click += (_, _) => OpenMissingMenu(get, series, ask, heading);
         void Show(MissingProgress? progress) => part.Content = progress is null ? get : MissingProgressView(progress, again => OpenMissingMenu(again, series, ask, heading), bar: true);
         _missingViews.Add((season, null, false, Show));
-        Show(MissingDownloads.Progress(_missingStatus, series.Id, season, null));
+        Show(MissingDownloads.Progress(_missingStatus, series.Id, season, null, DateTimeOffset.UtcNow));
         return part;
     }
 
@@ -185,6 +230,18 @@ public partial class MainWindow
             track.Children.Add(new Border { Background = Palette.Get("Text") });
             panel.Children.Add(track);
         }
+        if (progress.Rescan)
+        {
+            // Jellyfin didn't see it after its monitor's delay: a scan of the libraries, as its dashboard does.
+            if (DateTime.UtcNow - _missingScannedAt < TimeSpan.FromMinutes(5))
+                panel.Children.Add(new TextBlock { Text = MissingDownloads.Rescanning, FontSize = 12, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+            else
+            {
+                var scan = new Button { Style = (Style)FindResource("Quiet"), Content = MissingDownloads.Rescan, HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(-10, 4, 0, 0), FontSize = 12.5 };
+                scan.Click += async (_, e) => { e.Handled = true; await ScanForMissingAsync(scan); };
+                panel.Children.Add(scan);
+            }
+        }
         if (failed)
         {
             var again = new Button { Style = (Style)FindResource("Quiet"), Content = MissingDownloads.Retry, HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(-10, 4, 0, 0), FontSize = 12.5 };
@@ -194,6 +251,20 @@ public partial class MainWindow
         AutomationProperties.SetName(panel, $"{progress.Title}. {progress.Line}");
         AutomationProperties.SetLiveSetting(panel, AutomationLiveSetting.Polite);
         return panel;
+    }
+
+    /// <summary>« Scan libraries »: Jellyfin looks through its folders; the page reads the series' episodes often again meanwhile.</summary>
+    private async Task ScanForMissingAsync(Button scan)
+    {
+        if (_client is not { } client) return;
+        scan.IsEnabled = false;
+        try
+        {
+            if (!await client.ScanLibrariesAsync(_connectionLifetime.Token)) { SetNotice(L("Seul un administrateur de Jellyfin peut analyser les médiathèques.", "Only a Jellyfin administrator can scan the libraries.")); scan.IsEnabled = true; return; }
+        }
+        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); scan.IsEnabled = true; return; }
+        _missingScannedAt = DateTime.UtcNow; _missingWaitingSince = DateTimeOffset.UtcNow;
+        UpdateMissingViews(); WatchMissing();
     }
 
     // ---- The menu ------------------------------------------------------------------------------------------------------

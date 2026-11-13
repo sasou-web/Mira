@@ -108,6 +108,8 @@ struct EpisodeList: View {
                 virtuals = await EpisodeShelf.virtuals(of: series, app: app)
             }
         }
+        // Waiting for Jellyfin to list what was placed: the seasons and episodes read again (a held one hides its hollow tile).
+        .onChange(of: missing.lookRound) { Task { await loadSeasons() } }
         .sheet(item: Binding(get: { missing.asked }, set: { missing.asked = $0 })) { asked in
             MissingSheet(series: series, asked: asked, before: { await episodesBefore(asked.ask.season) }, watch: missing)
         }

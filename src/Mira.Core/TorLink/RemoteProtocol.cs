@@ -20,10 +20,12 @@ public static class RemoteProtocol
 /// <paramref name="QBittorrent"/>: its qBittorrent takes pasted magnet links and .torrent files now, TorLink ready or not
 /// (private trackers, after 0.9.0); its downloads are among <paramref name="Downloads"/>. <paramref name="Seasons"/>: it places a
 /// download asked from a series' page in that series' folder, a season pack included (« Télécharger les manquants », after 0.9.7).
+/// <paramref name="Sorting"/>: the info hashes of the finished downloads Mira is placing (or waits for the files of), not in
+/// <paramref name="Placed"/> yet (after 0.9.7): what a series' page asked shows « Adding to your library » meanwhile.
 /// </summary>
 public sealed record AgentReport(string? Name, bool Accepting, string? Problem, List<RelayDownload>? Downloads, List<RelayPlaced>? Placed,
     List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls, List<AgentFollowOutcome>? Follows = null, bool Replaces = false,
-    bool QBittorrent = false, bool Seasons = false);
+    bool QBittorrent = false, bool Seasons = false, List<string>? Sorting = null);
 /// <summary>
 /// A download in TorLink: its info hash, TorLink's status (downloading, queued, paused, failed), percent, bytes per second,
 /// its size and what it has of it (0 when unknown), and the seconds TorLink still expects (null when it cannot tell).
@@ -110,9 +112,12 @@ public sealed record RelayStatus(RelayAgent? Agent, List<RelayRequest> Requests,
 /// <summary>
 /// A download asked from a series' page: its series, season and episodes (empty: the whole season), the release, its info
 /// hash (to find it among TorLink's downloads and what was placed), and the request's state while the relay has it
-/// (waiting, claimed, sent, failed with why).
+/// (waiting, claimed, sent, failed with why). After 0.9.7: <paramref name="Listed"/>, TorLink listed it once;
+/// <paramref name="Finished"/>, it finished downloading (Mira places it); <paramref name="PlacedAt"/>, when Mira placed it in
+/// the series (Jellyfin then adds it: the page says so until the episode is there).
 /// </summary>
-public sealed record RelayMissing(string Id, string SeriesId, int Season, IReadOnlyList<int> Episodes, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created);
+public sealed record RelayMissing(string Id, string SeriesId, int Season, IReadOnlyList<int> Episodes, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created,
+    bool Listed = false, bool Finished = false, DateTimeOffset? PlacedAt = null);
 /// <summary>
 /// <paramref name="Follows"/>: its Mira checks the series followed (an agent of 0.8.4 or before does not).
 /// <paramref name="Replaces"/>: it replaces a title's file by a better version (an agent of 0.8.5 or before does not).
