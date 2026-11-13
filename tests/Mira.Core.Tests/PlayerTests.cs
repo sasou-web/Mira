@@ -719,8 +719,7 @@ internal static class PlayerTests
             // A notch every 30 to 150 ms, as a hand turns a wheel: from one frame to the next, the speed changes by 12 % at
             // most at 144 images/s and more, as the list eases between notches (a curve started again from rest at each
             // notch: 28 to 165 %), never backwards, never past.
-            foreach (var fps in new[] { 60, 144, 240 })
-            foreach (var gap in new[] { .03, .045, .075, .11, .15 })
+            foreach (var (fps, gap) in new[] { 60, 144, 240 }.SelectMany(fps => new[] { .03, .045, .075, .11, .15 }.Select(gap => (fps, gap))))
             {
                 var (positions, notches) = Wheel(fps, gap, 14);
                 var speeds = positions.Zip(positions.Skip(1), (a, b) => b - a).ToList();
