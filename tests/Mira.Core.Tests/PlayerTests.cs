@@ -750,6 +750,26 @@ internal static class PlayerTests
             }
             return Task.CompletedTask;
         });
+        await Test("Défilement : au bout de la liste, les crans de plus n’allongent pas l’arrivée", () =>
+        {
+            foreach (var (fps, gap) in new[] { 60, 144, 240 }.SelectMany(fps => new[] { .045, .11, .15 }.Select(gap => (fps, gap))))
+            {
+                // 500 px to go, fourteen notches: the fifth reaches the end, the nine after it move nothing. The list stands
+                // still at most Duration after the fifth (planned again at each notch, up to 290 ms, its last pixel creeping).
+                var motion = new ScrollMotion(); double reached = double.NaN, still = double.NaN, before = 0; var given = 0;
+                for (var frame = 1; frame < fps * 5 && double.IsNaN(still); frame++)
+                {
+                    var now = (frame - 1d) / fps;
+                    while (given < 14 && given * gap <= now + 1e-9) { motion.Add(108, 500); given++; if (double.IsNaN(reached) && motion.Target == 500) reached = now; }
+                    var at = motion.Step(1d / fps, 500);
+                    Assert(at >= before && at <= 500, $"{fps} images/s : recul ou dépassement à {at}");
+                    before = at;
+                    if (at == 500 && !motion.Moving) still = frame / (double)fps;
+                }
+                Assert(still - reached <= ScrollMotion.Duration + 1.5 / fps, $"{fps} images/s, cran toutes les {gap * 1000} ms : arrêt {(still - reached) * 1000:0} ms après le cran qui touche le bout");
+            }
+            return Task.CompletedTask;
+        });
         await Test("Défilement : une molette à crans est adoucie sur Mac, pas un trackpad", () =>
         {
             Assert(Trackpad.Notched(false, 0, -1.7) && !Trackpad.Notched(true, 0, -1), "Ce que macOS dit l’emporte");
