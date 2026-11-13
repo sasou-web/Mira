@@ -173,6 +173,13 @@ jobs:
           $known = gh api repos/microsoft/winget-pkgs/contents/manifests/s/sasou-web/Mira --jq '.[].name' 2>$null
           $first = $LASTEXITCODE -ne 0
           if (-not $first -and ($known -contains $env:VERSION)) { Write-Output "::notice::sasou-web.Mira $env:VERSION is already in winget-pkgs."; exit 0 }
+          # Until Microsoft's moderators merge Mira's first version, a release opens no other PR: each one would be another
+          # "New package" PR in their queue (0.9.5 to 0.9.7 did). The release after the merge sends the newest version.
+          if ($first) {
+            $open = gh api -X GET search/issues -f q='repo:microsoft/winget-pkgs is:pr is:open in:title "sasou-web.Mira"' --jq '.items[].html_url'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not list the open winget-pkgs PRs of sasou-web.Mira.' }
+            if ($open) { Write-Output "::notice::sasou-web.Mira is not in winget-pkgs yet and a PR waits for a moderator: $($open -join ', '). Nothing submitted."; exit 0 }
+          }
           $tool = Join-Path $env:RUNNER_TEMP 'wingetcreate.exe'
           Invoke-WebRequest -Uri $env:WINGETCREATE_URL -OutFile $tool -MaximumRetryCount 3
           $sum = (Get-FileHash -Algorithm SHA256 $tool).Hash.ToLowerInvariant()
