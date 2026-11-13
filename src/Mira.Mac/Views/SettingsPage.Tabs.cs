@@ -254,7 +254,7 @@ public sealed partial class SettingsPage
     private bool Again(bool shown)
     {
         if (!shown || !string.IsNullOrEmpty(_search.Text)) return false;
-        GlideUp.Start(_tabScroll); return true;
+        Glide.ToTop(_tabScroll); return true;
     }
     /// <summary>Sections drawn so far, and a click on a section's button, for the self-check.</summary>
     internal int Drawn { get; private set; }
