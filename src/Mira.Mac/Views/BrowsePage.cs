@@ -176,7 +176,7 @@ public sealed class BrowsePage : Page
             clear.Width = clear.Height = 32; clear.HorizontalAlignment = HorizontalAlignment.Right; clear.VerticalAlignment = VerticalAlignment.Center;
             clear.Margin = new Thickness(0, 0, 10, 0); clear.Foreground = Ui.Muted; clear.IsVisible = false;
             _searchClear = clear;
-            var glass = new Icon("search", 19) { Foreground = Ui.Brush("#757575"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(15, 0, 0, 0), IsHitTestVisible = false };
+            var glass = new Icon("search", 19) { Foreground = Ui.Dim, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(15, 0, 0, 0), IsHitTestVisible = false };
             var field = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star) { MaxWidth = 760 }, new ColumnDefinition(0, GridUnitType.Pixel) }, Margin = new Thickness(0, 0, 0, 22), Children = { _search, glass, clear } };
             // Its Text property, not TextChanged, which Avalonia says later: the × goes with the text cleared by Échap or by itself.
             _search.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) clear.IsVisible = !string.IsNullOrEmpty(_search.Text); };
