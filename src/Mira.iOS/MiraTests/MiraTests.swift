@@ -190,7 +190,7 @@ struct HomeTests {
         #expect(HomeContent.parseDate("hier") == nil)
     }
 
-    @Test("Le bandeau : la série d'un épisode en cours, puis les ajouts, sans doublon, six au plus")
+    @Test("Le bandeau : la série d'un épisode en cours, puis les ajouts, sans doublon, cinq au plus (comme Windows)")
     func banner() {
         var series = Item(id: "s", type: "Series")
         series.backdropImageTags = ["b"]
@@ -204,7 +204,7 @@ struct HomeTests {
         }
         let content = HomeContent(resume: [episode], latest: [series] + latest, series: ["s": series])
         let banner = content.banner(hidden: [:])
-        #expect(banner.map(\.id) == ["s", "f0", "f2", "f3", "f4", "f5"])
+        #expect(banner.map(\.id) == ["s", "f0", "f2", "f3", "f4"])
         #expect(banner.first?.play?.id == "e1")
     }
 }

@@ -7,6 +7,7 @@ actor ImagePipeline {
     static let shared = ImagePipeline()
     private let memory = NSCache<NSURL, UIImage>()
     private var running: [URL: Task<UIImage?, Never>] = [:]
+    private var tints: [URL: ArtworkAccent.Tint] = [:]
 
     init() { memory.totalCostLimit = 160 << 20 }
 
@@ -30,6 +31,18 @@ actor ImagePipeline {
         running[url] = nil
         if let image { memory.setObject(image, forKey: url as NSURL, cost: Int(image.size.width * image.size.height * image.scale * image.scale * 4)) }
         return image
+    }
+}
+
+extension ImagePipeline {
+    /// The tint of the picture at `url` (ArtworkAccent), read once from the picture as `image` makes it.
+    func tint(_ url: URL, pixels: CGFloat) async -> ArtworkAccent.Tint? {
+        if let tint = tints[url] { return tint }
+        guard let image = await image(url, pixels: pixels) else { return nil }
+        let tint = ArtworkAccent.of(image)
+        if tints.count > 200 { tints.removeAll() }
+        tints[url] = tint
+        return tint
     }
 }
 

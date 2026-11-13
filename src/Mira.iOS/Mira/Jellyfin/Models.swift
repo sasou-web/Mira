@@ -92,6 +92,17 @@ struct UserData: Codable, Sendable, Hashable {
     var lastPlayedDate: String?
 }
 
+/// A picture Jellyfin keeps for a title, with its size (Items/{id}/Images): what the banner needs to choose one that
+/// stays sharp on a tall slide.
+struct ImageInfo: Codable, Sendable, Hashable {
+    var imageType: String?
+    var imageIndex: Int?
+    var imageTag: String?
+    var width: Int?
+    var height: Int?
+    var blurHash: String?
+}
+
 struct ItemList: Codable, Sendable {
     var items: [Item]?
     var totalRecordCount: Int?

@@ -1270,6 +1270,16 @@
         }
       }
     },
+    "Featured: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À la une : %@"
+          }
+        }
+      }
+    },
     "From this device": {
       "localizations": {
         "fr": {
@@ -4217,6 +4227,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "En attente de son tour"
+          }
+        }
+      }
+    },
+    "Watch": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regarder"
           }
         }
       }
