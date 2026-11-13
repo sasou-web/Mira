@@ -13,7 +13,7 @@ namespace Mira.Mac.Checks;
 public sealed class StreamServer : IDisposable
 {
     public const string Prefix = "http://127.0.0.1:8096/";
-    /// <summary>Bytes a second: a little more than the 30 s test film's (about 330 kB/s), so mpv's cache stays short.</summary>
+    /// <summary>Bytes a second: a little more than the test film's (about 330 kB/s), so mpv's cache stays short.</summary>
     private const int Rate = 420_000;
     private readonly HttpListener _listener = new();
     private readonly MockJellyfin _mock;
