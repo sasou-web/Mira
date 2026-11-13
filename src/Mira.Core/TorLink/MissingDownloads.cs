@@ -31,14 +31,19 @@ public sealed record MissingPicks(IReadOnlyList<MissingOption> Packs, IReadOnlyL
     public bool Empty => Packs.Count == 0 && Episodes.Count == 0;
 }
 
-/// <summary>Where the downloads asked for some episodes are, as a tile and a season's pill show it.</summary>
+/// <summary>
+/// Where the downloads asked for some episodes are, as a tile and a season's pill show it. <see cref="Adding"/>: downloaded, Mira
+/// places the files on the PC of Jellyfin; <see cref="Placed"/>: placed, Jellyfin has yet to list the episode (the tile goes
+/// once it does). Both say « Adding to your library », never the button again.
+/// </summary>
 public enum MissingStage { Waiting, Downloading, Adding, Failed, Placed }
 
 /// <summary>
 /// <paramref name="Percent"/>: of all of them, by size; <paramref name="Title"/> and <paramref name="Line"/>: what the tile says;
-/// <paramref name="Ids"/>: the requests, to cancel or ask again.
+/// <paramref name="Ids"/>: the requests, to cancel or ask again. <paramref name="Rescan"/>: placed a while ago and Jellyfin has
+/// still not listed it, the tile offers to scan the libraries.
 /// </summary>
-public sealed record MissingProgress(MissingStage Stage, int Percent, string Title, string Line, IReadOnlyList<string> Ids);
+public sealed record MissingProgress(MissingStage Stage, int Percent, string Title, string Line, IReadOnlyList<string> Ids, bool Rescan = false);
 
 /// <summary>
 /// « Télécharger les épisodes manquants » from a series' page (the missing episodes at their place, the season absent): TorLink
@@ -137,7 +142,7 @@ public static partial class MissingDownloads
     /// (or the whole season), from the relay's list, TorLink's downloads and what Mira placed; null when nothing was asked.
     /// <paramref name="episodes"/> null: anything of that season (its pill).
     /// </summary>
-    public static MissingProgress? Progress(RelayStatus? status, string seriesId, int season, IEnumerable<int>? episodes)
+    public static MissingProgress? Progress(RelayStatus? status, string seriesId, int season, IEnumerable<int>? episodes, DateTimeOffset? now = null)
     {
         if (status?.Missing is not { Count: > 0 } missing) return null;
         var id = seriesId.Replace("-", "", StringComparison.Ordinal);
@@ -153,7 +158,13 @@ public static partial class MissingDownloads
             // One placed, another failed: what was asked is there, as far as the tile can tell.
             if (parts.All(x => x.Part.Stage != MissingStage.Placed) && parts.FirstOrDefault(x => x.Part.Stage == MissingStage.Failed) is { Ask: not null } failed)
                 return new(MissingStage.Failed, 0, L("Le téléchargement a échoué", "The download failed"), failed.Part.Error ?? "", ids);
-            return new(MissingStage.Placed, 100, L("Dans ta bibliothèque", "In your library"), L("Jellyfin l’ajoute à la série…", "Jellyfin is adding it to the series…"), ids);
+            // Placed: Jellyfin reads the folder after its monitor's delay (a minute); a page still showing the tile long after
+            // means it did not see it (or numbered it otherwise): said, with a scan of the libraries.
+            var placedAt = parts.Select(x => x.Ask.PlacedAt).OfType<DateTimeOffset>().DefaultIfEmpty().Max();
+            var late = now is { } at && placedAt != default && at - placedAt > Late;
+            return new(MissingStage.Placed, 100, AddingTitle, late
+                ? L("Jellyfin ne l’a pas encore ajouté à la série.", "Jellyfin hasn’t added it to the series yet.")
+                : L("Rangé. Jellyfin l’ajoute à la série…", "Filed. Jellyfin is adding it to the series…"), ids, Rescan: late);
         }
         // By size, what each has; what is not known yet counts as one equal share.
         var counted = parts.Where(x => x.Part.Stage != MissingStage.Failed).ToList();
@@ -172,7 +183,25 @@ public static partial class MissingDownloads
             return new(MissingStage.Waiting, percent, sending ? L("Envoi à TorLink…", "Sending to TorLink…") : L("En attente du PC de Jellyfin", "Waiting for your Jellyfin PC"),
                 sending ? "" : L("Il le prend dès que Mira y est ouvert.", "It starts as soon as Mira is open there."), ids);
         }
-        return new(MissingStage.Adding, 100, L("Rangement dans ta bibliothèque…", "Adding to your library…"), "", ids);
+        return new(MissingStage.Adding, 100, AddingTitle, L("Téléchargé. Mira le range sur le PC de Jellyfin…", "Downloaded. Mira is filing it on your Jellyfin PC…"), ids);
+    }
+
+    /// <summary>Placed this long ago and still not in the series: Jellyfin did not see it (its folder monitor takes about a minute).</summary>
+    public static readonly TimeSpan Late = TimeSpan.FromMinutes(3);
+
+    private static string AddingTitle => L("Rangement dans ta bibliothèque…", "Adding to your library…");
+
+    /// <summary>
+    /// When a page waiting for Jellyfin to list what was placed reads the series' episodes again: often at first (Jellyfin
+    /// lists it about a minute after it is placed), then once a minute.
+    /// </summary>
+    public static TimeSpan LookAgain(TimeSpan sincePlaced) => sincePlaced < TimeSpan.FromMinutes(5) ? TimeSpan.FromSeconds(10) : TimeSpan.FromMinutes(1);
+
+    /// <summary>Episodes Jellyfin lists now that the page did not show: they take the place of the hollow tiles.</summary>
+    public static bool Arrived(IEnumerable<MediaItem> shown, IEnumerable<MediaItem> now)
+    {
+        var known = shown.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return now.Any(x => !known.Contains(x.Id));
     }
 
     private readonly record struct Part(MissingStage Stage, int Percent, long Size, double? Left, string? Error);
@@ -182,6 +211,8 @@ public static partial class MissingDownloads
         if (ask.State == "failed") return new(MissingStage.Failed, 0, ask.Size, null, ask.Error ?? L("TorLink a refusé ce téléchargement.", "TorLink refused this download."));
         if (status.Placed.FirstOrDefault(x => string.Equals(x.Id, ask.InfoHash, StringComparison.OrdinalIgnoreCase)) is { } placed)
             return placed.Ok ? new(MissingStage.Placed, 100, ask.Size, null, null) : new(MissingStage.Failed, 0, ask.Size, null, placed.Status);
+        // Placed, and no longer among the latest the agent lists.
+        if (ask.PlacedAt is not null) return new(MissingStage.Placed, 100, ask.Size, null, null);
         if (status.Downloads.FirstOrDefault(x => string.Equals(x.Id, ask.InfoHash, StringComparison.OrdinalIgnoreCase)) is { } download)
         {
             var size = download.Size > 0 ? download.Size : ask.Size;
@@ -192,6 +223,8 @@ public static partial class MissingDownloads
                 _ => new(MissingStage.Downloading, Math.Clamp(download.Progress, 0, 100), size, RemoteLines.TimeLeft(download), null),
             };
         }
+        // Finished and gone from TorLink's list (to its history): Mira places it.
+        if (ask.Finished || ask.Listed) return new(MissingStage.Adding, 100, ask.Size, null, null);
         // Sent, not listed by TorLink yet; or still at the relay.
         return new(MissingStage.Waiting, 0, ask.Size, null, null);
     }
@@ -252,6 +285,9 @@ public static partial class MissingDownloads
     public static string Download(int count, bool season) => season ? L("Télécharger la saison", "Download season") : L($"Télécharger {count}", $"Download {count}");
 
     public static string Retry => L("Réessayer", "Try again");
+    /// <summary>« Analyser les médiathèques », as Jellyfin's dashboard says it.</summary>
+    public static string Rescan => L("Analyser les médiathèques", "Scan libraries");
+    public static string Rescanning => L("Jellyfin analyse tes médiathèques…", "Jellyfin is scanning your libraries…");
     public static string SearchAgain => L("Chercher", "Search again");
     public static string OpenDownloads => L("Ouvrir Téléchargements", "Open Downloads");
 
@@ -263,6 +299,7 @@ public static partial class MissingDownloads
     {
         MissingStage.Downloading => L($"{progress.Percent} %", $"{progress.Percent}%"),
         MissingStage.Waiting => L("en attente", "waiting"),
+        // Placed: the pill can't tell whether Jellyfin has listed it already; the tile says it while it is missing.
         MissingStage.Adding => L("rangement", "adding"),
         MissingStage.Failed => L("échec", "failed"),
         _ => "",

@@ -203,6 +203,7 @@ public sealed partial class TorLinkRelay
             var now = _now();
             if (_agent is { } current && current.Device != device && now - current.Seen < Online) return new([], [], [], Busy, current.Name);
             _agent = new Agent(device, Text(report.Name) ?? "PC serveur", now, report.Accepting, Text(report.Problem), report.Follows is not null, report.Replaces, report.QBittorrent, report.Seasons,
+                (report.Sorting ?? []).Where(RemoteDownloads.IsInfoHash).Take(MaxDownloads).ToList(),
                 (report.Downloads ?? []).Where(x => RemoteDownloads.IsInfoHash(x.Id)).Take(MaxDownloads)
                     .Select(x => x with { Name = Text(x.Name) ?? x.Id, Status = Text(x.Status) ?? "", Progress = Math.Clamp(x.Progress, 0, 100), Speed = Math.Max(0, x.Speed), Peers = Math.Max(0, x.Peers), Size = Math.Max(0, x.Size), Downloaded = Math.Clamp(x.Downloaded, 0, x.Size > 0 ? x.Size : long.MaxValue), Eta = x.Eta is > 0 and <= RemoteDownloads.MaxEta ? x.Eta : null, Error = x.Status == "failed" ? Text(x.Error) : null }).ToList(),
                 (report.Placed ?? []).Where(x => RemoteDownloads.IsInfoHash(x.Id)).Take(MaxPlaced)
@@ -286,8 +287,8 @@ public sealed partial class TorLinkRelay
     private static string NewId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
 
     /// <summary><paramref name="Follows"/>: the agent checks series followed (after 0.8.4); <paramref name="Replaces"/>: it replaces a title's file (after 0.8.5).</summary>
-    /// <summary><paramref name="Seasons"/>: it places what a series' page asks (after 0.9.7).</summary>
-    private sealed record Agent(string Device, string Name, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows, bool Replaces, bool QBittorrent, bool Seasons, List<RelayDownload> Downloads, List<RelayPlaced> Placed);
+    /// <summary><paramref name="Seasons"/>: it places what a series' page asks (after 0.9.7); <paramref name="Sorting"/>: the finished downloads it is placing.</summary>
+    private sealed record Agent(string Device, string Name, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows, bool Replaces, bool QBittorrent, bool Seasons, List<string> Sorting, List<RelayDownload> Downloads, List<RelayPlaced> Placed);
     private sealed class Lookup(string id, string query, string category, DateTimeOffset created)
     {
         public string Id { get; } = id; public string Query { get; } = query; public string Category { get; } = category; public DateTimeOffset Created { get; } = created;

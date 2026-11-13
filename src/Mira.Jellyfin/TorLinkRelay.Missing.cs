@@ -12,6 +12,10 @@ public sealed partial class TorLinkRelay
 {
     /// <summary>Asked this long ago and nowhere to be seen any more (cancelled in TorLink, or Mira closed for good): forgotten.</summary>
     public static readonly TimeSpan MissingLife = TimeSpan.FromDays(3);
+    /// <summary>Placed this long ago: Jellyfin has listed it, or never will where it went (the page stops saying it is coming).</summary>
+    public static readonly TimeSpan MissingPlacedLife = TimeSpan.FromDays(1);
+    /// <summary>Gone from TorLink's list before it finished, this long: cancelled there.</summary>
+    public static readonly TimeSpan MissingGrace = TimeSpan.FromMinutes(1);
     public const int MaxMissing = 60, MaxMissingEpisodes = 60;
 
     private readonly List<Pending> _missing = [];
@@ -48,28 +52,40 @@ public sealed partial class TorLinkRelay
     {
         var requests = _requests.ToDictionary(x => x.Id);
         return _missing.Select(x => requests.TryGetValue(x.Id, out var ask) ? (x, ask.State, ask.Error) : (x, x.State, x.Error))
-            .Select(t => new RelayMissing(t.x.Id, t.x.Place.SeriesId, t.x.Place.Season, t.x.Place.Episodes, t.x.Name, t.x.Size, t.x.InfoHash, t.Item2, t.Item3, t.x.Created)).ToList();
+            .Select(t => new RelayMissing(t.x.Id, t.x.Place.SeriesId, t.x.Place.Season, t.x.Place.Episodes, t.x.Name, t.x.Size, t.x.InfoHash, t.Item2, t.Item3, t.x.Created,
+                t.x.Listed, t.x.Finished, t.x.PlacedOk ? t.x.PlacedAt : null)).ToList();
     }
 
     /// <summary>
-    /// Forgotten: placed (or refused) a while ago, failed a while ago, or sent and gone from TorLink's list and from what was
-    /// placed (cancelled there); and anything after <see cref="MissingLife"/>.
+    /// Forgotten: placed a while ago (a day when it went well: the page says « Adding to your library » until Jellyfin lists the
+    /// episode, and no longer once it is there), refused or failed a while ago, sent and gone from TorLink's list before it
+    /// finished (cancelled there: a minute's grace, the time Mira takes to see a download TorLink just finished); and anything
+    /// after <see cref="MissingLife"/>. A finished one Mira has not placed yet (the agent's Sorting, or gone from TorLink's
+    /// list once finished) stays: it is being placed.
     /// </summary>
     private void PruneMissing(DateTimeOffset now)
     {
-        var downloads = _agent?.Downloads.Select(x => x.Id).ToHashSet() ?? [];
-        var placed = _agent?.Placed.Select(x => x.Id).ToHashSet() ?? [];
+        var downloads = _agent?.Downloads.DistinctBy(x => x.Id).ToDictionary(x => x.Id) ?? [];
+        var placed = _agent?.Placed.DistinctBy(x => x.Id).ToDictionary(x => x.Id) ?? [];
+        var sorting = _agent?.Sorting.ToHashSet() ?? [];
         foreach (var watched in _missing)
         {
-            if (placed.Contains(watched.InfoHash)) watched.PlacedAt ??= now;
-            if (downloads.Contains(watched.InfoHash)) watched.Listed = true;
+            if (placed.TryGetValue(watched.InfoHash, out var done)) { watched.PlacedAt ??= now; watched.PlacedOk = done.Ok; watched.Finished = true; }
+            if (downloads.TryGetValue(watched.InfoHash, out var download))
+            {
+                watched.Listed = true;
+                if (download.Status is "completed" or "seeding" || download.Progress >= 100) watched.Finished = true;
+            }
+            if (sorting.Contains(watched.InfoHash)) watched.Finished = true;
+            var gone = _agent is not null && watched.Listed && !downloads.ContainsKey(watched.InfoHash) && !placed.ContainsKey(watched.InfoHash) && !sorting.Contains(watched.InfoHash);
+            watched.GoneAt = gone ? watched.GoneAt ?? now : null;
         }
         var asked = _requests.Select(x => x.Id).ToHashSet();
         _missing.RemoveAll(x => now - x.Created > MissingLife
-            || x.PlacedAt is { } at && now - at > Kept
+            || x.PlacedAt is { } at && now - at > (x.PlacedOk ? MissingPlacedLife : Kept)
             || x.State == "failed" && !asked.Contains(x.Id) && x.Changed is { } failed && now - failed > Kept
-            // Listed by TorLink once, now in neither list: cancelled from the Downloads page (or TorLink lost it).
-            || _agent is not null && x.Listed && x.PlacedAt is null && !downloads.Contains(x.InfoHash) && !placed.Contains(x.InfoHash));
+            // Listed by TorLink once, now in no list before it finished: cancelled from the Downloads page (or TorLink lost it).
+            || x.GoneAt is { } left && !x.Finished && x.PlacedAt is null && now - left > MissingGrace);
     }
 
     private sealed class Pending(string id, MissingPlace place, string name, long size, string infoHash, DateTimeOffset created)
@@ -79,6 +95,9 @@ public sealed partial class TorLinkRelay
         public string State { get; set; } = "waiting"; public string? Error { get; set; }
         public DateTimeOffset? Changed { get; set; }
         public DateTimeOffset? PlacedAt { get; set; }
+        public bool PlacedOk { get; set; }
         public bool Listed { get; set; }
+        public bool Finished { get; set; }
+        public DateTimeOffset? GoneAt { get; set; }
     }
 }

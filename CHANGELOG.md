@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Épisode manquant téléchargé : « Adding to your library… » jusqu’à ce qu’il soit là (Windows, Mac, iPhone)** : une fois le téléchargement fini, la case revenait à « Not in your library » et « Get E1 » : TorLink range un téléchargement fini dans son historique et le retire de sa liste, et le relais prenait ça pour une annulation et oubliait la demande ; puis, rangé, l’épisode n’était relu qu’aussitôt et 30 s après, alors que Jellyfin le montre environ une minute plus tard. La case dit maintenant « Adding to your library… » (« Downloaded. Mira is filing it… », puis « Filed. Jellyfin is adding it to the series… ») jusqu’à ce que Jellyfin liste l’épisode, et la page relit seule les épisodes de la série (toutes les 10 s, puis chaque minute après 5 min) : l’épisode prend sa place sans rien toucher. Si Jellyfin ne l’a toujours pas après 3 min, la case le dit et propose « Scan libraries » (Windows, Mac). Le relais garde une demande rangée une journée et sait qu’un téléchargement fini est en cours de rangement (Mira sur le PC de Jellyfin le lui dit) ; un rangement en cours ne passe plus pour un échec. Signalé par ogsas ; règles testées (Core, relais), iPhone testé sur le simulateur de la CI ; jamais essayé avec le vrai TorLink.
+
 ## 0.9.8 — 2026-11-13
 
 - **Plus de vitesse de lecture (Windows, Mac, iPhone)** : le choix de vitesse (0,5× à 2×) quitte le menu ⋮ du lecteur et la pastille de vitesse de l’iPhone disparaît : tout se lit à 1×. L’appui long ×2 de l’iPhone reste. Demandé par ogsas ; Windows et Mac seulement compilés.

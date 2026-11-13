@@ -88,8 +88,20 @@ struct MissingTests {
         #expect(going.map { MissingDownloads.pill($0, french: false) } == "40%")
         state.downloads = []
         state.placed = [RemoteLines.Placed(id: "aa", title: "x", status: "ok", itemId: nil, ok: true), RemoteLines.Placed(id: "bb", title: "x", status: "ok", itemId: nil, ok: true)]
-        #expect(MissingDownloads.progress(state, seriesId: series, season: 2, episodes: [6], french: false)?.stage == .placed)
+        #expect(MissingDownloads.progress(state, seriesId: series, season: 2, episodes: [6], french: false)?.title == "Adding to your library…")
         state.placed = []
+        // Finished and gone from TorLink's list: being placed, never the button again; placed long ago: Jellyfin hasn't listed it.
+        var gone = asked("r1", [6], "aa")
+        gone.finished = true
+        state.missing = [gone]
+        #expect(MissingDownloads.progress(state, seriesId: series, season: 2, episodes: [6], french: false)?.stage == .adding)
+        gone.placedAt = "2026-11-13T12:00:00.1234567+00:00"
+        state.missing = [gone]
+        let placedAt = ISO8601DateFormatter().date(from: "2026-11-13T12:00:00Z")!
+        let soon = MissingDownloads.progress(state, seriesId: series, season: 2, episodes: [6], now: placedAt.addingTimeInterval(60), french: false)
+        #expect(soon?.stage == .placed && soon?.late == false && soon?.line == "Filed. Jellyfin is adding it to the series…")
+        #expect(MissingDownloads.progress(state, seriesId: series, season: 2, episodes: [6], now: placedAt.addingTimeInterval(240), french: false)?.late == true)
+        #expect(MissingDownloads.lookAgain(sincePlaced: 60) == 10 && MissingDownloads.lookAgain(sincePlaced: 600) == 60)
         state.missing = [asked("r1", [6], "aa", state: "failed", error: "Disk full")]
         let failed = MissingDownloads.progress(state, seriesId: series, season: 2, episodes: nil, french: true)
         #expect(failed?.stage == .failed && failed?.line == "Disk full" && failed?.title == "Le téléchargement a échoué")

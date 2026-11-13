@@ -59,7 +59,15 @@ enum MissingDownloads {
         var title: String
         var line: String
         var ids: [String]
+        /// Placed a while ago and Jellyfin has still not listed it.
+        var late = false
     }
+
+    /// Placed this long ago and still not in the series: Jellyfin did not see it (its folder monitor takes about a minute).
+    static let late: TimeInterval = 3 * 60
+
+    /// When a page waiting for Jellyfin to list what was placed reads the series' episodes again: often at first, then once a minute.
+    static func lookAgain(sincePlaced: TimeInterval) -> TimeInterval { sincePlaced < 5 * 60 ? 10 : 60 }
 
     // MARK: Searching
 
@@ -172,7 +180,7 @@ enum MissingDownloads {
 
     /// Where what a series' page asked stands, from the relay's list, TorLink's downloads and what Mira placed; nil when
     /// nothing was asked. `episodes` nil: anything of that season (its pill).
-    static func progress(_ state: RemoteLines.State?, seriesId: String, season: Int, episodes: [Int]?, french: Bool = MissingDownloads.french) -> Progress? {
+    static func progress(_ state: RemoteLines.State?, seriesId: String, season: Int, episodes: [Int]?, now: Date? = nil, french: Bool = MissingDownloads.french) -> Progress? {
         guard let state, let missing = state.missing, !missing.isEmpty else { return nil }
         func L(_ fr: String, _ en: String) -> String { french ? fr : en }
         let id = seriesId.replacingOccurrences(of: "-", with: "").lowercased()
@@ -190,7 +198,12 @@ enum MissingDownloads {
             if parts.allSatisfy({ $0.part.stage != .placed }), let failed = parts.first(where: { $0.part.stage == .failed }) {
                 return Progress(stage: .failed, percent: 0, title: L("Le téléchargement a échoué", "The download failed"), line: failed.part.error ?? "", ids: ids)
             }
-            return Progress(stage: .placed, percent: 100, title: L("Dans ta bibliothèque", "In your library"), line: L("Jellyfin l’ajoute à la série…", "Jellyfin is adding it to the series…"), ids: ids)
+            // Placed: Jellyfin reads the folder after its monitor's delay; a tile still there long after: it did not see it.
+            let placedAt = parts.compactMap(\.ask.placedDate).max()
+            let late = now.flatMap { now in placedAt.map { now.timeIntervalSince($0) > MissingDownloads.late } } ?? false
+            return Progress(stage: .placed, percent: 100, title: L("Rangement dans ta bibliothèque…", "Adding to your library…"),
+                            line: late ? L("Jellyfin ne l’a pas encore ajouté à la série.", "Jellyfin hasn’t added it to the series yet.") : L("Rangé. Jellyfin l’ajoute à la série…", "Filed. Jellyfin is adding it to the series…"),
+                            ids: ids, late: late)
         }
         // By size, what each has; what is not known yet counts as one equal share.
         let counted = parts.filter { $0.part.stage != .failed }
@@ -207,7 +220,8 @@ enum MissingDownloads {
             return Progress(stage: .waiting, percent: percent, title: sending ? L("Envoi à TorLink…", "Sending to TorLink…") : L("En attente du PC de Jellyfin", "Waiting for your Jellyfin PC"),
                             line: sending ? "" : L("Il le prend dès que Mira y est ouvert.", "It starts as soon as Mira is open there."), ids: ids)
         }
-        return Progress(stage: .adding, percent: 100, title: L("Rangement dans ta bibliothèque…", "Adding to your library…"), line: "", ids: ids)
+        return Progress(stage: .adding, percent: 100, title: L("Rangement dans ta bibliothèque…", "Adding to your library…"),
+                        line: L("Téléchargé. Mira le range sur le PC de Jellyfin…", "Downloaded. Mira is filing it on your Jellyfin PC…"), ids: ids)
     }
 
     private struct Part { var stage: Stage; var percent: Int; var size: Int64; var left: Double?; var error: String? }
@@ -220,6 +234,8 @@ enum MissingDownloads {
         if !hash.isEmpty, let placed = state.placed?.first(where: { $0.id.lowercased() == hash }) {
             return placed.ok == true ? Part(stage: .placed, percent: 100, size: size, left: nil, error: nil) : Part(stage: .failed, percent: 0, size: size, left: nil, error: placed.status)
         }
+        // Placed, and no longer among the latest the agent lists.
+        if ask.placedAt != nil { return Part(stage: .placed, percent: 100, size: size, left: nil, error: nil) }
         if !hash.isEmpty, let download = state.downloads?.first(where: { $0.id.lowercased() == hash }) {
             let total = (download.size ?? 0) > 0 ? download.size! : size
             switch download.status {
@@ -230,6 +246,8 @@ enum MissingDownloads {
             default: return Part(stage: .downloading, percent: RemoteLines.percent(download.progress), size: total, left: RemoteLines.timeLeft(download), error: nil)
             }
         }
+        // Finished and gone from TorLink's list (to its history): Mira places it.
+        if ask.finished == true || ask.listed == true { return Part(stage: .adding, percent: 100, size: size, left: nil, error: nil) }
         // Sent, not listed by TorLink yet; or still at the relay.
         return Part(stage: .waiting, percent: 0, size: size, left: nil, error: nil)
     }
@@ -310,6 +328,18 @@ extension RemoteLines {
         /// waiting, claimed, sent, failed.
         var state: String
         var error: String?
+        /// TorLink listed it once; it finished downloading (Mira places it); when Mira placed it (an extension of 0.9.7 or
+        /// before says none of them).
+        var listed: Bool?
+        var finished: Bool?
+        var placedAt: String?
+
+        /// `placedAt` read: .NET writes up to seven digits of a second, which ISO8601DateFormatter refuses.
+        var placedDate: Date? {
+            guard let placedAt else { return nil }
+            let plain = placedAt.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
+            return ISO8601DateFormatter().date(from: plain)
+        }
     }
 }
 

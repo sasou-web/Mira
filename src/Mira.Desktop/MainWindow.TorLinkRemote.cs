@@ -95,7 +95,7 @@ public partial class MainWindow
         // qBittorrent (private trackers) takes pasted links and .torrent files, whatever TorLink's state; its downloads are listed with TorLink's.
         List<RelayDownload> downloads = [.. await RemoteDownloadsAsync(ct), .. await QBittorrentDownloadsAsync(ct)];
         var report = new AgentReport(Environment.MachineName, problem is null, problem, downloads, TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls, follows, Replaces: true,
-            QBittorrent: !_demo && QBittorrentInstalled(), Seasons: true);
+            QBittorrent: !_demo && QBittorrentInstalled(), Seasons: true, Sorting: TorLinkRemote.Sorting(torlink.Importer.Entries));
         var (work, status) = await client.TorLinkExchangeAsync(report, ct);
         if (!ReferenceEquals(client, _client)) return TimeSpan.FromSeconds(5);
         if (work is null)

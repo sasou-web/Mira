@@ -127,10 +127,17 @@ public static class TorLinkRemote
 
     /// <summary>The latest titles Mira placed, for Mira web: in Mira's words, with their title in Jellyfin once it has them.</summary>
     public static List<RelayPlaced> Placed(IEnumerable<TorLinkImportEntry> entries) => entries
-        .Where(x => x.State is not (TorLinkImportState.Ignored or TorLinkImportState.Waiting) && RemoteDownloads.IsInfoHash(x.Id)).Take(20)
+        .Where(x => x.State is not (TorLinkImportState.Ignored or TorLinkImportState.Waiting or TorLinkImportState.Importing) && RemoteDownloads.IsInfoHash(x.Id)).Take(20)
         .Select(x => new RelayPlaced(x.Id, TorLinkPlacement.TitleOf(x), TorLinkPlacement.StatusOf(x), x.JellyfinId is { } item ? item.Replace("-", "") : null,
             x.State is TorLinkImportState.Imported or TorLinkImportState.Partial))
         .ToList();
+
+    /// <summary>
+    /// The finished downloads Mira is placing, or waits for the files of: not placed yet, neither placed nor failed (a series'
+    /// page shows « Adding to your library » for them, not the button again).
+    /// </summary>
+    public static List<string> Sorting(IEnumerable<TorLinkImportEntry> entries) => entries
+        .Where(x => x.State is (TorLinkImportState.Waiting or TorLinkImportState.Importing) && RemoteDownloads.IsInfoHash(x.Id)).Select(x => x.Id).Take(60).ToList();
 
     /// <summary>
     /// What the agent says when it cannot take downloads now (Mira web shows it); null when it can.
