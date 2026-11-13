@@ -33,6 +33,7 @@ internal sealed class FrameMeter : IDisposable
     // since 8), the screen's rate is _animationRenderRate, the rate WPF then paces its frames at.
     private static readonly FieldInfo? PresentedAt = Field("_lastPresentationTime"), Result = Field("_lastPresentationResults"), Refresh = Field("_displayRefreshRate"), Pace = Field("_animationRenderRate");
     private static readonly FieldInfo? OperationMethod = typeof(DispatcherOperation).GetField("_method", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo? OperationArgs = typeof(DispatcherOperation).GetField("_args", BindingFlags.Instance | BindingFlags.NonPublic);
 
     private readonly Dispatcher _dispatcher;
     private readonly object? _context;
@@ -122,9 +123,12 @@ internal sealed class FrameMeter : IDisposable
     private static Moving Motion(List<Frame> frames, double period, double scale)
     {
         var c = CultureInfo.InvariantCulture;
-        // Presentations: how many refreshes each one stayed on the screen.
-        var presents = frames.Where(f => !double.IsNaN(f.Present)).Select(f => Math.Max(1, (int)Math.Round(f.Present / period))).ToList();
-        var repeated = presents.Count > 0 ? presents.Sum(n => n - 1) : frames.Skip(1).Sum(f => Math.Max(0, (int)Math.Round(f.Gap / period) - 1));
+        // Presentations: how many refreshes each one stayed on the screen, while the list moves (from its first move to its
+        // last): one that stood while it was still, before the first notch or once it stopped, repeated nothing.
+        var moves = Enumerable.Range(1, Math.Max(0, frames.Count - 1)).Where(i => !double.IsNaN(frames[i].Offset) && !double.IsNaN(frames[i - 1].Offset) && frames[i].Offset != frames[i - 1].Offset).ToList();
+        var span = moves.Count == 0 ? frames : frames.GetRange(moves[0], moves[^1] - moves[0] + 1);
+        var presents = span.Where(f => !double.IsNaN(f.Present)).Select(f => Math.Max(1, (int)Math.Round(f.Present / period))).ToList();
+        var repeated = presents.Count > 0 ? presents.Sum(n => n - 1) : span.Skip(1).Sum(f => Math.Max(0, (int)Math.Round(f.Gap / period) - 1));
         var histogram = presents.Count == 0 ? "" : string.Join(" ", presents.GroupBy(n => Math.Min(n, 4)).OrderBy(g => g.Key).Select(g => $"{(g.Key == 4 ? "4+" : g.Key.ToString(c))}×{g.Count()}"));
         // Speed in screen pixels per refresh, each frame's move spread over the refreshes it stood for.
         var speeds = new List<(int Index, double Speed)>();
@@ -202,7 +206,12 @@ internal sealed class FrameMeter : IDisposable
             var frame = new Frame { At = (args.RenderingTime - p.FirstRendering).TotalMilliseconds, Hover = hover, Images = images, Pictures = pictures };
             p.Frames.Add(frame);
             if (previous != TimeSpan.MinValue) { frame.Gap = (args.RenderingTime - previous).TotalMilliseconds; p.Gaps.Add(frame.Gap); }
-            if (presented != 0 && presented != _lastPresented && _lastPresented != 0) { frame.Present = (presented - _lastPresented) * 1000d / Stopwatch.Frequency; p.Presents.Add(frame.Present); }
+            // How long each presentation stood, from the phase's own first: the one before it may date from long before.
+            if (presented != 0 && presented != _lastPresented)
+            {
+                if (p.LastPresent != 0) { frame.Present = (presented - p.LastPresent) * 1000d / Stopwatch.Frequency; p.Presents.Add(frame.Present); }
+                p.LastPresent = presented;
+            }
             if (_context is not null)
             {
                 var result = Result?.GetValue(_context)?.ToString() ?? "?";
@@ -231,11 +240,23 @@ internal sealed class FrameMeter : IDisposable
     }
     private static string Describe(DispatcherOperation operation)
     {
-        // The method the operation calls, with its class (« MediaContext.RenderMessageHandler »); an await's continuation says whose.
+        // The method the operation calls, with its class (« MediaContext.RenderMessageHandler »). A lambda says the method
+        // it was written in (« MainWindow.<ScheduleMoreCheck>b__529_0 »); a helper of the compiler's or of WPF that only
+        // calls a delegate given to it (an await's continuation) says that delegate's; a continuation, its async method.
         var method = OperationMethod?.GetValue(operation) as Delegate;
-        var name = method is null ? "?" : $"{method.Method.DeclaringType?.Name}.{method.Method.Name}";
-        if (method?.Target is { } target && target.GetType().Name.Contains('<', StringComparison.Ordinal)) name = target.GetType().Name;
-        return $"{name} ({operation.Priority})";
+        if (method is null) return $"? ({operation.Priority})";
+        if (Generated(method.Method.DeclaringType) && OperationArgs?.GetValue(operation) is Delegate given) method = given;
+        return $"{Name(method)} ({operation.Priority})";
+        static bool Generated(Type? type) => type?.Name.StartsWith('<') == true;
+        static string Name(Delegate method)
+        {
+            // An async method's continuation runs its state machine (« <ShowDetailsAsync>d__81 » in MainWindow).
+            if (method.Target?.GetType() is { IsGenericType: true } box && box.GetGenericArguments().LastOrDefault(t => Generated(t) && t.DeclaringType is not null) is { } machine)
+                return $"{machine.DeclaringType!.Name}.{machine.Name}";
+            var type = method.Method.DeclaringType;
+            while (Generated(type) && type!.DeclaringType is not null) type = type.DeclaringType;
+            return $"{type?.Name}.{method.Method.Name}";
+        }
     }
 
     /// <summary>The phases as a table: what the report and the job's summary show.</summary>
@@ -270,6 +291,7 @@ internal sealed class FrameMeter : IDisposable
         public ScrollViewer? Viewer;
         public double Scale = 1;
         public TimeSpan FirstRendering;
+        public long LastPresent;
         public readonly List<Frame> Frames = [];
         public readonly int Gen0 = GC.CollectionCount(0), Gen1 = GC.CollectionCount(1), Gen2 = GC.CollectionCount(2);
         public readonly TimeSpan Pause = GC.GetTotalPauseDuration();
