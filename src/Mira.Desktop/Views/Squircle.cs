@@ -42,8 +42,24 @@ public sealed class Squircle : Decorator
         var b = BorderThickness; var p = Padding;
         Child?.Arrange(new Rect(b.Left + p.Left, b.Top + p.Top, Math.Max(0, size.Width - b.Left - b.Right - p.Left - p.Right), Math.Max(0, size.Height - b.Top - b.Bottom - p.Top - p.Bottom)));
         Clip = ClipContent ? Shape(size, CornerRadius.TopLeft) : null;
+        ClipChild(size, b);
         return size;
     }
+    /// <summary>
+    /// The content cut to the inside of the edge too: cut only to the outer shape, a filled child (the side column of
+    /// the Settings window) covered the edge in the corners, where the curve passes inside its rectangle.
+    /// </summary>
+    private void ClipChild(Size size, Thickness b)
+    {
+        if (Child is not { } child) return;
+        if (!ClipContent || b.Top <= 0) { if (child.Clip is not null && ReferenceEquals(child.Clip, _childClip)) child.ClearValue(ClipProperty); _childClip = null; return; }
+        if (child.Clip is not null && !ReferenceEquals(child.Clip, _childClip)) return;
+        var at = VisualTreeHelper.GetOffset(child);
+        var inside = new Rect(b.Left - at.X, b.Top - at.Y, Math.Max(0, size.Width - b.Left - b.Right), Math.Max(0, size.Height - b.Top - b.Bottom));
+        _childClip = Geometry(inside, Math.Max(0, CornerRadius.TopLeft - b.Top));
+        child.Clip = _childClip;
+    }
+    private Geometry? _childClip;
     private Size Inset() { var b = BorderThickness; var p = Padding; return new Size(b.Left + b.Right + p.Left + p.Right, b.Top + b.Bottom + p.Top + p.Bottom); }
     protected override void OnRender(DrawingContext dc)
     {

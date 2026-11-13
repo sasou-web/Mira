@@ -134,6 +134,8 @@ public sealed partial class SettingsPage
         DockPanel.SetDock(foot, Dock.Bottom); side.Children.Add(foot);
         side.Children.Add(new ScrollViewer { Content = lists, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         var sideBack = new Border { Background = Ui.Brush("#0C0C0C"), BorderBrush = Ui.Brush("#1F1F1F"), BorderThickness = new Thickness(0, 0, 1, 0), Child = side };
+        // Its own left corners, those of the window inside its edge: otherwise its fill may cover the window's edge there.
+        sideBack.CornerRadius = new CornerRadius(19, 0, 0, 19);
 
         // —— The section open: its title and line, Échap and the cross, then its settings ——
         Avalonia.Automation.AutomationProperties.SetHeadingLevel(_tabTitle, 1);

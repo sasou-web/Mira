@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Coins de la fenêtre Réglages et Aide (Windows, Mac)** : la colonne de gauche couvrait le bord arrondi de la fenêtre dans ses deux coins gauches (bord coupé, coin qui « bave »). Le contenu d’une forme arrondie à bord est maintenant découpé à l’intérieur de ce bord ; sur Mac, la colonne a ses propres coins. Signalé par ogsas sur la 0.9.7 ; jamais essayé sur un vrai PC ou Mac.
+
 ## 0.9.7 — 2026-11-13
 
 - **Fond noir total (Windows, Mac, iPhone)** : le fond de Mira passe de l’anthracite très sombre (#080808 sous Windows, #070708 un peu bleuté sur Mac et iPhone) au noir pur #000 : sur un écran OLED, les pixels du fond sont éteints. Les fondus des images (bandeau, fiche, « Reprendre ») finissent dans le même noir, sans couture ; l’écran de lancement de l’iPhone aussi. Cartes, champs et menus gardent leurs gris, qui se détachent un peu plus ; ceux du Mac et de l’iPhone perdent leur légère teinte bleue, comme Windows depuis la 0.8.9. Mac rendu et contrôlé par le self-check sous Linux ; Windows et iPhone seulement compilés.
