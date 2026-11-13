@@ -750,6 +750,12 @@ internal static class PlayerTests
             }
             return Task.CompletedTask;
         });
+        await Test("Défilement : une molette à crans est adoucie sur Mac, pas un trackpad", () =>
+        {
+            Assert(Trackpad.Notched(false, 0, -1.7) && !Trackpad.Notched(true, 0, -1), "Ce que macOS dit l’emporte");
+            Assert(Trackpad.Notched(null, 0, -1) && Trackpad.Notched(null, 0, 3) && !Trackpad.Notched(null, 0, -.92) && !Trackpad.Notched(null, 0, 0), "Sans macOS : des lignes entières sont des crans");
+            return Task.CompletedTask;
+        });
         await Test("Défilement : inversion immédiate et bornes après changement du contenu", () =>
         {
             var motion = new ScrollMotion(); motion.Reset(300); motion.Add(600, 1000); motion.Step(.04, 1000);

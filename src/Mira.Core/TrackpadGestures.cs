@@ -55,6 +55,13 @@ public static class Trackpad
     public static double Zoom(double zoom, double magnification) => Math.Clamp(zoom * (1 + magnification), ZoomMin, ZoomMax);
 
     /// <summary>
+    /// A wheel with notches, whose turns Mira eases as macOS's own apps and Windows' Mira do (a trackpad's and a Magic
+    /// Mouse's points come as they go, eased by macOS already): as macOS says (<paramref name="precise"/>), else by its
+    /// travel, whole lines for a wheel.
+    /// </summary>
+    public static bool Notched(bool? precise, double deltaX, double deltaY) =>
+        precise is { } said ? !said : (deltaX != 0 || deltaY != 0) && deltaX == Math.Round(deltaX) && deltaY == Math.Round(deltaY);
+    /// <summary>
     /// A scroll event's NSEventPhase and momentumPhase (masks: began 1, stationary 2, changed 4, ended 8, cancelled 16,
     /// may begin 32), both zero for a mouse's wheel.
     /// </summary>

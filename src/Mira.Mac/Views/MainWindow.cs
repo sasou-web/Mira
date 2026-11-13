@@ -35,7 +35,7 @@ public abstract class Page : UserControl
     /// <summary>Progress, watched or favourite marks changed (after a playback, a menu action): redraw what shows them.</summary>
     public virtual Task RefreshAsync() => Task.CompletedTask;
     /// <summary>Its rail entry (or shortcut) chosen again while it shows: nothing reloads or fades in again; its list glides back to the top.</summary>
-    public virtual void ShowAgain() { if (Content is ScrollViewer scroll) GlideUp.Start(scroll); }
+    public virtual void ShowAgain() { if (Content is ScrollViewer scroll) Glide.ToTop(scroll); }
     /// <summary>
     /// On screen, or not: left for another page (kept hidden in the window while it may come back, see
     /// <see cref="MainWindow.Host"/>) or taken out of the window. What runs only while the page shows (a timer, the banner's
