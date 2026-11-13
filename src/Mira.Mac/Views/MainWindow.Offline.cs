@@ -234,9 +234,8 @@ public sealed partial class MainWindow
     private MenuItem? OfflineMenuItem(MediaItem item)
     {
         if (!CanKeep(item) || Session is null) return null;
-        MenuItem Entry(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); return entry; }
-        if (CopyOf(item.Id) is not { } copy) return Entry(L("Garder sur ce Mac", "Keep on this Mac"), () => _ = KeepOfflineAsync([item]));
-        if (CopyPaused(item.Id)) return Entry(L("Reprendre l’arrivée sur ce Mac", "Resume copying to this Mac"), () => ResumeOffline([copy]));
-        return Entry(copy.Complete ? L($"Retirer de ce Mac · {OfflineCopies.SizeText(copy.TotalSize)}", $"Remove from this Mac · {OfflineCopies.SizeText(copy.TotalSize)}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), () => _ = ForgetOfflineAsync([copy]));
+        if (CopyOf(item.Id) is not { } copy) return Ui.Entry(L("Garder sur ce Mac", "Keep on this Mac"), "download", () => _ = KeepOfflineAsync([item]));
+        if (CopyPaused(item.Id)) return Ui.Entry(L("Reprendre l’arrivée sur ce Mac", "Resume copying to this Mac"), "download", () => ResumeOffline([copy]));
+        return Ui.Entry(copy.Complete ? L($"Retirer de ce Mac · {OfflineCopies.SizeText(copy.TotalSize)}", $"Remove from this Mac · {OfflineCopies.SizeText(copy.TotalSize)}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), "close", () => _ = ForgetOfflineAsync([copy]));
     }
 }

@@ -807,7 +807,9 @@ public sealed partial class DetailPage : Page
         _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault();
         _filling = false;
     }
-    private void RenderEpisodes()
+    /// <summary>The episodes drawn again; while an episode's menu shows, once it closes (<see cref="Menus.WhenClosed"/>).</summary>
+    private void RenderEpisodes() => Menus.WhenClosed(DrawEpisodes);
+    private void DrawEpisodes()
     {
         _episodes.Children.Clear(); _tiles.Clear(); _tileGrid = null;
         _missingViews.RemoveAll(x => !x.Pill);
@@ -1060,7 +1062,7 @@ public sealed partial class DetailPage : Page
         var button = new Button { Content = root, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top };
         if (!isNext) { button.PointerEntered += (_, _) => play.Opacity = 1; button.PointerExited += (_, _) => play.Opacity = 0; }
         button.Click += (_, _) => _ = Shell.PlayAsync(episode);
-        button.ContextMenu = Shell.Menu(episode);
+        Ui.MenuOn(button, () => Shell.EpisodeMenu(episode));
         Avalonia.Automation.AutomationProperties.SetName(button, $"{L("Épisode", "Episode")} {episode.IndexNumber}, {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? L(", vu", ", watched") : isNext ? L(", à suivre", ", up next") : "")}");
         if (!hidden) Ui.LoadWhenVisible(button, image, () => session.Images.EpisodeAsync(episode, 420));
         return Tile(button, picture);

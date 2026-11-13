@@ -64,7 +64,7 @@ public sealed class BrowsePage : Page
     /// <summary>Films and Séries: their genres as chips (the same choice as Genre), and on top the title to pick up, as on Windows.</summary>
     private readonly StackPanel _genreChips = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly ScrollViewer _genreRow;
-    private readonly Border _pickUp = new() { IsVisible = false, Height = 210, CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 0, 0, 34), Background = Ui.Brush("#111111"), ClipToBounds = true };
+    private readonly Border _pickUp = new() { IsVisible = false, Height = 210, Margin = new Thickness(0, 0, 0, 34) };
     private MediaItem? _pickUpItem;
     private readonly DispatcherTimer _typing = new() { Interval = TimeSpan.FromMilliseconds(320) };
     private readonly List<MediaItem> _items = [];
@@ -406,7 +406,11 @@ public sealed class BrowsePage : Page
         var image = new Image { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top };
         var gradient = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative) };
         gradient.GradientStops.Add(new GradientStop(Color.Parse("#F2000000"), 0)); gradient.GradientStops.Add(new GradientStop(Color.Parse("#A6000000"), 0.45)); gradient.GradientStops.Add(new GradientStop(Color.Parse("#14000000"), 1));
+        // Only the picture is clipped to the rounded card, the shade over it is not: each drawn under the same rounded clip,
+        // the picture showed through at their antialiased edges, a bright line around the corners on the dark side (as on
+        // Windows before its one clip). Past the corners, the shade is black on the page's black.
         var shade = new Border { Background = gradient };
+        var picture = new Border { CornerRadius = new CornerRadius(16), ClipToBounds = true, Background = Ui.Brush("#111111"), Child = image };
         var resume = item.Progress > 0;
         var actions = Ui.Row(12, Ui.Action(resume ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", "primary", () => _ = Shell.PlayAsync(item)),
             Ui.IconButton("info", L("Voir la fiche", "See the title page"), () => Shell.Open(item), "icon", 19));
@@ -415,7 +419,7 @@ public sealed class BrowsePage : Page
             new TextBlock { Text = item.Type == "Episode" ? item.SeriesName ?? item.Name : item.Name, FontSize = 28, FontWeight = FontWeight.Bold, TextTrimming = TextTrimming.CharacterEllipsis },
             new TextBlock { Text = Catalog.PickUpLine(item), Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 12) }, actions);
         body.VerticalAlignment = VerticalAlignment.Center; body.Margin = new Thickness(32, 0); body.MaxWidth = 720; body.HorizontalAlignment = HorizontalAlignment.Left;
-        _pickUp.Child = new Grid { Children = { image, shade, body } };
+        _pickUp.Child = new Grid { Children = { picture, shade, body } };
         Avalonia.Automation.AutomationProperties.SetName(_pickUp, Catalog.PickUpLabel(item));
         image.Source = await session.Images.BackdropAsync(item, 1280);
     }
