@@ -5,6 +5,9 @@
 *.sh text eol=lf
 *.ps1 text eol=crlf
 *.md text eol=lf
+# Each thread adds its line at the top of « Non publié »: two branches doing so at once would conflict at every rebase.
+# Union keeps both sides' lines (git's own driver, used by every local merge and rebase; GitHub's merge ignores it).
+CHANGELOG.md merge=union
 *.yml text eol=lf
 *.json text eol=lf
 *.js text eol=lf

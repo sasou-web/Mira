@@ -23,6 +23,11 @@ on:
         description: "Commit that draft targets (40 hexadecimal characters); set by tools/release.ps1"
         required: false
         type: string
+# A new push to a pull request cancels its run still going (as mac.yml): the macOS and Windows runners it held go to
+# the next run instead of a commit nobody will merge. Never on main, a release or a run asked by hand.
+concurrency:
+  group: web-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 env:

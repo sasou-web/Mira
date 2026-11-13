@@ -741,14 +741,14 @@ final class MiraUITests: XCTestCase {
         let field = app.textFields["collection.name"]
         focus(field)
         field.typeText(name)
-        app.buttons["collection.create"].tap()
+        tapWhenEnabled(app.buttons["collection.create"])
         XCTAssertTrue(app.buttons["collection.row.\(name)"].waitForExistence(timeout: 10), "The new collection is not in the list")
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "Collection “\(name)” created with “Tears of Steel”.")).firstMatch.waitForExistence(timeout: 5),
                       "The new collection is not said")
         // The name of a collection there already is refused before Jellyfin sees it.
         focus(field)
         field.typeText("movie NIGHTS")
-        app.buttons["collection.create"].tap()
+        tapWhenEnabled(app.buttons["collection.create"])
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "This name is already taken by the collection “Movie nights”.")).firstMatch.waitForExistence(timeout: 5),
                       "A name taken was not refused")
         settle()
@@ -997,6 +997,16 @@ final class MiraUITests: XCTestCase {
             if XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 2) == .completed { return }
         }
         XCTFail("\(field.identifier) never got the keyboard")
+    }
+
+    /// A button that SwiftUI enables from what was just typed: on a slow runner, the typed text reaches the view's state
+    /// after XCTest's next tap, which then lands on a button still disabled and does nothing (« Create » of a collection).
+    @MainActor
+    private func tapWhenEnabled(_ button: XCUIElement, timeout: TimeInterval = 10) {
+        let enabled = NSPredicate(format: "exists == true AND isEnabled == true")
+        XCTAssertEqual(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: button)], timeout: timeout), .completed,
+                       "\(button.identifier) never became enabled")
+        button.tap()
     }
 
     /// iOS offers to save the password after a sign-in, over Home, from 2 to more than 6 seconds later on a busy
