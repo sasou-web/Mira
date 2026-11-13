@@ -1,9 +1,12 @@
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Transformation;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Mac.Services;
 using static Mira.Core.Lang;
@@ -25,8 +28,13 @@ public sealed class HomePage : Page
     private readonly Image _heroImage = new() { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top };
     private readonly StackPanel _heroText = new() { Spacing = 18, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(56 + MainWindow.RailWidth, 0, 40, 66), MaxWidth = 720 };
     private readonly StackPanel _heroSide = new() { Spacing = 14, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 56, 70), Width = 420 };
-    private readonly StackPanel _dots = new() { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(MainWindow.RailWidth, 0, 0, 26) };
-    private readonly DispatcherTimer _rotate = new() { Interval = TimeSpan.FromSeconds(9) };
+    private readonly StackPanel _dots = new() { Orientation = Orientation.Horizontal, Spacing = 0, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(MainWindow.RailWidth, 0, 0, 20) };
+    private readonly DispatcherTimer _rotate = new();
+    /// <summary>As on Windows: 6.5 s a title, counted only while the banner turns, the bar of the title shown filling under it.</summary>
+    private readonly CarouselTimeline _heroTime = new(6.5);
+    private readonly System.Diagnostics.Stopwatch _heroRun = new();
+    private Border? _heroFill;
+    private string? _heroShownId;
     private readonly ScrollViewer _scroll;
     private List<MediaItem> _heroItems = [];
     // Jellyfin's groups, read at each refresh of Home and when this Mac leaves a group, and the line of the one shown.
@@ -49,9 +57,11 @@ public sealed class HomePage : Page
         _hero.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F0000000", 0), ("#9A000000", 0.42), ("#00000000", 0.75)) });
         _hero.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#00000000", 0.45), ("#C0000000", 0.82), ("#FF000000", 1)) });
         _hero.Children.Add(_heroText); _hero.Children.Add(_heroSide); _hero.Children.Add(_dots);
-        _hero.PointerEntered += (_, _) => _rotate.Stop();
-        _hero.PointerExited += (_, _) => { if (Turns && IsShowing) _rotate.Start(); };
-        _rotate.Tick += (_, _) => { if (Turns) ShowHero(_heroIndex + 1); else _rotate.Stop(); };
+        // Held still while it is read or used, as on Windows: the pointer on its words or its bars, the keyboard in it, the page scrolled past it.
+        foreach (var part in new Control[] { _heroText, _heroSide, _dots }) { part.PointerEntered += (_, _) => UpdateClock(); part.PointerExited += (_, _) => UpdateClock(); }
+        _hero.GotFocus += (_, _) => UpdateClock(); _hero.LostFocus += (_, _) => Dispatcher.UIThread.Post(() => UpdateClock());
+        // Its time up: the next title, from the start of its own time.
+        _rotate.Tick += (_, _) => { if (Turns) { _heroShownId = null; ShowHero(_heroIndex + 1); } else UpdateClock(); };
         _groupJoin = Ui.Action(L("Rejoindre", "Join"), null, "primary", () => _ = JoinGroupAsync());
         _groupJoin.Margin = new Thickness(18, 0, 0, 0);
         DockPanel.SetDock(_groupJoin, Dock.Right);
@@ -72,7 +82,8 @@ public sealed class HomePage : Page
         Content = _scroll;
         SizeChanged += (_, e) => _hero.Height = Math.Clamp(e.NewSize.Height * 0.7, 440, 760);
         // The banner turns only while Accueil shows (kept hidden behind another page, it waits).
-        Showing += shown => { if (!shown) _rotate.Stop(); else if (Turns) _rotate.Start(); };
+        Showing += _ => UpdateClock();
+        _scroll.ScrollChanged += (_, _) => { if (_heroRun.IsRunning != Runs) UpdateClock(); };
     }
     /// <summary>
     /// The banner turns by itself: more than one title, « Animer l’accueil » on (Réglages → Apparence, as on Windows) and
@@ -81,6 +92,46 @@ public sealed class HomePage : Page
     private bool Turns => _heroItems.Count > 1 && Shell.Settings.HeroAutoPlay && !MacMotion.Reduced;
     /// <summary>For the self-check: whether the banner is turning now.</summary>
     public bool Turning => _rotate.IsEnabled;
+    /// <summary>For the self-check: the time the title shown has had so far, in seconds.</summary>
+    public double HeroElapsed => _heroTime.Elapsed + _heroRun.Elapsed.TotalSeconds;
+    /// <summary>For the self-check: the banner's bars, and its titles.</summary>
+    public (int Bars, int Titles) HeroBars => (_dots.Children.Count, _heroItems.Count);
+    /// <summary>For the self-check: the page scrolled to <paramref name="y"/>.</summary>
+    public void ScrollForCheck(double y) => _scroll.Offset = new Vector(0, Math.Clamp(y, 0, Math.Max(0, _scroll.Extent.Height - _scroll.Viewport.Height)));
+    /// <summary>Turning now: Accueil shown, nobody reading or using the banner, the page not scrolled past it.</summary>
+    private bool Runs => Turns && IsShowing && _hero.IsVisible && !Held;
+    private bool Held => _heroText.IsPointerOver || _heroSide.IsPointerOver || _dots.IsPointerOver || _scroll.Offset.Y > _hero.Bounds.Height * .65
+        || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Control focused && _hero.IsVisualAncestorOf(focused) && focused.Classes.Contains(":focus-visible");
+    /// <summary>
+    /// The banner's clock started or held, as Windows' <c>UpdateHeroClock</c>: the time already counted kept (a pointer that
+    /// passes does not give the title its 6.5 s again), the bar run by a transition to its end, or held where it is.
+    /// <paramref name="bars"/>: the bars were just made again, their fill to set even when the clock does not change.
+    /// </summary>
+    private void UpdateClock(bool bars = false)
+    {
+        var run = Runs;
+        if (!bars && run == _heroRun.IsRunning && run == _rotate.IsEnabled) return;
+        if (_heroRun.IsRunning) { _heroTime.Advance(_heroRun.Elapsed.TotalSeconds, paused: false); _heroRun.Reset(); }
+        _rotate.Stop();
+        var left = TimeSpan.FromSeconds(Math.Max(.05, _heroTime.Duration - _heroTime.Elapsed));
+        if (run) { _rotate.Interval = left; _rotate.Start(); _heroRun.Start(); }
+        RunFill(run ? left : null);
+    }
+    private static ITransform Fill(double share) => TransformOperations.Parse(FormattableString.Invariant($"scaleX({Math.Clamp(share, 0, 1):0.####})"));
+    /// <summary>The bar of the title shown, where its time is, then run to its end over <paramref name="left"/>.</summary>
+    private void RunFill(TimeSpan? left)
+    {
+        if (_heroFill is not { } fill) return;
+        fill.Transitions = null;
+        fill.RenderTransform = Fill(Turns ? _heroTime.Progress : 1);
+        if (left is not { } time) return;
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (fill != _heroFill || !_heroRun.IsRunning) return;
+            fill.Transitions = [new TransformOperationsTransition { Property = RenderTransformProperty, Duration = time - _heroRun.Elapsed }];
+            fill.RenderTransform = Fill(1);
+        }, TimeSpan.FromMilliseconds(16));
+    }
     private static LinearGradientBrush Gradient(double x1, double y1, double x2, double y2, params (string Color, double Offset)[] stops)
     {
         var brush = new LinearGradientBrush { StartPoint = new RelativePoint(x1, y1, RelativeUnit.Relative), EndPoint = new RelativePoint(x2, y2, RelativeUnit.Relative) };
@@ -184,7 +235,6 @@ public sealed class HomePage : Page
         var heroes = resume.Take(2).Concat(latest.Where(x => x.BackdropImageTags.Length > 0)).DistinctBy(x => ContinueWatching.Group(x)).Take(5).ToList();
         if (heroes.Select(x => x.Id).SequenceEqual(_heroItems.Select(x => x.Id)) && heroes.Count > 0) { _heroItems = heroes; ShowHero(_heroIndex, animate: false); return; }
         _heroItems = heroes; ShowHero(0);
-        _rotate.Stop(); if (Turns && IsShowing) _rotate.Start();
     }
     /// <summary>The latest titles in a grid of posters, 30 more at each « Afficher plus de titres » while Jellyfin has more.</summary>
     private Control LatestGrid(Session session, List<MediaItem> latest)
@@ -291,6 +341,8 @@ public sealed class HomePage : Page
         if (_heroItems.Count == 0) { _heroImage.Source = null; return; }
         _heroIndex = (index % _heroItems.Count + _heroItems.Count) % _heroItems.Count;
         var item = _heroItems[_heroIndex];
+        // Another title: its 6.5 s from the start. The same one drawn again (a refresh of Accueil): its time goes on.
+        if (item.Id != _heroShownId) { _heroShownId = item.Id; _heroTime.Reset(); _heroRun.Reset(); _rotate.Stop(); }
         var version = ++_heroVersion;
         if (animate) _heroImage.Opacity = 0;
         _ = LoadHeroArtAsync(session, item, version);
@@ -322,14 +374,20 @@ public sealed class HomePage : Page
         for (var i = 0; i < _heroItems.Count && _heroItems.Count > 1; i++)
         {
             var target = i;
-            var dot = new Button { Width = 52, Height = 20, Padding = new Thickness(0), Background = Brushes.Transparent, Content = new Border { Height = 8, CornerRadius = new CornerRadius(4), Background = Ui.Brush(i == _heroIndex ? "#F5F5F7" : "#55FFFFFF") } };
+            // Windows' bars (CarouselProgress): those before the title shown full, its own filling with its time, the next ones empty.
+            var fill = new Border { CornerRadius = new CornerRadius(2.5), Background = Ui.Brush("#F5F5F7"), RenderTransformOrigin = new RelativePoint(0, .5, RelativeUnit.Relative), RenderTransform = Fill(i < _heroIndex && Turns || i == _heroIndex ? 1 : 0) };
+            if (i == _heroIndex) _heroFill = fill;
+            var bar = new Grid { Width = 34, Height = 5, IsHitTestVisible = false, Children = { new Border { CornerRadius = new CornerRadius(2.5), Background = Ui.Brush("#73AFAFB8") }, fill } };
+            var dot = new Button { Width = 44, Height = 32, Padding = new Thickness(0), Background = Brushes.Transparent, Content = bar, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
             // The bar alone, no wash or tooltip under the pointer, as on Windows.
             dot.Classes.Add("bare");
             Avalonia.Automation.AutomationProperties.SetName(dot, L($"Afficher « {_heroItems[i].DisplayTitle} »{(i == _heroIndex ? ", affiché" : "")}", $"Show “{_heroItems[i].DisplayTitle}”{(i == _heroIndex ? ", shown" : "")}"));
-            // The pointer is still on the banner: it stays on the title chosen until the pointer leaves it.
-            dot.Click += (_, _) => { ShowHero(target); _rotate.Stop(); if (Turns && !_hero.IsPointerOver) _rotate.Start(); };
+            // The pointer is still on the bars: the title chosen stays until it leaves them.
+            dot.Click += (_, _) => ShowHero(target);
             _dots.Children.Add(dot);
         }
+        if (_heroItems.Count < 2) _heroFill = null;
+        UpdateClock(bars: true);
     }
     private async Task LoadHeroArtAsync(Session session, MediaItem item, int version)
     {
