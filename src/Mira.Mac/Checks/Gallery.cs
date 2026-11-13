@@ -50,7 +50,7 @@ public static class Gallery
             await Until(() => window.Current is BrowsePage { Items.Count: > 0 } page && page.Items.Any(x => string.Equals(x.Name, "Invincible", StringComparison.OrdinalIgnoreCase)), 15);
             window.Open(((BrowsePage)window.Current!).Items.FirstOrDefault(x => string.Equals(x.Name, "Invincible", StringComparison.OrdinalIgnoreCase)) ?? throw new InvalidOperationException("No series named Invincible in the library."));
             if (!await Until(() => window.Current is DetailPage { Episodes.Count: > 0, Missing.Count: > 0 }, 30)) throw new InvalidOperationException("No missing episode of Invincible: is tools/web/fake-tvdb in Jellyfin's plugins?");
-            await Task.Delay(500); ((DetailPage)window.Current!).ShowEpisodesForCheck(); await Shot("mac-missing");
+            await Task.Delay(500); ((DetailPage)window.Current!).ShowEpisodesForCheck(below: 640); await Shot("mac-missing");
             window.Go("settings"); await Shot("mac-settings");
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: Mira signed in to {server} as {user}.");
             exit = 0;
