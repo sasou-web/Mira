@@ -251,7 +251,7 @@ internal sealed class FrameMeter : IDisposable
             var generations = info.GenerationInfo;
             for (var g = 0; g < Math.Min(4, generations.Length); g++)
                 sizes.Append(g == 0 ? "" : ", ").Append(g == 3 ? "LOH" : string.Create(c, $"gen{g}")).Append(string.Create(c, $" {Mb(generations[g].SizeBeforeBytes):0.0}→{Mb(generations[g].SizeAfterBytes):0.0}"));
-            p.Collections.Add(string.Create(c, $"{Kinds[k].Name} gen{info.Generation} vu à {at:0} ms : pause {pause:0.0} ms, {Mb(info.PromotedBytes):0.0} Mo gardés{(info.Compacted ? ", compacté" : "")}, tas {Mb(info.HeapSizeBytes):0} Mo ({sizes} Mo)"));
+            p.Collections.Add(string.Create(c, $"{Kinds[k].Name} gen{info.Generation} vu à {at:0} ms{(info.Index == MainWindow.CollectedAtRest ? " (au repos)" : "")} : pause {pause:0.0} ms, {Mb(info.PromotedBytes):0.0} Mo gardés{(info.Compacted ? ", compacté" : "")}, tas {Mb(info.HeapSizeBytes):0} Mo ({sizes} Mo)"));
         }
         static double Mb(long bytes) => bytes / 1048576d;
     }

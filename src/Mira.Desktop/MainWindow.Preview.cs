@@ -28,7 +28,20 @@ public partial class MainWindow
         LibraryShell.PreviewMouseMove += (_, e) => TrackHoverPointer(e.GetPosition(LibraryShell));
         LibraryShell.MouseLeave += (_, _) => { if (_hoverCard is { } card && !(_keyboardNavigation && card.IsKeyboardFocusWithin)) SetHoverCard(null); };
         _hoverWarm.Tick += (_, _) => { _hoverWarm.Stop(); if (_hoverCard is { } card) _ = WarmItemAsync(card.Item); };
-        _scrollRest.Tick += (_, _) => { if (Environment.TickCount64 - _scrolledAt < ScrollRestMs) return; _scrollRest.Stop(); HoverCardUnderPointer(); };
+        _scrollRest.Tick += (_, _) => { if (Environment.TickCount64 - _scrolledAt < ScrollRestMs) return; _scrollRest.Stop(); CollectAtRest(); HoverCardUnderPointer(); };
+    }
+    /// <summary>The last collection <see cref="CollectAtRest"/> made (its GC index), for the smoothness check to tell it apart.</summary>
+    internal static long CollectedAtRest;
+    /// <summary>
+    /// A collection that is due anyway (less than 30 % of its budget left: GCCollectionMode.Optimized) is made now, the page
+    /// at rest, rather than a few frames into the next scroll, where its pause (9 to 21 ms measured on a 4K 240 Hz screen)
+    /// is a jolt; before the card under the pointer lights up, so it does not hitch its zoom. Never a full blocking one.
+    /// </summary>
+    private static void CollectAtRest()
+    {
+        var before = GC.CollectionCount(0);
+        GC.Collect(0, GCCollectionMode.Optimized, blocking: false);
+        if (GC.CollectionCount(0) != before) CollectedAtRest = GC.GetGCMemoryInfo(GCKind.Ephemeral).Index;
     }
     /// <summary>The page scrolled: what is under the pointer changed without the pointer moving.</summary>
     private void NoteScroll()
