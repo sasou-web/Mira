@@ -1,4 +1,14 @@
 {
+  "0.9.7": {
+    "backdrop": "spider-verse",
+    "items": [
+      { "shot": "mac-settings" },
+      { "shot": "windows-series" },
+      { "shot": "mac-home" },
+      { "platform": "windows" },
+      { "platform": "server" }
+    ]
+  },
   "0.9.6": {
     "backdrop": "your-name",
     "items": [

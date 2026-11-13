@@ -1,5 +1,31 @@
 [
   {
+    "version": "0.9.7", "date": "2026-11-13",
+    "summary": "Réglages en fenêtre, épisodes en grille, fond noir OLED, une centaine de bugs corrigés.",
+    "en": { "summary": "Settings in a window, episodes in a grid, true-black OLED background, about a hundred bugs fixed." },
+    "changes": [
+      { "category": "Réglages", "text": "Réglages et Aide s’ouvrent dans une fenêtre, avec une recherche (Windows, Mac).", "en": { "category": "Settings", "text": "Settings and Help open in a window, with a search (Windows, Mac)." } },
+      { "category": "Séries", "text": "Les épisodes en grille d’images, ceux qui manquent à leur place (tous les écrans).", "en": { "category": "Series", "text": "Episodes in a grid of pictures, missing ones in their place (every screen)." } },
+      { "category": "Apparence", "text": "Fond noir pur partout, boutons sans animation, casting en une rangée.", "en": { "category": "Look", "text": "True-black background everywhere, buttons without animation, cast in one row." } },
+      { "category": "Bibliothèque", "text": "Les filtres s’ouvrent par-dessus la grille, chaque choix en pastille.", "en": { "category": "Library", "text": "Filters open over the grid, each choice shown as a chip." } },
+      { "category": "Lecteur", "text": "Le mini-lecteur se range contre le bord ; un défilement qui s’arrête net.", "en": { "category": "Player", "text": "The mini-player tucks against the edge; scrolling stops dead." } },
+      { "category": "Lecture", "text": "Films en plusieurs fichiers, titres revus et pistes choisies respectés.", "en": { "category": "Playback", "text": "Multi-file films, rewatched titles and chosen tracks are respected." } },
+      { "category": "Fiabilité", "text": "Environ 85 bugs corrigés : copies gardées, session finie, Tailscale, party.", "en": { "category": "Reliability", "text": "About 85 bugs fixed: kept copies, ended sessions, Tailscale, party." } }
+    ],
+    "items": [
+      { "icon": "settings", "title": "Réglages et Aide en fenêtre", "text": "Ils s’ouvrent au centre, l’app floue derrière, avec les catégories à gauche et une recherche qui trouve un réglage partout.",
+        "en": { "title": "Settings and Help in a window", "text": "They open in the centre over a blurred app, categories on the left and a search that finds a setting anywhere." } },
+      { "icon": "series", "title": "Les épisodes en grille", "text": "Une grille d’images remplace la liste ; les épisodes manquants ou à venir sont des cases vides à leur place, plus un bandeau d’alerte.",
+        "en": { "title": "Episodes in a grid", "text": "A grid of pictures replaces the list; missing and coming episodes are empty tiles in their place, no more warning banner." } },
+      { "icon": "sparkle", "title": "Noir total, boutons immobiles", "text": "Le fond passe au noir pur pour les écrans OLED, et le survol des boutons s’affiche d’un coup, sans animation.",
+        "en": { "title": "True black, still buttons", "text": "The background goes pure black for OLED screens, and button hover shows at once, without animation." } },
+      { "icon": "pip", "title": "Un mini-lecteur rangé au bord", "text": "Il se range contre le bord droit et sort quand le pointeur s’y pose ; le défilement s’arrête net sous Windows.",
+        "en": { "title": "A mini-player tucked at the edge", "text": "It tucks against the right edge and slides out when the pointer rests on it; scrolling stops dead on Windows." } },
+      { "icon": "check", "title": "Environ 85 bugs de moins", "text": "Copies gardées, session finie, films en plusieurs fichiers, revisionnages, Tailscale, party : une longue chasse aux défauts cachés.",
+        "en": { "title": "About 85 fewer bugs", "text": "Kept copies, ended sessions, multi-file films, rewatches, Tailscale, party: a long hunt for hidden defects." } }
+    ]
+  },
+  {
     "version": "0.9.6", "date": "2026-11-10",
     "summary": "Le Mac s’éteint sans accroc, Jellyfin sans extension, lecteur plus sûr, 30 langues.",
     "en": { "summary": "The Mac shuts down cleanly, Jellyfin without the extension, a safer player, 30 languages." },
