@@ -326,7 +326,8 @@ public sealed class HomePage : Page
             // The bar alone, no wash or tooltip under the pointer, as on Windows.
             dot.Classes.Add("bare");
             Avalonia.Automation.AutomationProperties.SetName(dot, L($"Afficher « {_heroItems[i].DisplayTitle} »{(i == _heroIndex ? ", affiché" : "")}", $"Show “{_heroItems[i].DisplayTitle}”{(i == _heroIndex ? ", shown" : "")}"));
-            dot.Click += (_, _) => { ShowHero(target); _rotate.Stop(); if (Turns) _rotate.Start(); };
+            // The pointer is still on the banner: it stays on the title chosen until the pointer leaves it.
+            dot.Click += (_, _) => { ShowHero(target); _rotate.Stop(); if (Turns && !_hero.IsPointerOver) _rotate.Start(); };
             _dots.Children.Add(dot);
         }
     }

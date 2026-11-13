@@ -76,6 +76,7 @@ public partial class MainWindow
             await Until("Home", () => !_catalog.Loading && _catalog.Items.Count > 0, 30);
             Require(_homeLibraries.Count >= 3 && _catalog.Items.Count >= 4, $"Home shows the server's titles ({_catalog.Items.Count}) and libraries ({string.Join(", ", _homeLibraries.Select(x => x.Name))})");
             await Shot("server-home");
+            step = "the home banner"; await CheckCarouselAsync(checks, Require);
 
             // The test films, by their folder: Jellyfin may name them after what it finds on the Internet.
             async Task<MediaItem?> FindFilm(string folder)

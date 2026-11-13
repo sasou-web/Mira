@@ -120,21 +120,31 @@ public static class Motion
     public static CornerRadius GetRadius(DependencyObject value) => (CornerRadius)value.GetValue(RadiusProperty);
     public static void SetRadius(DependencyObject value, CornerRadius radius) => value.SetValue(RadiusProperty, radius);
     public const double HoverWash = .11, PressWash = .19;
+    /// <summary>Its pointer handlers in place: added once, whatever turns <see cref="InteractiveProperty"/> on and off.</summary>
+    private static readonly DependencyProperty WiredProperty = DependencyProperty.RegisterAttached("Wired", typeof(bool), typeof(Motion), new PropertyMetadata(false));
     /// <summary>
     /// The default template's wash, set at once: buttons stay still, no fade, no scale (ogsas, 2026-11-12: an animated
     /// hover looked neither smooth nor good). Pressed is a little darker than hovered.
     /// </summary>
+    /// <remarks>
+    /// Read at each event, not only when it is set: the default style sets it true as soon as a button gets its style, so a
+    /// button turned off afterwards (<c>SetInteractive(button, false)</c> after <c>Style = …</c>, the carousel's bars) kept
+    /// the handlers and showed the wash anyway (0.9.7).
+    /// </remarks>
     private static void InteractiveChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
     {
-        if (sender is not Button button || e.NewValue is not true || button is MediaCard) return;
+        if (sender is not Button button || button is MediaCard) return;
+        if (e.NewValue is not true) { if ((bool)button.GetValue(WiredProperty)) Wash(button, 0); return; }
+        if ((bool)button.GetValue(WiredProperty)) return;
+        button.SetValue(WiredProperty, true);
         // Lit by the pointer: only then is there something to put out when the button goes.
         var lifted = false;
         void To(double wash)
         {
+            if (!GetInteractive(button)) wash = 0;
             if (!lifted && wash == 0) return;
             lifted = wash > 0;
-            button.ApplyTemplate();
-            if (button.Template?.FindName("Hover", button) is UIElement layer) { layer.BeginAnimation(UIElement.OpacityProperty, null); layer.Opacity = wash; }
+            Wash(button, wash);
         }
         button.MouseEnter += (_, _) => To(HoverWash);
         button.MouseLeave += (_, _) => To(0);
@@ -143,6 +153,11 @@ public static class Motion
         // A button hidden or disabled under the pointer must not keep its highlight.
         button.IsVisibleChanged += (_, _) => { if (!button.IsVisible) To(0); };
         button.IsEnabledChanged += (_, _) => { if (!button.IsEnabled) To(0); };
+    }
+    private static void Wash(Button button, double wash)
+    {
+        button.ApplyTemplate();
+        if (button.Template?.FindName("Hover", button) is UIElement layer) { layer.BeginAnimation(UIElement.OpacityProperty, null); layer.Opacity = wash; }
     }
 
     /// <summary>Changes a glyph at once: a state change on a button does not animate.</summary>
