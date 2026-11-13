@@ -31,8 +31,24 @@ enum OpeningPlan {
     /// No way found yet for a reason that may last a moment only (WayPlan.Hint.sure: away from home, Tailscale's network
     /// still coming in, its app's VPN starting on demand): the way looks again meanwhile, Home says why after this.
     static let unsure: TimeInterval = 8
+    /// Home failed while a way to Jellyfin may still come (HomeView): asked again after this.
+    static let again: TimeInterval = 2
     /// A line under the mark says what Mira waits for after this.
     static let status: TimeInterval = 2
+
+    /// Home failed on the way to Jellyfin (`way`: the way taken, nil while none; `hint`: why none, nil while looked
+    /// for), and a way may still come: none found yet for a reason that may pass (WayPlan.Hint.sure), or through
+    /// Tailscale (Built-in Tailscale, or its app), where a way just found may fail a moment while its network comes in
+    /// (cellular: a way taken, a request cut, the way looked for again and no reason said meanwhile). Mira's opening
+    /// then goes on, Home asked again (`again`); any other failure is said at once.
+    static func mayComeBack(_ error: JellyfinError, way: WayPlan.Kind?, hint: WayPlan.Hint?, builtIn: Bool) -> Bool {
+        switch error {
+        case .unreachable, .timeout, .tailscale: break
+        default: return false
+        }
+        if way == nil, let hint { return !hint.sure }
+        return builtIn || way == .tailscaleApp
+    }
 
     enum Decision: Equatable {
         case leave
