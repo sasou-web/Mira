@@ -452,7 +452,7 @@ public partial class MainWindow
             if (last is MediaCard gone) _cardShelf.Put(gone);
         }
         if (made > 0) FrameProbe.Mark($"{made} new card{(made > 1 ? "s" : "")} in {panel.Name}");
-        NoteScroll();
+        RefreshHover();
         if (panel == PosterCards) ScheduleVisibleArtwork();
     }
     private bool _artworkScheduled;
