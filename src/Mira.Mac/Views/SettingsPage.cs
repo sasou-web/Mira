@@ -9,12 +9,13 @@ using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
-/// <summary>Réglages: the account, playback, languages and subtitles, and the version of Mira and its updates.</summary>
+/// <summary>
+/// Réglages and Aide: the account, playback, languages and subtitles, the version of Mira and its updates; the keyboard's
+/// shortcuts and where to find help. A window over the page shown (SettingsPage.Tabs.cs, MainWindow.Sheet.cs).
+/// </summary>
 public sealed partial class SettingsPage : Page
 {
     public override string Rail => "settings";
-    /// <summary>Again while shown: the tab a notice asked for (<see cref="OpenAt"/>), else this one back to its top, nothing filled again.</summary>
-    public override void ShowAgain() { if (_lastTab != CurrentTab) Show(_lastTab); else GlideUp.Start(_tabScroll); }
     // Built with the page: the language is set once Mira opens. This Mac's language first, then by name (TrackLanguages).
     private static (string Label, string Value)[] TrackChoices => [.. TrackLanguages.Choices().Select(x => (x.Name, x.Two))];
     /// <summary>What the languages' lists show of an order: its language, else the order itself (« Personnalisé : … »).</summary>
@@ -22,7 +23,8 @@ public sealed partial class SettingsPage : Page
     /// <summary>A language chosen in a list, as its order; the custom entry keeps its order as it is.</summary>
     private static string Order(string chosen, Func<string, string> compose) => TrackLanguages.Known.Any(x => x.Two == chosen) ? compose(chosen) : chosen;
 
-    public SettingsPage(MainWindow shell) : base(shell)
+    /// <param name="help">Opened on Aide, on this topic (« keys »); null: on Réglages.</param>
+    public SettingsPage(MainWindow shell, string? help = null) : base(shell, underRail: true)
     {
         var settings = shell.Settings;
         StackPanel Tab(string key) => _tabs[key];
@@ -134,7 +136,7 @@ public sealed partial class SettingsPage : Page
         Tab("care").Children.Add(Fix.Section);
         // « Sous-titres automatiques »: the extension's search and alignment of subtitles, for an administrator.
         Tab("care").Children.Add(new AutoSubtitlesSection(shell, Section).Section);
-        Content = Layout(shell);
+        Content = Layout(shell, help);
     }
     /// <summary>« Tailscale intégré », its node and the way to Jellyfin.</summary>
     public TailnetSection Tailnet { get; }
@@ -397,7 +399,8 @@ public sealed partial class SettingsPage : Page
         if (folders.Count > 0 && Avalonia.Platform.Storage.StorageProviderExtensions.TryGetLocalPath(folders[0]) is { } path) Shell.ChooseOfflineFolder(path);
     }
     /// <summary>A setting's card, as Windows' <c>SettingRow</c>: the surface, rounded by 7, 22 by 21 inside.</summary>
-    private static Border Card(Control child) => new() { Background = Ui.Brush("#111112"), CornerRadius = new CornerRadius(7), Padding = new Thickness(22, 21), Child = child };
+    /// <summary>A setting's card, a shade lighter than the window it sits in, as on Windows; found by the search by its class.</summary>
+    private static Border Card(Control child) => new() { Background = Ui.Brush("#181818"), CornerRadius = new CornerRadius(11), Padding = new Thickness(22, 21), Child = child, Classes = { "setting" } };
     /// <summary>A card's title, as Windows': the window's size, semibold.</summary>
     private static TextBlock CardTitle(string text) => new() { Text = text, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     /// <summary>What a setting does, as Windows' <c>SettingDescription</c>: one quiet line under its title.</summary>
@@ -410,13 +413,13 @@ public sealed partial class SettingsPage : Page
     {
         var list = new StackPanel { Spacing = 10 };
         if (title is not null && rows.Length == 1) { list.Children.Add(Card(Ui.Column(14, CardTitle(title), rows[0]))); return list; }
-        if (title is not null) list.Children.Add(new TextBlock { Text = title, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(4, 14, 0, 0) });
+        if (title is not null) list.Children.Add(new TextBlock { Text = title, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(4, 14, 0, 0), Classes = { "label" } });
         foreach (var row in rows) list.Children.Add(Card(row));
         return list;
     }
-    private readonly List<Action<bool>> _folds = [];
+    private readonly List<(Action<bool> Fold, Control Inside, Control Header)> _folds = [];
     /// <summary>For the self-check: every « Réglages avancés » unfolded, for its captures.</summary>
-    public void UnfoldAdvanced() { foreach (var fold in _folds) fold(true); }
+    public void UnfoldAdvanced() { foreach (var (fold, _, _) in _folds) fold(true); }
     /// <summary>
     /// « Réglages avancés », as Windows' expander: folded at first, a chevron and its words; its settings on their cards
     /// under it once unfolded.
@@ -438,7 +441,7 @@ public sealed partial class SettingsPage : Page
             Avalonia.Automation.AutomationProperties.SetHelpText(header, open ? L("Déplié", "Expanded") : L("Replié", "Collapsed"));
         }
         header.Click += (_, _) => Fold(!inside.IsVisible);
-        Fold(false); _folds.Add(Fold);
+        Fold(false); _folds.Add((Fold, inside, header));
         return Ui.Column(0, header, inside);
     }
     /// <summary>The photo, « Choisir une photo… » and « Retirer »; what Jellyfin answered said below them.</summary>

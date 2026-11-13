@@ -50,7 +50,7 @@ public sealed partial class MainWindow
         // The menu macOS names Help (it adds its search field to it): the guide, the shortcuts, a report for a problem.
         var help = Menu(L("Aide", "Help"),
             Item(L("Guide de Mira pour Mac", "Mira for Mac Guide"), null, () => Updates.Open(Guide)),
-            Item(L("Raccourcis clavier", "Keyboard Shortcuts"), new KeyGesture(Key.OemQuestion, command), () => { Reopen(); ShowShortcuts(); }),
+            Item(L("Raccourcis clavier", "Keyboard Shortcuts"), new KeyGesture(Key.OemQuestion, command), () => { Reopen(); OpenSheet("keys"); }),
             Item(L("Nouveautés de Mira", "What’s New in Mira"), null, () => { Reopen(); ShowWhatsNew(Mira.Core.WhatsNew.Recent(Updates.Current)); }),
             null,
             Item(L("Exporter un rapport…", "Export a Report…"), null, () => { Reopen(); _ = ExportReportAsync(); }));

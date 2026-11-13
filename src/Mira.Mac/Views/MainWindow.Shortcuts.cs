@@ -7,12 +7,12 @@ using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
-// Aide → « Raccourcis clavier » (⌘/): the keys Mira reads on a Mac, as the Windows guide lists its own, keycaps beside
+// Aide → « Raccourcis clavier » (⌘/, in Aide's window: SettingsPage.Tabs.cs): the keys Mira reads on a Mac, as the Windows guide lists its own, keycaps beside
 // what they do. Kept with the keys themselves: OnKeyDown (MainWindow.cs), the menu bar (MainWindow.Menu.cs), the player
 // (PlayerPage.Keys.cs), the zoom of the posters (MainWindow.Trackpad.cs).
 public sealed partial class MainWindow
 {
-    /// <summary>The shortcuts by group, each its keys then what it does: for the sheet and the self-check.</summary>
+    /// <summary>The shortcuts by group, each its keys then what it does: for Aide and the self-check.</summary>
     public static IReadOnlyList<(string Group, IReadOnlyList<(string[] Keys, string Text)> Lines)> Shortcuts =>
     [
         (L("Partout", "Everywhere"),
@@ -50,23 +50,7 @@ public sealed partial class MainWindow
         ]),
     ];
 
-    /// <summary>The sheet of the shortcuts, two columns of keycaps; Escape or « Fermer » closes it.</summary>
-    public void ShowShortcuts()
-    {
-        if (CurrentSheet is { Tag: "shortcuts" }) return;
-        var sheet = new Sheet(L("AIDE", "HELP"), "info", L("Raccourcis clavier", "Keyboard shortcuts"), width: 760) { Tag = "shortcuts" };
-        foreach (var (group, lines) in Shortcuts)
-        {
-            sheet.Body.Children.Add(new TextBlock { Text = group, FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextTertiary, Margin = new Thickness(0, 18, 0, 10) });
-            var grid = new UniformGrid { Columns = 2 };
-            foreach (var (keys, text) in lines) grid.Children.Add(ShortcutLine(keys, text));
-            sheet.Body.Children.Add(grid);
-        }
-        sheet.CloseButton(() => CloseSheet(sheet));
-        sheet.FirstFocus = sheet.Body.Children.OfType<Button>().LastOrDefault();
-        ShowSheet(sheet);
-    }
-    private static Control ShortcutLine(string[] keys, string text)
+    internal static Control ShortcutLine(string[] keys, string text)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Margin = new Thickness(0, 0, 12, 9) };
         foreach (var key in keys)

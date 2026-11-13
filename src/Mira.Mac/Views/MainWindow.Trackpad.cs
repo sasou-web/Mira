@@ -64,7 +64,7 @@ public sealed partial class MainWindow
     /// <summary>The page left by <see cref="Back"/>, shown again (⌘], a swipe the other way).</summary>
     public bool Forward()
     {
-        if (Watching || _forward.Count == 0) return false;
+        if (Watching || _forward.Count == 0 || Current is SettingsPage) return false;
         var next = _forward[^1]; _forward.RemoveAt(_forward.Count - 1);
         if (Current is { } current) _history.Add(current);
         Host(next); Light(next.Rail);
@@ -72,7 +72,7 @@ public sealed partial class MainWindow
         return true;
     }
     /// <summary>For the gestures and the self-check: a page to go back (-1) or forward (1) to.</summary>
-    public bool CanGo(int way) => !Watching && (way < 0 ? _history.Count > 0 : _forward.Count > 0);
+    public bool CanGo(int way) => !Watching && Current is not SettingsPage && (way < 0 ? _history.Count > 0 : _forward.Count > 0);
     /// <summary>
     /// The way the trackpad's gesture goes, once its first points of travel decided it (until then
     /// <see cref="SwipeAxis.Undecided"/>): a row of cards takes a gesture sideways whole, and leaves the page one up or
