@@ -77,12 +77,17 @@ struct TimelineTests {
                 guard case let .array(x) = c, let start = x[0].number else { return nil }
                 return Chapter(name: x[1].string, startPositionTicks: ticks(start))
             }
-            let found = Timeline.chapterPassages(list, totalTicks: ticks(duration))
-            let wanted = expected.compactMap { p -> Passage? in
-                guard case let .array(x) = p, let type = x[0].string, let start = x[1].number, let end = x[2].number else { return nil }
-                return Passage(type: type, start: start, end: end)
+            func passages(_ rows: [JSONValue]) -> [Passage] {
+                rows.compactMap { p -> Passage? in
+                    guard case let .array(x) = p, let type = x[0].string, let start = x[1].number, let end = x[2].number else { return nil }
+                    return Passage(type: type, start: start, end: end)
+                }
             }
-            #expect(found == wanted)
+            var server: [Passage] = []
+            if case let .array(given)? = e["server"] { server = passages(given) }
+            let found = Timeline.passages(server, chapters: list, totalTicks: ticks(duration))
+            #expect(found == passages(expected))
+            if server.isEmpty { #expect(Timeline.chapterPassages(list, totalTicks: ticks(duration)) == found) }
         }
         #expect(Timeline.chapterPassages(nil, totalTicks: ticks(100)).isEmpty)
         // Without the title's length, the last chapter has no end.

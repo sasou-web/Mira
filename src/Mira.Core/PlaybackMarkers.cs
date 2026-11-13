@@ -32,7 +32,11 @@ public static class PlaybackMarkers
     private const RegexOptions Options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
     private static readonly Regex Recap = new(@"\b(recap|recapitulatif|previously|precedemment|resume de l.episode precedent)\b", Options);
     private static readonly Regex Preview = new(@"\b(preview|next episode|prochain episode|apercu|bande annonce|yokoku)\b", Options);
-    private static readonly Regex Intro = new(@"\b(opening|intro|introduction|ouverture|theme song|op\s?\d{0,2}|generique (de )?(debut|d.ouverture))\b", Options);
+    // An opening by its name. « Intro » alone is weaker: many releases call the cold open « Intro » and the theme « OP ».
+    private static readonly Regex Opening = new(@"\b(opening|ouverture|theme song|op\s?\d{0,2}|generique (de )?(debut|d.ouverture))\b", Options);
+    private static readonly Regex IntroWord = new(@"\b(intro|introduction)\b", Options);
+    // The cold open, before the opening: part of the story, never skipped (« Avant-générique », « Pre-OP », « Prologue »).
+    private static readonly Regex ColdOpen = new(@"\b(cold open|prologue|avant generique|(pre|before|avant)\s*(l.|le\s+|the\s+)?(opening|op|intro|generique))\b", Options);
     private static readonly Regex Outro = new(@"\b(ending|outro|credits|end credits|ed\s?\d{0,2}|generique (de )?fin)\b", Options);
     private static readonly Regex Generic = new(@"\bgenerique\b", Options);
 
@@ -48,18 +52,27 @@ public static class PlaybackMarkers
         chapters.Select(c => new ChapterMark(Seconds(c.StartPositionTicks), c.Name)).Where(c => c.Start >= 0).OrderBy(c => c.Start).ToList();
 
     /// <summary>Anime and film releases often name their chapters: "Opening", "ED", "Générique de fin"…</summary>
-    public static List<SkipSegment> FromChapters(IReadOnlyList<ChapterMark> chapters, double duration)
+    public static List<SkipSegment> FromChapters(IReadOnlyList<ChapterMark> chapters, double duration) =>
+        Read(chapters, duration).Where(c => c.Kind is not null && !c.Cold).Select(c => new SkipSegment(c.Kind!.Value, c.Start, c.End)).ToList();
+    /// <summary>
+    /// The chapters with an end, their kind and whether they are the cold open: a title that says so (« Avant-générique »,
+    /// « Pre-OP », « Prologue »), or an « Intro » that a chapter named as the opening follows (« Intro », « OP », « Part A »:
+    /// the cold open, then the theme). A lone « Intro » stays the opening.
+    /// </summary>
+    private static List<(double Start, double End, SkipKind? Kind, bool Cold)> Read(IReadOnlyList<ChapterMark> chapters, double duration)
     {
         var ordered = chapters.Where(c => double.IsFinite(c.Start) && c.Start >= 0).OrderBy(c => c.Start).ToList();
-        var result = new List<SkipSegment>();
+        var result = new List<(double Start, double End, SkipKind? Kind, bool Cold)>();
         for (var i = 0; i < ordered.Count; i++)
         {
             var start = ordered[i].Start;
             var end = i + 1 < ordered.Count ? ordered[i + 1].Start : duration;
             if (!double.IsFinite(end) || end - start < MinimumLength) continue;
-            if (Classify(ordered[i].Title, start, duration) is not { } kind) continue;
-            if (kind is not SkipKind.Outro && end - start > MaximumShortPassage) continue;
-            result.Add(new(kind, start, end));
+            var kind = Classify(ordered[i].Title, start, duration);
+            if (kind is not (null or SkipKind.Outro) && end - start > MaximumShortPassage) kind = null;
+            var cold = IsColdOpen(ordered[i].Title)
+                || kind is SkipKind.Intro && IsBareIntro(ordered[i].Title) && ordered.Skip(i + 1).Any(c => Classify(c.Title, c.Start, duration) is SkipKind.Intro && !IsBareIntro(c.Title));
+            result.Add((start, end, kind, cold));
         }
         return result;
     }
@@ -69,17 +82,42 @@ public static class PlaybackMarkers
         var text = Plain(title);
         if (Recap.IsMatch(text)) return SkipKind.Recap;
         if (Preview.IsMatch(text)) return SkipKind.Preview;
-        if (Intro.IsMatch(text)) return SkipKind.Intro;
+        if (ColdOpen.IsMatch(text)) return null;
+        if (Opening.IsMatch(text) || IntroWord.IsMatch(text)) return SkipKind.Intro;
         if (Outro.IsMatch(text)) return SkipKind.Outro;
         // A bare "Générique" is the opening near the start and the credits near the end.
-        // "Avant-générique" is the cold open: part of the story, never skipped.
-        if (Generic.IsMatch(text) && !text.Contains("avant generique")) return duration > 0 && start > duration / 2 ? SkipKind.Outro : SkipKind.Intro;
+        if (Generic.IsMatch(text)) return duration > 0 && start > duration / 2 ? SkipKind.Outro : SkipKind.Intro;
         return null;
+    }
+    private static bool IsColdOpen(string? title) => !string.IsNullOrWhiteSpace(title) && ColdOpen.IsMatch(Plain(title));
+    /// <summary>« Intro » or « Introduction » without a word that names the opening itself.</summary>
+    private static bool IsBareIntro(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return false;
+        var text = Plain(title);
+        return IntroWord.IsMatch(text) && !Opening.IsMatch(text) && !Generic.IsMatch(text);
     }
     /// <summary>Server segments are authoritative; chapter guesses only fill kinds and times the server left empty.</summary>
     public static List<SkipSegment> Merge(IReadOnlyList<SkipSegment> server, IReadOnlyList<SkipSegment> chapters) => server
         .Concat(chapters.Where(c => server.All(s => s.Kind != c.Kind && (c.End <= s.Start || c.Start >= s.End))))
         .OrderBy(s => s.Start).ToList();
+    /// <summary>
+    /// The passages of a title: Jellyfin's segments, then the chapters' (<see cref="Merge"/>). One exception: a server
+    /// opening that is the chapters' cold open while they name the opening elsewhere. A segment provider that reads
+    /// chapter names (Intro Skipper's chapter analysis, Chapter Segments Provider) takes « Intro » for the opening, and
+    /// the button would offer to skip the start of the episode; the chapters' opening replaces it.
+    /// </summary>
+    public static List<SkipSegment> Passages(IReadOnlyList<SkipSegment> server, IReadOnlyList<ChapterMark> chapters, double duration)
+    {
+        var read = Read(chapters, duration);
+        var openings = read.Where(c => c.Kind is SkipKind.Intro && !c.Cold).ToList();
+        var cold = read.Where(c => c.Cold).ToList();
+        static double Overlap(double a, double b, double c, double d) => Math.Max(0, Math.Min(b, d) - Math.Max(a, c));
+        var kept = openings.Count == 0 ? server : server.Where(s => s.Kind is not SkipKind.Intro
+            || openings.Any(o => Overlap(s.Start, s.End, o.Start, o.End) > 0)
+            || !cold.Any(c => Overlap(s.Start, s.End, c.Start, c.End) >= .8 * (s.End - s.Start))).ToList();
+        return Merge(kept, FromChapters(chapters, duration));
+    }
     /// <summary>The passage under the playhead. The last second is excluded so the button leaves cleanly.</summary>
     public static SkipSegment? Active(IReadOnlyList<SkipSegment> segments, double position)
     {

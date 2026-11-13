@@ -49,7 +49,7 @@ Touche l’image pour afficher les commandes. Double toucher sur un côté pour 
 
 ## Intros, génériques et épisode suivant
 
-Les boutons **Passer l’intro**, **Passer le générique** et **Passer le récap** viennent des segments de Jellyfin (Jellyfin 10.10 ou plus récent, du serveur ou d’une extension comme Intro Skipper) ou des noms de chapitres du fichier. Avec **Réglages → Lecture → Passer les intros et les récaps**, Mira les passe sans demander, une fois chacun : revenir dedans les rejoue.
+Les boutons **Passer l’intro**, **Passer le générique** et **Passer le récap** viennent des segments de Jellyfin (Jellyfin 10.10 ou plus récent, du serveur ou d’une extension comme Intro Skipper) ou des noms de chapitres du fichier. Un chapitre « Intro » suivi d’un chapitre nommé comme l’opening (« Opening », « OP ») est l’avant-générique, qui fait partie de l’épisode : aucun bouton dessus. Avec **Réglages → Lecture → Passer les intros et les récaps**, Mira les passe sans demander, une fois chacun : revenir dedans les rejoue.
 
 **Épisode suivant** apparaît pendant le générique de fin ou dans les 20 dernières secondes. Avec **Enchaîner les épisodes**, un compte à rebours de 10 secondes démarre ; **Annuler** reste sur cet épisode.
 

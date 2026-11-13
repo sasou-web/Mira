@@ -861,10 +861,13 @@ internal static class PlayerTests
             }
             foreach (var episode in fixture.RootElement.GetProperty("episodes").EnumerateArray())
             {
+                static List<SkipSegment> Segments(JsonElement list) => list.EnumerateArray().Select(p => new SkipSegment(Enum.Parse<SkipKind>(Text(p[0])!), p[1].GetDouble(), p[2].GetDouble())).ToList();
                 var chapters = episode.GetProperty("chapters").EnumerateArray().Select(c => new ChapterMark(c[0].GetDouble(), Text(c[1]))).ToList();
-                var found = PlaybackMarkers.FromChapters(chapters, episode.GetProperty("duration").GetDouble());
-                var expected = episode.GetProperty("passages").EnumerateArray().Select(p => new SkipSegment(Enum.Parse<SkipKind>(Text(p[0])!), p[1].GetDouble(), p[2].GetDouble()));
-                Assert(found.SequenceEqual(expected), "Passages : " + string.Join(", ", found));
+                var duration = episode.GetProperty("duration").GetDouble();
+                var server = episode.TryGetProperty("server", out var given) ? Segments(given) : [];
+                var found = PlaybackMarkers.Passages(server, chapters, duration);
+                Assert(found.SequenceEqual(Segments(episode.GetProperty("passages"))), "Passages : " + string.Join(", ", found));
+                if (server.Count == 0) Assert(PlaybackMarkers.FromChapters(chapters, duration).SequenceEqual(found), "Chapters alone: " + string.Join(", ", found));
             }
             return Task.CompletedTask;
         });

@@ -39,8 +39,8 @@ public sealed class SkipPlanner
         ServerSegments = []; Segments = []; FileChapters = []; ServerChapters = [];
         Active = null; Next = null; Film = null; ToNext = false; CountdownEnd = null; Stay = false; AutoSkipped.Clear();
     }
-    /// <summary>Typed server segments win; chapter titles only fill what the server left empty.</summary>
-    public void Rebuild(double duration) => Segments = PlaybackMarkers.Merge(ServerSegments, PlaybackMarkers.FromChapters(Chapters, duration));
+    /// <summary>Typed server segments win; chapter titles only fill what the server left empty (see <see cref="PlaybackMarkers.Passages"/>).</summary>
+    public void Rebuild(double duration) => Segments = PlaybackMarkers.Passages(ServerSegments, Chapters, duration);
     /// <summary>
     /// The opening or recap to jump over at <paramref name="position"/>, with « Passer les intros et les récaps »: once
     /// each (see <see cref="PlaybackMarkers.AutoSkip"/>), so it counts as jumped from here.
