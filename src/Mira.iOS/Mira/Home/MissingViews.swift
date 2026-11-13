@@ -455,7 +455,9 @@ enum MissingLibraries {
     }
 
     static func isAnime(_ series: Item, client: JellyfinClient) async -> Bool {
-        guard let path = series.path ?? (try? await client.item(series.id))?.path,
+        var known = series.path
+        if known == nil { known = (try? await client.item(series.id))?.path }
+        guard let path = known,
               let folders = try? await client.get("Library/VirtualFolders", as: [Folder].self) else { return false }
         guard let library = folders.first(where: { ($0.locations ?? []).contains { inside(path, $0) } }) else { return false }
         return animeWords(library.name ?? "") || (library.locations ?? []).contains { location in
