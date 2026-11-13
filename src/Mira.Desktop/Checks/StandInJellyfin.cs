@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using Mira.Core;
 
@@ -267,7 +266,18 @@ internal sealed partial class StandInJellyfin : HttpMessageHandler
             : new { Items = list.Select((x, i) => new { x.Id, x.Name, x.Type, CollectionType = views[i] }), TotalRecordCount = list.Count };
         return Json(body);
     }
-    private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
+    /// <summary>Written as UTF-8 at once, as Jellyfin sends it: no text in between for Mira's collections to count.</summary>
+    private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK) { Content = new ByteArrayContent(JsonSerializer.SerializeToUtf8Bytes(value)) { Headers = { ContentType = new("application/json") { CharSet = "utf-8" } } } };
+    /// <summary>
+    /// A picture's bytes as the check keeps them for its whole run, outside the generations the collector moves (pinned
+    /// object heap): Jellyfin keeps its pictures on its own disk, in its own process. Among Mira's own young objects,
+    /// each new one was more for Mira's next collection to keep and move, which a real server never costs it.
+    /// </summary>
+    private static byte[] Kept(ReadOnlySpan<byte> bytes)
+    {
+        var kept = GC.AllocateUninitializedArray<byte>(bytes.Length, pinned: true);
+        bytes.CopyTo(kept); return kept;
+    }
 
     /// <summary>
     /// A picture as a real one weighs: a tone per title, light and shapes across it, a grain that JPEG must keep (a flat
