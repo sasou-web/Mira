@@ -124,7 +124,9 @@ public sealed partial class DetailPage : Page
     {
         if (Shell.Session is not { } session) return;
         session.Forget();
+        var started = DateTimeOffset.UtcNow;
         var full = await session.ItemAsync(_item.Id);
+        Shell.Reached(started);
         await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress([full])));
         _item = full;
         if (_backdrop.Source is null) _ = LoadArtAsync(session);

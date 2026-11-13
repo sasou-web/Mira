@@ -193,6 +193,38 @@ public static class SelfCheck
                         $"compté {counted:0.00} s, tenu {held} ({heldAt:0.00} → {kept:0.00} s), reparti {turnsAgain}, {turning.HeroBars.Bars} barres pour {turning.HeroBars.Titles} titres");
                 }
             }
+            // Jellyfin no longer answering, as on Windows: said once, « Hors connexion » with « Réessayer » until it answers,
+            // the list it last gave shown on a page opened meanwhile, then « Jellyfin répond de nouveau. ».
+            if (mock is not null)
+            {
+                var listedPage = new BrowsePage(window, BrowseKind.Movies);
+                await window.NavigateAsync(listedPage);
+                var listedCount = await Until(() => listedPage.Items.Count > 0, 10) ? listedPage.Items.Count : 0;
+                window.Go("home"); await Until(() => window.Current is HomePage, 3);
+                window.HideNotice();
+                mock.Unreachable = true;
+                await window.RefreshPagesAsync(fromServer: true);
+                var saidFirst = window.NoticeText ?? ""; var badgeFirst = window.OfflineBadgeText;
+                window.HideNotice();
+                var keptPage = new BrowsePage(window, BrowseKind.Movies);
+                await window.NavigateAsync(keptPage);
+                await Until(() => keptPage.Items.Count > 0, 5);
+                var saidAgain = window.NoticeText; var keptCount = keptPage.Items.Count; var badgeLater = window.OfflineBadgeText;
+                await Task.Delay(400); Capture(window, output, "03d-offline");
+                await window.RetryForCheck();
+                var stillSaid = window.NoticeText ?? "";
+                window.HideNotice();
+                mock.Unreachable = false;
+                await window.RetryForCheck();
+                var backSaid = window.NoticeText ?? ""; var badgeGone = window.OfflineBadgeText is null;
+                var offlineWords = Lang.L("Hors connexion · cache local", "Offline · local cache");
+                Check(listedCount > 0 && saidFirst.EndsWith(Lang.L(" Les informations déjà chargées restent disponibles.", " What’s already loaded stays available.")) && badgeFirst == offlineWords
+                    && saidAgain is null && keptCount == listedCount && badgeLater == offlineWords && stillSaid.StartsWith(Lang.L("Jellyfin ne répond toujours pas", "Jellyfin still isn’t answering"))
+                    && backSaid == Lang.L("Jellyfin répond de nouveau.", "Jellyfin is answering again.") && badgeGone,
+                    "Jellyfin injoignable : dit une fois, « Hors connexion » jusqu’à sa réponse, la liste gardée montrée",
+                    $"{listedCount} films · « {saidFirst} » · pastille « {badgeFirst} » · ensuite « {saidAgain} », {keptCount} films, « {badgeLater} » · Réessayer « {stillSaid} » · de retour « {backSaid} », pastille partie {badgeGone}");
+                window.HideNotice(); window.Go("home"); await Until(() => window.Current is HomePage, 3);
+            }
             // A row's arrows only when it goes past the window, and a press glides about three posters along, not a page.
             Check(home.GetVisualDescendants().OfType<CardRow>().All(x => x.GetVisualDescendants().OfType<ScrollViewer>().First() is var s && x.ArrowsShown == s.Extent.Width > s.Viewport.Width + 1), "accueil : flèches des rangées seulement si elles débordent");
             var row = new CardRow("Contrôle", Enumerable.Range(0, 24).Select(_ => (Control)new Border { Width = 176, Height = 40 }));

@@ -23,6 +23,8 @@ public static class Ui
     public static readonly IBrush Dim = Brush("#757575");
     /// <summary>The glyph of a poster without artwork, as on Windows (MediaCard): decorative, never text.</summary>
     public static readonly IBrush Glyph = Brush("#4E4E57");
+    /// <summary>States, as Windows' palette: a line that went well, and one that warns (« Hors connexion »).</summary>
+    public static readonly IBrush Success = Brush("#86C6A2"), Warning = Brush("#D5B787"), WarningText = Brush("#E9DCC3");
     public static SolidColorBrush Brush(string color) => new(Color.Parse(color));
     /// <summary>When the wheel or the trackpad last scrolled (Environment.TickCount64), set by the window for every event, momentum included.</summary>
     public static long ScrolledAt { get; set; } = long.MinValue / 2;

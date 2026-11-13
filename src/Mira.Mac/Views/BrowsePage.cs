@@ -487,8 +487,12 @@ public sealed class BrowsePage : Page
             var studios = others ? session.Client.StudiosAsync(search, ct) : null;
             var episodes = others ? session.Client.SearchOthersAsync("Episode", search, ct) : null;
             var sagas = others ? session.Client.SearchOthersAsync("BoxSet", search, ct) : null;
+            var started = DateTimeOffset.UtcNow;
             var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, 0, _favoritesOnly, ct, Query, limit);
-            await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)), CancellationToken.None);
+            Shell.Reached(started);
+            // Kept for when Jellyfin does not answer, as on Windows: the list as it last came, whatever its filters.
+            var kept = KeptKey(search);
+            await Task.Run(() => Errors.TryCache(() => { session.Store.ApplyLocalProgress(result.Items); if (kept is not null) session.Store.Save(kept, result); }), CancellationToken.None);
             // The people, studios, episodes and sagas are a bonus: the titles show even if Jellyfin does not answer for them.
             async Task<List<MediaItem>> Bonus(Task<List<MediaItem>>? asked)
             {
@@ -510,8 +514,29 @@ public sealed class BrowsePage : Page
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (UnauthorizedAccessException ex) { if (version == _version) Shell.Say(ex); }
-        catch (Exception ex) when (Errors.Expected(ex)) { if (version == _version) Shell.Notice(Errors.Friendly(ex), L("Réessayer", "Try again"), () => _ = ReloadAsync()); }
+        catch (Exception ex) when (Errors.Expected(ex))
+        {
+            if (version != _version) return;
+            // Jellyfin not answering: said once by the window (« Hors connexion » until it answers), the list it last
+            // gave shown rather than an empty page, as on Windows.
+            if (!Shell.Unreached(ex)) Shell.Notice(Errors.Friendly(ex), L("Réessayer", "Try again"), () => _ = ReloadAsync());
+            else if (_items.Count == 0) await ShowKeptAsync(session, version);
+        }
         finally { if (version == _version) { _loading = false; _grid.Skeleton(0); } }
+    }
+    /// <summary>Where the list is kept on this Mac: none for a search, which changes with each letter.</summary>
+    private string? KeptKey(string search) => search.Length > 0 || _kind == BrowseKind.Search ? null
+        : $"browse:{Types}:{(_favoritesOnly ? "favorites" : "")}:{Library}:{Query.CacheKey}";
+    /// <summary>The list as Jellyfin last gave it, with what this Mac has not sent yet: Jellyfin did not answer.</summary>
+    private async Task ShowKeptAsync(Session session, int version)
+    {
+        if (KeptKey(_search.Text?.Trim() ?? "") is not { } key) return;
+        var kept = await Task.Run(() => Errors.TryCache(() => { var list = session.Store.Load<ItemsResult>(key); if (list is not null) session.Store.ApplyLocalProgress(list.Items); return list; }));
+        if (version != _version || kept is null || kept.Items.Count == 0) return;
+        _items.Clear(); _items.AddRange(kept.Items); _total = kept.TotalRecordCount;
+        Cards.Update(_grid, kept.Items, GridKind, item => Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
+        _scroll.Offset = default;
+        Count(); _empty.Hide();
     }
     private async Task MoreAsync()
     {

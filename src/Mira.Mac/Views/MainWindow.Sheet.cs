@@ -71,7 +71,7 @@ public sealed partial class MainWindow
     private async Task LoadSheetAsync(SettingsPage page)
     {
         try { await page.LoadAsync(); }
-        catch (Exception ex) when (Errors.Expected(ex)) { Say(ex); }
+        catch (Exception ex) when (Errors.Expected(ex)) { if (!Unreached(ex)) Say(ex); }
     }
 
     /// <summary>
@@ -104,12 +104,7 @@ public sealed partial class MainWindow
             }, TimeSpan.FromMilliseconds(200));
         }
         else _rail.Opacity = 1;
-        _ = RefreshUnderAsync(under);
-    }
-    private async Task RefreshUnderAsync(Page page)
-    {
-        try { await page.RefreshAsync(); }
-        catch (Exception ex) when (Errors.Expected(ex)) { Say(ex); }
+        _ = RefreshPageAsync(under, say: true);
     }
 
     /// <summary>

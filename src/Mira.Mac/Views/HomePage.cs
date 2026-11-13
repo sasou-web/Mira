@@ -148,7 +148,7 @@ public sealed class HomePage : Page
         // The last known home first, so the page never opens empty; then Jellyfin's answer.
         if (_heroItems.Count == 0 && await Task.Run(() => Errors.TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume")))) is ({ } cachedHome, var cachedResume))
             Render(session, cachedResume ?? [], cachedHome.Items, [], [], []);
-        var client = session.Client;
+        var client = session.Client; var started = DateTimeOffset.UtcNow;
         var resume = client.ResumeAsync(); var next = client.NextUpAsync();
         // What this account played lately on any device (the iPhone, a TV…): where each film or series stands in « Continuer à regarder ».
         var played = TryAsync(() => client.HistoryAsync());
@@ -161,6 +161,7 @@ public sealed class HomePage : Page
         var collections = HomeLayout.Rows(Shell.Settings.HomeRows, []).Any(x => x.Key == HomeLayout.Collections && x.Shown)
             ? TryAsync(() => client.CollectionsAsync(30)) : Task.FromResult<List<MediaItem>?>(null);
         await Task.WhenAll(resume, next, latest, favorites, libraries, collections, played);
+        Shell.Reached(started);
         // « Nouveau dans Animes »: only the libraries whose row is shown are asked.
         var views = libraries.Result ?? [];
         var wanted = HomeLayout.Rows(Shell.Settings.HomeRows, views).Where(x => x.Shown && x.LibraryId is not null).Select(x => x.LibraryId!).ToList();
