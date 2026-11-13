@@ -45,7 +45,8 @@
   ["Dog Days S3 - Episode 12.5 OAD [DVDRip] [576p] [x264] [10-bit] [CRF16] [FLAC] [OGG]", "Dog Days", null, "S03E12.5", "576p · DVD · H.264"],
   ["[Erai-raws] Tensei shitara Slime Datta Ken 3rd Season - 17.5 [1080p][HEVC][Multiple Subtitle] [ENG][POR-BR][SPA-LA][SPA][FRE][GER][ITA][RUS]", "Tensei shitara Slime Datta Ken", null, "S03E17.5", "1080p · HEVC · Erai-raws"],
   ["2.5 Dimensional Seduction S01E24 VOSTFR 1080p WEB x264 AAC -Tsundere-Raws (ADN) (2.5-jigen no Ririsa)", "2.5 Dimensional Seduction", null, "S01E24", "1080p · WEB-DL · H.264 · VOSTFR"],
-  ["Kingdom Hearts 2.5 HD ReMIX 1080p", "Kingdom Hearts 2.5 HD ReMIX", null, "", "1080p"]
+  ["Kingdom Hearts 2.5 HD ReMIX 1080p", "Kingdom Hearts 2.5 HD ReMIX", null, "", "1080p"],
+  ["American.Psycho[2000]DvDrip[5.1]Uncut.Edition[Eng]-AXG", "American Psycho", 2000, "", "DVD"]
  ],
  "readable": [
     ["Dune.Part.Two.2024.MULTi.TRUEFRENCH.1080p.BluRay.x265-QTZ", "Dune Part Two (2024)", "Dune.Part.Two.2024.MULTi.TRUEFRENCH.1080p.BluRay.x265-QTZ"],
@@ -170,6 +171,40 @@
     ["Jujutsu Kaisen", "Saison 1 complète", "jjk1", []],
     ["Sousou no Frieren", "Épisodes 1 à 28", "frb", []],
     ["Sousou no Frieren", "Épisode 28", "fr28", []]
+   ]
+  },
+  {
+   "category": "all",
+   "note": "A film that the search for series found too (a TV site lists it) is the same film; a film named without its year in plain words (« Film[2000]DvDrip ») is still the film of that year; a title no one shares is never put forward first",
+   "hits": [
+    ["tv720", "American.Psycho.2000.720p.BRRip.x264-x0r", 2040109466, 0, "tpb-tv", "tv"],
+    ["remux", "American.Psycho.2000.1080p.Remux.BluRay.TrueHD.5.1.H264-FraMeSToR.DUAL-andrehsa", 24696061952, 38, "tpb-movies", "movies"],
+    ["dvd", "American.Psycho[2000]DvDrip[5.1]Uncut.Edition[Eng]-AXG", 738197504, 1, "tpb-movies", "movies"],
+    ["web", "American.Psycho.2000.1080p.WEB-DL.x264-GRP", 3221225472, 12, "tpb-movies", "movies"],
+    ["ghost", "American Psycho 2 2002 720p BRRip x264", 1073741824, 0, "tpb-movies", "movies"],
+    ["two", "American.Psycho.II.All.American.Girl.2002.1080p.BluRay.x264-GRP", 6442450944, 5, "tpb-movies", "movies"]
+   ],
+   "groups": [
+    ["American Psycho (2000)", "", "remux", ["web", "dvd", "tv720"], "movies"],
+    ["American Psycho II All American Girl (2002)", "", "two", [], "movies"],
+    ["American Psycho 2 (2002)", "", "ghost", [], "movies"]
+   ]
+  },
+  {
+   "category": "movies",
+   "note": "A film whose name gives no year is the film of that name when only one year has it; two years (a remake) leave it on its own",
+   "hits": [
+    ["dated", "Heat.1995.1080p.BluRay.x264-GRP", 8589934592, 50, "1337x"],
+    ["plain", "Heat.DVDRip.XviD-GRP", 734003200, 4, "1337x"],
+    ["dune84", "Dune.1984.1080p.BluRay.x264-GRP", 8589934592, 20, "1337x"],
+    ["dune21", "Dune.2021.1080p.BluRay.x264-GRP", 8589934592, 90, "1337x"],
+    ["dunex", "Dune.DVDRip.XviD-GRP", 734003200, 4, "1337x"]
+   ],
+   "groups": [
+    ["Heat (1995)", "", "dated", ["plain"]],
+    ["Dune (1984)", "", "dune84", []],
+    ["Dune (2021)", "", "dune21", []],
+    ["Dune", "", "dunex", []]
    ]
   }
  ]

@@ -105,7 +105,7 @@ public static partial class ReleaseRanking
     private static string Word(string token) { var t = Bare(token); return t.IndexOf('-') is > 0 and var dash && !Tags.Contains(t) ? t[..dash] : t; }
 
     /// <summary>
-    /// What a part of a name in parentheses or brackets leaves to the reading: a year (in parentheses) as it is; what a
+    /// What a part of a name in parentheses or brackets leaves to the reading: a year as it is (« (2000) », « Film[2000]DvDrip »); what a
     /// batch says of itself, its season or seasons (« (Season 2) », « (S2) », « (Saison 1) », « (Season 4 Part 2) ») and
     /// « Batch », as they are; its episodes (« (01-28) », « [01-12] », never years) as a fansub batch writes them
     /// (« - 01-28 »). The rest (tags, another name, the group) is left out.
@@ -222,7 +222,7 @@ public static partial class ReleaseRanking
             }
             spaced = new string(chars);
         }
-        var plain = Parenthesized().Replace(Bracketed().Replace(spaced, m => BatchPart(m.Value[1..^1], year: false)), m => BatchPart(m.Groups[1].Value, year: true));
+        var plain = Parenthesized().Replace(Bracketed().Replace(spaced, m => BatchPart(m.Value[1..^1], year: true)), m => BatchPart(m.Groups[1].Value, year: true));
 
         // Season and episode.
         int? season = null, episode = null, lastEpisode = null, half = null; bool absolute = false, pack = false; var cut = plain.Length;
@@ -385,6 +385,9 @@ public static partial class ReleaseRanking
         return $"S{Two(release.Season)}E{Two(episode)}{(release.LastEpisode > episode ? $"-E{Two(release.LastEpisode)}" : "")}";
     }
 
+    /// <summary>Whether no one shares a release, as its site says (SubsPlease never says): never put forward as the best pick.</summary>
+    public static bool Dead(RankedRelease entry) => ReportsHealth(entry.Hit.Source) && entry.Hit.Seeders <= 0;
+
     /// <summary>What makes a release worth less, in a few words; empty when nothing does.</summary>
     public static string Warning(RankedRelease entry)
     {
@@ -398,7 +401,10 @@ public static partial class ReleaseRanking
     /// The results gathered by title and episode (or season, or film and year), the best release of each first; a
     /// release giving another name in parentheses meets the releases under that name. Titles keep the order of their
     /// best-shared result; inside a title, whole seasons first, then the latest episodes. Hits of a search in every
-    /// category (<see cref="RelayHit.Category"/>) meet only those of the same category: an anime and its live-action series stay apart.
+    /// category (<see cref="RelayHit.Category"/>) meet only those of the same category: an anime and its live-action series stay apart;
+    /// a film found by the search for series (« American.Psycho.2000.720p.BRRip » of a TV site) is the film of the same name
+    /// and year of the search for films. A film whose name gives no year is the film of that name when only one year has it.
+    /// Titles whose best release no one shares come last.
     /// </summary>
     public static List<ReleaseGroup> Group(IEnumerable<RelayHit> hits, string? category = null)
     {
@@ -411,12 +417,24 @@ public static partial class ReleaseRanking
         }
         string ShowOf(ReleaseInfo release) => names.GetValueOrDefault(TitleKey(release.Title)) ?? TitleKey(release.Title);
         static bool FilmLike(ReleaseInfo release) => release.Episode is null && release.Half is null && !release.Pack;
+        // The year of a film named without one, and the category of a film that the search for films found too.
+        var films = entries.Where(e => FilmLike(e.Release)).ToList();
+        int? YearOf(RankedRelease entry)
+        {
+            if (entry.Release.Year is { } known) return known;
+            var show = ShowOf(entry.Release);
+            var years = films.Where(e => e.Release.Year is not null && ShowOf(e.Release) == show).Select(e => e.Release.Year).Distinct().ToList();
+            return years.Count == 1 ? years[0] : null;
+        }
+        var movies = films.Where(e => e.Hit.Category == "movies").Select(e => (ShowOf(e.Release), YearOf(e))).ToHashSet();
+        string? KindOf(RankedRelease entry) => entry.Hit.Category is { } kind && kind != "movies" && FilmLike(entry.Release)
+            && movies.Contains((ShowOf(entry.Release), YearOf(entry))) ? "movies" : entry.Hit.Category;
         var groups = new Dictionary<string, (string Show, string? Category, List<RankedRelease> Entries)>();
         var keys = new List<string>();
         foreach (var entry in entries)
         {
-            var r = entry.Release; var show = ShowOf(r); var kind = entry.Hit.Category;
-            var key = (kind is null ? "" : kind + "|") + (FilmLike(r) ? $"{show}|{r.Year}" : r.Pack ? $"{show}|pack|{r.Season}|{r.Episode}-{r.LastEpisode}"
+            var r = entry.Release; var show = ShowOf(r); var kind = KindOf(entry);
+            var key = (kind is null ? "" : kind + "|") + (FilmLike(r) ? $"{show}|{YearOf(entry)}" : r.Pack ? $"{show}|pack|{r.Season}|{r.Episode}-{r.LastEpisode}"
                 : r.Half is { } half ? $"{show}|half|{(r.Absolute ? "" : r.Season)}|{half}" : $"{show}|e|{(r.Absolute ? "" : r.Season)}|{r.Episode}");
             if (!groups.TryGetValue(key, out var group)) { groups[key] = group = (show, kind, []); keys.Add(key); }
             group.Entries.Add(entry);
@@ -433,17 +451,17 @@ public static partial class ReleaseRanking
             matches[0].Group.Entries.AddRange(group.Entries); groups.Remove(key); keys.Remove(key);
         }
         var showOrder = new Dictionary<string, int>();
-        foreach (var entry in entries) showOrder.TryAdd(ShowOf(entry.Release), entry.Order);
+        foreach (var entry in entries.OrderBy(e => Dead(e) ? 1 : 0).ThenBy(e => e.Order)) showOrder.TryAdd(ShowOf(entry.Release), entry.Order);
         return keys.Select(key =>
         {
             var (show, kind, list) = groups[key];
             var sorted = list.OrderByDescending(x => x.Score).ThenByDescending(x => x.Hit.Seeders).ThenBy(x => x.Order).ToList();
             var named = sorted.FirstOrDefault(x => !x.Release.Absolute && TitleKey(x.Release.Title) == show) ?? sorted[0];
             var shown = sorted.FirstOrDefault(x => x.Release is { Absolute: false, Pack: false } r && (r.Episode is not null || r.Half is not null)) ?? sorted[0];
-            var year = FilmLike(named.Release) && named.Release.Year is { } y ? $" ({y})" : "";
+            var year = FilmLike(named.Release) && YearOf(named) is { } y ? $" ({y})" : "";
             return new ReleaseGroup(key, show, named.Release.Title + year, EpisodeLabel(shown.Release), sorted[0], sorted.Skip(1).ToList(), shown.Release.Pack, shown.Release, kind);
         })
-        .OrderBy(g => showOrder[g.Show]).ThenBy(g => g.Show, StringComparer.Ordinal).ThenBy(g => g.Pack ? 0 : 1)
+        .OrderBy(g => Dead(g.Best) ? 1 : 0).ThenBy(g => showOrder[g.Show]).ThenBy(g => g.Show, StringComparer.Ordinal).ThenBy(g => g.Pack ? 0 : 1)
         .ThenByDescending(g => g.Release.Season ?? 0).ThenByDescending(g => (g.Release.Episode ?? g.Release.Half ?? 0) * 2 + (g.Release.Half is null ? 0 : 1)).ThenBy(g => g.Best.Order).ToList();
     }
 }

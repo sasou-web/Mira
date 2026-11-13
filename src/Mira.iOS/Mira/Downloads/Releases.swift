@@ -144,7 +144,7 @@ enum Releases {
 
     private static func isYear(_ text: String) -> Bool { Regex.test(#"^(?:19|20)\d\d$"#, text, options: []) }
 
-    /// What a part of a name in parentheses or brackets leaves to the reading: a year (in parentheses) as it is; what a
+    /// What a part of a name in parentheses or brackets leaves to the reading: a year as it is (« (2000) », « Film[2000]DvDrip »); what a
     /// batch says of itself, its season or seasons (« (Season 2) », « (S2) », « (Saison 1) », « (Season 4 Part 2) ») and
     /// « Batch », as they are; its episodes (« (01-28) », « [01-12] », never years) as a fansub batch writes them
     /// (« - 01-28 »). The rest (tags, another name, the group) is left out.
@@ -260,7 +260,7 @@ enum Releases {
             }
             spaced = String(decoding: out, as: UTF16.self)
         }
-        var plain = Regex.replace(#"\[([^\]]*)\]|\{([^}]*)\}"#, in: spaced, options: []) { m in batchPart(m.text(1) ?? m.text(2) ?? "", year: false) }
+        var plain = Regex.replace(#"\[([^\]]*)\]|\{([^}]*)\}"#, in: spaced, options: []) { m in batchPart(m.text(1) ?? m.text(2) ?? "", year: true) }
         plain = Regex.replace(#"\(([^()]*)\)"#, in: plain, options: []) { m in batchPart(m.text(1) ?? "", year: true) }
         let plainLength = plain.utf16.count
 
@@ -446,6 +446,9 @@ enum Releases {
         return score
     }
 
+    /// Whether no one shares a release, as its site says (SubsPlease never says): never put forward as the best pick.
+    static func dead(_ entry: Entry) -> Bool { reportsHealth(entry.hit.source) && max(0, entry.hit.seeders ?? 0) == 0 }
+
     /// Under the best release: what makes it worth less, in a few words; empty when nothing does.
     static func warning(_ entry: Entry) -> String {
         if entry.release.source == "cam" { return String(localized: "Filmed in a movie theater: poor picture and sound.") }
@@ -462,7 +465,9 @@ enum Releases {
     /// The results of a search gathered by title and episode (or season, or film and year), the best release of each
     /// put forward. A release giving another name in parentheses meets the releases under that name. Titles keep the
     /// order of their best-shared result; inside a title, whole seasons first, then the latest episodes. Hits of a
-    /// search in every category meet only those of the same category.
+    /// search in every category meet only those of the same category; a film found by the search for series is the film
+    /// of the same name and year of the search for films. A film whose name gives no year is the film of that name when
+    /// only one year has it. Titles whose best release no one shares come last.
     static func group(_ hits: [Hit], category: String? = nil) -> [Group] {
         let entries = hits.enumerated().map { order, hit in
             let release = parse(hit.name)
@@ -477,6 +482,20 @@ enum Releases {
         func showOf(_ release: Release) -> String { names[titleKey(release.title)] ?? titleKey(release.title) }
         func filmLike(_ release: Release) -> Bool { release.episode == nil && release.half == nil && !release.pack }
         func text(_ n: Int?) -> String { n.map(String.init) ?? "" }
+        // The year of a film named without one, and the category of a film that the search for films found too.
+        let films = entries.filter { filmLike($0.release) }
+        func yearOf(_ entry: Entry) -> Int? {
+            if let known = entry.release.year { return known }
+            let show = showOf(entry.release)
+            let years = Set(films.compactMap { $0.release.year != nil && showOf($0.release) == show ? $0.release.year : nil })
+            return years.count == 1 ? years.first : nil
+        }
+        let movies = Set(films.filter { $0.hit.category == "movies" }.map { "\(showOf($0.release))|\(text(yearOf($0)))" })
+        func kindOf(_ entry: Entry) -> String? {
+            guard let kind = entry.hit.category, kind != "movies", filmLike(entry.release),
+                  movies.contains("\(showOf(entry.release))|\(text(yearOf(entry)))") else { return entry.hit.category }
+            return "movies"
+        }
 
         struct Bucket { var key: String; var show: String; var category: String?; var entries: [Entry] }
         var keys: [String] = []
@@ -484,8 +503,8 @@ enum Releases {
         for entry in entries {
             let release = entry.release
             let show = showOf(release)
-            let kind = entry.hit.category
-            let rest = filmLike(release) ? "\(show)|\(text(release.year))"
+            let kind = kindOf(entry)
+            let rest = filmLike(release) ? "\(show)|\(text(yearOf(entry)))"
                 : release.pack ? "\(show)|pack|\(text(release.season))|\(text(release.episode))-\(text(release.lastEpisode))"
                 : release.half != nil ? "\(show)|half|\(release.absolute ? "" : release.season.map(String.init) ?? "null")|\(text(release.half))"
                 : "\(show)|e|\(release.absolute ? "" : release.season.map(String.init) ?? "null")|\(text(release.episode))"
@@ -513,17 +532,18 @@ enum Releases {
             return a.order < b.order
         }
         var showOrder: [String: Int] = [:]
-        for entry in entries where showOrder[showOf(entry.release)] == nil { showOrder[showOf(entry.release)] = entry.order }
+        for entry in entries.filter({ !dead($0) }) + entries.filter(dead) where showOrder[showOf(entry.release)] == nil { showOrder[showOf(entry.release)] = entry.order }
         let made: [Group] = keys.compactMap { groups[$0] }.map { group in
             let sorted = group.entries.sorted(by: ranks)
             // The name of the group: the one of a release giving a season (« JoJos Bizarre Adventure »), else the best's.
             let named = sorted.first { !$0.release.absolute && titleKey($0.release.title) == group.show } ?? sorted[0]
             let shown = sorted.first { !$0.release.absolute && !$0.release.pack && ($0.release.episode != nil || $0.release.half != nil) } ?? sorted[0]
-            let year = filmLike(named.release) ? named.release.year.map { " (\($0))" } ?? "" : ""
+            let year = filmLike(named.release) ? yearOf(named).map { " (\($0))" } ?? "" : ""
             return Group(key: group.key, show: group.show, title: "\(named.release.title)\(year)", label: episodeLabel(shown.release),
                          best: sorted[0], others: Array(sorted.dropFirst()), pack: shown.release.pack, release: shown.release, category: group.category)
         }
         return made.sorted { a, b in
+            if dead(a.best) != dead(b.best) { return !dead(a.best) }
             if a.show != b.show { return (showOrder[a.show] ?? 0) < (showOrder[b.show] ?? 0) }
             if a.pack != b.pack { return a.pack }
             if (a.release.season ?? 0) != (b.release.season ?? 0) { return (a.release.season ?? 0) > (b.release.season ?? 0) }

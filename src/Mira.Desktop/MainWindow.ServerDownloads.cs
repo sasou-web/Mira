@@ -620,7 +620,7 @@ public partial class MainWindow
         }
         head.Children.Add(new TextBlock { Text = group.Title, FontSize = 16, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, ToolTip = group.Title });
         panel.Children.Add(head);
-        panel.Children.Add(ServerReleaseView(searchId, group.Best, best: true));
+        panel.Children.Add(ServerReleaseView(searchId, group.Best, best: !ReleaseRanking.Dead(group.Best)));
         if (group.Others.Count > 0)
         {
             var others = new StackPanel { Visibility = Visibility.Collapsed };

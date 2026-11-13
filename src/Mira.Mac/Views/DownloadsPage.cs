@@ -716,7 +716,7 @@ public sealed class DownloadsPage : Page
         ToolTip.SetTip(title, group.Title);
         head.Children.Add(title);
         panel.Children.Add(head);
-        panel.Children.Add(ReleaseView(searchId, group.Best, best: true));
+        panel.Children.Add(ReleaseView(searchId, group.Best, best: !ReleaseRanking.Dead(group.Best)));
         if (group.Others.Count > 0)
         {
             var others = new StackPanel { IsVisible = false };

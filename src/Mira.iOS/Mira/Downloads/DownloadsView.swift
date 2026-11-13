@@ -224,7 +224,7 @@ struct DownloadsView: View {
             } else {
                 ForEach(results.groups) { group in
                     Section {
-                        release(results.search, group.best, best: true)
+                        release(results.search, group.best, best: !Releases.dead(group.best))
                         if !group.others.isEmpty {
                             let open = unfolded.contains(group.key)
                             Button {
