@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Pastilles du bandeau à la forme des boutons (Windows, Mac)** : l’année, l’épisode, la durée, la note et les genres sur le bandeau de l’Accueil avaient un arrondi plus petit que les boutons juste à côté. Elles prennent maintenant le même : l’arrondi doux des boutons sous Windows, 8 px sur Mac. Demandé par ogsas ; jamais essayé sur un vrai PC ou Mac.
+
 - **Survol des boutons sans liseré (Windows)** : au survol, le voile d’un bouton était dessiné à l’intérieur de son bord avec le même arrondi, si bien que ses coins ne rejoignaient pas ceux du bord et laissaient un liseré sombre (« Help » de la fenêtre Réglages, « More info » de l’Accueil). Le voile couvre maintenant toute la forme, sous le bord. Le Mac n’avait pas ce défaut (fond et bord d’un seul élément). Signalé par ogsas sur la 0.9.7 ; jamais essayé sur un vrai PC.
 
 - **Une seule saison, pas de liste (Windows, Mac)** : une série ou un anime à une seule saison montrait une liste des saisons qui ne contenait que « Saison 1 ». Il n’y a plus ni liste ni pastilles : le titre « Épisodes · 24 » suffit. Signalé par ogsas sur la 0.9.7 ; l’iPhone le faisait déjà ; jamais essayé sur un vrai PC ou Mac.

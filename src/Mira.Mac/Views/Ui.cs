@@ -89,9 +89,10 @@ public static class Ui
         menu.Open(button);
     }
     /// <summary>A small rounded tag (« 2025 », « 1 h 58 », « ★ 8.1 »).</summary>
+    /// <summary>A fact over the banner (year, episode, length, genre), rounded as the buttons beside it.</summary>
     public static Border Tag(string text) => new()
     {
-        Background = Brush("#CC1C1C1C"), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6),
+        Background = Brush("#CC1C1C1C"), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 6),
         Child = new TextBlock { Text = text, FontSize = 13, Foreground = Ink }
     };
 

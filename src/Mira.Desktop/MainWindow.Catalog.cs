@@ -560,8 +560,9 @@ public partial class MainWindow
         entry.Click += async (_, _) => await action();
         return entry;
     }
-    private static void AddPill(Panel panel, string text, string color = "TextBody") => panel.Children.Add(new Border
-    { CornerRadius = Palette.Small, Background = Brush("#3D555559"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 7, 4), Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get(color) } });
+    /// <summary>A fact over the banner (year, episode, length, genre): the buttons' own shape beside them, a squircle at their radius.</summary>
+    private static void AddPill(Panel panel, string text, string color = "TextBody") => panel.Children.Add(new Squircle
+    { CornerRadius = Palette.Control, Background = Brush("#3D555559"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 7, 4), Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get(color) } });
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e) { UpdateZoom(); FitPages(); }
     /// <summary>The banner and the posters, sized for the page as it lays out (smaller than the window once zoomed).</summary>
     private void FitPages()
