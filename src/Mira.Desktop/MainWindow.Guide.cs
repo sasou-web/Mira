@@ -119,7 +119,7 @@ public partial class MainWindow
 
     // The guide, from the ? of the rail, F1, an empty library, or once after the first connection.
     /// <summary>The ? of the rail and F1: the guide, or, already shown, back to its top without drawing it again.</summary>
-    private void Guide_Click(object sender, RoutedEventArgs e) { if (Shown(GuideOverlay)) SelectGuideTopic("start"); else OpenGuide(); }
+    private void Guide_Click(object sender, RoutedEventArgs e) { if (!Shown(GuideOverlay)) OpenGuide(); else if (_guideTopic == "start" && GuideSearchBox.Text.Length == 0) SmoothScroll.ToTop(GuideScroll); else SelectGuideTopic("start"); }
     private async void CloseGuide_Click(object sender, RoutedEventArgs e) => await CloseGuideAsync();
     private async Task CloseGuideAsync() { await HideSheetAsync(GuideOverlay, GuideSheet); ForgetBackdrop(); UpdateNavigation(); UpdateHeroClock(); GiveFocusBack(ref _guideOrigin); }
     /// <summary>Once, right after the first connection or the Jellyfin setup, with what is relevant at that moment.</summary>
@@ -194,6 +194,8 @@ public partial class MainWindow
     {
         var tag = ((Button)sender).Tag?.ToString() ?? "start";
         if (GuideSearchBox.Text.Length > 0) GuideSearchBox.Clear();
+        // The topic already shown, as the rail's page already shown: back to its top, nothing drawn again (ogsas, 2026-11-13).
+        else if (tag == _guideTopic) { SmoothScroll.ToTop(GuideScroll); return; }
         SelectGuideTopic(tag);
     }
     /// <param name="animate">False as Aide opens: the window comes as one, its page with it.</param>

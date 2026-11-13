@@ -78,7 +78,7 @@ public sealed partial class SettingsPage
         {
             if (key == ServerTools[0]) _settingsList.Children.Add(serverLabel);
             var button = NavButton(title, icon, false);
-            button.Click += (_, _) => { _search.Text = ""; _searched = ""; Show(key); };
+            button.Click += (_, _) => { if (Again(HelpTopic is null && CurrentTab == key)) return; _search.Text = ""; _searched = ""; Show(key); };
             _tabButtons[key] = button; _settingsList.Children.Add(button);
         }
         var moreLabel = new TextBlock { Text = L("Plus", "More"), FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(14, 16, 0, 4) };
@@ -86,7 +86,7 @@ public sealed partial class SettingsPage
         {
             if (key == "whatsnew") _helpList.Children.Add(moreLabel);
             var button = NavButton(title, icon, outside);
-            button.Click += (_, _) => OpenTopic(key);
+            button.Click += (_, _) => { if (!Again(key == "keys" && HelpTopic == "keys")) OpenTopic(key); };
             _helpButtons[key] = button; _helpList.Children.Add(button);
         }
         // « Amis & invités » and « Entretien » hold only what an administrator sees: listed while one of their sections
@@ -106,8 +106,8 @@ public sealed partial class SettingsPage
             button.Padding = new Thickness(10, 7); button.FontSize = 13.5; button.FontWeight = FontWeight.SemiBold; button.CornerRadius = new CornerRadius(9);
             button.BorderThickness = new Thickness(1);
         }
-        _toSettings.Click += (_, _) => ShowSettingsSide();
-        _toHelp.Click += (_, _) => ShowHelp(HelpTopic ?? "keys");
+        _toSettings.Click += (_, _) => { if (HelpTopic is not null) ShowSettingsSide(); };
+        _toHelp.Click += (_, _) => { if (HelpTopic is null) ShowHelp("keys"); };
         var turn = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), Children = { _toSettings, _toHelp } };
         Grid.SetColumn(_toHelp, 1);
         var switcher = new Border { Background = Ui.Brush("#161616"), CornerRadius = new CornerRadius(12), Padding = new Thickness(3), Child = turn, Margin = new Thickness(0, 0, 0, 12) };
@@ -247,6 +247,18 @@ public sealed partial class SettingsPage
         Side(false);
         Show(_tabs.ContainsKey(_lastTab) && _tabButtons[_lastTab].IsVisible ? _lastTab : "playback");
     }
+    /// <summary>
+    /// A section or topic chosen again while it shows, nothing searched: back to its top, nothing drawn again, as the rail's
+    /// page chosen again (ogsas, 2026-11-13: each click on the tab shown made it again).
+    /// </summary>
+    private bool Again(bool shown)
+    {
+        if (!shown || !string.IsNullOrEmpty(_search.Text)) return false;
+        GlideUp.Start(_tabScroll); return true;
+    }
+    /// <summary>Sections drawn so far, and a click on a section's button, for the self-check.</summary>
+    internal int Drawn { get; private set; }
+    internal void ClickTab(string key) => _tabButtons[key].RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
     /// <summary>The section open before the page was made again, or on its top again.</summary>
     public override void ShowAgain() { if (HelpTopic is not null || _lastTab != CurrentTab) ShowSettingsSide(); else Glide.ToTop(_tabScroll); }
     /// <summary>The section the next Réglages opens on (a notice that names a setting).</summary>
@@ -256,7 +268,7 @@ public sealed partial class SettingsPage
         if (!_tabs.TryGetValue(key, out var tab)) return;
         if (HelpTopic is not null) { HelpTopic = null; _search.Text = ""; _searched = ""; Side(false); }
         EndSearch();
-        CurrentTab = _lastTab = key;
+        CurrentTab = _lastTab = key; Drawn++;
         var (_, title, _, about) = Tabs.First(x => x.Key == key);
         _tabTitle.Text = title; _tabAbout.Text = about;
         Light(_tabButtons, key);
