@@ -76,7 +76,7 @@ public partial class MainWindow
     /// </summary>
     /// <param name="leaving">Gathers speed instead of landing.</param>
     /// <param name="live">While true, the movement goes on: by default, until another reduction or expansion.</param>
-    private Task MoveVideoAsync(VideoHost host, Rect from, Rect to, double fromRadius, double toRadius, int ms, bool leaving = false, Func<bool>? live = null)
+    private Task MoveVideoAsync(VideoHost host, Rect from, Rect to, double fromRadius, double toRadius, int ms, bool leaving = false, Func<bool>? live = null, Func<double, double>? ease = null)
     {
         var done = new TaskCompletionSource();
         var version = _morphVersion; live ??= () => version == _morphVersion; var clock = Stopwatch.StartNew(); var queued = 0; var steps = 0;
@@ -87,7 +87,7 @@ public partial class MainWindow
             if (done.Task.IsCompleted) return;
             if (!live()) { done.TrySetResult(); return; }
             var t = Math.Min(1, clock.Elapsed.TotalMilliseconds / ms);
-            var k = leaving ? t * t : Glide(t);
+            var k = ease?.Invoke(t) ?? (leaving ? t * t : Glide(t));
             static double Mix(double a, double b, double k) => a + (b - a) * k;
             host.Move(new Rect(Mix(from.X, to.X, k), Mix(from.Y, to.Y, k), Mix(from.Width, to.Width, k), Mix(from.Height, to.Height, k)), Mix(fromRadius, toRadius, k));
             // Nearly there: mpv takes the small size now, in the movement, rather than as it lands.
