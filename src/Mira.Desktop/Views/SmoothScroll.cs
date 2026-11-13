@@ -53,6 +53,8 @@ public static class SmoothScroll
     public static void Jump(ScrollViewer viewer, double offset = 0) { Cancel(viewer); viewer.ScrollToVerticalOffset(offset); }
     /// <summary>Eased back to the top, as the wheel moves it (at once when animations are reduced); nothing at the top already.</summary>
     public static void ToTop(ScrollViewer viewer) { if (viewer.VerticalOffset > .5) By(viewer, -viewer.VerticalOffset - viewer.ExtentHeight); }
+    /// <summary>Steps made by the wheel, the keys or <see cref="By"/> so far: a list placed by a page that comes in makes none.</summary>
+    public static long Steps { get; private set; }
     private sealed class Driver
     {
         private readonly ScrollViewer _viewer;
@@ -75,7 +77,7 @@ public static class SmoothScroll
             _running = true; _last = Stopwatch.GetTimestamp(); _lastFrame = null; CompositionTarget.Rendering += Frame;
         }
         private double Maximum => _horizontal ? _viewer.ScrollableWidth : _viewer.ScrollableHeight;
-        private void Apply(double value) { if (_horizontal) _viewer.ScrollToHorizontalOffset(value); else _viewer.ScrollToVerticalOffset(value); }
+        private void Apply(double value) { Steps++; if (_horizontal) _viewer.ScrollToHorizontalOffset(value); else _viewer.ScrollToVerticalOffset(value); }
         /// <summary>
         /// One step per frame, as far as the time between the refreshes of the screen the frames are drawn for: the page
         /// then moves evenly on the screen, whenever the step itself ran (a step timed by the clock when it runs moves
