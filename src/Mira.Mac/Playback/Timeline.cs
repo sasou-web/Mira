@@ -72,6 +72,9 @@ public sealed class Timeline : Control
     public override void Render(DrawingContext context)
     {
         var width = Bounds.Width; var hot = _hover >= 0 || _dragging;
+        // Transparent fill, as on Windows: Avalonia hits only what a control draws, and the bar alone is 4 px high, cut
+        // by the gaps between chapters (0.9.7, on a real Mac: « very hard to click »). The whole height answers now.
+        context.DrawRectangle(Brushes.Transparent, null, new Rect(Bounds.Size));
         var thickness = hot ? 6 : 4;
         // Chapters split the bar with small gaps; the segment under the pointer thickens.
         var starts = _duration > 0 ? _chapters.Select(c => c.Start).Where(s => s > 0.5 && s < _duration - 0.5).OrderBy(s => s).ToList() : [];

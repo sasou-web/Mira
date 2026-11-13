@@ -800,6 +800,26 @@ public static class SelfCheck
                 var delayed = engine.Number("audio-delay");
                 player.ShiftAudio(0);
                 Check(Math.Abs(delayed - .2) < .001 && Math.Abs(engine.Number("audio-delay")) < .001 && window.AudioDelay == 0, $"décalage de l’audio ({renderer})", $"{delayed:0.0} s, puis {engine.Number("audio-delay"):0.0} s");
+                // A click on the picture, as macOS hands it in: to what Avalonia hits there, pausing after the double-click
+                // wait; a second one plays on. mpv's OpenGL view is no target of its own (0.9.7: the click went to the page under it).
+                var middle = player.TranslatePoint(new Point(player.Bounds.Width / 2, player.Bounds.Height / 2), window) ?? default;
+                var hit = window.InputHitTest(middle) as Avalonia.Interactivity.Interactive;
+                var wasPaused = engine.Flag("pause");
+                Click(window, middle);
+                var clickPaused = await Until(() => engine.Flag("pause") != wasPaused, 3);
+                await Task.Delay(300);
+                Click(window, middle);
+                Check(clickPaused && await Until(() => engine.Flag("pause") == wasPaused, 3), $"lecteur : un clic sur l’image met en pause, un autre reprend ({renderer})",
+                    $"touché {hit?.GetType().Name ?? "rien"}, pause {wasPaused} → {!wasPaused} {(clickPaused ? "oui" : "non")}, puis {engine.Flag("pause")}");
+                // The progress bar answers on its whole height, not only on its 4 px line: near its top and bottom edges,
+                // and in the gap between two chapters (0.9.7, on a real Mac).
+                player.ShowControlsForCheck();
+                await Task.Delay(300);
+                var progress = player.ProgressBar;
+                var unhit = new[] { (.3, 2.0), (.5, progress.Bounds.Height / 2), (.7, progress.Bounds.Height - 2) }
+                    .Select(p => progress.TranslatePoint(new Point(progress.Bounds.Width * p.Item1, p.Item2), window) is { } at && window.InputHitTest(at) is Visual v && (v == progress || progress.IsVisualAncestorOf(v)) ? null : $"{p.Item1:P0}/{p.Item2:0}")
+                    .OfType<string>().ToList();
+                Check(progress.Bounds.Height >= 24 && unhit.Count == 0, $"lecteur : la barre répond sur toute sa hauteur ({renderer})", $"{progress.Bounds.Height:0} px de haut, ratés : {(unhit.Count == 0 ? "aucun" : string.Join(", ", unhit))}");
                 var before = player.Position;
                 Key(window, Avalonia.Input.Key.Right);
                 Check(await Until(() => player.Position >= before + 8, 6), $"avance de 10 s ({renderer})", $"{before:0.0} → {player.Position:0.0}");
@@ -1448,6 +1468,16 @@ public static class SelfCheck
         var player = window.Player;
         for (var i = 0; i < presses; i++) player?.HandleKey(new KeyEventArgs { Key = key, KeyModifiers = modifiers, RoutedEvent = InputElement.KeyDownEvent });
         player?.HandleKeyUp(new KeyEventArgs { Key = key, KeyModifiers = modifiers, RoutedEvent = InputElement.KeyUpEvent });
+    }
+
+    /// <summary>A left click as macOS sends it: pressed and released on what Avalonia hits at <paramref name="at"/> (window coordinates).</summary>
+    private static void Click(MainWindow window, Point at)
+    {
+        if (window.InputHitTest(at) is not Avalonia.Interactivity.Interactive target) return;
+        var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+        var time = (ulong)Environment.TickCount64;
+        target.RaiseEvent(new PointerPressedEventArgs(target, pointer, window, at, time, new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed), KeyModifiers.None));
+        target.RaiseEvent(new PointerReleasedEventArgs(target, pointer, window, at, time + 80, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
     }
 
     /// <summary>A key as macOS sends it: down then up to what has the keyboard focus (else the window), through every handler.</summary>
