@@ -23,6 +23,7 @@ internal static class RelayText
         ["Trop de demandes attendent déjà le PC serveur."] = "Too many requests are already waiting for the server PC.",
         ["Mira sur le PC serveur ne sait pas encore remplacer un titre : mets-le à jour."] = "Mira on the server PC can’t replace a title yet: update it.",
         ["Ce fichier est déjà demandé au PC serveur."] = "This file has already been asked of the server PC.",
+        ["Mira sur le PC serveur ne sait pas encore ranger un épisode manquant : mets-le à jour."] = "Mira on the server PC can’t place a missing episode yet: update it.",
         ["Une meilleure version de ce titre est déjà demandée."] = "A better version of this title is already requested.",
         ["Demande inconnue."] = "Unknown request.",
         ["La recherche n’a pas abouti."] = "The search didn’t go through.",
@@ -73,6 +74,7 @@ internal static class RelayText
         Agent = status.Agent is { } agent ? agent with { Name = For(agent.Name, false)! } : null,
         Requests = status.Requests.Select(x => x with { Error = For(x.Error, false) }).ToList(),
         Follows = status.Follows is { } follows ? For(follows, false) : null,
+        Missing = status.Missing?.Select(x => x with { Error = For(x.Error, false) }).ToList(),
     };
 
     public static List<RelayFollow> For(List<RelayFollow> follows, bool french) => french ? follows

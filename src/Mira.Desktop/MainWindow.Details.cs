@@ -437,7 +437,7 @@ public partial class MainWindow
         ShowDetailPlayLabel(item);
         DetailRestart.Content ??= ActionLabel("refresh", L("Depuis le début", "From the beginning"));
         ShowFavorite(item.UserData.IsFavorite); ShowWatched(item, item.UserData.Played);
-        ShowTogetherButton(); ShowOfflineButton(); ShowTrailerButton(item); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item);
+        ShowTogetherButton(); ShowOfflineButton(); ShowTrailerButton(item); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item); _ = ShowMissingDownloadsAsync(item);
     }
     private void ShowFavorite(bool favorite) => ShowState(FavoriteButton, "favorite", favorite, favorite ? L("Favori", "Favorite") : L("Ajouter aux favoris", "Add to favorites"),
         favorite ? L("Dans tes favoris. Clique pour le retirer", "In your favorites. Click to remove it") : L("Ajouter aux favoris", "Add to favorites"));
@@ -519,7 +519,7 @@ public partial class MainWindow
     private void Season_Changed(object sender, SelectionChangedEventArgs e) { if (!_seasonBusy) { RenderEpisodes(); ShowOfflineButton(); Motion.Reveal(EpisodesPanel, 220, 7); } }
     private void RenderEpisodes()
     {
-        EpisodesPanel.Children.Clear(); _episodeCopyLabels.Clear(); _tiles.Clear();
+        EpisodesPanel.Children.Clear(); _episodeCopyLabels.Clear(); _tiles.Clear(); _missingViews.RemoveAll(x => !x.Pill);
         var page = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         UpdateSeasonPills(page);
         if (page is { Absent: true }) { RenderAbsentSeason(page); return; }

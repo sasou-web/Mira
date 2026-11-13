@@ -1151,6 +1151,15 @@ public sealed class JellyfinClient : IDisposable
         using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { search, result = hit.Id, name = hit.Name, size = hit.Size, replace }, RemoteProtocol.Json, ct);
         return await RelayIdAsync(response, ct);
     }
+    /// <summary>
+    /// A result asked from a series' page (« Télécharger les manquants »): placed in that series, the season and episodes given
+    /// (none: the whole season). The request's id; refused by an extension or a Mira on the PC of Jellyfin of 0.9.7 or before.
+    /// </summary>
+    public async Task<string> TorLinkMissingAsync(string search, RelayHit hit, MissingPlace missing, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { search, result = hit.Id, name = hit.Name, size = hit.Size, missing }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
     /// <summary>A .torrent (a private tracker's), sent to the qBittorrent of the PC of Jellyfin: the request's id.</summary>
     public async Task<string> TorLinkTorrentAsync(byte[] torrent, CancellationToken ct = default)
     {

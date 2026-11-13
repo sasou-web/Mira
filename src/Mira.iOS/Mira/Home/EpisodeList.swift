@@ -18,6 +18,8 @@ struct EpisodeList: View {
     /// has none of among the seasons, the episodes it lacks between those it has; the thin lines opened.
     @State private var virtuals: [Item] = []
     @State private var shelfOpen: Set<String> = []
+    /// « Télécharger les manquants » (MissingViews): an administrator's buttons, and how what was asked is going.
+    @State private var missing = MissingWatch()
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -31,11 +33,12 @@ struct EpisodeList: View {
                     HStack(spacing: 8) {
                         ForEach(chips) { entry in
                             let chosen = entry.id == season
+                            let coming = entry.season.flatMap { missing.progress(season: $0, episodes: nil) }.map { MissingDownloads.pill($0) } ?? ""
                             Button {
                                 picked = true
                                 season = entry.id
                             } label: {
-                                Text(verbatim: entry.name)
+                                Text(verbatim: coming.isEmpty ? entry.name : "\(entry.name)  ·  \(coming)")
                                     .font(MiraFont.callout)
                                     .foregroundStyle(chosen ? Palette.onAccent : Palette.ink)
                                     .padding(.horizontal, 14)
@@ -95,6 +98,19 @@ struct EpisodeList: View {
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: season)
+        .environment(missing)
+        .task(id: "\(series.id)-\(missing.round)") { await missing.watch(series, app: app) }
+        // Episodes asked from this page placed: they leave the hollow tiles for their own.
+        .onChange(of: missing.placedRound) {
+            Task {
+                VirtualEpisodes.forget()
+                await loadSeasons()
+                virtuals = await EpisodeShelf.virtuals(of: series, app: app)
+            }
+        }
+        .sheet(item: Binding(get: { missing.asked }, set: { missing.asked = $0 })) { asked in
+            MissingSheet(series: series, asked: asked, before: { await episodesBefore(asked.ask.season) }, watch: missing)
+        }
         .task(id: series.id) { await loadSeasons() }
         .task(id: series.id) {
             virtuals = await EpisodeShelf.virtuals(of: series, app: app)
@@ -114,13 +130,14 @@ struct EpisodeList: View {
     private struct Chip: Identifiable {
         let id: String
         let name: String
+        var season: Int?
     }
 
     private func chips(today: EpisodeCalendar.Day, showMissing: Bool) -> [Chip] {
         let held = Set(seasons.compactMap(\.indexNumber))
         let absent = EpisodeShelf.absentSeasons(held: held, virtuals: virtuals, today: today, showMissing: showMissing)
-        return seasons.map { Chip(id: $0.id, name: $0.name ?? "") }
-            + absent.map { Chip(id: Self.absentPrefix + "\($0)", name: EpisodeShelf.seasonLabel($0, virtuals: virtuals, today: today)) }
+        return seasons.map { Chip(id: $0.id, name: $0.name ?? "", season: $0.indexNumber) }
+            + absent.map { Chip(id: Self.absentPrefix + "\($0)", name: EpisodeShelf.seasonLabel($0, virtuals: virtuals, today: today), season: $0) }
     }
 
     private static let absentPrefix = "absent-"
@@ -194,6 +211,16 @@ struct EpisodeList: View {
                 await loadEpisodes()
             }
         } catch JellyfinError.unauthorized { app.sessionEnded() } catch { failed = true }
+    }
+
+    /// The episodes of the seasons before `season`, the library's and TheTVDB's (MissingDownloads.before).
+    private func episodesBefore(_ season: Int) async -> Int {
+        guard season > 1, let client = app.client else { return 0 }
+        var all = virtuals
+        for held in seasons where (held.indexNumber ?? 0) >= 1 && (held.indexNumber ?? 0) < season {
+            if let found = try? await client.episodes(series.id, season: held.id) { all += found }
+        }
+        return MissingDownloads.before(all, season: season)
     }
 
     private func loadEpisodes() async {

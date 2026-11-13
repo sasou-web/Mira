@@ -102,8 +102,9 @@ public static class MediaPlanner
             Target = target
         };
         var mains = videos.Where(v => !IsBonus(v)).ToList();
-        // The one episode of a series followed: its number is the one chosen, not what the file says.
-        if (target is not null && mains.Count == 1) context.Main = mains[0];
+        // The one episode of a series followed: its number is the one chosen, not what the file says. A season asked from a
+        // series' page (episode 0): each file under its own number, in that season.
+        if (target is { Episode: >= 1 } && mains.Count == 1) context.Main = mains[0];
         if (mains.Count == 0) mains = videos;
         var single = videos.Count == 1;
         // "Complete Collection", "Complete Saga", "Intégrale 1981-2008" of films: each file another film with its year.

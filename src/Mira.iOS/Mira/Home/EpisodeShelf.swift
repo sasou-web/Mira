@@ -256,6 +256,7 @@ struct ShelfGapTile: View {
         let shown = open.contains(line.id)
         let text = line.kind == .later ? EpisodeShelf.laterText(line.episodes, today: today) : EpisodeShelf.missingText(line.episodes, today: today)
         let (first, second) = EpisodeShelf.gapLines(line, today: today)
+        VStack(alignment: .leading, spacing: 8) {
         Button {
             withAnimation(reduceMotion ? nil : .snappy(duration: 0.28)) { if shown { open.remove(line.id) } else { open.insert(line.id) } }
         } label: {
@@ -277,6 +278,9 @@ struct ShelfGapTile: View {
                     .minimumScaleFactor(0.8)
                     .padding(.horizontal, 14)
                 }
+                // « Télécharger É6–9 » under way (MissingViews): its progress along the foot.
+                .overlay(alignment: .bottom) { MissingTileBar(line: line) }
+                .clipShape(.rect(cornerRadius: 10, style: .continuous))
                 .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.line, lineWidth: 1) }
                 .contentShape(.rect)
         }
@@ -284,6 +288,8 @@ struct ShelfGapTile: View {
         .accessibilityLabel(Text(verbatim: text))
         .accessibilityHint(Text(verbatim: EpisodeShelf.show(line.episodes.count, open: shown)))
         .accessibilityIdentifier(line.kind == .later ? "series.shelf.later" : "series.shelf.missing")
+        MissingTileFoot(line: line)
+        }
     }
 }
 
@@ -312,6 +318,7 @@ struct AbsentSeasonCard: View {
                     .buttonStyle(.plain)
                     .padding(.top, 6)
                     .accessibilityIdentifier("series.absentSeason.show")
+                    MissingSeasonFoot(season: season, episodes: episodes).padding(.top, 10)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)

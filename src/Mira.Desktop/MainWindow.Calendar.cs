@@ -88,7 +88,7 @@ public partial class MainWindow
     {
         var open = _shelfOpen.Contains(key);
         var card = new Border { BorderBrush = Palette.Get("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(22), Margin = new Thickness(0, 0, 0, EpisodeTiles.RowGap) };
-        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition());
+        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(new Icon { Kind = "calendar", Width = 26, Height = 26, Margin = new Thickness(0, 2, 18, 0), VerticalAlignment = VerticalAlignment.Top, Foreground = Palette.Get("Faint") });
         var copy = new StackPanel(); Grid.SetColumn(copy, 1);
         copy.Children.Add(new TextBlock { Text = EpisodeShelf.SeasonTitle(season), FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextBody"), TextWrapping = TextWrapping.Wrap });
@@ -100,7 +100,10 @@ public partial class MainWindow
         show.Content = label; AutomationProperties.SetName(show, ((TextBlock)label.Children[0]).Text);
         show.Click += (_, _) => Toggle(key);
         copy.Children.Add(show);
-        grid.Children.Add(copy); card.Child = grid;
+        grid.Children.Add(copy);
+        // « Télécharger la saison 2 » (MainWindow.MissingDownloads.cs), on the right.
+        if (MissingSeasonPart(season, run) is { } get) { Grid.SetColumn(get, 2); grid.Children.Add(get); }
+        card.Child = grid;
         return card;
     }
 
