@@ -44,15 +44,17 @@ public partial class MainWindow
                 if (timer.Elapsed.TotalSeconds > seconds) throw new TimeoutException($"{what}: not within {seconds} s.");
         }
         string? note = null;
-        async Task Measure(string name, Func<Task> action)
+        async Task Measure(string name, Func<Task> action, ScrollViewer? viewer = null)
         {
             step = name; note = null;
             // A moment of rest between phases: what one left moving is not counted in the next.
             await Task.Delay(400);
-            meter.Begin(name);
+            meter.Begin(name, viewer);
             await action();
             var phase = meter.End();
             lines.Add(string.Create(CultureInfo.InvariantCulture, $"{name}: {phase.Frames} images en {phase.Seconds:0.00} s ({phase.Shown:P0} des rafraîchissements), {phase.MissedRefreshes} manqués, écart max {phase.GapMax:0.0} ms, travail max {phase.WorkMax:0.0} ms, présentations : {(phase.Results.Length > 0 ? phase.Results : "?")}{note}"));
+            if (viewer is not null)
+                lines.Add(string.Create(CultureInfo.InvariantCulture, $"  mouvement : {phase.Moved:0} px d’écran, {phase.Repeated} rafraîchissements répétés (présentations restées {(phase.PresentGaps.Length > 0 ? phase.PresentGaps : "?")}), {phase.Jerks} à-coups de vitesse (le plus fort {phase.JerkMax:P0}), dernier pixel en {phase.TailMs:0} ms ; images en retard avec : {(phase.LateCauses.Length > 0 ? phase.LateCauses : "aucune")}"));
         }
         // The wheel, and how far the list moved: a list that did not move measured nothing.
         async Task Wheel(ScrollViewer viewer, int notches, int spacing, bool down)
@@ -85,21 +87,29 @@ public partial class MainWindow
             await ArtworkAsync(); await Shot("accueil");
 
             await Measure("Accueil : au repos", () => Task.Delay(1500));
-            await Measure("Accueil : molette vers le bas", () => Wheel(LibraryScroll, 10, 75, down: true));
-            await Measure("Accueil : molette vers le haut", () => Wheel(LibraryScroll, 10, 75, down: false));
+            await Measure("Accueil : molette vers le bas", () => Wheel(LibraryScroll, 10, 75, down: true), LibraryScroll);
+            await Measure("Accueil : molette vers le haut", () => Wheel(LibraryScroll, 10, 75, down: false), LibraryScroll);
             await Measure("Films : ouverture (1re fois)", async () => { await GoToPageAsync("Movie"); await Task.Delay(1200); });
             await Shot("films");
-            await Measure("Films : molette rapide vers le bas", () => Wheel(LibraryScroll, 30, 45, down: true));
-            await Measure("Films : molette lente vers le haut", () => Wheel(LibraryScroll, 14, 110, down: false));
-            await Measure("Films : retour en haut", async () => { SmoothScroll.ToTop(LibraryScroll); await SettleAsync(LibraryScroll); });
+            await Measure("Films : molette rapide vers le bas", () => Wheel(LibraryScroll, 30, 45, down: true), LibraryScroll);
+            await Measure("Films : molette lente vers le haut", () => Wheel(LibraryScroll, 14, 110, down: false), LibraryScroll);
+            await Measure("Films : retour en haut", async () => { SmoothScroll.ToTop(LibraryScroll); await SettleAsync(LibraryScroll); }, LibraryScroll);
+            // The pointer resting on the grid as the wheel turns, as a hand leaves it: the cards go by under it.
+            _hoverPointerForCheck = new Point(LibraryShell.ActualWidth / 2, LibraryShell.ActualHeight / 2);
+            await Measure("Films : molette, pointeur sur la grille", () => Wheel(LibraryScroll, 30, 45, down: true), LibraryScroll);
+            await Measure("Films : molette lente, pointeur sur la grille", () => Wheel(LibraryScroll, 14, 110, down: false), LibraryScroll);
+            _hoverPointerForCheck = null; ClosePreview();
+            // A wheel that turns freely (high resolution): a twentieth of a notch every 8 ms.
+            await Measure("Films : molette fine", () => FineWheel(LibraryScroll, 90, 8, down: true), LibraryScroll);
+            SmoothScroll.Jump(LibraryScroll);
             await Measure("Séries : ouverture (1re fois)", async () => { await GoToPageAsync("Series"); await Task.Delay(1200); });
-            await Measure("Séries : molette vers le bas", () => Wheel(LibraryScroll, 14, 60, down: true));
+            await Measure("Séries : molette vers le bas", () => Wheel(LibraryScroll, 14, 60, down: true), LibraryScroll);
             await Measure("Films : ouverture (2e fois)", async () => { await GoToPageAsync("Movie"); await Task.Delay(1000); });
             await Until("a film on Films", () => PosterCards.Children.OfType<MediaCard>().Any(), 10);
             var film = PosterCards.Children.OfType<MediaCard>().First().Item;
             await Measure("Fiche : ouverture", async () => { await ShowDetailsAsync(film); await Task.Delay(1200); });
             await Shot("fiche");
-            await Measure("Fiche : molette", () => Wheel(DetailScroll, 12, 70, down: true));
+            await Measure("Fiche : molette", () => Wheel(DetailScroll, 12, 70, down: true), DetailScroll);
             await Measure("Fiche : fermeture", async () => { await CloseDetailsAsync(); await Task.Delay(500); });
             await Measure("Réglages : ouverture", async () => { Settings_Click(SettingsNav, new RoutedEventArgs()); await Task.Delay(900); });
             await Shot("reglages");
@@ -108,7 +118,7 @@ public partial class MainWindow
             foreach (var tab in new[] { "playback", "subtitles", "appearance", "server", "updates" })
             { SelectSettingsTab(tab, animate: false); SettingsScroll.UpdateLayout(); if (SettingsScroll.ScrollableHeight > most) (longest, most) = (tab, SettingsScroll.ScrollableHeight); }
             SelectSettingsTab(longest, animate: false); await Task.Delay(400);
-            await Measure("Réglages : molette", async () => { await Wheel(SettingsScroll, 10, 70, down: true); note += $" ; section {longest}"; });
+            await Measure("Réglages : molette", async () => { await Wheel(SettingsScroll, 10, 70, down: true); note += $" ; section {longest}"; }, SettingsScroll);
             await Measure("Réglages : fermeture", async () => { await CloseSettingsAnimatedAsync(); await Task.Delay(500); });
             await Measure("Accueil : retour", async () => { await GoToPageAsync("home"); await Task.Delay(1000); });
         }
@@ -136,6 +146,7 @@ public partial class MainWindow
             await File.WriteAllTextAsync(Path.Combine(output, "report.txt"), text.ToString());
             await File.WriteAllTextAsync(Path.Combine(output, "summary.md"), string.Join("  \n", header) + "\n\n" + table + (Environment.ExitCode != 0 ? "\n" + lines.Last() + "\n" : ""));
             await File.WriteAllTextAsync(Path.Combine(output, "report.json"), JsonSerializer.Serialize(new { header, phases = meter.Phases, failure = Environment.ExitCode != 0 ? lines.Last() : null }, new JsonSerializerOptions { WriteIndented = true }));
+            meter.WriteTraces(output);
             Close();
         }
     }
@@ -150,6 +161,20 @@ public partial class MainWindow
         for (var i = 0; i < notches; i++)
         {
             target.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, down ? -120 : 120) { RoutedEvent = Mouse.PreviewMouseWheelEvent });
+            await Task.Delay(spacing);
+        }
+        await SettleAsync(viewer);
+    }
+    /// <summary>
+    /// A wheel without notches (high resolution, as some mice give): <paramref name="events"/> wheel messages of a
+    /// twentieth of a notch each, <paramref name="spacing"/> ms apart, then until the list stands still.
+    /// </summary>
+    private async Task FineWheel(ScrollViewer viewer, int events, int spacing, bool down)
+    {
+        var target = viewer.Content as UIElement ?? viewer;
+        for (var i = 0; i < events; i++)
+        {
+            target.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, down ? -6 : 6) { RoutedEvent = Mouse.PreviewMouseWheelEvent });
             await Task.Delay(spacing);
         }
         await SettleAsync(viewer);

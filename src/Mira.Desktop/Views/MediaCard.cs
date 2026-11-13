@@ -48,7 +48,7 @@ public sealed class MediaCard : Button
     internal bool Pictured
     {
         get => _artwork.CacheMode is not null;
-        set { var picture = value ? RenderCache.Picture : null; if (!ReferenceEquals(_artwork.CacheMode, picture)) _artwork.CacheMode = picture; }
+        set { var picture = value ? RenderCache.Picture : null; if (!ReferenceEquals(_artwork.CacheMode, picture)) { _artwork.CacheMode = picture; FrameEvents.Pictures++; } }
     }
     /// <summary>
     /// Its template: the content alone. The default button's rounded background, invisible on a card, was still a shape
@@ -158,7 +158,7 @@ public sealed class MediaCard : Button
     public void SetHover(bool active)
     {
         if (HoverVisible == active) return;
-        HoverVisible = active;
+        HoverVisible = active; FrameEvents.Hover++;
         var current = HoverAmount; var target = active ? 1d : 0d;
         if (Motion.Reduced) { BeginAnimation(HoverAmountProperty, null); SetValue(HoverAmountProperty, target); return; }
         // A new WPF clock begins on the next frame. Keep the displayed value underneath it,
@@ -192,7 +192,7 @@ public sealed class MediaCard : Button
         if (bitmap is null || shelved != _shelved) return;
         // Coming with a page: set with the others, without a fade of its own.
         if (!cached && Environment.TickCount64 < QuietUntil) { await ArrivalsAsync(); if (shelved != _shelved) return; cached = true; }
-        var initial = _image.Source is null; _image.Source = bitmap;
+        var initial = _image.Source is null; _image.Source = bitmap; FrameEvents.Images++;
         if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft);
     }
     /// <summary>

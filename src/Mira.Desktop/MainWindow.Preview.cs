@@ -47,8 +47,11 @@ public partial class MainWindow
         for (; over is not null && over is not MediaCard; over = over is Visual ? VisualTreeHelper.GetParent(over) : LogicalTreeHelper.GetParent(over)) { }
         return over as MediaCard;
     }
+    /// <summary>--smooth-check's pointer resting on the library (its window is out of sight: no pointer is ever over it); null otherwise.</summary>
+    private Point? _hoverPointerForCheck;
     private void HoverCardUnderPointer()
     {
+        if (_hoverPointerForCheck is { } resting) { TrackHoverPointer(resting); return; }
         if (!CanHover() || !IsActive || !LibraryShell.IsMouseOver) { SetHoverCard(null); return; }
         TrackHoverPointer(Mouse.GetPosition(LibraryShell));
     }

@@ -1,9 +1,12 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
@@ -20,7 +23,8 @@ internal sealed class FrameMeter : IDisposable
     public sealed record Phase(string Name, double Seconds, double RefreshHz, int Frames, double Shown, int MissedRefreshes, double OnTime,
         double GapP50, double GapP95, double GapP99, double GapMax, double WorkP50, double WorkP95, double WorkMax, double Busy,
         double LongestOther, string? LongestOtherName, int Presented, double PresentP95, double PresentMax, string Results,
-        double FirstFrame, int Gen0, int Gen1, int Gen2, double GcPause, string[] Slow);
+        double FirstFrame, int Gen0, int Gen1, int Gen2, double GcPause, string[] Slow,
+        int Repeated, string PresentGaps, int Jerks, double JerkMax, double TailMs, double Moved, string LateCauses);
 
     private static readonly Type? MediaContextType = typeof(Visual).Assembly.GetType("System.Windows.Media.MediaContext");
     private static readonly MethodInfo? From = MediaContextType?.GetMethod("From", BindingFlags.Static | BindingFlags.NonPublic, [typeof(Dispatcher)]);
@@ -64,7 +68,12 @@ internal sealed class FrameMeter : IDisposable
         _dispatcher.Hooks.OperationStarted -= Started; _dispatcher.Hooks.OperationCompleted -= Completed; _dispatcher.Hooks.OperationAborted -= Aborted;
     }
 
-    public void Begin(string name) { _phase = new Recording(name); }
+    /// <summary>A phase begins; <paramref name="viewer"/>, if any, is the list whose motion its frames trace.</summary>
+    public void Begin(string name, ScrollViewer? viewer = null)
+    {
+        _phase = new Recording(name) { Viewer = viewer, Scale = viewer is null ? 1 : VisualTreeHelper.GetDpi(viewer).DpiScaleY };
+        FrameEvents.Take();
+    }
     public Phase End()
     {
         var p = _phase ?? throw new InvalidOperationException("No phase under way.");
@@ -74,6 +83,8 @@ internal sealed class FrameMeter : IDisposable
         var period = 1000d / hz;
         var missed = (int)p.Gaps.Sum(g => Math.Max(0, Math.Round(g / period) - 1));
         var onTime = p.Gaps.Count == 0 ? 1 : p.Gaps.Count(g => g <= period * 1.5) / (double)p.Gaps.Count;
+        if (p.Viewer is { } watched && p.Frames.Count > 0) p.Frames[^1].Offset = watched.VerticalOffset;
+        var motion = Motion(p.Frames, period, p.Scale);
         var phase = new Phase(p.Name, Math.Round(seconds, 3), hz, p.Gaps.Count, Math.Round(p.Gaps.Count / Math.Max(1e-9, seconds * hz), 3), missed, Math.Round(onTime, 4),
             Percentile(p.Gaps, .5), Percentile(p.Gaps, .95), Percentile(p.Gaps, .99), Percentile(p.Gaps, 1),
             Percentile(p.Work, .5), Percentile(p.Work, .95), Percentile(p.Work, 1), Math.Round(p.Busy / Math.Max(1e-9, seconds * 1000), 4),
@@ -81,9 +92,88 @@ internal sealed class FrameMeter : IDisposable
             string.Join(", ", p.Results.OrderByDescending(x => x.Value).Select(x => $"{x.Key.Replace("MIL_PRESENTATION_", "", StringComparison.Ordinal)} {x.Value}")),
             p.FirstFrameAt == 0 ? -1 : Math.Round((p.FirstFrameAt - p.Started) * 1000d / Stopwatch.Frequency, 2),
             GC.CollectionCount(0) - p.Gen0, GC.CollectionCount(1) - p.Gen1, GC.CollectionCount(2) - p.Gen2, Math.Round((GC.GetTotalPauseDuration() - p.Pause).TotalMilliseconds, 2),
-            [.. p.Slow.OrderByDescending(x => x.Ms).Take(6).Select(x => string.Create(CultureInfo.InvariantCulture, $"{x.Name} {x.Ms:0.0} ms at {x.At:0} ms"))]);
-        Phases.Add(phase);
+            [.. p.Slow.OrderByDescending(x => x.Ms).Take(6).Select(x => string.Create(CultureInfo.InvariantCulture, $"{x.Name} {x.Ms:0.0} ms at {x.At:0} ms"))],
+            motion.Repeated, motion.PresentGaps, motion.Jerks, motion.JerkMax, motion.TailMs, motion.Moved, motion.LateCauses);
+        Phases.Add(phase); _traces.Add((p.Name, p.Frames));
         return phase;
+    }
+
+    private readonly List<(string Name, List<Frame> Frames)> _traces = [];
+    /// <summary>Each phase's frames, one line each (frames-NN.csv): when, the gap since the one before, the work of the interface's thread, where the list stood, the presentation's gap, what changed.</summary>
+    public void WriteTraces(string folder)
+    {
+        var c = CultureInfo.InvariantCulture;
+        for (var i = 0; i < _traces.Count; i++)
+        {
+            var text = new StringBuilder("# ").Append(_traces[i].Name).Append('\n').Append("ms,gap_ms,work_ms,offset,present_gap_ms,hover,images,pictures\n");
+            foreach (var f in _traces[i].Frames)
+                text.Append(string.Create(c, $"{f.At:0.00},{f.Gap:0.00},{f.Work:0.00},{f.Offset:0.###},{f.Present:0.00},{f.Hover},{f.Images},{f.Pictures}\n"));
+            File.WriteAllText(Path.Combine(folder, string.Create(c, $"frames-{i + 1:00}.csv")), text.ToString());
+        }
+    }
+
+    private sealed record Moving(int Repeated, string PresentGaps, int Jerks, double JerkMax, double TailMs, double Moved, string LateCauses);
+    /// <summary>
+    /// What the eye sees of the frames: refreshes that showed a frame again (by the presentations, else by the frames'
+    /// own gaps), and the list's motion — a jerk is a change of speed from one frame to the next of more than a quarter
+    /// of it and more than a pixel of the screen (a curve that starts again at each notch makes one at each), the
+    /// time its last pixel took to cover — and what came with the frames that came late.
+    /// </summary>
+    private static Moving Motion(List<Frame> frames, double period, double scale)
+    {
+        var c = CultureInfo.InvariantCulture;
+        // Presentations: how many refreshes each one stayed on the screen.
+        var presents = frames.Where(f => !double.IsNaN(f.Present)).Select(f => Math.Max(1, (int)Math.Round(f.Present / period))).ToList();
+        var repeated = presents.Count > 0 ? presents.Sum(n => n - 1) : frames.Skip(1).Sum(f => Math.Max(0, (int)Math.Round(f.Gap / period) - 1));
+        var histogram = presents.Count == 0 ? "" : string.Join(" ", presents.GroupBy(n => Math.Min(n, 4)).OrderBy(g => g.Key).Select(g => $"{(g.Key == 4 ? "4+" : g.Key.ToString(c))}×{g.Count()}"));
+        // Speed in screen pixels per refresh, each frame's move spread over the refreshes it stood for.
+        var speeds = new List<(int Index, double Speed)>();
+        double? last = null; var moved = 0d;
+        for (var i = 0; i < frames.Count; i++)
+        {
+            var at = frames[i].Offset;
+            if (double.IsNaN(at)) continue;
+            if (last is { } before && i > 0)
+            {
+                var step = (at - before) * scale; moved += Math.Abs(step);
+                speeds.Add((i, step / Math.Max(1, Math.Round(frames[i].Gap / period))));
+            }
+            last = at;
+        }
+        int jerks = 0; var jerkMax = 0d;
+        for (var k = 1; k < speeds.Count; k++)
+        {
+            var (a, b) = (speeds[k - 1].Speed, speeds[k].Speed);
+            if (a == 0 || b == 0 || speeds[k].Index != speeds[k - 1].Index + 1) continue;
+            var change = Math.Abs(b - a); var larger = Math.Max(Math.Abs(a), Math.Abs(b));
+            if (change > Math.Max(1, .25 * larger)) jerks++;
+            if (larger >= 2) jerkMax = Math.Max(jerkMax, change / larger);
+        }
+        // The last pixel: from the frame left within a pixel of where the list ends to the last that moved it.
+        var tail = 0d;
+        var lastMove = speeds.FindLastIndex(x => x.Speed != 0);
+        if (lastMove >= 0 && !double.IsNaN(frames[^1].Offset))
+        {
+            var end = frames[^1].Offset; var stop = frames[speeds[lastMove].Index].At; var near = stop;
+            for (var k = lastMove; k >= 0 && Math.Abs(end - frames[speeds[k].Index].Offset) * scale <= 1; k--) near = frames[speeds[k].Index].At;
+            tail = stop - near;
+        }
+        // The frames that came late, and what came with them (or the frame before).
+        var causes = new Dictionary<string, int>();
+        for (var i = 1; i < frames.Count; i++)
+        {
+            if (frames[i].Gap <= period * 1.5) continue;
+            var (f, before) = (frames[i], frames[i - 1]);
+            var found = false;
+            void Note(bool when, string what) { if (!when) return; causes[what] = causes.GetValueOrDefault(what) + 1; found = true; }
+            Note(f.Hover + before.Hover > 0, "survol");
+            Note(f.Images + before.Images > 0, "images");
+            Note(f.Pictures + before.Pictures > 0, "images figées");
+            Note(before.Work > period, "fil de l’interface");
+            if (!found) causes["?"] = causes.GetValueOrDefault("?") + 1;
+        }
+        var why = string.Join(", ", causes.OrderByDescending(x => x.Value).Select(x => $"{x.Key} {x.Value}"));
+        return new Moving(repeated, histogram, jerks, Math.Round(jerkMax, 2), Math.Round(tail, 1), Math.Round(moved), why);
     }
     private static double Percentile(List<double> values, double rank)
     {
@@ -105,9 +195,14 @@ internal sealed class FrameMeter : IDisposable
         var p = _phase;
         if (p is not null)
         {
-            if (p.FirstFrameAt == 0) p.FirstFrameAt = Stopwatch.GetTimestamp();
-            if (previous != TimeSpan.MinValue) p.Gaps.Add((args.RenderingTime - previous).TotalMilliseconds);
-            if (presented != 0 && presented != _lastPresented && _lastPresented != 0) p.Presents.Add((presented - _lastPresented) * 1000d / Stopwatch.Frequency);
+            if (p.FirstFrameAt == 0) { p.FirstFrameAt = Stopwatch.GetTimestamp(); p.FirstRendering = args.RenderingTime; }
+            // The list's place drawn by the previous frame: this handler runs before the list's own step of this frame.
+            if (p.Viewer is { } viewer && p.Frames.Count > 0) p.Frames[^1].Offset = viewer.VerticalOffset;
+            var (hover, images, pictures) = FrameEvents.Take();
+            var frame = new Frame { At = (args.RenderingTime - p.FirstRendering).TotalMilliseconds, Hover = hover, Images = images, Pictures = pictures };
+            p.Frames.Add(frame);
+            if (previous != TimeSpan.MinValue) { frame.Gap = (args.RenderingTime - previous).TotalMilliseconds; p.Gaps.Add(frame.Gap); }
+            if (presented != 0 && presented != _lastPresented && _lastPresented != 0) { frame.Present = (presented - _lastPresented) * 1000d / Stopwatch.Frequency; p.Presents.Add(frame.Present); }
             if (_context is not null)
             {
                 var result = Result?.GetValue(_context)?.ToString() ?? "?";
@@ -130,7 +225,7 @@ internal sealed class FrameMeter : IDisposable
         if (frame) _frameOperation = null;
         if (_phase is not { } p) return;
         if (_running.Count == 0) p.Busy += ms;
-        if (frame) p.Work.Add(ms);
+        if (frame) { p.Work.Add(ms); if (p.Frames.Count > 0) p.Frames[^1].Work = ms; }
         else if (ms > p.Longest) (p.Longest, p.LongestName) = (ms, Describe(operation));
         if (ms >= 8) p.Slow.Add((frame ? "frame" : Describe(operation), Elapsed(p.Started) - ms, ms));
     }
@@ -147,11 +242,18 @@ internal sealed class FrameMeter : IDisposable
     public static string Table(IEnumerable<Phase> phases)
     {
         var c = CultureInfo.InvariantCulture; var text = new StringBuilder();
-        text.AppendLine("| Phase | s | Hz | images | montrées | rafraîchissements manqués | à l'heure | écart p95 / max (ms) | travail p95 / max (ms) | fil occupé | plus longue autre (ms) | présentées | 1re image (ms) | GC 0/1/2 | pauses GC (ms) |");
-        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        text.AppendLine("| Phase | s | Hz | images | montrées | rafraîchissements manqués | à l'heure | écart p95 / max (ms) | travail p95 / max (ms) | fil occupé | plus longue autre (ms) | présentées | répétées à l'écran | à-coups (max) | dernier pixel (ms) | 1re image (ms) | GC 0/1/2 | pauses GC (ms) |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var p in phases)
-            text.AppendLine(string.Create(c, $"| {p.Name} | {p.Seconds:0.0} | {p.RefreshHz:0} | {p.Frames} | {p.Shown:P0} | {p.MissedRefreshes} | {p.OnTime:P1} | {p.GapP95:0.0} / {p.GapMax:0.0} | {p.WorkP95:0.0} / {p.WorkMax:0.0} | {p.Busy:P0} | {p.LongestOther:0.0} | {p.Presented} | {p.FirstFrame:0} | {p.Gen0}/{p.Gen1}/{p.Gen2} | {p.GcPause:0.0} |"));
+            text.AppendLine(string.Create(c, $"| {p.Name} | {p.Seconds:0.0} | {p.RefreshHz:0} | {p.Frames} | {p.Shown:P0} | {p.MissedRefreshes} | {p.OnTime:P1} | {p.GapP95:0.0} / {p.GapMax:0.0} | {p.WorkP95:0.0} / {p.WorkMax:0.0} | {p.Busy:P0} | {p.LongestOther:0.0} | {p.Presented} | {p.Repeated} | {p.Jerks} ({p.JerkMax:P0}) | {p.TailMs:0} | {p.FirstFrame:0} | {p.Gen0}/{p.Gen1}/{p.Gen2} | {p.GcPause:0.0} |"));
         return text.ToString();
+    }
+
+    /// <summary>One frame of a phase: when (its refresh, from the phase's first), the list's place it drew, what came with it.</summary>
+    private sealed class Frame
+    {
+        public double At, Gap = double.NaN, Work = double.NaN, Offset = double.NaN, Present = double.NaN;
+        public int Hover, Images, Pictures;
     }
 
     private sealed class Recording(string name)
@@ -165,6 +267,10 @@ internal sealed class FrameMeter : IDisposable
         public double Busy, Longest;
         public string? LongestName;
         public int Refresh;
+        public ScrollViewer? Viewer;
+        public double Scale = 1;
+        public TimeSpan FirstRendering;
+        public readonly List<Frame> Frames = [];
         public readonly int Gen0 = GC.CollectionCount(0), Gen1 = GC.CollectionCount(1), Gen2 = GC.CollectionCount(2);
         public readonly TimeSpan Pause = GC.GetTotalPauseDuration();
     }
