@@ -137,8 +137,10 @@ const virtualEpisodes = [
   { ...episode(5, 'The Sun Never Sets', { PremiereDate: days(-3) }), LocationType: 'Virtual' },
   { ...episode(1, 'Back Home', { PremiereDate: days(40), ParentIndexNumber: 2, SeasonId: MISSING_SEASON, Id: 'e2a1b2c3d4e5f60718293a4b5c6d7e8f' }), LocationType: 'Virtual' },
 ];
-// Collections made by hand, kept until the mock stops: one there from the start, empty.
-const boxSets = [{ Id: 'b0c1d2e3f4a5968778695a4b3c2d1e0f', Name: 'Movie nights', Type: 'BoxSet', ChildCount: 0, Path: '/config/data/collections/Movie nights [boxset]', titles: [] }];
+// Collections made by hand: one there from the start, empty. Put back as it was by /Mock/Up (each test's tearDown), so
+// that a test run again by xcodebuild's retry finds the collections it started from, not those its failed run left.
+const firstBoxSets = () => [{ Id: 'b0c1d2e3f4a5968778695a4b3c2d1e0f', Name: 'Movie nights', Type: 'BoxSet', ChildCount: 0, Path: '/config/data/collections/Movie nights [boxset]', titles: [] }];
+const boxSets = firstBoxSets();
 const boxSet = (x) => ({ Id: x.Id, Name: x.Name, Type: x.Type, ChildCount: x.titles.length, Path: x.Path });
 // The title kept as Jellyfin's conversion, and the pieces of its stream.
 const converted = films[3];
@@ -272,7 +274,7 @@ const server = http.createServer(async (req, res) => {
     revoked = path === '/Mock/Revoke';
     if (revoked) for (const socket of sockets) socket.destroy();
     if (down) for (const socket of sockets) socket.destroy();
-    if (path === '/Mock/Up') administrator = extension = false;
+    if (path === '/Mock/Up') { administrator = extension = false; boxSets.splice(0, boxSets.length, ...firstBoxSets()); }
     return send(res, 204, undefined);
   }
   if (req.method === 'POST' && path === '/Mock/Admin') { administrator = true; return send(res, 204, undefined); }

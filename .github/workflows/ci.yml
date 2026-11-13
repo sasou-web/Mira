@@ -17,6 +17,11 @@ on:
         description: "JPEG quality of each preview, 1 to 100 (a capture to look at closely: 90)"
         required: false
         default: "50"
+# A new push to a pull request cancels its run still going (as mac.yml): the macOS and Windows runners it held go to
+# the next run instead of a commit nobody will merge. Never on main, a release or a run asked by hand.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
