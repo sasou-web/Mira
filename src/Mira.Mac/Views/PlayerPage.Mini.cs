@@ -33,12 +33,13 @@ public sealed partial class PlayerPage
     private double _miniShare = 1;
     private readonly MiniDock _dock = new();
     private readonly Stopwatch _dockClock = Stopwatch.StartNew();
-    private readonly DispatcherTimer _dockTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    private readonly DispatcherTimer _dockTimer = new() { Interval = MiniDock.Poll };
     /// <summary>The pointer in the window, in the coordinates of the page the player is laid out on; null outside it.</summary>
     private Point? _pointer;
     /// <summary>A click on the mini-player brought the whole player back: the presses of the same double click go nowhere.</summary>
     private long _swallowPressesUntil;
-    private static readonly Easing Glide = new SplineEasing(.4, 0, .2, 1);
+    private static readonly Easing OutEasing = Spline(MiniDock.OutCurve), BackEasing = Spline(MiniDock.BackCurve);
+    private static SplineEasing Spline((double X1, double Y1, double X2, double Y2) c) => new(c.X1, c.Y1, c.X2, c.Y2);
     private static readonly ITransform Rest = TransformOperations.Parse("translateX(0px)");
     /// <summary>Tucked away against the edge, a sliver of it showing (or on its way there).</summary>
     public bool IsMiniTucked => _mini && _miniTucked;
@@ -140,7 +141,12 @@ public sealed partial class PlayerPage
         var left = _miniTucked ? right - MiniDock.Peek : MiniDock.Left(true, right) - 4;
         return point.X >= left && point.X <= right + 1 && point.Y >= top - 4 && point.Y <= top + MiniHeight + 4;
     }
-    private void ShellPointerMoved(object? sender, PointerEventArgs e) => _pointer = Parent is Visual parent ? e.GetPosition(parent) : null;
+    private void ShellPointerMoved(object? sender, PointerEventArgs e)
+    {
+        _pointer = Parent is Visual parent ? e.GetPosition(parent) : null;
+        // At once, rather than at the clock's next tick: what the pointer does is felt under it.
+        if (_mini && _dockTimer.IsEnabled) DockTick();
+    }
     private void ShellPointerExited(object? sender, PointerEventArgs e) => _pointer = null;
     /// <summary>Listens to the pointer anywhere in the window while the player is in it (the sliver is too thin to wait for it to arrive).</summary>
     private void FollowPointer(bool on)
@@ -156,7 +162,7 @@ public sealed partial class PlayerPage
     {
         _miniTucked = !shown;
         if (!shown) ShowMiniControls(false);
-        Transitions = MacMotion.Reduced ? null : [new TransformOperationsTransition { Property = RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(shown ? MiniDock.OutMs : MiniDock.BackMs), Easing = Glide }];
+        Transitions = MacMotion.Reduced ? null : [new TransformOperationsTransition { Property = RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(shown ? MiniDock.OutMs : MiniDock.BackMs), Easing = shown ? OutEasing : BackEasing }];
         RenderTransform = shown ? Rest : TransformOperations.Parse(FormattableString.Invariant($"translateX({TuckShift}px)"));
         if (shown && PointerOnMini()) ShowControls();
     }

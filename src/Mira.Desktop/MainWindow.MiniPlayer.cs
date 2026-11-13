@@ -93,7 +93,7 @@ public partial class MainWindow
     {
         if (_dockTimer is null)
         {
-            _dockTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(40) };
+            _dockTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = MiniDock.Poll };
             _dockTimer.Tick += (_, _) => DockTick();
         }
         // Only in use, and never under the other checks: they find the mini-player out, as they leave it.
@@ -140,7 +140,8 @@ public partial class MainWindow
         MiniFrame.BeginAnimation(OpacityProperty, null); MiniFrame.Opacity = 0;
         PlaceMini(target); UpdateLayout();
         var to = host.LaidOut ?? from;
-        await MoveVideoAsync(host, from, to, radius, radius, shown ? MiniDock.OutMs : MiniDock.BackMs, live: () => slide == _miniSlide);
+        var curve = shown ? MiniDock.OutCurve : MiniDock.BackCurve;
+        await MoveVideoAsync(host, from, to, radius, radius, shown ? MiniDock.OutMs : MiniDock.BackMs, live: () => slide == _miniSlide, ease: t => MiniDock.Ease(curve, t));
         if (slide != _miniSlide) return;
         FinishMiniSlide(); AfterMiniSlide(shown);
     }
