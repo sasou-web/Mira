@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    The checks of Mira web only (tools/web/check.mjs, web.yml), never shipped: a stand-in for Jellyfin's TheTVDB
+    The checks of the extension (tools/extension/check.mjs, web.yml) and the release banners' captures (banner.yml, gallery.yml), never shipped: a stand-in for Jellyfin's TheTVDB
     plugin, which TheTVDB itself (out of reach of the checks) would feed. Under the same id and name, so that Mira finds
     « TheTVDB » installed, it adds to the test series (tools/web/media.sh) the virtual episodes the real one would: aired
     and missing, coming, announced without a date, as Jellyfin's own Episode and Season with IsVirtualItem.

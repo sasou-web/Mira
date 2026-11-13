@@ -85,7 +85,10 @@ jobs:
           du -sh .artifacts/media
       - name: Jellyfin 12.1 and its library
         run: |
-          mkdir -p .artifacts/jf-config .artifacts/jf-cache
+          mkdir -p .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0 .artifacts/jf-cache
+          # A stand-in for TheTVDB's plugin: Invincible's missing episodes, which mac-missing shows (tools/web/fake-tvdb).
+          dotnet build tools/web/fake-tvdb/FakeTvdb.csproj -c Release -o .artifacts/fake-tvdb -nologo -v q
+          cp .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0/
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
           node tools/gallery/setup.mjs http://127.0.0.1:8096 /media "$GALLERY_USER" "$GALLERY_PASSWORD"
       - name: The films' backdrops
