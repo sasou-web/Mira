@@ -47,6 +47,7 @@ public sealed partial class MainWindow
         _host.Children.Add(_slideDim); _host.Children.Add(_slideSheet);
         _gestureEnd.Tick += (_, _) => GestureEnded();
         AddHandler(PointerWheelChangedEvent, SwipeWheel, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerWheelChangedEvent, EaseWheel, RoutingStrategies.Tunnel);
         AddHandler(Gestures.PointerTouchPadGestureMagnifyEvent, Magnified, RoutingStrategies.Bubble, handledEventsToo: true);
         AddHandler(Gestures.PointerTouchPadGestureSwipeEvent, ThreeFingerSwipe, RoutingStrategies.Bubble, handledEventsToo: true);
         AddHandler(PointerMovedEvent, (_, e) => _pointerAt = e.GetPosition(this), RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -103,6 +104,32 @@ public sealed partial class MainWindow
         if (phase is ScrollPhase.Momentum or ScrollPhase.Ended) { LetGo(rested: false); return; }
         if (_slideTop is null && _swipe.Turn > 0) StartSlide(_swipe.Way);
         if (_slideTop is not null) Follow();
+    }
+    /// <summary>
+    /// A wheel with notches eases the list under the pointer (<see cref="Glide"/>), as macOS's own apps and Windows' Mira
+    /// do: Avalonia moved it at once by its whole step at each notch. A trackpad's and a Magic Mouse's scroll stay macOS's
+    /// own, point for point; sideways (Shift, a tilt), the player, a menu's list and a text field as before.
+    /// </summary>
+    private void EaseWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift) || Math.Abs(e.Delta.Y) <= Math.Abs(e.Delta.X) || InPlayer(e.Source)) return;
+        if (!Trackpad.Notched(MacTrackpad.Precise(e), e.Delta.X, e.Delta.Y) || Eased(e.Source, e.Delta.Y) is not { } scroll) return;
+        e.Handled = true;
+        // Avalonia's own step: 50 per line of the wheel.
+        Glide.By(scroll, -e.Delta.Y * 50);
+    }
+    /// <summary>The innermost list under the pointer that can still move up (positive) or down; none over a menu or a field.</summary>
+    private static ScrollViewer? Eased(object? source, double delta)
+    {
+        if (source is not Visual visual) return null;
+        foreach (var node in visual.GetSelfAndVisualAncestors())
+        {
+            if (node is ComboBox or TextBox or NumericUpDown) return null;
+            if (node is not ScrollViewer scroll || scroll.VerticalScrollBarVisibility == ScrollBarVisibility.Disabled) continue;
+            var maximum = scroll.Extent.Height - scroll.Viewport.Height;
+            if (maximum > 1 && (delta > 0 ? scroll.Offset.Y > .5 : scroll.Offset.Y < maximum - .5)) return scroll;
+        }
+        return null;
     }
     private bool InPlayer(object? source) => Player is { } player && source is Visual visual && (visual == player || player.IsVisualAncestorOf(visual));
     /// <summary>A scroller under the pointer that can still move with the content going right (positive) or left.</summary>

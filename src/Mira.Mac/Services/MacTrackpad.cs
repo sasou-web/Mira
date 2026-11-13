@@ -89,41 +89,49 @@ public static partial class MacTrackpad
 
     // —— Where the fingers are ——
     /// <summary>
-    /// The phase of the scroll Avalonia is passing on, which it drops: NSEvent's phase and momentumPhase, read on the event
-    /// macOS is dispatching ([NSApp currentEvent]) and trusted only when it carries the travel Avalonia gives
-    /// (scrollingDelta / 50, a wheel's own delta). <see cref="ScrollPhase.Unknown"/> otherwise (a scroll made by the
-    /// self-check, another system): the gestures then end on a pause, as before.
+    /// What Avalonia drops of the scroll it is passing on: whether it is precise (a trackpad, a Magic Mouse) or a wheel's
+    /// notches, and the fingers' phase (NSEvent's phase and momentumPhase). Read on the event macOS is dispatching ([NSApp
+    /// currentEvent]) and trusted only when it carries the travel Avalonia gives (scrollingDelta / 50, a wheel's own
+    /// delta); null otherwise (a scroll made by the self-check, another system).
     /// </summary>
-    public static ScrollPhase Phase(double deltaX, double deltaY)
+    private static (bool Precise, ScrollPhase Phase)? Read(double deltaX, double deltaY)
     {
-        if (!OperatingSystem.IsMacOS()) return ScrollPhase.Unknown;
+        if (!OperatingSystem.IsMacOS()) return null;
         try
         {
             var application = Send(objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
             var scroll = application == IntPtr.Zero ? IntPtr.Zero : Send(application, sel_registerName("currentEvent"));
-            if (scroll == IntPtr.Zero || SendUnsigned(scroll, sel_registerName("type")) != 22 /* NSEventTypeScrollWheel */) return ScrollPhase.Unknown;
+            if (scroll == IntPtr.Zero || SendUnsigned(scroll, sel_registerName("type")) != 22 /* NSEventTypeScrollWheel */) return null;
             var precise = SendBool(scroll, sel_registerName("hasPreciseScrollingDeltas")) != 0;
             double x = SendDouble(scroll, sel_registerName(precise ? "scrollingDeltaX" : "deltaX")), y = SendDouble(scroll, sel_registerName(precise ? "scrollingDeltaY" : "deltaY"));
             if (precise) { x /= 50; y /= 50; }
-            if (!Same(x, deltaX) || !Same(y, deltaY)) return ScrollPhase.Unknown;
-            return Trackpad.Phase(SendUnsigned(scroll, sel_registerName("phase")), SendUnsigned(scroll, sel_registerName("momentumPhase")));
+            if (!Same(x, deltaX) || !Same(y, deltaY)) return null;
+            return (precise, Trackpad.Phase(SendUnsigned(scroll, sel_registerName("phase")), SendUnsigned(scroll, sel_registerName("momentumPhase"))));
         }
-        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return ScrollPhase.Unknown; }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return null; }
     }
+    /// <summary>
+    /// The fingers' phase in a scroll (<see cref="Read(double, double)"/>); <see cref="ScrollPhase.Unknown"/> when unread:
+    /// the gestures then end on a pause, as before.
+    /// </summary>
+    public static ScrollPhase Phase(double deltaX, double deltaY) => Read(deltaX, deltaY)?.Phase ?? ScrollPhase.Unknown;
     // Whatever the sign Avalonia gives each axis: the travel itself tells the event apart.
     private static bool Same(double native, double avalonia) => Math.Abs(Math.Abs(native) - Math.Abs(avalonia)) < 1e-6;
-    private static (ulong Time, Avalonia.Vector Delta)? _phaseOf;
-    private static ScrollPhase _phase;
+    private static (ulong Time, Avalonia.Vector Delta)? _readOf;
+    private static (bool Precise, ScrollPhase Phase)? _read;
     /// <summary>
-    /// <see cref="Phase(double, double)"/> of a wheel event, read once for each event (its time and travel): the window
+    /// <see cref="Read(double, double)"/> of a wheel event, read once for each event (its time and travel): the window
     /// and the player both ask it of the same one.
     /// </summary>
-    public static ScrollPhase Phase(Avalonia.Input.PointerWheelEventArgs e)
+    private static (bool Precise, ScrollPhase Phase)? Read(Avalonia.Input.PointerWheelEventArgs e)
     {
-        if (_phaseOf == (e.Timestamp, e.Delta)) return _phase;
-        _phaseOf = (e.Timestamp, e.Delta);
-        return _phase = Phase(e.Delta.X, e.Delta.Y);
+        if (_readOf == (e.Timestamp, e.Delta)) return _read;
+        _readOf = (e.Timestamp, e.Delta);
+        return _read = Read(e.Delta.X, e.Delta.Y);
     }
+    public static ScrollPhase Phase(Avalonia.Input.PointerWheelEventArgs e) => Read(e)?.Phase ?? ScrollPhase.Unknown;
+    /// <summary>A trackpad's or a Magic Mouse's scroll (true), a wheel's notches (false), or unread (null).</summary>
+    public static bool? Precise(Avalonia.Input.PointerWheelEventArgs e) => Read(e)?.Precise;
 
     // —— Force click ——
     /// <summary>A firm press on a Force Touch trackpad (its second click), on the main thread, where Avalonia runs.</summary>

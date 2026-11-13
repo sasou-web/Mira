@@ -260,7 +260,7 @@ public sealed partial class SettingsPage
     internal int Drawn { get; private set; }
     internal void ClickTab(string key) => _tabButtons[key].RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
     /// <summary>The section open before the page was made again, or on its top again.</summary>
-    public override void ShowAgain() { if (HelpTopic is not null || _lastTab != CurrentTab) ShowSettingsSide(); else GlideUp.Start(_tabScroll); }
+    public override void ShowAgain() { if (HelpTopic is not null || _lastTab != CurrentTab) ShowSettingsSide(); else Glide.ToTop(_tabScroll); }
     /// <summary>The section the next Réglages opens on (a notice that names a setting).</summary>
     public static void OpenAt(string key) { if (Tabs.Any(x => x.Key == key)) _lastTab = key; }
     public void Show(string key)

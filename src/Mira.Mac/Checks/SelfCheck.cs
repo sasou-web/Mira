@@ -207,7 +207,22 @@ public static class SelfCheck
                 homeScroll.Offset = default; await Task.Delay(200);
                 mouse.Capture((Control)window.Content!);
                 Wheel((Control)window.Content!, new Point(window.Bounds.Width / 2, window.Bounds.Height * .6), new Vector(0, -1));
-                Check(homeScroll.Offset.Y > 0 && mouse.Captured is null, "accueil : la page défile après une capture restée sans bouton", $"page {homeScroll.Offset.Y:0} px, capture {mouse.Captured?.GetType().Name ?? "aucune"}");
+                Check(await Until(() => homeScroll.Offset.Y > 0, 2) && mouse.Captured is null, "accueil : la page défile après une capture restée sans bouton", $"page {homeScroll.Offset.Y:0} px, capture {mouse.Captured?.GetType().Name ?? "aucune"}");
+                homeScroll.Offset = default; await Task.Delay(100);
+                // A wheel with notches eases the page (Glide, the Windows wheel's curve), by Avalonia's step: three notches
+                // in a row, 150 px, reached still, never at once. With motion, whatever the runner's setting.
+                MacMotion.Override(false);
+                var point = new Point(window.Bounds.Width / 2, window.Bounds.Height * .6);
+                var maximum = homeScroll.Extent.Height - homeScroll.Viewport.Height;
+                var steps = new List<double>();
+                for (var notch = 0; notch < 3; notch++)
+                {
+                    if (window.InputHitTest(point) is Control under) Wheel(under, point, new Vector(0, -1));
+                    steps.Add(homeScroll.Offset.Y); await Task.Delay(40);
+                }
+                Check(await Until(() => !Glide.Moving(homeScroll), 2) && Math.Abs(homeScroll.Offset.Y - Math.Min(150, maximum)) < .5 && steps[0] < 1 && steps[2] < Math.Min(150, maximum),
+                    "accueil : la molette à crans glisse la page", $"{string.Join(", ", steps.Select(x => x.ToString("0")))} px aux crans, {homeScroll.Offset.Y:0} px à la fin (sur {maximum:0})");
+                MacMotion.Override(null);
                 homeScroll.Offset = default;
             }
 

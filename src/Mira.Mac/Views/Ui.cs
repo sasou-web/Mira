@@ -609,28 +609,47 @@ public sealed class CardRow : StackPanel
 }
 
 /// <summary>
-/// A page's list eased back to its top, frame by frame (<see cref="ScrollMotion"/>, the Windows wheel's): its rail entry
-/// chosen again. A scroll by hand meanwhile stops it.
+/// A list eased up or down, frame by frame (<see cref="ScrollMotion"/>, the Windows wheel's): a wheel's notches (the
+/// window's <c>EaseWheel</c>), its rail entry chosen again (<see cref="ToTop"/>). One motion per list, which each new
+/// input goes on from, at the speed it has; a scroll by other means meanwhile (a trackpad, the scroll bar, the keyboard)
+/// stops it. At once when macOS reduces motion.
 /// </summary>
-public static class GlideUp
+public static class Glide
 {
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ScrollViewer, ScrollMotion> Gliding = new();
-    public static void Start(ScrollViewer scroll)
+    private sealed class State
     {
-        if (scroll.Offset.Y <= .5 || TopLevel.GetTopLevel(scroll) is not { } top) return;
-        var motion = new ScrollMotion(); motion.Reset(scroll.Offset.Y); motion.Add(-scroll.Offset.Y, Maximum(scroll));
-        Gliding.AddOrUpdate(scroll, motion);
-        TimeSpan? last = null; var set = scroll.Offset.Y;
-        void Frame(TimeSpan now)
-        {
-            if (!Gliding.TryGetValue(scroll, out var current) || current != motion) return;
-            if (Math.Abs(scroll.Offset.Y - set) > 1) { Gliding.Remove(scroll); return; }
-            var seconds = last is { } before ? (now - before).TotalSeconds : 1 / 60d; last = now;
-            set = motion.Step(Math.Min(.1, seconds), Maximum(scroll));
-            scroll.Offset = new Vector(scroll.Offset.X, set);
-            if (motion.Moving) top.RequestAnimationFrame(Frame); else Gliding.Remove(scroll);
-        }
-        top.RequestAnimationFrame(Frame);
+        public readonly ScrollMotion Motion = new();
+        public bool Running;
+        public TimeSpan? Last;
+        /// <summary>Where the last step put the list: anything else moved it since.</summary>
+        public double Set;
+    }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ScrollViewer, State> States = new();
+    public static void By(ScrollViewer scroll, double pixels)
+    {
+        if (TopLevel.GetTopLevel(scroll) is not { } top) return;
+        var state = States.GetValue(scroll, _ => new State());
+        if (!state.Running || Math.Abs(scroll.Offset.Y - state.Set) > 1) { state.Running = false; state.Motion.Reset(scroll.Offset.Y); }
+        state.Motion.Add(pixels, Maximum(scroll));
+        if (MacMotion.Reduced) { state.Running = false; scroll.Offset = new Vector(scroll.Offset.X, state.Motion.Step(10, Maximum(scroll))); return; }
+        if (state.Running || !state.Motion.Moving) return;
+        state.Running = true; state.Last = null; state.Set = scroll.Offset.Y;
+        top.RequestAnimationFrame(now => Frame(scroll, state, top, now));
+    }
+    /// <summary>Back to the top (its rail entry chosen again); nothing at the top already.</summary>
+    public static void ToTop(ScrollViewer scroll) { if (scroll.Offset.Y > .5) By(scroll, -scroll.Offset.Y - scroll.Extent.Height); }
+    /// <summary>For the self-check: whether the list is being eased.</summary>
+    public static bool Moving(ScrollViewer scroll) => States.TryGetValue(scroll, out var state) && state.Running;
+    private static void Frame(ScrollViewer scroll, State state, TopLevel top, TimeSpan now)
+    {
+        if (!state.Running) return;
+        if (Math.Abs(scroll.Offset.Y - state.Set) > 1) { state.Running = false; return; }
+        // The first frame: a sixtieth of a second (Avalonia's frames have nothing before them to count from).
+        var seconds = state.Last is { } last ? (now - last).TotalSeconds : 1 / 60d; state.Last = now;
+        state.Set = state.Motion.Step(Math.Clamp(seconds, 0, .1), Maximum(scroll));
+        scroll.Offset = new Vector(scroll.Offset.X, state.Set);
+        if (state.Motion.Moving && scroll.IsEffectivelyVisible) top.RequestAnimationFrame(next => Frame(scroll, state, top, next));
+        else state.Running = false;
     }
     private static double Maximum(ScrollViewer scroll) => Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height);
 }
