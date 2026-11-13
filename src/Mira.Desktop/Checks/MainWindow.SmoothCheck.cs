@@ -143,6 +143,7 @@ public partial class MainWindow
             var table = FrameMeter.Table(meter.Phases);
             var text = new StringBuilder().AppendJoin('\n', header).Append("\n\n").Append(table).Append('\n').AppendJoin('\n', lines).Append("\n\n");
             foreach (var phase in meter.Phases.Where(x => x.Slow.Length > 0)) text.Append(phase.Name).Append(" — lents : ").AppendJoin("; ", phase.Slow).Append('\n');
+            foreach (var phase in meter.Phases.Where(x => x.Collections.Length > 0)) text.Append(phase.Name).Append(" — GC : ").AppendJoin("; ", phase.Collections).Append('\n');
             await File.WriteAllTextAsync(Path.Combine(output, "report.txt"), text.ToString());
             await File.WriteAllTextAsync(Path.Combine(output, "summary.md"), string.Join("  \n", header) + "\n\n" + table + (Environment.ExitCode != 0 ? "\n" + lines.Last() + "\n" : ""));
             await File.WriteAllTextAsync(Path.Combine(output, "report.json"), JsonSerializer.Serialize(new { header, phases = meter.Phases, failure = Environment.ExitCode != 0 ? lines.Last() : null }, new JsonSerializerOptions { WriteIndented = true }));
