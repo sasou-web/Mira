@@ -399,7 +399,7 @@ final class MiraUITests: XCTestCase {
         settle()
         capture("31-player")
 
-        // Speed, quality and the sleep timer; then audio and subtitles: Apple's menus, in glass.
+        // Quality and the sleep timer; then audio and subtitles: Apple's menus, in glass.
         for (button, name) in [("player.more", "32-player-menu"), ("player.tracks", "33-player-tracks")] {
             let menu = app.buttons[button]
             XCTAssertTrue(menu.waitForExistence(timeout: 5), "No \(button) in the player")

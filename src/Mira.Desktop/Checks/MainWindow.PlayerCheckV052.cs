@@ -89,14 +89,11 @@ public partial class MainWindow
         require(!PlayerOptionsPopup.IsOpen, "the same button closes its menu");
 
         More_Click(this, new()); UpdateLayout(); await Task.Delay(180);
-        var chips = SpeedList.Children.OfType<RadioButton>().ToList();
-        require(PlayerOptionsPopup.IsOpen && MoreMenu.IsVisible && !TracksMenu.IsVisible && chips.Count == Speeds.Length && chips.Count(IsChosen) == 1 && PlaybackInfo.Text.Contains("Vidéo"),
-            "⋮ opens the speeds, the subtitle timing and the playback information");
-        var faster = chips.First(c => c.Tag is 1.5);
-        faster.IsChecked = true; await Task.Delay(100);
-        require(Math.Abs(mpv.Number("speed") - 1.5) < .001 && IsChosen(faster) && chips.Count(IsChosen) == 1, "a speed chip reaches mpv and becomes the chosen one");
+        var sleep = SleepList.Children.OfType<RadioButton>().ToList();
+        require(PlayerOptionsPopup.IsOpen && MoreMenu.IsVisible && !TracksMenu.IsVisible && sleep.Count(IsChosen) == 1 && PlaybackInfo.Text.Contains("Vidéo") && Math.Abs(mpv.Number("speed", 1) - 1) < .001,
+            "⋮ opens the sleep timer, the subtitle timing and the playback information, without any speed: mpv plays at 1×");
         CaptureElement(output, "player-menu-more", panel);
-        ChooseSpeed(1); PlayerOptionsPopup.IsOpen = false;
+        PlayerOptionsPopup.IsOpen = false;
     }
 
     /// <summary>The overlay over the current video frame: mpv writes the frame, WPF draws the controls on it.</summary>

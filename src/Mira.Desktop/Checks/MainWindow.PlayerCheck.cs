@@ -88,7 +88,7 @@ public partial class MainWindow
             _settings.NightSound = nightBefore; TrySaveSettings();
             VolumeSlider.Value = 0;
             More_Click(this, new()); UpdateLayout(); await Task.Delay(100);
-            ChooseSpeed(1.25); Require(Math.Abs(_mpv.Number("speed") - 1.25) < .001, "speed menu selection reaches mpv");
+            Require(Math.Abs(_mpv.Number("speed", 1) - 1) < .001, "playback stays at 1×: the player has no speed choice");
             SubtitleDelay_Click(new Button { Tag = "0.5" }, new());
             Require(Math.Abs(_mpv.Number("sub-delay") - .5) < .001 && Equals(SubtitleDelayReset.Content, DelayLabel(.5)), "subtitle timing buttons reach mpv and show the new offset");
             AudioDelay_Click(new Button { Tag = "0.1" }, new()); AudioDelay_Click(new Button { Tag = "0.1" }, new());

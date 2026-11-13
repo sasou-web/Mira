@@ -120,7 +120,7 @@ public sealed partial class PlayerPage : UserControl
         _next = Ui.IconButton("next-episode", L("Épisode suivant · N", "Next episode · N"), () => { if (_skips.Next is { } next) _ = PlayNextAsync(next); }, "player", 22);
         BuildEpisodeButtons();
         _tracks = Ui.IconButton("subtitles", L("Audio et sous-titres", "Audio and subtitles"), () => { }, "player", 22);
-        _more = Ui.IconButton("more", L("Vitesse, sous-titres et minuterie", "Speed, subtitles and sleep timer"), () => { }, "player", 22);
+        _more = Ui.IconButton("more", L("Qualité, sous-titres et minuterie", "Quality, subtitles and sleep timer"), () => { }, "player", 22);
         _tracks.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         _more.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         ((Flyout)_tracks.Flyout).Opening += (_, _) => { _subtitleView = false; ((Flyout)_tracks.Flyout).Content = TracksMenu(); };
@@ -779,16 +779,13 @@ public sealed partial class PlayerPage : UserControl
         RememberTracks();
     }
     /// <summary>
-    /// « ⋮ », laid out as Mira for Windows': one column of 300 px, speed, quality and sleep timer as rows of chips, the
+    /// « ⋮ », laid out as Mira for Windows': one column of 300 px, quality and sleep timer as rows of chips, the
     /// group, then the subtitle delay on a line of its own.
     /// </summary>
     private Control MoreMenu()
     {
-        var speed = _mpv?.Number("speed", 1) ?? 1; var delay = _mpv?.Number("sub-delay", 0) ?? 0;
+        var delay = _mpv?.Number("sub-delay", 0) ?? 0;
         var menu = new StackPanel { Width = 300 };
-        menu.Children.Add(MenuHeading(L("VITESSE", "SPEED")));
-        menu.Children.Add(Chips(new[] { 0.75, 1, 1.25, 1.5, 2 }.Select(value => (PlayerText.Speed(value), L("Vitesse ", "Speed ") + PlayerText.Speed(value), Math.Abs(speed - value) < .01,
-            (Action)(() => _mpv?.Set("speed", value.ToString(CultureInfo.InvariantCulture))))), 0));
         // A copy kept on this Mac plays its own file: no quality to choose.
         if (_stream is { } stream && _playingCopy is null) { menu.Children.Add(MenuHeading(L("QUALITÉ", "QUALITY"))); menu.Children.AddRange(QualityChoices(stream)); }
         menu.Children.Add(MenuHeading(L("MINUTERIE", "SLEEP TIMER")));

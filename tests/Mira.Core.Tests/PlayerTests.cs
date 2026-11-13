@@ -883,7 +883,7 @@ internal static class PlayerTests
             Assert(PlaybackMarkers.AutoSkip(rebuilt, 50, enabled: true, skipped) is null && PlaybackMarkers.AutoSkip(rebuilt, 10, enabled: true, skipped) == rebuilt[0], "A rebuilt opening is skipped again");
             return Task.CompletedTask;
         });
-        await Test("Lecteur : « Épisode 3 / 12 », pistes nommées en français, vitesse et décalage", () =>
+        await Test("Lecteur : « Épisode 3 / 12 », pistes nommées en français et décalage", () =>
         {
             MediaItem Episode(string id, int season, int number, string name = "") => new() { Id = id, Type = "Episode", SeriesName = "Sword Art Online", Name = name, ParentIndexNumber = season, IndexNumber = number };
             var single = Enumerable.Range(1, 25).Select(n => Episode($"e{n}", 1, n, n == 1 ? "Le monde des épées" : $"Episode {n}")).ToList();
@@ -897,7 +897,7 @@ internal static class PlayerTests
             Assert(PlayerText.Subtitle(new MediaItem { Name = "Your Name", Type = "Movie", ProductionYear = 2016, RunTimeTicks = TimeSpan.FromMinutes(106).Ticks }) == "2016  ·  1 h 46", "Film line changed");
             Assert(PlayerText.Track("2", null, "jpn", "aac", 2) == ("Japonais", "AAC · stéréo") && PlayerText.Track("3", "Signs & Songs", "fre", "ass", forced: true) == ("Signs & Songs", "Français · ASS · forcés")
                 && PlayerText.Track("4", "", "und", "") == ("Piste 4", "") && PlayerText.Track("5", "japanese", "pt-BR", "eac3", 6) == ("Japanese", "Portugais · Dolby Digital Plus · 5.1"), "Track names");
-            Assert(PlayerText.Speed(.75) == "0,75×" && PlayerText.Speed(1) == "1×" && PlayerText.Delay(.5) == "+0,5 s" && PlayerText.Delay(-1.5) == "−1,5 s" && PlayerText.Delay(0) == "0,0 s", "Speed or offset formatting");
+            Assert(PlayerText.Delay(.5) == "+0,5 s" && PlayerText.Delay(-1.5) == "−1,5 s" && PlayerText.Delay(0) == "0,0 s", "Offset formatting");
             return Task.CompletedTask;
         });
         await Test("Lecteur : pistes et chapitres lus de mpv de la même façon sur Windows et sur Mac", () =>

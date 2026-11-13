@@ -9,7 +9,7 @@ On Windows and Mac, Mira plays with **mpv**, in its own window: almost every fil
 
 ## The controls
 
-The bar shows the title and episode on the left, the chapter and time on the right. Below: play/pause, next episode and volume on the left; **⋮** (speed, sleep timer, subtitle delay, information), audio and subtitles, mini player, picture in picture and full screen on the right. Controls hide after a few seconds without moving the mouse.
+The bar shows the title and episode on the left, the chapter and time on the right. Below: play/pause, next episode and volume on the left; **⋮** (quality, sleep timer, subtitle delay, information), audio and subtitles, mini player, picture in picture and full screen on the right. Controls hide after a few seconds without moving the mouse.
 
 - The seek bar is cut into chapters; hovering shows the time, the chapter and, when Jellyfin has prepared them, a preview of the picture.
 - Volume goes up to 200 % for a title recorded too low: past 100 %, the sound is amplified then limited, without clipping.

@@ -121,7 +121,7 @@ private struct TopBar: View {
     }
 }
 
-/// AirPlay, Picture in Picture, audio and subtitles, then speed, quality and the sleep timer, in one capsule of glass.
+/// AirPlay, Picture in Picture, audio and subtitles, then quality and the sleep timer, in one capsule of glass.
 private struct ToolCapsule: View {
     @Bindable var model: PlayerModel
 
@@ -212,22 +212,6 @@ private struct MoreMenu: View {
 
     var body: some View {
         Menu {
-            if !model.inGroup {
-                Menu {
-                    Picker(selection: Binding(get: { model.speed }, set: { model.actions?.setSpeed($0) })) {
-                        ForEach(PlayerModel.speeds, id: \.self) { speed in
-                            Text(verbatim: Self.speedName(speed)).tag(speed)
-                        }
-                    } label: {
-                        Text("Speed")
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Text("Speed")
-                    Text(verbatim: Self.speedName(model.speed))
-                    Image(systemName: "gauge.with.dots.needle.67percent")
-                }
-            }
             Menu {
                 Picker(selection: Binding(get: { model.quality }, set: { model.actions?.setQuality($0) })) {
                     ForEach(Preferences.qualities, id: \.self) { value in
@@ -279,12 +263,8 @@ private struct MoreMenu: View {
             ToolIcon(symbol: "gearshape.fill")
         }
         .menuOrder(.fixed)
-        .accessibilityLabel(Text("Speed, quality and sleep timer"))
+        .accessibilityLabel(Text("Quality and sleep timer"))
         .accessibilityIdentifier("player.more")
-    }
-
-    static func speedName(_ speed: Float) -> String {
-        speed == 1 ? String(localized: "Normal") : speed.formatted(.number.precision(.fractionLength(0...2))) + "×"
     }
 
     static func qualityName(_ value: String) -> String {
@@ -357,15 +337,6 @@ private struct BottomBar: View {
             HStack(alignment: .center, spacing: 10) {
                 TimeText(model: model)
                 Spacer(minLength: 8)
-                if model.speed != 1 && !model.inGroup {
-                    Text(verbatim: MoreMenu.speedName(model.speed))
-                        .font(MiraFont.footnote)
-                        .monospacedDigit()
-                        .padding(.horizontal, 10)
-                        .frame(height: 32)
-                        .glassEffect(.regular, in: .capsule)
-                        .accessibilityLabel(Text("Speed \(MoreMenu.speedName(model.speed))"))
-                }
                 if model.hasNext && model.passage == nil {
                     Button {
                         model.actions?.playNext()
