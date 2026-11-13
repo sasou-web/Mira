@@ -49,17 +49,25 @@ public partial class MainWindow
         await CaptureAsync(output, "15-integrated-hover");
         var originalWidth = poster.ActualWidth;
         var pointer = poster.TranslatePoint(new Point(poster.ActualWidth / 2, 70), LibraryShell);
+        // The pointer rests there (no real pointer is over the window of a check), also for the page at rest.
+        _hoverPointerForCheck = pointer;
         TrackHoverPointer(pointer); Require(_hoverCard == poster, "Hit testing must select the card under the pointer.");
         var step = poster.ActualHeight + poster.Margin.Top + poster.Margin.Bottom;
         LibraryScroll.ScrollToVerticalOffset(step); await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded); UpdateLayout();
         TrackHoverPointer(pointer);
-        Require(_hoverCard is { } nextCard && nextCard != poster && nextCard.HoverVisible && !poster.HoverVisible, "Scrolling must transfer hover to the card under the stationary pointer.");
+        Require(_hoverCard is null && !poster.HoverVisible, "The card a scrolling page takes from under the pointer must go dark, and none light up in its place while it scrolls.");
+        bool LitUnder(Point at) => _hoverCard is { HoverVisible: true } shown && shown == CardAtLibraryPoint(at);
+        async Task<bool> RestedUnder(Point at) { for (var i = 0; i < 40 && !LitUnder(at); i++) await Task.Delay(25); return LitUnder(at); }
+        Require(await RestedUnder(pointer) && _hoverCard != poster, "At rest, the card under the still pointer must light up.");
         Require(Math.Abs(poster.ActualWidth - originalWidth) < .1, "Hover must never resize card layout.");
+        var litBefore = _hoverCard;
         SmoothScroll.By(LibraryScroll, 85); await Task.Delay(35); TrackHoverPointer(pointer);
-        Require(_hoverCard == CardAtLibraryPoint(pointer) && _hoverCard?.HoverVisible == true, "Hover must track before scroll inertia has ended.");
+        Require(_hoverCard is null || _hoverCard == litBefore, "No card may light up on its way under the pointer while the page glides.");
+        Require(await RestedUnder(pointer), "Once the glide ends, the card under the still pointer must light up.");
+        _hoverPointerForCheck = null;
         Require(!LogicalText(poster).Any(x => x.Contains("Voir la fiche")), "Poster hover must not carry a caption.");
         Require(TitleBar.Background is System.Windows.Media.SolidColorBrush brush && brush.Color.A == 0, "Scrolling must not paint an opaque title bar.");
-        checks.Add("PASS moving content transfers hover under a stationary pointer during scroll inertia without changing layout");
+        checks.Add("PASS a page scrolling under a still pointer lights no card on its way, the card under it once the page rests, layout unchanged");
         checks.Add("PASS scrolling leaves the title bar transparent");
         SmoothScroll.Jump(LibraryScroll, LibraryScroll.ScrollableHeight); await Task.Delay(200);
         var lastPoster = (MediaCard)PosterCards.Children[^1]; CardHoverEntered(lastPoster);

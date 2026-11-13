@@ -7,19 +7,37 @@ using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
-/// <summary>The same hit test follows the pointer and the moving page; scrolling never disables hover.</summary>
+/// <summary>
+/// The same hit test follows the pointer and the page. A page scrolling under a still pointer lights no card on its way,
+/// each of which would lift and drop again in passing (its picture drawn anew at each frame of it): the card it leaves goes
+/// dark, the one under the pointer lights up once the page rests, as in a browser and on Mac (Ui.Scrolling).
+/// </summary>
 public partial class MainWindow
 {
     private MediaCard? _hoverCard;
     private bool _hoverRefreshPending;
     private readonly DispatcherTimer _hoverWarm = new() { Interval = TimeSpan.FromMilliseconds(180) };
+    /// <summary>Ticks while the page scrolls; the first tick <see cref="ScrollRestMs"/> after its last step finds it at rest.</summary>
+    private readonly DispatcherTimer _scrollRest = new() { Interval = TimeSpan.FromMilliseconds(50) };
+    private const int ScrollRestMs = 100;
+    private long _scrolledAt;
+    /// <summary>The page moved under the pointer moments ago: no card lights up, not even under a pointer that moves.</summary>
+    private bool PageScrolling => _scrollRest.IsEnabled;
     private void InitializePreview()
     {
         LibraryShell.PreviewMouseMove += (_, e) => TrackHoverPointer(e.GetPosition(LibraryShell));
         LibraryShell.MouseLeave += (_, _) => { if (_hoverCard is { } card && !(_keyboardNavigation && card.IsKeyboardFocusWithin)) SetHoverCard(null); };
         _hoverWarm.Tick += (_, _) => { _hoverWarm.Stop(); if (_hoverCard is { } card) _ = WarmItemAsync(card.Item); };
+        _scrollRest.Tick += (_, _) => { if (Environment.TickCount64 - _scrolledAt < ScrollRestMs) return; _scrollRest.Stop(); HoverCardUnderPointer(); };
     }
+    /// <summary>The page scrolled: what is under the pointer changed without the pointer moving.</summary>
     private void NoteScroll()
+    {
+        _scrolledAt = Environment.TickCount64; if (!_scrollRest.IsEnabled) _scrollRest.Start();
+        RefreshHover();
+    }
+    /// <summary>Cards came, went or moved under the pointer.</summary>
+    private void RefreshHover()
     {
         // ScrollChanged runs after layout. Coalesce nested viewers into one hit test before paint.
         if (_hoverRefreshPending) return;
@@ -27,8 +45,14 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(() => { _hoverRefreshPending = false; HoverCardUnderPointer(); }, DispatcherPriority.Render);
     }
     private bool CanHover() => !((_playing && !_miniPlayer) || SettingsOverlay.IsVisible || DetailOverlay.IsVisible || LoginOverlay.IsVisible);
-    private void CardHoverEntered(MediaCard card) { if (CanHover()) SetHoverCard(card); }
-    private void TrackHoverPointer(Point point) { if (CanHover()) SetHoverCard(CardAtLibraryPoint(point)); }
+    private void CardHoverEntered(MediaCard card) { if (CanHover() && !PageScrolling) SetHoverCard(card); }
+    /// <summary>While the page scrolls, the card under the pointer only keeps a light it already had.</summary>
+    private void TrackHoverPointer(Point point)
+    {
+        if (!CanHover()) return;
+        var card = CardAtLibraryPoint(point);
+        SetHoverCard(PageScrolling && card != _hoverCard ? null : card);
+    }
     private void CardFocusEntered(MediaCard card) { if (CanHover()) SetHoverCard(card); }
     private void CardHoverLeft(MediaCard card) { if (_hoverCard == card) SetHoverCard(null); else card.SetHover(false); }
     private void SetHoverCard(MediaCard? card)
@@ -47,7 +71,7 @@ public partial class MainWindow
         for (; over is not null && over is not MediaCard; over = over is Visual ? VisualTreeHelper.GetParent(over) : LogicalTreeHelper.GetParent(over)) { }
         return over as MediaCard;
     }
-    /// <summary>--smooth-check's pointer resting on the library (its window is out of sight: no pointer is ever over it); null otherwise.</summary>
+    /// <summary>A check's pointer resting on the library (no real pointer is over its window, out of sight for --smooth-check); null otherwise.</summary>
     private Point? _hoverPointerForCheck;
     private void HoverCardUnderPointer()
     {
