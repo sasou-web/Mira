@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Barres du bandeau de l’accueil (Windows, Mac)** : sous Windows, les barres du carrousel montraient encore un carré gris arrondi sous le pointeur, que la 0.9.7 devait retirer : le réglage qui l’éteint était posé après le style du bouton, qui avait déjà branché le survol. Le survol se relit maintenant à chaque passage du pointeur, pour tout bouton. Sur Mac, un clic sur une barre relançait la rotation alors que le pointeur était encore sur le bandeau. Signalé par ogsas sur la 0.9.7 ; le bandeau est maintenant contrôlé contre un vrai Jellyfin avec de vrais clics (job `server`).
 - **Pastilles du bandeau à la forme des boutons (Windows, Mac)** : l’année, l’épisode, la durée, la note et les genres sur le bandeau de l’Accueil avaient un arrondi plus petit que les boutons juste à côté. Elles prennent maintenant le même : l’arrondi doux des boutons sous Windows, 8 px sur Mac. Demandé par ogsas ; jamais essayé sur un vrai PC ou Mac.
 
 - **Survol des boutons sans liseré (Windows)** : au survol, le voile d’un bouton était dessiné à l’intérieur de son bord avec le même arrondi, si bien que ses coins ne rejoignaient pas ceux du bord et laissaient un liseré sombre (« Help » de la fenêtre Réglages, « More info » de l’Accueil). Le voile couvre maintenant toute la forme, sous le bord. Le Mac n’avait pas ce défaut (fond et bord d’un seul élément). Signalé par ogsas sur la 0.9.7 ; jamais essayé sur un vrai PC.
