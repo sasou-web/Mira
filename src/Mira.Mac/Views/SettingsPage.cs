@@ -179,8 +179,9 @@ public sealed partial class SettingsPage : Page
             sync = Ui.Action(L("Synchroniser maintenant", "Sync now"), "refresh", "", () => _ = SyncAsync());
             buttons.Children.Add(sync);
         }
-        if (connection is not null && Uri.TryCreate(connection.Server, UriKind.Absolute, out var server))
-            buttons.Children.Add(Ui.Action(L("Ouvrir Jellyfin dans le navigateur", "Open Jellyfin in the browser"), "globe", "", () => Updates.Open(server, plainHttp: true)));
+        // Jellyfin's own page, signed in with the same account, on its dashboard (libraries, users, network), as on Windows.
+        if (connection is not null && Uri.TryCreate(connection.Server.TrimEnd('/') + "/", UriKind.Absolute, out var server))
+            buttons.Children.Add(Ui.Action(L("Ouvrir Jellyfin dans le navigateur", "Open Jellyfin in the browser"), "globe", "", () => Updates.Open(new Uri(server, "web/#/dashboard"), plainHttp: true)));
         buttons.Children.Add(SignOut(erase));
         foreach (var button in buttons.Children) button.Margin = new Thickness(0, 0, 10, 8);
         return Ui.Column(0, name, Description(connection?.Server ?? "—"), line, buttons);

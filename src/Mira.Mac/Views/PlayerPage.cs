@@ -111,8 +111,8 @@ public sealed partial class PlayerPage : UserControl
         _root.Children.Add(StatusPill());
 
         // Top: back to the library only; the title sits in the bottom bar, as on Windows.
-        // « Retour » keeps the film going in the mini-player, as on Windows; « Fermer » there stops it.
-        var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => SetMini(true), "player", 22);
+        // « Revenir à la bibliothèque » keeps the film going in the mini-player, with Windows' chevron down; « Fermer » there stops it.
+        var back = Ui.IconButton("down", L("Revenir à la bibliothèque · Échap", "Back to the library · Esc"), () => SetMini(true), "player", 22, L("Revenir à la bibliothèque", "Back to the library"));
         back.HorizontalAlignment = HorizontalAlignment.Left;
         _top = new Border
         {
