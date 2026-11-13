@@ -12,7 +12,6 @@ protocol PlayerActions: AnyObject {
     func scrubbing(_ active: Bool)
     func selectAudio(_ index: Int)
     func selectSubtitles(_ index: Int)
-    func setSpeed(_ speed: Float)
     /// The subtitles later (positive) or earlier, in seconds; 0 for Apple's own drawing of them again.
     func setSubtitleDelay(_ seconds: Double)
     /// Held down on the picture: twice as fast while the finger stays.
@@ -103,7 +102,6 @@ final class PlayerModel {
     var subtitles: [PlayerTrack] = []
     var audioIndex: Int?
     var subtitleIndex = -1
-    var speed: Float = 1
     var quality = "auto"
     /// What the quality is now: « Original file », « Converted · 8 Mb/s ».
     var qualityNow: String?
@@ -267,7 +265,6 @@ final class PlayerModel {
         chapters.last { $0.start <= seconds }?.name
     }
 
-    static let speeds: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
     private static let controlsStay = ProcessInfo.processInfo.arguments.contains("-mira-controls-stay")
 }
 

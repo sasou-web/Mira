@@ -109,10 +109,10 @@
     </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="PlayerBarButton" TargetType="Button" BasedOn="{StaticResource PlayerButton}"><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="v:Motion.Radius" Value="20"/></Style>
-  <!-- Rows, chips and headings of the player menus (audio, subtitles, speed). -->
+  <!-- Rows, chips and headings of the player menus (audio, subtitles, quality, sleep timer). -->
   <Style x:Key="PlayerMenuItem" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="Foreground" Value="{StaticResource TextBody}"/><Setter Property="BorderThickness" Value="0"/><Setter Property="MinHeight" Value="34"/><Setter Property="v:Motion.Radius" Value="{StaticResource RadiusSmall}"/></Style>
   <Style x:Key="PlayerMenuChip" TargetType="Button" BasedOn="{StaticResource PlayerMenuItem}"><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="Padding" Value="0,7"/><Setter Property="FontSize" Value="12.5"/><Setter Property="Margin" Value="2,0"/><Setter Property="MinHeight" Value="32"/></Style>
-  <!-- Track and speed choices are radio buttons: screen readers announce which one is selected. -->
+  <!-- Track, quality and sleep timer choices are radio buttons: screen readers announce which one is selected. -->
   <Style x:Key="PlayerMenuChoice" TargetType="ToggleButton"><Setter Property="Foreground" Value="{StaticResource TextSecondary}"/><Setter Property="FontSize" Value="13"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="Padding" Value="10,8"/><Setter Property="MinHeight" Value="34"/>
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><v:Squircle x:Name="Chrome" Background="Transparent" CornerRadius="{StaticResource RadiusSmall}"><Grid>
       <v:Squircle x:Name="Hover" Background="{TemplateBinding Foreground}" Opacity="0" CornerRadius="{StaticResource RadiusSmall}" IsHitTestVisible="False"/>

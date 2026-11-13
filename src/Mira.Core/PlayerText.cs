@@ -88,8 +88,6 @@ public static class PlayerText
         "mpeg4" => "MPEG-4",
         var other => other.ToUpperInvariant()
     };
-    /// <summary>Playback speed as shown in the menu: "0,75×" (French), "0.75×", "1×".</summary>
-    public static string Speed(double speed) => speed.ToString("0.##", Culture) + "×";
     /// <summary>Subtitle offset: "0,0 s", "+0,5 s", "−1,5 s" (French), "+0.5 s".</summary>
     public static string Delay(double seconds) => (seconds > 0 ? "+" : seconds < 0 ? "−" : "") + Math.Abs(seconds).ToString("0.0", Culture) + " s";
     private static string Capitalize(string text) => text.Length > 0 && char.IsLower(text[0]) ? char.ToUpper(text[0], Culture) + text[1..] : text;

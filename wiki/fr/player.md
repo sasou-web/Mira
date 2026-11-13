@@ -9,7 +9,7 @@ Sous Windows et Mac, Mira lit avec **mpv**, dans sa propre fenêtre : presque to
 
 ## Les commandes
 
-La barre montre le titre et l’épisode à gauche, le chapitre et le temps à droite. Dessous : lecture/pause, épisode suivant et volume à gauche ; **⋮** (vitesse, minuterie, décalage des sous-titres, informations), audio et sous-titres, mini-lecteur, image dans l’image et plein écran à droite. Les commandes se cachent après quelques secondes sans bouger la souris.
+La barre montre le titre et l’épisode à gauche, le chapitre et le temps à droite. Dessous : lecture/pause, épisode suivant et volume à gauche ; **⋮** (qualité, minuterie, décalage des sous-titres, informations), audio et sous-titres, mini-lecteur, image dans l’image et plein écran à droite. Les commandes se cachent après quelques secondes sans bouger la souris.
 
 - La barre de lecture est découpée en chapitres ; le survol montre le temps, le chapitre et, quand Jellyfin les a préparés, un aperçu de l’image.
 - Le volume monte jusqu’à 200 % pour un titre enregistré trop bas : au-delà de 100 %, le son est amplifié puis limité, sans saturer.

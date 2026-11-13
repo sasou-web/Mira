@@ -4551,32 +4551,12 @@
         }
       }
     },
-    "Speed": {
+    "Quality and sleep timer": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vitesse"
-          }
-        }
-      }
-    },
-    "Speed, quality and sleep timer": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vitesse, qualité et minuterie"
-          }
-        }
-      }
-    },
-    "Normal": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Normale"
+            "value": "Qualité et minuterie"
           }
         }
       }
@@ -4607,16 +4587,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pause"
-          }
-        }
-      }
-    },
-    "Speed %@": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vitesse %@"
           }
         }
       }

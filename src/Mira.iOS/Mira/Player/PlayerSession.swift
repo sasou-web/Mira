@@ -94,8 +94,6 @@ final class PlayerSession: NSObject {
     private var stillWatching = StillWatching()
     private var waitingNext: Item?
     private var trickplay: TrickplayTiles?
-    /// The speed chosen in the menu (1 in a group); twice it while held down.
-    private var speed: Float = 1
     /// The copy kept on this iPhone being played (« Keep on this iPhone »): no Jellyfin needed but for the reports.
     private var kept: KeptCopy?
     /// The copy of this title did not play: Jellyfin's stream instead, until another title.
@@ -1364,14 +1362,6 @@ extension PlayerSession: PlayerActions {
         app?.preferences.remember(TrackChoice.memory(source, audio: audioIndex, subtitle: subtitleIndex), for: series)
     }
 
-    func setSpeed(_ speed: Float) {
-        guard !inGroup else { return }
-        self.speed = speed
-        model.speed = speed
-        player.defaultRate = speed
-        if player.rate > 0 { player.rate = speed }
-    }
-
     func setSubtitleDelay(_ seconds: Double) {
         let value = min(60, max(-60, (seconds * 10).rounded() / 10))
         guard value != subtitleDelay, !closed else { return }
@@ -1388,7 +1378,7 @@ extension PlayerSession: PlayerActions {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } else if model.boosted {
             model.boosted = false
-            if player.rate > 0 { player.rate = speed }
+            if player.rate > 0 { player.rate = 1 }
         }
     }
 

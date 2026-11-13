@@ -34,7 +34,6 @@ public partial class MainWindow
     private bool _pressClosedMenu;
     /// <summary>Another menu's button, pressed to close the open menu: its menu opens when it is let go.</summary>
     private Button? _menuOnRelease;
-    private static readonly double[] Speeds = [.5, .75, 1, 1.25, 1.5, 2];
     // Slider width plus its margins, revealed beside the speaker.
     private const double VolumeRevealWidth = 174;
     private readonly DispatcherTimer _volumeHide = new() { Interval = TimeSpan.FromMilliseconds(900) };
@@ -484,7 +483,7 @@ public partial class MainWindow
     private Control? CurrentMenuChoice() => TracksMenu.Visibility == Visibility.Visible
         ? AudioTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen) ?? SubtitleTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen)
         : EpisodesMenu.Visibility == Visibility.Visible ? CurrentEpisodeRow()
-        : SpeedList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen);
+        : QualityList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen) ?? SleepList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen);
     private static bool IsChosen(RadioButton choice) => choice.IsChecked == true;
     private void BuildTrackMenu()
     {
@@ -536,15 +535,6 @@ public partial class MainWindow
     private void BuildMoreMenu()
     {
         if (_mpv is null) return;
-        SpeedList.Children.Clear();
-        var current = _mpv.Number("speed", 1);
-        foreach (var speed in Speeds)
-        {
-            var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "speed", Content = PlayerText.Speed(speed), Tag = speed, IsChecked = Math.Abs(current - speed) < .001 };
-            System.Windows.Automation.AutomationProperties.SetName(chip, L("Vitesse ", "Speed ") + PlayerText.Speed(speed));
-            chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSpeed(speed); };
-            SpeedList.Children.Add(chip);
-        }
         BuildQualityChoices(); BuildSleepChoices(); ShowGroupSection();
         SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay")); AudioDelayReset.Content = DelayLabel(_mpv.Number("audio-delay"));
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
@@ -598,15 +588,6 @@ public partial class MainWindow
         if (!_sleep.Due(DateTimeOffset.Now)) return;
         if (_mpv is not null && !_mpv.Flag("pause")) { _mpv.Set("pause", "yes"); SetNotice(L("Minuterie : lecture en pause.", "Sleep timer: playback paused.")); }
         if (PlayerOptionsPopup.IsOpen && MoreMenu.Visibility == Visibility.Visible) BuildSleepChoices();
-    }
-    private void ChooseSpeed(double speed)
-    {
-        _mpv?.Set("speed", speed.ToString(CultureInfo.InvariantCulture));
-        // Also when called from code: the chip of that speed shows as chosen.
-        _menuBuilding = true;
-        try { foreach (var chip in SpeedList.Children.OfType<RadioButton>()) if (chip.Tag is double value && Math.Abs(value - speed) < .001) chip.IsChecked = true; }
-        finally { _menuBuilding = false; }
-        ShowPlayerControls();
     }
     /// <summary>A track row: a radio button of its group, checked for the current track, with details (codec, channels…) beneath.</summary>
     private RadioButton MenuChoice(string group, string text, string details, bool chosen, Action choose)
