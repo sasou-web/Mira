@@ -469,6 +469,20 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, item.UserData);
   }
   const one = /^\/Items\/([0-9a-f]+)$/.exec(path);
+  // Each picture with its size, as Jellyfin's Items/{id}/Images: Tears of Steel's own backdrop is 1280 × 720, the
+  // series has a thin banner (1900 × 400, as AniList gives an anime) that the banner leaves for the episode's still.
+  const pictures = /^\/Items\/([0-9a-f]+)\/Images$/.exec(path);
+  if (pictures) {
+    const item = known.find((x) => x.Id === pictures[1]);
+    if (!item) return send(res, 404, undefined);
+    const sizes = { Primary: item.Type === 'Episode' ? [1920, 1080] : [1000, 1500], Thumb: [1280, 720], Logo: [800, 310] };
+    const infos = Object.entries(item.ImageTags ?? {}).map(([type, tag]) => ({ ImageType: type, ImageTag: tag, Width: sizes[type]?.[0] ?? 1280, Height: sizes[type]?.[1] ?? 720 }));
+    (item.BackdropImageTags ?? []).forEach((tag, index) => {
+      const [width, height] = item.Id === SERIES ? [1900, 400] : item.Id === films[1].Id ? [1280, 720] : [1920, 1080];
+      infos.push({ ImageType: 'Backdrop', ImageIndex: index, ImageTag: tag, Width: width, Height: height });
+    });
+    return send(res, 200, infos);
+  }
   if (path === '/Persons') {
     const term = (q.get('searchTerm') ?? '').toLowerCase();
     return send(res, 200, list(persons.filter((x) => term && x.Name.toLowerCase().includes(term))));

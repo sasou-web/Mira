@@ -11,6 +11,9 @@ struct HomeContent: Codable, Sendable, Equatable {
     var favorites: [Item] = []
     /// The series of the first titles of Continue watching, for their artwork in the banner.
     var series: [String: Item] = [:]
+    /// The pictures of the banner's titles and their sizes, by title (BannerPicture); nil in a Home kept by an older
+    /// Mira.
+    var pictures: [String: [ImageInfo]]?
     /// The account's libraries, and the latest titles of those whose row is shown (« New in … », HomeLayout).
     var libraries: [HomeLibrary] = []
     var libraryRows: [String: [Item]] = [:]
@@ -30,18 +33,34 @@ struct HomeContent: Codable, Sendable, Equatable {
 
     func isEmpty(hidden: [String: Double]) -> Bool { continueWatching(hidden: hidden).isEmpty && latest.isEmpty && favorites.isEmpty }
 
-    /// The banner: the first two titles of Continue watching (under their series' artwork), then the latest additions,
-    /// six at most, only those with a picture to show.
+    /// The banner, as on Windows (HeroCandidates of Mira.Core): the titles of Continue watching (an episode under its
+    /// series), then the latest additions, one per series, five at most, only those with a picture to show; each with
+    /// the sizes of its pictures when Jellyfin gave them (BannerPicture).
     func banner(hidden: [String: Double]) -> [BannerEntry] {
         var entries: [BannerEntry] = [], seen = Set<String>()
-        for play in continueWatching(hidden: hidden).prefix(2) {
+        func add(_ item: Item, play: Item?, key: String) {
+            guard entries.count < 5, Artwork.of(item, .backdrop) != nil, seen.insert(key).inserted else { return }
+            entries.append(BannerEntry(item: item, play: play, pictures: pictures?[item.id] ?? [],
+                                       playPictures: play.flatMap { $0.id == item.id ? nil : pictures?[$0.id] } ?? []))
+        }
+        for play in continueWatching(hidden: hidden) {
             let item = play.isEpisode ? (play.seriesId.flatMap { series[$0] } ?? play) : play
-            if Artwork.of(item, .backdrop) != nil, seen.insert(item.id).inserted { entries.append(BannerEntry(item: item, play: play)) }
+            add(item, play: play, key: play.seriesId ?? item.id)
         }
-        for item in latest where entries.count < 6 {
-            if Artwork.of(item, .backdrop) != nil, seen.insert(item.id).inserted { entries.append(BannerEntry(item: item, play: item.isSeries ? nil : item)) }
-        }
+        for item in latest { add(item, play: item.isSeries ? nil : item, key: item.id) }
         return entries
+    }
+
+    /// The titles whose pictures the banner asks the sizes of: each slide's film or series, and an episode's own still.
+    func bannerPictureIds(hidden: [String: Double]) -> [String] {
+        banner(hidden: hidden).flatMap { entry in [entry.item.id] + (entry.play.map { $0.id == entry.item.id ? [] : [$0.id] } ?? []) }
+    }
+
+    /// Sizes kept from before still describe `item`'s pictures: its first backdrop and its own picture have the same tags.
+    static func picturesCurrent(_ infos: [ImageInfo], of item: Item) -> Bool {
+        let tags = Set(infos.compactMap(\.imageTag))
+        let wanted = [item.backdropImageTags?.first, item.imageTags?.first { $0.key.caseInsensitiveCompare("Primary") == .orderedSame }?.value].compactMap { $0 }
+        return !wanted.isEmpty && wanted.allSatisfy(tags.contains)
     }
 
     /// Continue watching as Mira orders it everywhere: a real resume point wins over the next episode of the same
@@ -97,6 +116,9 @@ struct BannerEntry: Sendable, Hashable, Identifiable {
     let item: Item
     /// What a tap plays: the film, the episode to resume or watch next; nil for a series added lately.
     let play: Item?
+    /// The pictures of `item`, and of the episode `play` (its still), with their sizes: empty when not known.
+    var pictures: [ImageInfo] = []
+    var playPictures: [ImageInfo] = []
     var id: String { item.id }
 }
 
@@ -119,10 +141,11 @@ final class HomeModel {
         if content == nil { content = HomeCache.load(userId: userId) }
     }
 
-    /// `rows`: Home's rows on this iPhone (HomeLayout): only the libraries whose row is shown are asked. True when this
-    /// load said where Home is (loaded or failed); false when a later load replaced it, or it was cancelled.
+    /// `rows`: Home's rows on this iPhone (HomeLayout): only the libraries whose row is shown are asked. `hidden`: the
+    /// titles taken out of Continue watching (the banner leaves them out too). True when this load said where Home is
+    /// (loaded or failed); false when a later load replaced it, or it was cancelled.
     @discardableResult
-    func load(_ client: JellyfinClient, rows: String, onUnauthorized: () -> Void) async -> Bool {
+    func load(_ client: JellyfinClient, rows: String, hidden: [String: Double] = [:], onUnauthorized: () -> Void) async -> Bool {
         loads += 1
         let mine = loads
         if content == nil { state = .loading }
@@ -144,11 +167,28 @@ final class HomeModel {
                 return found
             }
             var seriesIds: [String] = []
-            for id in (fresh.resume + fresh.next).compactMap(\.seriesId) where !seriesIds.contains(id) && seriesIds.count < 4 { seriesIds.append(id) }
+            for id in fresh.continueWatching(hidden: hidden).compactMap(\.seriesId) where !seriesIds.contains(id) && seriesIds.count < 5 { seriesIds.append(id) }
             fresh.series = await withTaskGroup(of: Item?.self) { group in
                 for id in seriesIds { group.addTask { try? await client.item(id) } }
                 var found: [String: Item] = [:]
                 for await item in group { if let item { found[item.id] = item } }
+                return found
+            }
+            // The sizes of the banner's pictures: asked again only for a title whose pictures changed since.
+            let known = content?.pictures ?? [:]
+            var titles: [String: Item] = [:]
+            for item in fresh.resume + fresh.next + fresh.latest + Array(fresh.series.values) { titles[item.id] = item }
+            let pictureIds = fresh.bannerPictureIds(hidden: hidden), current = titles
+            fresh.pictures = await withTaskGroup(of: (String, [ImageInfo]?).self) { group in
+                for id in pictureIds {
+                    if let kept = known[id], let item = current[id], HomeContent.picturesCurrent(kept, of: item) {
+                        group.addTask { (id, kept) }
+                    } else {
+                        group.addTask { (id, try? await client.images(id)) }
+                    }
+                }
+                var found: [String: [ImageInfo]] = [:]
+                for await (id, infos) in group { if let infos { found[id] = infos } }
                 return found
             }
             guard mine == loads else { return false }

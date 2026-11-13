@@ -178,7 +178,7 @@ struct HomeView: View {
     private func load() async {
         guard let client = app.client else { return }
         // Replaced by a later load, or cancelled: that one says what came.
-        guard await model.load(client, rows: app.preferences.homeRows, onUnauthorized: { app.sessionEnded() }) else { return }
+        guard await model.load(client, rows: app.preferences.homeRows, hidden: app.preferences.hidden, onUnauthorized: { app.sessionEnded() }) else { return }
         guard app.opening.waitsForHome else {
             await app.together.refresh()
             return
@@ -227,7 +227,9 @@ struct HomeView: View {
             if let art { pictures.append((client.imageURL(art, width: width, scale: displayScale), width * displayScale)) }
         }
         if let first = content.banner(hidden: app.preferences.hidden).first {
-            add(Artwork.of(first.item, .backdrop), width: BannerView.drawnWidth(size, scale: displayScale))
+            if let picture = BannerView.picture(first, client: client, size: size, scale: displayScale) {
+                pictures.append((picture.url, picture.width * displayScale))
+            }
             add(Artwork.of(first.item, .logo), width: LogoImage.width)
         }
         if let first = shownRows(content).first {
@@ -416,7 +418,9 @@ struct ProgressLine: View {
     }
 }
 
-/// The banner: wide artwork of what to watch now, one at a time, swiped sideways.
+/// The banner, as Windows draws it (MainWindow.Carousel.cs), on a phone: the title's logo, its facts in pills, two
+/// lines of its summary, Watch or Resume tinted by the picture, More info and Favorite; under it a bar per title that
+/// fills while one is shown, every 6.5 s the next. Swiped sideways too, the text fading in with its slide.
 struct BannerView: View {
     let entries: [BannerEntry]
     let client: JellyfinClient
@@ -430,15 +434,42 @@ struct BannerView: View {
     @State private var current: String?
     /// On screen (not under a title's page): only then does the banner turn by itself.
     @State private var shown = false
+    /// Not scrolled past: two thirds of it gone up, it holds still (HeroPaused of Windows).
+    @State private var visible = true
+    /// A finger on it: it waits for the swipe to end.
+    @State private var touching = false
+    @State private var clock = BannerClock()
+    /// The tint of each slide, from its picture (ArtworkAccent).
+    @State private var tints: [String: ArtworkAccent.Tint] = [:]
+    /// Favorites changed here, shown at once while Jellyfin is told.
+    @State private var favorites: [String: Bool] = [:]
+    @State private var touched = 0
+
+    /// How long a title stays before the next (Windows: 6.5 s).
+    static let period: TimeInterval = 6.5
 
     /// The banner's height on a screen of `size`.
-    static func height(_ size: CGSize) -> CGFloat { min(size.width * 1.2, max(420, size.height * 0.62)) }
+    static func height(_ size: CGSize) -> CGFloat { min(size.width * 1.3, max(440, size.height * 0.64)) }
 
-    /// A 16:9 picture filling a taller slide is drawn wider than the screen: asked at that width, 1920 pixels at most
-    /// (Jellyfin's backdrops are 1920 or 3840 wide; beyond, three times the weight for nothing seen).
-    static func drawnWidth(_ size: CGSize, scale: CGFloat) -> CGFloat {
-        min(max(size.width * 1.4, height(size) * 16 / 9), 1920 / max(1, scale))
+    /// A slide's picture: the address asked, the width (points) it is made at, its blurred placeholder.
+    struct Picture: Equatable {
+        let url: URL
+        let width: CGFloat
+        let blurHash: String?
     }
+
+    /// The picture of `entry` on a screen of `size` (BannerPicture), as the slide, the preloading and Mira's opening ask it.
+    static func picture(_ entry: BannerEntry, client: JellyfinClient, size: CGSize, scale: CGFloat) -> Picture? {
+        let slide = CGSize(width: size.width, height: height(size))
+        guard let choice = BannerPicture.choose(entry, slide: slide, scale: scale) else { return nil }
+        let width = BannerPicture.askedWidth(choice, slide: slide, scale: scale)
+        return Picture(url: client.imageURL(choice.art, width: width, scale: scale), width: width, blurHash: choice.art.blurHash)
+    }
+
+    private var currentId: String { current ?? entries.first?.id ?? "" }
+    /// Turns by itself: never with Reduce Motion or VoiceOver (a bar per title is then only where you are).
+    private var animated: Bool { !reduceMotion && !voiceOver && entries.count > 1 }
+    private var turns: Bool { animated && shown && visible && !touching && scenePhase == .active }
 
     var body: some View {
         let height = Self.height(size)
@@ -456,47 +487,72 @@ struct BannerView: View {
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $current)
         .scrollClipDisabled()
+        .onScrollPhaseChange { _, phase in touching = phase == .tracking || phase == .interacting || phase == .decelerating }
         .frame(height: height)
-        // Where the banner is: on the picture's fade, under the buttons, as on Mira web.
         .overlay(alignment: .bottom) {
-            if entries.count > 1 {
-                HStack(spacing: 7) {
-                    ForEach(entries) { entry in
-                        Capsule()
-                            .fill(entry.id == (current ?? entries.first?.id) ? Palette.accent : Palette.faint.opacity(0.5))
-                            .frame(width: entry.id == (current ?? entries.first?.id) ? 26 : 8, height: 8)
-                    }
-                }
-                .animation(.snappy, value: current)
-                .padding(.bottom, 10)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            }
+            if entries.count > 1 { bars }
         }
+        .onScrollVisibilityChange(threshold: 0.35) { visible = $0 }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Featured"))
         .onAppear { shown = true }
         .onDisappear { shown = false }
-        // As on Mira web: the next one every 9 s, counted again after a swipe; never with Reduce Motion or VoiceOver.
-        // Its pictures are fetched meanwhile, and it waits for them: turned to, a slide never shows its blurred
-        // placeholder (a slow way to Jellyfin only makes the banner turn later).
-        .task(id: "\(current ?? "")-\(shown)-\(scenePhase == .active)") {
-            guard shown, scenePhase == .active, !reduceMotion, !voiceOver, entries.count > 1 else { return }
-            let index = entries.firstIndex { $0.id == (current ?? entries.first?.id) } ?? 0
+        .sensoryFeedback(.selection, trigger: touched)
+        // The next one when the bar is full, its pictures fetched meanwhile: turned to, a slide never shows its blurred
+        // placeholder (a slow way to Jellyfin only makes the banner turn later). Paused, the bar keeps where it was.
+        .task(id: "\(currentId)|\(turns)") {
+            let id = currentId
+            guard turns, let index = entries.firstIndex(where: { $0.id == id }) else {
+                clock.pause(at: .now)
+                return
+            }
+            clock.run(id, at: .now)
             let next = entries[(index + 1) % entries.count]
-            let turn = ContinuousClock.now + .seconds(9)
+            let turn = Date.now.addingTimeInterval(max(0, Self.period - clock.elapsed(at: .now)))
             await preload(next)
-            try? await Task.sleep(until: turn, clock: .continuous)
+            let wait = turn.timeIntervalSinceNow
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             guard !Task.isCancelled else { return }
             withAnimation(.smooth(duration: 0.7)) { current = next.id }
         }
     }
 
-    /// A slide's backdrop and logo in memory, at the addresses and sizes its views ask for them.
+    /// A bar per title, as on Windows: the ones before full, the one shown filling, the ones after empty; a touch on
+    /// one shows its title.
+    private var bars: some View {
+        let active = entries.firstIndex { $0.id == currentId } ?? 0
+        let tint = (tints[currentId] ?? ArtworkAccent.neutral).color
+        return TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !turns)) { context in
+            HStack(spacing: 0) {
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                    let fill = !animated ? (index == active ? 1 : 0)
+                        : index < active ? 1 : index == active ? clock.progress(of: entry.id, at: context.date, period: Self.period) : 0
+                    Button {
+                        withAnimation(.smooth(duration: 0.5)) { current = entry.id }
+                    } label: {
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white.opacity(0.26))
+                            Capsule().fill(tint).frame(width: 28 * fill)
+                        }
+                        .frame(width: 28, height: 4)
+                        .frame(width: 42, height: 30)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Featured: \(entry.item.name ?? "")"))
+                    .accessibilityAddTraits(index == active ? .isSelected : [])
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.65), value: tints[currentId])
+        .padding(.bottom, 2)
+    }
+
+    /// A slide's picture, its logo and its tint in memory, at the addresses and sizes its views ask for them.
     private func preload(_ entry: BannerEntry) async {
-        if let art = Artwork.of(entry.item, .backdrop) {
-            let drawn = Self.drawnWidth(size, scale: displayScale)
-            _ = await ImagePipeline.shared.image(client.imageURL(art, width: drawn, scale: displayScale), pixels: drawn * displayScale)
+        if let picture = Self.picture(entry, client: client, size: size, scale: displayScale),
+           let tint = await ImagePipeline.shared.tint(picture.url, pixels: picture.width * displayScale) {
+            tints[entry.id] = tint
         }
         if let logo = Artwork.of(entry.item, .logo) {
             _ = await ImagePipeline.shared.image(client.imageURL(logo, width: LogoImage.width, scale: displayScale), pixels: LogoImage.width * displayScale)
@@ -505,13 +561,16 @@ struct BannerView: View {
 
     private func slide(_ entry: BannerEntry, height: CGFloat) -> some View {
         let item = entry.item
-        let art = Artwork.of(item, .backdrop)
         let logo = Artwork.of(item, .logo)
         let width = size.width
-        let drawn = Self.drawnWidth(size, scale: displayScale)
+        let picture = Self.picture(entry, client: client, size: size, scale: displayScale)
+        let tint = (tints[entry.id] ?? ArtworkAccent.neutral).color
+        let rise: CGFloat = reduceMotion ? 0 : 10
+        let facts = BannerText.facts(entry)
+        let overview = BannerText.overview(entry)
         return ZStack(alignment: .bottomLeading) {
-            RemoteImage(url: art.map { client.imageURL($0, width: drawn, scale: displayScale) }, blurHash: art?.blurHash, width: drawn)
-                .frame(width: width * 1.4, height: height)
+            RemoteImage(url: picture?.url, blurHash: picture?.blurHash, width: picture?.width ?? width)
+                .frame(width: width * BannerPicture.parallax, height: height)
                 // Swiped sideways, the picture moves a little slower than its slide (it is wider than the slide, so
                 // no edge ever shows).
                 .scrollTransition(axis: .horizontal) { content, phase in
@@ -522,9 +581,9 @@ struct BannerView: View {
                     LinearGradient(stops: [
                         .init(color: .black.opacity(0.3), location: 0),
                         .init(color: .clear, location: 0.14),
-                        .init(color: .clear, location: 0.4),
-                        .init(color: Palette.bg.opacity(0.7), location: 0.7),
-                        .init(color: Palette.bg.opacity(0.94), location: 0.9),
+                        .init(color: .clear, location: 0.34),
+                        .init(color: Palette.bg.opacity(0.72), location: 0.62),
+                        .init(color: Palette.bg.opacity(0.94), location: 0.86),
                         .init(color: Palette.bg, location: 1),
                     ], startPoint: .top, endPoint: .bottom)
                     .allowsHitTesting(false)
@@ -532,59 +591,171 @@ struct BannerView: View {
                 // Home pulled down to refresh: the picture fills what opens above it.
                 .stretchesWhenPulled(height: height)
                 .matchedTransitionSource(id: "banner-\(item.id)", in: zoom)
-            VStack(alignment: .leading, spacing: 10) {
+                .task(id: picture?.url) {
+                    guard let picture, let found = await ImagePipeline.shared.tint(picture.url, pixels: picture.width * displayScale) else { return }
+                    tints[entry.id] = found
+                }
+            VStack(alignment: .leading, spacing: 12) {
                 if let logo {
                     LogoImage(url: client.imageURL(logo, width: LogoImage.width, scale: displayScale), name: item.name ?? "")
-                        .frame(maxWidth: min(300, width * 0.7), maxHeight: 96, alignment: .bottomLeading)
+                        .frame(maxWidth: min(280, width * 0.68), maxHeight: 84, alignment: .bottomLeading)
                 } else {
                     Text(item.name ?? "").font(MiraFont.extraBold(34, .largeTitle)).foregroundStyle(Palette.ink).lineLimit(2)
+                        .shadow(color: .black.opacity(0.5), radius: 8)
                 }
-                Text(ItemText.meta(item)).font(MiraFont.subheadline).foregroundStyle(Palette.muted).lineLimit(1)
-                    .shadow(color: .black.opacity(0.6), radius: 6)
+                if !facts.isEmpty {
+                    FactPills(spacing: 6) {
+                        ForEach(facts, id: \.self) { fact in
+                            Text(fact)
+                                .font(MiraFont.semibold(12, .caption))
+                                .foregroundStyle(tint)
+                                .lineLimit(1)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(Color(hex: 0x555559).opacity(0.24), in: .rect(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                if !overview.isEmpty {
+                    Text(overview)
+                        .font(MiraFont.footnote)
+                        .foregroundStyle(Palette.muted)
+                        .lineLimit(2)
+                        .shadow(color: .black.opacity(0.6), radius: 6)
+                }
                 ChipRow {
                     if let play = entry.play {
                         Button {
                             app.play(play)
                         } label: {
                             Label {
-                                Text(playLabel(entry)).font(MiraFont.headline).lineLimit(1)
+                                Text(BannerText.playLabel(play)).font(MiraFont.headline).lineLimit(1)
                             } icon: {
                                 Image(systemName: "play.fill")
                             }
                             .foregroundStyle(Palette.onAccent)
-                            .padding(.horizontal, 6)
+                            .padding(.horizontal, 8)
                         }
                         .buttonStyle(.glassProminent)
+                        .tint(tint)
                         .accessibilityIdentifier("banner.play")
                     }
-                    NavigationLink(value: TitleRoute(item: item, source: "banner-\(item.id)")) {
-                        if entry.play == nil {
-                            Label("More info", systemImage: "info.circle").font(MiraFont.headline).padding(.horizontal, 6)
-                        } else {
-                            Image(systemName: "info").font(.headline).frame(width: 22, height: 22)
-                                .accessibilityLabel(Text("More info about \(item.name ?? "")"))
+                    HStack(spacing: 10) {
+                        NavigationLink(value: TitleRoute(item: item, source: "banner-\(item.id)")) {
+                            if entry.play == nil {
+                                Label("More info", systemImage: "info.circle").font(MiraFont.headline).padding(.horizontal, 6)
+                            } else {
+                                Image(systemName: "info").font(.headline).frame(width: 22, height: 22)
+                                    .accessibilityLabel(Text("More info about \(item.name ?? "")"))
+                            }
                         }
+                        .buttonStyle(.glass)
+                        .accessibilityIdentifier("banner.info")
+                        favorite(item)
                     }
-                    .buttonStyle(.glass)
                 }
-                .padding(.top, 4)
+                .padding(.top, 2)
             }
+            .animation(.easeOut(duration: 0.65), value: tints[entry.id])
             .padding(.horizontal, 20)
-            .padding(.bottom, entries.count > 1 ? 32 : 18)
+            .padding(.bottom, entries.count > 1 ? 36 : 18)
+            // The text comes in with its slide, as on Windows where it rises in after the picture.
+            .scrollTransition(axis: .horizontal) { content, phase in
+                content
+                    .opacity(phase.isIdentity ? 1 : max(0, 1 - abs(phase.value) * 1.6))
+                    .offset(y: abs(phase.value) * rise)
+            }
         }
         .frame(width: width, height: height)
         // Cut at the sides and the bottom only: pulled down, the picture grows above the slide.
         .mask(alignment: .bottom) { Rectangle().frame(width: width, height: height + 2000) }
     }
 
-    private func playLabel(_ entry: BannerEntry) -> String {
-        guard let play = entry.play else { return "" }
-        let resume = ItemText.progress(play) > 0
-        if play.isEpisode {
-            let code = ItemText.episodeCode(play)
-            return resume ? String(localized: "Resume \(code)") : String(localized: "Watch \(code)")
+    /// Favorite, as Windows has it beside More info: the film's or the series', changed at once.
+    private func favorite(_ item: Item) -> some View {
+        let on = favorites[item.id] ?? (item.userData?.isFavorite == true)
+        return Button {
+            favorites[item.id] = !on
+            touched += 1
+            Task { await app.set(item, favorite: !on) }
+        } label: {
+            Image(systemName: on ? "heart.fill" : "heart")
+                .font(.headline)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 22, height: 22)
         }
-        return resume ? String(localized: "Resume") : String(localized: "Play")
+        .buttonStyle(.glass)
+        .accessibilityLabel(Text(on ? "Remove from favorites" : "Add to favorites"))
+        .accessibilityIdentifier("banner.favorite")
+    }
+}
+
+/// The clock of the banner's slide on screen: what it counted for which slide, and since when it counts (nil: held
+/// still). Another slide starts again from 0; held still and let go, the same one goes on where it was.
+struct BannerClock: Equatable {
+    var slide: String?
+    var counted: TimeInterval = 0
+    var since: Date?
+
+    mutating func run(_ slide: String, at now: Date) {
+        if self.slide != slide { self = BannerClock(slide: slide, counted: 0, since: now) } else if since == nil { since = now }
+    }
+
+    mutating func pause(at now: Date) {
+        guard let since else { return }
+        counted += now.timeIntervalSince(since)
+        self.since = nil
+    }
+
+    func elapsed(at now: Date) -> TimeInterval { counted + (since.map { now.timeIntervalSince($0) } ?? 0) }
+
+    /// How full the bar of `slide` is, 0 to 1.
+    func progress(of slide: String, at now: Date, period: TimeInterval) -> Double {
+        slide == self.slide ? min(1, max(0, elapsed(at: now) / period)) : 0
+    }
+}
+
+/// Pills side by side, on as many lines as they need (the largest text sizes).
+struct FactPills: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(proposal.width ?? .infinity, subviews)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(bounds.width, subviews) {
+            var x = bounds.minX
+            for index in row.items {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+    private func arrange(_ limit: CGFloat, _ subviews: Subviews) -> [Row] {
+        var rows: [Row] = [Row()]
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let added = rows[rows.count - 1].items.isEmpty ? size.width : rows[rows.count - 1].width + spacing + size.width
+            if added > limit, !rows[rows.count - 1].items.isEmpty {
+                rows.append(Row(items: [index], width: size.width, height: size.height))
+            } else {
+                rows[rows.count - 1].items.append(index)
+                rows[rows.count - 1].width = added
+                rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
+            }
+        }
+        return rows.filter { !$0.items.isEmpty }
     }
 }
 

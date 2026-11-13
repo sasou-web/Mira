@@ -177,7 +177,7 @@ struct JellyfinClient: Sendable {
 
     /// Fields the cards and the banner need, as Mira web asks them (api.js CARD_FIELDS, CARD_IMAGES).
     private var cards: [String: String?] {
-        ["userId": userId, "fields": "Genres,ChildCount,RecursiveItemCount", "enableImageTypes": "Primary,Backdrop,Thumb,Logo", "imageTypeLimit": "1"]
+        ["userId": userId, "fields": "Genres,ChildCount,RecursiveItemCount,Overview", "enableImageTypes": "Primary,Backdrop,Thumb,Logo", "imageTypeLimit": "1"]
     }
 
     func resume(limit: Int = 16) async throws -> [Item] {
@@ -217,6 +217,11 @@ struct JellyfinClient: Sendable {
         try await get("Items/\(id)", ["userId": userId])
     }
 
+    /// The pictures Jellyfin keeps for a title, each with its size in pixels.
+    func images(_ id: String) async throws -> [ImageInfo] {
+        try await get("Items/\(id)/Images", [:], as: [ImageInfo].self)
+    }
+
     /// The other files of a title in several parts (MovieParts), in Jellyfin's order, each with this account's progress.
     func additionalParts(_ id: String) async throws -> [Item] {
         try await get("Videos/\(id)/AdditionalParts", ["userId": userId], as: ItemList.self).items ?? []
@@ -233,7 +238,7 @@ struct JellyfinClient: Sendable {
     /// of 80 pixels so that the server keeps fewer sizes. Pictures need no token.
     func imageURL(_ art: Artwork, width: CGFloat, scale: CGFloat, quality: Int = 90) -> URL {
         let pixels = min(3840, Int((width * max(1, scale) / 80).rounded(.up)) * 80)
-        let path = art.type == "Backdrop" ? "Items/\(art.itemId)/Images/Backdrop/0" : "Items/\(art.itemId)/Images/\(art.type)"
+        let path = art.type == "Backdrop" ? "Items/\(art.itemId)/Images/Backdrop/\(art.index)" : "Items/\(art.itemId)/Images/\(art.type)"
         return url(path, ["maxWidth": String(pixels), "quality": String(quality), "tag": art.tag])
     }
 }
@@ -362,6 +367,8 @@ struct Artwork: Sendable, Hashable {
     let type: String
     let tag: String
     var blurHash: String?
+    /// Which of the title's backdrops (Jellyfin keeps several): the first unless the banner chose another.
+    var index = 0
 
     enum Kind { case poster, wide, backdrop, logo }
 
