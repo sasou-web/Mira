@@ -54,6 +54,14 @@ public sealed partial class MainWindow
         }
         _ = LoadSheetAsync(page);
     }
+    /// <summary>The rail's avatar, as Windows' « Ton compte »: Réglages on « Compte et serveur » (who is signed in, where, « Se déconnecter »).</summary>
+    public void OpenAccount()
+    {
+        if (Current is SettingsPage open) { open.Show("server"); return; }
+        SettingsPage.OpenAt("server"); OpenSheet();
+    }
+    /// <summary>For the self-check: a click on the rail's avatar (« account ») or « ? » (« help »).</summary>
+    internal void ClickRailForCheck(string which) => (which == "help" ? _helpRail : _accountRail).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
     /// <summary>The rail fades with the window coming or going, rather than jumping over or under it.</summary>
     private void FadeRail(double to)
     {

@@ -786,7 +786,7 @@ public sealed partial class PlayerPage : UserControl
     }
     /// <summary>
     /// « ⋮ », laid out as Mira for Windows': one column of 300 px, quality and sleep timer as rows of chips, the
-    /// group, then the subtitle delay on a line of its own.
+    /// group, the subtitle and audio delays, then the information.
     /// </summary>
     private Control MoreMenu()
     {
@@ -817,7 +817,6 @@ public sealed partial class PlayerPage : UserControl
             DockPanel.SetDock(leave, Dock.Right); line.Children.Add(leave); line.Children.Add(people);
             menu.Children.Add(line);
         }
-        if (PlaybackInfo() is { } info) { menu.Children.Add(MenuHeading(L("INFORMATIONS", "INFORMATION"))); menu.Children.Add(info); if (GreyRepairLine() is { } grey) menu.Children.Add(grey); }
         menu.Children.Add(new Border { Height = 1, Background = Ui.Brush("#24FFFFFF"), Margin = new Thickness(10, 2, 10, 6) });
         Button? value = null;
         value = Chip(PlayerText.Delay(delay), L("Remettre à zéro", "Reset"), false, () => Shift(0));
@@ -835,6 +834,13 @@ public sealed partial class PlayerPage : UserControl
         delayLine.Children.Add(new TextBlock { Text = L("Décalage des sous-titres", "Subtitle delay"), FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         menu.Children.Add(delayLine);
         menu.Children.Add(AudioDelayLine());
+        // Last, as on Windows: what is playing and how, under a line of its own.
+        if (PlaybackInfo() is { } info)
+        {
+            menu.Children.Add(new Border { Height = 1, Background = Ui.Brush("#24FFFFFF"), Margin = new Thickness(10, 6, 10, 2) });
+            menu.Children.Add(MenuHeading(L("INFORMATIONS", "INFO"))); menu.Children.Add(info);
+            if (GreyRepairLine() is { } grey) menu.Children.Add(grey);
+        }
         return menu;
     }
     /// <summary>

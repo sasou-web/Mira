@@ -14,7 +14,7 @@ namespace Mira.Mac.Views;
 public sealed class LoginPage : UserControl
 {
     private readonly MainWindow _shell;
-    private readonly TextBox _server = new() { Watermark = "192.168.1.20:8096" };
+    private readonly TextBox _server = new() { Watermark = L("192.168.1.20 ou 100.x.y.z", "192.168.1.20 or 100.x.y.z") };
     private readonly TextBox _user = new();
     private readonly TextBox _password = new() { PasswordChar = '•', RevealPassword = false };
     // As on Windows: an eye that shows the password, and a line under it while Caps Lock is on.
@@ -58,6 +58,9 @@ public sealed class LoginPage : UserControl
         _eye = Ui.IconButton("eye", L("Afficher le mot de passe", "Show password"), RevealPassword, "icon", 18);
         _eye.Width = _eye.Height = 32; _eye.Margin = new Thickness(0, 0, 5, 0); _eye.Foreground = Ui.TextTertiary;
         _password.InnerRightContent = _eye;
+        // As on Windows: a server at the left of its address, the text after it.
+        _server.InnerLeftContent = new Icon("server", 17) { Foreground = Ui.Faint, Margin = new Thickness(13, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
+        _server.Padding = new Thickness(9, 11, 14, 11);
         Avalonia.Automation.AutomationProperties.SetLiveSetting(_caps, Avalonia.Automation.AutomationLiveSetting.Polite);
         _password.GotFocus += (_, _) => ShowCaps(); _password.LostFocus += (_, _) => _caps.IsVisible = false;
         _password.AddHandler(KeyDownEvent, (_, _) => ShowCaps(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);

@@ -333,6 +333,12 @@ public static class SelfCheck
             var cut = await Until(() => string.IsNullOrEmpty(box.Text), 3);
             window.ChooseInMenu(Lang.L("Annuler", "Undo"));
             Check(all && cut && await Until(() => box.Text == "zqxwv", 3), "barre des menus : Tout sélectionner, Couper et Annuler dans un champ", $"sélection {all}, coupé {cut}, « {box.Text} »");
+            // As on Windows: × with some text, and Échap first clears the search, staying on its page.
+            var searchPage = (BrowsePage)window.Current!;
+            var crossShown = searchPage.SearchClear?.IsVisible == true;
+            box.Focus(); Press(window, Avalonia.Input.Key.Escape);
+            Check(crossShown && string.IsNullOrEmpty(box.Text) && searchPage.SearchClear?.IsVisible == false && window.Current == searchPage && searchPage.SearchBox.Bounds.Width <= 761,
+                "recherche : × pour l’effacer, Échap l’efface d’abord, 760 px au plus", $"× {crossShown}, « {box.Text} », page {window.Current?.GetType().Name}, × ensuite {searchPage.SearchClear?.IsVisible}, {searchPage.SearchBox.Bounds.Width:0.0} px");
             if (mock is not null)
             {
                 ((BrowsePage)window.Current!).Search("Jeanne");
@@ -588,6 +594,13 @@ public static class SelfCheck
                 var drawn = sheetPage.Drawn;
                 sheetPage.ClickTab("playback"); sheetPage.ClickTab("playback");
                 Check(sheetPage.CurrentTab == "playback" && sheetPage.Drawn == drawn, "réglages : l’onglet ouvert recliqué ne refait rien", $"{sheetPage.CurrentTab}, {sheetPage.Drawn - drawn} dessins de plus");
+                // The rail's avatar and « ? », as on Windows: the account (« Compte et serveur ») and Aide, in the same window.
+                window.ClickRailForCheck("account");
+                var account = sheetPage.CurrentTab;
+                window.ClickRailForCheck("help");
+                var topic = sheetPage.HelpTopic;
+                sheetPage.Show("playback");
+                Check(account == "server" && topic == "keys" && window.Current == sheetPage && window.LitRail == litBefore, "rail : l’avatar ouvre le compte, « ? » l’aide, comme sous Windows", $"{account}, {topic}, {window.LitRail}");
             }
             // Réglages in a window over the page (MainWindow.Sheet.cs): its search finds settings in every section at once,
             // « sous titres » finding « Sous-titres », then gives back the section open before it.
