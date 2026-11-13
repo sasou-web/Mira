@@ -1029,34 +1029,62 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
-    /// <summary>The right-click menu of a card; <paramref name="resume"/>: one of « Continuer à regarder », which it can leave.</summary>
+    /// <summary>
+    /// The right-click menu of a card, line for line Windows' (CardMenu), glyphs included; <paramref name="resume"/>: one of
+    /// « Continuer à regarder », which it can leave.
+    /// </summary>
     public ContextMenu Menu(MediaItem item) => Menu(item, resume: false);
     public ContextMenu Menu(MediaItem item, bool resume)
     {
         var menu = new ContextMenu();
-        void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
+        void Add(string label, string icon, Action action) => menu.Items.Add(Ui.Entry(label, icon, action));
+        void Favorite() => Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), item.UserData.IsFavorite ? "minus" : "heart",
+            () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
         // A collection (a saga or one made by hand) plays nothing by itself: its titles do, from their page.
         if (item.Type == "BoxSet")
         {
-            Add(L("Voir la collection", "See the collection"), () => Open(item));
-            Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
-            if (CollectionRights.Rename) Add(L("Renommer…", "Rename…"), () => _ = RenameCollectionAsync(item));
-            if (CollectionRights.Manage) Add(L("Supprimer la collection…", "Delete collection…"), () => AskDeleteCollection(item));
+            Add(L("Voir la collection", "View collection"), "info", () => Open(item));
+            Favorite();
+            if (CollectionRights.Manage)
+            {
+                menu.Items.Add(new Separator());
+                if (CollectionRights.Rename) Add(L("Renommer…", "Rename…"), "pencil", () => _ = RenameCollectionAsync(item));
+                Add(L("Supprimer la collection…", "Delete collection…"), "trash", () => AskDeleteCollection(item));
+            }
             return menu;
         }
-        Add(item.Resumable ? L("Reprendre", "Resume") : L("Lecture", "Play"), () => _ = PlayAsync(item));
-        if (item.Resumable) Add(L("Lire depuis le début", "Play from the beginning"), () => _ = PlayAsync(item, fromStart: true));
-        Add(L("Plus d’infos", "More info"), () => Open(item));
-        Add(item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), () => _ = SetPlayedAsync(item, !item.UserData.Played));
-        Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
-        if (resume) Add(L("Retirer de Continuer à regarder", "Remove from Continue watching"), () => _ = HideFromResumeAsync(item));
+        var resumes = item.Resumable && Settings.RememberPosition;
+        Add(resumes ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", () => _ = PlayAsync(item));
+        if (resumes) Add(L("Lire depuis le début", "Play from the beginning"), "refresh", () => _ = PlayAsync(item, fromStart: true));
+        Add(item.Type == "Episode" ? L("Voir la série", "View show") : L("Voir la fiche", "View details"), "info", () => Open(item));
+        menu.Items.Add(new Separator());
+        Add(item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"),
+            item.UserData.Played ? "refresh" : "check", () => _ = SetPlayedAsync(item, !item.UserData.Played));
+        Favorite();
+        if (resume) Add(L("Retirer de Continuer à regarder", "Remove from Continue watching"), "close", () => _ = HideFromResumeAsync(item));
         if (TitleCollections.Holds(item) && CollectionRights.Manage)
         {
-            Add(L("Ajouter à une collection…", "Add to collection…"), () => _ = CollectAsync(item));
-            if (Current is BrowsePage { Saga: { } shown }) Add(L("Retirer de la collection", "Remove from collection"), () => _ = PutInCollectionAsync(item, shown, false));
+            Add(L("Ajouter à une collection…", "Add to collection…"), "library", () => _ = CollectAsync(item));
+            if (Current is BrowsePage { Saga: { } shown }) Add(L("Retirer de la collection", "Remove from collection"), "minus", () => _ = PutInCollectionAsync(item, shown, false));
         }
-        if (OfflineMenuItem(item) is { } offline) menu.Items.Add(offline);
-        if (item.Type is "Movie" or "Episode" && Offers("downloads")) Add(L("Chercher une meilleure version", "Find a better version"), () => FindBetter(item));
+        if (OfflineMenuItem(item) is { } offline) { menu.Items.Add(new Separator()); menu.Items.Add(offline); }
+        return menu;
+    }
+    /// <summary>
+    /// An episode's menu on its series' page, line for line Windows' (EpisodeMenu): Regarder (and « Lire depuis le début »),
+    /// the mark, « Garder sur ce Mac », then « Chercher une meilleure version » where Téléchargements is offered.
+    /// </summary>
+    public ContextMenu EpisodeMenu(MediaItem episode)
+    {
+        var menu = new ContextMenu();
+        void Add(string label, string icon, Action action) => menu.Items.Add(Ui.Entry(label, icon, action));
+        var resumes = episode.Resumable && Settings.RememberPosition;
+        Add(resumes ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", () => _ = PlayAsync(episode));
+        if (resumes) Add(L("Lire depuis le début", "Play from the beginning"), "refresh", () => _ = PlayAsync(episode, fromStart: true));
+        Add(episode.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), episode.UserData.Played ? "refresh" : "check",
+            () => _ = SetPlayedAsync(episode, !episode.UserData.Played));
+        if (OfflineMenuItem(episode) is { } offline) menu.Items.Add(offline);
+        if (Offers("downloads")) { menu.Items.Add(new Separator()); Add(L("Chercher une meilleure version", "Find a better version"), "sparkle", () => FindBetter(episode)); }
         return menu;
     }
 

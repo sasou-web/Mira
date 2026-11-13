@@ -216,12 +216,25 @@ public sealed partial class SettingsPage
             Avalonia.Automation.AutomationProperties.SetName(button, on ? L($"{words}, affiché", $"{words}, shown") : words);
         }
     }
-    private static Border Keycap(string text) => new()
+    /// <summary>A key as a cap (« ⌘F », « Esc »): ⌘ drawn by Mira, centred on the letter's height beside it.</summary>
+    private static Border Keycap(string text)
     {
-        MinWidth = 26, Height = 24, Padding = new Thickness(7, 0), CornerRadius = new CornerRadius(6), VerticalAlignment = VerticalAlignment.Center,
-        Background = Ui.Raised, BorderBrush = Ui.Brush("#363636"), BorderThickness = new Thickness(1),
-        Child = new TextBlock { Text = text, FontSize = 11.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
-    };
+        var label = new TextBlock { Text = text.TrimStart('⌘'), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Center };
+        Control content = label;
+        if (text.StartsWith('⌘'))
+        {
+            // The ⌘'s ink (16.5 of its 24) as tall as a capital of Nunito at this size (0.705 em), on the capitals' middle.
+            var command = new Icon("command", 11.5) { Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 1, 0) };
+            content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 1, Children = { command, label } };
+        }
+        content.HorizontalAlignment = HorizontalAlignment.Center; content.VerticalAlignment = VerticalAlignment.Center;
+        Avalonia.Automation.AutomationProperties.SetName(content, text);
+        return new()
+        {
+            MinWidth = 26, Height = 24, Padding = new Thickness(7, 0), CornerRadius = new CornerRadius(6), VerticalAlignment = VerticalAlignment.Center,
+            Background = Ui.Raised, BorderBrush = Ui.Brush("#363636"), BorderThickness = new Thickness(1), Child = content,
+        };
+    }
     /// <summary>Réglages | Aide: the side shown, its switch lit.</summary>
     private void Side(bool help)
     {

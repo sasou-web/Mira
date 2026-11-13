@@ -27,7 +27,9 @@ public sealed class Icon : Control
     {
         ["help"] = "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M9.4 9.4Q9.6 7 12 7Q14.6 7 14.6 9.4Q14.6 11.1 12.8 11.9Q12 12.3 12 13.4V13.8 M12 17V17.15",
         ["expand"] = "M3 8V6Q3 3 6 3H8M16 3H18Q21 3 21 6V8M21 16V18Q21 21 18 21H16M8 21H6Q3 21 3 18V16",
-        ["mini"] = "M9 20H7Q3 20 3 16V8Q3 4 7 4H17Q21 4 21 8V10 M14 13H19Q21 13 21 15V18Q21 20 19 20H14Q12 20 12 18V15Q12 13 14 13Z"
+        ["mini"] = "M9 20H7Q3 20 3 16V8Q3 4 7 4H17Q21 4 21 8V10 M14 13H19Q21 13 21 15V18Q21 20 19 20H14Q12 20 12 18V15Q12 13 14 13Z",
+        // ⌘ of a keycap (Réglages' « ⌘F »): Nunito has none, the one macOS lends it sits higher than the letter beside it.
+        ["command"] = "M9 9V6.5A2.5 2.5 0 1 0 6.5 9H17.5A2.5 2.5 0 1 0 15 6.5V17.5A2.5 2.5 0 1 0 17.5 15H6.5A2.5 2.5 0 1 0 9 17.5Z"
     };
     private static readonly Dictionary<string, Geometry> Shapes = IconPaths.Strokes.Concat(Player).ToDictionary(x => x.Key, x => Shape(x.Value));
     private static readonly Geometry Speaker = Shape(IconPaths.Speaker);
@@ -59,7 +61,7 @@ public sealed class Icon : Control
             var geometry = Shapes.GetValueOrDefault(Kind) ?? (solid is null ? Shapes["info"] : null);
             if (geometry is null) return;
             var filled = Kind is "play" or "pause";
-            context.DrawGeometry(filled ? ink : null, filled ? null : Round(ink, Kind is "next-episode" or "previous-episode" ? 2.3 : 1.85), geometry);
+            context.DrawGeometry(filled ? ink : null, filled ? null : Round(ink, Kind is "next-episode" or "previous-episode" ? 2.3 : Kind == "command" ? 2.6 : 1.85), geometry);
             if (Ten(Kind) is { } ten) context.DrawGeometry(ink, null, ten);
         }
     }

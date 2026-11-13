@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -83,6 +85,34 @@ public static class Ui
         if (parts.Length > 1) Avalonia.Automation.AutomationProperties.SetHelpText(button, parts[1]);
         button.Click += (_, _) => click();
         return button;
+    }
+    /// <summary>
+    /// A menu's line as on Windows (MenuAction): its glyph (IconPaths, 16 px), then its label; without
+    /// <paramref name="action"/>, a line that only says something (greyed).
+    /// </summary>
+    public static MenuItem Entry(string label, string? icon, Action? action)
+    {
+        var entry = new MenuItem { Header = label, IsEnabled = action is not null };
+        if (icon is not null) entry.Icon = new Icon(icon, 16) { Foreground = MenuInk };
+        if (action is not null) entry.Click += (_, _) => action();
+        return entry;
+    }
+    /// <summary>A menu line's glyph: TextBody of Windows' menus.</summary>
+    public static readonly IBrush MenuInk = Brush("#E0E0E0");
+    /// <summary>
+    /// <paramref name="control"/>'s right-click menu, made as it opens: what it offers (rights read after the control was drawn,
+    /// a copy on this Mac, a mark changed) is as it is then. No line: no menu.
+    /// </summary>
+    public static void MenuOn(Control control, Func<ContextMenu?> make)
+    {
+        var menu = new ContextMenu();
+        menu.Opening += (_, e) =>
+        {
+            menu.Items.Clear();
+            if (make() is { } fresh) { var entries = fresh.Items.ToList(); fresh.Items.Clear(); foreach (var entry in entries) menu.Items.Add(entry); }
+            e.Cancel = menu.Items.Count == 0;
+        };
+        control.ContextMenu = menu;
     }
     /// <summary>A button's menu, opened under it from its left edge (not where the pointer happens to be).</summary>
     public static void OpenUnder(ContextMenu menu, Control button)
@@ -264,7 +294,8 @@ public static class Cards
     {
         var image = new Image { Stretch = Stretch.UniformToFill };
         var frame = new Grid { ClipToBounds = true };
-        frame.Children.Add(Placeholder(item, false));
+        var placeholder = Placeholder(item, false);
+        frame.Children.Add(placeholder);
         frame.Children.Add(image);
         if (item.Resumable) frame.Children.Add(Progress(item.Progress));
         if (item.UserData.Played) frame.Children.Add(Watched());
@@ -278,7 +309,7 @@ public static class Cards
         var body = new StackPanel { Spacing = 10 };
         body.Children.Add(aspect); body.Children.Add(caption);
         var button = new Button { Content = body, Classes = { "card" } };
-        Hover(button, art);
+        Hover(button, placeholder, image);
         button.Click += (_, _) => open(item);
         Menu(button, item, menu);
         Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { item.DisplayTitle, Caption(item), item.EpisodesToWatchText }.Where(x => !string.IsNullOrEmpty(x))));
@@ -289,7 +320,8 @@ public static class Cards
     {
         var image = new Image { Stretch = Stretch.UniformToFill };
         var frame = new Grid { ClipToBounds = true, Height = width * 9 / 16 };
-        frame.Children.Add(Placeholder(item, true));
+        var placeholder = Placeholder(item, true);
+        frame.Children.Add(placeholder);
         frame.Children.Add(image);
         frame.Children.Add(new Border { Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0.55, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#00000000"), 0), new GradientStop(Color.Parse("#A0000000"), 1) } } });
         if (item.Resumable) frame.Children.Add(Progress(item.Progress));
@@ -301,7 +333,7 @@ public static class Cards
         var body = new StackPanel { Spacing = 10, Width = width };
         body.Children.Add(art); body.Children.Add(caption);
         var button = new Button { Content = body, Classes = { "card" } };
-        Hover(button, art);
+        Hover(button, placeholder, image);
         button.Click += (_, _) => open(item);
         Menu(button, item, menu);
         Avalonia.Automation.AutomationProperties.SetName(button, $"{item.DisplayTitle}, {line}");
@@ -314,15 +346,7 @@ public static class Cards
     /// </summary>
     private static void Menu(Button button, MediaItem item, Func<MediaItem, ContextMenu?>? make)
     {
-        if (make is null) return;
-        var menu = new ContextMenu();
-        menu.Opening += (_, e) =>
-        {
-            menu.Items.Clear();
-            if (make(item) is { } fresh) { var entries = fresh.Items.ToList(); fresh.Items.Clear(); foreach (var entry in entries) menu.Items.Add(entry); }
-            e.Cancel = menu.Items.Count == 0;
-        };
-        button.ContextMenu = menu;
+        if (make is not null) Ui.MenuOn(button, () => make(item));
     }
     /// <summary>What a card shows of <paramref name="item"/>: the same key, the same card (title, line, marks, picture).</summary>
     public static string Key(MediaItem item) => string.Join('|', item.Id, item.Type, item.Name, item.SeriesName, item.ProductionYear, item.ParentIndexNumber, item.IndexNumber, item.RunTimeTicks,
@@ -440,17 +464,22 @@ public static class Cards
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
         Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0B"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
     };
-    private static readonly ITransform Lifted = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1.03)"), Resting = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1)");
+    private static readonly ITransform Lifted = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1.025)"), Resting = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1)");
     /// <summary>
-    /// A slight lift under the pointer, the pointer's own doing: while the page scrolls the cards by under a still
-    /// pointer (<see cref="Ui.Scrolling"/>), none lifts and drops on its way; the one under it lifts once the pointer moves.
+    /// A slight zoom of the picture under the pointer, inside its rounded frame, as on Windows (MediaCard.HoverZoom): the
+    /// frame itself zoomed lost its rounded corners in Avalonia (square ones past the card, seen on a Mac). The pointer's
+    /// own doing: while the page scrolls the cards by under a still pointer (<see cref="Ui.Scrolling"/>), none zooms on its
+    /// way; the one under it does once the pointer moves.
     /// </summary>
-    private static void Hover(Button button, Control art)
+    private static void Hover(Button button, params Control[] pictures)
     {
-        art.RenderTransform = Resting;
-        art.Transitions = [new TransformOperationsTransition { Property = Visual.RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(160) }];
+        foreach (var picture in pictures)
+        {
+            picture.RenderTransform = Resting;
+            picture.Transitions = [new TransformOperationsTransition { Property = Visual.RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(160) }];
+        }
         var lifted = false;
-        void Lift(bool up) { if (up == lifted) return; lifted = up; art.RenderTransform = up ? Lifted : Resting; }
+        void Lift(bool up) { if (up == lifted) return; lifted = up; foreach (var picture in pictures) picture.RenderTransform = up ? Lifted : Resting; }
         button.PointerEntered += (_, _) => { if (!Ui.Scrolling) Lift(true); };
         button.PointerMoved += (_, _) => { if (!lifted && !Ui.Scrolling) Lift(true); };
         button.PointerExited += (_, _) => Lift(false);
@@ -660,4 +689,54 @@ public static class Glide
 internal static class HsvColor
 {
     public static Color ToRgb(double hue, double saturation, double value) => new Avalonia.Media.HsvColor(1, hue, saturation, value).ToRgb();
+}
+
+/// <summary>
+/// The right-click menus of the window, as on Windows: a right click on a line chooses it too (macOS's own menus and
+/// Windows' do; Avalonia's only take the left button: the menu stayed, the line did nothing), and while one is open, a
+/// page that would draw its cards again waits for it to close (<see cref="WhenClosed"/>): the card under the menu
+/// taken away closed the menu under the pointer (Avalonia closes a menu whose control leaves the window).
+/// </summary>
+public static class Menus
+{
+    private static int _open;
+    private static readonly List<Action> Waiting = [];
+    /// <summary>A right-click menu shows.</summary>
+    public static bool AnyOpen => _open > 0;
+
+    /// <summary>Once, before the window opens.</summary>
+    public static void Watch()
+    {
+        MenuBase.OpenedEvent.AddClassHandler<ContextMenu>((_, _) => _open++);
+        MenuBase.ClosedEvent.AddClassHandler<ContextMenu>((_, _) =>
+        {
+            _open = Math.Max(0, _open - 1);
+            if (_open > 0 || Waiting.Count == 0) return;
+            // After the menu's own closing, and after the line's action (which may itself ask for a new drawing).
+            Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);
+        });
+        InputElement.PointerReleasedEvent.AddClassHandler<MenuItem>(RightReleased, handledEventsToo: true);
+    }
+    /// <summary>
+    /// <paramref name="draw"/> now, or once no menu shows: the same method asked three times while a menu is open runs once.
+    /// </summary>
+    public static void WhenClosed(Action draw)
+    {
+        if (!AnyOpen) { draw(); return; }
+        if (!Waiting.Contains(draw)) Waiting.Add(draw);
+    }
+    private static void Flush()
+    {
+        if (AnyOpen) return;
+        var due = Waiting.ToList(); Waiting.Clear();
+        foreach (var draw in due) draw();
+    }
+    private static void RightReleased(MenuItem item, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton != MouseButton.Right || !item.IsEnabled || item.HasSubMenu || !item.IsPointerOver) return;
+        e.Handled = true;
+        // As a left click does: the menu closes, then the line acts.
+        (item.FindLogicalAncestorOfType<ContextMenu>() ?? item.Parent as ContextMenu)?.Close();
+        item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+    }
 }
