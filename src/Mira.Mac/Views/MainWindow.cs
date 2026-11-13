@@ -757,8 +757,15 @@ public sealed partial class MainWindow : Window
         try { if (fresh) await page.LoadAsync(); else await page.RefreshAsync(); _unanswered = false; }
         catch (Exception ex) when (Errors.Expected(ex)) { Say(ex); }
     }
+    /// <summary>
+    /// The rail entry of the page shown, lit. Réglages and Aide are a window over the page, never a page: the page under it
+    /// keeps its entry lit (ogsas, 2026-11-13: Réglages turned white and Accueil off for two frames as the window opened).
+    /// </summary>
+    /// <summary>The rail entry lit, for the self-check.</summary>
+    internal string? LitRail => _railButtons.FirstOrDefault(x => x.Value.Classes.Contains("active")).Key;
     private void Light(string rail)
     {
+        if (rail == "settings") return;
         foreach (var (key, button) in _railButtons) button.Classes.Set("active", key == rail);
     }
     /// <summary>One step back: the player first, then the previous page.</summary>

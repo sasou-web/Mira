@@ -533,8 +533,18 @@ public static class SelfCheck
             }
             MacMotion.Override(null);
             SettingsPage.OpenAt("playback");
+            var litBefore = window.LitRail;
             window.Go("settings");
+            var litAtOnce = window.LitRail;
             await Task.Delay(800); Capture(window, output, "07-settings");
+            // A window over the page, not a page: the rail keeps the page under it lit, from the first frame on.
+            Check(litBefore is not null and not "settings" && litAtOnce == litBefore && window.LitRail == litBefore, "réglages : le rail garde la page dessous allumée", $"{litBefore} → {litAtOnce} → {window.LitRail}");
+            if (window.Current is SettingsPage sheetPage)
+            {
+                var drawn = sheetPage.Drawn;
+                sheetPage.ClickTab("playback"); sheetPage.ClickTab("playback");
+                Check(sheetPage.CurrentTab == "playback" && sheetPage.Drawn == drawn, "réglages : l’onglet ouvert recliqué ne refait rien", $"{sheetPage.CurrentTab}, {sheetPage.Drawn - drawn} dessins de plus");
+            }
             // Réglages in a window over the page (MainWindow.Sheet.cs): its search finds settings in every section at once,
             // « sous titres » finding « Sous-titres », then gives back the section open before it.
             if (window.Current is SettingsPage searched)

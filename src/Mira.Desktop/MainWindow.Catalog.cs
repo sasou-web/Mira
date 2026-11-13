@@ -253,13 +253,13 @@ public partial class MainWindow
     private Button? _railActive;
     private void UpdateNavigation()
     {
-        var guide = GuideOverlay.IsHitTestVisible && GuideOverlay.Visibility == Visibility.Visible;
-        var settings = !guide && SettingsOverlay.IsHitTestVisible && SettingsOverlay.Visibility == Visibility.Visible;
-        var torlink = !guide && !settings && TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
+        // Réglages and Aide are windows over the page, never a page: their buttons never take the tile, and the page under
+        // them keeps its own (ogsas, 2026-11-13: the tile jumped to Réglages and back for two frames as the window opened).
+        var torlink = TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
         Button? shown = null;
         foreach (var button in RailButtons)
         {
-            var active = guide ? button == GuideNav : settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _catalog.View;
+            var active = button != GuideNav && button != SettingsNav && (torlink ? button == TorLinkNav : button.Tag?.ToString() == _catalog.View);
             if (active) shown = button;
             // Contrast themes keep the tile on the button itself: the sliding one is drawn in Mira's colours.
             button.Background = active && HighContrast ? Palette.Get("Text") : Brushes.Transparent;
