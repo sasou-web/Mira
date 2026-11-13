@@ -24,7 +24,7 @@ internal sealed class FrameMeter : IDisposable
         double GapP50, double GapP95, double GapP99, double GapMax, double WorkP50, double WorkP95, double WorkMax, double Busy,
         double LongestOther, string? LongestOtherName, int Presented, double PresentP95, double PresentMax, string Results,
         double FirstFrame, int Gen0, int Gen1, int Gen2, double GcPause, string[] Slow,
-        int Repeated, string PresentGaps, int Jerks, double JerkMax, double TailMs, double Moved, string LateCauses);
+        int Repeated, string PresentGaps, int Jerks, double JerkMax, double TailMs, double Moved, string LateCauses, string[] Collections);
 
     private static readonly Type? MediaContextType = typeof(Visual).Assembly.GetType("System.Windows.Media.MediaContext");
     private static readonly MethodInfo? From = MediaContextType?.GetMethod("From", BindingFlags.Static | BindingFlags.NonPublic, [typeof(Dispatcher)]);
@@ -42,6 +42,10 @@ internal sealed class FrameMeter : IDisposable
     private TimeSpan _lastRendering = TimeSpan.MinValue;
     private long _lastPresented;
     private Recording? _phase;
+    // The collections counted so far, and the last of each kind looked at (GCMemoryInfo.Index): ephemeral, full blocking, background.
+    private int _collections = GC.CollectionCount(0);
+    private static readonly (GCKind Kind, string Name)[] Kinds = [(GCKind.Ephemeral, "éphémère"), (GCKind.FullBlocking, "complet bloquant"), (GCKind.Background, "en fond")];
+    private readonly long[] _seen = [.. Kinds.Select(x => GC.GetGCMemoryInfo(x.Kind).Index)];
     public List<Phase> Phases { get; } = [];
     /// <summary>What reflection found of WPF's private state (presentations unread without it).</summary>
     public string Sources => $"MediaContext {(_context is null ? "missing" : "found")}, presentation time {(PresentedAt is null ? "missing" : "found")}, result {(Result is null ? "missing" : "found")}, refresh rate {(Refresh is null ? "missing" : "found")}, pace {(Pace is null ? "missing" : "found")}";
@@ -86,6 +90,7 @@ internal sealed class FrameMeter : IDisposable
         var onTime = p.Gaps.Count == 0 ? 1 : p.Gaps.Count(g => g <= period * 1.5) / (double)p.Gaps.Count;
         if (p.Viewer is { } watched && p.Frames.Count > 0) p.Frames[^1].Offset = watched.VerticalOffset;
         var motion = Motion(p.Frames, period, p.Scale);
+        LookAtCollections(p, p.Frames.Count > 0 ? p.Frames[^1].At : 0);
         var phase = new Phase(p.Name, Math.Round(seconds, 3), hz, p.Gaps.Count, Math.Round(p.Gaps.Count / Math.Max(1e-9, seconds * hz), 3), missed, Math.Round(onTime, 4),
             Percentile(p.Gaps, .5), Percentile(p.Gaps, .95), Percentile(p.Gaps, .99), Percentile(p.Gaps, 1),
             Percentile(p.Work, .5), Percentile(p.Work, .95), Percentile(p.Work, 1), Math.Round(p.Busy / Math.Max(1e-9, seconds * 1000), 4),
@@ -94,21 +99,21 @@ internal sealed class FrameMeter : IDisposable
             p.FirstFrameAt == 0 ? -1 : Math.Round((p.FirstFrameAt - p.Started) * 1000d / Stopwatch.Frequency, 2),
             GC.CollectionCount(0) - p.Gen0, GC.CollectionCount(1) - p.Gen1, GC.CollectionCount(2) - p.Gen2, Math.Round((GC.GetTotalPauseDuration() - p.Pause).TotalMilliseconds, 2),
             [.. p.Slow.OrderByDescending(x => x.Ms).Take(6).Select(x => string.Create(CultureInfo.InvariantCulture, $"{x.Name} {x.Ms:0.0} ms at {x.At:0} ms"))],
-            motion.Repeated, motion.PresentGaps, motion.Jerks, motion.JerkMax, motion.TailMs, motion.Moved, motion.LateCauses);
+            motion.Repeated, motion.PresentGaps, motion.Jerks, motion.JerkMax, motion.TailMs, motion.Moved, motion.LateCauses, [.. p.Collections]);
         Phases.Add(phase); _traces.Add((p.Name, p.Frames));
         return phase;
     }
 
     private readonly List<(string Name, List<Frame> Frames)> _traces = [];
-    /// <summary>Each phase's frames, one line each (frames-NN.csv): when, the gap since the one before, the work of the interface's thread, where the list stood, the presentation's gap, what changed.</summary>
+    /// <summary>Each phase's frames, one line each (frames-NN.csv): when, the gap since the one before, the work of the interface's thread, where the list stood, the presentation's gap, what changed, the collections since the frame before.</summary>
     public void WriteTraces(string folder)
     {
         var c = CultureInfo.InvariantCulture;
         for (var i = 0; i < _traces.Count; i++)
         {
-            var text = new StringBuilder("# ").Append(_traces[i].Name).Append('\n').Append("ms,gap_ms,work_ms,offset,present_gap_ms,hover,images,pictures\n");
+            var text = new StringBuilder("# ").Append(_traces[i].Name).Append('\n').Append("ms,gap_ms,work_ms,offset,present_gap_ms,hover,images,pictures,gc\n");
             foreach (var f in _traces[i].Frames)
-                text.Append(string.Create(c, $"{f.At:0.00},{f.Gap:0.00},{f.Work:0.00},{f.Offset:0.###},{f.Present:0.00},{f.Hover},{f.Images},{f.Pictures}\n"));
+                text.Append(string.Create(c, $"{f.At:0.00},{f.Gap:0.00},{f.Work:0.00},{f.Offset:0.###},{f.Present:0.00},{f.Hover},{f.Images},{f.Pictures},{f.Gc}\n"));
             File.WriteAllText(Path.Combine(folder, string.Create(c, $"frames-{i + 1:00}.csv")), text.ToString());
         }
     }
@@ -174,6 +179,7 @@ internal sealed class FrameMeter : IDisposable
             Note(f.Images + before.Images > 0, "images");
             Note(f.Pictures + before.Pictures > 0, "images figées");
             Note(before.Work > period, "fil de l’interface");
+            Note(f.Gc > 0, "GC");
             if (!found) causes["?"] = causes.GetValueOrDefault("?") + 1;
         }
         var why = string.Join(", ", causes.OrderByDescending(x => x.Value).Select(x => $"{x.Key} {x.Value}"));
@@ -192,6 +198,8 @@ internal sealed class FrameMeter : IDisposable
         // Raised more than once for one frame: one frame per rendering time.
         if (e is not RenderingEventArgs args || args.RenderingTime == _lastRendering) return;
         var previous = _lastRendering; _lastRendering = args.RenderingTime;
+        // A collection since the frame before: its pause is time this frame may have waited.
+        var collections = GC.CollectionCount(0); var collected = collections - _collections; _collections = collections;
         // The operation running now is the frame's render operation: its length is this frame's work.
         _frameOperation = _running.Count > 0 ? _running.Peek().Operation : null;
         long presented = 0;
@@ -203,8 +211,9 @@ internal sealed class FrameMeter : IDisposable
             // The list's place drawn by the previous frame: this handler runs before the list's own step of this frame.
             if (p.Viewer is { } viewer && p.Frames.Count > 0) p.Frames[^1].Offset = viewer.VerticalOffset;
             var (hover, images, pictures) = FrameEvents.Take();
-            var frame = new Frame { At = (args.RenderingTime - p.FirstRendering).TotalMilliseconds, Hover = hover, Images = images, Pictures = pictures };
+            var frame = new Frame { At = (args.RenderingTime - p.FirstRendering).TotalMilliseconds, Hover = hover, Images = images, Pictures = pictures, Gc = collected };
             p.Frames.Add(frame);
+            if (collected > 0) LookAtCollections(p, frame.At);
             if (previous != TimeSpan.MinValue) { frame.Gap = (args.RenderingTime - previous).TotalMilliseconds; p.Gaps.Add(frame.Gap); }
             // How long each presentation stood, from the phase's own first: the one before it may date from long before.
             if (presented != 0 && presented != _lastPresented)
@@ -219,7 +228,32 @@ internal sealed class FrameMeter : IDisposable
                 if (RefreshRate is var hz && hz > 0) p.Refresh = hz;
             }
         }
+        else if (collected > 0) LookAtCollections(null, 0);
         if (presented != 0) _lastPresented = presented;
+    }
+    /// <summary>
+    /// The collections that ended since the last look, each said in a phase's line: its kind and generation, its pause,
+    /// what survived it (promoted: what it had to copy or mark, the bulk of an ephemeral pause), each generation's size
+    /// before and after. A background collection is said when it ends, often frames after it began.
+    /// </summary>
+    private void LookAtCollections(Recording? p, double at)
+    {
+        var c = CultureInfo.InvariantCulture;
+        for (var k = 0; k < Kinds.Length; k++)
+        {
+            var info = GC.GetGCMemoryInfo(Kinds[k].Kind);
+            if (info.Index <= _seen[k]) continue;
+            _seen[k] = info.Index;
+            if (p is null) continue;
+            var pause = 0d;
+            foreach (var part in info.PauseDurations) pause += part.TotalMilliseconds;
+            var sizes = new StringBuilder();
+            var generations = info.GenerationInfo;
+            for (var g = 0; g < Math.Min(4, generations.Length); g++)
+                sizes.Append(g == 0 ? "" : ", ").Append(g == 3 ? "LOH" : string.Create(c, $"gen{g}")).Append(string.Create(c, $" {Mb(generations[g].SizeBeforeBytes):0.0}→{Mb(generations[g].SizeAfterBytes):0.0}"));
+            p.Collections.Add(string.Create(c, $"{Kinds[k].Name} gen{info.Generation} vu à {at:0} ms : pause {pause:0.0} ms, {Mb(info.PromotedBytes):0.0} Mo gardés{(info.Compacted ? ", compacté" : "")}, tas {Mb(info.HeapSizeBytes):0} Mo ({sizes} Mo)"));
+        }
+        static double Mb(long bytes) => bytes / 1048576d;
     }
     private void Started(object? sender, DispatcherHookEventArgs e) => _running.Push((e.Operation, Stopwatch.GetTimestamp()));
     // An operation aborted before it ran never started: only one that is running is taken off.
@@ -274,7 +308,7 @@ internal sealed class FrameMeter : IDisposable
     private sealed class Frame
     {
         public double At, Gap = double.NaN, Work = double.NaN, Offset = double.NaN, Present = double.NaN;
-        public int Hover, Images, Pictures;
+        public int Hover, Images, Pictures, Gc;
     }
 
     private sealed class Recording(string name)
@@ -285,6 +319,7 @@ internal sealed class FrameMeter : IDisposable
         public readonly List<double> Gaps = [], Work = [], Presents = [];
         public readonly Dictionary<string, int> Results = [];
         public readonly List<(string Name, double At, double Ms)> Slow = [];
+        public readonly List<string> Collections = [];
         public double Busy, Longest;
         public string? LongestName;
         public int Refresh;
