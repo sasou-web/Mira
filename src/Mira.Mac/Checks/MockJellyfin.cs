@@ -128,6 +128,8 @@ public sealed class MockJellyfin : HttpMessageHandler
     /// « Deux bobines », a film in two files (« cd1 », « cd2 ») as Jellyfin 12.1 gives it, out of the lists: the title
     /// is its first part (PartCount), the second comes from Videos/parts-1/AdditionalParts, an item of its own.
     /// </summary>
+    /// <summary>Jellyfin does not answer (its PC off, the network gone): every request of this server fails, as a refused connection does.</summary>
+    public bool Unreachable { get; set; }
     public bool PartsWatched { get; set; }
     /// <summary>Where the second part of « Deux bobines » was left, in ticks (0: never started).</summary>
     public long PartTwoTicks { get; set; }
@@ -151,6 +153,9 @@ public sealed class MockJellyfin : HttpMessageHandler
         var path = request.RequestUri!.AbsolutePath.TrimStart('/');
         var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
         if (request.RequestUri.Port == 8097) return await FriendAsync(request, path, cancellationToken);
+        // Jellyfin's PC off, or the network gone: no answer at all. Its pictures still come, from where they were kept:
+        // the captures after this check show the posters.
+        if (Unreachable && !path.Contains("/Images/")) throw new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused (check-server:8096)");
         lock (Calls) Calls.Add($"{request.Method} {path}");
         if (request.Method == HttpMethod.Post && path.StartsWith("Sessions/Playing"))
         {

@@ -184,6 +184,8 @@ public sealed partial class MainWindow : Window
             };
             Grid.SetColumnSpan(strip, 2); _root.Children.Add(strip);
         }
+        // « Hors connexion », over the strip of the title bar, as on Windows (MainWindow.Unanswered.cs).
+        _offlineBadge = BuildOfflineBadge(); _root.Children.Add(_offlineBadge);
         Content = _root;
         ListenToTrackpad();
         BuildMenuBar();
@@ -447,6 +449,7 @@ public sealed partial class MainWindow : Window
             session.Listen(() => Dispatcher.UIThread.Post(Changed), Listening, (type, data) => Dispatcher.UIThread.Post(() => Group.Message(session, type, data)),
                 command => Dispatcher.UIThread.Post(() => Remote(session, command)));
         }
+        FollowSession(Session);
         _avatar.Text = connection.UserName.Length > 0 ? connection.UserName[..1].ToUpperInvariant() : "?";
         SetPhoto(null); _ = ShowPhotoAsync();
         _overlay.Children.Clear(); _rail.IsVisible = true;
@@ -689,7 +692,7 @@ public sealed partial class MainWindow : Window
     private async Task CloseSessionAsync()
     {
         Group.Gone(); _listening = false; _choicesSoon.Stop(); StopEpisodeNotices();
-        ForgetOfflineState();
+        ForgetOfflineState(); ForgetUnanswered();
         if (Session is { } session) { Session = null; await session.DisposeAsync(); }
     }
 
@@ -773,7 +776,8 @@ public sealed partial class MainWindow : Window
         page.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
         Dispatcher.UIThread.Post(() => page.Opacity = 1, DispatcherPriority.Loaded);
         try { if (fresh) await page.LoadAsync(); else await page.RefreshAsync(); _unanswered = false; }
-        catch (Exception ex) when (Errors.Expected(ex)) { Say(ex); }
+        // Jellyfin not answering: said once, what the page had kept on screen (Unreached).
+        catch (Exception ex) when (Errors.Expected(ex)) { if (!Unreached(ex)) Say(ex); }
     }
     /// <summary>
     /// The rail entry of the page shown, lit. Réglages and Aide are a window over the page, never a page: the page under it
@@ -796,7 +800,7 @@ public sealed partial class MainWindow : Window
         var previous = _history[^1]; _history.RemoveAt(_history.Count - 1);
         if (Current is { } current) _forward.Add(current);
         Host(previous); Light(previous.Lit);
-        _ = previous.RefreshAsync();
+        _ = RefreshPageAsync(previous, say: false);
         return true;
     }
     /// <summary>The rail's group button: shown with its count while this Mac is in a group, what it says in its tooltip.</summary>
@@ -942,7 +946,7 @@ public sealed partial class MainWindow : Window
         if (Current is { } page)
         {
             try { await page.RefreshAsync(); _unanswered = false; }
-            catch (Exception ex) when (Errors.Expected(ex)) { if (!fromServer) Say(ex); }
+            catch (Exception ex) when (Errors.Expected(ex)) { if (!Unreached(ex) && !fromServer) Say(ex); }
         }
     }
     /// <summary>A page Jellyfin did not answer since: « Tailscale intégré » joining the tailnet brings it again (<see cref="TailnetJoined"/>).</summary>

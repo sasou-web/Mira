@@ -159,11 +159,31 @@ public sealed partial class SettingsPage : Page
     {
         var name = new TextBlock { Text = connection is null ? "Jellyfin" : connection.UserName + " · Jellyfin", FontSize = 18, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
         var buttons = new WrapPanel { Margin = new Thickness(0, 18, 0, -8) };
+        // Where the reports of this Mac stand, as on Windows: synced at…, waiting, or offline with what the cache shows.
+        var line = new TextBlock { FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 16, 0, 0) };
+        void ShowLine()
+        {
+            if (Shell.SyncLine is not { } status) { line.IsVisible = false; return; }
+            line.IsVisible = true; line.Text = status.Text; line.Foreground = status.Warning ? Ui.Warning : Ui.Success;
+        }
+        Page.WhileShown(line, shown => { if (shown) { Shell.SyncShown += ShowLine; ShowLine(); } else Shell.SyncShown -= ShowLine; });
+        if (connection is not null)
+        {
+            Button? sync = null;
+            async Task SyncAsync()
+            {
+                sync!.IsEnabled = false;
+                try { await Shell.SyncNowAsync(); }
+                finally { sync.IsEnabled = true; }
+            }
+            sync = Ui.Action(L("Synchroniser maintenant", "Sync now"), "refresh", "", () => _ = SyncAsync());
+            buttons.Children.Add(sync);
+        }
         if (connection is not null && Uri.TryCreate(connection.Server, UriKind.Absolute, out var server))
             buttons.Children.Add(Ui.Action(L("Ouvrir Jellyfin dans le navigateur", "Open Jellyfin in the browser"), "globe", "", () => Updates.Open(server, plainHttp: true)));
         buttons.Children.Add(SignOut(erase));
         foreach (var button in buttons.Children) button.Margin = new Thickness(0, 0, 10, 8);
-        return Ui.Column(0, name, Description(connection?.Server ?? "—"), buttons);
+        return Ui.Column(0, name, Description(connection?.Server ?? "—"), line, buttons);
     }
     /// <summary>
     /// « Mira sur ton iPhone », as the card of Windows' guide: the QR code of mira://connect (<see cref="PhoneLink"/>), in
