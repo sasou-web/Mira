@@ -742,6 +742,24 @@ await Test("Images : disque plein, l’image téléchargée s’affiche quand m�
     Assert(await cache.GetAsync(new MediaItem { Id = "full", ImageTags = new() { ["Primary"] = "tag" } }, targetWidth: 500) is { PixelWidth: 64 }, "The image was dropped with its copy on disk");
     Assert(!File.Exists(path), "A copy was kept");
 });
+await Test("Images : décodées sans garder leur fichier en mémoire", () =>
+{
+    // A BitmapImage keeps its StreamSource for life, and a MemoryStream its buffer even closed: each picture kept its file.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    static (System.Windows.Media.Imaging.BitmapImage Image, WeakReference File) Decode()
+    {
+        var pixels = new byte[200 * 100 * 4]; Array.Fill(pixels, (byte)60);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(System.Windows.Media.Imaging.BitmapSource.Create(200, 100, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, 800)));
+        using var png = new MemoryStream(); encoder.Save(png); var bytes = png.ToArray();
+        return (PictureBytes.Decode(bytes, 50), new WeakReference(bytes));
+    }
+    var (image, file) = Decode();
+    GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+    Assert(image is { PixelWidth: 50, PixelHeight: 25, IsFrozen: true }, "Picture not decoded at its width");
+    Assert(!file.IsAlive && image.StreamSource is { Length: 0 }, "The picture kept its file");
+    return Task.CompletedTask;
+});
 await Test("TorLink : sous-titres, bonus, clés de dossiers et noms Windows", () =>
 {
     Assert(ReleaseName.SubtitleTags(@"Film\Subs\2_English.srt") == ".en" && ReleaseName.SubtitleTags(@"Film\Film.2012.en.forced.srt") == ".en.forced" && ReleaseName.SubtitleTags(@"Film\French.srt") == ".fr"

@@ -5,6 +5,7 @@ using System.Windows.Automation;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Mira.Core;
+using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
@@ -104,12 +105,7 @@ public partial class MainWindow
     }
     private static BitmapSource? DecodeTile(byte[] bytes, int pixelWidth)
     {
-        try
-        {
-            var image = new BitmapImage();
-            image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = new MemoryStream(bytes); image.DecodePixelWidth = pixelWidth; image.EndInit();
-            image.Freeze(); return image;
-        }
+        try { return PictureBytes.Decode(bytes, pixelWidth); }
         catch (Exception ex) when (ex is NotSupportedException or FileFormatException or IOException) { return null; }
     }
     private void LoadFileChapters()

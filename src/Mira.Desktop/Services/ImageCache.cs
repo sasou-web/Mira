@@ -109,9 +109,7 @@ public sealed class ImageCache
                     // Never decoded wider than the file itself: a 400 px logo asked at 640 stays 400 px.
                     int original;
                     using (var header = new MemoryStream(bytes)) original = BitmapDecoder.Create(header, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None).Frames[0].PixelWidth;
-                    using var stream = new MemoryStream(bytes);
-                    var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.DecodePixelWidth = original > 0 ? Math.Min(width, original) : width; bitmap.StreamSource = stream; bitmap.EndInit(); bitmap.Freeze(); return (BitmapSource)bitmap;
+                    return (BitmapSource)PictureBytes.Decode(bytes, original > 0 ? Math.Min(width, original) : width);
                 });
             }
             // A damaged file is removed so the next request downloads it again.
