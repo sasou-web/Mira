@@ -48,7 +48,11 @@ public sealed class ScrollMotion
         var target = moving ? Target : Position;
         // Reversed: from where the list stands, at once (never on in the old direction).
         if (delta != 0 && ((target != Position && (delta > 0) != (target > Position)) || speed * delta < 0)) { target = Position; speed = 0; _interval = double.NaN; }
-        Plan(Math.Clamp(target + delta, 0, Math.Max(0, maximum)), speed);
+        target = Math.Clamp(target + delta, 0, Math.Max(0, maximum));
+        // At the end of the list, a notch more moves nothing: the glide under way ends as it was going to. Planned again,
+        // it would start over towards the same place at each notch, its last pixels creeping for as long as the wheel turns.
+        if (moving && target == Target) return;
+        Plan(target, speed);
     }
     public double Step(double seconds, double maximum)
     {
