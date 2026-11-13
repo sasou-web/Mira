@@ -64,7 +64,8 @@ public sealed partial class DetailPage : Page
     /// <summary>For the self-check: the seasons as pills, the tiles of the season shown, the top of the grid brought into view.</summary>
     public bool PillsShown => _pills.IsVisible && _pills.Children.Count > 1;
     public int TilesShown => _tiles.Count;
-    public void ShowEpisodesForCheck() => Avalonia.Threading.Dispatcher.UIThread.Post(() => _episodeHeading.BringIntoView(), Avalonia.Threading.DispatcherPriority.Background);
+    /// <summary>The episodes' heading scrolled into view, with <paramref name="below"/> points under it (a gallery shows the grid too).</summary>
+    public void ShowEpisodesForCheck(double below = 0) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _episodeHeading.BringIntoView(new Rect(0, 0, _episodeHeading.Bounds.Width, _episodeHeading.Bounds.Height + below)), Avalonia.Threading.DispatcherPriority.Background);
     public IEnumerable<string> SeasonLabels => _seasons.Items.OfType<ComboBoxItem>().Select(x => x.Content as string ?? "");
 
     public DetailPage(MainWindow shell, MediaItem item, MediaItem? atEpisode = null) : base(shell, underRail: true)

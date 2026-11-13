@@ -1466,7 +1466,12 @@ public static class SelfCheck
         var scaling = window.RenderScaling;
         var size = new PixelSize((int)(window.Bounds.Width * scaling), (int)(window.Bounds.Height * scaling));
         using var bitmap = new RenderTargetBitmap(size, new Vector(96 * scaling, 96 * scaling));
-        bitmap.Render(window);
+        // Avalonia 11.3's RenderTargetBitmap draws the child of a border with a BoxShadow at twice its place and size in a
+        // window at ×2 (the screen draws it right: the Filter panel, seen under Xvfb): such shadows are left out of a capture.
+        var shadowed = window.GetVisualDescendants().OfType<Border>().Where(x => x.BoxShadow.Count > 0 && x.Child is not null).Select(x => (Border: x, x.BoxShadow)).ToList();
+        foreach (var (border, _) in shadowed) border.BoxShadow = default;
+        try { bitmap.Render(window); }
+        finally { foreach (var (border, shadow) in shadowed) border.BoxShadow = shadow; }
         bitmap.Save(Path.Combine(output, name + ".png"));
     }
     /// <summary>
