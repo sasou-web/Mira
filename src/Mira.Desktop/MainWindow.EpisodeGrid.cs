@@ -150,8 +150,8 @@ public partial class MainWindow
     {
         var key = line.First.Id; var open = _shelfOpen.Contains(key);
         var button = new Button { Style = (Style)FindResource("Quiet"), Template = TileTemplate, Background = Brushes.Transparent, Padding = new Thickness(0), BorderThickness = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Top };
-        var picture = new Border { CornerRadius = new CornerRadius(10), Background = Brushes.Transparent, BorderBrush = Palette.Get("Raised2"), BorderThickness = new Thickness(1), Padding = new Thickness(20, 0, 20, 0) };
-        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var picture = new Border { CornerRadius = new CornerRadius(10), Background = Brushes.Transparent, BorderBrush = Palette.Get("Raised2"), BorderThickness = new Thickness(1) };
+        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 20, 0) };
         var (first, second) = EpisodeTiles.GapLines(line, today);
         copy.Children.Add(new TextBlock { Text = EpisodeShelf.Code(line.Episodes), FontSize = 15, FontWeight = FontWeights.Bold, Foreground = Palette.Get("TextTertiary") });
         copy.Children.Add(new TextBlock { Text = first, FontSize = 12.5, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
@@ -160,7 +160,10 @@ public partial class MainWindow
         show.Children.Add(new TextBlock { Text = EpisodeShelf.Show(line.Episodes.Count, open), FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextSecondary") });
         show.Children.Add(new Icon { Kind = open ? "up" : "down", Width = 12, Height = 12, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Palette.Get("TextSecondary") });
         copy.Children.Add(show);
-        picture.Child = copy; button.Content = picture;
+        var inside = new Grid(); inside.Children.Add(copy);
+        // « Télécharger É6–9 » (MainWindow.MissingDownloads.cs): under the lines, the bar of what comes along the foot.
+        if (MissingTilePart(line) is var (part, bar)) { show.Margin = new Thickness(0, 8, 0, 0); copy.Children.Insert(copy.Children.IndexOf(show), part); inside.Children.Add(bar); }
+        picture.Child = inside; button.Content = picture;
         var text = line.Kind == ShelfKind.Later ? EpisodeShelf.LaterText(line.Episodes, today) : EpisodeShelf.MissingText(line.Episodes, today);
         AutomationProperties.SetName(button, text); AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open));
         button.Click += (_, _) => Toggle(key);
@@ -170,16 +173,18 @@ public partial class MainWindow
     /// <summary>The seasons as pills under the heading; a click shows that one (the hidden list stays the source).</summary>
     private void FillSeasonPills(IReadOnlyList<EpisodePage> pages)
     {
-        SeasonPills.Children.Clear();
+        SeasonPills.Children.Clear(); _missingViews.RemoveAll(x => x.Pill);
         SeasonPills.Visibility = pages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         foreach (var page in pages)
         {
             var (name, note) = EpisodeTiles.Pill(page);
+            var coming = MissingPillNote(page);
             var pill = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(0, 0, 8, 8), BorderBrush = Palette.Get("Line"), Tag = page };
             Motion.SetRadius(pill, new CornerRadius(18));
             var label = new StackPanel { Orientation = Orientation.Horizontal };
             label.Children.Add(new TextBlock { Text = name, FontSize = 13.5, FontWeight = FontWeights.SemiBold });
             if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.62 });
+            if (coming is not null) label.Children.Add(coming);
             pill.Content = label; AutomationProperties.SetName(pill, page.Label);
             pill.Click += (_, _) => SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? SeasonSelector.SelectedItem;
             SeasonPills.Children.Add(pill);

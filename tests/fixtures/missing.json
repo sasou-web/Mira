@@ -1,0 +1,75 @@
+{
+  "comment": "« Télécharger les manquants » of a series' page: Mira.Core MissingDownloads (Windows, Mac) and Downloads/MissingDownloads.swift (iPhone). choose: TorLink's results for what a click asked (hits: name, size in GiB, seeders, site, category; each one's id is its place in the list), the season packs kept best first, the release put forward for each episode, and the episodes nothing was found for. queries: what TorLink is asked. runs: episodes in runs, as the menu names them.",
+  "choose": [
+    {
+      "name": "A gap in a season: one release per episode, the group most episodes share, never a pack, a cam, a dead one, two in one or a huge one",
+      "series": { "name": "Arcane", "originalTitle": "Arcane", "year": 2021, "before": 9 },
+      "ask": { "season": 2, "episodes": [6, 7, 8, 9], "wholeSeason": false },
+      "hits": [
+        ["Arcane.S02E06.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX", 2.1, 120, "1337x", "tv"],
+        ["Arcane.S02E06.2160p.NF.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX", 8.4, 40, "1337x", "tv"],
+        ["Arcane.S02E07.1080p.WEB.H264-SuccessfulCrab", 1.9, 400, "1337x", "tv"],
+        ["Arcane.S02E07.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX", 2.0, 110, "1337x", "tv"],
+        ["Arcane.S02E08.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX", 2.2, 90, "1337x", "tv"],
+        ["Arcane.S02E05.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX", 2.0, 150, "1337x", "tv"],
+        ["Arcane.S02.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX", 19.5, 300, "1337x", "tv"],
+        ["Arcane.S02E06-E07.1080p.WEB.H264-GRP", 4.0, 80, "1337x", "tv"],
+        ["Arcane.S02E09.HDCAM.x264-NOGRP", 0.9, 500, "1337x", "tv"],
+        ["Arcane.S02E08.720p.WEB.x264-DEAD", 0.8, 0, "1337x", "tv"],
+        ["Arcane.S02E08.1080p.WEB-DL.x264-HUGE", 30, 60, "1337x", "tv"],
+        ["Arcane.S01E06.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX", 2.0, 150, "1337x", "tv"],
+        ["Some.Other.Show.S02E06.1080p.WEB.H264-GRP", 1.5, 90, "1337x", "tv"]
+      ],
+      "packs": [],
+      "episodes": {
+        "6": "Arcane.S02E06.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX",
+        "7": "Arcane.S02E07.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX",
+        "8": "Arcane.S02E08.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX"
+      },
+      "notFound": [9]
+    },
+    {
+      "name": "A season the library lacks: its pack first, never another season's; an anime's episodes numbered from the first of the series, under the name typed",
+      "series": { "name": "Frieren: Beyond Journey's End", "originalTitle": "葬送のフリーレン", "year": 2023, "before": 28, "query": "Sousou no Frieren" },
+      "ask": { "season": 2, "episodes": [1, 2, 3], "wholeSeason": true },
+      "hits": [
+        ["[SubsPlease] Sousou no Frieren - 29 (1080p) [A1B2C3D4].mkv", 1.4, 0, "subsplease", "anime"],
+        ["[Erai-raws] Sousou no Frieren - 30 [1080p][Multiple Subtitle].mkv", 1.4, 50, "nyaa", "anime"],
+        ["[SubsPlease] Sousou no Frieren - 05 (1080p) [A1B2C3D5].mkv", 1.4, 0, "subsplease", "anime"],
+        ["[Judas] Sousou no Frieren (Season 02) [1080p][HEVC x265 10bit][Multi-Subs] (Batch)", 12, 40, "nyaa", "anime"],
+        ["Sousou no Frieren S02 1080p WEB-DL MULTI x264-GRP", 16, 25, "nyaa", "anime"],
+        ["Sousou no Frieren S01 1080p BluRay x264-GRP", 40, 80, "nyaa", "anime"]
+      ],
+      "packs": [
+        "Sousou no Frieren S02 1080p WEB-DL MULTI x264-GRP",
+        "[Judas] Sousou no Frieren (Season 02) [1080p][HEVC x265 10bit][Multi-Subs] (Batch)"
+      ],
+      "episodes": {
+        "1": "[SubsPlease] Sousou no Frieren - 29 (1080p) [A1B2C3D4].mkv",
+        "2": "[Erai-raws] Sousou no Frieren - 30 [1080p][Multiple Subtitle].mkv"
+      },
+      "notFound": [3]
+    },
+    {
+      "name": "The first season of an anime: a number without a season is the episode's own; the year of the series give or take one",
+      "series": { "name": "Dandadan (2024)", "originalTitle": "ダンダダン", "year": 2024, "before": 0 },
+      "ask": { "season": 1, "episodes": [3], "wholeSeason": false },
+      "hits": [
+        ["[SubsPlease] Dandadan - 03 (1080p) [ABCD1234].mkv", 1.3, 0, "subsplease", "anime"],
+        ["Dandadan (1987) S01E03 480p DVD", 0.5, 10, "nyaa", "anime"]
+      ],
+      "packs": [],
+      "episodes": { "3": "[SubsPlease] Dandadan - 03 (1080p) [ABCD1234].mkv" },
+      "notFound": []
+    }
+  ],
+  "queries": [
+    { "series": { "name": "Dandadan (2024)", "year": 2024, "before": 0 }, "season": 1, "queries": ["Dandadan S01", "Dandadan"] },
+    { "series": { "name": "Arcane", "year": 2021, "before": 9, "query": "Arcane League of Legends" }, "season": 2, "queries": ["Arcane League of Legends"] }
+  ],
+  "runs": [
+    [[6, 7, 9], [[6, 7], [9, 9]]],
+    [[3], [[3, 3]]],
+    [[10, 8, 9, 1], [[1, 1], [8, 10]]]
+  ]
+}

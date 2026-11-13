@@ -95,7 +95,7 @@ public partial class MainWindow
         // qBittorrent (private trackers) takes pasted links and .torrent files, whatever TorLink's state; its downloads are listed with TorLink's.
         List<RelayDownload> downloads = [.. await RemoteDownloadsAsync(ct), .. await QBittorrentDownloadsAsync(ct)];
         var report = new AgentReport(Environment.MachineName, problem is null, problem, downloads, TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls, follows, Replaces: true,
-            QBittorrent: !_demo && QBittorrentInstalled());
+            QBittorrent: !_demo && QBittorrentInstalled(), Seasons: true);
         var (work, status) = await client.TorLinkExchangeAsync(report, ct);
         if (!ReferenceEquals(client, _client)) return TimeSpan.FromSeconds(5);
         if (work is null)
@@ -192,7 +192,7 @@ public partial class MainWindow
         foreach (var request in requests)
         {
             if (RemoteDownloads.InfoHash(request.Magnet) is not { } hash) { _remoteRequestOutcomes.Add(new(request.Id, "failed", L("Ce n’est pas un lien magnet.", "That’s not a magnet link."))); continue; }
-            // An episode of a series followed: placed in its series' folder once finished, never anywhere else.
+            // An episode of a series followed, or what a series' page asked: placed in its series' folder once finished, never anywhere else.
             if (request.Place is { } place)
             {
                 if (await FollowTargetAsync(place, ct) is not { } target || _torlink is not { } torlink)

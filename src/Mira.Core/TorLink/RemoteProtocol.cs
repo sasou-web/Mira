@@ -18,11 +18,12 @@ public static class RemoteProtocol
 /// an older agent leaves it out, and the relay hands it no series. <paramref name="Replaces"/>: it puts a better version
 /// in a title's place (« Remplacer par une meilleure version », after 0.8.5); the relay hands an older one no such download.
 /// <paramref name="QBittorrent"/>: its qBittorrent takes pasted magnet links and .torrent files now, TorLink ready or not
-/// (private trackers, after 0.9.0); its downloads are among <paramref name="Downloads"/>.
+/// (private trackers, after 0.9.0); its downloads are among <paramref name="Downloads"/>. <paramref name="Seasons"/>: it places a
+/// download asked from a series' page in that series' folder, a season pack included (« Télécharger les manquants », after 0.9.7).
 /// </summary>
 public sealed record AgentReport(string? Name, bool Accepting, string? Problem, List<RelayDownload>? Downloads, List<RelayPlaced>? Placed,
     List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls, List<AgentFollowOutcome>? Follows = null, bool Replaces = false,
-    bool QBittorrent = false);
+    bool QBittorrent = false, bool Seasons = false);
 /// <summary>
 /// A download in TorLink: its info hash, TorLink's status (downloading, queued, paused, failed), percent, bytes per second,
 /// its size and what it has of it (0 when unknown), and the seconds TorLink still expects (null when it cannot tell).
@@ -87,18 +88,39 @@ public sealed record FollowAiring(int Season, int Episode, DateTimeOffset Day);
 public sealed record FollowNote(string Kind, string? Episode = null, string? Reason = null, string? Detail = null);
 /// <summary>A release the agent chose for an episode: held a while by the relay, for « Annuler », then downloaded.</summary>
 public sealed record FollowPick(int Season, int Episode, string Name, string Magnet, long Size, int Seeders, string Source, string? Group, List<string>? Languages, int? Resolution);
-/// <summary>Where a followed episode goes: the series' folder, as Jellyfin has it, and the episode's season and number.</summary>
-public sealed record FollowPlace(string Folder, int Season, int Episode);
+/// <summary>
+/// Where a followed episode goes: the series' folder, as Jellyfin has it, and the episode's season and number. An episode
+/// or season asked from the series' page (« Télécharger les manquants ») has no folder: the agent reads it from
+/// <paramref name="SeriesId"/> in its Jellyfin; <paramref name="Episode"/> 0 is a whole season, each file under its own number.
+/// </summary>
+public sealed record FollowPlace(string Folder, int Season, int Episode, string? SeriesId = null);
+/// <summary>
+/// Episodes asked from a series' page (« Télécharger les manquants »): the series (its id in Jellyfin), the season, and the
+/// episodes this download brings; empty for a whole season.
+/// </summary>
+public sealed record MissingPlace(string SeriesId, int Season, IReadOnlyList<int> Episodes);
 
 // What Mira web (and Mira for Windows or Mac away from the PC of Jellyfin) reads (GET /Mira/torlink, GET /Mira/torlink/search/{id}).
-/// <summary><paramref name="Follows"/>: the series followed; an extension of 0.8.4 or before leaves it out.</summary>
-public sealed record RelayStatus(RelayAgent? Agent, List<RelayRequest> Requests, List<RelayControl> Controls, List<RelayDownload> Downloads, List<RelayPlaced> Placed, List<RelayFollow>? Follows = null);
+/// <summary>
+/// <paramref name="Follows"/>: the series followed; an extension of 0.8.4 or before leaves it out. <paramref name="Missing"/>: the
+/// downloads asked from a series' page, until placed (an extension of 0.9.7 or before leaves it out).
+/// </summary>
+public sealed record RelayStatus(RelayAgent? Agent, List<RelayRequest> Requests, List<RelayControl> Controls, List<RelayDownload> Downloads, List<RelayPlaced> Placed, List<RelayFollow>? Follows = null,
+    List<RelayMissing>? Missing = null);
+/// <summary>
+/// A download asked from a series' page: its series, season and episodes (empty: the whole season), the release, its info
+/// hash (to find it among TorLink's downloads and what was placed), and the request's state while the relay has it
+/// (waiting, claimed, sent, failed with why).
+/// </summary>
+public sealed record RelayMissing(string Id, string SeriesId, int Season, IReadOnlyList<int> Episodes, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created);
 /// <summary>
 /// <paramref name="Follows"/>: its Mira checks the series followed (an agent of 0.8.4 or before does not).
 /// <paramref name="Replaces"/>: it replaces a title's file by a better version (an agent of 0.8.5 or before does not).
 /// <paramref name="QBittorrent"/>: its qBittorrent takes pasted magnet links and .torrent files (an agent of 0.9.0 or before does not).
+/// <paramref name="Seasons"/>: it places what a series' page asks in that series (an agent of 0.9.7 or before does not).
 /// </summary>
-public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows = false, bool Replaces = false, bool QBittorrent = false);
+public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows = false, bool Replaces = false, bool QBittorrent = false,
+    bool Seasons = false);
 /// <summary><paramref name="Replace"/>: the title (its id in Jellyfin) whose file this download is to replace.</summary>
 public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created, string? Replace = null);
 public sealed record RelayControl(string Id, string Target, string Action, string State);

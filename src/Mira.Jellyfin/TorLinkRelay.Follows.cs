@@ -163,9 +163,13 @@ public sealed partial class TorLinkRelay
         }).ToList();
     }
 
-    /// <summary>Where an episode of a series followed goes: its series' folder, as the agent found it.</summary>
+    /// <summary>
+    /// Where an episode of a series followed goes: its series' folder, as the agent found it. What a series' page asked goes
+    /// in that series, whose folder the agent reads in its Jellyfin; a release of several episodes, under each one's number.
+    /// </summary>
     private FollowPlace? PlaceOf(Ask ask) =>
-        FollowOf(ask) is { Folder: { } folder } && ask.Episode is { } episode ? new FollowPlace(folder, episode.Season, episode.Episode) : null;
+        ask.Missing is { } missing ? new FollowPlace("", missing.Season, missing.Episodes is [var one] ? one : 0, missing.SeriesId)
+        : FollowOf(ask) is { Folder: { } folder } && ask.Episode is { } episode ? new FollowPlace(folder, episode.Season, episode.Episode) : null;
 
     private Followed? FollowOf(Ask ask) => ask.FollowId is null ? null : _follows.FirstOrDefault(x => x.Id == ask.FollowId);
 

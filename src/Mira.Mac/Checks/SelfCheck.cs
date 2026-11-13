@@ -468,6 +468,12 @@ public static class SelfCheck
                 await Task.Delay(900); Capture(window, output, "06c-series-shelf");
                 Check(shelfPage.ShowSeasonForCheck(Lang.L("Saison 2 · absente", "Season 2 · not in library")), "épisodes manquants et à venir : saison absente");
                 await Task.Delay(900); Capture(window, output, "06d-series-absent-season");
+                // « Télécharger la saison 2 » (an administrator, the relay's agent places it): the menu searches on the PC of
+                // Jellyfin; the stand-in's results are another title's, the menu says nothing was found and offers another name.
+                Check(await Until(() => shelfPage.MissingOffered, 10) && shelfPage.OpenMissingForCheck(), "télécharger les manquants : bouton de la saison absente");
+                Check(await Until(() => shelfPage.MissingMenuShown == "nothing", 15), "télécharger les manquants : menu, rien trouvé", shelfPage.MissingMenuShown ?? "fermé");
+                await Task.Delay(500); Capture(window, output, "06f-missing-menu");
+                shelfPage.CloseMissingForCheck();
                 shelfPage.ShowSeasonForCheck(shelfPage.SeasonLabels.First());
                 Check(shelfPage.PillsShown && shelfPage.TilesShown > 0, "épisodes en grille, saisons en pastilles", $"{shelfPage.TilesShown} tuiles");
                 shelfPage.ShowEpisodesForCheck(); await Task.Delay(900); Capture(window, output, "06e-series-grid");

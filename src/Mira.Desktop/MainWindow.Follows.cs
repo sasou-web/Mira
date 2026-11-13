@@ -89,9 +89,19 @@ public partial class MainWindow
     /// </summary>
     private async Task<ImportTarget?> FollowTargetAsync(FollowPlace place, CancellationToken ct)
     {
-        if (_client is not { } client || place is not { Season: >= 1 and <= 100, Episode: >= 1 and <= 5000 }) return null;
+        if (_client is not { } client || place is not { Season: >= 1 and <= 100, Episode: >= 0 and <= 5000 }) return null;
+        // Asked from a series' page: the folder of that series in Jellyfin (episode 0, a whole season, only so).
+        var path = place.Folder;
+        if (place.SeriesId is { } seriesId)
+        {
+            if (!RemoteDownloads.IsItemId(seriesId)) return null;
+            try { path = (await client.ItemAsync(seriesId, ct)) is { Type: "Series", Path: { Length: > 0 } seriesPath } ? seriesPath : ""; }
+            catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest) { return null; }
+        }
+        else if (place.Episode == 0) return null;
+        if (path.Length == 0) return null;
         string folder;
-        try { folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath(place.Folder)); }
+        try { folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)); }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
         var roots = new List<(string Root, MediaKind Kind)>();
         try
