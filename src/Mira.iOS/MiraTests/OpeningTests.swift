@@ -53,6 +53,25 @@ struct OpeningTests {
         #expect(OpeningPlan.noWay < OpeningPlan.unsure && OpeningPlan.unsure < OpeningPlan.longest)
     }
 
+    @Test("En 5G par Tailscale, un échec de l'Accueil sur un chemin à peine trouvé ne fait pas partir l'ouverture")
+    func failureThatMayPass() {
+        // A way through Built-in Tailscale just taken, a request cut while its network comes in: the way is looked for
+        // again, no reason said meanwhile (none, or the way found again).
+        #expect(OpeningPlan.mayComeBack(.tailscale("peer-offline"), way: nil, hint: nil, builtIn: true))
+        #expect(OpeningPlan.mayComeBack(.timeout, way: .builtIn, hint: nil, builtIn: true))
+        #expect(OpeningPlan.mayComeBack(.unreachable, way: .tailscaleApp, hint: nil, builtIn: false))
+        // None found yet, for a reason that may pass; or one only the person can change, said at once.
+        #expect(OpeningPlan.mayComeBack(.unreachable, way: nil, hint: .serverNotFound, builtIn: true))
+        #expect(!OpeningPlan.mayComeBack(.unreachable, way: nil, hint: .signedOut, builtIn: true))
+        #expect(!OpeningPlan.mayComeBack(.unreachable, way: nil, hint: .noNetwork, builtIn: false))
+        // Without Tailscale: Jellyfin away at home is said at once, and so is any answer of Jellyfin's own.
+        #expect(!OpeningPlan.mayComeBack(.unreachable, way: nil, hint: nil, builtIn: false))
+        #expect(!OpeningPlan.mayComeBack(.timeout, way: .home, hint: nil, builtIn: false))
+        #expect(!OpeningPlan.mayComeBack(.http(500), way: .builtIn, hint: nil, builtIn: true))
+        #expect(!OpeningPlan.mayComeBack(.unauthorized, way: .builtIn, hint: nil, builtIn: true))
+        #expect(OpeningPlan.again < OpeningPlan.longest)
+    }
+
     @Test("Attend la bibliothèque de Jellyfin, même avec l'Accueil gardé, jamais au-delà de sa limite")
     func waitsForTheLibrary() {
         #expect(decide(.waiting, after: 1) == .wait(until: start.addingTimeInterval(OpeningPlan.longest)))

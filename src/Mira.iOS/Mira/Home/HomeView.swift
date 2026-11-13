@@ -163,13 +163,9 @@ struct HomeView: View {
         await load()
     }
 
-    /// Home failed for want of a way to Jellyfin, and one may still come.
+    /// Home failed on the way to Jellyfin, and a way may still come (OpeningPlan.mayComeBack).
     private func mayComeBack(_ error: JellyfinError) -> Bool {
-        guard app.way == nil, let hint = app.wayHint, !hint.sure else { return false }
-        switch error {
-        case .unreachable, .timeout, .tailscale: return true
-        default: return false
-        }
+        OpeningPlan.mayComeBack(error, way: app.way?.kind, hint: app.wayHint, builtIn: app.tailnet.enabled)
     }
 
     /// The status bar's height (0 when hidden, in landscape), read again whenever Home's size changes.
@@ -202,12 +198,24 @@ struct HomeView: View {
             // Away from home with no way found yet, for a reason that may last a moment only (Tailscale's network still
             // coming in, its app's VPN starting): the opening goes on while the way looks again (Way), Home loads once
             // one is found (app.way) or says why at the opening's limit (OpeningPlan.unsure).
-            if !mayComeBack(error) { app.opening.report(.failed) }
+            if mayComeBack(error) {
+                // Asked again shortly, until a way comes (app.way) or the opening's limit.
+                Task { await loadAgainWhileOpening() }
+            } else {
+                app.opening.report(.failed)
+            }
             await app.together.refresh()
         case .loading:
             // Ended without an answer: another load answers.
             break
         }
+    }
+
+    /// Home failed while Mira opens, and Jellyfin may still answer: asked again after a moment, the opening on meanwhile.
+    private func loadAgainWhileOpening() async {
+        try? await Task.sleep(for: .seconds(OpeningPlan.again))
+        guard app.opening.waitsForHome, case .failed = model.state else { return }
+        await load()
     }
 
     /// The pictures of Home's first screen, at the addresses and sizes its views ask for them: the banner's first slide
