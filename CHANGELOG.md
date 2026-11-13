@@ -2,6 +2,8 @@
 
 ## Non publié
 
+## 0.9.8 — 2026-11-13
+
 - **Plus de vitesse de lecture (Windows, Mac, iPhone)** : le choix de vitesse (0,5× à 2×) quitte le menu ⋮ du lecteur et la pastille de vitesse de l’iPhone disparaît : tout se lit à 1×. L’appui long ×2 de l’iPhone reste. Demandé par ogsas ; Windows et Mac seulement compilés.
 - **Barres du bandeau de l’accueil (Windows, Mac)** : sous Windows, les barres du carrousel montraient encore un carré gris arrondi sous le pointeur, que la 0.9.7 devait retirer : le réglage qui l’éteint était posé après le style du bouton, qui avait déjà branché le survol. Le survol se relit maintenant à chaque passage du pointeur, pour tout bouton. Sur Mac, un clic sur une barre relançait la rotation alors que le pointeur était encore sur le bandeau. Signalé par ogsas sur la 0.9.7 ; le bandeau est maintenant contrôlé contre un vrai Jellyfin avec de vrais clics (job `server`).
 - **Écran d’ouverture de l’iPhone en 5G, suite** : la 0.9.7 attendait bien Jellyfin quand Mira ne trouvait pas encore de chemin, mais pas quand elle venait d’en trouver un par Tailscale intégré (ou l’app Tailscale) et que l’Accueil échouait dessus un instant, le temps que le réseau de Tailscale arrive : l’écran partait aussitôt sur l’Accueil gardé et « Jellyfin ne répond pas ». Un tel échec ne fait plus partir l’écran : l’Accueil est redemandé toutes les 2 s jusqu’à la réponse de Jellyfin (15 s au plus) ; une raison que toi seul peux changer, ou Jellyfin qui ne répond pas à la maison sans Tailscale, se dit toujours tout de suite. Testé sur le simulateur de la CI ; jamais essayé sur un vrai iPhone en 5G.

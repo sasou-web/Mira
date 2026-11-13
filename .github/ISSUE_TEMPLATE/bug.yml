@@ -24,7 +24,7 @@ body:
     attributes:
       label: Mira version
       description: Settings → Mira on this PC / Mac, or Settings on iPhone.
-      placeholder: "0.9.7"
+      placeholder: "0.9.8"
     validations:
       required: true
   - type: input
