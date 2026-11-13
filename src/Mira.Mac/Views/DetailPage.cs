@@ -520,13 +520,13 @@ public sealed partial class DetailPage : Page
         var copies = targets.Select(x => Shell.CopyOf(x.Id)).OfType<OfflineCopy>().ToList();
         if (copies.Count == 0) { _ = Shell.KeepOfflineAsync(targets); return; }
         var menu = new ContextMenu();
-        void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
+        void Add(string label, string icon, Action action) => menu.Items.Add(Ui.Entry(label, icon, action));
         var missing = targets.Count - copies.Count;
-        if (missing > 0) Add(L($"Garder {(missing == 1 ? "l’épisode qui manque" : $"les {missing} épisodes qui manquent")}", $"Keep {(missing == 1 ? "the missing episode" : $"the {missing} missing episodes")}"), () => _ = Shell.KeepOfflineAsync(targets));
+        if (missing > 0) Add(L($"Garder {(missing == 1 ? "l’épisode qui manque" : $"les {missing} épisodes qui manquent")}", $"Keep {(missing == 1 ? "the missing episode" : $"the {missing} missing episodes")}"), "download", () => _ = Shell.KeepOfflineAsync(targets));
         var paused = copies.Where(x => Shell.CopyPaused(x.Item.Id)).ToList();
-        if (paused.Count > 0) Add(L("Reprendre", "Resume"), () => Shell.ResumeOffline(paused));
+        if (paused.Count > 0) Add(L("Reprendre", "Resume"), "download", () => Shell.ResumeOffline(paused));
         var whole = _item.Type == "Series" ? L("la saison", "the season") : L("le film", "the movie");
-        Add(copies.All(x => x.Complete) ? L($"Retirer {whole} de ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.TotalSize))}", $"Remove {whole} from this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.TotalSize))}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), () => _ = Shell.ForgetOfflineAsync(copies));
+        Add(copies.All(x => x.Complete) ? L($"Retirer {whole} de ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.TotalSize))}", $"Remove {whole} from this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.TotalSize))}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), "close", () => _ = Shell.ForgetOfflineAsync(copies));
         Ui.OpenUnder(menu, button);
     }
 
@@ -597,10 +597,10 @@ public sealed partial class DetailPage : Page
             return;
         }
         var menu = new ContextMenu();
-        void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
-        Add(L("Chercher maintenant", "Search now"), () => _ = Run(() => session.Client.TorLinkCheckFollowAsync(follow.Id, session.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")));
-        Add(L("Voir dans Téléchargements", "See in Downloads"), () => Shell.Go("downloads"));
-        Add(L("Ne plus suivre…", "Stop following…"), () => _ = UnfollowAsync());
+        void Add(string label, string icon, Action action) => menu.Items.Add(Ui.Entry(label, icon, action));
+        Add(L("Chercher maintenant", "Search now"), "refresh", () => _ = Run(() => session.Client.TorLinkCheckFollowAsync(follow.Id, session.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")));
+        Add(L("Voir dans Téléchargements", "See in Downloads"), "download", () => Shell.Go("downloads"));
+        Add(L("Ne plus suivre…", "Stop following…"), "close", () => _ = UnfollowAsync());
         Ui.OpenUnder(menu, button);
         // Asked once more: the episodes already there stay.
         async Task UnfollowAsync()
@@ -624,16 +624,14 @@ public sealed partial class DetailPage : Page
     {
         if (Shell.Session is not { } session) return;
         var menu = new ContextMenu();
-        var identify = new MenuItem { Header = L("Identifier…", "Identify…") };
-        identify.Click += async (_, _) =>
+        async Task IdentifyAsync()
         {
             var sheet = new IdentifySheet(session, _item);
             await sheet.ShowAsync(Shell);
             if (sheet.Said is { } said) Shell.Notice(said);
             if (sheet.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; _logo = null; await RefreshAsync(); }
-        };
-        var refresh = new MenuItem { Header = L("Actualiser les métadonnées", "Refresh metadata") };
-        refresh.Click += async (_, _) =>
+        }
+        async Task RefreshMetadataAsync()
         {
             try
             {
@@ -645,13 +643,12 @@ public sealed partial class DetailPage : Page
             }
             catch (OperationCanceledException) when (session.Lifetime.IsCancellationRequested) { }
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
-        };
-        menu.Items.Add(identify); menu.Items.Add(refresh);
+        }
+        menu.Items.Add(Ui.Entry(L("Identifier…", "Identify…"), "search", () => _ = IdentifyAsync()));
+        menu.Items.Add(Ui.Entry(L("Actualiser les métadonnées", "Refresh metadata"), "refresh", () => _ = RefreshMetadataAsync()));
         if (_item.Type == "Movie" && Shell.Offers("downloads"))
         {
-            var better = new MenuItem { Header = L("Chercher une meilleure version", "Find a better version") };
-            better.Click += (_, _) => Shell.FindBetter(_item);
-            menu.Items.Add(better);
+            menu.Items.Add(Ui.Entry(L("Chercher une meilleure version", "Find a better version"), "sparkle", () => Shell.FindBetter(_item)));
         }
         Ui.OpenUnder(menu, button);
     }
@@ -667,17 +664,12 @@ public sealed partial class DetailPage : Page
         if (Shell.Session is not { } session) return;
         var watch = Shell.Group;
         var menu = new ContextMenu();
-        void Add(string label, Action? action)
-        {
-            var entry = new MenuItem { Header = label, IsEnabled = action is not null };
-            if (action is not null) entry.Click += (_, _) => action();
-            menu.Items.Add(entry);
-        }
+        void Add(string label, string icon, Action? action) => menu.Items.Add(Ui.Entry(label, icon, action));
         if (watch.Active && watch.Group is { } group)
         {
-            Add(Together.GroupText(group) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : ""), null);
-            Add(L("Inviter quelqu’un…", "Invite someone…"), () => _ = watch.InviteAsync());
-            Add(L("Quitter le groupe", "Leave the group"), () => _ = watch.LeaveAsync());
+            Add(Together.GroupText(group) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : ""), "users", null);
+            Add(L("Inviter quelqu’un…", "Invite someone…"), "link", () => _ = watch.InviteAsync());
+            Add(L("Quitter le groupe", "Leave the group"), "close", () => _ = watch.LeaveAsync());
         }
         else
         {
@@ -688,9 +680,9 @@ public sealed partial class DetailPage : Page
             if (!ReferenceEquals(session, Shell.Session) || Shell.Current != this) return;
             // Nothing to join: still the menu, with its one line, as on Windows: a click never makes a group the others see by itself.
             foreach (var g in groups)
-                Add(L($"Rejoindre « {g.GroupName} »", $"Join “{g.GroupName}”") + $" · {Together.People(Math.Max(1, g.Participants.Count))}", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
+                Add(L($"Rejoindre « {g.GroupName} »", $"Join “{g.GroupName}”") + $" · {Together.People(Math.Max(1, g.Participants.Count))}", "users", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
-            Add(L("Créer un groupe et inviter…", "Create a group and invite…"), () => _ = CreateGroupAsync());
+            Add(L("Créer un groupe et inviter…", "Create a group and invite…"), "plus", () => _ = CreateGroupAsync());
         }
         Ui.OpenUnder(menu, button);
     }
