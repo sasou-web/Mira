@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Une seule saison, pas de liste (Windows, Mac)** : une série ou un anime à une seule saison montrait une liste des saisons qui ne contenait que « Saison 1 ». Il n’y a plus ni liste ni pastilles : le titre « Épisodes · 24 » suffit. Signalé par ogsas sur la 0.9.7 ; l’iPhone le faisait déjà ; jamais essayé sur un vrai PC ou Mac.
 - **Coins de la fenêtre Réglages et Aide (Windows, Mac)** : la colonne de gauche couvrait le bord arrondi de la fenêtre dans ses deux coins gauches (bord coupé, coin qui « bave »). Le contenu d’une forme arrondie à bord est maintenant découpé à l’intérieur de ce bord ; sur Mac, la colonne a ses propres coins. Signalé par ogsas sur la 0.9.7 ; jamais essayé sur un vrai PC ou Mac.
 
 ## 0.9.7 — 2026-11-13

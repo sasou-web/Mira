@@ -25,6 +25,12 @@ public static class EpisodeTiles
     /// <summary>Pills for the seasons: two pages at least, <see cref="MaxPills"/> at most.</summary>
     public static bool Pills(IReadOnlyList<EpisodePage> pages) => pages.Count is >= 2 and <= MaxPills;
 
+    /// <summary>
+    /// The season list: only past <see cref="MaxPills"/> pages. A single page (a one-season anime) has neither list nor
+    /// pills: « Épisodes · 24 » says it all (ogsas, 0.9.7: a list holding only « Saison 1 »).
+    /// </summary>
+    public static bool SeasonList(IReadOnlyList<EpisodePage> pages) => pages.Count > MaxPills;
+
     /// <summary>A pill's name and its lighter note: « Saison 2 », « Saison 1 » + « absente », « Saison 1 » + « 1–100 ».</summary>
     public static (string Name, string? Note) Pill(EpisodePage page)
     {

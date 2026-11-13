@@ -779,9 +779,9 @@ public sealed class DetailPage : Page
         _filling = true;
         _seasons.Items.Clear();
         foreach (var page in pages) _seasons.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
-        // Two to ten pages: pills under the heading; more (slices of a long anime): the list.
+        // Two to ten pages: pills under the heading; more (slices of a long anime): the list; one: neither.
         var pills = EpisodeTiles.Pills(pages);
-        _seasons.IsVisible = !pills && pages.Count > 0;
+        _seasons.IsVisible = EpisodeTiles.SeasonList(pages);
         FillPills(pills ? pages : []);
         var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip && x.Absent == previous.Absent))
             ?? EpisodePages.Holding(own, _allEpisodes, _allEpisodes.FirstOrDefault(x => x.Id == _found?.Id))
