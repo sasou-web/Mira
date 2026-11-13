@@ -243,5 +243,10 @@ public sealed class MediaCard : Button
         if (Blurs.Count >= 600) Blurs.Clear();
         return Blurs[key] = bitmap;
     }
-    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview, item.ProductionYear, item.Subtitle, item.UserData.Played, item.EpisodesToWatch, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress, settings.HideSpoilers);
+    /// <summary>
+    /// What a card shows and keeps (its item, for the preview): a card is made again when it changes. The summary counts
+    /// by its hash, not its text: the key of every title is made at each page the grid adds (a summary of 2 KB each made
+    /// a thousand-title library throw away megabytes as it scrolled).
+    /// </summary>
+    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview?.GetHashCode(StringComparison.Ordinal), item.ProductionYear, item.Subtitle, item.UserData.Played, item.EpisodesToWatch, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress, settings.HideSpoilers);
 }
