@@ -38,7 +38,7 @@ public sealed class Registrator : IPluginServiceRegistrator
 /// </summary>
 public sealed class MissingEpisodes(IProviderManager providers, ILibraryManager library, IFileSystem fileSystem, ILogger<MissingEpisodes> logger) : IHostedService
 {
-    private static readonly Dictionary<string, (int Season, int Episode, int? Days, string Name)[]> Calendar = new()
+    private static readonly Dictionary<string, (int Season, int Episode, int? Days, string Name)[]> Calendar = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Deux Temps"] = [(1, 3, -9, "Le retour"), (2, 2, -2, "La veille"), (2, 3, 2, "Le lendemain"), (2, 4, 9, "La suite"), (3, 1, null, "Saison trois")],
         ["Courte Anime"] = [(1, 2, 0, "Ce soir"), (1, 3, 7, "La semaine prochaine")],

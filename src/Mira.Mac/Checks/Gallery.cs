@@ -44,11 +44,11 @@ public static class Gallery
             window.Go("Movie");
             await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15); await Shot("mac-films");
             // The filters open over the grid, then a series' missing episodes at their place: Invincible's, from
-            // tools/web/fake-tvdb, which banner.yml puts in Jellyfin's plugins.
+            // tools/web/fake-tvdb, which banner.yml puts in Jellyfin's plugins (TMDb names it « INVINCIBLE »).
             ((BrowsePage)window.Current!).ToggleFilters(); await Shot("mac-filters"); ((BrowsePage)window.Current!).CloseFilters();
             window.Go("Series");
-            await Until(() => window.Current is BrowsePage { Items.Count: > 0 } page && page.Items.Any(x => x.Name == "Invincible"), 15);
-            window.Open(((BrowsePage)window.Current!).Items.FirstOrDefault(x => x.Name == "Invincible") ?? throw new InvalidOperationException("No series named Invincible in the library."));
+            await Until(() => window.Current is BrowsePage { Items.Count: > 0 } page && page.Items.Any(x => string.Equals(x.Name, "Invincible", StringComparison.OrdinalIgnoreCase)), 15);
+            window.Open(((BrowsePage)window.Current!).Items.FirstOrDefault(x => string.Equals(x.Name, "Invincible", StringComparison.OrdinalIgnoreCase)) ?? throw new InvalidOperationException("No series named Invincible in the library."));
             if (!await Until(() => window.Current is DetailPage { Episodes.Count: > 0, Missing.Count: > 0 }, 30)) throw new InvalidOperationException("No missing episode of Invincible: is tools/web/fake-tvdb in Jellyfin's plugins?");
             await Task.Delay(500); ((DetailPage)window.Current!).ShowEpisodesForCheck(); await Shot("mac-missing");
             window.Go("settings"); await Shot("mac-settings");

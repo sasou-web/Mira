@@ -68,7 +68,7 @@ public partial class MainWindow
         FiltersToggle_Click(this, new()); await shot("windows-filters"); CloseFilters();
 
         ResetFilters(); _catalog.View = "Series"; await NavigateLibraryAsync();
-        var series = _catalog.Items.FirstOrDefault(x => x.Type == "Series" && x.Name == "Invincible") ?? throw new InvalidOperationException("No series named Invincible in the library.");
+        var series = _catalog.Items.FirstOrDefault(x => x.Type == "Series" && string.Equals(x.Name, "Invincible", StringComparison.OrdinalIgnoreCase)) ?? throw new InvalidOperationException("No series named Invincible in the library.");
         await ShowDetailsAsync(series);
         for (var i = 0; i < 100 && _seriesVirtuals.Count == 0; i++) await Task.Delay(200);
         if (_seriesVirtuals.Count == 0) throw new InvalidOperationException("No missing episode of Invincible: is tools/web/fake-tvdb in Jellyfin's plugins?");
