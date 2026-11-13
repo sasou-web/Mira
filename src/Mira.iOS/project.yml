@@ -154,6 +154,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/subtitle-start.json
         buildPhase: resources
+      - path: ../../tests/fixtures/missing.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

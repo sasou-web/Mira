@@ -16,7 +16,7 @@ namespace Mira.Mac.Views;
 /// the cast with their photos, the genres, direction and studios (each one leads to its titles), the episodes of a series
 /// by season (a season marked watched at once), its saga, its studio's other titles and similar titles.
 /// </summary>
-public sealed class DetailPage : Page
+public sealed partial class DetailPage : Page
 {
     private MediaItem _item;
     private readonly Image _backdrop = new() { Stretch = Stretch.UniformToFill, Opacity = 0 };
@@ -135,7 +135,7 @@ public sealed class DetailPage : Page
         }
         RenderTop(); RenderBody(session);
         _ = LoadSimilarAsync(session);
-        if (_item.Type == "Series") { _ = LoadFollowAsync(session); _ = LoadCalendarAsync(session); }
+        if (_item.Type == "Series") { _ = LoadFollowAsync(session); _ = LoadCalendarAsync(session); _ = LoadMissingAsync(session); }
         if (!_admin) _ = CheckAdministratorAsync(session);
         if (_item.Type == "Series" && SeriesTarget is { } target && _targetFile?.Id != target.Id) await LoadTargetFileAsync(session, target);
     }
@@ -792,6 +792,7 @@ public sealed class DetailPage : Page
     private void RenderEpisodes()
     {
         _episodes.Children.Clear(); _tiles.Clear(); _tileGrid = null;
+        _missingViews.RemoveAll(x => !x.Pill);
         if (Shell.Session is not { } session) return;
         var page = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         UpdatePills(page);
@@ -897,9 +898,13 @@ public sealed class DetailPage : Page
             new TextBlock { Text = first, FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             new TextBlock { Text = second, FontSize = 13, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             Ui.Row(5, new TextBlock { Text = EpisodeShelf.Show(line.Episodes.Count, open), FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#C7C7CC"), VerticalAlignment = VerticalAlignment.Center }, new Icon(open ? "up" : "down", 12) { Foreground = Ui.Brush("#C7C7CC") }));
-        ((Control)copy.Children[^1]).Margin = new Thickness(0, 10, 0, 0);
-        copy.VerticalAlignment = VerticalAlignment.Center;
-        var picture = new Border { CornerRadius = new CornerRadius(10), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), Padding = new Thickness(20, 0), Child = copy };
+        var show = (Control)copy.Children[^1];
+        show.Margin = new Thickness(0, 10, 0, 0);
+        copy.VerticalAlignment = VerticalAlignment.Center; copy.Margin = new Thickness(20, 0);
+        // « Télécharger É6–9 » (DetailPage.Missing): its part above « Voir », its progress bar along the tile's foot.
+        var inside = new Grid { Children = { copy } };
+        if (MissingTilePart(line) is var (part, bar)) { show.Margin = new Thickness(0, 8, 0, 0); copy.Children.Insert(copy.Children.IndexOf(show), part); inside.Children.Add(bar); }
+        var picture = new Border { CornerRadius = new CornerRadius(10), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), ClipToBounds = true, Child = inside };
         var button = new Button { Content = picture, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top };
         var text = line.Kind == ShelfKind.Later ? EpisodeShelf.LaterText(line.Episodes, today) : EpisodeShelf.MissingText(line.Episodes, today);
         Avalonia.Automation.AutomationProperties.SetName(button, text);
@@ -919,20 +924,23 @@ public sealed class DetailPage : Page
             new TextBlock { Text = EpisodeShelf.SeasonTitle(season), FontSize = 15.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#E0E0E3"), TextWrapping = TextWrapping.Wrap },
             new TextBlock { Text = EpisodeShelf.SeasonText(run, today), FontSize = 13.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, LineHeight = 20 },
             show);
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         grid.Children.Add(new Icon("calendar", 26) { Margin = new Thickness(0, 2, 18, 0), VerticalAlignment = VerticalAlignment.Top, Foreground = Ui.Faint });
         Grid.SetColumn(copy, 1); grid.Children.Add(copy);
+        if (MissingSeasonPart(season, run) is { } get) { Grid.SetColumn(get, 2); grid.Children.Add(get); }
         return new Border { Child = grid, BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(22), Margin = new Thickness(0, 0, 0, EpisodeTiles.RowGap) };
     }
     /// <summary>The seasons as pills under the heading; a click shows that one (the hidden list stays the source).</summary>
     private void FillPills(IReadOnlyList<EpisodePage> pages)
     {
         _pills.Children.Clear(); _pills.IsVisible = pages.Count > 0;
+        _missingViews.RemoveAll(x => x.Pill);
         foreach (var page in pages)
         {
             var (name, note) = EpisodeTiles.Pill(page);
             var label = Ui.Row(7, new TextBlock { Text = name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
             if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeight.SemiBold, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center });
+            if (MissingPillNote(page) is { } coming) label.Children.Add(coming);
             var pill = new Button { Content = label, Classes = { "chip" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Margin = new Thickness(0, 0, 8, 8), Tag = page };
             Avalonia.Automation.AutomationProperties.SetName(pill, page.Label);
             pill.Click += (_, _) => _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? _seasons.SelectedItem;

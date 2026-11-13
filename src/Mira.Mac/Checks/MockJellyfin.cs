@@ -330,7 +330,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         List<string> sent; lock (Requests) sent = [.. Requests];
         return Json(new
         {
-            agent = new { name = "SALON-PC", online = true, seen = DateTimeOffset.UtcNow, accepting = true, problem = (string?)null },
+            agent = new { name = "SALON-PC", online = true, seen = DateTimeOffset.UtcNow, accepting = true, problem = (string?)null, seasons = true },
             requests = sent.Select((name, i) => new { id = $"request-{i + 1}", name, size = 3 * GiB, infoHash = "", state = "waiting", error = (string?)null, created = DateTimeOffset.UtcNow }),
             controls = Array.Empty<object>(),
             downloads = new[] { new { id = "download-1", name = "Ciel.Ouvert.2023.MULTI.1080p.WEB-DL.x264-GRP", status = "downloading", progress = 41, speed = 2 * MiB, peers = 12, size = 29 * GiB / 10, downloaded = 12 * GiB / 10, eta = 750L } },

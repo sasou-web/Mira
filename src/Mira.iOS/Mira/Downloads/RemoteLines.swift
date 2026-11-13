@@ -27,6 +27,8 @@ enum RemoteLines {
         /// Why its downloads wait, in the words of this iPhone's language (the relay translates).
         var problem: String?
         var qBittorrent: Bool?
+        /// It places what a series' page asks (« Télécharger les manquants »).
+        var seasons: Bool?
     }
 
     struct Request: Decodable, Sendable, Equatable, Identifiable {
@@ -76,6 +78,8 @@ enum RemoteLines {
         var controls: [Control]?
         var downloads: [Download]?
         var placed: [Placed]?
+        /// What series' pages asked (MissingDownloads), until its episodes are placed.
+        var missing: [Missing]?
     }
 
     struct Search: Decodable, Sendable, Equatable {

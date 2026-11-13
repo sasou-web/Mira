@@ -45,7 +45,7 @@ public sealed class TorLinkController : ControllerBase
     public async Task<IActionResult> Ask(CancellationToken cancellationToken)
     {
         var body = await ReadAsync<RequestBody>(cancellationToken).ConfigureAwait(false);
-        var (id, error) = Relay.Request(body?.Magnet, body?.Search, body?.Result, body?.Name, body?.Size, body?.Replace, body?.Torrent);
+        var (id, error) = Relay.Request(body?.Magnet, body?.Search, body?.Result, body?.Name, body?.Size, body?.Replace, body?.Torrent, body?.Missing);
         return id is null ? Refuse(error) : Answer(new { id });
     }
 
@@ -128,7 +128,7 @@ public sealed class TorLinkController : ControllerBase
     }
 
     private sealed record SearchBody(string? Query, string? Category);
-    private sealed record RequestBody(string? Magnet, string? Search, string? Result, string? Name, long? Size, string? Replace, string? Torrent);
+    private sealed record RequestBody(string? Magnet, string? Search, string? Result, string? Name, long? Size, string? Replace, string? Torrent, MissingPlace? Missing = null);
     private sealed record ControlBody(string? Id, string? Action);
     private sealed record FollowBody(string? SeriesId, string? Name, string? Query);
 }

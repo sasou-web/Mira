@@ -8,6 +8,8 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var type: String?
     var collectionType: String?
     var productionYear: Int?
+    /// A title's name in its own language (« 葬送のフリーレン »), as releases may give it.
+    var originalTitle: String?
     var runTimeTicks: Int64?
     /// When Jellyfin added it (fields=DateCreated): the mark of « New episode ».
     var dateCreated: String?

@@ -82,7 +82,7 @@ public partial class MainWindow
         if (item.DurationLabel.Length > 0) AddPill(HeroMetaPills, item.DurationLabel);
         if (item.Type != "Episode" && item.CommunityRating is { } rating and > 0) AddPill(HeroMetaPills, $"★  {Number(rating, "0.0")}", "Success");
         HeroGenrePills.Children.Clear(); foreach (var genre in (series ?? item).Genres.Take(3)) AddPill(HeroGenrePills, genre);
-        foreach (var pill in HeroMetaPills.Children.OfType<Border>().Concat(HeroGenrePills.Children.OfType<Border>())) if (pill.Child is TextBlock label) label.Foreground = _heroAccent;
+        foreach (var pill in HeroMetaPills.Children.OfType<Squircle>().Concat(HeroGenrePills.Children.OfType<Squircle>())) if (pill.Child is TextBlock label) label.Foreground = _heroAccent;
         var favorite = (series ?? item).UserData.IsFavorite;
         // A full heart, not only a tint close to white, says the title is a favourite.
         HeroFavorite.Foreground = favorite ? _heroAccent : Brushes.White; HeroFavoriteIcon.Kind = favorite ? "heart-fill" : "heart";
