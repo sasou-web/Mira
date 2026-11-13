@@ -1440,6 +1440,7 @@ internal static class LibraryTests
             Assert(EpisodeTiles.Width(0) >= 1, "Never a tile without width");
             EpisodePage Page(string label) => new(1, 0, 10, label, false);
             Assert(!EpisodeTiles.Pills([Page("Saison 1")]) && EpisodeTiles.Pills([Page("Saison 1"), Page("Saison 2")]) && !EpisodeTiles.Pills(Enumerable.Range(1, 11).Select(n => Page($"Saison {n}")).ToList()), "Pills from 2 to 10 pages");
+            Assert(!EpisodeTiles.SeasonList([]) && !EpisodeTiles.SeasonList([Page("Saison 1")]) && !EpisodeTiles.SeasonList([Page("Saison 1"), Page("Saison 2")]) && EpisodeTiles.SeasonList(Enumerable.Range(1, 11).Select(n => Page($"Saison {n}")).ToList()), "One season: neither list nor pills; the list past 10 pages");
             Assert(EpisodeTiles.Pill(Page("Saison 2")) == ("Saison 2", null) && EpisodeTiles.Pill(Page("Saison 1 · absente")) == ("Saison 1", "absente"), "A pill and its note");
             Assert(EpisodeTiles.Number(new MediaItem { IndexNumber = 3 }) == "03" && EpisodeTiles.Number(new MediaItem { IndexNumber = 121 }) == "121" && EpisodeTiles.Number(new MediaItem()) == "", "Numbers");
             var today = new DateOnly(2026, 11, 12);
