@@ -27,7 +27,10 @@ public sealed partial class PlayerPage : UserControl
 {
     private readonly MainWindow _shell;
     private readonly Grid _root = new() { Background = Brushes.Black };
-    private readonly Panel _videoHost = new();
+    // A background, even transparent, makes the panel itself take the pointer: mpv's OpenGL view draws nothing
+    // Avalonia can hit (OpenGlControlBase has no draw list), so a click on the picture went to the black page
+    // under it and never paused (0.9.7, on a real Mac). The software view, drawn by Avalonia, hid it on the runner.
+    private readonly Panel _videoHost = new() { Background = Brushes.Transparent };
     private readonly Grid _chrome = new();
     private readonly Border _top, _bottom;
     private readonly TextBlock _title = new() { FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -233,6 +236,9 @@ public sealed partial class PlayerPage : UserControl
         ListenToTrackpad();
     }
     /// <summary>The places of the top and bottom bars, their shades included, shown or not.</summary>
+    /// <summary>The progress bar (self-check: what the pointer hits along it).</summary>
+    public Control ProgressBar => _timeline;
+    public void ShowControlsForCheck() => ShowControls();
     public bool InBarBand(Point point) => _top.Bounds.Contains(point) || _bottom.Bounds.Contains(point);
     /// <summary>When the picture was last pressed (Avalonia's timestamp, in ms).</summary>
     private ulong? _pictureClickAt;
