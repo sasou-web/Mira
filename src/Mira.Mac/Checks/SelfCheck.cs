@@ -1339,14 +1339,16 @@ public static class SelfCheck
         opening = window.PlayAsync(movie, fromStart: true);
         var player = await Until(() => window.Player is { Engine: not null }, 15) ? window.Player : null;
         var engine = player?.Engine;
-        var newer = player?.PlayAgainForCheck(movie);
+        // From its first second: resumed where the checks before left the film (its file lasts 30 s, the slower the
+        // runner, the later), it reached its end during the wait below, and the player rightly closed with it.
+        var newer = player?.PlayAgainForCheck(movie with { UserData = movie.UserData with { PlaybackPositionTicks = 0 } });
         await opening;
         if (newer is not null) await newer;
         var playing = await Until(() => window.Player == player && player is { IsFileLoaded: true, Surface.Frames: > 6 } && player.Engine != engine, 30);
         await Task.Delay(5500);
         check(player is not null && playing && window.Player == player && player.IsFileLoaded && !player.IsStopped,
             "lecteur : un autre titre demandé avant la première image du premier, le lecteur le garde",
-            $"lecteur {(window.Player == player ? "gardé" : "fermé")}, chargé {player?.IsFileLoaded}, {player?.Surface?.GetType().Name} {player?.Surface?.Frames} images");
+            $"lecteur {(window.Player == player ? "gardé" : "fermé")}, chargé {player?.IsFileLoaded}, {player?.Surface?.GetType().Name} {player?.Surface?.Frames} images, à {player?.Position:0.0} s");
         await window.StopPlaybackAsync();
 
         // Closed while the next title opens (the one playing still letting go): nothing plays on behind the library.
