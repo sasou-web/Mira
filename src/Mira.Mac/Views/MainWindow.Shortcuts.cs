@@ -17,6 +17,7 @@ public sealed partial class MainWindow
     [
         (L("Partout", "Everywhere"),
         [
+            (["⌘", L("1 à 5", "1 to 5")], L("pages du rail", "sidebar pages")),
             (["⌘", "F"], L("rechercher", "search")),
             (["⌘", ","], L("réglages", "settings")),
             (["⌘", "["], L("page précédente", "previous page")),

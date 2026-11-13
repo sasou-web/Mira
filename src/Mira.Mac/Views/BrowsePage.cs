@@ -73,6 +73,8 @@ public sealed class BrowsePage : Page
     private CancellationTokenSource? _request;
     public override void ShowAgain() { base.ShowAgain(); if (_kind == BrowseKind.Search) SelectSearch(); }
     public override string Rail => _person is not null || _saga is not null || _studio is not null ? "" : _kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", BrowseKind.Search => "search", _ => "library" };
+    /// <summary>A person's, a studio's or a collection's titles: a list of the library, lit as such, as on Windows.</summary>
+    public override string Lit => Rail.Length == 0 ? "library" : Rail;
     public IReadOnlyList<MediaItem> Items => _items;
     /// <summary>The people the search found, shown above its titles.</summary>
     public IReadOnlyList<MediaItem> People => _found;

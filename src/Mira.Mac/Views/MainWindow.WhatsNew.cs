@@ -92,7 +92,7 @@ public sealed partial class MainWindow
         DockPanel.SetDock(rule, Dock.Top); content.Children.Add(rule);
         var list = new StackPanel { Margin = new Thickness(38, 0, 38, 4) };
         for (var i = 0; i < releases.Count; i++) list.Children.Add(ReleaseBlock(releases[i], latest: i == 0, last: i == releases.Count - 1, today));
-        content.Children.Add(new ScrollViewer { MaxHeight = 540, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, Content = list });
+        content.Children.Add(new ScrollViewer { MaxHeight = 540, Content = list });
         sheet = new Sheet(content, 720) { FirstFocus = done };
         WhatsNewShown = true;
         ShowSheet(sheet);

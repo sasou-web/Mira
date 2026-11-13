@@ -35,7 +35,7 @@ public sealed partial class MainWindow
         _underSheet = Current;
         SheetBackdrop = TakeBackdrop();
         var page = new SettingsPage(this, help);
-        Host(page); Light(page.Rail);
+        Host(page); Light(page.Lit);
         if (!MacMotion.Reduced)
         {
             // Everything is in place at once; only the picture is late: the page under it and the rail stay drawn the
@@ -79,7 +79,7 @@ public sealed partial class MainWindow
         var turn = ++_sheetTurn;
         var fades = !MacMotion.Reduced;
         if (fades) _leaving = page;
-        Host(under); Light(under.Rail);
+        Host(under); Light(under.Lit);
         _rail.IsHitTestVisible = true;
         if (fades)
         {

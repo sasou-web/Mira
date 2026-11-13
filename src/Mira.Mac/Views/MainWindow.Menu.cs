@@ -31,16 +31,23 @@ public sealed partial class MainWindow
         _fullScreenItem = Item(FullScreenName(), new KeyGesture(Key.F, KeyModifiers.Control | KeyModifiers.Meta), ToggleFullScreen);
         PropertyChanged += (_, e) => { if (e.Property == WindowStateProperty && _fullScreenItem is { } item) item.Header = FullScreenName(); };
         var view = Menu(L("Présentation", "View"), _fullScreenItem);
+        // ⌘1 to ⌘5 as Ctrl+1 to Ctrl+5 on Windows: Accueil, Films, Séries, Toute la bibliothèque, Téléchargements. The last
+        // only where its rail entry shows (an administrator, the extension on the server).
+        var downloads = Item(L("Téléchargements", "Downloads"), new KeyGesture(Key.D5, command), () => GoFromMenu("downloads"));
+        var downloadsEntry = _railButtons["downloads"];
+        downloads.IsEnabled = downloadsEntry.IsVisible;
+        downloadsEntry.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) downloads.IsEnabled = downloadsEntry.IsVisible; };
         var go = Menu(L("Aller", "Go"),
             Pressing(L("Précédent", "Back"), [new KeyGesture(Key.OemOpenBrackets, command)]),
             Pressing(L("Suivant", "Forward"), [new KeyGesture(Key.OemCloseBrackets, command)]),
             null,
-            Item(L("Accueil", "Home"), null, () => GoFromMenu("home")),
+            Item(L("Accueil", "Home"), new KeyGesture(Key.D1, command), () => GoFromMenu("home")),
             Item(L("Rechercher", "Search"), null, () => GoFromMenu("search")),
-            Item(L("Films", "Movies"), null, () => GoFromMenu("Movie")),
-            Item(L("Séries", "Shows"), null, () => GoFromMenu("Series")),
-            Item(L("Toute la bibliothèque", "Whole library"), null, () => GoFromMenu("library")),
-            Item(L("Sur ce Mac", "On this Mac"), null, () => GoFromMenu("offline")));
+            Item(L("Films", "Movies"), new KeyGesture(Key.D2, command), () => GoFromMenu("Movie")),
+            Item(L("Séries", "Shows"), new KeyGesture(Key.D3, command), () => GoFromMenu("Series")),
+            Item(L("Toute la bibliothèque", "Whole library"), new KeyGesture(Key.D4, command), () => GoFromMenu("library")),
+            Item(L("Sur ce Mac", "On this Mac"), null, () => GoFromMenu("offline")),
+            downloads);
         var window = Menu(L("Fenêtre", "Window"),
             Item(L("Placer dans le Dock", "Minimize"), new KeyGesture(Key.M, command), () => { if (WindowState != WindowState.FullScreen) WindowState = WindowState.Minimized; }),
             Item(L("Réduire/agrandir", "Zoom"), null, () => { if (WindowState != WindowState.FullScreen) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; }),
@@ -78,10 +85,21 @@ public sealed partial class MainWindow
         var target = FocusManager?.GetFocusedElement() as Interactive ?? this;
         target.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = keys.Key, KeyModifiers = keys.KeyModifiers, Source = target });
     }
-    /// <summary>A rail entry from the menu: the player first reduced, as « Précédent » does.</summary>
+    /// <summary>⌘1 to ⌘5: the rail entry of that number, as Ctrl+1 to Ctrl+5 on Windows.</summary>
+    private static string? RailKey(Key key) => key switch
+    {
+        Key.D1 or Key.NumPad1 => "home",
+        Key.D2 or Key.NumPad2 => "Movie",
+        Key.D3 or Key.NumPad3 => "Series",
+        Key.D4 or Key.NumPad4 => "library",
+        Key.D5 or Key.NumPad5 => "downloads",
+        _ => null,
+    };
+    /// <summary>A rail entry from the menu: the player first reduced, as « Précédent » does. Never one the rail hides.</summary>
     private void GoFromMenu(string key)
     {
         if (CurrentSheet is not null) return;
+        if (key == "downloads" && !_railButtons[key].IsVisible) return;
         if (Player is { IsMini: false } player) player.SetMini(true);
         NavigateRoot(key);
     }

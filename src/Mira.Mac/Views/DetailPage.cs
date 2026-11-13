@@ -569,8 +569,11 @@ public sealed partial class DetailPage : Page
         catch (Exception ex) when (Errors.Expected(ex)) { }
     }
 
-    /// <summary>Followed at once; once followed, « Chercher maintenant », the Downloads page, or « Ne plus suivre ».</summary>
-    private void FollowMenu(Button button)
+    /// <summary>
+    /// As on Windows: following downloads on its own from then on, so it is asked first, saying what happens; once
+    /// followed, « Chercher maintenant », the Downloads page, or « Ne plus suivre… », asked again.
+    /// </summary>
+    private async void FollowMenu(Button button)
     {
         if (Shell.Session is not { } session) return;
         // Said when the page cannot show it (what following does, a search started); « Ne plus suivre » shows on the button.
@@ -580,19 +583,31 @@ public sealed partial class DetailPage : Page
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
             await LoadFollowAsync(session);
         }
+        var item = _item;
         if (_follow is not { } follow)
         {
-            _ = Run(() => session.Client.TorLinkFollowAsync(_item.Id, _item.Name, null, session.Lifetime),
-                L($"« {_item.Name} » suivie : le PC serveur cherche ses nouveaux épisodes toutes les 6 h. Chacun attend 10 min dans Téléchargements, le temps de l’annuler, puis rejoint ta bibliothèque.",
-                    $"Following “{_item.Name}”: the server PC looks for its new episodes every 6 hours. Each one waits 10 min in Downloads, time to cancel it, then joins your library."));
+            // What following does is said by the question: the button, now « Suivie », says the rest.
+            if (await Shell.ConfirmAsync(L($"Suivre « {item.Name} » ?", $"Follow “{item.Name}”?"),
+                L("Le PC serveur cherchera ses nouveaux épisodes toutes les 6 h et les téléchargera avec TorLink. Chacun attend 10 min dans Téléchargements, le temps de l’annuler.",
+                    "The server PC will look for its new episodes every 6 hours and download them with TorLink. Each one waits 10 min in Downloads, time to cancel it."),
+                L("Suivre la série", "Follow the series"), L("Annuler", "Cancel")) && ReferenceEquals(session, Shell.Session) && _item.Id == item.Id)
+                await Run(() => session.Client.TorLinkFollowAsync(item.Id, item.Name, null, session.Lifetime), null);
             return;
         }
         var menu = new ContextMenu();
         void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
         Add(L("Chercher maintenant", "Search now"), () => _ = Run(() => session.Client.TorLinkCheckFollowAsync(follow.Id, session.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")));
         Add(L("Voir dans Téléchargements", "See in Downloads"), () => Shell.Go("downloads"));
-        Add(L("Ne plus suivre", "Stop following"), () => _ = Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), null));
+        Add(L("Ne plus suivre…", "Stop following…"), () => _ = UnfollowAsync());
         Ui.OpenUnder(menu, button);
+        // Asked once more: the episodes already there stay.
+        async Task UnfollowAsync()
+        {
+            if (!await Shell.ConfirmAsync(L($"Ne plus suivre « {item.Name} » ?", $"Stop following “{item.Name}”?"),
+                L("Le PC serveur ne cherchera plus ses nouveaux épisodes. Ceux déjà dans ta bibliothèque restent.", "The server PC will stop looking for its new episodes. Those already in your library stay."),
+                L("Ne plus suivre", "Stop following"), L("Continuer à suivre", "Keep following"))) return;
+            await Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), null);
+        }
     }
     /// <summary>An administrator of Jellyfin: « ⋮ » offers « Identifier… », « Actualiser les métadonnées » and, for a film, « Chercher une meilleure version ».</summary>
     private bool _admin;
