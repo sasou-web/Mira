@@ -17,6 +17,8 @@ namespace Mira.Mac.Views;
 public static class Ui
 {
     public static readonly IBrush Muted = Brush("#A2A2A6"), Faint = Brush("#8A8A90"), Ink = Brush("#F4F4F5"), Raised = Brush("#1C1C1C"), TextTertiary = Brush("#B6B6BD");
+    /// <summary>Glyphs beside a field (the search magnifier), as Windows' Dim: never text, under 4.5:1.</summary>
+    public static readonly IBrush Dim = Brush("#757575");
     /// <summary>The glyph of a poster without artwork, as on Windows (MediaCard): decorative, never text.</summary>
     public static readonly IBrush Glyph = Brush("#4E4E57");
     public static SolidColorBrush Brush(string color) => new(Color.Parse(color));
