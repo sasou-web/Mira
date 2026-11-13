@@ -517,7 +517,7 @@ public sealed partial class MainWindow : Window
                 if (update.AutoSkip is { } skip) Settings.AutoSkip = skip;
                 Profile.SaveSettings(Settings);
                 // The settings on screen show the new ones.
-                if (Current is SettingsPage) { var fresh = new SettingsPage(this); Host(fresh); await fresh.LoadAsync(); }
+                if (Current is SettingsPage shown) { var fresh = new SettingsPage(this, shown.HelpTopic); Host(fresh); await fresh.LoadAsync(); }
             }
             if (update.Hidden is not null && Current is HomePage) await RefreshPagesAsync(fromServer: true);
         }
@@ -685,6 +685,9 @@ public sealed partial class MainWindow : Window
     {
         if (Session is null || InParty) return;
         if (Watching) return;
+        // Réglages: a window over the page shown, never a page of its own (MainWindow.Sheet.cs).
+        if (key == "settings") { OpenSheet(); return; }
+        _underSheet = null; SheetBackdrop = null;
         // Its own entry again while its page shows (the one the rail opened, not a page reached from it): as on Windows.
         if (_history.Count == 0 && Current is { } shown && shown.Rail == key) { shown.ShowAgain(); return; }
         // The rail starts a new history, as on the Windows app.
@@ -700,7 +703,7 @@ public sealed partial class MainWindow : Window
             "library" => new BrowsePage(this, BrowseKind.All),
             "offline" => new OfflinePage(this),
             "downloads" => new DownloadsPage(this),
-            _ => new SettingsPage(this)
+            _ => new HomePage(this)
         };
         if (KeptPages.Contains(key)) _kept[key] = page;
         _ = ShowPageAsync(page, root: true, fresh: true);
@@ -732,7 +735,10 @@ public sealed partial class MainWindow : Window
             left.IsVisible = false;
         }
         if (page is not null) page.IsVisible = true;
-        foreach (var gone in _host.Children.OfType<Page>().Where(x => x != page && !_kept.ContainsValue(x) && !_history.Contains(x) && !_forward.Contains(x)).ToList())
+        // Réglages and Aide's window covers the rail too, with the picture of the app behind it (MainWindow.Sheet.cs).
+        _rail.ZIndex = page is SettingsPage ? -1 : 0;
+        if (page is null) { _underSheet = null; SheetBackdrop = null; }
+        foreach (var gone in _host.Children.OfType<Page>().Where(x => x != page && x != _underSheet && x != _leaving && !_kept.ContainsValue(x) && !_history.Contains(x) && !_forward.Contains(x)).ToList())
             _host.Children.Remove(gone);
     }
     /// <summary>A page reached from the one shown (a title, a person…): Back returns to the one shown.</summary>
@@ -759,6 +765,8 @@ public sealed partial class MainWindow : Window
     public bool Back()
     {
         if (Player is { IsMini: false } player) { player.SetMini(true); return true; }
+        // Réglages and Aide's window: what is typed in its search goes first, then the window, back to the page under it.
+        if (Current is SettingsPage sheet) { if (!sheet.ClearSearch()) CloseSettingsWindow(); return true; }
         if (_history.Count == 0) return false;
         var previous = _history[^1]; _history.RemoveAt(_history.Count - 1);
         if (Current is { } current) _forward.Add(current);
@@ -1129,7 +1137,7 @@ public sealed partial class MainWindow : Window
         if (e.Key == Key.Escape || command && e.Key == Key.OemOpenBrackets) { if (Back()) e.Handled = true; return; }
         if (command && e.Key == Key.OemCloseBrackets) { if (Forward()) e.Handled = true; return; }
         if (command && e.Source is not TextBox && ZoomKey(e)) { e.Handled = true; return; }
-        if (command && e.Key is Key.F or Key.K) { NavigateRoot("search"); e.Handled = true; return; }
+        if (command && e.Key is Key.F or Key.K) { if (Current is SettingsPage sheet) sheet.FocusSearch(); else NavigateRoot("search"); e.Handled = true; return; }
         if (command && e.Key == Key.OemComma) { NavigateRoot("settings"); e.Handled = true; return; }
         // I brings the mini-player back over the window, as on Windows; never while typing.
         if (e.Key == Key.I && e.KeyModifiers == KeyModifiers.None && Player is { IsMini: true } mini && e.Source is not TextBox) { mini.SetMini(false); e.Handled = true; }

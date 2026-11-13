@@ -352,15 +352,25 @@ public static class SelfCheck
             full = full && window.ChooseInMenu(Lang.L("Quitter le mode plein écran", "Exit Full Screen"));
             Check(full && await Until(() => window.WindowState != WindowState.FullScreen, 3), "barre des menus : plein écran (⌃⌘F) et retour", window.WindowState.ToString());
             await Task.Delay(800);
-            // Aide (MainWindow.Shortcuts.cs): the shortcuts in a sheet (⌘/), the guide and the report beside them.
+            // Aide (MainWindow.Shortcuts.cs): the shortcuts in Aide's window (⌘/), the guide and the report beside them.
             Check(Equals(KeysOf(Lang.L("Raccourcis clavier", "Keyboard Shortcuts")), new KeyGesture(Avalonia.Input.Key.OemQuestion, command))
                 && KeysOf(Lang.L("Guide de Mira pour Mac", "Mira for Mac Guide")) is null && bar.Any(x => x.Item == Lang.L("Exporter un rapport…", "Export a Report…"))
                 && MainWindow.Guide.Host == "wiki.miracinema.app", "barre des menus : Aide (guide, raccourcis ⌘/, rapport)", MainWindow.Guide.ToString());
             window.ChooseInMenu(Lang.L("Raccourcis clavier", "Keyboard Shortcuts"));
             var lines = MainWindow.Shortcuts.Sum(x => x.Lines.Count);
-            Check(await Until(() => window.CurrentSheet is { Tag: "shortcuts" }, 3), "Aide : raccourcis clavier", $"{lines} raccourcis");
+            Check(await Until(() => window.Current is SettingsPage { HelpTopic: "keys" }, 3), "Aide : raccourcis clavier dans la fenêtre de l’aide", $"{lines} raccourcis");
             await Task.Delay(500); Capture(window, output, "05h-shortcuts");
-            if (window.CurrentSheet is { } shortcuts) window.CloseSheet(shortcuts);
+            // Its search finds a shortcut by what it does, without regard to accents; Échap clears it, then closes the window,
+            // back to the title's page under it.
+            if (window.Current is SettingsPage help)
+            {
+                help.SearchFor(Lang.L("ecran", "screen"));
+                var found = help.Search.Length > 0 && help.KeysShown is > 0 and < 20;
+                await Task.Delay(300); Capture(window, output, "05i-help-search");
+                var cleared = window.Back() && help.Search.Length == 0 && help.KeysShown == lines;
+                window.Back();
+                Check(found && cleared && await Until(() => window.Current is DetailPage, 3), "Aide : recherche sans accents, Échap l’efface puis ferme la fenêtre", $"{help.KeysShown} raccourcis, page {window.Current?.GetType().Name}");
+            }
             // ⌘W as on a Mac (MainWindow.MacWindow.cs): the window goes to the Dock, Mira keeps running, the Dock icon brings it
             // back; its place remembered for the next opening. Called directly: on Linux closing still quits.
             var state = window.WindowState;
@@ -504,6 +514,19 @@ public static class SelfCheck
             SettingsPage.OpenAt("playback");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
+            // Réglages in a window over the page (MainWindow.Sheet.cs): its search finds settings in every section at once,
+            // « sous titres » finding « Sous-titres », then gives back the section open before it.
+            if (window.Current is SettingsPage searched)
+            {
+                searched.SearchFor(Lang.L("sous titres", "subtitle"));
+                var count = searched.Found.Values.Sum();
+                var audio = searched.Found.GetValueOrDefault("audio");
+                var sections = string.Join(", ", searched.Found.Where(x => x.Value > 0).Select(x => $"{x.Key} {x.Value}"));
+                await Task.Delay(400); Capture(window, output, "07k-settings-search");
+                searched.SearchFor("");
+                Check(count > 0 && audio > 0 && searched.CurrentTab == "playback" && window.CanGo(-1) == false, "réglages : une fenêtre, la recherche dans toutes les sections",
+                    $"{sections} ; section {searched.CurrentTab}");
+            }
             // The categories, as on Windows: those of the server's account hold its sections (friends and guests, maintenance apart).
             (window.Current as SettingsPage)?.Show("server");
             // « Titres à corriger », as on Windows: the mock's titles have no ids from a metadata source.

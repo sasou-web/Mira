@@ -163,7 +163,8 @@ public sealed partial class MainWindow
         if (_overlay.Children.OfType<Control>().LastOrDefault(x => x.IsVisible && x is not PlayerPage) is { } over) return [over];
         var scope = new List<Control>();
         if (Current is { IsVisible: true } page) scope.Add(page);
-        if (_rail.IsVisible) scope.Add(_rail);
+        // Réglages and Aide's window covers the rail.
+        if (_rail.IsVisible && Current is not SettingsPage) scope.Add(_rail);
         return scope;
     }
 
