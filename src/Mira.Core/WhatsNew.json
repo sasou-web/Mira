@@ -1,5 +1,28 @@
 [
   {
+    "version": "0.9.8", "date": "2026-11-13",
+    "summary": "Télécharger les épisodes manquants, un défilement sans à-coup, un mini-lecteur plus vif.",
+    "en": { "summary": "Download missing episodes, scrolling without jolts, a quicker mini-player." },
+    "changes": [
+      { "category": "Séries", "text": "Un bouton télécharge les épisodes et les saisons qui manquent (Windows, Mac, iPhone).", "en": { "category": "Series", "text": "A button downloads the missing episodes and seasons (Windows, Mac, iPhone)." } },
+      { "category": "Défilement", "text": "La molette n’à-coupe plus : chaque cran reprend la page à sa vitesse (Windows, Mac).", "en": { "category": "Scrolling", "text": "The wheel no longer jolts: each notch takes the page up at its speed (Windows, Mac)." } },
+      { "category": "Lecteur", "text": "Le mini-lecteur sort et se range plus vite ; la vitesse de lecture est retirée.", "en": { "category": "Player", "text": "The mini-player slides out and tucks away faster; the playback speed choice is gone." } },
+      { "category": "Réglages", "text": "Coins de la fenêtre Réglages, plus d’éclair blanc dans le rail, onglet recliqué calme.", "en": { "category": "Settings", "text": "Settings window corners fixed, no white flash in the rail, a re-clicked tab stays calm." } },
+      { "category": "Apparence", "text": "Survol sans liseré, pastilles arrondies comme les boutons, carrousel sans survol.", "en": { "category": "Look", "text": "Hover without a dark edge, chips rounded like the buttons, carousel without hover." } },
+      { "category": "iPhone", "text": "L’écran de chargement attend Jellyfin en 5G au lieu d’afficher une erreur.", "en": { "category": "iPhone", "text": "The opening screen waits for Jellyfin on 5G instead of showing an error." } }
+    ],
+    "items": [
+      { "icon": "download", "title": "Télécharger ce qui manque", "text": "Sur la page d’une série, une suite d’épisodes absente ou une saison entière se télécharge d’un clic, rangée dans le dossier de la série.",
+        "en": { "title": "Download what is missing", "text": "On a series page, a run of missing episodes or a whole season downloads in one click, filed in the series folder." } },
+      { "icon": "sparkle", "title": "Un défilement sans à-coup", "text": "Chaque cran de molette reprend la page à sa vitesse et la mène à l’arrêt en douceur.",
+        "en": { "title": "Scrolling without jolts", "text": "Each wheel notch takes the page up at its speed and brings it smoothly to rest." } },
+      { "icon": "pip", "title": "Un mini-lecteur plus vif", "text": "Il sort dès que le pointeur s’y pose et se range 0,3 s après son départ.",
+        "en": { "title": "A quicker mini-player", "text": "It slides out as soon as the pointer rests on it and tucks away 0.3 s after it leaves." } },
+      { "icon": "check", "title": "Finitions", "text": "Coins de Réglages, survol, pastilles et rail corrigés ; l’écran de chargement de l’iPhone tient la 5G.",
+        "en": { "title": "Finishing touches", "text": "Settings corners, hover, chips and rail fixed; the iPhone opening screen holds up on 5G." } }
+    ]
+  },
+  {
     "version": "0.9.7", "date": "2026-11-13",
     "summary": "Réglages en fenêtre, épisodes en grille, fond noir OLED, une centaine de bugs corrigés.",
     "en": { "summary": "Settings in a window, episodes in a grid, true-black OLED background, about a hundred bugs fixed." },
