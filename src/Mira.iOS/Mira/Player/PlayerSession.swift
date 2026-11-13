@@ -876,7 +876,7 @@ final class PlayerSession: NSObject {
             let server = await client.passages(id)
             let full = (try? await client.item(id)) ?? known
             guard item.id == id, !closed else { return }
-            passages = Timeline.withChapters(server, Timeline.chapterPassages(full.chapters, totalTicks: full.runTimeTicks ?? source?.runTimeTicks))
+            passages = Timeline.passages(server, chapters: full.chapters, totalTicks: full.runTimeTicks ?? source?.runTimeTicks)
             var chapters: [(start: Double, name: String?)] = []
             for chapter in full.chapters ?? [] {
                 guard let ticks = chapter.startPositionTicks, ticks >= 0 else { continue }

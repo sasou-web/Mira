@@ -75,7 +75,11 @@ enum Timeline {
     private static let word = "[\\p{L}\\p{Nd}\\p{Pc}\\u200C\\u200D]"
     private static let recap = "recap|recapitulatif|previously|precedemment|resume de l[^\\n]episode precedent"
     private static let preview = "preview|next episode|prochain episode|apercu|bande annonce|yokoku"
-    private static let intro = "opening|intro|introduction|ouverture|theme song|op\\s?\\p{Nd}{0,2}|generique (?:de )?(?:debut|d[^\\n]ouverture)"
+    // An opening by its name; « Intro » alone is weaker: many releases call the cold open « Intro » and the theme « OP ».
+    private static let opening = "opening|ouverture|theme song|op\\s?\\p{Nd}{0,2}|generique (?:de )?(?:debut|d[^\\n]ouverture)"
+    private static let introWord = "intro|introduction"
+    // The cold open, before the opening: part of the story, never skipped (« Avant-générique », « Pre-OP », « Prologue »).
+    private static let coldOpen = "cold open|prologue|avant generique|(?:pre|before|avant)\\s*(?:l[^\\n]|le\\s+|the\\s+)?(?:opening|op|intro|generique)"
     private static let outro = "ending|outro|credits|end credits|ed\\s?\\p{Nd}{0,2}|generique (?:de )?fin"
     private static let generic = "generique"
 
@@ -96,28 +100,79 @@ enum Timeline {
         let text = plain(title)
         if finds(recap, text) { return "Recap" }
         if finds(preview, text) { return "Preview" }
-        if finds(intro, text) { return "Intro" }
+        if finds(coldOpen, text) { return nil }
+        if finds(opening, text) || finds(introWord, text) { return "Intro" }
         if finds(outro, text) { return "Outro" }
-        // « Avant-générique » is the cold open: part of the story, never skipped.
-        if finds(generic, text) && !text.contains("avant generique") { return duration > 0 && start > duration / 2 ? "Outro" : "Intro" }
+        if finds(generic, text) { return duration > 0 && start > duration / 2 ? "Outro" : "Intro" }
         return nil
     }
 
-    /// Jellyfin's chapters as passages.
-    static func chapterPassages(_ chapters: [Chapter]?, totalTicks: Int64?) -> [Passage] {
+    private static func isColdOpen(_ title: String?) -> Bool {
+        guard let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        return finds(coldOpen, plain(title))
+    }
+
+    /// « Intro » or « Introduction » without a word that names the opening itself.
+    private static func isBareIntro(_ title: String?) -> Bool {
+        guard let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        let text = plain(title)
+        return finds(introWord, text) && !finds(opening, text) && !finds(generic, text)
+    }
+
+    /// A chapter with an end: its passage when it names one, and whether it is the cold open.
+    private struct ReadChapter {
+        let start: Double
+        let end: Double
+        let kind: String?
+        let cold: Bool
+    }
+
+    /// The chapters with an end, their kind and whether they are the cold open: a title that says so (« Avant-générique »,
+    /// « Pre-OP », « Prologue »), or an « Intro » that a chapter named as the opening follows (« Intro », « OP », « Part A »:
+    /// the cold open, then the theme). A lone « Intro » stays the opening. As PlaybackMarkers of Core.
+    private static func readChapters(_ chapters: [Chapter]?, totalTicks: Int64?) -> [ReadChapter] {
         let ordered = (chapters ?? []).compactMap { c in c.startPositionTicks.flatMap { $0 >= 0 ? (c, $0) : nil } }.sorted { $0.1 < $1.1 }
         // Without the title's length, the last chapter has no end.
         let duration = totalTicks.map(seconds) ?? 0
-        var passages: [Passage] = []
+        var result: [ReadChapter] = []
         for (i, (chapter, startTicks)) in ordered.enumerated() {
             let start = seconds(startTicks)
             guard let endTicks = i + 1 < ordered.count ? ordered[i + 1].1 : totalTicks else { continue }
             let end = seconds(endTicks)
-            guard end - start >= minPassage, let kind = chapterKind(chapter.name, start: start, duration: duration),
-                  kind == "Outro" || end - start <= maxShortPassage else { continue }
-            passages.append(Passage(type: kind, start: start, end: end))
+            guard end - start >= minPassage else { continue }
+            var kind = chapterKind(chapter.name, start: start, duration: duration)
+            if let k = kind, k != "Outro", end - start > maxShortPassage { kind = nil }
+            let openingFollows = ordered[(i + 1)...].contains { later in
+                chapterKind(later.0.name, start: seconds(later.1), duration: duration) == "Intro" && !isBareIntro(later.0.name)
+            }
+            let cold = isColdOpen(chapter.name) || (kind == "Intro" && isBareIntro(chapter.name) && openingFollows)
+            result.append(ReadChapter(start: start, end: end, kind: kind, cold: cold))
         }
-        return passages
+        return result
+    }
+
+    /// Jellyfin's chapters as passages, without the cold open.
+    static func chapterPassages(_ chapters: [Chapter]?, totalTicks: Int64?) -> [Passage] {
+        readChapters(chapters, totalTicks: totalTicks).compactMap { c in
+            guard let kind = c.kind, !c.cold else { return nil }
+            return Passage(type: kind, start: c.start, end: c.end)
+        }
+    }
+
+    /// The passages of a title: Jellyfin's segments, then the chapters' (`withChapters`). One exception: a server opening
+    /// that is the chapters' cold open while they name the opening elsewhere (a segment provider that reads chapter names
+    /// takes « Intro » for the opening): the chapters' opening replaces it.
+    static func passages(_ server: [Passage], chapters: [Chapter]?, totalTicks: Int64?) -> [Passage] {
+        let marks = readChapters(chapters, totalTicks: totalTicks)
+        let openings = marks.filter { $0.kind == "Intro" && !$0.cold }
+        let cold = marks.filter(\.cold)
+        func overlap(_ a: Double, _ b: Double, _ c: Double, _ d: Double) -> Double { max(0, min(b, d) - max(a, c)) }
+        let kept = openings.isEmpty ? server : server.filter { s in
+            s.type != "Intro"
+                || openings.contains { overlap(s.start, s.end, $0.start, $0.end) > 0 }
+                || !cold.contains { overlap(s.start, s.end, $0.start, $0.end) >= 0.8 * (s.end - s.start) }
+        }
+        return withChapters(kept, chapterPassages(chapters, totalTicks: totalTicks))
     }
 
     /// Jellyfin's segments are authoritative, those of 3 s or more: a chapter's passage only fills a kind and a time

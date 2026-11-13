@@ -49,7 +49,7 @@ Tap to show the controls. Double tap on a side to go back or forward 10 seconds 
 
 ## Intros, credits and the next episode
 
-**Skip intro**, **Skip credits** and recap buttons appear from Jellyfin's media segments (Jellyfin 10.10 or later, from the server or a plugin like Intro Skipper) or from the file's chapter names. With **Settings → Playback → Skip intros and recaps**, Mira skips them without asking, once each: going back into one plays it again.
+**Skip intro**, **Skip credits** and recap buttons appear from Jellyfin's media segments (Jellyfin 10.10 or later, from the server or a plugin like Intro Skipper) or from the file's chapter names. A chapter named "Intro" followed by one named as the opening ("Opening", "OP") is the cold open, part of the episode: no button over it. With **Settings → Playback → Skip intros and recaps**, Mira skips them without asking, once each: going back into one plays it again.
 
 **Next episode** appears during the end credits or in the last 20 seconds. With **Play episodes back to back**, a 10-second countdown starts; **Cancel** stays on this episode.
 

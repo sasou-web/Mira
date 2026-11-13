@@ -1,5 +1,5 @@
 {
-  "about": "Chapter titles and the passages Mira finds in them. Read by tests/Mira.Core.Tests (PlaybackMarkers) and tools/web/unit (timeline.js): both must agree.",
+  "about": "Chapter titles and the passages Mira finds in them. Read by tests/Mira.Core.Tests (PlaybackMarkers) and the iPhone (Timeline.swift, TimelineTests): both must agree. An episode's optional server = Jellyfin's segments, passages = what is offered once merged.",
   "titles": [
     ["Opening", "Intro"],
     ["OP", "Intro"],
@@ -33,6 +33,12 @@
     ["Bande-annonce", "Preview"],
     ["Yokoku", "Preview"],
     ["Avant-générique", null],
+    ["Pre-OP", null],
+    ["Pre Opening", null],
+    ["Before the Opening", null],
+    ["Avant l’opening", null],
+    ["Cold Open", null],
+    ["Prologue", null],
     ["Partie A", null],
     ["Part B", null],
     ["Chapitre 4", null],
@@ -73,6 +79,55 @@
       "duration": 5400,
       "chapters": [[600, "Générique"], [0, "Prologue"], [690, "Acte 1"], [5100, "Générique"]],
       "passages": [["Intro", 600, 690], ["Outro", 5100, 5400]]
+    },
+    {
+      "about": "« Intro » then « Opening »: the first is the cold open, never offered.",
+      "duration": 1420,
+      "chapters": [[0, "Intro"], [95, "Opening"], [185, "Part A"], [1300, "Ending"], [1390, "Preview"]],
+      "passages": [["Intro", 95, 185], ["Outro", 1300, 1390], ["Preview", 1390, 1420]]
+    },
+    {
+      "about": "The same with « OP », then with a bare « Générique ».",
+      "duration": 1420,
+      "chapters": [[0, "Intro"], [80, "OP"], [170, "Partie A"], [600, "Partie B"]],
+      "passages": [["Intro", 80, 170]]
+    },
+    {
+      "duration": 1420,
+      "chapters": [[0, "Introduction"], [70, "Générique"], [160, "Partie A"]],
+      "passages": [["Intro", 70, 160]]
+    },
+    {
+      "about": "A lone « Intro » stays the opening.",
+      "duration": 1420,
+      "chapters": [[0, "Intro"], [90, "Part A"], [1300, "Credits"]],
+      "passages": [["Intro", 0, 90], ["Outro", 1300, 1420]]
+    },
+    {
+      "duration": 1420,
+      "chapters": [[0, "Pre-OP"], [60, "OP"], [150, "Part A"]],
+      "passages": [["Intro", 60, 150]]
+    },
+    {
+      "about": "Jellyfin's opening read from the « Intro » chapter (a segment provider that reads chapter names): the chapters' opening replaces it.",
+      "duration": 1420,
+      "server": [["Intro", 0, 95], ["Outro", 1300, 1390]],
+      "chapters": [[0, "Intro"], [95, "Opening"], [185, "Part A"], [1300, "Ending"], [1390, "Preview"]],
+      "passages": [["Intro", 95, 185], ["Outro", 1300, 1390], ["Preview", 1390, 1420]]
+    },
+    {
+      "about": "Jellyfin's opening found elsewhere (audio fingerprint) stays, whatever the chapters say.",
+      "duration": 1420,
+      "server": [["Intro", 96, 184]],
+      "chapters": [[0, "Intro"], [95, "Opening"], [185, "Part A"]],
+      "passages": [["Intro", 96, 184]]
+    },
+    {
+      "about": "Without a chapter named as the opening, Jellyfin's opening over a cold open stays.",
+      "duration": 1420,
+      "server": [["Intro", 0, 60]],
+      "chapters": [[0, "Prologue"], [60, "Part A"]],
+      "passages": [["Intro", 0, 60]]
     }
   ]
 }
