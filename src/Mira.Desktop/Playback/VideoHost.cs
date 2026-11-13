@@ -64,7 +64,7 @@ public sealed class VideoHost : HwndHost
         // window kept as it is (holding it a second time would lose its own procedure).
         if (!_moving)
         {
-            _moving = true; _laidOut = null; _toldSize = default;
+            _moving = true; _laidOut = null; _toldSize = default; _movedSize = default; _movedDiameter = -1;
             _mpvWindow = GetWindow(Handle, FirstChild);
             if (_mpvWindow != IntPtr.Zero) { _mpvProcedure = SetWindowLongPtr(_mpvWindow, WindowProcedureSlot, Marshal.GetFunctionPointerForDelegate(_heldProcedure)); }
         }
@@ -104,10 +104,15 @@ public sealed class VideoHost : HwndHost
         var width = Math.Max(1, (int)Math.Round(pixels.Right) - left); var height = Math.Max(1, (int)Math.Round(pixels.Bottom) - top);
         // mpv's own window at the same moment (it would follow a frame later, showing black at the edges). Its thread
         // takes this when it can: SWP_ASYNCWINDOWPOS | SWP_NOMOVE, as mpv itself does.
-        if (_mpvWindow != IntPtr.Zero) SetWindowPos(_mpvWindow, IntPtr.Zero, 0, 0, width, height, 0x4000 | 0x0002 | 0x0004 | 0x0010 | 0x0100 | 0x0200);
+        // Only moved, as in the mini-player's slide: mpv's window and the rounded corners stay as they are (a new region at
+        // each frame has Windows recompose the window's shape for nothing).
+        var diameter = (int)Math.Round(radius * 2);
+        var resized = width != _movedSize.Width || height != _movedSize.Height || diameter != _movedDiameter;
+        _movedSize = new Size(width, height); _movedDiameter = diameter;
+        if (_mpvWindow != IntPtr.Zero && resized) SetWindowPos(_mpvWindow, IntPtr.Zero, 0, 0, width, height, 0x4000 | 0x0002 | 0x0004 | 0x0010 | 0x0100 | 0x0200);
         // SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_NOOWNERZORDER
         SetWindowPos(Handle, IntPtr.Zero, left, top, width, height, 0x0004 | 0x0010 | 0x0100 | 0x0200);
-        var diameter = (int)Math.Round(radius * 2);
+        if (!resized) return;
         if (diameter <= 0) { if (_clipped) { SetWindowRgn(Handle, IntPtr.Zero, false); _clipped = false; } return; }
         var region = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
         if (SetWindowRgn(Handle, region, false) == 0) DeleteObject(region); else _clipped = true;
@@ -123,6 +128,9 @@ public sealed class VideoHost : HwndHost
         else ApplyRegion();
     }
     private bool _moving;
+    /// <summary>The size and corners the movement gave the window last (<see cref="Move"/>).</summary>
+    private Size _movedSize;
+    private int _movedDiameter = -1;
     /// <summary>Its window is moved by Mira rather than placed by layout (<see cref="BeginMove"/>).</summary>
     public bool Moving => _moving;
     private Rect? _laidOut;

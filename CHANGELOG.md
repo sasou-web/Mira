@@ -2,7 +2,11 @@
 
 ## Non publié
 
+- **Survol des boutons sans liseré (Windows)** : au survol, le voile d’un bouton était dessiné à l’intérieur de son bord avec le même arrondi, si bien que ses coins ne rejoignaient pas ceux du bord et laissaient un liseré sombre (« Help » de la fenêtre Réglages, « More info » de l’Accueil). Le voile couvre maintenant toute la forme, sous le bord. Le Mac n’avait pas ce défaut (fond et bord d’un seul élément). Signalé par ogsas sur la 0.9.7 ; jamais essayé sur un vrai PC.
+
+- **Une seule saison, pas de liste (Windows, Mac)** : une série ou un anime à une seule saison montrait une liste des saisons qui ne contenait que « Saison 1 ». Il n’y a plus ni liste ni pastilles : le titre « Épisodes · 24 » suffit. Signalé par ogsas sur la 0.9.7 ; l’iPhone le faisait déjà ; jamais essayé sur un vrai PC ou Mac.
 - **Coins de la fenêtre Réglages et Aide (Windows, Mac)** : la colonne de gauche couvrait le bord arrondi de la fenêtre dans ses deux coins gauches (bord coupé, coin qui « bave »). Le contenu d’une forme arrondie à bord est maintenant découpé à l’intérieur de ce bord ; sur Mac, la colonne a ses propres coins. Signalé par ogsas sur la 0.9.7 ; jamais essayé sur un vrai PC ou Mac.
+- **Mini-lecteur plus vif sous le pointeur (Windows, Mac)** : rangé contre le bord, il mettait du temps à réagir : il sortait 0,1 à 0,2 s après que le pointeur s’était posé sur lui, d’un mouvement lent à démarrer, et repartait près d’une seconde après le départ du pointeur. Il sort maintenant dès que le pointeur s’y pose (le pointeur est regardé à chaque image plutôt que toutes les 40 ms ; sur Mac, à chaque mouvement), fait la moitié du chemin dans ses premières 50 ms puis se pose en douceur, et se range 0,3 s après le départ du pointeur. Sous Windows, la fenêtre de la vidéo ne fait plus que glisser pendant le mouvement : Mira ne lui redonnait plus à chaque image sa taille et ses coins arrondis, que Windows recomposait pour rien. Retour d’ogsas sur la 0.9.7 ; contrôlé par le contrôle du lecteur Windows et le self-check du Mac ; jamais essayé sur un vrai PC ou Mac.
 
 ## 0.9.7 — 2026-11-13
 

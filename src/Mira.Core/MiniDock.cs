@@ -14,12 +14,33 @@ public sealed class MiniDock
     public const double Peek = 14;
     /// <summary>Out after the player shrinks to it, before it tucks itself away: long enough to see where the film went.</summary>
     public static readonly TimeSpan FirstRest = TimeSpan.FromSeconds(1.6);
-    /// <summary>After the pointer has left it, before it goes back: a pointer that slips off its edge does not send it away.</summary>
-    public static readonly TimeSpan Linger = TimeSpan.FromSeconds(.7);
-    /// <summary>The pointer resting on the sliver, before it comes out: a pointer passing by on its way to the edge does not pull it.</summary>
-    public static readonly TimeSpan Dwell = TimeSpan.FromSeconds(.09);
+    /// <summary>
+    /// After the pointer has left it, before it goes back: a pointer that slips off its edge does not send it away, and it
+    /// does not hang about once left (0.7 s in 0.9.7: « pas réactif »).
+    /// </summary>
+    public static readonly TimeSpan Linger = TimeSpan.FromSeconds(.3);
+    /// <summary>The pointer resting on the sliver, before it comes out: only a pointer flying past to the window's edge is let go by.</summary>
+    public static readonly TimeSpan Dwell = TimeSpan.FromSeconds(.04);
+    /// <summary>How often the pointer is looked at while it is in use: once a frame of a 60 Hz screen.</summary>
+    public static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(15);
     /// <summary>The slide out and the slide back, in milliseconds.</summary>
-    public const int OutMs = 230, BackMs = 300;
+    public const int OutMs = 240, BackMs = 260;
+    /// <summary>
+    /// The slide's curves, as CSS's cubic-bezier(x1, y1, x2, y2). Out: half the way in the first fifth, then it lands softly
+    /// (the curve of the player's shrinking, slow for its first frames, felt late under the pointer); back: a little softer.
+    /// </summary>
+    public static readonly (double X1, double Y1, double X2, double Y2) OutCurve = (.2, 0, 0, 1), BackCurve = (.3, 0, .1, 1);
+
+    /// <summary>Where a cubic-bezier curve is at <paramref name="t"/> (0 to 1) of its time, from 0 to 1.</summary>
+    public static double Ease((double X1, double Y1, double X2, double Y2) curve, double t)
+    {
+        if (!(t > 0)) return 0;
+        if (t >= 1) return 1;
+        static double Bezier(double a, double b, double s) => 3 * (1 - s) * (1 - s) * s * a + 3 * (1 - s) * s * s * b + s * s * s;
+        double low = 0, high = 1;
+        for (var i = 0; i < 20; i++) { var s = (low + high) / 2; if (Bezier(curve.X1, curve.X2, s) < t) low = s; else high = s; }
+        return Bezier(curve.Y1, curve.Y2, (low + high) / 2);
+    }
 
     private TimeSpan? _overSince, _backAt;
 

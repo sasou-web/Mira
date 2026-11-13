@@ -70,11 +70,15 @@
   <Style TargetType="Button"><Setter Property="v:Motion.Interactive" Value="True"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="ToolTipService.InitialShowDelay" Value="650"/>
     <Setter Property="AutomationProperties.Name" Value="{Binding Content, RelativeSource={RelativeSource Self}, Converter={x:Static v:Accessible.ContentName}}"/>
     <Setter Property="FontFamily" Value="{StaticResource AppFont}"/><Setter Property="Foreground" Value="{StaticResource Text}"/><Setter Property="Background" Value="{StaticResource Raised2}"/><Setter Property="Padding" Value="18,11"/><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/><Setter Property="BorderThickness" Value="1"/><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/>
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><v:Squircle x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="{Binding Path=(v:Motion.Radius), RelativeSource={RelativeSource TemplatedParent}}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"><Grid>
-      <!-- Hover wash in the button's own ink: light on dark buttons, dark on white ones. Set at once by Motion.Interactive, never animated. -->
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Grid x:Name="Chrome">
+      <v:Squircle Background="{TemplateBinding Background}" CornerRadius="{Binding Path=(v:Motion.Radius), RelativeSource={RelativeSource TemplatedParent}}"/>
+      <!-- Hover wash in the button's own ink: light on dark buttons, dark on white ones. Set at once by Motion.Interactive, never animated.
+           The whole shape, under the edge: inside the edge at the same radius, its corners fell short of the edge's and left a seam. -->
       <v:Squircle x:Name="Hover" Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" CornerRadius="{Binding Path=(v:Motion.Radius), RelativeSource={RelativeSource TemplatedParent}}"/>
-      <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
-    </Grid></v:Squircle><ControlTemplate.Triggers>
+      <v:Squircle CornerRadius="{Binding Path=(v:Motion.Radius), RelativeSource={RelativeSource TemplatedParent}}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+       <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+      </v:Squircle>
+    </Grid><ControlTemplate.Triggers>
       <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.35"/></Trigger>
     </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
