@@ -825,19 +825,15 @@ public sealed partial class MainWindow : Window
         }
         if (!Group.Active || Group.Group is not { } group || !ReferenceEquals(session, Session)) return;
         var menu = new ContextMenu();
-        void Add(string label, Action? action)
-        {
-            var entry = new MenuItem { Header = label, IsEnabled = action is not null };
-            if (action is not null) entry.Click += (_, _) => action();
-            menu.Items.Add(entry);
-        }
-        Add(Together.GroupText(group) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : ""), null);
-        if (Together.GroupStatus(group, session.Connection.UserName) is { Alert: true } status) Add(status.Text, null);
+        // Each line with its glyph, as Windows' (GroupNav's menu).
+        void Add(string label, string icon, Action? action) => menu.Items.Add(Ui.Entry(label, icon, action));
+        Add(Together.GroupText(group) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : ""), "users", null);
+        if (Together.GroupStatus(group, session.Connection.UserName) is { Alert: true } status) Add(status.Text, group.State == "Paused" ? "pause" : "clock", null);
         menu.Items.Add(new Separator());
-        if (Player is { IsMini: true } mini && Group.PlaysFor(mini)) Add(L("Revenir au lecteur", "Back to the player"), () => mini.SetMini(false));
-        else if (title is not null) Add(L($"Voir « {Together.TitleName(title)} »", $"View “{Together.TitleName(title)}”"), () => Open(title));
-        if (!InParty) Add(L("Inviter quelqu’un…", "Invite someone…"), () => _ = Group.InviteAsync());
-        Add(L("Quitter le groupe", "Leave the group"), () => _ = Group.LeaveAsync());
+        if (Player is { IsMini: true } mini && Group.PlaysFor(mini)) Add(L("Revenir au lecteur", "Back to the player"), "play", () => mini.SetMini(false));
+        else if (title is not null) Add(L($"Voir « {Together.TitleName(title)} »", $"View “{Together.TitleName(title)}”"), "film", () => Open(title));
+        if (!InParty) Add(L("Inviter quelqu’un…", "Invite someone…"), "link", () => _ = Group.InviteAsync());
+        Add(L("Quitter le groupe", "Leave the group"), "close", () => _ = Group.LeaveAsync());
         menu.PlacementTarget = _groupRail; menu.Placement = PlacementMode.RightEdgeAlignedBottom; menu.HorizontalOffset = 8;
         menu.Open(_groupRail);
     }
