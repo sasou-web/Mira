@@ -396,7 +396,7 @@ public sealed partial class DetailPage
             var list = new StackPanel();
             if (menu.Pack is not null) list.Children.Add(MissingPackRow(menu));
             else foreach (var choice in picks.Episodes) list.Children.Add(MissingEpisodeRow(menu, choice));
-            stack.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+            stack.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380 });
             if (menu.Pack is null && MissingDownloads.NotFound(picks.NotFound) is { Length: > 0 } nothing)
                 stack.Children.Add(new TextBlock { Text = nothing, FontSize = 12.5, Foreground = Ui.Muted, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
             stack.Children.Add(new Border { Height = 1, Background = Ui.Brush("#2A2A2A"), Margin = new Thickness(0, 12) });

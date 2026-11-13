@@ -353,6 +353,8 @@ public static class SelfCheck
                 Check(film.HeroHeight >= film.Bounds.Height - 1 && buttons.Count >= 3 && buttons.Count(x => x.Words) == 1,
                     "fiche d’un film : image de toute la fenêtre, boutons ronds", $"{film.HeroHeight:0}/{film.Bounds.Height:0} px · " + string.Join(", ", buttons.Select(x => (x.Words ? "« " + x.Name + " »" : x.Name) + (x.On ? " (actif)" : ""))));
                 Check(film.CastShown == 2, "fiche d’un film : distribution en photos", $"{film.CastShown} personnes");
+                // As on Windows, the rail keeps lit the page the title was opened from, never nothing.
+                Check(window.LitRail is { Length: > 0 } and not "settings", "fiche d’un film : le rail garde allumée la page d’où elle vient", window.LitRail ?? "rien");
                 film.ShowCastForCheck(); await Task.Delay(800); Capture(window, output, "05b-film-cast");
             }
             // —— The menu bar, as a Mac app's (MainWindow.Menu.cs): its items, their keys, and each one doing what its keys do ——
@@ -364,6 +366,10 @@ public static class SelfCheck
                 && Equals(KeysOf(Lang.L("Fermer la fenêtre", "Close Window")), new KeyGesture(Avalonia.Input.Key.W, command)) && Equals(KeysOf(Lang.L("Précédent", "Back")), new KeyGesture(Avalonia.Input.Key.OemOpenBrackets, command))
                 && KeysOf(Lang.L("Copier", "Copy")) is not null && KeysOf(Lang.L("Coller", "Paste")) is not null,
                 "barre des menus : Édition, Présentation, Aller, Fenêtre, Aide et leurs raccourcis", string.Join(", ", bar.Select(x => x.Keys is { } k ? $"{x.Item} {k}" : x.Item)));
+            Check(Equals(KeysOf(Lang.L("Accueil", "Home")), new KeyGesture(Avalonia.Input.Key.D1, command)) && Equals(KeysOf(Lang.L("Films", "Movies")), new KeyGesture(Avalonia.Input.Key.D2, command))
+                && Equals(KeysOf(Lang.L("Séries", "Shows")), new KeyGesture(Avalonia.Input.Key.D3, command)) && Equals(KeysOf(Lang.L("Toute la bibliothèque", "Whole library")), new KeyGesture(Avalonia.Input.Key.D4, command))
+                && Equals(KeysOf(Lang.L("Téléchargements", "Downloads")), new KeyGesture(Avalonia.Input.Key.D5, command)),
+                "barre des menus : ⌘1 à ⌘5 comme Ctrl+1 à Ctrl+5 sous Windows");
             window.ChooseInMenu(Lang.L("Précédent", "Back"));
             var backed = await Until(() => window.Current is not DetailPage, 3);
             window.ChooseInMenu(Lang.L("Suivant", "Forward"));
@@ -476,6 +482,17 @@ public static class SelfCheck
                 var inviteTab = TabStaysIn(window);
                 window.RaiseEvent(new KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = InputElement.KeyDownEvent, Source = window });
                 Check(copyFocused && inviteTab && await Until(() => inviting.IsCompleted && window.CurrentSheet is null, 3), "inviter : une feuille, « Copier le lien » prêt, Tab gardé dedans, Échap la ferme", $"focus sur « Copier le lien » {copyFocused}, Tab {inviteTab}");
+                // A question on Mira's card, as Windows asks before following a series: the focus on the safe answer, Échap = no.
+                var asking = window.ConfirmAsync(Lang.L("Suivre « Série » ?", "Follow “Series”?"), Lang.L("Le PC serveur cherchera ses nouveaux épisodes.", "The server PC will look for its new episodes."), Lang.L("Suivre la série", "Follow the series"), Lang.L("Annuler", "Cancel"));
+                await Until(() => window.CurrentSheet is { IsVisible: true }, 5);
+                await Task.Delay(400); Capture(window, output, "05j-confirm");
+                var safeFocus = window.FocusManager?.GetFocusedElement() is Button { Classes: var safe } && safe.Contains("quiet");
+                window.RaiseEvent(new KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = InputElement.KeyDownEvent, Source = window });
+                var refused = await Until(() => asking.IsCompleted, 3) && !asking.Result && window.CurrentSheet is null;
+                var accepting = window.ConfirmAsync("?", "", Lang.L("Oui", "Yes"), Lang.L("Non", "No"));
+                await Until(() => window.CurrentSheet is { IsVisible: true }, 5);
+                var accepted = window.AnswerConfirm(true) && await Until(() => accepting.IsCompleted, 3) && accepting.Result && window.CurrentSheet is null && !window.Asking;
+                Check(safeFocus && refused && accepted, "question sur une carte de Mira : focus sur la réponse sûre, Échap = non, le bouton = oui", $"focus {safeFocus}, Échap {refused}, oui {accepted}");
             }
             window.Go("Series");
             await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15);
@@ -690,6 +707,12 @@ public static class SelfCheck
                         whileDocked.Count == 0 ? $"au retour : {string.Join(", ", AskedSince(after).Distinct())}" : string.Join(", ", whileDocked));
                 }
             }
+
+            // ⌘1 to ⌘5 as Ctrl+1 to Ctrl+5 on Windows: on a Mac the Go menu takes them, here the window reads them.
+            Press(window, Avalonia.Input.Key.D2, command);
+            var byKeys = await Until(() => window.Current is BrowsePage { Rail: "Movie" } && window.LitRail == "Movie", 5);
+            Press(window, Avalonia.Input.Key.D1, command);
+            Check(byKeys && await Until(() => window.Current is HomePage && window.LitRail == "home", 5), "⌘2 puis ⌘1 : Films puis Accueil", window.Current?.GetType().Name ?? "rien");
 
             // —— « Mode canapé »: the window full screen, the pages larger, the arrows anywhere, a controller as those keys ——
             window.Go("home");
@@ -1451,12 +1474,12 @@ public static class SelfCheck
     }
 
     /// <summary>A key as macOS sends it: down then up to what has the keyboard focus (else the window), through every handler.</summary>
-    private static void Press(MainWindow window, Key key)
+    private static void Press(MainWindow window, Key key, KeyModifiers modifiers = KeyModifiers.None)
     {
         foreach (var routed in new[] { InputElement.KeyDownEvent, InputElement.KeyUpEvent })
         {
             var target = window.FocusManager?.GetFocusedElement() as Avalonia.Interactivity.Interactive ?? window;
-            target.RaiseEvent(new KeyEventArgs { Key = key, RoutedEvent = routed, Source = target });
+            target.RaiseEvent(new KeyEventArgs { Key = key, KeyModifiers = modifiers, RoutedEvent = routed, Source = target });
         }
     }
 

@@ -132,7 +132,7 @@ public sealed partial class SettingsPage
         DockPanel.SetDock(switcher, Dock.Top); side.Children.Add(switcher);
         DockPanel.SetDock(searchBox, Dock.Top); side.Children.Add(searchBox);
         DockPanel.SetDock(foot, Dock.Bottom); side.Children.Add(foot);
-        side.Children.Add(new ScrollViewer { Content = lists, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        side.Children.Add(new ScrollViewer { Content = lists });
         var sideBack = new Border { Background = Ui.Brush("#0C0C0C"), BorderBrush = Ui.Brush("#1F1F1F"), BorderThickness = new Thickness(0, 0, 1, 0), Child = side };
         // Its own left corners, those of the window inside its edge: otherwise its fill may cover the window's edge there.
         sideBack.CornerRadius = new CornerRadius(19, 0, 0, 19);

@@ -28,8 +28,15 @@ public abstract class Page : UserControl
     /// page keeps its text clear of it (<see cref="MainWindow.RailWidth"/>); the others start beside it.
     /// </summary>
     protected Page(MainWindow shell, bool underRail = false) { Shell = shell; if (!underRail) Margin = new Thickness(MainWindow.RailWidth, 0, 0, 0); }
-    /// <summary>The rail entry lit while this page shows.</summary>
+    /// <summary>The page's own rail entry, lit while it shows; none for a page reached from another (a title, a person…).</summary>
     public virtual string Rail => "";
+    /// <summary>
+    /// The rail entry lit while it shows: its own, else the one lit when it came, as on Windows: a title opened from Films
+    /// keeps Films lit, never a rail with nothing lit.
+    /// </summary>
+    public virtual string Lit => Rail.Length > 0 ? Rail : CameFrom;
+    /// <summary>The rail entry lit when this page was first shown (<see cref="MainWindow.NavigateAsync"/>).</summary>
+    internal string CameFrom { get; set; } = "";
     /// <summary>Fills the page; called once, when it first shows.</summary>
     public virtual Task LoadAsync() => Task.CompletedTask;
     /// <summary>Progress, watched or favourite marks changed (after a playback, a menu action): redraw what shows them.</summary>
@@ -219,7 +226,7 @@ public sealed partial class MainWindow : Window
     private Border BuildRail()
     {
         var brand = new Icon("brand", 32) { Foreground = Ui.Ink, Margin = new Thickness(0, 14, 0, 26) };
-        foreach (var (key, icon, tip) in new[] { ("home", "home", L("Accueil", "Home")), ("search", "search", L("Rechercher · ⌘F", "Search · ⌘F")), ("Movie", "film", L("Films", "Movies")), ("Series", "series", L("Séries", "Shows")), ("library", "library", L("Toute la bibliothèque", "Whole library")), ("offline", "laptop", L("Sur ce Mac · les titres gardés pour les regarder sans connexion", "On this Mac · titles kept to watch offline")), ("downloads", "download", L("Télécharger sur le PC serveur", "Download to the server PC")) })
+        foreach (var (key, icon, tip) in new[] { ("home", "home", L("Accueil · ⌘1", "Home · ⌘1")), ("search", "search", L("Rechercher · ⌘F", "Search · ⌘F")), ("Movie", "film", L("Films · ⌘2", "Movies · ⌘2")), ("Series", "series", L("Séries · ⌘3", "Shows · ⌘3")), ("library", "library", L("Toute la bibliothèque · ⌘4", "Whole library · ⌘4")), ("offline", "laptop", L("Sur ce Mac · les titres gardés pour les regarder sans connexion", "On this Mac · titles kept to watch offline")), ("downloads", "download", L("Télécharger sur le PC serveur · ⌘5", "Download to the server PC · ⌘5")) })
         {
             var button = Ui.IconButton(icon, tip, () => NavigateRoot(key), "rail", 22);
             _railButtons[key] = button; _railItems.Children.Add(button);
@@ -749,8 +756,9 @@ public sealed partial class MainWindow : Window
     {
         if (!root && Current is { } current && current != page) _history.Add(current);
         _forward.Clear();
+        if (page.Rail.Length == 0 && page.CameFrom.Length == 0) page.CameFrom = LitRail ?? "";
         Host(page);
-        Light(page.Rail);
+        Light(page.Lit);
         page.Opacity = 0;
         page.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
         Dispatcher.UIThread.Post(() => page.Opacity = 1, DispatcherPriority.Loaded);
@@ -777,7 +785,7 @@ public sealed partial class MainWindow : Window
         if (_history.Count == 0) return false;
         var previous = _history[^1]; _history.RemoveAt(_history.Count - 1);
         if (Current is { } current) _forward.Add(current);
-        Host(previous); Light(previous.Rail);
+        Host(previous); Light(previous.Lit);
         _ = previous.RefreshAsync();
         return true;
     }
@@ -1146,6 +1154,8 @@ public sealed partial class MainWindow : Window
         if (command && e.Source is not TextBox && ZoomKey(e)) { e.Handled = true; return; }
         if (command && e.Key is Key.F or Key.K) { if (Current is SettingsPage sheet) sheet.FocusSearch(); else NavigateRoot("search"); e.Handled = true; return; }
         if (command && e.Key == Key.OemComma) { NavigateRoot("settings"); e.Handled = true; return; }
+        // On a Mac the Go menu has them (macOS gives it the keys): here, for the keys it does not take.
+        if (command && RailKey(e.Key) is { } rail) { GoFromMenu(rail); e.Handled = true; return; }
         // I brings the mini-player back over the window, as on Windows; never while typing.
         if (e.Key == Key.I && e.KeyModifiers == KeyModifiers.None && Player is { IsMini: true } mini && e.Source is not TextBox) { mini.SetMini(false); e.Handled = true; }
     }

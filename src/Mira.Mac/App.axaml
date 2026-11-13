@@ -135,8 +135,8 @@
       <Setter Property="Padding" Value="12,8"/>
       <Setter Property="MinWidth" Value="150"/>
     </Style>
-    <Style Selector="ScrollViewer"><Setter Property="AllowAutoHide" Value="True"/></Style>
-    <!-- No vertical bar, as on Windows: the wheel, the touchpad and the keys scroll a page. -->
-    <Style Selector="ScrollViewer /template/ ScrollBar#PART_VerticalScrollBar"><Setter Property="IsVisible" Value="False"/></Style>
+    <!-- No vertical bar, as on Windows: the wheel, the touchpad and the keys scroll a page. Hidden, not the bar's
+         IsVisible: the bar sets that itself from its Visibility, over any style. -->
+    <Style Selector="ScrollViewer"><Setter Property="AllowAutoHide" Value="True"/><Setter Property="VerticalScrollBarVisibility" Value="Hidden"/></Style>
   </Application.Styles>
 </Application>
