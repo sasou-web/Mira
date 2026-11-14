@@ -37,6 +37,8 @@ public partial class MainWindow : Window
     private DateTimeOffset _lastRefresh = DateTimeOffset.MinValue;
     /// <summary>When a refresh last failed to reach Jellyfin; null once one reaches it again (see SyncStatus).</summary>
     private DateTimeOffset? _offlineSince;
+    /// <summary>The error Jellyfin answered the last refresh with: a background refresh does not say it again.</summary>
+    private string? _refreshErrorSaid;
     /// <summary>The list shown and what Jellyfin gave for it, « Continuer à regarder » included.</summary>
     private readonly Catalog _catalog = new();
     private List<MediaItem> _episodes = [];
@@ -518,7 +520,7 @@ public partial class MainWindow : Window
             _catalog.Receive(result, more);
             if (!more) (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = (found, foundStudios, foundEpisodes, foundSagas);
             if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? []).Concat(playedLately)); }
-            _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; RenderLibrary(grow: more);
+            _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; _refreshErrorSaid = null; RenderLibrary(grow: more);
             // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.
             if (_sync is { PendingCount: > 0 } sync) sync.Wake();
             PumpOffline();
@@ -544,6 +546,17 @@ public partial class MainWindow : Window
                 var cached = more ? null : await Task.Run(() => TryCache(() => { var page = store.Load<ItemsResult>(home ? "home" : key); if (page is not null) TryCache(() => store.ApplyLocalProgress(page.Items)); return page; }));
                 if (version != _viewVersion) return false;
                 if (cached is not null) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; }
+                // Jellyfin answered, with an error (a 500 for one row, a page it could not read): said, but never « Hors
+                // connexion » nor « ne répond pas », as on Mac (MainWindow.Unanswered.cs). Said once, not at each try.
+                if (!Unanswered(ex))
+                {
+                    var said = Friendly(ex);
+                    if (!quiet || said != _refreshErrorSaid) SetError(said);
+                    _refreshErrorSaid = said;
+                    _catalog.Loading = false; RenderLibrary();
+                    return true;
+                }
+                _refreshErrorSaid = null;
                 // Kept until a refresh, or a report delivered after this failure, reaches Jellyfin again: the sync
                 // status no longer replaces it.
                 var wasOffline = _sync is { } current && SyncStatus.Offline(current.LastSynced, _offlineSince);
@@ -585,6 +598,7 @@ public partial class MainWindow : Window
         var brush = warning ? SyncWarning : SyncFine;
         if (!ReferenceEquals(SyncLabel.Foreground, brush)) SyncLabel.Foreground = brush;
         ShowOffline(SyncStatus.Offline(_sync.LastSynced, _offlineSince), text);
+        if (SettingsOverlay.Visibility == Visibility.Visible && EssentialsSettings.Visibility == Visibility.Visible) ShowEssentialsAccount();
     });
     private readonly DispatcherTimer _noticeTimer = new();
     private Action? _noticeAction;
