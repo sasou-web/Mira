@@ -154,6 +154,26 @@ public static class RemoteLines
     }
 
     /// <summary>
+    /// The same in a thin column (the queue beside a search in a small window): « 62 % · 11,4 Mo/s · reste 5 min »,
+    /// « En pause · 42 % », « Arrêté · 42 % »: the size and the peers left out, the rest as <see cref="Download"/> says it.
+    /// </summary>
+    public static string Brief(RelayDownload download)
+    {
+        var progress = L($"{Math.Clamp(download.Progress, 0, 100)} %", $"{Math.Clamp(download.Progress, 0, 100)}%");
+        switch (download.Status)
+        {
+            case "downloading":
+                var rate = Speed(download.Speed);
+                if (rate.Length == 0) return Join(progress, Math.Max(0, download.Peers) == 0 ? L("recherche de pairs…", "looking for peers…") : L("en attente de données", "waiting for data"));
+                return Join(progress, rate, TimeLeft(download) is { } left ? L($"reste {Remaining(left)}", $"{Remaining(left)} left") : "");
+            case "queued": return L("En file d’attente · ", "Queued · ") + progress;
+            case "paused": return L("En pause · ", "Paused · ") + progress;
+            case "stopped": return L("Arrêté · ", "Stopped · ") + progress;
+            default: return Download(download);
+        }
+    }
+
+    /// <summary>
     /// Why TorLink gave up, as Mira web says it (torlink.js: failure): a full disk or a folder it cannot write to in words,
     /// anything else in TorLink's own; empty when it did not say.
     /// </summary>

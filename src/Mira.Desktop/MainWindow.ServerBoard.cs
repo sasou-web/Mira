@@ -17,13 +17,18 @@ namespace Mira.Desktop;
 /// The Downloads page as « Régie » lays it out (maquette A chosen by ogsas, 2026-11-14): at rest the whole width is the
 /// server PC's, its queue in columns (picture, name and quality, bar, share, size, speed, time left, peers), then the series
 /// followed in a table and the latest titles placed as posters, side by side (one under the other below ~1150 px); during a
-/// search the results take the left and the queue goes tight on the right, the series and the titles folded under it.
+/// search the results take the left and the queue goes tight on the right, the series and the titles folded under it, in a
+/// window of any size (maquette C of the small window, 2026-11-14: the queue thinner, the head on one line).
 /// Pictures only from Jellyfin: a series followed, a title placed, the series a page asked for; anything else a plain tile.
 /// </summary>
 public partial class MainWindow
 {
     /// <summary>Below this width of the page, one column (« Régie » keeps both side by side above it).</summary>
     private const double ServerWideFrom = 1150;
+    /// <summary>Below this width of the page, the queue beside a search thinner still, the server PC's name out of the head.</summary>
+    private const double ServerThinFrom = 900;
+    /// <summary>The width of the queue beside a search: 428, 296 or 264.</summary>
+    private double _serverSide = 428;
     private bool _serverNarrow, _serverSearchShown, _serverPlacedAll, _serverFollowsOpen, _serverPlacedOpen;
     /// <summary>What the page last showed, drawn again when a picture arrives or the width changes.</summary>
     private RelayStatus? _serverStatus;
@@ -54,28 +59,100 @@ public partial class MainWindow
         ShowServerSearch(false);
     }
 
+    /// <summary>
+    /// Below <see cref="ServerWideFrom"/> the page at rest lays its sections one under the other, and a search keeps the large
+    /// window's two columns with a thinner queue (maquette C, 2026-11-14): 296 px, 264 below <see cref="ServerThinFrom"/>.
+    /// </summary>
     private void ServerDownloads_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var narrow = e.NewSize.Width < ServerWideFrom;
-        if (narrow == _serverNarrow && e.PreviousSize.Width > 0) { if (_serverStatus is { } same && !_serverPlacedAll) RenderServerPlaced(same); return; }
-        _serverNarrow = narrow;
+        var width = e.NewSize.Width;
+        var narrow = width < ServerWideFrom;
+        var side = narrow ? width < ServerThinFrom ? 264 : 296 : 428;
+        if (narrow == _serverNarrow && side == _serverSide && e.PreviousSize.Width > 0) { if (_serverStatus is { } same && !_serverPlacedAll) RenderServerPlaced(same); return; }
+        _serverNarrow = narrow; _serverSide = side;
         // Side by side, or one under the other: the series followed, then the titles placed.
         ServerColumns.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 40);
         ServerColumns.ColumnDefinitions[2].Width = narrow ? new GridLength(0) : new GridLength(404);
         Grid.SetColumn(ServerPlacedSection, narrow ? 0 : 2); Grid.SetRow(ServerPlacedSection, narrow ? 1 : 0);
-        // During a search, the queue above the results.
-        ServerSearchView.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 36);
-        ServerSearchView.ColumnDefinitions[2].Width = narrow ? new GridLength(0) : new GridLength(428);
-        Grid.SetColumn(ServerQueueScroll, narrow ? 0 : 2); Grid.SetRow(ServerQueueScroll, 0); Grid.SetRowSpan(ServerQueueScroll, narrow ? 1 : 2);
-        ServerQueueScroll.MaxHeight = narrow ? 320 : double.PositiveInfinity; ServerQueueScroll.Margin = new Thickness(0, 0, 0, narrow ? 18 : 0);
-        Grid.SetRow(ServerResultsColumn, narrow ? 1 : 0); Grid.SetRowSpan(ServerResultsColumn, narrow ? 1 : 2);
-        // The magnet link and the .torrent under the search field rather than squeezed beside it.
-        ServerSearchRule.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        Grid.SetColumn(ServerSearchTools, narrow ? 0 : 3); Grid.SetRow(ServerSearchTools, narrow ? 1 : 0); Grid.SetColumnSpan(ServerSearchTools, narrow ? 4 : 1);
-        ServerSearchTools.Margin = new Thickness(narrow ? -4 : 0, narrow ? 10 : 0, 0, 0); ServerSearchTools.HorizontalAlignment = narrow ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        // During a search, the results on the left and the queue on the right whatever the width: only the queue thins.
+        ServerSearchView.ColumnDefinitions[1].Width = new GridLength(side switch { 264 => 22, 296 => 28, _ => 36 });
+        ServerSearchView.ColumnDefinitions[2].Width = new GridLength(side);
+        ServerSideHead.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
+        ServerSideSummary.Margin = new Thickness(narrow ? 0 : 12, narrow ? 1 : 0, 0, narrow ? 0 : 2);
+        ServerSideTitle.FontSize = narrow ? 17 : 18;
+        foreach (var (fold, line) in new[] { (ServerFollowsFold, ServerFollowsFoldLine), (ServerPlacedFold, ServerPlacedFoldLine) })
+        {
+            fold.Height = narrow ? 44 : 52; fold.Padding = new Thickness(narrow ? 14 : 18, 0, narrow ? 12 : 16, 0); fold.Margin = new Thickness(0, narrow ? 8 : 10, 0, 0);
+            line.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        }
+        // The magnet link and the .torrent behind a « + » rather than squeezed beside the search field.
+        ServerSearchRule.Visibility = ServerSearchTools.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        ServerAddButton.Visibility = narrow ? Visibility.Visible : Visibility.Collapsed;
+        if (narrow && ServerMagnetRow.Visibility != Visibility.Visible && (ServerMagnetButton.IsKeyboardFocused || ServerTorrentButton.IsKeyboardFocused)) ServerAddButton.Focus();
         // The queue's columns change: its rows are made again.
         foreach (var key in _serverRows.Keys.Where(x => x.StartsWith("w:", StringComparison.Ordinal)).ToList()) _serverRows.Remove(key);
         if (_serverStatus is { } status) RenderServerStatus(status, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>The « + » beside « Search » in a small window: a magnet link, a .torrent, qBittorrent when it is offered.</summary>
+    private void ServerAdd_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = ServerAddButton, Placement = PlacementMode.Custom };
+        // Under the « + », its right edge on the button's: the page ends there.
+        menu.CustomPopupPlacementCallback = (size, target, _) => [new CustomPopupPlacement(new Point(target.Width - size.Width, target.Height + 6), PopupPrimaryAxis.Vertical)];
+        menu.Items.Add(MenuAction(L("Coller un lien magnet", "Paste a magnet link"), "link", () => { ServerMagnet_Click(ServerAddButton, e); return Task.CompletedTask; }));
+        menu.Items.Add(MenuAction(L("Ajouter un .torrent", "Add a .torrent"), "folder", () => { ServerTorrent_Click(ServerAddButton, e); return Task.CompletedTask; }));
+        if (QBittorrentInstallTop.Visibility == Visibility.Visible)
+            menu.Items.Add(MenuAction(L("Installer qBittorrent", "Install qBittorrent"), "download", () => { QBittorrentInstall_Click(ServerAddButton, e); return Task.CompletedTask; }));
+        menu.IsOpen = true;
+    }
+
+    /// <summary>Where the keyboard goes back once the magnet link's row closes: its button, or the « + » that hides it.</summary>
+    private Button MagnetReturn() => _serverNarrow ? ServerAddButton : ServerMagnetButton;
+
+    // ---- The page's head ---------------------------------------------------------------------------------
+
+    /// <summary>The words of the head's buttons, given back once the page is wide again (their tooltips too).</summary>
+    private readonly Dictionary<Button, object?> _headTips = [];
+    private bool? _headIcons;
+
+    /// <summary>
+    /// Below <see cref="ServerWideFrom"/> the head holds on one line, so that nothing jumps when a search starts: the line
+    /// under the title only when it says something other than its usual words (a problem, TorLink's state), the four
+    /// buttons as icons with their names in a tooltip, and the server PC's name only from <see cref="ServerThinFrom"/>.
+    /// </summary>
+    private void TorLinkHead_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var icons = e.NewSize.Width < ServerWideFrom;
+        _headThin = e.NewSize.Width < ServerThinFrom;
+        if (_serverScreen) DescribeServerMachine();
+        ShowTorLinkSubtitle();
+        if (_headIcons == icons) return;
+        _headIcons = icons;
+        foreach (var button in new[] { TorLinkViewButton, DownloadersButton, TorLinkFolderButton, TorLinkSettingsButton })
+        {
+            if (button.Content is not StackPanel { Children.Count: 2 } content || content.Children[0] is not Icon icon || content.Children[1] is not TextBlock words) continue;
+            if (!_headTips.ContainsKey(button)) _headTips[button] = button.ReadLocalValue(ToolTipProperty) is var tip && tip != DependencyProperty.UnsetValue ? tip : null;
+            words.Visibility = icons ? Visibility.Collapsed : Visibility.Visible;
+            icon.Margin = new Thickness(0, 0, icons ? 0 : 8, 0);
+            button.Padding = icons ? new Thickness(9) : new Thickness(18, 11, 18, 11);
+            if (icons) button.SetBinding(ToolTipProperty, new System.Windows.Data.Binding(nameof(TextBlock.Text)) { Source = words });
+            else if (_headTips[button] is { } tip) button.ToolTip = tip; else button.ClearValue(ToolTipProperty);
+            button.Margin = new Thickness(0, 0, button == TorLinkSettingsButton ? 0 : icons ? 2 : 6, 0);
+        }
+    }
+
+    private bool _headThin;
+
+    /// <summary>
+    /// The line under the title, hidden on one line when it only says its usual words: this page's line, or the server PC
+    /// ready (its pill says it). A problem, a PC closed or never opened always shows.
+    /// </summary>
+    private void ShowTorLinkSubtitle()
+    {
+        var text = TorLinkSubtitle.Text;
+        var usual = text.Length == 0 || text == TorLinkPageLine || (_serverScreen && !_serverLocal && _serverAgent is { Online: true } agent && string.IsNullOrEmpty(agent.Problem));
+        TorLinkSubtitle.Visibility = _headIcons == true && usual ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void ServerPlacedAll_Click(object sender, RoutedEventArgs e)
@@ -386,21 +463,23 @@ public partial class MainWindow
     {
         var status = _serverStatus;
         var download = line.Download;
-        var said = RemoteBoard.Waiting(line, now) ?? (download is not null && status?.Controls.FirstOrDefault(x => x.Target == download.Id) is { } pending ? RemoteLines.ActionLine(pending.Action) : null) ?? RemoteLines.Download(download!);
+        // Beside a search in a small window: the state without the size and the peers.
+        var thin = _serverSide < 428;
+        var said = RemoteBoard.Waiting(line, now) ?? (download is not null && status?.Controls.FirstOrDefault(x => x.Target == download.Id) is { } pending ? RemoteLines.ActionLine(pending.Action) : null) ?? (thin ? RemoteLines.Brief(download!) : RemoteLines.Download(download!));
         var bar = download is not null && download.Status is "downloading" or "queued" or "paused" or "stopped";
-        var shape = $"{LineShape(line, status)}|{bar}|{PosterShape(line.PosterId)}";
-        return new("c:" + line.Key, shape, line.Episode.Length > 0 ? $"{line.Title} · {line.Episode}" : line.Title, [said], bar ? download!.Progress : null, () => MakeCompactLine(line, bar, status));
+        var shape = $"{LineShape(line, status)}|{bar}|{PosterShape(line.PosterId)}|{thin}";
+        return new("c:" + line.Key, shape, line.Episode.Length > 0 ? $"{line.Title} · {line.Episode}" : line.Title, [said], bar ? download!.Progress : null, () => MakeCompactLine(line, bar, status, thin));
     }
 
-    private ServerRow MakeCompactLine(BoardLine line, bool withBar, RelayStatus? status)
+    private ServerRow MakeCompactLine(BoardLine line, bool withBar, RelayStatus? status, bool thin)
     {
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(thin ? 30 : 36) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.Children.Add(Thumb(line.PosterId, line.Episodic, 36, 54));
-        var text = new StackPanel { Margin = new Thickness(13, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(LineName(line, 14));
+        grid.Children.Add(thin ? Thumb(line.PosterId, line.Episodic, 30, 45) : Thumb(line.PosterId, line.Episodic, 36, 54));
+        var text = new StackPanel { Margin = new Thickness(thin ? 11 : 13, 0, thin ? 2 : 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(LineName(line, thin ? 13.5 : 14));
         ScaleTransform? bar = null;
         if (withBar)
         {
@@ -416,9 +495,9 @@ public partial class MainWindow
         text.Children.Add(said);
         Grid.SetColumn(text, 1); grid.Children.Add(text);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var button in LineActions(line, status)) actions.Children.Add(button);
+        foreach (var button in LineActions(line, status)) { if (thin) button.Width = 28; actions.Children.Add(button); }
         Grid.SetColumn(actions, 2); grid.Children.Add(actions);
-        var (frame, rule) = RowFrame(grid, 0, new Thickness(12, 11, 8, 11));
+        var (frame, rule) = RowFrame(grid, 0, thin ? new Thickness(9, 9, 2, 9) : new Thickness(12, 11, 8, 11));
         return new("", frame, [said], bar, rule);
     }
 

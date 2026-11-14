@@ -183,7 +183,15 @@ public partial class MainWindow
             ShowServerDownloadsSample();
             foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20-downloads-server", null, ServerDownloadsPanel);
             ShowServerSearchSample();
-            foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20b-downloads-search", null, ServerDownloadsPanel);
+            // Two columns down to the smallest window (maquette C, 2026-11-14): the results keep most of the height, the
+            // queue a thin column beside them. 1152 × 676 = a 1080p laptop's screen at 150 % less the taskbar.
+            foreach (var size in new[] { sizes[0], (Width: 1152, Height: 676, Name: "small"), sizes[2], sizes[3] })
+            {
+                await At(size, "20b-downloads-search", null, ServerDownloadsPanel);
+                if (Grid.GetColumn(ServerQueueScroll) != 2 || ServerResultsScroll.ActualHeight < 300 || ServerAddButton.IsVisible != size.Width < 1300)
+                    throw new InvalidOperationException($"The search at {size.Name}: results {ServerResultsScroll.ActualHeight:0} px high, queue in column {Grid.GetColumn(ServerQueueScroll)}, « + » {(ServerAddButton.IsVisible ? "shown" : "hidden")}.");
+                drawn.Add($"20b-downloads-search-{size.Name}: results {ServerResultsScroll.ActualHeight:0} × {ServerResultsScroll.ActualWidth:0} px, queue {ServerQueueScroll.ActualWidth:0} px wide");
+            }
             ServerQueryBox.Clear();
             HideServerDownloads(); ShowDownloaders(false);
             TorLinkOverlay.Visibility = Visibility.Collapsed;
