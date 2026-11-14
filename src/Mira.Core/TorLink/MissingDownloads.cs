@@ -11,10 +11,11 @@ public sealed record MissingAsk(int Season, IReadOnlyList<int> Episodes, bool Wh
 
 /// <summary>
 /// The series as the page knows it: its names, its year, the episodes of its earlier seasons (<paramref name="Before"/>: a
-/// release numbered from the first episode of the series, « Show - 31 », is S02E03 after 28), and the name typed instead
-/// (<paramref name="Query"/>, « Rien trouvé » then « Chercher »).
+/// release numbered from the first episode of the series, « Show - 31 », is S02E03 after 28), the name typed instead
+/// (<paramref name="Query"/>, « Rien trouvé » then « Chercher »), and the other names the PC of Jellyfin searched it under
+/// (<paramref name="Also"/>: an anime's, from AniList, « Sousou no Frieren » for « Frieren »).
 /// </summary>
-public sealed record MissingSeries(string Name, string? OriginalTitle, int? Year, int Before, string? Query = null);
+public sealed record MissingSeries(string Name, string? OriginalTitle, int? Year, int Before, string? Query = null, IReadOnlyList<string>? Also = null);
 
 /// <summary>A release for an episode or a season: the relay's search that found it (to ask for it) and how it ranks.</summary>
 public sealed record MissingOption(string Search, RankedRelease Entry);
@@ -73,14 +74,26 @@ public static partial class MissingDownloads
 
     /// <summary>
     /// What to search: the name typed alone; otherwise « Arcane S02 » then « Arcane » (an anime's releases seldom say the
-    /// season), without the year Jellyfin may put after the name.
+    /// season), without the year Jellyfin may put after the name; and the same with its original title when it is another
+    /// name in Latin letters (a library in French: « Les Anneaux de pouvoir », released as « The Lord of the Rings: The Rings
+    /// of Power »). A Japanese or Korean original title is no search: the PC of Jellyfin finds an anime's other names itself.
     /// </summary>
     public static List<string> Queries(MissingSeries series, int season)
     {
         if (RemoteDownloads.CleanQuery(series.Query) is { } typed) return [typed];
-        var name = RemoteDownloads.CleanQuery(Year().Replace(series.Name, "")) ?? RemoteDownloads.CleanQuery(series.Name);
-        if (name is null) return [];
-        return [string.Create(CultureInfo.InvariantCulture, $"{name} S{season:00}"), name];
+        var names = new List<string>();
+        foreach (var (name, original) in new[] { (series.Name, false), (series.OriginalTitle, true) })
+            if (name is not null && (RemoteDownloads.CleanQuery(Year().Replace(name, "")) ?? RemoteDownloads.CleanQuery(name)) is { } clean
+                && (!original || Latin(clean)) && names.All(x => ReleaseRanking.TitleKey(x) != ReleaseRanking.TitleKey(clean)))
+                names.Add(clean);
+        return [.. names.Select(x => string.Create(CultureInfo.InvariantCulture, $"{x} S{season:00}")), .. names];
+    }
+
+    /// <summary>Mostly Latin letters: a name the sites of TorLink can find releases under.</summary>
+    private static bool Latin(string name)
+    {
+        var letters = name.Where(char.IsLetter).ToList();
+        return letters.Count > 0 && letters.Count(c => c is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= 'À' and <= 'ɏ') or (>= 'Ḁ' and <= 'ỿ')) * 2 >= letters.Count;
     }
 
     /// <summary>The releases of TorLink's results (with the search of each) for what was asked.</summary>
@@ -88,7 +101,7 @@ public static partial class MissingDownloads
     {
         var wanted = ask.Episodes.Where(x => x >= 1).ToHashSet();
         var (first, last) = wanted.Count > 0 ? (wanted.Min(), wanted.Max()) : (1, int.MaxValue);
-        var keys = new[] { series.Name, Year().Replace(series.Name, ""), series.OriginalTitle, series.Query }
+        var keys = new[] { series.Name, Year().Replace(series.Name, ""), series.OriginalTitle, series.Query }.Concat(series.Also ?? [])
             .Select(ReleaseRanking.TitleKey).Where(x => x.Length > 0).ToHashSet();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var packs = new List<MissingOption>();

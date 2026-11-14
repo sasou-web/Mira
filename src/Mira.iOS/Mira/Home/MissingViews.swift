@@ -398,7 +398,7 @@ struct MissingSheet: View {
     private func search() async {
         guard let client = app.client else { return }
         picks = nil; error = nil; chosen = [:]; pack = nil
-        let known = MissingDownloads.Series(name: series.name ?? "", originalTitle: series.originalTitle, year: series.productionYear, before: await before(), query: query)
+        var known = MissingDownloads.Series(name: series.name ?? "", originalTitle: series.originalTitle, year: series.productionYear, before: await before(), query: query)
         do {
             let anime = await MissingLibraries.isAnime(series, client: client)
             var hits: [(search: String, hit: Releases.Hit)] = []
@@ -406,6 +406,9 @@ struct MissingSheet: View {
             for q in MissingDownloads.queries(known, season: ask.season) {
                 if query == nil { query = q }
                 let found = try await client.missingSearch(q, categories: MissingDownloads.categories(anime: anime))
+                // An anime's releases under the other names the PC of Jellyfin searched it under (AniList's).
+                let also = known.also
+                known.also += found.names.filter { name in !also.contains { $0.caseInsensitiveCompare(name) == .orderedSame } }
                 hits += found.hits
                 failure = failure ?? found.error
                 let trial = MissingDownloads.choose(ask, known, hits)

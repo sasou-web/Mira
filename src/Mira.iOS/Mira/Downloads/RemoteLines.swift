@@ -87,6 +87,8 @@ enum RemoteLines {
         var state: String
         var results: [Releases.Hit]?
         var error: String?
+        /// The other names the PC of Jellyfin searched under (an anime's, from AniList); an older one leaves them out.
+        var names: [String]?
     }
 
     struct Made: Decodable, Sendable { var id: String }

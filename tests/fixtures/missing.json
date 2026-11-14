@@ -61,11 +61,33 @@
       "packs": [],
       "episodes": { "3": "[SubsPlease] Dandadan - 03 (1080p) [ABCD1234].mkv" },
       "notFound": []
+    },
+    {
+      "name": "An anime under the other names the PC of Jellyfin searched it under (AniList's romaji), its season written « S2 » or « 2nd Season »",
+      "series": { "name": "Frieren: Beyond Journey's End", "originalTitle": "葬送のフリーレン", "year": 2023, "before": 28, "also": ["Sousou no Frieren"] },
+      "ask": { "season": 2, "episodes": [6, 7, 8], "wholeSeason": false },
+      "hits": [
+        ["[Erai-raws] Sousou no Frieren 2nd Season - 07 [1080p CR WEB-DL AVC AAC][MultiSub][5A357DEE]", 1.4, 650, "knaben", "anime"],
+        ["[SubsPlease] Sousou no Frieren S2 - 06 (1080p) [7D35515E].mkv", 1.4, 551, "animetosho", "anime"],
+        ["[SubsPlease] Sousou no Frieren S2 - 07 (1080p) [7D35515F].mkv", 1.4, 500, "animetosho", "anime"],
+        ["[Feibanyama] Frieren Beyond Journeys End S02E06 [IQIYI WebRip 2160p HEVC OPUS Multi-Subs] (Sousou no Frieren)", 3.0, 281, "nyaa", "anime"],
+        ["[SubsPlease] Sousou no Frieren - 08 (1080p) [AAAAAAAA].mkv", 1.4, 900, "nyaa", "anime"],
+        ["[SubsPlease] Sousou no Frieren S3 - 08 (1080p) [BBBBBBBB].mkv", 1.4, 900, "nyaa", "anime"]
+      ],
+      "packs": [],
+      "episodes": {
+        "6": "[SubsPlease] Sousou no Frieren S2 - 06 (1080p) [7D35515E].mkv",
+        "7": "[SubsPlease] Sousou no Frieren S2 - 07 (1080p) [7D35515F].mkv"
+      },
+      "notFound": [8]
     }
   ],
   "queries": [
     { "series": { "name": "Dandadan (2024)", "year": 2024, "before": 0 }, "season": 1, "queries": ["Dandadan S01", "Dandadan"] },
-    { "series": { "name": "Arcane", "year": 2021, "before": 9, "query": "Arcane League of Legends" }, "season": 2, "queries": ["Arcane League of Legends"] }
+    { "series": { "name": "Arcane", "year": 2021, "before": 9, "query": "Arcane League of Legends" }, "season": 2, "queries": ["Arcane League of Legends"] },
+    { "series": { "name": "Money Heist", "originalTitle": "La casa de papel", "year": 2017, "before": 0 }, "season": 3, "queries": ["Money Heist S03", "La casa de papel S03", "Money Heist", "La casa de papel"] },
+    { "series": { "name": "Frieren: Beyond Journey's End", "originalTitle": "葬送のフリーレン", "year": 2023, "before": 28 }, "season": 2, "queries": ["Frieren: Beyond Journey's End S02", "Frieren: Beyond Journey's End"] },
+    { "series": { "name": "Intouchables (2011)", "originalTitle": "Intouchables", "year": 2011, "before": 0 }, "season": 1, "queries": ["Intouchables S01", "Intouchables"] }
   ],
   "packChoices": [
     {

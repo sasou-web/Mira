@@ -396,7 +396,9 @@ public sealed partial class DetailPage
             foreach (var query in MissingDownloads.Queries(known, season))
             {
                 menu.Query ??= query;
-                var (found, error) = await MissingDownloads.SearchAsync(session.Client, query, MissingDownloads.Categories(anime), ct);
+                var (found, error, names) = await MissingDownloads.SearchAsync(session.Client, query, MissingDownloads.Categories(anime), ct);
+                // An anime's releases under the other names the PC of Jellyfin searched it under (AniList's).
+                if (names.Count > 0) known = known with { Also = [.. known.Also ?? [], .. names] };
                 hits.AddRange(found); failure ??= error;
                 var picks = MissingDownloads.Choose(menu.Ask, known, hits);
                 // Everything found already (or three season packs to choose from): the second, wider search would only add noise.

@@ -205,7 +205,7 @@ internal static class RemoteDownloadTests
             now = now.AddSeconds(50);
             relay.Exchange("pc-1", Report(searches: [new(search!, "done", hits, null)]));
             var state = relay.SearchState(search!)!;
-            Assert(state is { State: "done", Results: [{ Id: Hash, Name: "Dune Part Two 2024 1080p", Seeders: 120 }] }, "A result whose magnet link is another's is left out");
+            Assert(state is { State: "done", Results: [{ Id: Hash, Name: "Dune Part Two 2024 1080p", Seeders: 120 }], Names: null }, "A result whose magnet link is another's is left out");
             Assert(typeof(RelayHit).GetProperty("Magnet") is null, "Mira web never gets the magnet links of a search");
             var (picked, _) = relay.Request(null, search, Hash, "ignored", 0);
             Assert(relay.Status().Requests.First(x => x.Id == picked) is { Name: "Dune Part Two 2024 1080p", Size: 2L << 30, State: "waiting" }, "A result asked for keeps its own name and size");
@@ -271,8 +271,10 @@ internal static class RemoteDownloadTests
             var (movies, tv, anime) = (work.Searches[0].Id, work.Searches[1].Id, work.Searches[2].Id);
             relay.Exchange("pc-1", Report([new(movies, "done", [Hit(Hash, "One Piece Film Red 2022 1080p", 300), Hit(Other, "One Piece Stampede 2019 1080p", 90)], null), new(anime, "failed", null, "Nyaa ne répond pas.")]));
             Assert(relay.SearchState(id!)! is { State: "running", Results: [] }, "Not done while a category still runs");
-            relay.Exchange("pc-1", Report([new(tv, "done", [Hit(Episode, "One.Piece.2023.S01E01.1080p", 500), Hit(Hash, "One Piece Film Red 2022 1080p", 300)], null)]));
+            relay.Exchange("pc-1", Report([new(tv, "done", [Hit(Episode, "One.Piece.2023.S01E01.1080p", 500), Hit(Hash, "One Piece Film Red 2022 1080p", 300)], null,
+                ["One Piece Live Action", " ", "one piece live action", "Wan Pīsu"])]));
             var state = relay.SearchState(id!)!;
+            Assert(state.Names is ["One Piece Live Action", "Wan Pīsu"], "The other names the agent searched under, once each: " + string.Join(" | ", state.Names ?? []));
             Assert(state.State == "done" && state.Error is null && string.Join(",", state.Results.Select(x => $"{x.Category}:{x.Id[0]}")) == "movies:c,tv:e,movies:0",
                 "Mixed, the first of each category first; found twice, kept once; a category that failed leaves the others: " + string.Join(",", state.Results.Select(x => $"{x.Category}:{x.Id[0]}")));
             var (picked, _) = relay.Request(null, id!, Episode, null, null);
@@ -281,7 +283,7 @@ internal static class RemoteDownloadTests
             var (lost, _) = relay.Search("rien", RemoteDownloads.All);
             work = relay.Exchange("pc-1", Report());
             relay.Exchange("pc-1", Report([.. work.Searches.Select(x => new AgentSearchOutcome(x.Id, "failed", null, "TorLink n’est pas prêt."))]));
-            Assert(relay.SearchState(lost!)! is { State: "failed", Error: "TorLink n’est pas prêt.", Results: [] }, "Failed in every category");
+            Assert(relay.SearchState(lost!)! is { State: "failed", Error: "TorLink n’est pas prêt.", Results: [], Names: null }, "Failed in every category");
             var (none, failed) = RemoteDownloads.Combine<string>([], x => x);
             Assert(none.Count == 0 && failed is null, "Nothing to combine");
             return Task.CompletedTask;

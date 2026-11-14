@@ -37,8 +37,11 @@ public sealed record AgentReport(string? Name, bool Accepting, string? Problem, 
 public sealed record RelayDownload(string Id, string Name, string Status, int Progress, long Speed, int Peers, long Size = 0, long Downloaded = 0, long? Eta = null, string? Error = null);
 /// <summary>A finished download as Mira placed it, in Mira's words (TorLinkPlacement.StatusOf); its title in Jellyfin once indexed.</summary>
 public sealed record RelayPlaced(string Id, string Title, string Status, string? ItemId, bool Ok);
-/// <summary><paramref name="State"/>: done (its results) or failed (why).</summary>
-public sealed record AgentSearchOutcome(string Id, string State, List<AgentHit>? Results, string? Error);
+/// <summary>
+/// <paramref name="State"/>: done (its results) or failed (why). <paramref name="Names"/>: the other names it was searched
+/// under too (an anime's, from AniList), which name some of the results (after 0.9.8; an older agent leaves them out).
+/// </summary>
+public sealed record AgentSearchOutcome(string Id, string State, List<AgentHit>? Results, string? Error, List<string>? Names = null);
 public sealed record AgentHit(string Id, string Name, long Size, int Seeders, int Leechers, string Source, string Magnet, long? Added);
 /// <summary><paramref name="State"/>: sent (in TorLink now, new or already there) or done for a control; failed otherwise, with why.</summary>
 public sealed record AgentOutcome(string Id, string State, string? Error);
@@ -132,7 +135,8 @@ public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, b
 /// <summary><paramref name="Replace"/>: the title (its id in Jellyfin) whose file this download is to replace.</summary>
 public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created, string? Replace = null);
 public sealed record RelayControl(string Id, string Target, string Action, string State);
-public sealed record RelaySearch(string Id, string Query, string Category, string State, List<RelayHit> Results, string? Error);
+/// <summary><paramref name="Names"/>: the other names the agent searched under (<see cref="AgentSearchOutcome.Names"/>); an extension of 0.9.8 or before leaves them out.</summary>
+public sealed record RelaySearch(string Id, string Query, string Category, string State, List<RelayHit> Results, string? Error, List<string>? Names = null);
 /// <summary><paramref name="Category"/>: the search of TorLink that found it (movies, tv, anime); an extension before 0.8.3 leaves it out.</summary>
 public sealed record RelayHit(string Id, string Name, long Size, int Seeders, int Leechers, string Source, long? Added, string? Category = null);
 /// <summary>

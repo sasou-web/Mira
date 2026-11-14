@@ -148,10 +148,10 @@ public partial class MainWindow
         try
         {
             var query = RemoteDownloads.CleanQuery(search.Query);
-            var (hits, error) = query is null || !RemoteDownloads.IsCategory(search.Category) ? ([], L("Recherche refusée.", "Search refused."))
-                : installation is not { Headless: true } ? ([], TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false }, false, false, installation is { Outdated: false }) ?? L("TorLink n’est pas prêt sur le PC serveur.", "TorLink isn’t ready on the server PC."))
+            var (hits, error, names) = query is null || !RemoteDownloads.IsCategory(search.Category) ? ([], L("Recherche refusée.", "Search refused."), [])
+                : installation is not { Headless: true } ? ([], TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false }, false, false, installation is { Outdated: false }) ?? L("TorLink n’est pas prêt sur le PC serveur.", "TorLink isn’t ready on the server PC."), [])
                 : await SearchTorrentsAsync(installation, query, search.Category, _torlinkLifetime.Token);
-            _remoteSearchOutcomes.Add(new(search.Id, error is null ? "done" : "failed", hits, error));
+            _remoteSearchOutcomes.Add(new(search.Id, error is null ? "done" : "failed", hits, error, names.Count > 0 ? names : null));
             VisitRelaySoon();
         }
         catch (OperationCanceledException) { }
@@ -160,9 +160,10 @@ public partial class MainWindow
 
     /// <summary>
     /// A search on this PC, in one category: TorLink's, and Mira's own sites beside it unless turned off in TorLink's
-    /// settings, each in every form of the search (TorrentSearch: « JoJo's » and « JoJos », « Shōgun » and « Shogun »).
+    /// settings, each in every form of the search (TorrentSearch: « JoJo's » and « JoJos », « Shōgun » and « Shogun »), an
+    /// anime under its other names too (AniList's: <c>Names</c>).
     /// </summary>
-    private Task<(List<AgentHit> Hits, string? Error)> SearchTorrentsAsync(TorLinkInstallation installation, string query, string category, CancellationToken ct) =>
+    private Task<(List<AgentHit> Hits, string? Error, List<string> Names)> SearchTorrentsAsync(TorLinkInstallation installation, string query, string category, CancellationToken ct) =>
         TorrentSearch.RunAsync((form, token) => _torlinkHeadless.SearchAsync(installation, form, category, token), _settings.TorLinkMoreSources ? _searchSources : null, query, category, ct);
 
     /// <summary>Downloads into TorLink without a window, started for them; controls on downloads it has under way.</summary>

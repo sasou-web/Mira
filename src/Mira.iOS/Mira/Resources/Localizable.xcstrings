@@ -7403,12 +7403,12 @@
         }
       }
     },
-    "TorLink’s sites (The Pirate Bay through apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho and Torrents-CSV unless they’re turned off.": {
+    "TorLink’s sites (The Pirate Bay through apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho, Torrents-CSV and AniList (an anime’s other names) unless they’re turned off.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les sites de TorLink (The Pirate Bay par apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho et Torrents-CSV sauf s’ils sont coupés."
+            "value": "Les sites de TorLink (The Pirate Bay par apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho, Torrents-CSV et AniList (les autres noms d’un anime) sauf s’ils sont coupés."
           }
         }
       }
@@ -7423,12 +7423,12 @@
         }
       }
     },
-    "What you search for, as typed and without accents or apostrophes, and the Jellyfin PC’s IP address. Neither your account nor your library.": {
+    "What you search for, as typed and without accents or apostrophes (to AniList, the anime’s name alone), and the Jellyfin PC’s IP address. Neither your account nor your library.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce que tu cherches, tel quel et sans accents ni apostrophe, et l’adresse IP du PC de Jellyfin. Ni ton compte, ni ta bibliothèque."
+            "value": "Ce que tu cherches, tel quel et sans accents ni apostrophe (à AniList, le nom de l’anime seul), et l’adresse IP du PC de Jellyfin. Ni ton compte, ni ta bibliothèque."
           }
         }
       }
