@@ -590,7 +590,11 @@ public partial class MainWindow
             if (!measuring) return;
             var now = clock.Elapsed.TotalMilliseconds;
             if (moved.Count > 0) moving.Add(now);
-            if (trace.Count < 24) trace.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{now:0} ms (+{now - previous:0}) {(moved.Count == 0 ? "—" : string.Join(", ", moved.Take(4)))}"));
+            // And the pages' own opacity, whatever moved: a fade the measure would not see shows there.
+            var pages = string.Join(" ", new (string Name, UIElement Page)[] { ("Réglages", SettingsOverlay), ("Aide", GuideOverlay), ("Fiche", DetailOverlay), ("Bibliothèque", LibraryShell) }
+                .Where(x => x.Page.Visibility == Visibility.Visible)
+                .Select(x => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{x.Name}={x.Page.Opacity:0.###}{(x.Page.HasAnimatedProperties ? "a" : "")}{(x.Page.IsVisible ? "" : "(caché)")}")));
+            if (trace.Count < 24) trace.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{now:0} ms (+{now - previous:0}) {(moved.Count == 0 ? "—" : string.Join(", ", moved.Take(4)))} [{pages}]"));
             previous = now;
         }
         Moved(root, seen, restless, learning: true);
