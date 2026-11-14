@@ -82,11 +82,12 @@ public static class Motion
         target.IsHitTestVisible = false; target.Visibility = Visibility.Collapsed;
     }
     /// <summary>
-    /// Once WPF has laid out and drawn what just changed: <paramref name="frames"/> refreshes, a quarter of a second at
-    /// most. A transition started at once on something heavy to lay out or draw (Réglages filled and measured, the
-    /// library drawn again under a title's page) had its clock run through that first frame and showed nearly all of
-    /// its change in the next one (interface audit, 2026-11-14: 88 to 100 % in one frame); started after it, it shows
-    /// each step.
+    /// Once WPF has laid out and drawn what just changed: <paramref name="frames"/> refreshes at least, then one that
+    /// comes at the usual pace (a heavy frame holds the next refresh back until it is drawn), 0.6 s at most. A transition
+    /// started at once on something heavy to lay out or draw (Réglages filled and measured, the library drawn again
+    /// under a title's page) had its clock run through that frame and showed nearly all of its change in the next one
+    /// (interface audit, 2026-11-14: 88 to 100 % in one frame, then 2 frames for 170 ms on the Dell with two refreshes
+    /// alone); started after it, it shows each step.
     /// </summary>
     public static async Task DrawnAsync(int frames = 2)
     {
@@ -94,19 +95,21 @@ public static class Motion
         var seen = 0; var last = TimeSpan.MinValue;
         void Tick(object? sender, EventArgs e)
         {
-            // WPF may raise it more than once for one frame.
-            if (e is RenderingEventArgs { RenderingTime: var at }) { if (at == last) return; last = at; }
-            if (++seen < frames) return;
+            var steady = false;
+            if (e is RenderingEventArgs { RenderingTime: var at })
+            {
+                // WPF may raise it more than once for one frame.
+                if (at == last) return;
+                steady = last != TimeSpan.MinValue && (at - last).TotalMilliseconds < 40; last = at;
+            }
+            else steady = true;
+            if (++seen < frames || !steady) return;
             CompositionTarget.Rendering -= Tick; drawn.TrySetResult();
         }
         CompositionTarget.Rendering += Tick;
-        try { await Task.WhenAny(drawn.Task, Task.Delay(250)); }
+        try { await Task.WhenAny(drawn.Task, Task.Delay(600)); }
         finally { CompositionTarget.Rendering -= Tick; }
     }
-    /// <summary>
-    /// <see cref="Reveal"/> once the page is laid out and drawn (<see cref="DrawnAsync"/>): there meanwhile, unseen.
-    /// <paramref name="started"/> starts what goes with it (the window of Réglages rising) at the same time.
-    /// </summary>
     public static async void RevealDrawn(FrameworkElement target, int ms, double distance, Action? started = null)
     {
         if (Reduced) { Reveal(target, ms, distance); started?.Invoke(); return; }
