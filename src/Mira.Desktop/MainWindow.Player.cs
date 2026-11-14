@@ -649,7 +649,10 @@ public partial class MainWindow
     }
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
-        if (_closing) return; e.Cancel = true; _closing = true;
+        if (_closing) return;
+        var cross = _closeFromCross; _closeFromCross = false;
+        if (cross && !_sessionEnding && KeptByTheClock()) { e.Cancel = true; PutByTheClock(); return; }
+        e.Cancel = true; _closing = true;
         // Each step on its own and the close guaranteed: a full disk or a failing service must not leave a hidden
         // process that keeps the single-instance lock (every relaunch would say "déjà ouvert"). Failures are logged.
         try

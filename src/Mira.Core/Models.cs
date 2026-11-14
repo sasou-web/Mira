@@ -346,6 +346,8 @@ public sealed class PlayerSettings
     public string AudioPassthrough { get; set; } = AudioOutput.Off;
     /// <summary>« Son de nuit » (<see cref="Mira.Core.NightSound"/>): loud passages brought down, quiet ones raised; kept for the next videos.</summary>
     public bool NightSound { get; set; }
+    /// <summary>Told once that the window's cross keeps Mira by the clock while it works (Windows, <c>MainWindow.Windows.cs</c>).</summary>
+    public bool CloseKeptTold { get; set; }
     public bool AutoNext { get; set; } = true;
     /// <summary>« Tu regardes toujours ? » (<see cref="Mira.Core.StillWatching"/>): after 3 episodes in a row untouched, the next one waits for an answer.</summary>
     public bool StillWatching { get; set; } = true;

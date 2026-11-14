@@ -139,7 +139,7 @@ public partial class MainWindow
             throw new InvalidOperationException($"{screen}: {unringed.Count} control(s) Tab reaches without a visible focus ring: " + string.Join(", ", unringed.Take(6).Select(Accessible.Describe)) + ".");
     }
 
-    private const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, WM_NCLBUTTONUP = 0xA2, WM_NCLBUTTONDBLCLK = 0xA3, WM_NCMOUSELEAVE = 0x2A2, HTMAXBUTTON = 9;
+    private const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, WM_NCLBUTTONUP = 0xA2, WM_NCLBUTTONDBLCLK = 0xA3, WM_NCMOUSELEAVE = 0x2A2, HTMAXBUTTON = 9, WM_SYSCOMMAND = 0x112, SC_CLOSE = 0xF060;
     private static readonly Brush MaximizeHover = Frozen("#1CF4F4F5");
     private bool _maximizeHot, _maximizePressed;
     /// <summary>
@@ -163,6 +163,8 @@ public partial class MainWindow
                 if (over) { handled = true; return HTMAXBUTTON; }
                 break;
             case WM_NCMOUSELEAVE: SetMaximizeHot(false, hwnd); _maximizePressed = false; break;
+            // Alt+F4, « Close window » of the taskbar: the cross, as the window's own (MainWindow.Windows.cs).
+            case WM_SYSCOMMAND when (wParam.ToInt64() & 0xFFF0) == SC_CLOSE: _closeFromCross = true; break;
             case WM_NCLBUTTONDOWN or WM_NCLBUTTONDBLCLK when wParam.ToInt64() == HTMAXBUTTON: _maximizePressed = true; handled = true; break;
             case WM_NCLBUTTONUP when wParam.ToInt64() == HTMAXBUTTON:
                 if (_maximizePressed) Maximize_Click(this, new());
