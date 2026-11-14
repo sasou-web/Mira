@@ -67,7 +67,7 @@ public sealed partial class PlayerPage
         {
             var name = PlayerText.Language(code) ?? code;
             return (name, L("Sous-titres en " + name.ToLower(Culture), "Subtitles in " + name), code == _subtitleLanguage, (Action)(() => { if (code != _subtitleLanguage) _ = SearchSubtitlesAsync(code); }));
-        }), languages.Count > 4 ? 4 : 0);
+        }), languages.Count > 4 ? 4 : 0, "subtitle-language");
         chips.IsEnabled = !_keepingSubtitle;
         menu.Children.Add(chips);
         if (_subtitlePrivacy is { Length: > 0 } privacy) menu.Children.Add(MenuNote(privacy));
