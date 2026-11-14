@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using Mira.Core;
 using Mira.Desktop.Views;
@@ -9,15 +8,16 @@ namespace Mira.Desktop;
 public partial class MainWindow
 {
     /// <summary>
-    /// Mira's opening (« Le m prend sa place ») in the public gallery's real window: the start of this run glided (not
-    /// faded), then the opening drawn again moment by moment on the Home page, its clock held (27-opening-*): the page
-    /// takes clicks from the first moment, the mark lands exactly on the rail's, the tile exactly on Accueil, whose ink
-    /// is then the tile's; once over, the sliding tile is there and the veil gone. Without motion: at once.
+    /// Mira's opening (« Le clin d'œil ») in the public gallery's real window: the start of this run blinked (not faded),
+    /// then the opening drawn again moment by moment on the Home page, its clock held (27-opening-*): the page takes
+    /// clicks from the first moment, the mark shuts where it stood to a line as wide as it, then goes out with the black;
+    /// the rail is never touched (its mark and the page's tile shown throughout). Once over, the veil gone and its mark
+    /// put back. Without motion: at once.
     /// </summary>
     private async Task<string> CheckOpeningAsync(string output)
     {
         void Fail(string what) => throw new InvalidOperationException("Opening: " + what);
-        if (!_openingReport.StartsWith("glided", StringComparison.Ordinal)) Fail($"this run's start did not glide ({_openingReport}).");
+        if (!_openingReport.StartsWith("blinked", StringComparison.Ordinal)) Fail($"this run's start did not blink ({_openingReport}).");
         var started = _openingReport;
 
         SettingsOverlay.Visibility = GuideOverlay.Visibility = DetailOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
@@ -28,9 +28,11 @@ public partial class MainWindow
 
         Rect Bounds(FrameworkElement element) => element.TransformToVisual(StartupVeil).TransformBounds(new Rect(element.RenderSize));
         StartupVeil.Visibility = Visibility.Visible; StartupVeil.IsHitTestVisible = true; StartupVeil.Opacity = 1;
-        if (!StartOpening(frozen: true)) Fail("it would not glide on the Home page.");
+        UpdateLayout();
+        var still = Bounds(StartupMark);
+        if (!StartOpening(frozen: true)) Fail("it would not blink on the Home page.");
         var drawn = new List<string>();
-        foreach (var ms in new[] { 0, 120, 250, 380, 470, 560, 1400 })
+        foreach (var ms in new[] { 0, 60, 120, 180, 250, 310 })
         {
             DrawOpening(ms / 1000d);
             await CaptureAsync(output, $"27-opening-{ms:0000}");
@@ -43,25 +45,22 @@ public partial class MainWindow
                 if (hit is null || hit is Visual v && (v == StartupVeil || v.IsDescendantOf(StartupVeil))) Fail("the veil still takes the clicks as it goes.");
                 if (_libraryCovered) Fail("the library is still hidden under the lifting black.");
             }
+            // The rail is left as it is: its mark and the page's tile in place under the black all along.
+            if (RailMark.Opacity < 1 || RailIndicator.Opacity < 1) Fail($"the rail's mark or tile is hidden at {ms} ms.");
         }
-        // Just before landing, the mark is where the rail's is (and the same size); landed, the rail's own.
-        DrawOpening(OpeningGlide.Travel - 1e-4);
+        // Shut: where it stood, its centre unmoved, a line a little wider than the mark and 5.5 % of its height.
+        DrawOpening(OpeningBlink.Shut);
         UpdateLayout();
-        var moving = Bounds(StartupMark); var rail = Bounds(RailMark);
-        if (Math.Abs(moving.Left + moving.Width / 2 - (rail.Left + rail.Width / 2)) > 1 || Math.Abs(moving.Top + moving.Height / 2 - (rail.Top + rail.Height / 2)) > 1 || Math.Abs(moving.Width - rail.Width) > 1)
-            Fail($"the mark lands at {moving}, the rail's is at {rail}.");
-        DrawOpening(OpeningGlide.Travel);
-        if (StartupMark.Visibility == Visibility.Visible || RailMark.Opacity < 1) Fail("the rail's own mark does not take over once landed.");
-        // Over: the tile on Accueil exactly, its ink as on the tile.
-        DrawOpening(OpeningGlide.Longest);
-        var drop = RailDrop.Drawing.Bounds; var home = HomeNav.TransformToVisual(RailDrop).TransformBounds(new Rect(HomeNav.RenderSize));
-        if (Math.Abs(drop.Left - home.Left) > .5 || Math.Abs(drop.Top - home.Top) > .5 || Math.Abs(drop.Width - home.Width) > .5 || Math.Abs(drop.Height - home.Height) > .5)
-            Fail($"the tile lands at {drop}, Accueil is at {home}.");
-        if (HomeNav.Foreground is not SolidColorBrush ink || Palette.Get("OnAccent") is not SolidColorBrush lit || ink.Color != lit.Color) Fail("Accueil's ink is not the tile's once it lands.");
+        var line = Bounds(StartupMark);
+        if (Math.Abs(line.Left + line.Width / 2 - (still.Left + still.Width / 2)) > .5 || Math.Abs(line.Top + line.Height / 2 - (still.Top + still.Height / 2)) > .5
+            || Math.Abs(line.Width - still.Width * OpeningBlink.Wide) > .5 || Math.Abs(line.Height - still.Height * OpeningBlink.Slit) > .5 || StartupMark.Opacity < 1)
+            Fail($"shut, the mark is at {line}; it stood at {still}.");
+        DrawOpening(OpeningBlink.Length);
+        if (StartupMark.Opacity > 1e-6 || StartupShade.Opacity > 1e-6 || StartupWord.Opacity > 1e-6) Fail("the line or the black is still there once over.");
         FinishOpening();
-        if (StartupVeil.Visibility != Visibility.Collapsed || RailIndicator.Opacity < 1 || !RailDrop.Drawing.Bounds.IsEmpty) Fail("the sliding tile is not back, or the veil not gone.");
+        if (StartupVeil.Visibility != Visibility.Collapsed || StartupMark.Opacity < 1 || StartupMark.RenderTransform is ScaleTransform) Fail("the veil is not gone, or its mark not put back.");
 
-        // Without motion: the Home page at once, nothing glides.
+        // Without motion: the Home page at once, nothing winks.
         var reduced = Motion.Reduced; Motion.Reduced = true;
         try
         {
