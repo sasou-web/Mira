@@ -432,6 +432,22 @@ internal static class PlayerTests
             Assert(IconPaths.TenCentre("play") is null, "Only the jumps carry it");
             return Task.CompletedTask;
         });
+        await Test("Sélecteur segmenté : la pastille coulisse d'un choix à l'autre en 200 ms, sans rebond (Réglages | Aide, Windows et Mac)", () =>
+        {
+            Assert(SegmentedSwitch.SlideMs == 200, "200 ms");
+            Assert(SegmentedSwitch.Ease(0) == 0 && SegmentedSwitch.Ease(1) == 1 && SegmentedSwitch.Ease(-1) == 0 && SegmentedSwitch.Ease(2) == 1, "Ends");
+            var last = 0d;
+            for (var i = 1; i <= 100; i++)
+            {
+                var at = SegmentedSwitch.Ease(i / 100d);
+                Assert(at >= last && at <= 1, $"Never back, never past its place: {i}% = {at}");
+                last = at;
+            }
+            Assert(SegmentedSwitch.Ease(.5) > .8, "Ease-out: most of the way in the first half");
+            Assert(SegmentedSwitch.At(0, 2, 220) == 0 && SegmentedSwitch.At(1, 2, 220) == 110 && SegmentedSwitch.At(5, 2, 220) == 110 && SegmentedSwitch.At(1, 1, 220) == 0, "Equal parts");
+            Assert(SegmentedSwitch.Part(55, 2, 220) == .5 && SegmentedSwitch.Part(110, 2, 220) == 1 && SegmentedSwitch.Part(500, 2, 220) == 1 && SegmentedSwitch.Part(10, 2, 0) == 0, "Mid-slide, read back in parts");
+            return Task.CompletedTask;
+        });
         await Test("Mini-lecteur : rangé tout seul contre le bord droit, un bout de la vidéo qui dépasse, sorti au survol, rangé de nouveau après (Windows et Mac)", () =>
         {
             static TimeSpan At(double seconds) => TimeSpan.FromSeconds(seconds);

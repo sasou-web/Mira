@@ -56,6 +56,10 @@ public sealed partial class SettingsPage
     private readonly TextBlock _tabAbout = new() { FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly TextBox _search = new() { FontSize = 14, Padding = new Thickness(12, 9) };
     private readonly Button _toSettings = new(), _toHelp = new();
+    /// <summary>Réglages | Aide: its pill slides from one to the other (<see cref="Segmented"/>).</summary>
+    private readonly Segmented _turn;
+    /// <summary>Réglages | Aide, for the self-check.</summary>
+    public Segmented Turn => _turn;
     private readonly TextBlock _foot = new() { FontSize = 11, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap };
     private readonly Border _window = new();
     /// <summary>Aide's shortcuts, one line each, found by its search: the line, then its group's label and card.</summary>
@@ -118,9 +122,7 @@ public sealed partial class SettingsPage
         }
         _toSettings.Click += (_, _) => { if (HelpTopic is not null) ShowSettingsSide(); };
         _toHelp.Click += (_, _) => { if (HelpTopic is null) ShowHelp("keys"); };
-        var turn = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), Children = { _toSettings, _toHelp } };
-        Grid.SetColumn(_toHelp, 1);
-        var switcher = new Border { Background = Ui.Brush("#161616"), CornerRadius = new CornerRadius(12), Padding = new Thickness(3), Child = turn, Margin = new Thickness(0, 0, 0, 12) };
+        var switcher = new Border { Background = Ui.Brush("#161616"), CornerRadius = new CornerRadius(12), Padding = new Thickness(3), Child = _turn, Margin = new Thickness(0, 0, 0, 12) };
 
         _search.TextChanged += (_, _) => Searched();
         _search.KeyDown += (_, e) =>
@@ -249,13 +251,9 @@ public sealed partial class SettingsPage
     private void Side(bool help)
     {
         _settingsList.IsVisible = !help; _helpList.IsVisible = help;
+        _turn.Select(help ? 1 : 0);
         foreach (var (button, on) in new[] { (_toSettings, !help), (_toHelp, help) })
-        {
-            button.Background = on ? Ui.Brush("#242424") : Brushes.Transparent;
-            button.BorderBrush = on ? Ui.Brush("#3F3F3F") : Brushes.Transparent;
-            button.Foreground = on ? Ui.Ink : Ui.Muted;
             Avalonia.Automation.AutomationProperties.SetName(button, on ? L($"{button.Content}, affiché", $"{button.Content}, shown") : (string)button.Content!);
-        }
         _search.Watermark = help ? L("Rechercher dans l’aide", "Search help") : L("Rechercher un réglage", "Search settings");
         Avalonia.Automation.AutomationProperties.SetName(_search, _search.Watermark);
         _foot.Text = help ? L($"Mira {Updates.Current} · l’aide s’ouvre aussi par ⌘/.", $"Mira {Updates.Current} · help also opens with ⌘/.") : $"Mira {Updates.Current} · Jellyfin + mpv";

@@ -144,6 +144,7 @@ public sealed partial class SettingsPage : Page
         // —— L’essentiel: Mira and the account at a glance, the six settings changed most (SettingsPage.Essentials.cs) ——
         Tab("home").Children.Add(Essentials());
         if (shell.Session is { } own && !shell.InParty) _ = JellyfinAdminAsync(own);
+        _turn = new Segmented(_toSettings, _toHelp);
         Content = Layout(shell, help);
     }
     /// <summary>« Tailscale intégré », its node and the way to Jellyfin.</summary>

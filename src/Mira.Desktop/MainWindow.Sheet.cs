@@ -16,8 +16,9 @@ namespace Mira.Desktop;
 /// <summary>
 /// Réglages and Aide, one window over Mira (choice of ogsas, 2026-11-12): the app behind stays where it was, a still,
 /// blurred picture of it under a wash, the window in the middle with its list on the left. Réglages | Aide at the top
-/// of the list turns the window over at once; Échap, the cross or a click beside it closes it, back to the page under
-/// it (a title's page stays). Its search finds every setting, changed right where it is found.
+/// of the list turns the window over at once, its pill sliding across (<see cref="Segmented"/>); Échap, the cross or a
+/// click beside it closes it, back to the page under it (a title's page stays). Its search finds every setting, changed
+/// right where it is found.
 /// </summary>
 public partial class MainWindow
 {
@@ -33,7 +34,15 @@ public partial class MainWindow
     {
         var other = sheet == SettingsOverlay ? GuideOverlay : SettingsOverlay;
         if (Shown(sheet)) return;
-        if (Shown(other)) { Motion.Show(sheet); Motion.Hide(other); return; }
+        if (Shown(other))
+        {
+            // Réglages | Aide at its top: the pill slides over from where the other side's stood (one switch in each).
+            var (from, to) = sheet == SettingsOverlay ? (GuideSwitch, SettingsSwitch) : (SettingsSwitch, GuideSwitch);
+            var stood = from.Position;
+            Motion.Show(sheet); Motion.Hide(other);
+            to.SlideFrom(stood);
+            return;
+        }
         if (other.Visibility == Visibility.Visible) Motion.Hide(other);
         // Opened again while it fades: back on the picture it has, never one of itself fading.
         if (sheet.Visibility == Visibility.Visible && (sheet == SettingsOverlay ? SettingsBackdrop : GuideBackdrop).Source is not null) { Motion.Reveal(sheet, 200, 0); return; }
