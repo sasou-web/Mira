@@ -19,8 +19,9 @@
 $ErrorActionPreference = 'Stop'
 $Language = @($Language | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 foreach ($lang in $Language) { if ($lang -notin 'fr', 'en') { throw "Language: fr or en, not $lang." } }
-$Output = [IO.Path]::GetFullPath($Output)
-$exe = [IO.Path]::GetFullPath($Executable)
+# Against PowerShell's folder, not the process's (a scheduled task starts in System32).
+$Output = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Output)
+$exe = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Executable)
 if (-not (Test-Path -LiteralPath $exe)) { throw "No Mira.exe at $exe (built with the checks: -p:MiraValidation=true, the default)." }
 foreach ($name in @('session.protected', 'device-id')) {
     if (-not (Test-Path -LiteralPath (Join-Path $SignedIn $name))) { throw "No $name in $SignedIn : sign in to Mira there first." }

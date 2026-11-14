@@ -90,7 +90,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Build failed: " + (($build | Select-String -Pattern 'error' | Select-Object -First 3) -join ' / ') }
         $night = Join-Path $reports (Get-Date -Format 'yyyy-MM-dd')
         $previous = Get-ChildItem -LiteralPath $reports -Directory | Where-Object { $_.FullName -ne $night -and (Test-Path (Join-Path $_.FullName 'fr\findings.json')) } | Sort-Object Name | Select-Object -Last 1
-        $arguments = @{ Output = $night; Language = @('fr', 'en') }
+        $arguments = @{ Output = $night; Language = @('fr', 'en'); Executable = (Join-Path $repo 'src\Mira.Desktop\bin\Release\net10.0-windows10.0.19041.0\Mira.exe') }
         if ($previous) { $arguments.Previous = $previous.FullName }
         Say "Auditing into $night."
         try { & (Join-Path $repo 'tools\ui-audit.ps1') @arguments | ForEach-Object { Say $_ } }
