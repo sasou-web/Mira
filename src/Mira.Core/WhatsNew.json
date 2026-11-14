@@ -10,7 +10,6 @@
       { "category": "Menus", "text": "Les menus du lecteur, le clic droit et les listes prennent un même style plus net (Windows, Mac).", "en": { "category": "Menus", "text": "Player menus, right click and lists share one sharper style (Windows, Mac)." } },
       { "category": "Réglages", "text": "Les Réglages s’ouvrent sur « L’essentiel », avec les sections rangées par sujet (Windows, Mac).", "en": { "category": "Settings", "text": "Settings open on Essentials, with sections sorted by subject (Windows, Mac)." } },
       { "category": "Mac", "text": "Un Mac plus proche de Windows : clic sur l’image, menus, bandeau, mode hors connexion, ⌘1 à ⌘5.", "en": { "category": "Mac", "text": "A Mac closer to Windows: click on the picture, menus, banner, offline mode, ⌘1 to ⌘5." } },
-      { "category": "iPhone", "text": "Le bandeau de l’Accueil est net, comme sous Windows ; la taille d’un titre s’affiche aussi.", "en": { "category": "iPhone", "text": "The Home banner is sharp, as on Windows; a title’s size shows too." } },
       { "category": "Lecteur", "text": "« Passer l’opening » ne saute plus l’avant-générique ; le mini-lecteur rangé se sort plus facilement.", "en": { "category": "Player", "text": "Skip intro no longer skips the cold open; the tucked-away mini-player is easier to bring out." } }
     ],
     "items": [
