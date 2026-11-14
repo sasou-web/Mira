@@ -18,6 +18,7 @@
     <SolidColorBrush x:Key="Rule" Color="#222222"/>
     <SolidColorBrush x:Key="Inset" Color="#0A0A0A"/>
     <SolidColorBrush x:Key="TextBody" Color="#E0E0E0"/>
+    <SolidColorBrush x:Key="Dim" Color="#757575"/>
     <FontFamily x:Key="AppFont">avares://Mira/Assets/Fonts#Nunito</FontFamily>
     <!-- Switches: white when on, so their knob is dark to stay visible. -->
     <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#0B0B0B"/>
@@ -132,6 +133,13 @@
     <Style Selector="Button.menuchip.step"><Setter Property="Width" Value="30"/><Setter Property="MinHeight" Value="28"/><Setter Property="Height" Value="28"/><Setter Property="Padding" Value="0"/><Setter Property="FontSize" Value="16"/><Setter Property="Foreground" Value="{StaticResource TextBody}"/></Style>
     <Style Selector="Button.menuchip.step.value"><Setter Property="Width" Value="56"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="Bold"/><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
     <Style Selector="Button.menuchip.edged"><Setter Property="BorderBrush" Value="{StaticResource MenuLine}"/><Setter Property="Foreground" Value="{StaticResource Ink}"/><Setter Property="MinHeight" Value="32"/><Setter Property="HorizontalAlignment" Value="Right"/></Style>
+    <!-- One choice among a few, with more to say than a word (« Get season »'s packs): its round radio on the left, its words, the one chosen raised, in bold, the radio filled. -->
+    <Style Selector="RadioButton.pack"><Setter Property="Foreground" Value="{StaticResource TextBody}"/><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Padding" Value="14,11"/><Setter Property="Background" Value="Transparent"/><Setter Property="CornerRadius" Value="11"/><Setter Property="Cursor" Value="Hand"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="MinHeight" Value="0"/>
+      <Setter Property="Template"><ControlTemplate><Border Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"><DockPanel><Ellipse Name="Ring" DockPanel.Dock="Left" Width="18" Height="18" Stroke="{StaticResource Dim}" StrokeThickness="1.5" Margin="0,0,14,0" VerticalAlignment="Center"/><ContentPresenter Name="Words" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" VerticalAlignment="Center" HorizontalAlignment="Stretch"/></DockPanel></Border></ControlTemplate></Setter></Style>
+    <Style Selector="RadioButton.pack:pointerover"><Setter Property="Background" Value="{StaticResource Raised}"/></Style>
+    <Style Selector="RadioButton.pack:pressed"><Setter Property="Background" Value="{StaticResource Raised2}"/></Style>
+    <Style Selector="RadioButton.pack:checked"><Setter Property="Background" Value="{StaticResource Raised}"/><Setter Property="Foreground" Value="{StaticResource Ink}"/><Setter Property="FontWeight" Value="Bold"/></Style>
+    <Style Selector="RadioButton.pack:checked /template/ Ellipse#Ring"><Setter Property="Stroke" Value="{StaticResource Ink}"/><Setter Property="StrokeThickness" Value="5.5"/></Style>
     <!-- A row of a menu (a track, an action, an episode): flat, raised under the pointer and when chosen. -->
     <Style Selector="Button.menurow"><Setter Property="Background" Value="Transparent"/><Setter Property="CornerRadius" Value="10"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
     <Style Selector="Button.menurow.on"><Setter Property="Background" Value="{StaticResource Raised}"/></Style>
