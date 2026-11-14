@@ -52,7 +52,10 @@ public partial class MainWindow
         pip.Placed += () => RememberPip(pip);
         pip.Resized += SizePipSubtitles;
         pip.ControlsChanged += () => LiftPipSubtitles();
+        pip.PointerFreed += by => { if (!ValidationRun) ErrorLog.Note(AppFiles.ProfileDirectory, $"Picture in picture: the pointer was held by {by}, taken back"); };
         _pip = pip; _pipEngine = null; _pipSubtitles = null; _pipTracksAt = 0;
+        // Nothing of this window keeps the pointer: it would have every move over the small one too.
+        if (Mouse.Captured is not null) Mouse.Capture(null);
         try
         {
             pip.Show();
