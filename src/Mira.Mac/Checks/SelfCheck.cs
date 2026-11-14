@@ -823,12 +823,12 @@ public static class SelfCheck
                     await Task.Delay(600); Capture(window, output, "07a-downloads-rest");
                     // A name cut short slides to show its end while the pointer rests on its row, and comes back once it has left.
                     MacMotion.Override(reduced: false);
-                    var slider = downloads.GetVisualDescendants().OfType<SlidingText>().FirstOrDefault(x => x.IsCut);
+                    var slider = downloads.GetVisualDescendants().OfType<SlidingText>().Where(x => x.IsCut).MaxBy(x => x.Overflow);
                     var unmoved = downloads.GetVisualDescendants().OfType<SlidingText>().Where(x => !x.IsCut && x.IsEffectivelyVisible).ToList();
                     slider?.HoverForCheck(true); foreach (var other in unmoved) other.HoverForCheck(true);
                     await Task.Delay(300);
                     var resting = slider is { Slid: 0, Whole: false };
-                    var slid = slider is not null && await Until(() => slider.Slid > 20, 8);
+                    var slid = slider is not null && await Until(() => slider.Slid >= slider.Overflow - .5, 10); // all the way to its end (11 px on the Mac runner, 235 under Linux)
                     Check(slider is not null && resting && slid && unmoved.All(x => x.Slid == 0 && !x.Whole), "téléchargements : un nom coupé défile au survol de sa ligne, un nom qui tient ne bouge pas",
                         $"{(slider is null ? "aucun nom coupé" : $"{slider.Slid:0} px sur {slider.Overflow:0}, {slider.Frames} images")}, {unmoved.Count} immobiles");
                     await Task.Delay(200); Capture(window, output, "07a2-downloads-slid");
