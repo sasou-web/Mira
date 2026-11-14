@@ -308,6 +308,7 @@ public static class Cards
         if (item.Resumable) frame.Children.Add(Progress(item.Progress));
         if (item.UserData.Played) frame.Children.Add(Watched());
         else if (item.EpisodesToWatchBadge is { } count) frame.Children.Add(ToWatch(count));
+        var ring = Ring(10); frame.Children.Add(ring);
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
         var aspect = new AspectBox(2.0 / 3) { Child = art };
         var caption = Ui.Column(2,
@@ -317,7 +318,7 @@ public static class Cards
         var body = new StackPanel { Spacing = 10 };
         body.Children.Add(aspect); body.Children.Add(caption);
         var button = new Button { Content = body, Classes = { "card" } };
-        Hover(button, placeholder, image);
+        Hover(button, ring, [placeholder, image]);
         button.Click += (_, _) => open(item);
         Menu(button, item, menu);
         Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { item.DisplayTitle, Caption(item), item.EpisodesToWatchText }.Where(x => !string.IsNullOrEmpty(x))));
@@ -333,6 +334,7 @@ public static class Cards
         frame.Children.Add(image);
         frame.Children.Add(new Border { Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0.55, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#00000000"), 0), new GradientStop(Color.Parse("#A0000000"), 1) } } });
         if (item.Resumable) frame.Children.Add(Progress(item.Progress));
+        var ring = Ring(10); frame.Children.Add(ring);
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
         var line = item.Type == "Episode" ? $"{EpisodeCode(item)} — {item.Name}" : item.Progress > 0 ? Ui.Remaining(item) : Caption(item);
         var caption = Ui.Column(2,
@@ -341,7 +343,7 @@ public static class Cards
         var body = new StackPanel { Spacing = 10, Width = width };
         body.Children.Add(art); body.Children.Add(caption);
         var button = new Button { Content = body, Classes = { "card" } };
-        Hover(button, placeholder, image);
+        Hover(button, ring, [placeholder, image]);
         button.Click += (_, _) => open(item);
         Menu(button, item, menu);
         Avalonia.Automation.AutomationProperties.SetName(button, $"{item.DisplayTitle}, {line}");
@@ -393,10 +395,12 @@ public static class Cards
     public static Button Person(MediaItem person, Images? images, Action<MediaItem> open, string? role = null, double size = 88)
     {
         var image = new Image { Stretch = Stretch.UniformToFill, Width = size, Height = size };
+        var face = new Grid { Children = { new TextBlock { Text = Catalog.Initials(person.Name), FontSize = size * 26 / 88, FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }, image } };
+        var ring = Ring(size / 2);
         var circle = new Border
         {
             Width = size, Height = size, CornerRadius = new CornerRadius(size / 2), ClipToBounds = true, Background = Ui.Raised, HorizontalAlignment = HorizontalAlignment.Center,
-            Child = new Grid { Children = { new TextBlock { Text = Catalog.Initials(person.Name), FontSize = size * 26 / 88, FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }, image } }
+            Child = new Grid { Children = { face, ring } }
         };
         var body = new StackPanel { Spacing = 10, Width = size < 88 ? 104 : 112 };
         body.Children.Add(circle);
@@ -404,7 +408,7 @@ public static class Cards
         if (role?.Trim() is { Length: > 0 } part)
             body.Children.Add(new TextBlock { Text = part, FontSize = 12.5, FontWeight = FontWeight.Normal, Foreground = Ui.Muted, TextAlignment = TextAlignment.Center, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, -8, 0, 0) });
         var button = new Button { Content = body, Classes = { "card" } };
-        Hover(button, circle);
+        Hover(button, ring, [face]);
         button.Click += (_, _) => open(person);
         Avalonia.Automation.AutomationProperties.SetName(button, person.Name);
         if (images is not null && person.ImageTags.ContainsKey("Primary")) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(person, 200));
@@ -473,13 +477,20 @@ public static class Cards
         Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0B"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
     };
     private static readonly ITransform Lifted = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1.025)"), Resting = Avalonia.Media.Transformation.TransformOperations.Parse("scale(1)");
+    /// <summary>The light ring of a card under the pointer, as on Windows (MediaCard, PersonCard), inside its rounded frame.</summary>
+    public static Border Ring(double radius) => new()
+    {
+        BorderBrush = Ui.Brush("#EBF5F5F7"), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(radius), Opacity = 0, IsHitTestVisible = false,
+        Transitions = [new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(160) }]
+    };
     /// <summary>
-    /// A slight zoom of the picture under the pointer, inside its rounded frame, as on Windows (MediaCard.HoverZoom): the
-    /// frame itself zoomed lost its rounded corners in Avalonia (square ones past the card, seen on a Mac). The pointer's
-    /// own doing: while the page scrolls the cards by under a still pointer (<see cref="Ui.Scrolling"/>), none zooms on its
-    /// way; the one under it does once the pointer moves.
+    /// A slight zoom of the picture under the pointer, inside its rounded frame, and the light <paramref name="ring"/> (none:
+    /// a frame of its own, the episode up next), as on Windows (MediaCard.HoverZoom): the frame itself zoomed lost its
+    /// rounded corners in Avalonia (square ones past the card, seen on a Mac). The pointer's own doing: while the page
+    /// scrolls the cards by under a still pointer (<see cref="Ui.Scrolling"/>), none zooms on its way; the one under it
+    /// does once the pointer moves. <paramref name="lift"/>: told too (an episode's play button).
     /// </summary>
-    private static void Hover(Button button, params Control[] pictures)
+    public static void Hover(Button button, Control? ring, Control[] pictures, Action<bool>? lift = null)
     {
         foreach (var picture in pictures)
         {
@@ -487,7 +498,14 @@ public static class Cards
             picture.Transitions = [new TransformOperationsTransition { Property = Visual.RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(160) }];
         }
         var lifted = false;
-        void Lift(bool up) { if (up == lifted) return; lifted = up; foreach (var picture in pictures) picture.RenderTransform = up ? Lifted : Resting; }
+        void Lift(bool up)
+        {
+            if (up == lifted) return;
+            lifted = up;
+            foreach (var picture in pictures) picture.RenderTransform = up ? Lifted : Resting;
+            if (ring is not null) ring.Opacity = up ? 1 : 0;
+            lift?.Invoke(up);
+        }
         button.PointerEntered += (_, _) => { if (!Ui.Scrolling) Lift(true); };
         button.PointerMoved += (_, _) => { if (!lifted && !Ui.Scrolling) Lift(true); };
         button.PointerExited += (_, _) => Lift(false);

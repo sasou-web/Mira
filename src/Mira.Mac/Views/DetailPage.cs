@@ -1044,6 +1044,9 @@ public sealed partial class DetailPage : Page
             });
             still.Children.Add(new Border { BorderBrush = Ui.Ink, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false });
         }
+        // The posters' light ring under the pointer (Cards.Hover); the one to watch keeps its white frame and only zooms.
+        var ring = isNext ? null : Cards.Ring(10);
+        if (ring is not null) still.Children.Add(ring);
         var picture = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = still };
         var root = new StackPanel { Background = Brushes.Transparent, Children = { picture, TileTitle(episode, episode.Name) } };
         root.Children.Add(new TextBlock { Text = EpisodeTiles.Meta(episode, EpisodeCalendar.Today()), FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });
@@ -1053,7 +1056,8 @@ public sealed partial class DetailPage : Page
         // « Sur ce Mac », « 42 % », « En attente »: a copy kept on this Mac.
         if (Shell.CopyState(episode.Id) is { } kept) root.Children.Add(new TextBlock { Text = kept, FontSize = 12, Foreground = Ui.Brush("#DADAE0"), Margin = new Thickness(0, 6, 0, 0) });
         var button = new Button { Content = root, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top };
-        if (!isNext) { button.PointerEntered += (_, _) => play.Opacity = 1; button.PointerExited += (_, _) => play.Opacity = 0; }
+        // As a poster: the still zooms inside its rounded frame (its marks stay still), the ring and play come.
+        Cards.Hover(button, ring, [image], up => { if (!isNext) play.Opacity = up ? 1 : 0; });
         button.Click += (_, _) => _ = Shell.PlayAsync(episode);
         Ui.MenuOn(button, () => Shell.EpisodeMenu(episode));
         Avalonia.Automation.AutomationProperties.SetName(button, $"{L("Épisode", "Episode")} {episode.IndexNumber}, {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? L(", vu", ", watched") : isNext ? L(", à suivre", ", up next") : "")}");

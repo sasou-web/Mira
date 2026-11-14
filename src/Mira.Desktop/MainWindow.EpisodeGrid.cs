@@ -3,6 +3,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Mira.Core;
 using Mira.Desktop.Services;
 using Mira.Desktop.Views;
@@ -24,6 +25,10 @@ public partial class MainWindow
         var template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
         template.Seal(); return template;
     }
+
+    /// <summary>The ring of a tile under the pointer: the posters' (MediaCard).</summary>
+    private static readonly SolidColorBrush HoverRing = Frozen(new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)));
+    private static T Frozen<T>(T value) where T : Freezable { value.Freeze(); return value; }
 
     // The tiles' panel: as wide as the page plus one gap, each tile followed by its gap.
     private static WrapPanel TileGrid() => new() { Margin = new Thickness(0, 0, -EpisodeTiles.Gap, 0) };
@@ -74,7 +79,9 @@ public partial class MainWindow
         var picture = new Grid { Background = Palette.Get("Raised2") };
         // « Cacher les spoilers »: an episode not started shows Jellyfin's BlurHash of its still, the still never fetched.
         var hidden = Spoilers.Hides(episode, _settings.HideSpoilers);
-        var image = new Image { Stretch = Stretch.UniformToFill }; picture.Children.Add(image);
+        // Under the pointer, as a poster (MediaCard): the still zooms gently inside its rounded frame.
+        var zoom = new ScaleTransform(1, 1);
+        var image = new Image { Stretch = Stretch.UniformToFill, RenderTransformOrigin = new Point(.5, .5), RenderTransform = zoom }; picture.Children.Add(image);
         if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
         var progress = episode.UserData.Played ? 1 : episode.Resumable ? episode.Progress : 0;
         if (progress > 0)
@@ -98,11 +105,32 @@ public partial class MainWindow
             });
             picture.Children.Add(new Border { BorderBrush = Palette.Get("Text"), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false });
         }
-        else
+        // The poster's light ring, under the pointer or the keyboard; the one to watch keeps its white frame and only zooms.
+        var ring = isNext ? null : new Border { BorderBrush = HoverRing, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false, Opacity = 0 };
+        if (ring is not null) picture.Children.Add(ring);
+        var lifted = false;
+        void Lift(bool up)
         {
-            button.MouseEnter += (_, _) => play.Visibility = Visibility.Visible; button.MouseLeave += (_, _) => { if (!button.IsKeyboardFocused) play.Visibility = Visibility.Hidden; };
-            button.GotKeyboardFocus += (_, _) => play.Visibility = Visibility.Visible; button.LostKeyboardFocus += (_, _) => { if (!button.IsMouseOver) play.Visibility = Visibility.Hidden; };
+            if (up == lifted) return;
+            lifted = up;
+            if (!isNext) play.Visibility = up ? Visibility.Visible : Visibility.Hidden;
+            var scale = up && !Motion.Reduced ? MediaCard.HoverZoom : 1; var opacity = up ? 1d : 0d;
+            if (Motion.Reduced)
+            {
+                zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null); zoom.BeginAnimation(ScaleTransform.ScaleYProperty, null); zoom.ScaleX = zoom.ScaleY = scale;
+                if (ring is not null) { ring.BeginAnimation(OpacityProperty, null); ring.Opacity = opacity; }
+                return;
+            }
+            var time = TimeSpan.FromMilliseconds(160);
+            zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale, time) { EasingFunction = Motion.Soft });
+            zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale, time) { EasingFunction = Motion.Soft });
+            ring?.BeginAnimation(OpacityProperty, new DoubleAnimation(opacity, time) { EasingFunction = Motion.Soft });
         }
+        // The pointer's own doing, as on the posters: tiles going by under a still pointer while the page scrolls stay quiet.
+        button.MouseEnter += (_, _) => { if (!PageScrolling) Lift(true); };
+        button.MouseMove += (_, _) => { if (!lifted && !PageScrolling) Lift(true); };
+        button.MouseLeave += (_, _) => { if (!button.IsKeyboardFocused) Lift(false); };
+        button.GotKeyboardFocus += (_, _) => Lift(true); button.LostKeyboardFocus += (_, _) => { if (!button.IsMouseOver) Lift(false); };
         root.Children.Add(picture);
         var title = new TextBlock { FontSize = 14.5, FontWeight = FontWeights.Bold, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 11, 0, 0) };
         if (EpisodeTiles.Number(episode) is { Length: > 0 } number) title.Inlines.Add(new Run(number + "  ") { FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted") });
