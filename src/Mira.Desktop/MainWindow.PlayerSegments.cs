@@ -33,6 +33,8 @@ public partial class MainWindow
     private DateTimeOffset _skipSince;
     private bool _skipShown;
     private double _skipLift = double.NaN;
+    /// <summary>The pill already showed the countdown at the last tick: its width is the countdown's.</summary>
+    private bool _skipCounted;
     // The pill stays while the controls are shown; otherwise it lingers a few seconds, as in Jellyfin.
     private static readonly TimeSpan SkipLinger = TimeSpan.FromSeconds(8);
     private bool SkipAvailable => _skipShown && _skips.Active is not null;
@@ -143,7 +145,10 @@ public partial class MainWindow
         // Playback time drives the countdown, so pausing pauses it too.
         if (_skips.Due(_session.Position) is { } next) { _nextByItself = true; _ = PlayAsync(next, _miniPlayer, completePrevious: true); return; }
         var counting = _skips.Counting;
+        // The pill keeps the width of « … 10 s » while it counts down: otherwise « Annuler », beside it, moves at 10 → 9.
+        SkipText.MinWidth = counting && _skipCounted ? Math.Max(SkipText.MinWidth, SkipText.ActualWidth) : 0;
         if (_skips.CountdownText(_session.Position) is { } label && SkipText.Text != label) SkipText.Text = label;
+        _skipCounted = counting;
         if (counting && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);
         else if (!counting && SkipCancel.Visibility == Visibility.Visible && SkipCancel.IsHitTestVisible) _ = Motion.HideAsync(SkipCancel, 140);
         SetSkipVisible(_skips.Active is not null && (_controlsVisible || counting || (!_session.Paused && DateTimeOffset.UtcNow - _skipSince < SkipLinger)));

@@ -10,6 +10,8 @@
 - **Double clic sur l’image sans pause (Windows, Mac)** : un double clic un peu lent (plus de 0,22 s entre les deux clics, alors que Windows et macOS l’acceptent jusqu’à 0,5 s par défaut) mettait en pause au premier clic puis passait en plein écran : on se retrouvait en plein écran sur une image figée. Le second clic annule maintenant cette pause : le double clic ne fait que le plein écran.
 - **Raccourcis du lecteur dans l’Aide (Windows)** : ↑ ↓ (volume), M (couper le son), E (épisodes) et P (épisode précédent) manquaient à Aide → Raccourcis clavier ; le Mac les listait déjà.
 - **Barres du lecteur sous le pointeur (Mac)** : comme sous Windows, la barre du haut aussi reste tant que le pointeur s’y pose pendant la lecture, et les barres partent en pause même sous le pointeur, pour voir l’image entière.
+- **Pastille « Épisode suivant dans 10 s » immobile (Windows, Mac)** : elle rétrécissait au passage de 10 à 9 s et « Annuler », à côté, sautait de quelques pixels ; chiffres à chasse fixe et largeur gardée pendant le décompte.
+- **Pastille « Passer l’opening » comme sous Windows (Mac)** : elle restait tout le passage au-dessus de la barre ; elle part maintenant 8 s après son arrivée si les commandes sont cachées (elle revient avec elles), et descend près du bord quand la barre part.
 
 ## 0.9.10 — 2026-11-14
 
