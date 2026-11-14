@@ -283,8 +283,7 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(brand, Dock.Top); DockPanel.SetDock(bottom, Dock.Bottom);
         dock.Children.Add(brand); dock.Children.Add(bottom); dock.Children.Add(_railItems);
         // As on Windows: the rail is the window itself (no panel of its own, no edge), only the chosen page is lit.
-        // Under the buttons, the tile that drops onto Accueil as Mira opens (MainWindow.Opening.cs).
-        return new Border { Width = RailWidth, Background = Brushes.Transparent, Child = new Panel { Children = { _railDrop, dock } } };
+        return new Border { Width = RailWidth, Background = Brushes.Transparent, Child = dock };
     }
     // A notice: a card at the bottom of the window, its icon in a tile, its button, a close button, and the time it has left under it.
     private Border BuildToast()
