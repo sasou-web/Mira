@@ -62,6 +62,7 @@ public partial class MainWindow
     {
         ShowEssentialsUpdate();
         ShowEssentialsAccount();
+        EssentialsJapaneseFirst.Visibility = JapaneseFirstCheck.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         var colour = (SubtitleColorChoice.SelectedItem as ComboBoxItem)?.Content as string ?? "";
         EssentialsSubtitleStyle.Text = L("Taille", "Size") + " " + ((int)SubtitleSizeSlider.Value).ToString(Lang.Culture) + (colour.Length > 0 ? " · " + colour.ToLower(Lang.Culture) : "");
     }

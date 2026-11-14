@@ -65,6 +65,10 @@ internal static class BoardTests
             var gone = RemoteBoard.Follows(status with { Follows = [quiet with { Note = new FollowNote("missing") }] }, now)[0];
             Assert(gone.Warning && !gone.Live, "Une série partie de Jellyfin : en avertissement.");
             Assert(RemoteBoard.Coming(status.Follows, now) == "Les Étoiles du Nord S01E06 sort demain", "Ligne repliée : " + RemoteBoard.Coming(status.Follows, now));
+            var shelf = RemoteBoard.Shelf([new("1", "Arcane · S02E06", "", "e6", true), new("2", "Flow", "", "f", true), new("3", "Arcane · S02E05", "", "e5", true),
+                new("4", "Arcane · S02E07", "", null, true), new("5", "Le Col · S01E01", "", "c1", true), new("6", "arcane · S02E04", "", "e4", true)]);
+            Assert(shelf.Select(x => x.Title).SequenceEqual(["Arcane · 3 épisodes", "Flow", "Arcane · S02E07", "Le Col · S01E01"]) && shelf[0].ItemId == "e6",
+                "Rangés : une affiche par série, à la place de son épisode le plus récent ; celui que Jellyfin ajoute encore à part : " + string.Join(" | ", shelf.Select(x => x.Title)));
             Assert(RemoteBoard.Latest([new("1", "Flow", "", null, true), new("2", "Nimona", "", null, true), new("3", "Arcane · S02E05", "", null, true), new("4", "Le Col", "", null, true)]) == "Flow, Nimona, Arcane · S02E05…", "Derniers rangés.");
             return Task.CompletedTask;
         });

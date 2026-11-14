@@ -14,7 +14,7 @@ public static class SheetWindow
     public const double BackdropScale = .25;
 
     /// <summary>
-    /// True when every word of <paramref name="query"/> is in <paramref name="text"/>, without regard to case or accents
+    /// True when every word of <paramref name="query"/> starts a word of <paramref name="text"/>, without regard to case or accents
     /// (« sous-titre » finds « Sous-titres », « reglage » finds « Réglages »). A word or phrase of <see cref="Synonyms"/>
     /// is found by any of its group: « update », « mettre à jour » or « nouvelle version » find « Updates » as well as
     /// « Mises à jour », « blurry » finds « Quality » (a friend could not find where Mira updates, 2026-11-14). An empty
@@ -28,8 +28,8 @@ public static class SheetWindow
         for (var i = 0; i < words.Length;)
         {
             var (group, length) = Synonym(words, i);
-            if (group is not null) { if (!group.Any(phrase => folded.Contains(phrase, StringComparison.Ordinal))) return false; i += length; continue; }
-            if (!folded.Contains(words[i], StringComparison.Ordinal)) return false;
+            if (group is not null) { if (!group.Any(phrase => Starts(folded, phrase))) return false; i += length; continue; }
+            if (!Starts(folded, words[i])) return false;
             i++;
         }
         return true;
@@ -52,6 +52,17 @@ public static class SheetWindow
         ["skip", "intro", "intros", "opening", "generique", "recap", "recaps", "passer"],
         ["back to back", "autoplay", "binge", "enchainer", "episode suivant", "next episode"],
     ];
+    /// <summary>
+    /// <paramref name="word"/> at the start of a word of <paramref name="text"/>: « mini » finds « Minimize », never
+    /// « administrator » (Dell, 2026-11-14: five results without a mini-player among them).
+    /// </summary>
+    private static bool Starts(string text, string word)
+    {
+        for (var at = text.IndexOf(word, StringComparison.Ordinal); at >= 0; at = text.IndexOf(word, at + 1, StringComparison.Ordinal))
+            if (at == 0 || !char.IsLetterOrDigit(text[at - 1])) return true;
+        return false;
+    }
+
     /// <summary>The longest phrase of <see cref="Synonyms"/> that <paramref name="words"/> spell from <paramref name="at"/> on, with its group.</summary>
     private static (string[]? Group, int Length) Synonym(string[] words, int at)
     {

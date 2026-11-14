@@ -714,7 +714,7 @@ public partial class MainWindow : Window
         ClosePreview(); UsernameBox.Text = _client?.Connection.UserName ?? "";
         if (_client is not null) ServerBox.Text = _client.Connection.Server; else if (ServerBox.Text.Trim().Length == 0) FindServer();
         RenderTailnetLogin();
-        LoginArt.Source = _demo ? null : HeroImage.Source;
+        LoginArt.Source = _demo ? null : LoginBackdrop(HeroImage.Source);
         LogoutButton.Visibility = _profile.LoadConnection() is null ? Visibility.Collapsed : Visibility.Visible; EraseAccountData.IsChecked = false;
         BackToLibrary.Visibility = _client is not null || _demo ? Visibility.Visible : Visibility.Collapsed;
         var signedIn = _client is not null && LogoutButton.Visibility == Visibility.Visible;
@@ -722,6 +722,29 @@ public partial class MainWindow : Window
         LoginSignedIn.Text = signedIn ? L($"Connecté en tant que {_client!.Connection.UserName} sur ce serveur. Un autre nom et son mot de passe changent de compte.", $"Signed in as {_client!.Connection.UserName} on this server. Another name and its password switch accounts.") : "";
         LoginSignedIn.Visibility = signedIn ? Visibility.Visible : Visibility.Collapsed;
         LoginError.Text = ""; ShowSignInForm(); Motion.Reveal(LoginOverlay); UpdateHeroClock(); FocusLogin();
+    }
+    /// <summary>
+    /// The banner's picture behind the account form, blurred once here: shrunk to 160 px and softened (the blur of
+    /// Réglages' window, <see cref="SheetWindow.Soften"/>), then stretched back. WPF's own blur, drawn live over the whole
+    /// window, scattered white streaks and dots over it (Dell, 2026-11-14).
+    /// </summary>
+    private static System.Windows.Media.Imaging.BitmapSource? LoginBackdrop(ImageSource? source)
+    {
+        if (source is not System.Windows.Media.Imaging.BitmapSource picture || picture.PixelWidth <= 0 || picture.PixelHeight <= 0) return null;
+        try
+        {
+            var scale = 160d / picture.PixelWidth;
+            var small = new System.Windows.Media.Imaging.FormatConvertedBitmap(new System.Windows.Media.Imaging.TransformedBitmap(picture, new ScaleTransform(scale, scale)), PixelFormats.Bgra32, null, 0);
+            int width = small.PixelWidth, height = small.PixelHeight;
+            if (width < 8 || height < 8) return null;
+            var pixels = new byte[width * height * 4];
+            small.CopyPixels(pixels, width * 4, 0);
+            SheetWindow.Soften(pixels, width, height, radius: 3, light: 1, colour: 1);
+            var soft = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+            soft.Freeze();
+            return soft;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or NotSupportedException or System.Runtime.InteropServices.COMException) { return null; }
     }
     /// <summary>Signed out (or the session ended): the form says « Se connecter » again.</summary>
     private void SignInHeading() { LoginHeading.Text = L("Se connecter", "Sign in"); LoginSignedIn.Visibility = Visibility.Collapsed; }

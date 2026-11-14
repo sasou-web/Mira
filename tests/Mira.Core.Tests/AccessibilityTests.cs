@@ -72,6 +72,8 @@ internal static class AccessibilityTests
             Assert(SheetWindow.Matches("Taille et style des sous-titres", "style taille") && !SheetWindow.Matches("Taille des sous-titres", "taille couleur"), "Every word, in any order");
             Assert(SheetWindow.Matches("Reprendre là où tu t’étais arrêté", "t'étais") && SheetWindow.Matches("Œuvres", "oeuvre"), "Apostrophes and ligatures");
             Assert(SheetWindow.Matches("Lecture", "  ") && !SheetWindow.Matches("Lecture", "audio"), "Empty and missed searches");
+            Assert(SheetWindow.Matches("Minimize to the notification area", "mini") && !SheetWindow.Matches("Administrators only", "mini") && SheetWindow.Matches("Built-in Tailscale", "scale") is false,
+                "A word found at the start of a word, never inside one");
             // The person's own words (a friend could not find where Mira updates): any of a group finds the others.
             Assert(SheetWindow.Matches("Mises à jour Mira 0.9.8", "update") && SheetWindow.Matches("Updates Check for updates", "mettre à jour") && SheetWindow.Matches("Updates", "Nouvelle version"), "Updates, in both languages");
             Assert(SheetWindow.Matches("Quality Automatic", "blurry") && SheetWindow.Matches("Built-in Tailscale", "away from home") && SheetWindow.Matches("Sign out or switch account", "déconnexion"), "Blurry, away from home, sign out");
