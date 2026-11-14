@@ -1,5 +1,31 @@
 [
   {
+    "version": "0.9.10", "date": "2026-11-14",
+    "summary": "Une ouverture qui glisse, des sélecteurs en gelée, des noms qui défilent, un mini-lecteur plus net.",
+    "en": { "summary": "An opening that glides, jelly switches, names that slide and a cleaner mini-player." },
+    "changes": [
+      { "category": "Ouverture", "text": "Le logo glisse jusqu’à sa place dans le rail et la pastille tombe sur Accueil (Windows, Mac).", "en": { "category": "Opening", "text": "The logo glides to its place in the rail and the pill drops onto Home (Windows, Mac)." } },
+      { "category": "Sélecteurs", "text": "Qualité, Minuterie et Réglages | Aide : la pastille s’étire en gelée (Windows, Mac).", "en": { "category": "Switches", "text": "Quality, Sleep timer and Settings | Help: the pill stretches like jelly (Windows, Mac)." } },
+      { "category": "Noms", "text": "Un nom coupé par « … » glisse pour montrer sa fin sous le pointeur (Windows, Mac).", "en": { "category": "Names", "text": "A name cut short slides to show its end under the pointer (Windows, Mac)." } },
+      { "category": "Zone de notification", "text": "Un menu de Mira avec une carte de lecture remplace le menu blanc de Windows.", "en": { "category": "Notification area", "text": "A Mira menu with a playback card replaces the white Windows menu." } },
+      { "category": "Mini-lecteur", "text": "Coins lisses, et plus d’éclair en le fermant (Windows).", "en": { "category": "Mini-player", "text": "Smooth corners, and no more flash when it closes (Windows)." } },
+      { "category": "Réglages", "text": "Le logo de la carte Mira s’affiche, l’état du serveur suit Jellyfin en direct (Windows).", "en": { "category": "Settings", "text": "The logo shows on Mira’s card and the server state follows Jellyfin live (Windows)." } },
+      { "category": "Détails", "text": "Titres des Réglages, fondus, Guide et menus « … » : de petits défauts corrigés (Windows).", "en": { "category": "Details", "text": "Settings headings, fades, the Guide and the … menus: small defects fixed (Windows)." } }
+    ],
+    "items": [
+      { "icon": "sparkle", "title": "Une ouverture qui glisse", "text": "Le logo glisse du centre jusqu’à sa place dans le rail, puis la pastille tombe sur Accueil, sous Windows comme sur Mac.",
+        "en": { "title": "An opening that glides", "text": "The logo glides from the centre to its place in the rail, then the pill drops onto Home, on Windows and Mac." } },
+      { "icon": "sliders", "title": "Des sélecteurs en gelée", "text": "La pastille de Qualité, de Minuterie et de Réglages | Aide s’étire et rebondit d’un choix à l’autre.",
+        "en": { "title": "Jelly switches", "text": "The pill of Quality, Sleep timer and Settings | Help stretches and springs from one choice to the next." } },
+      { "icon": "film", "title": "Des noms qui défilent", "text": "Un nom coupé par « … » glisse doucement pour montrer sa fin quand le pointeur s’y arrête, dans Téléchargements et les cases d’épisodes.",
+        "en": { "title": "Names that slide", "text": "A name cut short slides gently to show its end when the pointer rests on it, in Downloads and in episode tiles." } },
+      { "icon": "laptop", "title": "Le menu de la zone de notification", "text": "Le clic droit sur l’icône de Mira ouvre un menu à son style, avec une carte de lecture et ses boutons (Windows).",
+        "en": { "title": "The notification area menu", "text": "Right click on Mira’s icon opens a menu in its own style, with a playback card and its buttons (Windows)." } },
+      { "icon": "pip", "title": "Un mini-lecteur plus net", "text": "Ses coins sont lisses et il ne revient plus un instant à sa place en se fermant (Windows).",
+        "en": { "title": "A cleaner mini-player", "text": "Its corners are smooth and it no longer jumps back for an instant when it closes (Windows)." } }
+    ]
+  },
+  {
     "version": "0.9.9", "date": "2026-11-14",
     "summary": "Une page Téléchargements refaite, plus de sources de recherche, des menus et des Réglages repensés.",
     "en": { "summary": "A new Downloads page, more search sources, restyled menus and Settings." },

@@ -1,4 +1,11 @@
 {
+  "0.9.10": {
+    "film": "puss-in-boots",
+    "band": [
+      { "point": 1, "shot": "mac-home", "at": [0, 0], "scale": 0.6, "width": 572 },
+      { "point": 5, "shot": "windows-mini", "at": [885, 585], "scale": 0.9, "width": 500 }
+    ]
+  },
   "0.9.9": {
     "film": "coco",
     "band": [
