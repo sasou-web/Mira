@@ -410,10 +410,10 @@ internal static class PlayerTests
             {
                 var corners = PictureInPicture.Controls.Margin + fit.Corner;
                 var middle = (fit.Jumps ? 2 * (fit.Jump + fit.Spacing) : 0) + fit.Play;
-                Assert(PictureInPicture.Controls.Margin > PictureInPicture.Grip && height - 2 * corners - fit.Play >= 24 && width - middle >= 24 && fit.Bar > corners, $"{width} × {height}: rows and spaces");
+                Assert(PictureInPicture.Controls.Margin > PictureInPicture.Grip && height - 2 * corners - fit.Play >= 24 && width - middle >= 24 && fit.Bar > corners, $"{width} × {height}: rows and spaces"); Assert(height - corners - fit.SeekRoom >= (height + fit.Play) / 2 && fit.Bottom == fit.Bar + fit.SeekRoom, $"{width} × {height}: the seek bar clear of the play button");
                 Assert(Math.Abs(fit.Inset - PictureInPicture.Controls.Margin - (fit.Corner - fit.CornerGlyph) / 2) < .01 && fit.Lift > corners - (fit.Corner - fit.CornerGlyph) / 2, $"{width} × {height}: insets and the subtitles' lift");
             }
-            Assert(large.Inset == 16 && smallest.Inset == 14 && large.Lift == 41 && smallest.Lift == 37, "Insets and lifts");
+            Assert(large.Inset == 16 && smallest.Inset == 14 && large.Lift == 59 && smallest.Lift == 51, "Insets and lifts: above the seek bar");
             Assert(PictureInPicture.SubtitleLift(41, 270, 100) == 84 && PictureInPicture.SubtitleLift(37, 144, 100) == 74 && PictureInPicture.SubtitleLift(27, 270, 100) == 90, "mpv's sub-pos, a share of the window");
             foreach (var (lift, height) in new[] { (41d, 270d), (37d, 144d), (41d, 1000d), (37d, 200d) })
             {

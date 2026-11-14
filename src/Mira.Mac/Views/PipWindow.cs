@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Mira.Core;
+using Mira.Mac.Playback;
 using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
@@ -18,7 +19,9 @@ namespace Mira.Mac.Views;
 /// « Image dans l’image », as on Windows: the video alone in a small window of its own, outside Mira's window, above the
 /// other apps' windows and on every desktop. macOS draws its rounded corners and its shadow and resizes it from its
 /// edges, the video's shape kept (contentAspectRatio); a drag on the picture moves it, a click pauses, a double click
-/// goes back to Mira. Its controls show while the pointer is on it. The picture is the player's: PlayerPage.Pip.cs moves
+/// goes back to Mira. Its controls show while the pointer is on it: at the bottom the player's seek bar above the time,
+/// the sound and the subtitles (maquette A, 2026-11-14); at rest a thin progress line stays, and the sound cut shows a
+/// pill bottom left for 4 s, then nothing. The picture is the player's: PlayerPage.Pip.cs moves
 /// mpv's view here and back, its subtitles drawn by mpv in it.
 /// </summary>
 public sealed class PipWindow : Window
@@ -32,14 +35,19 @@ public sealed class PipWindow : Window
     private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _time = new() { Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, FontFeatures = new FontFeatureCollection { FontFeature.Parse("tnum") } };
     private readonly Icon _playIcon = new("pause", 26);
-    private readonly Button _back, _close, _rewind, _play, _forward, _subtitles;
+    private readonly Button _back, _close, _rewind, _play, _forward, _mute, _subtitles;
+    private readonly Icon _muteIcon = new("volume", 17), _pillIcon = new("mute", 17);
+    private readonly Timeline _seek = new() { VerticalAlignment = VerticalAlignment.Bottom };
+    private readonly Border _mutedPill;
     // Under the subtitles' glyph while they show, as on video sites.
     private readonly Border _subtitlesOn = new() { Height = 2, Width = 14, CornerRadius = new CornerRadius(1), Background = Brushes.White, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5), IsHitTestVisible = false };
-    private readonly ProgressLine _progress = new() { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false };
+    private readonly ProgressLine _progress = new() { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false, Opacity = 0 };
     private readonly DispatcherTimer _idle = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer _click = new() { Interval = TimeSpan.FromMilliseconds(230) };
+    private readonly DispatcherTimer _mutedFor = new() { Interval = TimeSpan.FromSeconds(4) };
     private long _lastMotion, _activatedAt = long.MinValue / 2;
-    private bool _shown = true, _paused, _closable, _moving, _keyboard;
+    private bool _shown = true, _paused, _closable, _moving, _keyboard, _muted;
+    private double _duration;
     /// <summary>The keys the player took on their way down: their release too (a focused button is pressed on Space's release).</summary>
     private readonly HashSet<Key> _taken = [];
     private bool? _subtitlesShown = false;
@@ -51,9 +59,11 @@ public sealed class PipWindow : Window
     public event Action? Back;
     /// <summary>« Fermer »: the playback stops.</summary>
     public event Action? Stop;
-    public event Action? PlayPause, Subtitles;
+    public event Action? PlayPause, Subtitles, Mute;
     /// <summary>Seconds to jump, backwards when negative.</summary>
     public event Action<double>? Seek;
+    /// <summary>A place chosen on the seek bar (pressed, dragged, let go), in seconds from the start.</summary>
+    public event Action<double>? SeekTo;
     /// <summary>A key pressed while it is in front: the player's shortcuts (PlayerPage.PipKey).</summary>
     public event Action<KeyEventArgs>? KeyPressed;
     /// <summary>Moved by the person: where it is now is kept for the next time.</summary>
@@ -100,14 +110,26 @@ public sealed class PipWindow : Window
         _subtitles.Content = new Grid { Children = { new Icon("subtitles", 18), _subtitlesOn } };
         _subtitles.IsVisible = false; _subtitlesOn.IsVisible = false;
         DockPanel.SetDock(_subtitles, Dock.Right);
-        _bottomRow = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Children = { _subtitles, _time } };
-        _bottom = new Grid { VerticalAlignment = VerticalAlignment.Bottom, Background = Shade(top: false), Children = { _bottomRow } };
+        // The sound left of the subtitles, as in the player: its glyph alone, the cross while cut.
+        _mute = Round("volume", 32, 17, L("Couper le son · M", "Mute · M"), () => Mute?.Invoke());
+        _mute.Content = _muteIcon;
+        DockPanel.SetDock(_mute, Dock.Right);
+        _bottomRow = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Children = { _subtitles, _mute, _time } };
+        // The player's own bar, its line between the text's insets; under the row, so the buttons keep their whole circle.
+        AutomationProperties.SetName(_seek, L("Position de lecture", "Playback position"));
+        _seek.Seek += seconds => { ShowTime(seconds); ShowControls(); SeekTo?.Invoke(seconds); };
+        _bottom = new Grid { VerticalAlignment = VerticalAlignment.Bottom, Background = Shade(top: false), Children = { _seek, _bottomRow } };
+        // The sound cut, said once the controls go: a round pill bottom left, gone after 4 s.
+        _mutedPill = new Border { Child = _pillIcon, Background = Ui.Brush("#80000000"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false, Opacity = 0 };
+        _mutedPill.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
+        AutomationProperties.SetName(_mutedPill, L("Son coupé", "Sound off"));
+        _mutedFor.Tick += (_, _) => { _mutedFor.Stop(); _mutedPill.Opacity = 0; };
         FitControls(Fit, force: true);
         _root.SizeChanged += (_, e) => FitControls(PictureInPicture.ControlsFor(e.NewSize.Width, e.NewSize.Height));
 
-        foreach (var part in new Control[] { _top, _middle, _bottom }) part.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
+        foreach (var part in new Control[] { _top, _middle, _bottom, _progress }) part.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
         _root.Children.Add(VideoHost);
-        _root.Children.Add(_top); _root.Children.Add(_middle); _root.Children.Add(_bottom); _root.Children.Add(_progress);
+        _root.Children.Add(_top); _root.Children.Add(_middle); _root.Children.Add(_bottom); _root.Children.Add(_progress); _root.Children.Add(_mutedPill);
         AutomationProperties.SetName(_root, L("Vidéo en image dans l’image", "Video in picture in picture"));
         Content = _root;
 
@@ -141,13 +163,19 @@ public sealed class PipWindow : Window
         if (fit == Fit && !force) return;
         Fit = fit;
         const double margin = PictureInPicture.Controls.Margin;
-        _top.Height = _bottom.Height = fit.Bar;
+        _top.Height = fit.Bar; _bottom.Height = fit.Bottom;
         _topRow.Margin = new Thickness(margin, margin, margin, 0);
         _bottomRow.Margin = new Thickness(margin, 0, margin, margin);
+        // The bar's line in the middle of the room above the row, from the time's inset to the corner glyph's edge.
+        _seek.Height = fit.SeekRoom + 6;
+        _seek.Margin = new Thickness(fit.Inset, 0, fit.Inset, margin + fit.Corner - 3);
+        _mutedPill.Width = _mutedPill.Height = fit.Corner; _mutedPill.CornerRadius = new CornerRadius(fit.Corner / 2);
+        _mutedPill.Margin = new Thickness(margin, 0, 0, margin + 3);
+        _pillIcon.Width = _pillIcon.Height = fit.CornerGlyph;
         _title.Margin = new Thickness(fit.Inset - margin, 0, 8, 0); _time.Margin = new Thickness(fit.Inset - margin, 0, 0, 0);
         _title.FontSize = fit.TextSize; _time.FontSize = fit.TextSize - .5;
         _title.Opacity = fit.Title ? 1 : 0;
-        foreach (var corner in new[] { _back, _close }) Size(corner, fit.Corner, fit.CornerGlyph);
+        foreach (var corner in new[] { _back, _close, _mute }) Size(corner, fit.Corner, fit.CornerGlyph);
         // The subtitles' glyph a pixel larger, its bar just under it.
         var subtitles = fit.CornerGlyph + 1;
         Size(_subtitles, fit.Corner, subtitles);
@@ -184,7 +212,7 @@ public sealed class PipWindow : Window
     /// <summary>Closed by the player only (the video taken back first); the person's close request stops the playback.</summary>
     public void Dismiss()
     {
-        _closable = true; _idle.Stop(); _click.Stop();
+        _closable = true; _idle.Stop(); _click.Stop(); _mutedFor.Stop();
         Close();
     }
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -208,14 +236,40 @@ public sealed class PipWindow : Window
         ToolTip.SetTip(_play, tip); AutomationProperties.SetName(_play, tip.Split(" · ")[0]);
         ShowControls();
     }
-    public void SetTime(string text, double fraction)
+    /// <summary>The time, the seek bar (kept where it is dragged) and the thin line of the rest.</summary>
+    public void SetTime(double position, double duration, double buffered)
     {
-        if (_time.Text != text) _time.Text = text;
+        _duration = duration;
+        if (!_seek.Dragging) ShowTime(position);
+        _seek.SetPlayback(position, duration, buffered);
+        var fraction = duration > 0 ? position / duration : 0;
         var value = double.IsFinite(fraction) ? Math.Clamp(fraction, 0, 1) : 0;
         // Redrawn once the line moves by a pixel.
         if (Math.Abs(value - _progress.Value) * _progress.Bounds.Width < 1) return;
         _progress.Value = value; _progress.InvalidateVisual();
     }
+    private void ShowTime(double position)
+    {
+        var text = $"{Timeline.Clock(position)} / {Timeline.Clock(_duration)}";
+        if (_time.Text != text) _time.Text = text;
+    }
+    /// <summary>For the self-check: the seek bar, and « son coupé » said at rest.</summary>
+    internal Timeline SeekBar => _seek;
+    internal bool MutedPillShown => _mutedFor.IsEnabled;
+    /// <summary>For the self-check: the sound's button pressed.</summary>
+    internal void MuteForCheck() => Mute?.Invoke();
+    /// <summary>The sound's button, and the pill said once the controls go while it is cut.</summary>
+    public void SetMuted(bool muted)
+    {
+        if (muted == _muted) return;
+        _muted = muted;
+        _muteIcon.Kind = muted ? "mute" : "volume";
+        var tip = muted ? L("Rétablir le son · M", "Unmute · M") : L("Couper le son · M", "Mute · M");
+        ToolTip.SetTip(_mute, tip); AutomationProperties.SetName(_mute, tip.Split(" · ")[0]);
+        if (!muted) { _mutedFor.Stop(); _mutedPill.Opacity = 0; }
+        else if (!_shown) SayMuted();
+    }
+    private void SayMuted() { _mutedPill.Opacity = 1; _mutedFor.Stop(); _mutedFor.Start(); }
     /// <summary>The subtitles' button: hidden without subtitles, else whether they show.</summary>
     public void SetSubtitles(bool? shown)
     {
@@ -234,6 +288,8 @@ public sealed class PipWindow : Window
         if (_shown) return;
         _shown = true;
         foreach (var part in new Control[] { _top, _middle, _bottom }) { part.Opacity = 1; part.IsHitTestVisible = true; }
+        // The bar takes the thin line's place; the pill goes, the button says it.
+        _progress.Opacity = 0; _mutedFor.Stop(); _mutedPill.Opacity = 0;
         ControlsChanged?.Invoke();
     }
     /// <summary>For the self-check: the controls gone at once, as once the pointer left.</summary>
@@ -242,11 +298,13 @@ public sealed class PipWindow : Window
     private void HideWhenIdle()
     {
         if (!_shown) { _idle.Stop(); return; }
-        if (_press is not null || _keyboard && FocusManager?.GetFocusedElement() is Button) return;
+        if (_press is not null || _seek.Dragging || _keyboard && FocusManager?.GetFocusedElement() is Button) return;
         var idle = Environment.TickCount64 - _lastMotion;
         if (idle < (_root.IsPointerOver ? 2500 : 600)) return;
         _shown = false; _idle.Stop();
         foreach (var part in new Control[] { _top, _middle, _bottom }) { part.Opacity = 0; part.IsHitTestVisible = false; }
+        _progress.Opacity = 1;
+        if (_muted) SayMuted();
         ControlsChanged?.Invoke();
     }
 

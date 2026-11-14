@@ -59,6 +59,8 @@ public sealed partial class PlayerPage
         pip.Stop += () => _ = _shell.StopPlaybackAsync();
         pip.PlayPause += TogglePause;
         pip.Seek += SeekBy;
+        pip.SeekTo += seconds => SeekTo(seconds);
+        pip.Mute += () => { ToggleMute(); UpdatePip(); };
         pip.Subtitles += () => { ToggleSubtitles(); _pipTracksAt = 0; UpdatePipSubtitles(); };
         pip.KeyPressed += PipKey;
         pip.Placed += () => RememberPip(pip);
@@ -187,7 +189,8 @@ public sealed partial class PlayerPage
         if (_pip is not { } pip || _mpv is not { } mpv || _pipMoving) return;
         if (_session.Item is { } item) pip.SetTitle(item.Type == "Episode" && _subtitle.Text is { Length: > 0 } episode ? $"{item.DisplayTitle} · {episode}" : item.DisplayTitle);
         pip.SetPaused(_session.Paused);
-        pip.SetTime($"{Timeline.Clock(_session.Position)} / {Timeline.Clock(_session.Duration)}", _session.Duration > 0 ? _session.Position / _session.Duration : 0);
+        pip.SetTime(_session.Position, _session.Duration, mpv.Number("demuxer-cache-time", 0));
+        pip.SetMuted(mpv.Flag("mute") || _volume.Value <= 0);
         if (_loaded && VideoAspect(mpv) is { } aspect && Math.Abs(aspect - pip.Aspect) > .01) pip.Refit(aspect);
         if (!ReferenceEquals(mpv, _pipEngine))
         {

@@ -1655,6 +1655,18 @@ public static class SelfCheck
         }
         pip.HideControlsNow(); await Task.Delay(200);
         check(Math.Abs(Margin() - usual) < .5 && Math.Abs(Position() - own) < .5, $"image dans l’image : sous-titres à leur place une fois les commandes parties ({renderer})", $"sub-margin-y {Margin()}, sub-pos {Position()}");
+        // Maquette A (2026-11-14): the player's seek bar above the time, its line in the room over the row; the sound
+        // beside the subtitles; cut, a pill says it once the controls go, then nothing.
+        pip.ShowControls(); await Task.Delay(300);
+        var bar = pip.SeekBar; var line = pip.VideoHost.Bounds.Height - (bar.TranslatePoint(new Point(0, bar.Bounds.Height / 2), pip.VideoHost)?.Y ?? -100);
+        var wanted = PictureInPicture.Controls.Margin + pip.Fit.Corner + pip.Fit.SeekRoom / 2;
+        check(bar.IsVisible && bar.Bounds.Width > pip.VideoHeight && Math.Abs(line - wanted) < 1.5, $"image dans l’image : barre de lecture au-dessus du temps ({renderer})", $"{bar.Bounds.Width:0} de large, trait à {line:0.#} du bas, attendu {wanted:0.#}");
+        var loud = engine.Flag("mute");
+        pip.MuteForCheck(); pip.HideControlsNow(); await Task.Delay(300);
+        check(engine.Flag("mute") != loud && pip.MutedPillShown, $"image dans l’image : son coupé, une pastille le dit une fois les commandes parties ({renderer})", $"mute {engine.Get("mute")}");
+        pip.MuteForCheck(); await Task.Delay(200);
+        check(engine.Flag("mute") == loud && !pip.MutedPillShown, $"image dans l’image : son remis, pastille partie ({renderer})", $"mute {engine.Get("mute")}");
+        pip.HideControlsNow(); await Task.Delay(200);
 
         await player.ReturnFromPipAsync();
         // The bottom bar gone: the subtitles at their place (above it while it shows: checked just after).

@@ -79,6 +79,19 @@ public partial class MainWindow
         // The runner may not hand mpv's picture to a capture: then the subtitles cannot be seen there either.
         if (seen > .2) require(text > .005, $"picture in picture: the subtitles are drawn in the small window ({text:P1} of their band)");
 
+        // Maquette A (2026-11-14): the player's seek bar above the time, its line in the room over the row; the sound
+        // beside the subtitles; cut, a pill says it once the controls go, then nothing.
+        pip.ShowControls(); await Task.Delay(400);
+        var bar = pip.SeekBar; var line = pip.VideoHeight - bar.TranslatePoint(new Point(0, bar.ActualHeight / 2), (UIElement)pip.Content).Y;
+        var wanted = PictureInPicture.Controls.Margin + pip.Fit.Corner + pip.Fit.SeekRoom / 2;
+        require(bar.IsEnabled && bar.IsVisible && bar.ActualWidth > pip.VideoHeight && Math.Abs(line - wanted) < 1.5,
+            $"picture in picture: the seek bar above the time ({bar.ActualWidth:0} px wide, its line {line:0.#} px above the bottom for {wanted:0.#}, enabled {bar.IsEnabled})");
+        var loud = engine.Flag("mute");
+        Mute_Click(this, new()); UpdatePip(); pip.HideControlsNow(); await Task.Delay(400);
+        require(engine.Flag("mute") != loud && pip.MutedPillShown, "picture in picture: the sound cut, a pill says it once the controls go");
+        Mute_Click(this, new()); UpdatePip(); await Task.Delay(300);
+        require(engine.Flag("mute") == loud && !pip.MutedPillShown, "picture in picture: the sound back, the pill gone");
+
         // A real click, through Windows' own input as a mouse gives it, while the small window is not the active one: the
         // pointer over it shows its controls, and the click lands on the play button, in the controls' window above the
         // video's (never in mpv's own). It moves the real pointer: only on a CI runner, never on someone's PC.
