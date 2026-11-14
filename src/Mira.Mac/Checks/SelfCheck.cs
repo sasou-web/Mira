@@ -851,6 +851,17 @@ public static class SelfCheck
                     bool sent; lock (mock.Requests) sent = mock.Requests.Contains("Brume.Basse.2024.MULTI.1080p.BluRay.x264-NOTAG");
                     Check(sent && await Until(() => downloads.QueueCount > queued, 6), "téléchargements : la meilleure version envoyée", string.Join(", ", mock.Requests));
                     await Task.Delay(800); Capture(window, output, "07-downloads");
+                    // A small window (maquette C): the queue stays beside the results, thinner, and the results keep most of the page.
+                    var (wide, high) = (window.Width, window.Height);
+                    window.Width = 1152; window.Height = 676;
+                    await Task.Delay(900);
+                    var small = downloads.SearchLayout;
+                    var narrow = downloads.Bounds.Width < 1150;
+                    Check(small.Beside && small.Side <= (narrow ? 296 : 428) + 1 && small.Results >= 300 && small.Add == narrow, "téléchargements : petite fenêtre, la file à droite des résultats, plus mince",
+                        $"page {downloads.Bounds.Width:0} px, file {small.Side:0} px, résultats {small.Results:0} px de haut, « + » {(small.Add ? "montré" : "caché")}");
+                    Capture(window, output, "07b-downloads-small");
+                    window.Width = wide; window.Height = high;
+                    await Task.Delay(500);
                     // Closed into the Dock, the page asks Jellyfin nothing more (it asked every 3 s): nobody looks. Back from the
                     // Dock, it asks again, and the page is read again.
                     int Asked() { lock (mock.Calls) return mock.Calls.Count; }
