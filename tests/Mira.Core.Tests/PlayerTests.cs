@@ -1099,7 +1099,7 @@ internal static class PlayerTests
             Assert(skips.Offer(60, 1410, offering: false, autoNext: true) && skips.Active is null && skips.Label(episode: true) == "", "Nothing offered in the mini player");
             skips.Segments = [new(SkipKind.Outro, 1290, 1380), new(SkipKind.Preview, 1380, 1410)];
             Assert(skips.Offer(1300, 1410, offering: true, autoNext: true) && skips.ToNext && skips.Label(episode: true) == "Épisode suivant" && skips.CountdownEnd == 1310, "Credits then a preview lead to the next episode, with a countdown");
-            Assert(skips.CountdownText(1302.5) == "Épisode suivant dans 8 s" && skips.Due(1309.5) is null && skips.Due(1310) == skips.Next && skips.CountdownEnd is null, "Countdown text or end");
+            Assert(skips.CountdownText(1302.5) == "Épisode suivant dans 8 s" && skips.CountdownDone(1302.5) == .25 && skips.CountdownDone(1290) == 0 && skips.Due(1309.5) is null && skips.Due(1310) == skips.Next && skips.CountdownEnd is null, "Countdown text or end");
             skips.Active = null; skips.Offer(1300, 1410, offering: true, autoNext: true);
             Assert(skips.Cancel() == "Épisode suivant" && skips.Stay && !skips.Counting, "Cancelling stops the countdown");
             skips.Active = null; skips.Offer(1300, 1410, offering: true, autoNext: true);

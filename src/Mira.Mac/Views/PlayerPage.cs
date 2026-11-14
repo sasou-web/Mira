@@ -202,7 +202,7 @@ public sealed partial class PlayerPage : UserControl
         _skipCancel = new Button { Classes = { "pill" }, Content = L("Annuler", "Cancel"), IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
         _skipCancel.Click += (_, _) => { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; };
         ToolTip.SetTip(_skipCancel, L("Rester sur cet épisode", "Stay on this episode"));
-        _skipHost = Ui.Row(0, _skipCancel, _skip);
+        _skipHost = Ui.Row(0, MakeNextCard(), _skipCancel, _skip);
         _skipHost.HorizontalAlignment = HorizontalAlignment.Right; _skipHost.VerticalAlignment = VerticalAlignment.Bottom; _skipHost.Margin = new Thickness(0, 0, 36, 36);
         _skipHost.Transitions = [new ThicknessTransition { Property = MarginProperty, Duration = TimeSpan.FromMilliseconds(260), Easing = new Avalonia.Animation.Easings.CubicEaseOut() }];
         _root.Children.Add(_skipHost);
@@ -1087,7 +1087,7 @@ public sealed partial class PlayerPage : UserControl
     private void ResetMarkers()
     {
         _skips.Reset(); _episodes = []; _trickplay?.Dispose(); _trickplay = null; _timeline.SetPreview(null, null);
-        _skip.IsVisible = false; _skipCancel.IsVisible = false; _timeline.SetChapters([]); _chapter.Text = "";
+        _skip.IsVisible = false; _skipCancel.IsVisible = false; _nextCard.IsVisible = false; _nextCardFor = null; _timeline.SetChapters([]); _chapter.Text = "";
     }
     private async Task LoadMarkersAsync(Session session, MediaItem item, int generation)
     {
@@ -1169,8 +1169,11 @@ public sealed partial class PlayerPage : UserControl
         _skipText.MinWidth = counting && _skipCounted ? Math.Max(_skipText.MinWidth, _skipText.Bounds.Width) : 0;
         if (_skips.CountdownText(_session.Position) is { } label) _skipText.Text = label;
         _skipCounted = counting;
-        _skipCancel.IsVisible = counting && !_mini;
-        _skip.IsVisible = !_mini && _skips.Active is not null && (_controlsShown || counting || !_session.Paused);
+        // The countdown shows the next episode's card (maquette A); « Annuler » leaves the pill alone.
+        var card = counting && _skips.Next is not null && !_mini;
+        UpdateNextCard(card);
+        _skipCancel.IsVisible = counting && !_mini && !card;
+        _skip.IsVisible = !card && !_mini && _skips.Active is not null && (_controlsShown || counting || !_session.Paused);
         // Just above the bar's title and time while they are shown, near the bottom edge otherwise (as on Windows).
         var lift = _controlsShown && _bottom.Bounds.Height > 0 ? Math.Max(36, _bottom.Bounds.Height - _bottom.Padding.Top + 16) : 36;
         if (lift != _skipLift) { _skipLift = lift; _skipHost.Margin = new Thickness(0, 0, 36, lift); }

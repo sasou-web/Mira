@@ -145,11 +145,14 @@ public partial class MainWindow
         SkipText.MinWidth = counting && _skipCounted ? Math.Max(SkipText.MinWidth, SkipText.ActualWidth) : 0;
         if (_skips.CountdownText(_session.Position) is { } label && SkipText.Text != label) SkipText.Text = label;
         _skipCounted = counting;
-        if (counting && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);
-        else if (!counting && SkipCancel.Visibility == Visibility.Visible && SkipCancel.IsHitTestVisible) _ = Motion.HideAsync(SkipCancel, 140);
+        // The countdown shows the next episode's card (maquette A); « Annuler » leaves the pill alone.
+        var card = counting && _skips.Next is not null;
+        UpdateNextCard(card);
+        if (counting && !card && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);
+        else if ((!counting || card) && SkipCancel.Visibility == Visibility.Visible && SkipCancel.IsHitTestVisible) _ = Motion.HideAsync(SkipCancel, 140);
         // The whole passage while it plays, controls shown or not (an opening lasts 1 min 30: a pill gone after 8 s was
         // missed); paused, only with the controls.
-        SetSkipVisible(_skips.Active is not null && (_controlsVisible || counting || !_session.Paused));
+        SetSkipVisible(!card && _skips.Active is not null && (_controlsVisible || counting || !_session.Paused));
         // Sits just above the bar's title and time while they are shown, near the bottom edge otherwise.
         var lift = _controlsVisible ? -Math.Max(0, PlayerControlsBody.ActualHeight + PlayerControlsBody.Margin.Bottom + 16 - SkipHost.Margin.Bottom) : 0;
         if (lift != _skipLift) { _skipLift = lift; Motion.Animate(SkipShift, TranslateTransform.YProperty, lift, 260, ease: Motion.EaseOut); }
@@ -159,8 +162,59 @@ public partial class MainWindow
         if (show == _skipShown && !immediate) return;
         _skipShown = show;
         if (show) Motion.Reveal(SkipButton, 220, 10);
-        else if (immediate) { foreach (var button in new[] { SkipButton, SkipCancel }) { button.BeginAnimation(OpacityProperty, null); button.Visibility = Visibility.Collapsed; } }
+        else if (immediate) { foreach (var part in new FrameworkElement[] { SkipButton, SkipCancel, NextCard }) { part.BeginAnimation(OpacityProperty, null); part.Visibility = Visibility.Collapsed; } _nextCardFor = null; }
         else { _ = Motion.HideAsync(SkipButton, 160); if (SkipCancel.Visibility == Visibility.Visible) _ = Motion.HideAsync(SkipCancel, 160); }
+    }
+    /// <summary>The episode the card shows, filled once.</summary>
+    private string? _nextCardFor;
+    /// <summary>
+    /// The next episode's card (maquette A, 2026-11-14): its picture (blurred while « Cacher les spoilers » hides it), the
+    /// ring filled by the countdown around Play, its number, name and length, « Lire maintenant » and « Annuler ».
+    /// </summary>
+    private void UpdateNextCard(bool show)
+    {
+        if (show && _skips.Next is { } next)
+        {
+            if (_nextCardFor != next.Id) FillNextCard(next);
+            if (_skips.CountdownText(_session.Position) is { } count && NextCardCount.Text != count) NextCardCount.Text = count;
+            DrawNextRing(_skips.CountdownDone(_session.Position));
+            if (NextCard.Visibility != Visibility.Visible || !NextCard.IsHitTestVisible) Motion.Reveal(NextCard, 220, 10);
+        }
+        else if (NextCard.Visibility == Visibility.Visible && NextCard.IsHitTestVisible) _ = Motion.HideAsync(NextCard, 160);
+    }
+    private void FillNextCard(MediaItem next)
+    {
+        _nextCardFor = next.Id;
+        NextCardTitle.Inlines.Clear();
+        if (next.IndexNumber is { } number) { NextCardTitle.Inlines.Add(new System.Windows.Documents.Run(number.ToString(Lang.Culture)) { Foreground = Palette.Get("Faint") }); NextCardTitle.Inlines.Add(new System.Windows.Documents.Run("  ")); }
+        NextCardTitle.Inlines.Add(new System.Windows.Documents.Run(next.Name));
+        NextCardDetails.Text = next.DurationLabel ?? "";
+        AutomationProperties.SetName(NextCardPicture, L("Lire maintenant : ", "Play now: ") + PlayerText.Subtitle(next));
+        NextCardImage.BeginAnimation(OpacityProperty, null); NextCardImage.Opacity = 1; NextCardImage.Source = null;
+        if (Spoilers.Hides(next, _settings.HideSpoilers)) NextCardImage.Source = BlurHash.Of(next, Spoilers.Still(next)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
+        else if (_images is not null) _ = LoadEpisodeImageAsync(NextCardImage, next, 192);
+    }
+    /// <summary>The ring around Play: <paramref name="done"/> of the countdown, clockwise from the top.</summary>
+    private void DrawNextRing(double done)
+    {
+        // Inside the 48 px circle, on its 2.5 px track.
+        const double centre = 24, radius = 24 - 1.25;
+        if (done <= .001) { NextCardRing.Data = null; return; }
+        Geometry ring;
+        if (done >= .999) ring = new EllipseGeometry(new Point(centre, centre), radius, radius);
+        else
+        {
+            var angle = done * 2 * Math.PI;
+            var figure = new PathFigure { StartPoint = new Point(centre, centre - radius) };
+            figure.Segments.Add(new ArcSegment(new Point(centre + radius * Math.Sin(angle), centre - radius * Math.Cos(angle)), new Size(radius, radius), 0, done > .5, SweepDirection.Clockwise, true));
+            ring = new PathGeometry { Figures = { figure } };
+        }
+        ring.Freeze(); NextCardRing.Data = ring;
+    }
+    private async void NextCardPlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (_skips.Next is not { } next || _mpv is null || !_loaded) return;
+        await PlayAsync(next, _miniPlayer, completePrevious: true);
     }
     private async void Skip_Click(object sender, RoutedEventArgs e)
     {

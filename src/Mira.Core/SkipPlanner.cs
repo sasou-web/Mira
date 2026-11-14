@@ -79,6 +79,9 @@ public sealed class SkipPlanner
     /// <summary>The pill during the countdown, null without one.</summary>
     public string? CountdownText(double position) =>
         Counting ? L("Épisode suivant dans ", "Next episode in ") + $"{Math.Max(1, (int)Math.Ceiling(CountdownEnd!.Value - position))} s" : null;
+    /// <summary>How much of the countdown has gone at <paramref name="position"/>, 0 to 1: the ring of the next episode's card.</summary>
+    public double CountdownDone(double position) =>
+        Counting && double.IsFinite(position) ? Math.Clamp(1 - (CountdownEnd!.Value - position) / PlaybackMarkers.CountdownLength, 0, 1) : 0;
     /// <summary>Stays on this episode: the countdown stops, and the pill only offers the next one. Returns its label.</summary>
     public string Cancel()
     {
