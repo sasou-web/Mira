@@ -337,7 +337,8 @@ public sealed class BrowsePage : Page
         {
             // Asked together: the grid waits for both.
             var libraries = session.Client.LibrariesAsync();
-            var options = session.Client.FiltersAsync();
+            // The genres and years of this page's titles only: a series' genre on Films gave an empty page.
+            var options = session.Client.FiltersAsync(_kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", _ => "Movie,Series" });
             var version = session.Client.ServerVersionAsync();
             try
             {
@@ -358,7 +359,7 @@ public sealed class BrowsePage : Page
             {
                 var filters = await options;
                 _filling = true;
-                _genre.Items.Add(L("Tous les genres", "All genres")); foreach (var genre in filters.Genres) _genre.Items.Add(genre);
+                _genre.Items.Add(L("Tous les genres", "All genres")); foreach (var genre in filters.Genres.Select(x => x.Trim()).Distinct(StringComparer.CurrentCultureIgnoreCase)) _genre.Items.Add(genre);
                 _year.Items.Add(L("Toutes les années", "All years")); foreach (var year in filters.Years.OrderDescending()) _year.Items.Add(year.ToString());
                 _genre.SelectedIndex = 0; _year.SelectedIndex = 0;
                 if (_openGenre is { } opened) { if (!_genre.Items.Contains(opened)) _genre.Items.Add(opened); _genre.SelectedItem = opened; }

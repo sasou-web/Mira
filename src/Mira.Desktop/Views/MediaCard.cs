@@ -75,7 +75,7 @@ public sealed class MediaCard : Button
         Background = Brushes.Transparent; Padding = new Thickness(0);
         BorderThickness = new Thickness(0); HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Top; Margin = new Thickness(0, 0, 22, wide ? 5 : 30);
-        System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Resumable ? L("Reprendre ", "Resume ") : L("Regarder ", "Watch ") : L("Ouvrir ", "Open ")) + item.DisplayTitle + (item.UserData.Played ? L(", vu", ", watched") : item.EpisodesToWatchText is { } toWatch ? ", " + toWatch : ""));
+        System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Resumable ? L("Reprendre ", "Resume ") : L("Regarder ", "Watch ") : L("Ouvrir ", "Open ")) + item.DisplayTitle + (item.UserData.Played && !item.Resumable ? L(", vu", ", watched") : item.EpisodesToWatchText is { } toWatch ? ", " + toWatch : ""));
         // Transparent, not empty: the whole card answers the pointer, as the template's background did.
         var root = new StackPanel { Background = Brushes.Transparent };
         _visual = new Grid { Background = Palette.Get("Raised"), ClipToBounds = true };
@@ -97,7 +97,8 @@ public sealed class MediaCard : Button
         };
         _image.RenderTransformOrigin = new Point(.5, .5); _image.RenderTransform = _zoom;
         RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.HighQuality); _visual.Children.Add(_image);
-        if (item.UserData.Played)
+        // Watched and begun again: its time left and bar say where it is, not a check beside them (the Dell, 2026-11-14).
+        if (item.UserData.Played && !item.Resumable)
         {
             // Watched: the light pill of the episode count with a check in it, as on the web and the Mac.
             _visual.Children.Add(new Border
@@ -143,15 +144,17 @@ public sealed class MediaCard : Button
         _artwork = new Decorator { Child = _visual, CacheMode = RenderCache.Picture };
         root.Children.Add(_artwork);
         Loaded += (_, _) => Live.Add(this); Unloaded += (_, _) => Live.Remove(this);
-        root.Children.Add(TruncationTip.Attach(new TextBlock { Text = item.DisplayTitle, FontSize = 15, FontWeight = FontWeights.ExtraBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 21, Height = wide ? 23 : 42, Margin = new Thickness(0, 12, 3, 0), Foreground = Brushes.White }));
+        // The year and kind sit right under the title, one line or two: a box of the two lines' height keeps every card
+        // of a row as tall, and a one-line title no longer leaves its details a line below (2026-11-14).
+        var words = new StackPanel { Height = (wide ? 23 : 42) + 7 + 17, Margin = new Thickness(0, 12, 0, 0) };
+        root.Children.Add(words);
+        words.Children.Add(TruncationTip.Attach(new TextBlock { Text = item.DisplayTitle, FontSize = 15, FontWeight = FontWeights.ExtraBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 21, MaxHeight = wide ? 23 : 42, Margin = new Thickness(0, 0, 3, 0), Foreground = Brushes.White }));
         // Resume cards say how much is left, which is what matters when picking something to finish.
-        var remaining = wide && item.Resumable && item.RunTimeTicks is > 0
-            ? TimeLeft(MediaItem.FormatDuration(TimeSpan.FromTicks(Math.Max(TimeSpan.TicksPerMinute, item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks)))) : null;
-        static string TimeLeft(string time) => L("Reste " + time, time + " left");
+        var remaining = wide && item.Resumable ? MediaQuality.Left(item) : null;
         var meta = wide && item.Type == "Episode"
             ? string.Join("  ·  ", new[] { $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00}", remaining, item.Name }.Where(x => !string.IsNullOrEmpty(x)))
             : remaining ?? string.Join("   ·   ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.Type == "Series" ? L("Série", "Series") : item.Type == "BoxSet" ? L("Collection", "Collection") : item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)));
-        root.Children.Add(new TextBlock { Text = meta, Foreground = Palette.Get("Muted"), FontSize = 12, FontWeight = FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 7, 0, 0) });
+        words.Children.Add(new TextBlock { Text = meta, Foreground = Palette.Get("Muted"), FontSize = 12, FontWeight = FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 7, 0, 0) });
         Content = root; Resize(wide ? 290 : 185);
     }
     public const double HoverZoom = 1.025;

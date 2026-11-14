@@ -532,6 +532,10 @@ internal static class LibraryTests
                 && MediaQuality.EndsAt(resumed, now, resume: false) == "Fin à 0 h 12", "End: " + MediaQuality.EndsAt(resumed, now, resume: true));
             Assert(MediaQuality.EndsAt(new MediaItem(), now, false) is null && MediaQuality.EndsAt(null, now, false) is null
                 && MediaQuality.EndsAt(film with { UserData = new() { PlaybackPositionTicks = film.RunTimeTicks!.Value } }, now, true) is null, "An end without a length, or past it");
+            // A series' page: the end is the episode's Lecture opens, and says so; a film's stays « Fin à ».
+            var episode = film with { Type = "Episode", ParentIndexNumber = 1, IndexNumber = 3 };
+            Assert(MediaQuality.EndsAt(episode, now, false, named: true) == "S01 E03 finit à 0 h 12" && MediaQuality.EndsAt(film, now, false, named: true) == "Fin à 0 h 12"
+                && MediaQuality.EndsAt(episode, now, false) == "Fin à 0 h 12", "Series: " + MediaQuality.EndsAt(episode, now, false, named: true));
             // 82 min long, begun at 60: what is left, beside Reprendre.
             Assert(MediaQuality.Left(resumed) == "22 min restantes" && MediaQuality.Left(film) is null
                 && MediaQuality.Left(film with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromMinutes(5).Ticks } }) == "1 h 17 restantes", "Left: " + MediaQuality.Left(resumed));

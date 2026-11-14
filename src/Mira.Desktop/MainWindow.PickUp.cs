@@ -62,6 +62,9 @@ public partial class MainWindow
         if (!shown) return;
         var chosen = Choice(GenreFilter);
         var all = _pageGenres[_catalog.View];
+        // The filter's line may hold more names than the chip (its names joined, GenreItem): the chip sharing one is it.
+        var chosenNames = chosen.Split('|', StringSplitOptions.RemoveEmptyEntries);
+        if (chosenNames.Length > 0 && all.FirstOrDefault(x => x.Value.Split('|').Intersect(chosenNames, StringComparer.OrdinalIgnoreCase).Any()) is { } match) chosen = match.Value;
         var genres = all.Take(ChipGenres).Select(x => (Tag: x.Value, Name: x.Label)).ToList();
         // A genre chosen further down (filters, a title page) keeps a chip of its own.
         if (chosen.Length > 0 && genres.All(x => x.Tag != chosen) && all.FirstOrDefault(x => x.Value == chosen) is { } picked) genres.Add((picked.Value, picked.Label));
@@ -90,8 +93,7 @@ public partial class MainWindow
     /// <summary>A genre group as the Genre filter's choice (added to it when Jellyfin's filters list it under another name).</summary>
     private void ChooseGenre(string value, string label)
     {
-        if (GenreFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => (x.Tag?.ToString() ?? "") == value) is not { } item)
-        { _filterBusy = true; GenreFilter.Items.Add(item = new ComboBoxItem { Content = label, Tag = value }); _filterBusy = false; }
+        _filterBusy = true; var item = GenreItem(value, label); _filterBusy = false;
         GenreFilter.SelectedItem = item;
     }
     /// <summary>« Plus de genres »: the filters open, their Genre list dropped down.</summary>
