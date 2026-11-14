@@ -356,7 +356,7 @@ public sealed class HomePage : Page
         if (item.Type == "Episode") tags.Children.Add(Ui.Tag(Cards.EpisodeCode(item)));
         if (item.ProductionYear is { } year) tags.Children.Add(Ui.Tag(year.ToString()));
         tags.Children.Add(Ui.Tag(Ui.Kind(item)));
-        if (item.Type != "Series" && item.DurationLabel.Length > 0) tags.Children.Add(Ui.Tag(item.Progress > 0 ? Ui.Remaining(item) : item.DurationLabel));
+        if (item.Type != "Series" && item.DurationLabel.Length > 0) tags.Children.Add(Ui.Tag(item.Resumable ? Ui.Remaining(item) : item.DurationLabel));
         if (item.CommunityRating is { } rating) tags.Children.Add(Ui.Tag("★ " + Number(rating, "0.0")));
         _heroText.Children.Add(tags);
         var resume = item.Resumable;

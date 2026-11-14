@@ -131,15 +131,15 @@ public sealed partial class PlayerPage
             details.Inlines.Add(new Run(L("En lecture", "Playing")) { FontWeight = FontWeight.Bold, Foreground = Ui.Ink });
             if (PlayingLeft() is { } left) details.Inlines.Add(new Run(" · " + left));
         }
-        else details.Inlines.Add(new Run(string.Join(" · ", new[] { episode.DurationLabel, episode.UserData.Played ? L("Vu", "Watched") : episode.Progress > 0 ? L("En cours", "In progress") : null }.Where(x => !string.IsNullOrEmpty(x)))));
+        else details.Inlines.Add(new Run(string.Join(" · ", new[] { episode.DurationLabel, episode.UserData.Played ? L("Vu", "Watched") : episode.Resumable ? L("En cours", "In progress") : null }.Where(x => !string.IsNullOrEmpty(x)))));
         var text = Ui.Column(4, title, details);
         text.VerticalAlignment = VerticalAlignment.Center; text.Margin = new Thickness(14, 0, 0, 0);
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         grid.Children.Add(art); Grid.SetColumn(text, 1); grid.Children.Add(text);
         var row = new Button { Content = grid, Classes = { "menurow" }, Tag = episode.Id, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8), CornerRadius = new CornerRadius(12) };
         row.Classes.Set("on", playing);
-        Avalonia.Automation.AutomationProperties.SetName(row, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Progress > 0 ? ", en cours" : "")}",
-            $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(playing ? ", playing" : episode.UserData.Played ? ", watched" : episode.Progress > 0 ? ", in progress" : "")}"));
+        Avalonia.Automation.AutomationProperties.SetName(row, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Resumable ? ", en cours" : "")}",
+            $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(playing ? ", playing" : episode.UserData.Played ? ", watched" : episode.Resumable ? ", in progress" : "")}"));
         row.Click += (_, _) =>
         {
             (_episodesButton.Flyout as Flyout)?.Hide();

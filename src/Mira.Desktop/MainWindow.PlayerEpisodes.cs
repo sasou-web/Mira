@@ -103,12 +103,12 @@ public partial class MainWindow
             details.Inlines.Add(new System.Windows.Documents.Run(L("En lecture", "Playing")) { Foreground = Palette.Get("Text"), FontWeight = FontWeights.Bold });
             if (PlayingLeft() is { } left) details.Inlines.Add(new System.Windows.Documents.Run(" · " + left));
         }
-        else details.Text = string.Join(" · ", new[] { episode.DurationLabel, watched ? L("Vu", "Watched") : episode.Progress > 0 ? L("En cours", "In progress") : null }.Where(x => !string.IsNullOrEmpty(x)));
+        else details.Text = string.Join(" · ", new[] { episode.DurationLabel, watched ? L("Vu", "Watched") : episode.Resumable ? L("En cours", "In progress") : null }.Where(x => !string.IsNullOrEmpty(x)));
         text.Children.Add(details);
         grid.Children.Add(text);
         row.Content = grid;
-        AutomationProperties.SetName(row, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Progress > 0 ? ", en cours" : "")}",
-            $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(playing ? ", playing" : episode.UserData.Played ? ", watched" : episode.Progress > 0 ? ", in progress" : "")}"));
+        AutomationProperties.SetName(row, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Resumable ? ", en cours" : "")}",
+            $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(playing ? ", playing" : episode.UserData.Played ? ", watched" : episode.Resumable ? ", in progress" : "")}"));
         row.Click += async (_, _) =>
         {
             PlayerOptionsPopup.IsOpen = false;
@@ -134,6 +134,16 @@ public partial class MainWindow
     /// <summary>The episode playing, else the first of the page: what the keyboard starts from.</summary>
     private Button? CurrentEpisodeRow() =>
         EpisodeList.Children.OfType<Button>().FirstOrDefault(x => Equals(x.Tag, _session.Item?.Id)) ?? EpisodeList.Children.OfType<Button>().FirstOrDefault();
+    /// <summary>
+    /// A row of a menu's list brought into view (focus, the episode playing) comes with its focus ring, drawn 3 px outside it:
+    /// without the room, the list's edge cut the ring of the row at its top or bottom.
+    /// </summary>
+    private void MenuList_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
+    {
+        if (e.TargetObject is not FrameworkElement row || !ReferenceEquals(row.Parent, sender) || !e.TargetRect.IsEmpty) return;
+        e.Handled = true;
+        row.BringIntoView(new Rect(0, -6, row.ActualWidth, row.ActualHeight + 12));
+    }
     /// <summary>Brought into view once the menu has its size: a long season opens on the episode playing.</summary>
     private void ShowCurrentEpisodeRow() => Dispatcher.BeginInvoke(() => CurrentEpisodeRow()?.BringIntoView(), DispatcherPriority.Loaded);
 }

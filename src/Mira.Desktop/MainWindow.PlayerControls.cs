@@ -505,7 +505,7 @@ public partial class MainWindow
     {
         if (_mpv is null) return;
         if (PlayerOptionsPopup.IsOpen) { var same = ReferenceEquals(_menuAnchor, anchor); PlayerOptionsPopup.IsOpen = false; if (same) return; }
-        _menuAnchor = anchor;
+        _menuAnchor = anchor; _menuByKeyboard = InputManager.Current.MostRecentInputDevice is KeyboardDevice;
         var tracks = ReferenceEquals(anchor, PlayerTracksButton); var episodes = ReferenceEquals(anchor, PlayerEpisodesButton);
         TracksMenu.Visibility = tracks ? Visibility.Visible : Visibility.Collapsed;
         EpisodesMenu.Visibility = episodes ? Visibility.Visible : Visibility.Collapsed;
@@ -519,6 +519,8 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(() => { if (PlayerOptionsPopup.IsOpen) CurrentMenuChoice()?.Focus(); }, DispatcherPriority.Input);
     }
     private bool _menuBuilding;
+    /// <summary>The open menu came from a key (its own, or Enter on its button), not a click.</summary>
+    private bool _menuByKeyboard;
     private Control? CurrentMenuChoice() => TracksMenu.Visibility == Visibility.Visible
         ? AudioTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen) ?? SubtitleTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen)
         : EpisodesMenu.Visibility == Visibility.Visible ? CurrentEpisodeRow()
@@ -583,7 +585,7 @@ public partial class MainWindow
         var shown = video.Length > 0 ? video : "—"; var audio = PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"; var dropped = _mpv.Get("frame-drop-count") ?? "0";
         var output = AudioOutputInfo();
         var colours = ColoursInfo();
-        ShowPlaybackInfo([(L("Vidéo", "Video"), shown), (L("Décodage", "Decoding"), decoding), (L("Couleurs", "Colours"), colours), (L("Image", "Picture"), PictureInfo),
+        ShowPlaybackInfo([(L("Vidéo", "Video"), shown), (L("Décodage", "Decoding"), decoding), (L("Couleurs", "Colors"), colours), (L("Image", "Picture"), PictureInfo),
             ("Audio", audio), (L("Sortie", "Output"), output), (L("Images perdues", "Dropped frames"), dropped)]);
     }
     /// <summary>What ⋮ → Informations says, a line per name (« Video  H.264 · 1920 × 1080 »): the player checks read it.</summary>
@@ -690,7 +692,9 @@ public partial class MainWindow
     {
         if (e.Key != Key.Escape) return;
         PlayerOptionsPopup.IsOpen = false; e.Handled = true;
-        // Back on the button that opened the menu, so the keyboard carries on from there.
+        // Back on the button that opened the menu, so the keyboard carries on from there: opened by Tab and Enter, or by
+        // its own key (E for the episodes), the ring then shows where it is. A menu opened by a click lets the bar go.
+        if (_menuByKeyboard) { _keyboardNavigation = true; Accessible.SetFocusRingShown(this, true); }
         if (_keyboardNavigation) _menuAnchor?.Focus();
     }
     private void LoadSubtitle_Click(object sender, RoutedEventArgs e)

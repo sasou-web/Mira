@@ -120,8 +120,12 @@ public sealed record MediaItem
     /// watched to its end or marked watched, so a position means a viewing in progress, even on a title already watched:
     /// Jellyfin 12 keeps it watched when it is watched again, with the position of this new viewing (10.x made it unwatched
     /// as it started; checked on 12.1). Not on its last 10 % (<see cref="LibraryStore.WatchedThreshold"/>): it starts over.
+    /// Nor in its first minute (5 % of a title under 20 min, <see cref="ResumeFloor"/>): a few seconds watched start over
+    /// with « Regarder », as Jellyfin keeps no position under its own floor (5 min and 5 % by default).
     /// </summary>
-    [JsonIgnore] public bool Resumable => UserData.PlaybackPositionTicks > 0 && Progress < LibraryStore.WatchedThreshold;
+    [JsonIgnore] public bool Resumable => UserData.PlaybackPositionTicks > 0 && UserData.PlaybackPositionTicks >= ResumeFloor && Progress < LibraryStore.WatchedThreshold;
+    /// <summary>The least position worth « Reprendre »: a minute, or 5 % of a shorter title.</summary>
+    [JsonIgnore] public long ResumeFloor => Math.Min(TimeSpan.TicksPerMinute, RunTimeTicks is > 0 ? RunTimeTicks.Value / 20 : TimeSpan.TicksPerMinute);
     /// <summary>The leading actors, in the order Jellyfin credits them.</summary>
     [JsonIgnore] public string[] Cast => CastPeople.Select(x => x.Name).ToArray();
     [JsonIgnore] public string[] Directors => DirectorPeople.Select(x => x.Name).ToArray();
@@ -130,7 +134,12 @@ public sealed record MediaItem
     [JsonIgnore] public PersonInfo[] DirectorPeople => Credited("Director", 3);
     private PersonInfo[] Credited(string type, int count) => People.Where(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase))
         .Select(x => x with { Name = x.Name.Trim() }).Where(x => x.Name.Length > 0).DistinctBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Take(count).ToArray();
-    public static string FormatDuration(TimeSpan span) => span.TotalHours >= 1 ? L($"{(int)span.TotalHours} h {span.Minutes:00}", $"{(int)span.TotalHours} hr {span.Minutes} min") : $"{Math.Max(1, span.Minutes)} min";
+    /// <summary>« 24 min », « 1 h 05 »: to the nearest minute (24:23 is « 24 min », 24:40 « 25 min »), at least one.</summary>
+    public static string FormatDuration(TimeSpan span)
+    {
+        var minutes = Math.Max(1, (int)Math.Round(span.TotalMinutes, MidpointRounding.AwayFromZero));
+        return minutes >= 60 ? L($"{minutes / 60} h {minutes % 60:00}", $"{minutes / 60} hr {minutes % 60} min") : $"{minutes} min";
+    }
 }
 
 /// <summary>A trailer Jellyfin knows on the web (TMDb gives YouTube's): its address and its name.</summary>

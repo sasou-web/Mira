@@ -30,13 +30,10 @@ public partial class MainWindow
         if (mini) { ReturnToLibrary(); SetNotice(StillWatching.Question + " " + reason, StillWatching.Continue, () => _ = PlayAsync(next, keepMini: true), sticky: true); return; }
         ShowPlayerScreen(StillWatching.Question, "eye", reason, next, mini: false, StillWatching.Continue, () => PlayAsync(next));
     }
-    private DateTimeOffset _skipSince;
     private bool _skipShown;
     private double _skipLift = double.NaN;
     /// <summary>The pill already showed the countdown at the last tick: its width is the countdown's.</summary>
     private bool _skipCounted;
-    // The pill stays while the controls are shown; otherwise it lingers a few seconds, as in Jellyfin.
-    private static readonly TimeSpan SkipLinger = TimeSpan.FromSeconds(8);
     private bool SkipAvailable => _skipShown && _skips.Active is not null;
     private void ResetMarkers()
     {
@@ -134,7 +131,6 @@ public partial class MainWindow
         // Without a credits marker, the next episode during the last seconds.
         if (_skips.Offer(_session.Position, _session.Duration, offering: _playing && _loaded && !_miniPlayer, _settings.AutoNext && !_sleep.AtEnd && !AsksStillWatching()))
         {
-            _skipSince = DateTimeOffset.UtcNow;
             if (_skips.Active is not null)
             {
                 SkipText.Text = _skips.Label(_session.Item?.Type == "Episode");
@@ -151,7 +147,9 @@ public partial class MainWindow
         _skipCounted = counting;
         if (counting && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);
         else if (!counting && SkipCancel.Visibility == Visibility.Visible && SkipCancel.IsHitTestVisible) _ = Motion.HideAsync(SkipCancel, 140);
-        SetSkipVisible(_skips.Active is not null && (_controlsVisible || counting || (!_session.Paused && DateTimeOffset.UtcNow - _skipSince < SkipLinger)));
+        // The whole passage while it plays, controls shown or not (an opening lasts 1 min 30: a pill gone after 8 s was
+        // missed); paused, only with the controls.
+        SetSkipVisible(_skips.Active is not null && (_controlsVisible || counting || !_session.Paused));
         // Sits just above the bar's title and time while they are shown, near the bottom edge otherwise.
         var lift = _controlsVisible ? -Math.Max(0, PlayerControlsBody.ActualHeight + PlayerControlsBody.Margin.Bottom + 16 - SkipHost.Margin.Bottom) : 0;
         if (lift != _skipLift) { _skipLift = lift; Motion.Animate(SkipShift, TranslateTransform.YProperty, lift, 260, ease: Motion.EaseOut); }
