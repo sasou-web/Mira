@@ -1,5 +1,32 @@
 [
   {
+    "version": "0.9.9", "date": "2026-11-14",
+    "summary": "Une page Téléchargements refaite, plus de sources de recherche, des menus et des Réglages repensés.",
+    "en": { "summary": "A new Downloads page, more search sources, restyled menus and Settings." },
+    "changes": [
+      { "category": "Téléchargements", "text": "La page Téléchargements montre la file, les séries suivies et les titres rangés d’un coup d’œil (Windows, Mac).", "en": { "category": "Downloads", "text": "The Downloads page shows the queue, followed series and filed titles at a glance (Windows, Mac)." } },
+      { "category": "Recherche", "text": "Knaben, AnimeTosho et Torrents-CSV cherchent avec TorLink, AniList donne les autres noms d’un anime.", "en": { "category": "Search", "text": "Knaben, AnimeTosho and Torrents-CSV search beside TorLink; AniList gives an anime’s other names." } },
+      { "category": "Séries", "text": "« Get season » propose trois packs et dit ce que chacun couvre ; la taille d’un titre s’affiche sur sa fiche.", "en": { "category": "Series", "text": "Get season offers three packs and says what each covers; a title’s size shows on its page." } },
+      { "category": "Menus", "text": "Les menus du lecteur, le clic droit et les listes prennent un même style plus net (Windows, Mac).", "en": { "category": "Menus", "text": "Player menus, right click and lists share one sharper style (Windows, Mac)." } },
+      { "category": "Réglages", "text": "Les Réglages s’ouvrent sur « L’essentiel », avec les sections rangées par sujet (Windows, Mac).", "en": { "category": "Settings", "text": "Settings open on Essentials, with sections sorted by subject (Windows, Mac)." } },
+      { "category": "Mac", "text": "Un Mac plus proche de Windows : clic sur l’image, menus, bandeau, mode hors connexion, ⌘1 à ⌘5.", "en": { "category": "Mac", "text": "A Mac closer to Windows: click on the picture, menus, banner, offline mode, ⌘1 to ⌘5." } },
+      { "category": "iPhone", "text": "Le bandeau de l’Accueil est net, comme sous Windows ; la taille d’un titre s’affiche aussi.", "en": { "category": "iPhone", "text": "The Home banner is sharp, as on Windows; a title’s size shows too." } },
+      { "category": "Lecteur", "text": "« Passer l’opening » ne saute plus l’avant-générique ; le mini-lecteur rangé se sort plus facilement.", "en": { "category": "Player", "text": "Skip intro no longer skips the cold open; the tucked-away mini-player is easier to bring out." } }
+    ],
+    "items": [
+      { "icon": "download", "title": "Plus de sources de recherche", "text": "Sur le PC de Jellyfin, Téléchargements cherche aussi sur Knaben, AnimeTosho et Torrents-CSV, et sous les autres noms d’un anime (AniList).",
+        "en": { "title": "More search sources", "text": "On Jellyfin’s PC, Downloads also searches Knaben, AnimeTosho and Torrents-CSV, and an anime under its other names (AniList)." } },
+      { "icon": "server", "title": "Une page Téléchargements refaite", "text": "La file du PC serveur en colonnes, les séries suivies en tableau et les derniers titres rangés en affiches, avec la place libre des disques.",
+        "en": { "title": "A new Downloads page", "text": "The server PC’s queue in columns, followed series in a table and the latest filed titles as posters, with the disks’ free room." } },
+      { "icon": "sparkle", "title": "Des menus plus nets", "text": "Menus du lecteur, clic droit, listes et infobulles prennent le gris uni de la fenêtre des Réglages, avec des rangées choisies en relief.",
+        "en": { "title": "Sharper menus", "text": "Player menus, right click, lists and tooltips take the flat grey of the Settings window, with the chosen row raised." } },
+      { "icon": "sliders", "title": "Réglages : L’essentiel", "text": "Les Réglages s’ouvrent sur la version de Mira, le compte et six réglages courants ; les sections sont rangées par sujet.",
+        "en": { "title": "Settings: Essentials", "text": "Settings open on Mira’s version, the account and six common choices; sections are sorted by subject." } },
+      { "icon": "series", "title": "La place d’un titre sur le serveur", "text": "La fiche d’un film, d’une série ou d’un anime dit combien il prend sur les disques de Jellyfin, épisode par épisode.",
+        "en": { "title": "What a title takes on the server", "text": "A film, series or anime page says how much room it takes on Jellyfin’s disks, episode by episode." } }
+    ]
+  },
+  {
     "version": "0.9.8", "date": "2026-11-13",
     "summary": "Télécharger les épisodes manquants, un défilement sans à-coup, un mini-lecteur plus vif.",
     "en": { "summary": "Download missing episodes, scrolling without jolts, a quicker mini-player." },

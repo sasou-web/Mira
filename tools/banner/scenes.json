@@ -1,4 +1,11 @@
 {
+  "0.9.9": {
+    "film": "coco",
+    "band": [
+      { "point": 5, "shot": "windows-series", "at": [93, 86], "scale": 0.578, "width": 576 },
+      { "shot": "mac-series", "at": [0, 0], "scale": 0.5, "width": 496 }
+    ]
+  },
   "0.9.8": {
     "film": "arcane",
     "band": [
