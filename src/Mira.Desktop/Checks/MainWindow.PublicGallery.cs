@@ -204,6 +204,8 @@ public partial class MainWindow
             drawn.AddRange(await CheckTitleRowStillAsync(output));
             // « Mode canapé »: full screen, zoomed, the arrows and a controller anywhere on the screen.
             drawn.Add(await CheckCouchAsync(output));
+            // The menu of the notification area (« Carte »): its three states, above a taskbar at the bottom of the screen.
+            drawn.Add(await CheckTrayMenuAsync(output));
             await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {16 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }
