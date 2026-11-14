@@ -215,7 +215,6 @@ public partial class MainWindow
     private void ServerUpgradeClose_Click(object sender, RoutedEventArgs e)
     {
         EndUpgrade();
-        ServerResults.Children.Clear(); ServerResultsEmpty.Visibility = Visibility.Visible; ServerSearchStatus.Text = "";
-        ServerQueryBox.Clear(); ServerQueryBox.Focus();
+        ServerQueryBox.Clear(); LeaveServerSearch(); ServerQueryBox.Focus();
     }
 }

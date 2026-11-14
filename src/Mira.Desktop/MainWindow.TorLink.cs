@@ -179,7 +179,7 @@ public partial class MainWindow
         // Already the page shown (and not looking for a better version of a title): nothing reloads, its lists glide up.
         if (_upgrade is null && TorLinkOverlay.Visibility == Visibility.Visible && TorLinkOverlay.IsHitTestVisible)
         {
-            foreach (var list in new[] { ServerResultsScroll, ServerQueueScroll, TorLinkImportsScroll, DownloadersPanel }) if (list.IsVisible) SmoothScroll.ToTop(list);
+            foreach (var list in new[] { ServerRestScroll, ServerResultsScroll, ServerQueueScroll, TorLinkImportsScroll, DownloadersPanel }) if (list.IsVisible) SmoothScroll.ToTop(list);
             return;
         }
         EndUpgrade(); await ShowTorLinkAsync();
