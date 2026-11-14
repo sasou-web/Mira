@@ -285,8 +285,17 @@ internal sealed class PipWindow : Window
             ShowControls();
             return;
         }
-        if (e.LeftButton != MouseButtonState.Pressed) { EndGesture(); return; }
-        if (!GetCursorPos(out var now)) return;
+        if (e.LeftButton != MouseButtonState.Pressed) { FollowPointer(); EndGesture(); return; }
+        FollowPointer();
+        _lastMotion = Environment.TickCount64;
+    }
+    /// <summary>
+    /// Moves or sizes the window to where the pointer is now. Also called on the release: WPF may fold the last moves
+    /// before the button comes up into none, and the window would stay a step short of where it was let go.
+    /// </summary>
+    private void FollowPointer()
+    {
+        if (_gesture == Gesture.None || !GetCursorPos(out var now)) return;
         double dx = now.X - _from.X, dy = now.Y - _from.Y;
         if (_gesture == Gesture.Pressed)
         {
@@ -295,7 +304,6 @@ internal sealed class PipWindow : Window
         }
         if (_gesture == Gesture.Moving) SetWindowPos(Handle, IntPtr.Zero, (int)Math.Round(_start.Left + dx), (int)Math.Round(_start.Top + dy), 0, 0, NoSize | NoZOrder | NoActivate | NoOwnerZOrder);
         else if (_screen is { } screen) Place(PictureInPicture.Resize(_start, _edge, dx, dy, Aspect, screen), direct: true);
-        _lastMotion = Environment.TickCount64;
     }
     /// <summary>
     /// A press on the picture or its edges (the buttons take their own). Never a pause when the press brings the window
@@ -318,6 +326,8 @@ internal sealed class PipWindow : Window
     {
         if (_gesture == Gesture.None) return;
         e.Handled = true;
+        // A click stays a click: only a gesture already moving or sizing follows the pointer to its last place.
+        if (_gesture != Gesture.Pressed) FollowPointer();
         var clicked = _gesture == Gesture.Pressed && _clickPlays;
         EndGesture();
         // Played or paused after the double click's delay, unless a second click comes.
