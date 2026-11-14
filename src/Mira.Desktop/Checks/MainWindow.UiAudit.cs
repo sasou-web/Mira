@@ -574,7 +574,17 @@ public partial class MainWindow
         await AuditSettleAsync(600);
         var root = (FrameworkElement)Content;
         var frames = new List<(double Ms, byte[] Pixels)>(); var clock = Stopwatch.StartNew();
-        void Grab() => frames.Add((clock.Elapsed.TotalMilliseconds, Gray(Picture(root, .25, backdrop: true))));
+        // What Windows composed, a quarter of each side (PrintWindow, a few ms): drawing the tree again for each frame
+        // (RenderTargetBitmap) took 100 to 150 ms on the Dell, and a 200 ms fade fell between two frames, « in one frame ».
+        var handle = new WindowInteropHelper(this).Handle;
+        var composed = ClientArea(handle, out var area) && area.Right > area.Left && area.Bottom > area.Top;
+        int width = area.Right - area.Left, height = area.Bottom - area.Top;
+        void Grab()
+        {
+            var pixels = composed ? CopyScreen(handle, 0, 0, width, height, Math.Max(1, width / 4), Math.Max(1, height / 4)) : null;
+            if (pixels is null && composed) { composed = false; frames.Clear(); run.Notes.Add($"Transition « {name} » : PrintWindow a échoué, images refaites par WPF (plus lentes)."); }
+            frames.Add((clock.Elapsed.TotalMilliseconds, pixels is null ? Gray(Picture(root, .25, backdrop: true)) : Gray(pixels)));
+        }
         void Tick(object? sender, EventArgs e) { if (frames.Count < 150) Grab(); }
         Grab();
         CompositionTarget.Rendering += Tick;
@@ -594,7 +604,13 @@ public partial class MainWindow
     {
         var width = picture.PixelWidth; var height = picture.PixelHeight; var pixels = new byte[width * height * 4];
         picture.CopyPixels(pixels, width * 4, 0);
-        var gray = new byte[width * height];
+        return Gray(pixels);
+    }
+
+    /// <summary>Brightness of each pixel of blue, green, red, then a fourth byte.</summary>
+    private static byte[] Gray(byte[] pixels)
+    {
+        var gray = new byte[pixels.Length / 4];
         for (var i = 0; i < gray.Length; i++) gray[i] = (byte)((pixels[i * 4] * 29 + pixels[i * 4 + 1] * 150 + pixels[i * 4 + 2] * 77) >> 8);
         return gray;
     }
