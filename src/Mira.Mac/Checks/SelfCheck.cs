@@ -1127,7 +1127,24 @@ public static class SelfCheck
                     var chips = menu?.GetVisualDescendants().OfType<Button>().Count(x => x.Classes.Contains("menuchip")) ?? 0;
                     ScreenColour(Path.Combine(output, "08b-player-menu.png"));
                     Check(chips >= 6 && (menu is null || Unnamed(menu).Count == 0), "lecteur : menu « ⋮ » en pastilles, comme sous Windows", $"{chips} pastilles");
+                    // Maquette A (2026-11-14): the menu's right edge on its button's, its bottom 10 px above the title and time, the button lit.
+                    var menuBox = menu?.FindAncestorOfType<FlyoutPresenter>() ?? menu;
+                    var corner = menuBox?.PointToScreen(new Point(menuBox.Bounds.Width, menuBox.Bounds.Height));
+                    var edge = player.MoreButton.PointToScreen(new Point(player.MoreButton.Bounds.Width, 0));
+                    var line = player.InfoLine?.PointToScreen(new Point());
+                    var scaling = TopLevel.GetTopLevel(player)?.RenderScaling ?? 1;
+                    Check(player.MoreButton.Classes.Contains("open") && corner is { } c && line is { } l && Math.Abs(c.X - edge.X) <= 3 * scaling && Math.Abs(l.Y - c.Y - 10 * scaling) <= 3 * scaling,
+                        "lecteur : menu « ⋮ » 10 px au-dessus du titre et du temps, aligné sur son bouton allumé", $"coin {corner}, bouton {edge}, ligne {line}, allumé {player.MoreButton.Classes.Contains("open")}");
                     player.MoreButton.Flyout.Hide();
+                    await Task.Delay(200);
+                    Check(!player.MoreButton.Classes.Contains("open"), "lecteur : bouton « ⋮ » éteint, son menu fermé");
+                    // Maquette B (2026-11-14): when the title ends, above the time; a click on the time shows what is left, another what is played.
+                    var endLine = player.ChapterLine;
+                    player.TimeButton?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); await Task.Delay(100);
+                    var leftShown = player.TimeShown;
+                    player.TimeButton?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); await Task.Delay(100);
+                    Check((endLine.Contains("Fin à ", StringComparison.Ordinal) || endLine.Contains("Ends at ", StringComparison.Ordinal)) && leftShown.StartsWith('\u2212') && !player.TimeShown.StartsWith('\u2212'),
+                        "lecteur : heure de fin au-dessus du temps, un clic sur le temps montre le restant", $"« {endLine} », « {leftShown} » puis « {player.TimeShown} »");
                     // « Chercher des sous-titres… », as on Windows: offered with an extension, its results in the menu of the tracks.
                     if (await Until(() => player.CanSearchSubtitles, 5))
                     {

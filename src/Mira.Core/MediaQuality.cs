@@ -40,11 +40,13 @@ public static class MediaQuality
         var left = item.RunTimeTicks.Value - (resume ? Math.Max(0, item.UserData.PlaybackPositionTicks) : 0);
         if (left <= 0) return null;
         var end = now + TimeSpan.FromTicks(left);
-        var at = IsFrench ? string.Create(CultureInfo.InvariantCulture, $"{end.Hour} h {end.Minute:00}") : Time(end);
+        var at = Clock(end);
         if (named && item.Type == "Episode")
             return string.Create(CultureInfo.InvariantCulture, $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00} ") + L("finit à ", "ends at ") + at;
         return L("Fin à ", "Ends at ") + at;
     }
+    /// <summary>« 23 h 12 », « 11:12 PM »: an hour of the day, as the ends of titles say it.</summary>
+    public static string Clock(DateTime at) => IsFrench ? string.Create(CultureInfo.InvariantCulture, $"{at.Hour} h {at.Minute:00}") : Time(at);
     /// <summary>
     /// « 1 h 27 restantes », « 42 min restantes » (“1 hr 27 min left”, written as the durations): beside Reprendre and
     /// on the cards of Continuer à regarder, what is left of a title begun, the same minute everywhere (rounded up).

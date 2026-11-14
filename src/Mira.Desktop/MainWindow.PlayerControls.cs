@@ -61,17 +61,24 @@ public partial class MainWindow
         // reaches it, not mpv's own window (MainWindow.PlayerSurface_MouseDown).
         Deactivated += (_, _) => { _fullscreenWindow.ActiveChanged(); LeavePlayerControls(); };
     }
-    /// <summary>Above the seek bar (above the button that opened the menu when the bar is hidden), right-aligned with
-    /// that button and kept inside the video. WPF supplies the sizes in device pixels, including at 200% DPI.</summary>
+    /// <summary>
+    /// Maquette A (2026-11-14): 10 px above the title and time line (PlayerMenu's bottom margin), the menu's right edge on
+    /// the right edge of the button that opened it, never out of the player. Measured from the screen, in device pixels
+    /// as WPF hands them: the buttons live in another window (TransportLayer) than the popup's target.
+    /// </summary>
     private Point MenuPlacement(Size size, Size target)
     {
         var dpi = VisualTreeHelper.GetDpi(PlayerShell);
-        var anchor = _menuAnchor ?? PlayerTracksButton;
-        var corner = anchor.IsVisible ? InSurface(anchor, new Point(anchor.ActualWidth, 0)) : new Point(PlayerSurface.ActualWidth - 16, PlayerSurface.ActualHeight - 60);
-        if (anchor.IsVisible && SeekBar.IsVisible && InSurface(SeekBar, new Point(0, 0)).Y is var bar && bar < corner.Y && bar > corner.Y - 80) corner.Y = bar;
         var margin = 12 * dpi.DpiScaleX;
-        var x = Math.Clamp(corner.X * dpi.DpiScaleX - size.Width, margin, Math.Max(margin, target.Width - size.Width - margin));
-        var y = Math.Max(12 * dpi.DpiScaleY, corner.Y * dpi.DpiScaleY - size.Height);
+        if (PresentationSource.FromVisual(PlayerShell) is null) return new Point(Math.Max(margin, target.Width - size.Width - margin), Math.Max(margin, target.Height - size.Height - 60 * dpi.DpiScaleY));
+        var origin = PlayerShell.PointToScreen(new Point());
+        var anchor = _menuAnchor ?? PlayerTracksButton;
+        var shown = anchor.IsVisible && PresentationSource.FromVisual(anchor) is not null;
+        var right = shown ? anchor.PointToScreen(new Point(anchor.ActualWidth, 0)).X - origin.X : target.Width - 16 * dpi.DpiScaleX;
+        var bottom = shown ? anchor.PointToScreen(new Point()).Y - origin.Y : target.Height - 60 * dpi.DpiScaleY;
+        if (shown && PlayerInfo.IsVisible && PresentationSource.FromVisual(PlayerInfo) is not null && PlayerInfo.PointToScreen(new Point()).Y - origin.Y is var info && info < bottom) bottom = info;
+        var x = Math.Clamp(right - size.Width, margin, Math.Max(margin, target.Width - size.Width - margin));
+        var y = Math.Max(12 * dpi.DpiScaleY, bottom - size.Height);
         return new Point(x, y);
     }
     private void Player_SizeChanged(object sender, SizeChangedEventArgs e) => PositionPlayerControls();
@@ -381,7 +388,7 @@ public partial class MainWindow
     }
     private void Scrub(double seconds)
     {
-        PositionText.Text = TimeLabel(seconds); UpdateChapterText(seconds); ShowPlayerControls();
+        PositionText.Text = PlayerTime.Position(seconds, _session.Duration, _settings.TimeLeft); UpdateChapterText(seconds); ShowPlayerControls();
         if (_mpv is null || !_loaded || DateTimeOffset.UtcNow - _lastScrub < TimeSpan.FromMilliseconds(90)) return;
         _lastScrub = DateTimeOffset.UtcNow;
         // Keyframe seeks follow the pointer quickly; the release performs the exact seek.
@@ -394,13 +401,23 @@ public partial class MainWindow
         if (TryCommand("seek", seconds.ToString(CultureInfo.InvariantCulture), "absolute+exact")) { HoldPosition(seconds); SeekedForGroup(); }
         ShowPlayerControls();
     }
-    /// <summary>Name of the chapter being played, above the time, as long as the file names its chapters.</summary>
+    /// <summary>
+    /// Above the time (maquette B, 2026-11-14): the chapter being played, then when the title ends at this speed
+    /// (« Part A · Ends at 10:41 PM », the end alone without chapters).
+    /// </summary>
     private void UpdateChapterText(double seconds)
     {
-        var title = SeekBar.ChapterAt(seconds) ?? "";
+        var title = PlayerTime.Line(SeekBar.ChapterAt(seconds), PlayerTime.EndsAt(seconds, _session.Duration, _mpv?.Number("speed", 1) ?? 1, DateTime.Now));
         if (ChapterText.Text != title) ChapterText.Text = title;
         var visibility = title.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (ChapterText.Visibility != visibility) ChapterText.Visibility = visibility;
+    }
+    /// <summary>A click on the time: what is left instead of what is played, or back; kept for the next videos.</summary>
+    private void PlayerTime_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.TimeLeft = !_settings.TimeLeft; AutoSaveSettings();
+        PositionText.Text = PlayerTime.Position(_session.Position, _session.Duration, _settings.TimeLeft);
+        ShowPlayerControls();
     }
     private bool TryCommand(params string[] arguments)
     {
@@ -506,6 +523,7 @@ public partial class MainWindow
         if (_mpv is null) return;
         if (PlayerOptionsPopup.IsOpen) { var same = ReferenceEquals(_menuAnchor, anchor); PlayerOptionsPopup.IsOpen = false; if (same) return; }
         _menuAnchor = anchor; _menuByKeyboard = InputManager.Current.MostRecentInputDevice is KeyboardDevice;
+        anchor.Tag = "open";
         var tracks = ReferenceEquals(anchor, PlayerTracksButton); var episodes = ReferenceEquals(anchor, PlayerEpisodesButton);
         TracksMenu.Visibility = tracks ? Visibility.Visible : Visibility.Collapsed;
         EpisodesMenu.Visibility = episodes ? Visibility.Visible : Visibility.Collapsed;
@@ -662,7 +680,11 @@ public partial class MainWindow
     }
     private static string DelayLabel(double seconds) => PlayerText.Delay(seconds);
     private void PlayerOptions_Opened(object? sender, EventArgs e) { _menuOnRelease = null; ShowPlayerControls(); }
-    private void PlayerOptions_Closed(object? sender, EventArgs e) => _lastPlayerInteraction = DateTimeOffset.UtcNow;
+    private void PlayerOptions_Closed(object? sender, EventArgs e)
+    {
+        _lastPlayerInteraction = DateTimeOffset.UtcNow;
+        foreach (var button in new[] { PlayerTracksButton, PlayerMoreButton, PlayerEpisodesButton }) button.ClearValue(TagProperty);
+    }
     /// <summary>
     /// A press outside the open menu closes it (WPF's popup, just before this handler) and goes no further, as a menu's
     /// does: WPF would give it to what lies under the pointer once the menu let go of the mouse, where it would pause or

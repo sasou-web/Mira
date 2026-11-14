@@ -33,9 +33,10 @@ public sealed partial class PlayerPage : UserControl
     private readonly Panel _videoHost = new() { Background = Brushes.Transparent };
     private readonly Grid _chrome = new();
     private readonly Border _top, _bottom;
+    private Grid? _info;
     private readonly TextBlock _title = new() { FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _subtitle = new() { FontSize = 12, Foreground = Ui.TextTertiary, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) };
-    private readonly TextBlock _chapter = new() { FontSize = 12, Foreground = Ui.TextTertiary, HorizontalAlignment = HorizontalAlignment.Right, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 300 };
+    private readonly TextBlock _chapter = new() { FontSize = 12, Foreground = Ui.TextTertiary, HorizontalAlignment = HorizontalAlignment.Right, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 380, FontFeatures = new FontFeatureCollection { FontFeature.Parse("tnum") } };
     // As on Windows: the position in white, the duration a step down, the bar between them fainter still.
     private readonly TextBlock _position = new() { FontSize = 13, Foreground = Brushes.White, FontFeatures = new FontFeatureCollection { FontFeature.Parse("tnum") } };
     private readonly TextBlock _duration = new() { FontSize = 13, Foreground = Ui.Brush("#C5C5CA"), FontFeatures = new FontFeatureCollection { FontFeature.Parse("tnum") } };
@@ -89,6 +90,12 @@ public sealed partial class PlayerPage : UserControl
     public MpvPlayer? Engine => _mpv;
     /// <summary>« ⋮ » of the bar, for the self-check (the menu opens above it).</summary>
     public Button MoreButton => _more;
+    /// <summary>The title and time line, which the bar's menus open 10 px above (self-check).</summary>
+    public Control? InfoLine => _info;
+    /// <summary>The time, a click away from what is left (self-check).</summary>
+    public Button? TimeButton { get; private set; }
+    public string TimeShown => $"{_position.Text} / {_duration.Text}";
+    public string ChapterLine => _chapter.Text ?? "";
     public IVideoSurface? Surface => _surface;
     /// <summary>Why the software view replaced OpenGL, when it did (diagnostics, self-check).</summary>
     public string? VideoFallback { get; private set; }
@@ -131,6 +138,7 @@ public sealed partial class PlayerPage : UserControl
         _more.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         ((Flyout)_tracks.Flyout).Opening += (_, _) => { _subtitleView = false; ((Flyout)_tracks.Flyout).Content = TracksMenu(); AboveBar((Flyout)_tracks.Flyout, _tracks); };
         ((Flyout)_more.Flyout).Opening += (_, _) => { ((Flyout)_more.Flyout).Content = MoreMenu(); AboveBar((Flyout)_more.Flyout, _more); };
+        MarkWhileOpen(_tracks); MarkWhileOpen(_more);
         var play = new Button { Content = _pauseIcon, Classes = { "player" } }; play.Click += (_, _) => TogglePause();
         ToolTip.SetTip(play, L("Lecture / pause · Espace", "Play / pause · Space"));
         var mute = new Button { Content = _volumeIcon, Classes = { "player" } }; mute.Click += (_, _) => ToggleMute();
@@ -170,12 +178,16 @@ public sealed partial class PlayerPage : UserControl
         var transport = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(-8, 2, -8, 0), Height = 44 };
         left.VerticalAlignment = right.VerticalAlignment = VerticalAlignment.Center;
         transport.Children.Add(left); Grid.SetColumn(right, 2); transport.Children.Add(right);
-        var info = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 5) };
+        var info = _info = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 5) };
         var heading = Ui.Column(0, Heading(_title, episodeLine: false), Heading(_subtitle, episodeLine: true)); heading.VerticalAlignment = VerticalAlignment.Bottom; heading.Margin = new Thickness(0, 0, 32, 0);
         info.Children.Add(heading);
         var time = Ui.Row(0, _position, new TextBlock { Text = " / ", FontSize = 13, Foreground = Ui.Faint }, _duration);
-        time.HorizontalAlignment = HorizontalAlignment.Right; time.Margin = new Thickness(0, 2, 0, 0);
-        var timeColumn = Ui.Column(0, _chapter, time); timeColumn.VerticalAlignment = VerticalAlignment.Bottom;
+        // A click on the time shows what is left instead of what is played, kept (maquette B, 2026-11-14, as on Windows).
+        var timeButton = new Button { Content = time, Classes = { "timelink" }, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 2, 0, 0) };
+        Avalonia.Automation.AutomationProperties.SetName(timeButton, L("Temps écoulé ou restant", "Time played or left"));
+        timeButton.Click += (_, _) => { _shell.Settings.TimeLeft = !_shell.Settings.TimeLeft; _shell.Profile.SaveSettings(_shell.Settings); ShowTime(_session.Position); ShowControls(); };
+        TimeButton = timeButton;
+        var timeColumn = Ui.Column(0, _chapter, timeButton); timeColumn.VerticalAlignment = VerticalAlignment.Bottom;
         Grid.SetColumn(timeColumn, 1); info.Children.Add(timeColumn);
         _timeline.Seek += seconds => SeekTo(seconds);
         var body = Ui.Column(0, info, _timeline, transport);
@@ -658,7 +670,8 @@ public sealed partial class PlayerPage : UserControl
             WatchGroupStall(mpv); WatchPicture(mpv, paused); WatchGrey(mpv, paused);
             _timeline.SetPlayback(_session.Position, _session.Duration, mpv.Number("demuxer-cache-time", 0));
             ShowTime(_session.Position); MiniProgress(); UpdatePip(); LiftSubtitlesOverBar();
-            _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";
+            // Above the time (maquette B, 2026-11-14): the chapter, then when the title ends at this speed.
+            _chapter.Text = PlayerTime.Line(_skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title, PlayerTime.EndsAt(_session.Position, _session.Duration, mpv.Number("speed", 1), DateTime.Now));
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
             TellNowPlaying();
@@ -721,7 +734,7 @@ public sealed partial class PlayerPage : UserControl
     private void ChangeVolume(double delta) { _volume.Value = Math.Clamp(_volume.Value + delta, 0, VolumeBoost.Maximum); ShowControls(); RevealVolume(true); HideVolumeSoon(); }
     private void RevealVolume(bool shown) => _volumeReveal.Width = shown ? 174 : 0;
     private void HideVolumeSoon() { _volumeHide.Stop(); _volumeHide.Start(); }
-    private void ShowTime(double position) { _position.Text = Timeline.Clock(position); _duration.Text = Timeline.Clock(_session.Duration); }
+    private void ShowTime(double position) { _position.Text = PlayerTime.Position(position, _session.Duration, _shell.Settings.TimeLeft); _duration.Text = Timeline.Clock(_session.Duration); }
     private void ToggleMute()
     {
         if (_mpv is null) return;
@@ -932,13 +945,22 @@ public sealed partial class PlayerPage : UserControl
         _mpv?.Set("audio-delay", shifted.ToString(CultureInfo.InvariantCulture));
     }
     /// <summary>
-    /// A menu of the bar opens 12 px above the seek bar, not over it (« Écrin », as on Windows): its button sits under the
-    /// bar, so the menu is raised by the room between them. Left as it is when the bar is not right above the button.
+    /// Maquette A (2026-11-14), as on Windows: a menu of the bar opens 10 px above the title and time line, its right edge on
+    /// its button's. Left 12 px above the button when that line is not right above it.
     /// </summary>
     private void AboveBar(Flyout flyout, Control button)
     {
-        var bar = _timeline.IsVisible ? _timeline.TranslatePoint(new Point(0, 0), button) : null;
-        flyout.VerticalOffset = bar is { Y: < 0 and > -80 } at ? at.Y - 12 : -12;
+        var line = _info is { IsVisible: true } ? _info.TranslatePoint(new Point(0, 0), button) : null;
+        flyout.VerticalOffset = line is { Y: < 0 and > -160 } at ? at.Y - 10 : -12;
+    }
+    /// <summary>Maquette A: a menu's button stays lit while its menu is open, a 2 px mark under its glyph.</summary>
+    private static void MarkWhileOpen(Button button)
+    {
+        if (button.Flyout is not Flyout flyout || button.Content is not Control glyph) return;
+        var mark = new Border { Height = 2, Width = 16, CornerRadius = new CornerRadius(1), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, -6), IsVisible = false, IsHitTestVisible = false };
+        button.Content = new Panel { Children = { glyph, mark } };
+        flyout.Opened += (_, _) => { mark.IsVisible = true; button.Classes.Add("open"); };
+        flyout.Closed += (_, _) => { mark.IsVisible = false; button.Classes.Remove("open"); };
     }
     /// <summary>A section's name in a menu, in sentence case as on Windows (« Sleep timer »).</summary>
     private static TextBlock MenuHeading(string text) => new() { Text = text, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Muted, Margin = new Thickness(12, 10, 12, 8) };

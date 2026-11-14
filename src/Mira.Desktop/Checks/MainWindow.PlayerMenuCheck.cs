@@ -115,6 +115,14 @@ public partial class MainWindow
             // A spot of the picture away from the menu, which opens above its button on the right.
             var picture = Spot(PlayerShell, .22, .45);
             var menu = PlayerOptionsPopup.Child.PointToScreen(new Point());
+            // Maquette A (2026-11-14): the menu's right edge on its button's, its bottom 10 px above the title and time,
+            // the button lit with its mark while it is open (unless the window is too small and the menu is kept inside).
+            var corner = PlayerMenu.PointToScreen(new Point(PlayerMenu.ActualWidth, PlayerMenu.ActualHeight));
+            var edge = PlayerTracksButton.PointToScreen(new Point(PlayerTracksButton.ActualWidth, 0)).X;
+            var line = PlayerInfo.PointToScreen(new Point()).Y;
+            var kept = PlayerMenu.PointToScreen(new Point()).Y - PlayerShell.PointToScreen(new Point()).Y < 13 * dpi.DpiScaleY;
+            require(Equals(PlayerTracksButton.Tag, "open") && (kept || Math.Abs(corner.X - edge) <= 2 && Math.Abs(line - corner.Y - 10 * dpi.DpiScaleY) <= 2),
+                $"the menu opens 10 px above the title and time, right-aligned with its button, the button lit (menu's corner {corner.X:0},{corner.Y:0}; button's edge {edge:0}; line {line:0}; tag {PlayerTracksButton.Tag})");
             require(OnScreen(picture) && !InBarBand(PlayerSurface.PointFromScreen(new Point(picture.X, picture.Y))) && picture.X < menu.X && Under(picture) == "the controls'",
                 $"real presses: a spot of the picture beside the menu ({picture}, the menu from {menu.X:0}; under it {Under(picture)})");
 
@@ -134,7 +142,7 @@ public partial class MainWindow
             require(PlayerOptionsPopup.IsOpen && MoreMenu.IsVisible && ReferenceEquals(_menuAnchor, PlayerMoreButton) && mpv.Flag("pause") == paused,
                 $"with a menu open, a real press on ⋮ opens ⋮'s menu (open {PlayerOptionsPopup.IsOpen}; ⋮'s {MoreMenu.IsVisible}; under the pointer {Under(more)})");
             await Press(more); await Task.Delay(600);
-            require(!PlayerOptionsPopup.IsOpen && mpv.Flag("pause") == paused, $"a real press on ⋮ again closes its menu (open {PlayerOptionsPopup.IsOpen})");
+            require(!PlayerOptionsPopup.IsOpen && mpv.Flag("pause") == paused && PlayerMoreButton.Tag is null && PlayerTracksButton.Tag is null, $"a real press on ⋮ again closes its menu, its button no longer lit (open {PlayerOptionsPopup.IsOpen}; tag {PlayerMoreButton.Tag})");
             // Past the double-click time, so that no later press counts these.
             await Task.Delay(400);
         }

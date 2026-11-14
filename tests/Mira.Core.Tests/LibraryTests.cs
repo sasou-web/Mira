@@ -550,6 +550,13 @@ internal static class LibraryTests
                 && (short24 with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromSeconds(61).Ticks } }).Resumable
                 && (short24 with { RunTimeTicks = TimeSpan.FromSeconds(18).Ticks, UserData = new() { PlaybackPositionTicks = TimeSpan.FromSeconds(7).Ticks } }).Resumable
                 && MediaQuality.Left(short24 with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromSeconds(3).Ticks } }) is null, "Resume floor");
+            // The player's time (maquette B, 2026-11-14): what is left after a minus sign, the end at this speed, the line above the time.
+            Assert(PlayerTime.Position(13 * 60 + 42, 40 * 60 + 12, false) == "13:42" && PlayerTime.Position(13 * 60 + 42, 40 * 60 + 12, true) == "\u221226:30"
+                && PlayerTime.Position(10, 0, true) == "0:10", "Time: " + PlayerTime.Position(13 * 60 + 42, 40 * 60 + 12, true));
+            var evening = new DateTime(2026, 11, 14, 22, 14, 48);
+            Assert(PlayerTime.EndsAt(13 * 60 + 42, 40 * 60 + 12, 1, evening) == "Fin à 22 h 41" && PlayerTime.EndsAt(0, 3600, 2, evening) == "Fin à 22 h 44"
+                && PlayerTime.EndsAt(0, 0, 1, evening) is null && PlayerTime.EndsAt(0, double.NaN, 1, evening) is null, "Ends: " + PlayerTime.EndsAt(13 * 60 + 42, 40 * 60 + 12, 1, evening));
+            Assert(PlayerTime.Line("Partie A", "Fin à 22 h 41") == "Partie A · Fin à 22 h 41" && PlayerTime.Line(null, "Fin à 22 h 41") == "Fin à 22 h 41" && PlayerTime.Line("", null) == "", "Line");
             return Task.CompletedTask;
         });
         await Test("Fiche : la rangée « Bonus » lit les vidéos des dossiers Extras, nommées comme sur Mira web (tests/fixtures/extras.json)", async () =>
