@@ -188,7 +188,7 @@ public sealed class BrowsePage : Page
             Showing += shown => { if (shown) Dispatcher.UIThread.Post(() => { if (IsShowing) _search.Focus(); }, DispatcherPriority.Input); };
         }
         else { page.Children.Add(tools); page.Children.Add(filtersLayer); }
-        _genreRow = new ScrollViewer { Content = _genreChips, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(0, 0, 0, 24), IsVisible = false };
+        _genreRow = EdgeFade.Across(new ScrollViewer { Content = _genreChips, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(0, 0, 0, 24), IsVisible = false });
         if (kind is BrowseKind.Movies or BrowseKind.Series && person is null && saga is null && studio is null) { page.Children.Add(_genreRow); page.Children.Add(_pickUp); }
         if (person is not null)
         {
