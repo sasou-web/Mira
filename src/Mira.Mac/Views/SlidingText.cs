@@ -14,7 +14,7 @@ namespace Mira.Mac.Views;
 /// control marked <see cref="ZoneProperty"/> above it: a row, a tile; else the name itself), or the keyboard comes into
 /// that place; back to its start once left (<see cref="TitleSlide"/>, as on Windows). Wraps the name's
 /// <see cref="TextBlock"/>, which keeps its trimming at rest: sliding, it is laid out whole and moved under a box with soft
-/// edges, one step per frame of the screen (<see cref="TopLevel.RequestAnimationFrame"/>), only while it moves.
+/// edges, one step per frame of the screen (<see cref="TopLevel.RequestAnimationFrame"/>), placed by the clock, only while it moves.
 /// </summary>
 public sealed class SlidingText : Decorator
 {
@@ -40,8 +40,6 @@ public sealed class SlidingText : Decorator
     private Control? _zone;
     private bool _whole, _running;
     private double _natural;
-    /// <summary>The clock at the first frame of a slide, and that frame's time: the frames after it are timed by their own.</summary>
-    private (TimeSpan Clock, TimeSpan Frame)? _frameBase;
 
     public SlidingText()
     {
@@ -125,6 +123,8 @@ public sealed class SlidingText : Decorator
     public bool IsCut => TitleSlide.IsCut(_natural, Bounds.Width);
     public double Slid => -_move.X;
     public bool Whole => _whole;
+    public double Overflow => Math.Max(0, _natural - Bounds.Width);
+    public int Frames { get; private set; }
     public void HoverForCheck(bool over) { if (over) Begin(); else End(); }
 
     private void Begin()
@@ -145,13 +145,15 @@ public sealed class SlidingText : Decorator
             _rest.Interval = wakes - Now > TimeSpan.Zero ? wakes - Now : TimeSpan.FromMilliseconds(1);
             _rest.Start();
         }
-        if (_slide.Moving && !_running && TopLevel.GetTopLevel(this) is { } top) { _running = true; _frameBase = null; top.RequestAnimationFrame(Frame); }
+        if (_slide.Moving && !_running && TopLevel.GetTopLevel(this) is { } top) { _running = true; top.RequestAnimationFrame(Frame); }
     }
 
+    // Placed by the clock when the frame is drawn, not by the frame's own time: on the Mac runner Avalonia's frame time ran
+    // several times slower than the clock (the slide crawled 11 px in 8 s); macOS draws each frame right after this call.
     private void Frame(TimeSpan at)
     {
-        _frameBase ??= (Now, at);
-        Place(_frameBase.Value.Clock + (at - _frameBase.Value.Frame));
+        Frames++;
+        Place(Now);
         if (_slide.Moving && IsEffectivelyVisible && TopLevel.GetTopLevel(this) is { } top) { top.RequestAnimationFrame(Frame); return; }
         _running = false;
         if (!IsEffectivelyVisible) { _slide.Stop(); Place(); }
