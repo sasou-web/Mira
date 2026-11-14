@@ -64,10 +64,16 @@ public partial class MainWindow
         async Task LetGoAsync() { await Task.Delay(360); if (move.Y == 0) window.ClearValue(UIElement.CacheModeProperty); }
     }
     /// <summary>The window fades out as one picture, back to the page under it.</summary>
-    private static async Task HideSheetAsync(FrameworkElement overlay, Squircle window)
+    private async Task HideSheetAsync(FrameworkElement overlay, Squircle window)
     {
         if (!Motion.Reduced && overlay.Visibility == Visibility.Visible) window.CacheMode = RenderCache.Picture;
-        await Motion.HideAsync(overlay);
+        // The pages under it drawn again first, still hidden by its picture, then it fades: drawn in the fade's first
+        // frame, they took it whole (interface audit, 2026-11-14: « Fermer les Réglages », 2 frames).
+        await Motion.HideDrawnAsync(overlay, 140, () =>
+        {
+            UncoverLibrary(overlay);
+            foreach (var page in new UIElement[] { DetailOverlay, TorLinkOverlay, PartyOverlay }) if (page.Clip is not null) page.Clip = null;
+        });
         if (overlay.Visibility != Visibility.Visible) window.ClearValue(UIElement.CacheModeProperty);
     }
     /// <summary>The picture let go once neither side shows: it holds the library as it was.</summary>
