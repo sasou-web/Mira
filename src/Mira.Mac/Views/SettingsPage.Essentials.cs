@@ -163,16 +163,19 @@ public sealed partial class SettingsPage
     {
         _essentialsVersion.Text = $"Mira {Updates.Current}";
         var ready = Updates.ReadyVersion;
-        (string text, IBrush dot) = ready is { } version ? (L($"Mira {version.ToString(3)} est prête", $"Mira {version.ToString(3)} is ready"), Ui.Ink)
-            : Updates.Checking ? (L("Recherche d’une nouvelle version…", "Looking for a new version…"), Ui.Faint)
-            : Updates.SearchFailed ? (L("La recherche n’a pas abouti", "The check didn’t go through"), Ui.Warning)
-            : Updates.UpToDateAt is { } time ? (L("À jour · vérifiée à ", "Up to date · checked at ") + Time(time), Ui.Success)
-            : Shell.Settings.AutoUpdate ? (L("Elle se cherche toute seule", "Checked by itself"), Ui.Faint)
-            : (L("Recherche automatique coupée", "Automatic check off"), Ui.Faint);
-        _essentialsUpdate.Text = text; _essentialsUpdateDot.Fill = dot;
+        (_essentialsUpdate.Text, _essentialsUpdateDot.Fill) = UpdateLine();
         _essentialsRestart.IsVisible = ready is not null;
         _essentialsCheck.IsVisible = ready is null; _essentialsCheck.IsEnabled = !Updates.Checking;
     }
+
+    /// <summary>Where Mira's update stands, in a few words, and the colour of its dot: « L’essentiel » and « Mises à jour ».</summary>
+    private (string Text, IBrush Dot) UpdateLine() =>
+        Updates.ReadyVersion is { } version ? (L($"Mira {version.ToString(3)} est prête", $"Mira {version.ToString(3)} is ready"), Ui.Ink)
+        : Updates.Checking ? (L("Recherche d’une nouvelle version…", "Looking for a new version…"), Ui.Faint)
+        : Updates.SearchFailed ? (L("La recherche n’a pas abouti", "The check didn’t go through"), Ui.Warning)
+        : Updates.UpToDateAt is { } time ? (L("À jour · vérifiée à ", "Up to date · checked at ") + Time(time), Ui.Success)
+        : Shell.Settings.AutoUpdate ? (L("Mises à jour automatiques activées", "Automatic updates on"), Ui.Faint)
+        : (L("Mises à jour automatiques coupées", "Automatic updates off"), Ui.Faint);
 
     /// <summary>The card of the account: its name and photo, its server's name, and whether Jellyfin answers.</summary>
     private void ShowEssentialsAccount()

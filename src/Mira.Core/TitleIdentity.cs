@@ -114,6 +114,20 @@ public static partial class TitleIdentity
     private static string NameKey(string? name) => ReleaseRanking.TitleKey(YearSuffix().Replace(name ?? "", ""));
     private static int? FolderYear(string? name) => YearSuffix().Match(name ?? "") is { Success: true } m ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : null;
 
+    /// <summary>
+    /// The line over « Titres à corriger »: how many, and how many of them Jellyfin did not recognize (never « 5 not
+    /// recognized, of 5 to check »: when all of them are, said once).
+    /// </summary>
+    public static string Summary(IReadOnlyCollection<Entry> entries)
+    {
+        var total = entries.Count;
+        var unknown = entries.Count(x => x.Problems.Contains(Problem.Unidentified));
+        if (unknown == 0) return L($"{Lang.Count(total, "titre", "titres", "title", "titles")} à revoir.", $"{Lang.Count(total, "titre", "titres", "title", "titles")} to check.");
+        if (unknown == total) return L($"{Lang.Count(total, "titre", "titres", "", "")} que Jellyfin n’a pas reconnu{(total > 1 ? "s" : "")}.", $"{Lang.Count(total, "", "", "title", "titles")} Jellyfin didn’t recognize.");
+        return L($"{Lang.Count(total, "titre", "titres", "", "")} à revoir, dont {unknown} que Jellyfin n’a pas reconnu{(unknown > 1 ? "s" : "")}.",
+            $"{Lang.Count(total, "", "", "title", "titles")} to check, {unknown} of them not recognized by Jellyfin.");
+    }
+
     public static string Text(Problem problem, MediaItem? twin = null) => problem switch
     {
         Problem.Unidentified => L("Non reconnu", "Not recognized"),

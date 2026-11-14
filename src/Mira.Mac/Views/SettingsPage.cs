@@ -236,9 +236,17 @@ public sealed partial class SettingsPage : Page
         var restart = Ui.Action(L("Redémarrer et mettre à jour", "Restart and update"), null, "primary", () => Updates.Restart(Shell));
         restart.VerticalAlignment = VerticalAlignment.Top; restart.Margin = new Thickness(0, 0, 10, 0);
         DockPanel.SetDock(restart, Dock.Right); dock.Children.Add(restart);
-        void Ready() { restart.IsVisible = Updates.ReadyVersion is not null; check.IsVisible = !restart.IsVisible; }
+        // Where the update stands, as « L’essentiel » says it (a check asked here was only told by a notice before).
+        var dot = new Avalonia.Controls.Shapes.Ellipse { Width = 7, Height = 7, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 7, 0) };
+        var said = new TextBlock { FontSize = 12, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+        var state = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0), Children = { dot, said } };
+        void Ready()
+        {
+            restart.IsVisible = Updates.ReadyVersion is not null; check.IsVisible = !restart.IsVisible; check.IsEnabled = !Updates.Checking;
+            (said.Text, dot.Fill) = UpdateLine();
+        }
         Page.WhileShown(restart, shown => { if (shown) { Updates.Changed += Ready; Ready(); } else Updates.Changed -= Ready; });
-        var text = Ui.Column(0, new TextBlock { Text = $"Mira {Updates.Current}", FontSize = 18, FontWeight = FontWeight.SemiBold }, Description(L("Mira pour Mac (Apple Silicon).", "Mira for Mac (Apple silicon).")));
+        var text = Ui.Column(0, new TextBlock { Text = $"Mira {Updates.Current}", FontSize = 18, FontWeight = FontWeight.SemiBold }, Description(L("Mira pour Mac (Apple Silicon).", "Mira for Mac (Apple silicon).")), state);
         text.Margin = new Thickness(0, 0, 16, 0);
         dock.Children.Add(text);
         return dock;

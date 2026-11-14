@@ -41,8 +41,8 @@ public static class Privacy
     public static string Document => L("https://github.com/sasou-web/Mira/blob/main/docs/SECURITY.fr.md#ce-qui-part-sur-le-réseau",
         "https://github.com/sasou-web/Mira/blob/main/SECURITY.md#what-goes-out-on-the-network");
 
-    public static string Summary => L("Mira n’a ni compte, ni publicité, ni mesure d’audience, ni rapport de plantage envoyé tout seul. Voici tout ce qui part sur le réseau, et comment l’arrêter.",
-        "Mira has no account, no ads, no analytics and no crash report sent on its own. Here is everything that goes out on the network, and how to stop it.");
+    public static string Summary => L("Mira n’a ni compte, ni publicité, ni mesure d’audience, ni rapport de plantage envoyé tout seul. Ci-dessous, chaque connexion : vers qui, quand, ce qui part, et comment l’arrêter.",
+        "Mira has no account, no ads, no analytics and no crash report sent on its own. Below, each connection: to whom, when, what it sends, and how to stop it.");
     public static string FromDevice(PrivacyApp app) => app == PrivacyApp.Mac ? L("Depuis ce Mac", "From this Mac") : L("Depuis ce PC", "From this PC");
     public static string FromServer => L("Depuis ton serveur Jellyfin", "From your Jellyfin server");
     public static string ServerNote => L("Ces connexions partent du PC de Jellyfin, jamais de cet appareil.", "These connections leave from Jellyfin’s PC, never from this device.");

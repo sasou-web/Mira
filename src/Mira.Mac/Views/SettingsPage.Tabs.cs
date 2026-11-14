@@ -61,6 +61,8 @@ public sealed partial class SettingsPage
     /// <summary>Réglages | Aide, for the self-check.</summary>
     public Segmented Turn => _turn;
     private readonly TextBlock _foot = new() { FontSize = 11, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap };
+    /// <summary>Said under the list of Réglages only: the Help has nothing to save.</summary>
+    private readonly TextBlock _applies = new() { Text = L("Chaque changement s’applique et s’enregistre tout de suite.", "Each change applies and is saved at once."), FontSize = 11, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap };
     private readonly Border _window = new();
     /// <summary>Aide's shortcuts, one line each, found by its search: the line, then its group's label and card.</summary>
     private readonly List<(Control Line, string Words, Control Group)> _keyLines = [];
@@ -135,9 +137,7 @@ public sealed partial class SettingsPage
         _search.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty || e.Property == IsFocusedProperty) keycap.IsVisible = string.IsNullOrEmpty(_search.Text) && !_search.IsFocused; };
         var searchBox = new Grid { Margin = new Thickness(0, 0, 0, 12), Children = { _search, keycap } };
 
-        var foot = Ui.Column(4,
-            new TextBlock { Text = L("Chaque changement s’applique et s’enregistre tout de suite.", "Each change applies and is saved at once."), FontSize = 11, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap },
-            _foot);
+        var foot = Ui.Column(4, _applies, _foot);
         foot.Margin = new Thickness(6, 12, 0, 0);
         var lists = new Panel { Children = { _settingsList, _helpList } };
         var side = new DockPanel { Margin = new Thickness(14, 18, 14, 16) };
@@ -258,6 +258,7 @@ public sealed partial class SettingsPage
             Avalonia.Automation.AutomationProperties.SetName(button, on ? L($"{button.Content}, affiché", $"{button.Content}, shown") : (string)button.Content!);
         _search.Watermark = help ? L("Rechercher dans l’aide", "Search help") : L("Rechercher un réglage", "Search settings");
         Avalonia.Automation.AutomationProperties.SetName(_search, _search.Watermark);
+        _applies.IsVisible = !help;
         _foot.Text = help ? L($"Mira {Updates.Current} · l’aide s’ouvre aussi par ⌘/.", $"Mira {Updates.Current} · help also opens with ⌘/.") : $"Mira {Updates.Current} · Jellyfin + mpv";
     }
 

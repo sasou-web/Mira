@@ -56,11 +56,7 @@ public sealed class FixTitlesSection
     {
         _list.Children.Clear();
         Section.IsVisible = _entries.Count > 0;
-        var unknown = _entries.Count(x => x.Problems.Contains(TitleIdentity.Problem.Unidentified));
-        var count = Lang.Count(_entries.Count, "titre", "titres", "title", "titles");
-        _status.Text = unknown > 0
-            ? L($"{Lang.Count(unknown, "titre non reconnu", "titres non reconnus", "", "")} par Jellyfin, sur {_entries.Count} à revoir.", $"{Lang.Count(unknown, "", "", "title", "titles")} Jellyfin didn’t recognize, of {_entries.Count} to check.")
-            : L($"{count} à revoir.", $"{count} to check.");
+        _status.Text = TitleIdentity.Summary(_entries);
         foreach (var entry in _all ? _entries : _entries.Take(Shown))
         {
             var item = entry.Item; var named = TitleIdentity.Named(item);
