@@ -242,7 +242,7 @@ internal sealed class PipWindow : Window
         var bounds = Bounds();
         if (at.X < bounds.Left || at.Y < bounds.Top || at.X >= bounds.Left + bounds.Width || at.Y >= bounds.Top + bounds.Height) return;
         // A button held: a drag elsewhere, over this window on its way; it ends by itself.
-        if ((GetAsyncKeyState(0x01) | GetAsyncKeyState(0x02) | GetAsyncKeyState(0x04)) < 0) return;
+        if (GetAsyncKeyState(0x01) < 0 || GetAsyncKeyState(0x02) < 0 || GetAsyncKeyState(0x04) < 0) return;
         var held = GetCapture();
         if (held == IntPtr.Zero || held == Handle || held == Controls.Handle) return;
         var by = Mouse.Captured?.GetType().Name ?? "a window";
