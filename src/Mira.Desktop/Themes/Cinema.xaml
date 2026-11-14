@@ -20,6 +20,8 @@
   <SolidColorBrush x:Key="Field" Color="#121212" po:Freeze="True"/>
   <SolidColorBrush x:Key="Raised" Color="#1C1C1C" po:Freeze="True"/>
   <SolidColorBrush x:Key="Raised2" Color="#242424" po:Freeze="True"/>
+  <!-- The solid pill of a segmented switch (ChoiceTrack), lighter than any track it moves in: a body, never a frame. -->
+  <SolidColorBrush x:Key="TrackPill" Color="#363636" po:Freeze="True"/>
   <SolidColorBrush x:Key="Line" Color="#2A2A2A" po:Freeze="True"/>
   <SolidColorBrush x:Key="LineStrong" Color="#3F3F3F" po:Freeze="True"/>
   <!-- Inside a menu (« Écrin », 2026-11-14): the rules between its parts, and the sunk track of a slider of choices or of « − 0.0 s + ». -->
@@ -156,13 +158,11 @@
   </Style>
   <!-- A slider of choices (quality, sleep timer, a language): cells side by side in a sunk track (PlayerSlider), the one chosen raised with its edge. -->
   <Style x:Key="PlayerSlider" TargetType="Border"><Setter Property="Background" Value="{StaticResource Inset}"/><Setter Property="BorderBrush" Value="{StaticResource Rule}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="11"/><Setter Property="Padding" Value="3"/><Setter Property="Margin" Value="12,0"/></Style>
-  <Style x:Key="PlayerSpeedChoice" TargetType="RadioButton"><Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="MinHeight" Value="32"/><Setter Property="MinWidth" Value="40"/><Setter Property="Padding" Value="8,0"/>
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><v:Squircle x:Name="Chrome" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="8">
+  <!-- A part of a ChoiceTrack: the track paints its ink and draws the pill under the chosen one, so no background, edge or weight of its own. -->
+  <Style x:Key="PlayerSpeedChoice" TargetType="RadioButton"><Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="MinHeight" Value="32"/><Setter Property="MinWidth" Value="40"/><Setter Property="Padding" Value="8,0"/><Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><Border Background="{TemplateBinding Background}">
       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
-    </v:Squircle><ControlTemplate.Triggers>
-      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource Text}"/></Trigger>
-      <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource Raised2}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource LineStrong}"/><Setter Property="Foreground" Value="{StaticResource Text}"/><Setter Property="FontWeight" Value="Bold"/></Trigger>
-    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+    </Border></ControlTemplate></Setter.Value></Setter>
   </Style>
   <!-- Titles of a menu's parts, in sentence case (« Audio », « Sleep timer »). -->
   <Style x:Key="PlayerMenuHeading" TargetType="TextBlock"><Setter Property="FontSize" Value="12.5"/><Setter Property="FontWeight" Value="Bold"/><Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="Margin" Value="12,10,12,8"/></Style>
@@ -225,7 +225,7 @@
   <Style x:Key="SheetWindow" TargetType="v:Squircle"><Setter Property="Background" Value="{StaticResource Surface}"/><Setter Property="BorderBrush" Value="{StaticResource Line}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="{StaticResource RadiusSheet}"/><Setter Property="ClipContent" Value="True"/><Setter Property="MaxWidth" Value="1180"/><Setter Property="MaxHeight" Value="840"/><Setter Property="Margin" Value="44,52,44,36"/></Style>
   <!-- Réglages | Aide at the top of its list: the side shown lit, the other quiet. -->
   <!-- A part of Réglages | Aide: no background of its own, the switch (Views/Segmented.cs) slides its pill under it and paints its ink. -->
-  <Style x:Key="SheetSwitch" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="13.5"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="v:Motion.Radius" Value="9"/></Style>
+  <Style x:Key="SheetSwitch" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="13.5"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="v:Motion.Radius" Value="9"/><Setter Property="v:Motion.Interactive" Value="False"/></Style>
   <Style x:Key="SheetNav" TargetType="Button" BasedOn="{StaticResource NavButton}"><Setter Property="Padding" Value="14,10"/><Setter Property="Margin" Value="0,1"/><Setter Property="FontSize" Value="14"/></Style>
   <!-- The small capitals over a column of the Downloads page's tables (« Régie »). -->
   <Style x:Key="ServerCaption" TargetType="TextBlock"><Setter Property="FontSize" Value="10.5"/><Setter Property="FontWeight" Value="Bold"/><Setter Property="Foreground" Value="{DynamicResource Faint}"/><Setter Property="VerticalAlignment" Value="Center"/></Style>

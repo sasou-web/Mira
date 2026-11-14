@@ -210,7 +210,15 @@ jobs:
           $profile = Join-Path $PWD '.artifacts/interface-profile'
           $run = Start-Process -FilePath $exe -ArgumentList @('--demo', '--data', "`"$profile`"", '--public-gallery', "`"$output`"") -PassThru
           if (-not $run.WaitForExit(240000)) { $run.Kill(); throw 'The interface captures did not finish within 4 minutes.' }
-          $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
+          $resultFile = Join-Path $output 'gallery-result.txt'
+          if (-not (Test-Path -LiteralPath $resultFile)) {
+            # Mira ended before its captures: what it logged, and what .NET told Windows of an exception nothing caught.
+            $log = Join-Path $profile 'errors.log'
+            if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log }
+            Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = '.NET Runtime'; StartTime = (Get-Date).AddMinutes(-10) } -MaxEvents 3 -ErrorAction SilentlyContinue | ForEach-Object { $_.Message }
+            throw 'Mira ended without its captures.'
+          }
+          $result = Get-Content -LiteralPath $resultFile -Raw
           Write-Output $result
           $sizes = Join-Path $output 'sizes.txt'
           if (Test-Path -LiteralPath $sizes) { Get-Content -LiteralPath $sizes }

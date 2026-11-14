@@ -55,6 +55,17 @@ internal static class AccessibilityTests
             Assert(faults.Count == 0, "Text under 4.5:1 on Mira's backgrounds: " + string.Join(", ", faults));
             return Task.CompletedTask;
         });
+        await test("Palette : chaque clé une seule fois dans Cinema.xaml et App.axaml (une clé en double fait planter Mira au démarrage, avant tout message)", () =>
+        {
+            var repository = TestSupport.Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            foreach (var file in new[] { "src/Mira.Desktop/Themes/Cinema.xaml", "src/Mira.Mac/App.axaml" })
+            {
+                var twice = Regex.Matches(File.ReadAllText(Path.Combine(repository, file)), "x:Key=\"([^\"]+)\"").Select(x => x.Groups[1].Value)
+                    .GroupBy(x => x).Where(x => x.Count() > 1).Select(x => x.Key).ToList();
+                Assert(twice.Count == 0, file + ": " + string.Join(", ", twice));
+            }
+            return Task.CompletedTask;
+        });
         await test("Réglages en fenêtre : la recherche trouve sans casse ni accents, l’app derrière devient une image douce et sombre", () =>
         {
             Assert(SheetWindow.Matches("Langue des sous-titres préférée", "SOUS-TITRES") && SheetWindow.Matches("Réglages avancés", "reglage avance"), "Case and accents");
