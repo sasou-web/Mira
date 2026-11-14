@@ -226,6 +226,8 @@ public sealed partial class SettingsPage
             button.Opacity = on || found is null || found(name) ? 1 : .55;
             var words = (string)button.Tag!;
             Avalonia.Automation.AutomationProperties.SetName(button, on ? L($"{words}, affiché", $"{words}, shown") : words);
+            // The section shown whole in its list (a last one stayed half under the list's foot on Windows: interface audit, 2026-11-14).
+            if (on) Dispatcher.UIThread.Post(() => { if (button.IsEffectivelyVisible) button.BringIntoView(new Rect(0, -10, button.Bounds.Width, button.Bounds.Height + 20)); }, DispatcherPriority.Loaded);
         }
     }
     /// <summary>A key as a cap (« ⌘F », « Esc »): ⌘ drawn by Mira, centred on the letter's height beside it.</summary>
