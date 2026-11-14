@@ -139,6 +139,7 @@ public sealed partial class DetailPage : Page
             if (_next is not null) _next = _allEpisodes.FirstOrDefault(x => x.Id == _next.Id) ?? _next;
         }
         RenderTop(); RenderBody(session);
+        _ = LoadSizeAsync(session);
         _ = LoadSimilarAsync(session);
         if (_item.Type == "Series") { _ = LoadFollowAsync(session); _ = LoadCalendarAsync(session); _ = LoadMissingAsync(session); }
         if (!_admin) _ = CheckAdministratorAsync(session);
@@ -216,6 +217,37 @@ public sealed partial class DetailPage : Page
             if (item.UserData.Played != want && ReferenceEquals(item, _item)) RenderTop();
         }
         finally { _watchedBusy = false; }
+    }
+    /// <summary>
+    /// The room the title takes on the server (TitleStorage), in the line of facts once Jellyfin answered: never waited
+    /// for, kept for the next time (TitleSizes). A series': its episodes', then the season's after its count, each tile's.
+    /// </summary>
+    private long? _size;
+    private Dictionary<string, long>? _episodeSizes;
+    /// <summary>The line under each tile's title, said again with its size when the sizes arrive (the grid is not redrawn).</summary>
+    private readonly Dictionary<string, (TextBlock Text, MediaItem Episode)> _episodeMeta = [];
+    private async Task LoadSizeAsync(Session session)
+    {
+        var item = _item;
+        try
+        {
+            if (item.Type != "Series")
+            {
+                var size = await session.Sizes.FilmAsync(item);
+                if (_item.Id != item.Id) return;
+                _size = size; RenderTop();
+                return;
+            }
+            var episodes = _allEpisodes;
+            var found = await session.Sizes.EpisodesAsync(item.Id, episodes.Count);
+            if (_item.Id != item.Id || !ReferenceEquals(episodes, _allEpisodes)) return;
+            _episodeSizes = found; _size = TitleStorage.Sum(episodes, found); RenderTop();
+            if ((_seasons.SelectedItem as ComboBoxItem)?.Tag is EpisodePage { Absent: false } page) _episodeHeading.Text = EpisodeTiles.Heading(_allEpisodes, page, found);
+            var today = EpisodeCalendar.Today();
+            foreach (var (text, episode) in _episodeMeta.Values) text.Text = EpisodeTiles.Meta(episode, today, found.TryGetValue(episode.Id, out var known) ? known : null);
+        }
+        // Only a detail of the page: without it, the rest is complete.
+        catch (Exception ex) when (Errors.Expected(ex)) { }
     }
     private async Task LoadTargetFileAsync(Session session, MediaItem episode)
     {
@@ -295,6 +327,7 @@ public sealed partial class DetailPage : Page
         else if (_item.DurationLabel.Length > 0) meta.Add(_item.DurationLabel);
         if (_item.CommunityRating is { } rating and > 0) meta.Add("★ " + Number(rating, "0.0"));
         if (!string.IsNullOrWhiteSpace(_item.OfficialRating)) meta.Add(_item.OfficialRating!);
+        if (TitleStorage.Text(_size) is { } size) meta.Add(size);
         // The picture of the file Lecture plays and when it ends: the film's, or the episode's it picks up at.
         var played = _item.Type == "Series" ? SeriesTarget : _item;
         if ((_item.Type != "Series" ? MediaQuality.Label(_item) : _targetFile is { } known && known.Id == played?.Id ? MediaQuality.Label(known.Source) : null) is { } file) meta.Add(file);
@@ -804,7 +837,7 @@ public sealed partial class DetailPage : Page
     private void RenderEpisodes() => Menus.WhenClosed(DrawEpisodes);
     private void DrawEpisodes()
     {
-        _episodes.Children.Clear(); _tiles.Clear(); _tileGrid = null;
+        _episodes.Children.Clear(); _tiles.Clear(); _tileGrid = null; _episodeMeta.Clear();
         _missingViews.RemoveAll(x => !x.Pill);
         if (Shell.Session is not { } session) return;
         var page = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
@@ -827,7 +860,8 @@ public sealed partial class DetailPage : Page
             return;
         }
         var episodes = page is null ? [] : EpisodePages.Episodes(_allEpisodes, page);
-        _episodeHeading.Text = L("Épisodes", "Episodes") + $"  ·  {(page is null ? 0 : _allEpisodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
+        // The whole season's count, also on a slice of a long one, and the room it takes once known.
+        _episodeHeading.Text = EpisodeTiles.Heading(_allEpisodes, page, _episodeSizes);
         ShowSeasonMark(page);
         if (episodes.Count == 0) { _episodes.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Ui.Muted }); return; }
         // The episode Lecture plays is in another season than the one shown (a long anime opened on its first): a click brings it.
@@ -1049,7 +1083,9 @@ public sealed partial class DetailPage : Page
         if (ring is not null) still.Children.Add(ring);
         var picture = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = still };
         var root = new StackPanel { Background = Brushes.Transparent, Children = { picture, TileTitle(episode, episode.Name) } };
-        root.Children.Add(new TextBlock { Text = EpisodeTiles.Meta(episode, EpisodeCalendar.Today()), FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });
+        long? size = _episodeSizes is { } sizes && sizes.TryGetValue(episode.Id, out var known) ? known : null;
+        var meta = new TextBlock { Text = EpisodeTiles.Meta(episode, EpisodeCalendar.Today(), size), FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 };
+        root.Children.Add(meta); _episodeMeta[episode.Id] = (meta, episode);
         var overview = hidden ? Spoilers.HiddenSummary : OverviewText.Plain(episode.Overview, flat: true);
         if (overview.Length > 0)
             root.Children.Add(new TextBlock { Text = overview, FontSize = 13, FontStyle = hidden ? FontStyle.Italic : FontStyle.Normal, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19, Margin = new Thickness(0, 6, 0, 0) });

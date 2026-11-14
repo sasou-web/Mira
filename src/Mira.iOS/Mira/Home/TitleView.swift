@@ -19,6 +19,8 @@ struct TitleView: View {
     @State private var loaded = false
     /// What Play plays: the title, or a series' next episode.
     @State private var next: Item?
+    /// The room the title takes on the server (StorageSize), once Jellyfin answered.
+    @State private var size: Int64?
     @State private var audioIndex: Int?
     @State private var subtitleIndex: Int?
     /// Lecture of another title than the group's: asked first, naming the group's title.
@@ -149,7 +151,7 @@ struct TitleView: View {
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("title.name")
             }
-            let meta = ItemText.facts(item)
+            let meta = ItemText.facts(item, size: size)
             if !meta.isEmpty {
                 Text(meta).font(MiraFont.subheadline).foregroundStyle(Palette.muted)
             }
@@ -339,6 +341,8 @@ struct TitleView: View {
         } catch JellyfinError.unauthorized { app.sessionEnded() } catch {}
         // The groups open on Jellyfin: one to join shows under Play.
         if app.together.group == nil { await app.together.refresh() }
+        // The room it takes on the server, last: never waited for (a long anime's list), kept for the next time.
+        if loaded, let client = app.client { size = await StorageSize.size(of: item, client: client) }
     }
 
     private var heading: String {

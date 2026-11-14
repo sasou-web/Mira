@@ -55,6 +55,13 @@ struct EpisodeList: View {
             } else if let only = chips.first?.name {
                 Text(verbatim: only).font(MiraFont.section).foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
             }
+            // The season's episodes and the room they take on the server (StorageSize), as Windows and Mac say over their grid.
+            if absentSeason == nil, !episodes.isEmpty {
+                Text(verbatim: [String(localized: "\(episodes.count) episodes"), StorageSize.text(StorageSize.sum(episodes, StorageSize.sizes(episodes)))].compactMap(\.self).joined(separator: " · "))
+                    .font(MiraFont.footnote)
+                    .foregroundStyle(Palette.muted)
+                    .accessibilityIdentifier("series.seasonSize")
+            }
             // « Mark the season as watched »: only beside another season (with one, the series' own button does it).
             if seasons.count > 1, !episodes.isEmpty, absentSeason == nil {
                 let mark = SeasonMark.of(episodes)
@@ -374,11 +381,12 @@ struct EpisodeTile: View {
             .compactMap(\.self).filter { !$0.isEmpty }.joined(separator: ". ")
     }
 
-    /// « 45 min · Oct 25 », « 32 min left · Oct 25 » (EpisodeTiles.Meta of Core).
+    /// « 45 min · Oct 25 · 1.2 GB », « 32 min left · Oct 25 · 1.2 GB » (EpisodeTiles.Meta of Core): its files' size
+    /// last (StorageSize; the season's episodes come with their files).
     private var detail: String? {
         let length = ItemText.remaining(episode) ?? episode.runTimeTicks.flatMap { $0 > 0 ? ItemText.duration(seconds: $0 / ItemText.ticksPerSecond) : nil }
         let day = EpisodeCalendar.airDay(episode).map { EpisodeShelf.shortDay($0, today: .today()) }
-        let parts = [length, day].compactMap(\.self)
+        let parts = [length, day, StorageSize.text(StorageSize.of(episode.mediaSources))].compactMap(\.self)
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

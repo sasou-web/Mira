@@ -903,6 +903,63 @@ internal static class LibraryTests
             try { await cache.ItemAsync("x"); throw new Exception("Expected temporary HTTP failure"); } catch (HttpRequestException) { }
             Assert((await cache.ItemAsync("x")).Name == "Rétabli" && count == 2, "Faulted prefetch remains cached");
         });
+        await Test("Place prise : chaque version et chaque partie d’un film, une série par ses épisodes, comme l’iPhone (tests/fixtures/storage.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "storage.json")));
+            static long? Number(JsonElement x) => x.ValueKind == JsonValueKind.Null ? null : x.GetInt64();
+            var was = Lang.Code;
+            foreach (var row in fixture.RootElement.GetProperty("text").EnumerateArray())
+            {
+                string? said, english;
+                try { Lang.Use(Lang.French); said = TitleStorage.Text(row[0].GetInt64()); Lang.Use(Lang.English); english = TitleStorage.Text(row[0].GetInt64()); }
+                finally { Lang.Use(was); }
+                Assert(said == row[1].GetString() && english == row[2].GetString(), $"{row}: {said} | {english}");
+            }
+            foreach (var row in fixture.RootElement.GetProperty("files").EnumerateArray())
+            {
+                var sources = row[0].EnumerateArray().Select(x => new MediaSource { Size = Number(x[0]), Path = x[1].GetString(), Id = x[2].GetString()! }).ToList();
+                Assert(TitleStorage.Of(sources) == Number(row[1]), $"{row}: {TitleStorage.Of(sources)}");
+            }
+            foreach (var row in fixture.RootElement.GetProperty("series").EnumerateArray())
+            {
+                var episodes = row[0].EnumerateArray().Select(x => new MediaItem { Id = x[0].GetString()!, Type = "Episode", ParentIndexNumber = x[1].GetInt32(), MediaSources = Number(x[2]) is { } size ? [new MediaSource { Id = x[0].GetString()!, Size = size }] : [] }).ToList();
+                var sizes = TitleStorage.Sizes(episodes); var season = row[1].GetInt32();
+                Assert(TitleStorage.Sum(episodes, sizes) == Number(row[2]) && TitleStorage.Sum(episodes.Where(x => x.ParentIndexNumber == season), sizes) == Number(row[3]), $"{row}");
+            }
+            // A film in two parts: the second's files counted too.
+            var film = new MediaItem { Id = "f", Type = "Movie", PartCount = 2, MediaSources = [new MediaSource { Id = "f", Path = "/m/F - cd1.mkv", Size = 1000 }] };
+            Assert(TitleStorage.Of(film, [new MediaItem { Id = "p", MediaSources = [new MediaSource { Id = "p", Path = "/m/F - cd2.mkv", Size = 500 }] }]) == 1500 && TitleStorage.Of(film) == 1000, "Parts");
+            // Under a tile and over the grid: its size last, said only once known.
+            var episode = new MediaItem { Id = "e", Type = "Episode", RunTimeTicks = TimeSpan.FromMinutes(24).Ticks, ParentIndexNumber = 1 };
+            Assert(EpisodeTiles.Meta(episode, new DateOnly(2026, 11, 14)) == "24 min" && EpisodeTiles.Meta(episode, new DateOnly(2026, 11, 14), 1288490189) == "24 min · 1,2 Go", EpisodeTiles.Meta(episode, new DateOnly(2026, 11, 14), 1288490189));
+            var page = new EpisodePage(1, 0, 1, "Saison 1");
+            Assert(EpisodeTiles.Heading([episode], page, null) == "Épisodes  ·  1" && EpisodeTiles.Heading([episode], page, new Dictionary<string, long> { ["e"] = 1288490189 }) == "Épisodes  ·  1  ·  1,2 Go"
+                && EpisodeTiles.Heading([episode], page, new Dictionary<string, long>()) == "Épisodes  ·  1", EpisodeTiles.Heading([episode], page, new Dictionary<string, long> { ["e"] = 1288490189 }));
+            return Task.CompletedTask;
+        });
+        await Test("Place prise : demandée une fois à Jellyfin, gardée, redemandée quand un épisode arrive ; les parties d’un film demandées", async () =>
+        {
+            var asked = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery; lock (asked) asked.Add(path);
+                if (path.StartsWith("/Shows/s/Episodes", StringComparison.Ordinal))
+                    return Task.FromResult(JsonResponse(new ItemsResult { Items = [new MediaItem { Id = "e1", MediaSources = [new MediaSource { Id = "e1", Size = 100 }] }, new MediaItem { Id = "e2", MediaSources = [new MediaSource { Id = "e2", Size = 200 }] }] }));
+                if (path.StartsWith("/Videos/f/AdditionalParts", StringComparison.Ordinal))
+                    return Task.FromResult(JsonResponse(new ItemsResult { Items = [new MediaItem { Id = "p", MediaSources = [new MediaSource { Id = "p", Size = 50 }] }] }));
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            var sizes = new TitleSizes(client);
+            Assert(sizes.KnownEpisodes("s", 2) is null, "Known before asked");
+            var first = await sizes.EpisodesAsync("s", 2); var again = await sizes.EpisodesAsync("s", 2);
+            Assert(first.Count == 2 && first["e2"] == 200 && ReferenceEquals(first, again) && asked.Count == 1 && sizes.KnownEpisodes("s", 2) is not null, "Asked once: " + string.Join(" ", asked));
+            Assert(asked[0].Contains("fields=MediaSources", StringComparison.Ordinal) && asked[0].Contains("isMissing=false", StringComparison.Ordinal) && asked[0].Contains("enableImages=false", StringComparison.Ordinal), asked[0]);
+            await sizes.EpisodesAsync("s", 3); Assert(asked.Count == 2, "An episode more: asked again");
+            var film = new MediaItem { Id = "f", Type = "Movie", PartCount = 2, MediaSources = [new MediaSource { Id = "f", Size = 1000 }] };
+            Assert(await sizes.FilmAsync(film) == 1050 && asked.Count == 3 && sizes.KnownFilm("f") == 1050, "Parts asked");
+            Assert(await sizes.FilmAsync(new MediaItem { Id = "g", Type = "Movie", MediaSources = [new MediaSource { Id = "g", Size = 7 }] }) == 7 && asked.Count == 3, "A film in one file: nothing asked");
+        });
         await Test("Cache disque : au-delà du budget, les images les moins récemment vues partent", () =>
         {
             var folder = Path.Combine(testRoot, "disk-cache"); Directory.CreateDirectory(Path.Combine(folder, "compte-2"));

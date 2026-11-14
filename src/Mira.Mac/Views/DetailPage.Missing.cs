@@ -155,6 +155,7 @@ public sealed partial class DetailPage
             if (!ReferenceEquals(session, Shell.Session)) return;
             _allEpisodes = episodes.Items; _virtuals = virtuals;
             FillSeasons(); RenderEpisodes();
+            _ = LoadSizeAsync(session);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { }
     }

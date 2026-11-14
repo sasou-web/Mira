@@ -136,7 +136,9 @@ public partial class MainWindow
         if (EpisodeTiles.Number(episode) is { Length: > 0 } number) title.Inlines.Add(new Run(number + "  ") { FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted") });
         title.Inlines.Add(new Run(episode.Name));
         root.Children.Add(title);
-        root.Children.Add(new TextBlock { Text = EpisodeTiles.Meta(episode, EpisodeCalendar.Today()), FontSize = 12.5, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        long? size = _episodeSizes is { } sizes && sizes.TryGetValue(episode.Id, out var known) ? known : null;
+        var meta = new TextBlock { Text = EpisodeTiles.Meta(episode, EpisodeCalendar.Today(), size), FontSize = 12.5, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        root.Children.Add(meta); _episodeMeta[episode.Id] = (meta, episode);
         var overview = hidden ? Spoilers.HiddenSummary : OverviewText.Plain(episode.Overview, flat: true);
         if (overview.Length > 0)
             root.Children.Add(new TextBlock { Text = overview, FontSize = 12.5, FontWeight = FontWeights.Normal, FontStyle = hidden ? FontStyles.Italic : FontStyles.Normal, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 6, 0, 0) });

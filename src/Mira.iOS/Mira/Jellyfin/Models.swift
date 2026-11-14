@@ -201,15 +201,16 @@ enum ItemText {
         return parts.joined(separator: " · ")
     }
 
-    /// « 1962 · 1 h 24 · ★ 7.7 · FR-TP »: what a title is, in one line on its page (its genres come at the end of
-    /// the page, as links).
-    static func facts(_ item: Item) -> String {
+    /// « 1962 · 1 h 24 · ★ 7.7 · FR-TP · 1.2 GB »: what a title is, in one line on its page (its genres come at the
+    /// end of the page, as links), the room it takes on the server last once known (StorageSize).
+    static func facts(_ item: Item, size: Int64? = nil) -> String {
         var parts: [String] = []
         if let year = item.productionYear { parts.append(String(year)) }
         if item.isSeries, let seasons = item.childCount, seasons > 0 { parts.append(String(localized: "\(seasons) seasons")) }
         else if let ticks = item.runTimeTicks, ticks > 0 { parts.append(duration(seconds: ticks / ticksPerSecond)) }
         let rated = ratings(item)
         if !rated.isEmpty { parts.append(rated) }
+        if let size = StorageSize.text(size) { parts.append(size) }
         return parts.joined(separator: " · ")
     }
 

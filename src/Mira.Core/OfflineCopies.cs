@@ -308,8 +308,10 @@ public static class OfflineCopies
         return list.OrderByDescending(x => newest[x.Item.SeriesId ?? x.Item.Id]).ThenBy(x => x.Item.SeriesId ?? x.Item.Id).ThenBy(x => Order(x.Item)).ToList();
     }
 
-    /// <summary>« 850 Mo », « 4,2 Go ».</summary>
-    public static string SizeText(long bytes) => bytes >= 1L << 30
+    /// <summary>« 850 Mo », « 4,2 Go », « 12 Go », « 1,4 To » (a whole series: TitleStorage).</summary>
+    public static string SizeText(long bytes) => bytes >= 1L << 40
+        ? (bytes / (double)(1L << 40)).ToString(bytes >= 10L << 40 ? "0" : "0.0", Culture) + L(" To", " TB")
+        : bytes >= 1L << 30
         ? (bytes / (double)(1L << 30)).ToString(bytes >= 10L << 30 ? "0" : "0.0", Culture) + L(" Go", " GB")
         : Math.Max(1, (int)Math.Round(bytes / (double)(1L << 20))) + L(" Mo", " MB");
     /// <summary>The video's extension: that of Jellyfin's file, else its container (« mkv », « mp4 »).</summary>

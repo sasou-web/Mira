@@ -252,6 +252,12 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>The episodes a series has, their numbers only.</summary>
     public Task<ItemsResult> OwnedEpisodesAsync(string seriesId, CancellationToken ct = default) =>
         GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&isMissing=false&enableImages=false&enableUserData=false", ct);
+    /// <summary>
+    /// A series' episodes with their files (TitleSizes: their sizes), nothing else: no pictures, no progress. Jellyfin
+    /// sends each file's tracks too (no way to leave them out): about 2 KB an episode.
+    /// </summary>
+    public async Task<List<MediaItem>> EpisodeFilesAsync(string seriesId, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&isMissing=false&fields=MediaSources&enableImages=false&enableUserData=false", ct)).Items;
     /// <summary>The other files of a title in several parts (<see cref="MovieParts"/>), in Jellyfin's order, each with this account's progress.</summary>
     public async Task<List<MediaItem>> AdditionalPartsAsync(string id, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Videos/{Uri.EscapeDataString(id)}/AdditionalParts?userId={Connection.UserId}", ct)).Items;

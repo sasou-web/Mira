@@ -168,11 +168,12 @@ enum RemoteLines {
         return french ? text.replacingOccurrences(of: ".", with: ",") : text
     }
 
-    enum Unit: Sendable, Equatable { case gigabytes, megabytes, megabytesPerSecond, kilobytesPerSecond }
+    enum Unit: Sendable, Equatable { case terabytes, gigabytes, megabytes, megabytesPerSecond, kilobytesPerSecond }
 
-    /// The number of a size and its unit: « 850 » MB, « 4,2 » GB, « 12 » GB.
+    /// The number of a size and its unit: « 850 » MB, « 4,2 » GB, « 12 » GB, « 1,4 » TB (a whole series: StorageSize).
     static func sizeParts(_ bytes: Int64?, french: Bool = RemoteLines.french) -> (number: String, unit: Unit) {
-        let n = Double(max(0, bytes ?? 0)), gib = 1_073_741_824.0, mib = 1_048_576.0
+        let n = Double(max(0, bytes ?? 0)), tib = 1_099_511_627_776.0, gib = 1_073_741_824.0, mib = 1_048_576.0
+        if n >= tib { return (decimal(n / tib, n >= 10 * tib ? 0 : 1, french: french), .terabytes) }
         if n >= gib { return (decimal(n / gib, n >= 10 * gib ? 0 : 1, french: french), .gigabytes) }
         return (String(max(1, Int((n / mib).rounded(.toNearestOrAwayFromZero)))), .megabytes)
     }
@@ -188,6 +189,7 @@ enum RemoteLines {
     private static func words(_ parts: (number: String, unit: Unit)) -> String {
         let n = parts.number
         switch parts.unit {
+        case .terabytes: return String(localized: "\(n) TB")
         case .gigabytes: return String(localized: "\(n) GB")
         case .megabytes: return String(localized: "\(n) MB")
         case .megabytesPerSecond: return String(localized: "\(n) MB/s")
