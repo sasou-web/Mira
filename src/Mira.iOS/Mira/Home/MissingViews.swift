@@ -255,15 +255,29 @@ struct MissingSheet: View {
                 }
                 .listRowBackground(Palette.surface)
             } else if let pack {
+                // Up to three to choose from (best picture, best balance, smallest), the best checked; the others below them.
+                let episodes = ask.episodes.count
+                let choices = MissingDownloads.packChoices(picks.packs, episodes: episodes)
+                let rest = picks.packs.filter { option in !choices.contains { $0.option == option } }
                 Section {
-                    optionText(pack, label: Releases.episodeLabel(pack.entry.release))
-                    if picks.packs.count > 1 {
+                    if choices.count == 1, picks.packs.count == 1 {
+                        optionText(pack, label: Releases.episodeLabel(pack.entry.release), covers: MissingDownloads.covers(pack, episodes: episodes))
+                    } else {
+                        ForEach(choices, id: \.option.entry.hit.id) { choice in
+                            Button { self.pack = choice.option } label: {
+                                choiceRow(choice.option, on: choice.option == pack, label: MissingDownloads.packKindName(choice.kind), covers: MissingDownloads.covers(choice.option, episodes: episodes))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("series.missing.pack.\(choice.kind.rawValue)")
+                        }
+                    }
+                    if !rest.isEmpty {
                         DisclosureGroup(isExpanded: $packsOpen) {
-                            ForEach(picks.packs, id: \.entry.hit.id) { option in
-                                Button { self.pack = option } label: { choiceRow(option, on: option == pack) }.buttonStyle(.plain)
+                            ForEach(rest, id: \.entry.hit.id) { option in
+                                Button { self.pack = option } label: { choiceRow(option, on: option == pack, covers: MissingDownloads.covers(option, episodes: episodes)) }.buttonStyle(.plain)
                             }
                         } label: {
-                            Text(verbatim: MissingDownloads.otherChoices(picks.packs.count - 1)).font(MiraFont.footnote).foregroundStyle(Palette.ink)
+                            Text(verbatim: MissingDownloads.otherChoices(rest.count)).font(MiraFont.footnote).foregroundStyle(Palette.ink)
                         }
                     }
                     if !picks.episodes.isEmpty {
@@ -330,19 +344,20 @@ struct MissingSheet: View {
         }
     }
 
-    private func choiceRow(_ option: MissingDownloads.Option, on: Bool) -> some View {
+    private func choiceRow(_ option: MissingDownloads.Option, on: Bool, label: String? = nil, covers: String? = nil) -> some View {
         HStack(spacing: 10) {
             Image(systemName: on ? "largecircle.fill.circle" : "circle").foregroundStyle(on ? Palette.ink : Palette.muted)
-            optionText(option, label: nil)
+            optionText(option, label: label, covers: covers)
         }
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
-    private func optionText(_ option: MissingDownloads.Option, label: String?) -> some View {
+    private func optionText(_ option: MissingDownloads.Option, label: String?, covers: String? = nil) -> some View {
         let (quality, detail) = MissingDownloads.option(option)
         return VStack(alignment: .leading, spacing: 2) {
             Text(verbatim: [label, quality].compactMap(\.self).joined(separator: "  ")).font(MiraFont.subheadline).foregroundStyle(Palette.ink).lineLimit(1)
             Text(verbatim: detail).font(MiraFont.regular(12, .caption)).foregroundStyle(Palette.muted).lineLimit(1)
+            if let covers { Text(verbatim: covers).font(MiraFont.regular(12, .caption)).foregroundStyle(Palette.muted) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -394,8 +409,8 @@ struct MissingSheet: View {
                 hits += found.hits
                 failure = failure ?? found.error
                 let trial = MissingDownloads.choose(ask, known, hits)
-                // Everything found already (or a season's pack): the second, wider search would only add noise.
-                if trial.notFound.isEmpty || !trial.packs.isEmpty { break }
+                // Everything found already (or three season packs to choose from): the second, wider search would only add noise.
+                if MissingDownloads.searchedEnough(trial) { break }
             }
             try Task.checkCancellation()
             let result = MissingDownloads.choose(ask, known, hits)

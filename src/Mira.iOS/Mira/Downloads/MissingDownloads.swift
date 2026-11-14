@@ -165,6 +165,74 @@ enum MissingDownloads {
         return Picks(packs: Array(ranked(packs).prefix(maxOthers + 1)), episodes: choices, notFound: wanted.filter { !found.contains($0) }.sorted())
     }
 
+    /// Whether the menu has what it needs after a search: every episode asked, or enough season packs to choose from
+    /// (`packChoices`); otherwise the wider search (the name alone) runs too.
+    static func searchedEnough(_ picks: Picks) -> Bool { picks.notFound.isEmpty || picks.packs.count >= 3 }
+
+    /// Why a season pack is put forward among the three.
+    enum PackKind: String, Sendable, Equatable { case quality, balanced, smallest }
+
+    struct PackChoice: Sendable, Equatable {
+        var kind: PackKind
+        var option: Option
+    }
+
+    private static let lighter = 0.6
+
+    /// Up to three season packs to choose from, the best picture first: `quality` = the best ranked; `smallest` = the
+    /// smallest at most 60 % of its size; `balanced` = between them, the best ranked (the larger at equal rank) at least 1.5
+    /// times the smallest. Never a pack too small for the season's `episodes` (`doubtful`) as a lighter one. One pack
+    /// found, one choice. PackChoices of Mira.Core, cases in missing.json.
+    static func packChoices(_ packs: [Option], episodes: Int) -> [PackChoice] {
+        guard let best = packs.first else { return [] }
+        var choices = [PackChoice(kind: .quality, option: best)]
+        let size = best.entry.hit.size ?? 0
+        guard size > 0 else { return choices }
+        let lighter = packs.dropFirst().filter { let s = $0.entry.hit.size ?? 0; return s > 0 && Double(s) <= Double(size) * Self.lighter && !doubtful($0, episodes: episodes) }
+        guard let smallest = lighter.min(by: { a, b in
+            let (x, y) = (a.entry.hit.size ?? 0, b.entry.hit.size ?? 0)
+            return x != y ? x < y : a.entry.score > b.entry.score
+        }) else { return choices }
+        let smallSize = Double(smallest.entry.hit.size ?? 0)
+        let balanced = lighter.filter { $0 != smallest && $0.entry.score >= smallest.entry.score && Double($0.entry.hit.size ?? 0) >= smallSize * 1.5 }
+            .min { a, b in a.entry.score != b.entry.score ? a.entry.score > b.entry.score : (a.entry.hit.size ?? 0) > (b.entry.hit.size ?? 0) }
+        if let balanced { choices.append(PackChoice(kind: .balanced, option: balanced)) }
+        choices.append(PackChoice(kind: .smallest, option: smallest))
+        return choices
+    }
+
+    /// A pack whose name doesn't say its episodes, too small for all of them at its picture (a season split in two).
+    static func doubtful(_ pack: Option, episodes: Int) -> Bool {
+        let release = pack.entry.release, size = pack.entry.hit.size ?? 0
+        guard release.episode == nil, episodes > 1, size > 0 else { return false }
+        let mib: Int64 = switch release.resolution ?? 0 { case 2160...: 500; case 1080...: 120; case 720...: 70; default: 40 }
+        return size / Int64(episodes) < mib << 20
+    }
+
+    static func packKindName(_ kind: PackKind, french: Bool = MissingDownloads.french) -> String {
+        switch kind {
+        case .quality: french ? "Meilleure qualité" : "Best quality"
+        case .balanced: french ? "Meilleur compromis" : "Best balance"
+        case .smallest: french ? "Le plus léger" : "Smallest"
+        }
+    }
+
+    /// What a season pack holds, as its name says, for a season of `episodes` episodes (Covers of Mira.Core).
+    static func covers(_ pack: Option, episodes: Int, french: Bool = MissingDownloads.french) -> String {
+        let release = pack.entry.release, size = pack.entry.hit.size ?? 0
+        let each = episodes > 0 && size > 0 ? RemoteLines.size(size / Int64(episodes)) : nil
+        if let from = release.episode, let to = release.lastEpisode {
+            let range = code(from, to, french: french)
+            guard let each else { return range }
+            return french ? "\(range) · ≈ \(each) par épisode" : "\(range) · ≈ \(each) per episode"
+        }
+        guard let each else { return french ? "Épisodes non dits dans le nom" : "Episodes not in its name" }
+        if doubtful(pack, episodes: episodes) {
+            return french ? "Peut-être pas les \(episodes) épisodes : ≈ \(each) chacun s’il les a" : "Maybe not all \(episodes) episodes: ≈ \(each) each if so"
+        }
+        return french ? "Épisodes non dits dans le nom · ≈ \(each) chacun s’il a les \(episodes)" : "Episodes not in its name · ≈ \(each) each for all \(episodes)"
+    }
+
     private static func ranked(_ options: [Option]) -> [Option] {
         options.sorted { a, b in
             if a.entry.score != b.entry.score { return a.entry.score > b.entry.score }

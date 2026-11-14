@@ -42,6 +42,30 @@ struct MissingTests {
         }
     }
 
+    @Test("Trois choix de pack : meilleure qualité, meilleur compromis, le plus léger")
+    func packChoices() throws {
+        let cases = try #require(try fixture()["packChoices"] as? [[String: Any]])
+        #expect(!cases.isEmpty)
+        for c in cases {
+            let name = c["name"] as? String ?? ""
+            let a = try #require(c["ask"] as? [String: Any])
+            let ask = MissingDownloads.Ask(season: (a["season"] as? NSNumber)?.intValue ?? 0, episodes: (a["episodes"] as? [NSNumber] ?? []).map(\.intValue),
+                                           wholeSeason: a["wholeSeason"] as? Bool ?? false)
+            let hits: [(search: String, hit: Releases.Hit)] = (c["hits"] as? [[Any]] ?? []).enumerated().map { i, row in
+                let gib = (row[1] as? NSNumber)?.doubleValue ?? 0
+                return ("s-\(row[4] as? String ?? "")", Releases.Hit(id: "h\(i + 1)", name: row[0] as? String ?? "", size: Int64(gib * 1_073_741_824),
+                                                                       seeders: (row[2] as? NSNumber)?.intValue, leechers: 0, source: row[3] as? String, added: nil, category: row[4] as? String))
+            }
+            let picks = MissingDownloads.choose(ask, series(try #require(c["series"] as? [String: Any])), hits)
+            let got = MissingDownloads.packChoices(picks.packs, episodes: ask.episodes.count)
+                .map { "\($0.kind.rawValue) \($0.option.entry.hit.name) \(MissingDownloads.doubtful($0.option, episodes: ask.episodes.count))" }
+            let wanted = (c["choices"] as? [[Any]] ?? []).map { "\($0[0] as? String ?? "") \($0[1] as? String ?? "") \($0[2] as? Bool ?? false)" }
+            #expect(got == wanted, "\(name): \(got)")
+        }
+        #expect(MissingDownloads.searchedEnough(MissingDownloads.Picks(packs: [], episodes: [], notFound: [])))
+        #expect(MissingDownloads.packKindName(.balanced, french: true) == "Meilleur compromis" && MissingDownloads.packKindName(.smallest, french: false) == "Smallest")
+    }
+
     @Test("Ce qui est cherché, les suites d'épisodes, les textes")
     func words() throws {
         let x = try fixture()

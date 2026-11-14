@@ -1,5 +1,5 @@
 {
-  "comment": "« Télécharger les manquants » of a series' page: Mira.Core MissingDownloads (Windows, Mac) and Downloads/MissingDownloads.swift (iPhone). choose: TorLink's results for what a click asked (hits: name, size in GiB, seeders, site, category; each one's id is its place in the list), the season packs kept best first, the release put forward for each episode, and the episodes nothing was found for. queries: what TorLink is asked. runs: episodes in runs, as the menu names them.",
+  "comment": "« Télécharger les manquants » of a series' page: Mira.Core MissingDownloads (Windows, Mac) and Downloads/MissingDownloads.swift (iPhone). choose: TorLink's results for what a click asked (hits: name, size in GiB, seeders, site, category; each one's id is its place in the list), the season packs kept best first, the release put forward for each episode, and the episodes nothing was found for. queries: what TorLink is asked. runs: episodes in runs, as the menu names them. packChoices: the season packs a click on « Get season 2 » offers to choose from (kind, name, and whether it is too small for all the episodes while its name leaves them unsaid: never as a lighter choice).",
   "choose": [
     {
       "name": "A gap in a season: one release per episode, the group most episodes share, never a pack, a cam, a dead one, two in one or a huge one",
@@ -66,6 +66,26 @@
   "queries": [
     { "series": { "name": "Dandadan (2024)", "year": 2024, "before": 0 }, "season": 1, "queries": ["Dandadan S01", "Dandadan"] },
     { "series": { "name": "Arcane", "year": 2021, "before": 9, "query": "Arcane League of Legends" }, "season": 2, "queries": ["Arcane League of Legends"] }
+  ],
+  "packChoices": [
+    {
+      "name": "A season of 48 episodes: the best picture, the best for its size, the smallest; a pack of half the season never offered",
+      "series": { "name": "JoJo's Bizarre Adventure", "originalTitle": "JoJo no Kimyou na Bouken", "year": 2012, "before": 26 },
+      "ask": { "season": 2, "episodes": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48], "wholeSeason": true },
+      "hits": [
+        ["JoJo's.Bizarre.Adventure.S02.1080p.WEB-DL.AV1.MULTI-TRIX", 19, 24, "nyaa", "anime"],
+        ["JoJo's.Bizarre.Adventure.S02E01-E48.1080p.BluRay.x265.10bit-GRP", 22, 30, "nyaa", "anime"],
+        ["JoJo's.Bizarre.Adventure.S02.1080p.WEB.x264-SMALL", 9, 40, "nyaa", "anime"],
+        ["JoJo's.Bizarre.Adventure.S02.720p.WEB.x264-TINY", 4, 15, "nyaa", "anime"],
+        ["JoJo's.Bizarre.Adventure.S02.1080p.WEB.x264-THIN", 3.5, 15, "nyaa", "anime"],
+        ["JoJo's.Bizarre.Adventure.S02E01-E24.1080p.WEB.x264-HALF", 8, 50, "nyaa", "anime"]
+      ],
+      "choices": [
+        ["quality", "JoJo's.Bizarre.Adventure.S02.1080p.WEB-DL.AV1.MULTI-TRIX", false],
+        ["balanced", "JoJo's.Bizarre.Adventure.S02.1080p.WEB.x264-SMALL", false],
+        ["smallest", "JoJo's.Bizarre.Adventure.S02.720p.WEB.x264-TINY", false]
+      ]
+    }
   ],
   "runs": [
     [[6, 7, 9], [[6, 7], [9, 9]]],
