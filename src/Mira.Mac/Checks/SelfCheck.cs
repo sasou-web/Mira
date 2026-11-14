@@ -566,11 +566,23 @@ public static class SelfCheck
                 Check(shelfPage.ShowSeasonForCheck(Lang.L("Saison 2 · absente", "Season 2 · not in library")), "épisodes manquants et à venir : saison absente");
                 await Task.Delay(900); Capture(window, output, "06d-series-absent-season");
                 // « Télécharger la saison 2 » (an administrator, the relay's agent places it): the menu searches on the PC of
-                // Jellyfin; the stand-in's results are another title's, the menu says nothing was found and offers another name.
+                // Jellyfin; three packs of the season, the best checked; then, the stand-in giving another title's results,
+                // the menu says nothing was found and offers another name.
                 Check(await Until(() => shelfPage.MissingOffered, 10) && shelfPage.OpenMissingForCheck(), "télécharger les manquants : bouton de la saison absente");
-                Check(await Until(() => shelfPage.MissingMenuShown == "nothing", 15), "télécharger les manquants : menu, rien trouvé", shelfPage.MissingMenuShown ?? "fermé");
-                await Task.Delay(500); Capture(window, output, "06f-missing-menu");
+                Check(await Until(() => shelfPage.MissingMenuShown == "pack", 15), "télécharger les manquants : menu, trois packs", shelfPage.MissingMenuShown ?? "fermé");
+                var packs = shelfPage.MissingPacksForCheck;
+                Check(packs.Count == 3 && packs[0].Chosen && packs.Skip(1).All(x => !x.Chosen) && packs.All(x => x.Named), "télécharger les manquants : packs en rangées radio, le premier coché, nommés",
+                    $"{packs.Count} : " + string.Join(" | ", packs.Select(x => $"{x.Chosen}:{x.Named}")));
+                // The menu is a window of its own: the screen, as for the player's menus.
+                await Task.Delay(500); Capture(window, output, "06f-missing-menu"); ScreenColour(Path.Combine(output, "06f-missing-menu-screen.png"));
                 shelfPage.CloseMissingForCheck();
+                if (mock is not null)
+                {
+                    mock.MissingPacks = false;
+                    Check(await Until(() => !shelfPage.MissingMenuOpen, 5) && shelfPage.OpenMissingForCheck() && await Until(() => shelfPage.MissingMenuShown == "nothing", 15), "télécharger les manquants : menu, rien trouvé", shelfPage.MissingMenuShown ?? "fermé");
+                    await Task.Delay(500); ScreenColour(Path.Combine(output, "06g-missing-nothing.png"));
+                    shelfPage.CloseMissingForCheck(); mock.MissingPacks = true;
+                }
                 shelfPage.ShowSeasonForCheck(shelfPage.SeasonLabels.First());
                 Check(shelfPage.PillsShown && shelfPage.TilesShown > 0, "épisodes en grille, saisons en pastilles", $"{shelfPage.TilesShown} tuiles");
                 shelfPage.ShowEpisodesForCheck(); await Task.Delay(900); Capture(window, output, "06e-series-grid");

@@ -136,6 +136,16 @@
       <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource Raised}"/><Setter TargetName="Check" Property="Visibility" Value="Visible"/><Setter Property="Foreground" Value="{StaticResource Text}"/><Setter Property="FontWeight" Value="Bold"/></Trigger>
     </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
+  <!-- One choice among a few, with more to say than a word (« Get season »'s packs): its round radio on the left, its words, the one chosen raised, in bold, the radio filled. -->
+  <Style x:Key="PopoverRadio" TargetType="RadioButton"><Setter Property="Foreground" Value="{StaticResource TextBody}"/><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="Padding" Value="14,11"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><v:Squircle x:Name="Chrome" Background="Transparent" CornerRadius="11">
+      <DockPanel Margin="{TemplateBinding Padding}"><Ellipse x:Name="Ring" DockPanel.Dock="Left" Width="18" Height="18" Stroke="{StaticResource Dim}" StrokeThickness="1.5" Margin="0,0,14,0" VerticalAlignment="Center"/><ContentPresenter VerticalAlignment="Center" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/></DockPanel>
+    </v:Squircle><ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource Raised}"/></Trigger>
+      <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource Raised2}"/></Trigger>
+      <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource Raised}"/><Setter TargetName="Ring" Property="Stroke" Value="{StaticResource Text}"/><Setter TargetName="Ring" Property="StrokeThickness" Value="5.5"/><Setter Property="Foreground" Value="{StaticResource Text}"/><Setter Property="FontWeight" Value="Bold"/></Trigger>
+    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
   <!-- A setting of a menu that is on or off (Son de nuit): its words, then a switch on the right, the one of the Réglages. -->
   <Style x:Key="PlayerMenuSwitch" TargetType="CheckBox"><Setter Property="v:Motion.Switch" Value="True"/><Setter Property="Foreground" Value="{StaticResource TextBody}"/><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="Padding" Value="12,8"/><Setter Property="MinHeight" Value="38"/>
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox"><v:Squircle x:Name="Chrome" Background="Transparent" CornerRadius="{StaticResource RadiusControl}">

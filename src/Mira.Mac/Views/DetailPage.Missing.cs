@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -43,6 +44,12 @@ public sealed partial class DetailPage
         return get is not null;
     }
     public void CloseMissingForCheck() => _missingFlyout?.Hide();
+    public bool MissingMenuOpen => _missingMenu is { Open: true };
+    /// <summary>The pack rows of the open menu: checked, and named for VoiceOver.</summary>
+    public IReadOnlyList<(bool Chosen, bool Named)> MissingPacksForCheck => _missingMenu is { Open: true } menu
+        ? menu.Body.GetLogicalDescendants().OfType<RadioButton>().Where(x => x.GroupName == "missing-pack" && x.GetLogicalAncestors().OfType<Control>().TakeWhile(a => !ReferenceEquals(a, menu.Body)).All(a => a.IsVisible) && x.IsVisible)
+            .Select(x => (x.IsChecked == true, !string.IsNullOrEmpty(AutomationProperties.GetName(x)))).ToList()
+        : [];
 
     /// <summary>Whether this page offers the buttons: an administrator, and a Mira on the PC of Jellyfin that places them.</summary>
     private async Task LoadMissingAsync(Session session)
@@ -307,6 +314,7 @@ public sealed partial class DetailPage
         // The foot, updated in place when a check or a release changes (the rest of the menu, and the focus, stay).
         public TextBlock? Total { get; set; }
         public Button? Go { get; set; }
+        public TextBlock? GoLabel { get; set; }
         public string? Shown { get; set; }
         public bool Open { get; set; }
     }
@@ -315,7 +323,8 @@ public sealed partial class DetailPage
     {
         _missingSearch?.Cancel();
         _missingFlyout?.Hide();
-        var body = new Border { Width = MissingMenuWidth, Padding = new Thickness(10, 8) };
+        // The flyout's presenter is the window of the player's menus (« Écrin », App.axaml): rows reach its 8 px padding.
+        var body = new Border { Width = MissingMenuWidth };
         // Kept inside Mira's window (a popup is a window of its own on macOS, which Avalonia only keeps on the screen): below
         // the button or above it, narrower in a narrow window, its list scrolling in a short one (MenuFit of Core). Avalonia
         // places it again when its button moves (the page scrolls) or its size changes.
@@ -338,9 +347,9 @@ public sealed partial class DetailPage
         _ = SearchMissingAsync(menu);
     }
 
-    private const double MissingMenuWidth = 440;
-    // The flyout's presenter around the menu (App.axaml: padding 6, border 1), and the window's title bar (MainWindow).
-    private const double MissingMenuFrame = 14, MissingTitleBar = 30;
+    private const double MissingMenuWidth = 542;
+    // The flyout's presenter around the menu (App.axaml: padding 8, border 1), and the window's title bar (MainWindow).
+    private const double MissingMenuFrame = 18, MissingTitleBar = 30;
     /// <summary>The menu's width and tallest height, from where its button is in the window (title bar excluded).</summary>
     private void FitMissingMenu(Control anchor, Border body)
     {
@@ -352,7 +361,8 @@ public sealed partial class DetailPage
     private void PlaceMissingMenu(Control anchor, CustomPopupPlacement placement)
     {
         placement.Anchor = PopupAnchor.TopLeft; placement.Gravity = PopupGravity.BottomRight; placement.ConstraintAdjustment = PopupPositionerConstraintAdjustment.None;
-        placement.AnchorRectangle = new Rect(anchor.Bounds.Size);
+        // The anchor rectangle is in the window's coordinates (a rectangle at 0, 0 put the menu at the window's left edge).
+        placement.AnchorRectangle = TopLevel.GetTopLevel(anchor) is { } top && anchor.TranslatePoint(new Point(0, 0), top) is { } corner ? new Rect(corner, anchor.Bounds.Size) : new Rect(anchor.Bounds.Size);
         if (MissingMenuArea(anchor) is not { } area) { placement.Offset = new Point(0, anchor.Bounds.Height + MenuFit.Gap); return; }
         var at = MenuFit.At(area.Width, area.Height, area.Anchor, placement.PopupSize.Width, placement.PopupSize.Height);
         placement.Offset = new Point(at.X - area.Anchor.Left, at.Y - area.Anchor.Top);
@@ -408,17 +418,21 @@ public sealed partial class DetailPage
         var stack = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         var middle = new StackPanel();
         var foot = new StackPanel();
-        var close = Ui.IconButton("close", L("Fermer", "Close"), () => menu.Flyout.Hide(), "icon", 13);
-        close.Width = close.Height = 28;
-        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
-        DockPanel.SetDock(close, Dock.Right); head.Children.Add(close);
-        head.Children.Add(new TextBlock { Text = menu.Heading, FontSize = 15, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-        stack.Children.Add(head);
         var picks = menu.Picks;
-        // Inside the scrolled part, « Retry » reaches 12 px past the text on its left (its hover).
+        // The heading and what the menu offers under it; the close button in the corner, 8 px from the window's edges.
+        var head = new Grid();
+        head.Children.Add(Ui.Column(4,
+            new TextBlock { Text = menu.Heading, FontSize = 16, FontWeight = FontWeight.Bold, Foreground = Ui.Ink, TextTrimming = TextTrimming.CharacterEllipsis },
+            new TextBlock { Text = MissingDownloads.Lead(picks is { Empty: false } ? menu.Pack is not null : null), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap }));
+        ((Control)head.Children[0]).Margin = new Thickness(14, 12, 40, 10);
+        var close = Ui.IconButton("close", L("Fermer", "Close"), () => menu.Flyout.Hide(), "icon", 15);
+        close.Width = close.Height = 32; close.CornerRadius = new CornerRadius(10); close.Foreground = Ui.TextSecondary;
+        close.HorizontalAlignment = HorizontalAlignment.Right; close.VerticalAlignment = VerticalAlignment.Top;
+        head.Children.Add(close);
+        stack.Children.Add(head);
+        // Words (searching, nothing found, an error) line up with the heading; rows reach the window's padding, as in the player.
         Control scrolled = middle;
-        var listMargin = new Thickness(-12, 0, -12, 0);
-        middle.Margin = new Thickness(12, 0, 12, 0);
+        middle.Margin = new Thickness(14, 0, 14, 4);
         if (menu.Error is { } error && picks is null or { Empty: true })
         {
             middle.Children.Add(new TextBlock { Text = error, Foreground = Ui.Brush("#FF6B6B"), TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19 });
@@ -428,12 +442,12 @@ public sealed partial class DetailPage
         }
         else if (picks is null)
         {
-            middle.Children.Add(new TextBlock { Text = MissingDownloads.Searching, FontSize = 13, Foreground = Ui.Brush("#E0E0E3") });
+            middle.Children.Add(new TextBlock { Text = MissingDownloads.Searching, FontSize = 13, Foreground = Ui.TextSecondary });
             for (var i = 0; i < 3; i++)
             {
                 var row = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Opacity = 1 - i * 0.25 };
-                row.Children.Add(new Border { Height = 11, Width = 240 - i * 30, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(5), Background = Ui.Brush("#2A2A2A") });
-                row.Children.Add(new Border { Height = 9, Width = 150, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(4), Background = Ui.Brush("#2A2A2A"), Margin = new Thickness(0, 7, 0, 0), Opacity = 0.7 });
+                row.Children.Add(new Border { Height = 11, Width = 240 - i * 30, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(5), Background = Ui.Raised2 });
+                row.Children.Add(new Border { Height = 9, Width = 150, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(4), Background = Ui.Raised2, Margin = new Thickness(0, 7, 0, 0), Opacity = 0.7 });
                 middle.Children.Add(row);
             }
             AutomationProperties.SetLiveSetting(middle, AutomationLiveSetting.Polite);
@@ -444,22 +458,29 @@ public sealed partial class DetailPage
             var list = new StackPanel();
             if (menu.Pack is not null) list.Children.Add(MissingPackRow(menu));
             else foreach (var choice in picks.Episodes) list.Children.Add(MissingEpisodeRow(menu, choice));
-            scrolled = list; listMargin = new Thickness(0); middle.Margin = new Thickness(0);
+            scrolled = list; middle.Margin = new Thickness(0);
             if (menu.Pack is null && MissingDownloads.NotFound(picks.NotFound) is { Length: > 0 } nothing)
-                foot.Children.Add(new TextBlock { Text = nothing, FontSize = 12.5, Foreground = Ui.Muted, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
-            foot.Children.Add(new Border { Height = 1, Background = Ui.Brush("#2A2A2A"), Margin = new Thickness(0, 12) });
-            var bar = new DockPanel();
-            var go = menu.Go = new Button { Classes = { "primary" }, Padding = new Thickness(18, 8), CornerRadius = new CornerRadius(17) };
+                foot.Children.Add(new TextBlock { Text = nothing, FontSize = 12.5, Foreground = Ui.Muted, Margin = new Thickness(14, 8, 14, 0), TextWrapping = TextWrapping.Wrap });
+            // A line, then what goes and where (its size in bold), the privacy line under it, « Download season » on the right.
+            foot.Children.Add(new Border { Height = 1, Background = Ui.Rule, Margin = new Thickness(6, 8, 6, 0) });
+            var bar = new DockPanel { Margin = new Thickness(8, 14, 8, 8) };
+            menu.GoLabel = new TextBlock { FontSize = 14.5, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
+            var go = menu.Go = new Button { Classes = { "primary" }, Height = 42, Padding = new Thickness(20, 0), CornerRadius = new CornerRadius(21), VerticalAlignment = VerticalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Content = Ui.Row(9, new Icon("download", 16) { VerticalAlignment = VerticalAlignment.Center }, menu.GoLabel) };
             go.Click += async (_, _) => await SendMissingAsync(menu);
             DockPanel.SetDock(go, Dock.Right); bar.Children.Add(go);
-            bar.Children.Add(menu.Total = new TextBlock { FontSize = 12.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) });
+            menu.Total = new TextBlock { FontSize = 13.5, Foreground = Ui.TextBody, TextTrimming = TextTrimming.CharacterEllipsis };
+            var where = Ui.Column(3, menu.Total, new TextBlock { Text = MissingDownloads.Privacy, FontSize = 12, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap });
+            where.VerticalAlignment = VerticalAlignment.Center; where.Margin = new Thickness(0, 0, 16, 0);
+            bar.Children.Add(where);
             foot.Children.Add(bar);
             DrawMissingFoot(menu);
-            if (menu.Error is { } refused) foot.Children.Add(new TextBlock { Text = refused, Foreground = Ui.Brush("#FF6B6B"), TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Margin = new Thickness(0, 10, 0, 0) });
+            if (menu.Error is { } refused) foot.Children.Add(new TextBlock { Text = refused, Foreground = Ui.Brush("#FF6B6B"), TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Margin = new Thickness(8, 0, 8, 8) });
         }
-        foot.Children.Add(new TextBlock { Text = MissingDownloads.Privacy, FontSize = 11.5, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
+        // Without results, the privacy line alone, under the words.
+        if (ReferenceEquals(scrolled, middle))
+            foot.Children.Add(new TextBlock { Text = MissingDownloads.Privacy, FontSize = 12, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(14, 10, 14, 8) });
         // Never taller than its list (380): beyond that, the list scrolls even in a tall window, as before.
-        var scroller = new ScrollViewer { Content = scrolled, MaxHeight = ReferenceEquals(scrolled, middle) ? double.PositiveInfinity : 380, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Margin = listMargin, Focusable = false };
+        var scroller = new ScrollViewer { Content = scrolled, MaxHeight = ReferenceEquals(scrolled, middle) ? double.PositiveInfinity : 380, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
         Grid.SetRow(scroller, 1); Grid.SetRow(foot, 2);
         stack.Children.Add(scroller); stack.Children.Add(foot);
         var shown = menu.Error is not null && picks is null or { Empty: true } ? "error" : picks is null ? "searching" : picks.Empty ? "nothing" : menu.Pack is null ? "episodes" : "pack";
@@ -481,25 +502,25 @@ public sealed partial class DetailPage
         var current = menu.Chosen.GetValueOrDefault(choice.Episode) ?? choice.Best;
         string Name(MissingOption option) { var (quality, detail) = MissingDownloads.Option(option); return $"{MissingDownloads.EpisodeLabel(choice.Episode)} : {quality}, {detail}"; }
         var row = new StackPanel();
-        var line = new DockPanel();
+        var line = new DockPanel { Margin = new Thickness(12, 0, 0, 0) };
         var options = new[] { choice.Best }.Concat(choice.Others).ToList();
-        var others = new StackPanel { IsVisible = false, Margin = new Thickness(28, 0, 0, 4) };
+        var others = new StackPanel { IsVisible = false, Margin = new Thickness(26, 0, 0, 4) };
         if (options.Count > 1)
         {
-            var arrow = new Icon("down", 11) { VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.Brush("#C7C7CC") };
-            var change = new Button { Classes = { "quiet" }, Padding = new Thickness(8, 4), VerticalAlignment = VerticalAlignment.Center, Content = Ui.Row(5, new TextBlock { Text = MissingDownloads.Change, FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#C7C7CC") }, arrow) };
+            var arrow = new Icon("down", 11) { VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.TextSecondary };
+            var change = new Button { Classes = { "quiet" }, Padding = new Thickness(10, 5), CornerRadius = new CornerRadius(10), VerticalAlignment = VerticalAlignment.Center, Content = Ui.Row(5, new TextBlock { Text = MissingDownloads.Change, FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextSecondary }, arrow) };
             AutomationProperties.SetName(change, $"{MissingDownloads.Change} {MissingDownloads.EpisodeLabel(choice.Episode)}");
             change.Click += (_, _) => { others.IsVisible = !others.IsVisible; arrow.Kind = others.IsVisible ? "up" : "down"; };
             DockPanel.SetDock(change, Dock.Right); line.Children.Add(change);
         }
-        var check = new CheckBox { IsChecked = menu.Chosen.GetValueOrDefault(choice.Episode) is not null, Content = MissingOptionText(current, MissingDownloads.EpisodeLabel(choice.Episode)), Margin = new Thickness(0, 2) };
+        var check = new CheckBox { IsChecked = menu.Chosen.GetValueOrDefault(choice.Episode) is not null, Content = MissingOptionText(current, MissingDownloads.EpisodeLabel(choice.Episode)), Margin = new Thickness(0, 4) };
         AutomationProperties.SetName(check, Name(current));
         check.IsCheckedChanged += (_, _) => { menu.Chosen[choice.Episode] = check.IsChecked == true ? current : null; DrawMissingFoot(menu); };
         line.Children.Add(check);
         row.Children.Add(line);
         foreach (var option in options)
         {
-            var pick = new RadioButton { GroupName = $"missing-{choice.Episode}", IsChecked = ReferenceEquals(option, current), Content = MissingOptionText(option, null) };
+            var pick = new RadioButton { Classes = { "pack" }, Padding = new Thickness(12, 8), GroupName = $"missing-{choice.Episode}", IsChecked = ReferenceEquals(option, current), Content = MissingOptionText(option, null) };
             AutomationProperties.SetName(pick, Name(option));
             pick.IsCheckedChanged += (_, _) =>
             {
@@ -515,33 +536,36 @@ public sealed partial class DetailPage
         return row;
     }
 
-    /// <summary>The season's pack put forward; « Other choices (6) » for the others.</summary>
+    /// <summary>The season's packs as radio rows (the best checked, what each one is said on its right); « Other choices (6) » for the others.</summary>
     private Control MissingPackRow(MissingMenu menu)
     {
         var picks = menu.Picks!; var episodes = menu.Ask.Episodes.Count;
         var row = new StackPanel();
         // Up to three to choose from (best picture, best balance, smallest), the best checked; the others below them.
         var choices = MissingDownloads.PackChoices(picks.Packs, episodes);
-        Control Text(MissingOption option, string? label)
+        RadioButton Pick(MissingOption option, string? kind)
         {
-            var text = (StackPanel)MissingOptionText(option, label);
-            text.Children.Add(new TextBlock { Text = MissingDownloads.Covers(option, episodes), FontSize = 12, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap });
-            return text;
-        }
-        RadioButton Pick(MissingOption option, string? label)
-        {
-            var pick = new RadioButton { GroupName = "missing-pack", IsChecked = ReferenceEquals(option, menu.Pack), Content = Text(option, label), Margin = new Thickness(0, 2) };
+            var text = (StackPanel)MissingOptionText(option, null);
+            text.Children.Add(new TextBlock { Text = MissingDownloads.Covers(option, episodes), FontSize = 12, FontWeight = FontWeight.Normal, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap });
+            var content = new DockPanel();
+            if (kind is not null)
+            {
+                var tag = new TextBlock { Text = kind, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+                DockPanel.SetDock(tag, Dock.Right); content.Children.Add(tag);
+            }
+            content.Children.Add(text);
+            var pick = new RadioButton { Classes = { "pack" }, GroupName = "missing-pack", IsChecked = ReferenceEquals(option, menu.Pack), Content = content };
+            var (quality, detail) = MissingDownloads.Option(option);
+            AutomationProperties.SetName(pick, string.Join(", ", new[] { kind, quality, detail, MissingDownloads.Covers(option, episodes) }.Where(x => !string.IsNullOrEmpty(x))));
             pick.IsCheckedChanged += (_, _) => { if (pick.IsChecked == true) { menu.Pack = option; DrawMissingFoot(menu); } };
             return pick;
         }
-        if (choices.Count == 1 && picks.Packs.Count == 1)
-            row.Children.Add(new Border { Padding = new Thickness(0, 6, 0, 8), Child = Text(choices[0].Option, ReleaseRanking.EpisodeLabel(choices[0].Option.Entry.Release)) });
-        else foreach (var choice in choices) row.Children.Add(Pick(choice.Option, MissingDownloads.PackKindName(choice.Kind)));
+        foreach (var choice in choices) row.Children.Add(Pick(choice.Option, choices.Count > 1 ? MissingDownloads.PackKindName(choice.Kind) : null));
         var rest = picks.Packs.Where(x => choices.All(c => !ReferenceEquals(c.Option, x))).ToList();
         if (rest.Count > 0)
         {
             var others = new StackPanel { IsVisible = false };
-            var toggle = new Button { Classes = { "quiet" }, Content = MissingDownloads.OtherChoices(rest.Count), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 4), Margin = new Thickness(-10, 0, 0, 0), FontSize = 12.5 };
+            var toggle = MissingMore(MissingDownloads.OtherChoices(rest.Count));
             toggle.Click += (_, _) => others.IsVisible = !others.IsVisible;
             foreach (var option in rest) others.Children.Add(Pick(option, null));
             row.Children.Add(toggle); row.Children.Add(others);
@@ -549,34 +573,46 @@ public sealed partial class DetailPage
         // Episode by episode instead, when some were found one by one.
         if (picks.Episodes.Count > 0)
         {
-            var single = new Button { Classes = { "quiet" }, Content = L($"Plutôt épisode par épisode ({picks.Episodes.Count})", $"Episode by episode instead ({picks.Episodes.Count})"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 4), Margin = new Thickness(-10, 0, 0, 0), FontSize = 12.5 };
+            var single = MissingMore(L($"Plutôt épisode par épisode ({picks.Episodes.Count})", $"Episode by episode instead ({picks.Episodes.Count})"));
             single.Click += (_, _) => { menu.Pack = null; DrawMissingMenu(menu); };
             row.Children.Add(single);
         }
         return row;
     }
 
+    /// <summary>« Other choices (6) », « Episode by episode instead »: quiet words under the rows, aligned with their text.</summary>
+    private static Button MissingMore(string text) => new()
+    {
+        Classes = { "quiet" }, Content = text, HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(14, 7), Margin = new Thickness(0, 2, 0, 0), CornerRadius = new CornerRadius(10), FontSize = 13, Foreground = Ui.TextSecondary,
+    };
+
     /// <summary>« É6 · 1080p · WEB-DL · MULTI », then « 2,1 Go · 120 sources · 1337x » under it.</summary>
     private static Control MissingOptionText(MissingOption option, string? label)
     {
         var (quality, detail) = MissingDownloads.Option(option);
-        var first = new TextBlock { FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis };
+        var first = new TextBlock { FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis };
         if (label is not null) first.Inlines!.Add(new Avalonia.Controls.Documents.Run(label + "  ") { FontWeight = FontWeight.Bold });
         first.Inlines!.Add(new Avalonia.Controls.Documents.Run(quality));
-        var text = Ui.Column(2, first, new TextBlock { Text = detail, FontSize = 12, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis });
+        var text = Ui.Column(2, first, new TextBlock { Text = detail, FontSize = 12.5, FontWeight = FontWeight.Normal, Foreground = Ui.Faint, TextTrimming = TextTrimming.CharacterEllipsis });
         ToolTip.SetTip(text, option.Entry.Hit.Name);
         return text;
     }
 
-    /// <summary>The foot after a check or a release changed: « 5,6 Go · into Arcane › Season 02 » and « Download 3 ».</summary>
+    /// <summary>The foot after a check or a release changed: « <b>5,6 Go</b> into Arcane › Season 02 » and « Download 3 ».</summary>
     private void DrawMissingFoot(MissingMenu menu)
     {
         var chosen = menu.Pack is { } pack ? [pack] : menu.Chosen.Values.OfType<MissingOption>().ToList();
-        if (menu.Total is { } total) total.Text = MissingDownloads.Footer(chosen.Sum(x => x.Entry.Hit.Size), _item.Name, menu.Ask.Season);
+        if (menu.Total is { } total)
+        {
+            total.Inlines!.Clear();
+            total.Inlines.Add(new Avalonia.Controls.Documents.Run(RemoteLines.Size(chosen.Sum(x => x.Entry.Hit.Size))) { FontWeight = FontWeight.Bold, Foreground = Ui.Ink });
+            total.Inlines.Add(new Avalonia.Controls.Documents.Run(" " + MissingDownloads.Destination(_item.Name, menu.Ask.Season)));
+        }
         if (menu.Go is { } go)
         {
             var label = menu.Sending ? L("Envoi…", "Sending…") : MissingDownloads.Download(chosen.Count, menu.Pack is not null);
-            go.Content = label; AutomationProperties.SetName(go, label);
+            if (menu.GoLabel is { } words) words.Text = label;
+            AutomationProperties.SetName(go, label);
             go.IsEnabled = chosen.Count > 0 && !menu.Sending;
         }
     }

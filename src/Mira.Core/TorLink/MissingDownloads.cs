@@ -347,6 +347,17 @@ public static partial class MissingDownloads
     /// <summary>« Autres choix (6) ».</summary>
     public static string OtherChoices(int count) => L($"Autres choix ({count})", $"Other choices ({count})");
 
+    /// <summary>Under the menu's heading: what it offers (a pack, episodes one by one), then where it was found.</summary>
+    public static string Lead(bool? pack) => pack switch
+    {
+        true => L("Toute la saison en un téléchargement, trouvée par TorLink sur le PC de Jellyfin.", "The whole season in one download, found by TorLink on your Jellyfin PC."),
+        false => L("Chaque épisode à part, trouvé par TorLink sur le PC de Jellyfin.", "Each episode on its own, found by TorLink on your Jellyfin PC."),
+        _ => L("Trouvé par TorLink sur le PC de Jellyfin.", "Found by TorLink on your Jellyfin PC."),
+    };
+
+    /// <summary>The foot's place, after its size in bold: « dans Arcane › Saison 02 ».</summary>
+    public static string Destination(string show, int season) => L($"dans {show} › Saison {season:00}", $"into {show} › Season {season:00}");
+
     /// <summary>The menu's foot: « 5,6 Go · dans Arcane › Saison 02 ».</summary>
     public static string Footer(long size, string show, int season) =>
         L($"{RemoteLines.Size(size)} · dans {show} › Saison {season:00}", $"{RemoteLines.Size(size)} · into {show} › Season {season:00}");

@@ -307,6 +307,8 @@ public sealed class MockJellyfin : HttpMessageHandler
     /// <summary>The titles come over the network while true, from <see cref="StreamServer"/>, never as files of this Mac.</summary>
     public bool StreamOverHttp { get; set; }
     private int _sessions;
+    /// <summary>« Get season 2 » of « Longue série » finds three packs while true, nothing of it otherwise.</summary>
+    public bool MissingPacks { get; set; } = true;
     /// <summary>The video of a title.</summary>
     public string FileOf(string id) => Short(id) ? _short : _media;
     /// <summary>The policy « Ajouter un ami » sent for the friend's account.</summary>
@@ -314,7 +316,28 @@ public sealed class MockJellyfin : HttpMessageHandler
     private async Task<HttpResponseMessage> RelayAsync(HttpRequestMessage request, string path, CancellationToken ct)
     {
         const long GiB = 1L << 30, MiB = 1L << 20;
-        if (request.Method == HttpMethod.Post && path == "Mira/torlink/search") return Json(new { id = "search-1" });
+        // « Get season 2 » of « Longue série »: four packs of it while MissingPacks, otherwise another title's results.
+        if (request.Method == HttpMethod.Post && path == "Mira/torlink/search")
+        {
+            var asked = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct)).RootElement;
+            var query = asked.TryGetProperty("query", out var q) ? q.GetString() ?? "" : "";
+            return Json(new { id = MissingPacks && Mira.Core.TorLink.ReleaseRanking.TitleKey(query).StartsWith("longueserie", StringComparison.Ordinal) ? "search-2" : "search-1" });
+        }
+        if (path == "Mira/torlink/search/search-2")
+        {
+            object Pack(string id, string name, double gib, int seeders) => new { id, name, size = (long)(gib * GiB), seeders, leechers = seeders / 10, source = "1337x", added = (long?)null };
+            return Json(new
+            {
+                id = "search-2", query = "Longue série S02", category = "tv", state = "done", error = (string?)null,
+                results = new[]
+                {
+                    Pack("p1", "Longue.Serie.S02.1080p.WEB-DL.AV1.MULTI-GRP", 4.2, 24),
+                    Pack("p2", "Longue.Serie.S02.2160p.WEB-DL.HDR.HEVC.MULTI-GRP", 11.8, 61),
+                    Pack("p3", "Longue.Serie.S02.720p.WEB-DL.x264.VOSTFR-GRP", 1.1, 9),
+                    Pack("p4", "Longue.Serie.S02.1080p.WEB-DL.x264.VOSTFR-GRP", 2.3, 18),
+                }
+            });
+        }
         if (path == "Mira/torlink/search/search-1")
         {
             object Hit(string id, string name, double gib, int seeders, string source) => new { id, name, size = (long)(gib * GiB), seeders, leechers = seeders / 10, source, added = (long?)null };
