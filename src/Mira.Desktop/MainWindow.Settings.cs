@@ -82,7 +82,7 @@ public partial class MainWindow
         || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || _settings.SubtitleBackground != (SubtitleBackgroundCheck.IsChecked == true) || _settings.SubtitleBold != (SubtitleBoldCheck.IsChecked == true)
         || _settings.SubtitleColor != Choice(SubtitleColorChoice) || SubtitleStyle.Height(_settings.SubtitleHeight) != SubtitleHeight() || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim())
         || _settings.TorLinkAutoImport != (TorLinkAutoImportCheck.IsChecked == true) || _settings.TorLinkKeepShared != (TorLinkKeepSharedCheck.IsChecked == true)
-        || _settings.TorLinkRemote != (TorLinkRemoteCheck.IsChecked == true)
+        || _settings.TorLinkRemote != (TorLinkRemoteCheck.IsChecked == true) || _settings.TorLinkMoreSources != (TorLinkMoreSourcesCheck.IsChecked == true)
         || _settings.TorLinkPath != TorLinkPathBox.Text.Trim() || _settings.TorLinkMoviesFolder != TorLinkMoviesBox.Text.Trim()
         || _settings.TorLinkSeriesFolder != TorLinkSeriesBox.Text.Trim() || _settings.TorLinkAnimeFolder != TorLinkAnimeBox.Text.Trim()
         || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true) || _settings.EpisodeNotices != (EpisodeNoticesCheck.IsChecked == true)
@@ -117,7 +117,7 @@ public partial class MainWindow
         ShowEngineState();
         SubtitlePreviewImage.Source = HeroImage.Source;
         TorLinkAutoImportCheck.IsChecked = _settings.TorLinkAutoImport; TorLinkKeepSharedCheck.IsChecked = _settings.TorLinkKeepShared;
-        TorLinkRemoteCheck.IsChecked = _settings.TorLinkRemote; DescribeTorLinkRemote();
+        TorLinkRemoteCheck.IsChecked = _settings.TorLinkRemote; DescribeTorLinkRemote(); TorLinkMoreSourcesCheck.IsChecked = _settings.TorLinkMoreSources;
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
@@ -317,7 +317,7 @@ public partial class MainWindow
         _settings.TorLinkAutoImport = TorLinkAutoImportCheck.IsChecked == true; _settings.TorLinkKeepShared = TorLinkKeepSharedCheck.IsChecked == true;
         // Changed: said in Réglages and to the relay at once, not at the next visit.
         var remoteChanged = _settings.TorLinkRemote != (TorLinkRemoteCheck.IsChecked == true);
-        _settings.TorLinkRemote = TorLinkRemoteCheck.IsChecked == true;
+        _settings.TorLinkRemote = TorLinkRemoteCheck.IsChecked == true; _settings.TorLinkMoreSources = TorLinkMoreSourcesCheck.IsChecked == true;
         _settings.TorLinkPath = TorLinkPathBox.Text.Trim(); _settings.TorLinkMoviesFolder = TorLinkMoviesBox.Text.Trim();
         _settings.TorLinkSeriesFolder = TorLinkSeriesBox.Text.Trim(); _settings.TorLinkAnimeFolder = TorLinkAnimeBox.Text.Trim();
         // Switched back on: look for a new version now rather than at the next scheduled check.

@@ -35,7 +35,7 @@ public sealed partial class TorLinkRelay
     /// <summary>A request done or refused stays listed this long, a control this long too.</summary>
     public static readonly TimeSpan Kept = TimeSpan.FromMinutes(15);
     public const int Hurry = 2, Idle = 10, Busy = 30;
-    public const int MaxWaiting = 30, MaxSearches = 20, MaxResults = 60, MaxDownloads = 60, MaxPlaced = 20, MaxControls = 20;
+    public const int MaxWaiting = 30, MaxSearches = 20, MaxResults = 150, MaxDownloads = 60, MaxPlaced = 20, MaxControls = 20;
 
     private readonly object _gate = new();
     private readonly Func<DateTimeOffset> _now;

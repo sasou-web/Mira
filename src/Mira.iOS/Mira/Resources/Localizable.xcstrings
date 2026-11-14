@@ -7392,6 +7392,56 @@
           }
         }
       }
+    },
+    "Download searches": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche de téléchargements"
+          }
+        }
+      }
+    },
+    "TorLink’s sites (The Pirate Bay through apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho and Torrents-CSV unless they’re turned off.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sites de TorLink (The Pirate Bay par apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho et Torrents-CSV sauf s’ils sont coupés."
+          }
+        }
+      }
+    },
+    "When an administrator searches in Downloads, when Mira checks a followed series and when you get missing episodes.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand un administrateur cherche dans Téléchargements, quand Mira regarde une série suivie et quand tu demandes des épisodes manquants."
+          }
+        }
+      }
+    },
+    "What you search for, as typed and without accents or apostrophes, and the Jellyfin PC’s IP address. Neither your account nor your library.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce que tu cherches, tel quel et sans accents ni apostrophe, et l’adresse IP du PC de Jellyfin. Ni ton compte, ni ta bibliothèque."
+          }
+        }
+      }
+    },
+    "In Mira for Windows on the Jellyfin PC: TorLink’s settings.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans Mira pour Windows sur le PC de Jellyfin : réglages de TorLink."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

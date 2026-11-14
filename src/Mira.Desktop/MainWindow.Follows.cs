@@ -71,7 +71,7 @@ public partial class MainWindow
             foreach (var query in SeriesFollowing.Queries(follow.Query, series.Name, title ?? follow.Names?.FirstOrDefault()))
                 foreach (var kind in SeriesFollowing.Categories(category))
                 {
-                    var (hits, error) = await _torlinkHeadless.SearchAsync(installation, query, kind, ct);
+                    var (hits, error) = await SearchTorrentsAsync(installation, query, kind, ct);
                     parts.Add((kind, hits, error));
                 }
             var (found, failure) = RemoteDownloads.Combine(parts, x => x.Id);

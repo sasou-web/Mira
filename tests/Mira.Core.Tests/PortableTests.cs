@@ -18,6 +18,7 @@ internal static class PortableTests
         await TorLinkTests.RunAsync(run);
         await RemoteDownloadTests.RunAsync(run);
         await BoardTests.RunAsync(run);
+        await SearchSourceTests.RunAsync(run);
         await QBittorrentTests.RunAsync(run);
         await SeriesFollowingTests.RunAsync(run);
         await MissingDownloadTests.RunAsync(run);

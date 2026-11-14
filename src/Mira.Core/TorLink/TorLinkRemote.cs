@@ -19,7 +19,13 @@ public static class TorLinkRemote
     public static readonly TimeSpan SearchTimeout = TimeSpan.FromSeconds(60);
     /// <summary>What a search may print; beyond it, it is stopped and refused.</summary>
     public const int MaxSearchOutput = 4 * 1024 * 1024;
-    public const int MaxHits = 60;
+    /// <summary>What one « torlnk search » gives at most: as many as a whole search keeps (<see cref="TorrentSearch.MaxHits"/>).</summary>
+    public const int MaxHits = TorrentSearch.MaxHits;
+    /// <summary>
+    /// What the finished searches of one report may weigh as sent: the relay refuses a report over 2 MB (TorLinkController),
+    /// and the downloads and the rest come with them.
+    /// </summary>
+    public const int ReportBudget = 1_500_000;
     /// <summary>TorLink without a window stops once nothing has downloaded nor been shared for this long.</summary>
     public static readonly TimeSpan IdleStop = TimeSpan.FromMinutes(3);
     /// <summary>How long TorLink without a window gets to answer after its start.</summary>
@@ -45,6 +51,23 @@ public static class TorLinkRemote
     {
         var plain = version?.Trim().Split('-', '+')[0];
         return Version.TryParse(plain, out var parsed) && parsed >= MinimumVersion;
+    }
+
+    /// <summary>
+    /// The finished searches one report carries: in order, while together they weigh no more than <see cref="ReportBudget"/>,
+    /// and at least the first; the others go at the next visit. With up to 150 results a category, a few searches finished
+    /// between two visits could pass the relay's limit: refused, the same report would come again, and be refused again.
+    /// </summary>
+    public static List<AgentSearchOutcome> ReportOf(IReadOnlyList<AgentSearchOutcome> finished)
+    {
+        var sent = new List<AgentSearchOutcome>(); long weight = 0;
+        foreach (var outcome in finished)
+        {
+            var size = JsonSerializer.SerializeToUtf8Bytes(outcome, RemoteProtocol.Json).Length;
+            if (sent.Count > 0 && weight + size > ReportBudget) break;
+            sent.Add(outcome); weight += size;
+        }
+        return sent;
     }
 
     /// <summary>
