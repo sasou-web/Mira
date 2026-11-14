@@ -1145,6 +1145,13 @@ public static class SelfCheck
                     player.TimeButton?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); await Task.Delay(100);
                     Check((endLine.Contains("Fin à ", StringComparison.Ordinal) || endLine.Contains("Ends at ", StringComparison.Ordinal)) && leftShown.StartsWith('\u2212') && !player.TimeShown.StartsWith('\u2212'),
                         "lecteur : heure de fin au-dessus du temps, un clic sur le temps montre le restant", $"« {endLine} », « {leftShown} » puis « {player.TimeShown} »");
+                    // Maquette A (2026-11-14): the next episode's card during the countdown, its ring filling; « Annuler » leaves the pill.
+                    var card = player.NextCardForCheck(new MediaItem { Id = "next-card-check", Type = "Episode", Name = "Happy Progress Day!", IndexNumber = 4, RunTimeTicks = TimeSpan.FromMinutes(40).Ticks });
+                    await Task.Delay(300);
+                    ScreenColour(Path.Combine(output, "08h-next-card.png"));
+                    var cancelled = player.CancelNextForCheck();
+                    Check(card.Shown && (card.Count.StartsWith("Épisode suivant dans", StringComparison.Ordinal) || card.Count.StartsWith("Next episode in", StringComparison.Ordinal)) && card.Title.Contains("Happy Progress Day!", StringComparison.Ordinal) && !cancelled.Card && cancelled.Pill,
+                        "lecteur : carte de l’épisode suivant pendant le compte à rebours, la pastille seule après « Annuler »", $"carte {card}, après {cancelled}");
                     // « Chercher des sous-titres… », as on Windows: offered with an extension, its results in the menu of the tracks.
                     if (await Until(() => player.CanSearchSubtitles, 5))
                     {

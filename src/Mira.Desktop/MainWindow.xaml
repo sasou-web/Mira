@@ -146,6 +146,31 @@
     <!-- Skip opening / ending / next episode, bottom right. Lifted above the controls while they are shown. -->
     <StackPanel x:Name="SkipHost" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,32,32">
      <StackPanel.RenderTransform><TranslateTransform x:Name="SkipShift"/></StackPanel.RenderTransform>
+     <!-- The next episode during the countdown (maquette A, 2026-11-14): its picture, a ring that fills around Play, its
+          number, name and length, « Play now » and « Cancel »; after Cancel, the pill alone (UpdateNextCard). -->
+     <v:Squircle x:Name="NextCard" Style="{StaticResource PopoverWindow}" Width="452" Height="128" Padding="10" Visibility="Collapsed" TextElement.FontFamily="{StaticResource AppFont}" TextElement.Foreground="{StaticResource Text}">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="192"/><ColumnDefinition/></Grid.ColumnDefinitions>
+       <Button x:Name="NextCardPicture" Style="{StaticResource QuietButton}" Padding="0" BorderThickness="0" Width="192" Height="108" v:Motion.Radius="8" Click="NextCardPlay_Click" AutomationProperties.Name="{v:L 'Lire l’épisode suivant maintenant', 'Play the next episode now'}">
+        <Grid Width="192" Height="108" Background="{StaticResource Raised2}"><Grid.Clip><RectangleGeometry Rect="0,0,192,108" RadiusX="8" RadiusY="8"/></Grid.Clip>
+         <Image x:Name="NextCardImage" Stretch="UniformToFill"/>
+         <Grid Width="48" Height="48" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Ellipse Fill="{StaticResource Pill}" Stroke="{StaticResource HairlineStrong}" StrokeThickness="2.5"/>
+          <Path x:Name="NextCardRing" Stroke="{StaticResource Text}" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+          <v:Icon Kind="play" Width="18" Height="18" Margin="3,0,0,0" Foreground="{StaticResource Text}"/>
+         </Grid>
+        </Grid>
+       </Button>
+       <StackPanel Grid.Column="1" Margin="18,2,4,0">
+        <TextBlock x:Name="NextCardCount" FontSize="13" Foreground="{DynamicResource Muted}" Typography.NumeralAlignment="Tabular" v:Accessible.Announce="Polite"/>
+        <TextBlock x:Name="NextCardTitle" FontSize="15.5" FontWeight="SemiBold" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="NextCardDetails" FontSize="12.5" Foreground="{DynamicResource Faint}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+        <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
+         <Button x:Name="NextCardNow" Style="{StaticResource PrimaryButton}" Padding="14,6,16,6" FontSize="14" FontWeight="SemiBold" v:Motion.Radius="17" Click="NextCardPlay_Click"><StackPanel Orientation="Horizontal"><v:Icon Kind="play" Width="13" Height="13" Foreground="{StaticResource OnAccent}" VerticalAlignment="Center"/><TextBlock Text="{v:L 'Lire maintenant', 'Play now'}" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel></Button>
+         <Button x:Name="NextCardCancel" Style="{StaticResource QuietButton}" Padding="14,6" Margin="8,0,0,0" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource Text}" BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" v:Motion.Radius="17" Click="SkipCancel_Click" AutomationProperties.Name="{v:L 'Annuler l’épisode suivant automatique', 'Cancel the automatic next episode'}"><TextBlock Text="{v:L 'Annuler', 'Cancel'}"/></Button>
+        </StackPanel>
+       </StackPanel>
+      </Grid>
+     </v:Squircle>
      <Button x:Name="SkipCancel" Style="{StaticResource PlayerPill}" Padding="16,12" Margin="0,0,10,0" Visibility="Collapsed" Click="SkipCancel_Click" ToolTip="{v:L 'Rester sur cet épisode', 'Stay on this episode'}" AutomationProperties.Name="{v:L 'Annuler l’épisode suivant automatique', 'Cancel the automatic next episode'}"><TextBlock Text="{v:L 'Annuler', 'Cancel'}"/></Button>
      <Button x:Name="SkipButton" Style="{StaticResource PlayerPill}" Visibility="Collapsed" Click="Skip_Click" AutomationProperties.Name="{v:L 'Passer le passage', 'Skip this part'}"><StackPanel Orientation="Horizontal"><TextBlock x:Name="SkipText" Typography.NumeralAlignment="Tabular" Text="{v:L 'Passer l’opening', 'Skip intro'}" VerticalAlignment="Center"/><v:Icon Kind="skip" Width="16" Height="16" Margin="11,0,0,0"/></StackPanel></Button>
     </StackPanel>
