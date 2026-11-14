@@ -58,13 +58,13 @@ public static class GpuRecheck
 
     /// <summary>What Mira says once it turned the card on by itself.</summary>
     public static string TurnedOn(string card) =>
-        L($"Jellyfin convertit maintenant les vidéos avec ta {card} : Mira l’a essayée sur un de tes titres. Les conversions pour ton téléphone vont plus vite et laissent le processeur libre. Pour revenir au processeur : Réglages → Entretien.",
-        $"Jellyfin now converts videos with your {card}: Mira tried it on one of your titles. Conversions for your phone are faster and leave the processor free. To go back to the processor: Settings → Maintenance.");
+        L($"Jellyfin convertit maintenant les vidéos avec ta {card} : Mira l’a essayée sur un de tes titres. Les conversions pour ton téléphone vont plus vite et laissent le processeur libre. Pour revenir au processeur : Réglages → Serveur Jellyfin.",
+        $"Jellyfin now converts videos with your {card}: Mira tried it on one of your titles. Conversions for your phone are faster and leave the processor free. To go back to the processor: Settings → Jellyfin server.");
 
     /// <summary>What Mira says once Jellyfin is back on the processor.</summary>
     public static string Notice(string kind) =>
         L($"Depuis la mise à jour de Jellyfin ou du pilote de ta carte graphique ({GpuEncoding.Maker(kind)}), elle n’a pas réussi deux essais de conversion : "
-        + "Jellyfin convertit de nouveau avec le processeur, et tes titres se lisent comme avant. Pour la réessayer : Réglages → Entretien → Utiliser la carte graphique.",
+        + "Jellyfin convertit de nouveau avec le processeur, et tes titres se lisent comme avant. Pour la réessayer : Réglages → Serveur Jellyfin → Utiliser la carte graphique.",
         $"Since Jellyfin or your graphics card’s driver ({GpuEncoding.Maker(kind)}) was updated, the card failed two conversion tests: "
-        + "Jellyfin converts with the processor again, and your titles play as before. To try it again: Settings → Maintenance → Use the graphics card.");
+        + "Jellyfin converts with the processor again, and your titles play as before. To try it again: Settings → Jellyfin server → Use the graphics card.");
 }

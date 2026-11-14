@@ -14,7 +14,7 @@ public static class Couch
     /// <summary>The keys, said under the setting.</summary>
     public static string Keys => L("Flèches pour se déplacer, Entrée pour ouvrir, Échap ou Retour arrière pour revenir. Manette : A ouvre, B revient, Y cherche, LB et RB changent de page.",
         "Arrow keys to move, Enter to open, Esc or Backspace to go back. Controller: A opens, B goes back, Y searches, LB and RB change page.");
-    public static string On => L("Mode canapé activé. Pour en sortir : Réglages → Apparence.", "Couch mode on. To leave it: Settings → Appearance.");
+    public static string On => L("Mode canapé activé. Pour en sortir : Réglages → Général.", "Couch mode on. To leave it: Settings → General.");
     /// <summary>A controller came while couch mode is off: a notice with a button, said once per launch.</summary>
     public static string ControllerFound => L("Manette branchée. Passer en mode canapé, pour piloter Mira depuis le canapé ?", "Controller connected. Switch to couch mode, to drive Mira from the couch?");
     public static string TurnOn => L("Mode canapé", "Couch mode");

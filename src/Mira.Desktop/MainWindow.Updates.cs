@@ -7,7 +7,7 @@ using Mira.Desktop.Services;
 
 namespace Mira.Desktop;
 
-/// <summary>Automatic updates: Réglages → Mira sur ce PC, the "ready" notice, and the installation when Mira closes.</summary>
+/// <summary>Automatic updates: Réglages → Mises à jour (and L’essentiel), the "ready" notice, and the installation when Mira closes.</summary>
 public partial class MainWindow
 {
     private Updater? _updater;
@@ -39,6 +39,7 @@ public partial class MainWindow
         {
             SetUpdateStatus(L("Mises à jour désactivées pendant cette session de validation.", "Updates are off during this validation session."));
             CheckUpdatesButton.IsEnabled = false; UpdateActions.Visibility = UpdateProgressTrack.Visibility = Visibility.Collapsed; UpdateInstallText.Text = "";
+            ShowEssentialsUpdate();
             return;
         }
         var version = updater.Offer?.Version.ToString(3);
@@ -69,6 +70,7 @@ public partial class MainWindow
             InstallKind.Folder => L($"Dossier de l’application : {updater.AppPath}.", $"App folder: {updater.AppPath}."),
             _ => L($"Copie de développement : {updater.AppPath}.", $"Development copy: {updater.AppPath}.")
         } + (updater.State == UpdateState.Disabled ? "" : L(" Chaque version téléchargée attend son installation dans data\\updates, puis y est effacée.", " Each downloaded version waits in data\\updates to be installed, then is erased from there."));
+        ShowEssentialsUpdate();
         if (updater.State == UpdateState.Ready && updater.Offer is { } offer && _announcedUpdate != offer.Version && !updater.AutomaticInstallSuspended) { _announcedUpdate = offer.Version; AnnounceUpdate(offer); }
     }
     /// <summary>Screen readers hear the new state (the text is a polite live region).</summary>

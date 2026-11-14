@@ -10,7 +10,7 @@ namespace Mira.Desktop;
 public partial class MainWindow
 {
     private bool _engineInstalling;
-    /// <summary>Réglages → Mira sur ce PC: where the engine comes from, or the button that installs it.</summary>
+    /// <summary>Réglages → Mises à jour: where the engine comes from, or the button that installs it.</summary>
     private void ShowEngineState()
     {
         var found = MpvEngine.FindLibrary(_settings.MpvPath);

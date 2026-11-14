@@ -20,7 +20,7 @@ public partial class MainWindow
         if (!on || _demo) { _viewersTimer.Stop(); return; }
         _viewersShown = ""; _viewersTimer.Start(); _ = ShowViewersAsync();
     }
-    private bool ViewersOnScreen => SettingsOverlay.Visibility == Visibility.Visible && ServerSettings.Visibility == Visibility.Visible;
+    private bool ViewersOnScreen => SettingsOverlay.Visibility == Visibility.Visible && JellyfinSettings.Visibility == Visibility.Visible;
     private async Task ShowViewersAsync()
     {
         if (!ViewersOnScreen) { _viewersTimer.Stop(); return; }

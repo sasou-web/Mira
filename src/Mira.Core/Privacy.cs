@@ -23,7 +23,7 @@ public enum PrivacyControl
     Downloads,
     /// <summary>Guest links and Tailscale Funnel, in Amis & invités.</summary>
     GuestLinks,
-    /// <summary>Automatic subtitles and missing episodes, in Entretien.</summary>
+    /// <summary>Automatic subtitles and missing episodes, in Soin de la bibliothèque (Library care).</summary>
     Maintenance,
 }
 
@@ -123,12 +123,12 @@ public static class Privacy
             L("Seulement une fois activés, quand un titre arrive ou quand tu cherches.", "Only once turned on, when a title arrives or when you search."),
             L("L’empreinte et la taille du fichier (OpenSubtitles), ses identifiants IMDb et TMDb, la saison, l’épisode et la langue. Jamais le nom du fichier.",
                 "The file’s fingerprint and size (OpenSubtitles), its IMDb and TMDb ids, season, episode and language. Never the file name."),
-            L("Les couper, dans Entretien.", "Turn them off, in Maintenance."), PrivacyControl.Maintenance, true, ["OpenSubtitles", "SubDL"]));
+            L("Les couper, dans Soin de la bibliothèque.", "Turn them off, in Library care."), PrivacyControl.Maintenance, true, ["OpenSubtitles", "SubDL"]));
         list.Add(new("tvdb", L("Épisodes manquants (TheTVDB)", "Missing episodes (TheTVDB)"),
             L("TheTVDB, par son extension officielle de Jellyfin.", "TheTVDB, through its official Jellyfin extension."),
             L("Seulement si tu l’as installée, à chaque analyse de la bibliothèque.", "Only if you installed it, at each library scan."),
             L("L’identifiant TheTVDB de chaque série, pour sa liste d’épisodes. Ni nom, ni image de TheTVDB ne sont gardés.", "Each series’ TheTVDB id, for its list of episodes. No name or picture from TheTVDB is kept."),
-            windows ? L("La désinstaller, dans Entretien.", "Uninstall it, in Maintenance.") : L("La désinstaller depuis Mira pour Windows ou le tableau de bord de Jellyfin.", "Uninstall it from Mira for Windows or Jellyfin’s dashboard."),
+            windows ? L("La désinstaller, dans Soin de la bibliothèque.", "Uninstall it, in Library care.") : L("La désinstaller depuis Mira pour Windows ou le tableau de bord de Jellyfin.", "Uninstall it from Mira for Windows or Jellyfin’s dashboard."),
             windows ? PrivacyControl.Maintenance : PrivacyControl.None, true, ["TheTVDB"]));
         list.Add(new("extension", L("Mises à jour de l’extension Mira", "Mira extension updates"),
             L("GitHub, où Mira est publiée.", "GitHub, where Mira is published."),

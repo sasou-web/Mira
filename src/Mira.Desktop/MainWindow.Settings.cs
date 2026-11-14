@@ -77,7 +77,7 @@ public partial class MainWindow
     private bool SettingsChanged() =>
         _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || PictureChoice.Items.Count > 0 && PictureQuality.Known(_settings.Picture) != Choice(PictureChoice) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.StillWatching != (StillWatchingCheck.IsChecked == true) || _settings.TrailerFirst != (TrailerFirstCheck.IsChecked == true) || _settings.HideSpoilers != (HideSpoilersCheck.IsChecked == true) || _settings.ShowMissingEpisodes != (ShowMissingCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || ResumeShown() != Choice(ResumeBackChoice)
         || QualityChoice.Items.Count > 0 && StreamQuality.Known(_settings.Quality) != Choice(QualityChoice)
-        || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
+        || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
         || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || _settings.SubtitleBackground != (SubtitleBackgroundCheck.IsChecked == true) || _settings.SubtitleBold != (SubtitleBoldCheck.IsChecked == true)
         || _settings.SubtitleColor != Choice(SubtitleColorChoice) || SubtitleStyle.Height(_settings.SubtitleHeight) != SubtitleHeight() || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim())
@@ -109,7 +109,7 @@ public partial class MainWindow
         SelectChoice(PictureChoice, PictureQuality.Known(_settings.Picture));
         if (QualityChoice.Items.Count == 0) foreach (var (key, label, _, details) in StreamQuality.Choices) QualityChoice.Items.Add(new ComboBoxItem { Content = label, Tag = key, ToolTip = details });
         SelectChoice(QualityChoice, StreamQuality.Known(_settings.Quality));
-        ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion; CouchModeCheck.IsChecked = _settings.CouchMode;
+        ReduceMotionCheck.IsChecked = _settings.ReduceMotion; CouchModeCheck.IsChecked = _settings.CouchMode;
         HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting(); SelectChoice(MiraLanguageChoice, ShownLanguage);
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
         ShowLanguageChoices(); SelectChoice(DensityChoice, _settings.PosterDensity);
@@ -122,15 +122,16 @@ public partial class MainWindow
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
         WatchSettingsGroups(); ShowSettingsGroups();
-        // What « Entretien » holds, read now: its tab is listed only once one of them shows.
+        // What « Soin de la bibliothèque » holds, read now: its tab is listed only once one of them shows.
         _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync();
         DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _ = ShowPhotoAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowOfflineSettings();
-        AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
+        AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState(); _ = ShowJellyfinServerAsync();
+        MirrorEssentials(); ShowEssentials();
         SettingsSearchBox.Clear(); ShowSheet(SettingsOverlay); UpdateHeroClock();
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
-        SelectSettingsTab("playback", animate: false); UpdateNavigation();
+        SelectSettingsTab("home", animate: false); UpdateNavigation();
         SettingsSaveStatus.Text = SettingsApplyAtOnce;
-        _ = Dispatcher.BeginInvoke(() => PlaybackSettingsNav.Focus(), System.Windows.Threading.DispatcherPriority.Input);
+        _ = Dispatcher.BeginInvoke(() => EssentialsSettingsNav.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
     private const string ResumeOff = "off";
     /// <summary>The resume choice the saved settings make: off, else a distance the list has (5 s otherwise).</summary>
@@ -147,19 +148,22 @@ public partial class MainWindow
         SelectSettingsTab((string)((Button)sender).Tag);
     }
     /// <summary>
-    /// « Amis & invités » and « Entretien » hold only what an administrator sees: listed while one of their rows shows,
+    /// « Amis & invités », « Soin de la bibliothèque » and « Serveur Jellyfin » hold only what an administrator sees: listed while one of their rows shows,
     /// and said empty otherwise. Each row's visibility, set as Jellyfin answers, draws them again.
     /// </summary>
     private void ShowSettingsGroups()
     {
-        foreach (var (panel, nav, empty) in new[] { (SharingSettings, SharingSettingsNav, SharingEmpty), (CareSettings, CareSettingsNav, CareEmpty) })
+        foreach (var (panel, nav, empty) in new[] { (SharingSettings, SharingSettingsNav, SharingEmpty), (CareSettings, CareSettingsNav, CareEmpty), (JellyfinSettings, JellyfinSettingsNav, JellyfinEmpty) })
         {
-            var any = panel.Children.OfType<FrameworkElement>().Where(x => x is Border or Squircle).Any(x => x.Visibility == Visibility.Visible);
+            // « Serveur Jellyfin » for any administrator: « En ce moment sur Jellyfin » is read only while it shows.
+            var any = panel.Children.OfType<FrameworkElement>().Where(x => x is Border or Squircle).Any(x => x.Visibility == Visibility.Visible) || panel == JellyfinSettings && _jellyfinAdmin;
             nav.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
             empty.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
         }
+        // Jellyfin's updates are told from « Mises à jour » too, while there is a Jellyfin on this PC to update.
+        JellyfinUpdatesLink.Visibility = JellyfinHereRow.Visibility;
         // « Ton serveur » heads what only its owner sees, under what everyone uses.
-        ServerToolsLabel.Visibility = new[] { SharingSettingsNav, CareSettingsNav, TorLinkSettingsNav }.Any(x => x.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
+        ServerToolsLabel.Visibility = new[] { SharingSettingsNav, CareSettingsNav, JellyfinSettingsNav, TorLinkSettingsNav }.Any(x => x.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
     }
     private bool _settingsGroupsWatched;
     private void WatchSettingsGroups()
@@ -167,7 +171,7 @@ public partial class MainWindow
         if (_settingsGroupsWatched) return;
         _settingsGroupsWatched = true;
         var visibility = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(VisibilityProperty, typeof(UIElement));
-        foreach (var row in SharingSettings.Children.OfType<FrameworkElement>().Concat(CareSettings.Children.OfType<FrameworkElement>()).Where(x => x is Border or Squircle)) visibility.AddValueChanged(row, (_, _) => ShowSettingsGroups());
+        foreach (var row in SharingSettings.Children.OfType<FrameworkElement>().Concat(CareSettings.Children.OfType<FrameworkElement>()).Concat(JellyfinSettings.Children.OfType<FrameworkElement>()).Where(x => x is Border or Squircle)) visibility.AddValueChanged(row, (_, _) => ShowSettingsGroups());
     }
     /// <summary>A section's lines at most 940 wide, beside its list: a description across a whole screen is hard to follow.</summary>
     private void SettingsScroll_SizeChanged(object sender, SizeChangedEventArgs e) => SettingsPage.Width = Math.Max(0, Math.Min(940, e.NewSize.Width - 8));
@@ -177,7 +181,8 @@ public partial class MainWindow
     {
         if (_settingsNavDrawn) return; _settingsNavDrawn = true;
         foreach (var button in SettingsNavigation.Children.OfType<Button>())
-            DrawSheetNav(button, button.Tag?.ToString() switch { "subtitles" => "subtitles", "appearance" => "sparkle", "server" => "server", "sharing" => "users", "care" => "sliders", "report" => "clock", "torlink" => "download", "updates" => "laptop", "privacy" => "shield", _ => "play" });
+            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", _ => "play" });
+        ShowUpdateDots();
     }
     /// <param name="animate">False as Réglages opens: the page comes as one, its section with it.</param>
     private void SelectSettingsTab(string tab, bool animate = true)
@@ -186,37 +191,19 @@ public partial class MainWindow
         // Asked for a section while a search shows: the search ends there.
         if (_settingsSearching) { _settingsTab = tab; SettingsSearchBox.Clear(); return; }
         _settingsTab = tab;
-        PlaybackSettings.Visibility = tab == "playback" ? Visibility.Visible : Visibility.Collapsed;
-        SubtitleSettings.Visibility = tab == "subtitles" ? Visibility.Visible : Visibility.Collapsed;
-        AppearanceSettings.Visibility = tab == "appearance" ? Visibility.Visible : Visibility.Collapsed;
-        ServerSettings.Visibility = tab == "server" ? Visibility.Visible : Visibility.Collapsed;
-        SharingSettings.Visibility = tab == "sharing" ? Visibility.Visible : Visibility.Collapsed;
-        CareSettings.Visibility = tab == "care" ? Visibility.Visible : Visibility.Collapsed;
-        TorLinkSettings.Visibility = tab == "torlink" ? Visibility.Visible : Visibility.Collapsed;
-        UpdateSettings.Visibility = tab == "updates" ? Visibility.Visible : Visibility.Collapsed;
-        PrivacySettings.Visibility = tab == "privacy" ? Visibility.Visible : Visibility.Collapsed;
-        ReportSettings.Visibility = tab == "report" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsSectionTitle.Text = tab switch { "subtitles" => L("Audio & sous-titres", "Audio & subtitles"), "appearance" => L("Apparence", "Appearance"), "server" => L("Compte & serveur", "Account & server"), "sharing" => L("Amis & invités", "Friends & guests"), "care" => L("Entretien", "Maintenance"), "torlink" => L("Téléchargements", "Downloads"), "updates" => L("Mira sur ce PC", "Mira on this PC"), "privacy" => L("Confidentialité", "Privacy"), "report" => L("Ton bilan", "Your recap"), _ => L("Lecture", "Playback") };
-        SettingsSectionDescription.Text = tab switch
-        {
-            "subtitles" => L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles."),
-            "appearance" => L("La langue de Mira et ce que montre l’accueil.", "Mira’s language and what Home shows."),
-            "server" => L("Ton compte, ton serveur Jellyfin et tes bibliothèques.", "Your account, your Jellyfin server and your libraries."),
-            "sharing" => L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in."),
-            "care" => L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres, épisodes manquants, Jellyfin sur ce PC.", "What keeps your library in shape: titles to fix, subtitles, missing episodes, Jellyfin on this PC."),
-            "torlink" => L("Où vont tes téléchargements, et comment ils rejoignent Jellyfin.", "Where your downloads go, and how they join Jellyfin."),
-            "updates" => L("Mises à jour, titres gardés sur ce PC, moteur de lecture et rapport pour signaler un problème.", "Updates, titles kept on this PC, the playback engine and a report for a problem."),
-            "privacy" => L("Tout ce qui part sur le réseau, et comment l’arrêter.", "Everything that goes out on the network, and how to stop it."),
-            "report" => L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices."),
-            _ => L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")
-        };
+        foreach (var (name, panel, _, _) in SettingsTabs) panel.Visibility = name == tab ? Visibility.Visible : Visibility.Collapsed;
+        var shown = SettingsTabs.FirstOrDefault(x => x.Tag == tab);
+        if (shown.Panel is null) { tab = _settingsTab = "home"; shown = SettingsTabs[0]; shown.Panel.Visibility = Visibility.Visible; }
+        SettingsSectionTitle.Text = shown.Title;
+        SettingsSectionDescription.Text = shown.About;
         LightSheetNav(SettingsNavigation, tab);
         SettingsScroll.ScrollToTop();
-        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "sharing" => SharingSettings, "care" => CareSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "privacy" => PrivacySettings, "report" => ReportSettings, _ => PlaybackSettings };
-        SmoothScroll.Jump(SettingsScroll); if (animate) Motion.Reveal(body, 230, 7);
-        WatchViewers(tab == "server");
+        SmoothScroll.Jump(SettingsScroll); if (animate) Motion.Reveal(shown.Panel, 230, 7);
+        WatchViewers(tab == "jellyfin");
+        if (tab == "home") ShowEssentials();
         if (tab == "server") _ = ReadTailscaleAppAsync();
         if (tab == "care") { _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
+        if (tab == "jellyfin") _ = ShowJellyfinServerAsync();
         ShowSettingsGroups();
         if (tab == "report") _ = ShowReportAsync();
         if (tab == "privacy") ShowPrivacy();
@@ -315,7 +302,8 @@ public partial class MainWindow
         if (PictureChoice.Items.Count > 0 && PictureQuality.Known(Choice(PictureChoice)) is var picture && picture != PictureQuality.Known(_settings.Picture)) { _settings.Picture = picture; _pictureCap = null; }
         // Played from now on; the title playing keeps its stream (the player's ⋮ changes it at once).
         if (QualityChoice.Items.Count > 0) _settings.Quality = StreamQuality.Known(Choice(QualityChoice));
-        _settings.ShowProgress = ShowProgressCheck.IsChecked == true; _settings.ReduceMotion = ReduceMotionCheck.IsChecked == true; _settings.PosterDensity = Choice(DensityChoice);
+        // « Progression sur les affiches » left the settings (2026-11-14): always shown again.
+        _settings.ShowProgress = true; _settings.ReduceMotion = ReduceMotionCheck.IsChecked == true; _settings.PosterDensity = Choice(DensityChoice);
         _settings.HeroAutoPlay = HeroAutoPlayCheck.IsChecked == true; Motion.Reduced = _settings.ReduceMotion;
         // Turned on again: from what Jellyfin has now, not every episode that came while it was off.
         if (!_settings.EpisodeNotices && EpisodeNoticesCheck.IsChecked == true) _settings.EpisodesSeenFor = "";

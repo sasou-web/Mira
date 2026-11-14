@@ -61,6 +61,11 @@ internal static class AccessibilityTests
             Assert(SheetWindow.Matches("Taille et style des sous-titres", "style taille") && !SheetWindow.Matches("Taille des sous-titres", "taille couleur"), "Every word, in any order");
             Assert(SheetWindow.Matches("Reprendre là où tu t’étais arrêté", "t'étais") && SheetWindow.Matches("Œuvres", "oeuvre"), "Apostrophes and ligatures");
             Assert(SheetWindow.Matches("Lecture", "  ") && !SheetWindow.Matches("Lecture", "audio"), "Empty and missed searches");
+            // The person's own words (a friend could not find where Mira updates): any of a group finds the others.
+            Assert(SheetWindow.Matches("Mises à jour Mira 0.9.8", "update") && SheetWindow.Matches("Updates Check for updates", "mettre à jour") && SheetWindow.Matches("Updates", "Nouvelle version"), "Updates, in both languages");
+            Assert(SheetWindow.Matches("Quality Automatic", "blurry") && SheetWindow.Matches("Built-in Tailscale", "away from home") && SheetWindow.Matches("Sign out or switch account", "déconnexion"), "Blurry, away from home, sign out");
+            Assert(SheetWindow.Matches("Updates", "upd") && !SheetWindow.Matches("Quality", "update") && !SheetWindow.Matches("Mises à jour", "update quality"), "Words being typed, and every word still counts");
+            foreach (var group in SheetWindow.Synonyms) foreach (var phrase in group) Assert(phrase == SheetWindow.Fold(phrase), "A synonym is written folded: " + phrase);
             // A white dot in the dark spreads into its neighbours and stays as bright in all, a little dimmer than it was.
             const int size = 15;
             var pixels = new byte[size * size * 4];

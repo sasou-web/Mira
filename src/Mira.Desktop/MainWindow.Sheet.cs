@@ -234,7 +234,7 @@ public partial class MainWindow
         if (Shown(SettingsOverlay)) return;
         var tab = _settingsTab;
         Settings_Click(sender, e);
-        if (tab != "playback") SelectSettingsTab(tab, animate: false);
+        if (tab != "home") SelectSettingsTab(tab, animate: false);
     }
     /// <summary>Ctrl+F in the window: its own search, not the library's.</summary>
     private bool FocusSheetSearch()
@@ -300,16 +300,16 @@ public partial class MainWindow
     // The search of Réglages: every section's settings at once, those found kept where they are (their switches and
     // lists work there), the rest folded away. Rows Mira shows or hides by itself (an administrator's) keep doing so:
     // folding sets their height, never their visibility.
-    private string _settingsTab = "playback";
+    private string _settingsTab = "home";
     private bool _settingsSearching;
     private readonly Dictionary<FrameworkElement, (object Margin, double MaxHeight, KeyboardNavigationMode Tab)> _folded = [];
     private readonly Dictionary<StackPanel, TextBlock> _settingsCrumbs = [];
     private readonly Dictionary<Expander, bool> _searchOpened = [];
     private (StackPanel Panel, Button Nav)[] SettingsSections =>
     [
-        (PlaybackSettings, PlaybackSettingsNav), (SubtitleSettings, SubtitleSettingsNav), (AppearanceSettings, AppearanceSettingsNav), (ServerSettings, ServerSettingsNav),
-        (UpdateSettings, UpdateSettingsNav), (PrivacySettings, PrivacySettingsNav), (ReportSettings, ReportSettingsNav),
-        (SharingSettings, SharingSettingsNav), (CareSettings, CareSettingsNav), (TorLinkSettings, TorLinkSettingsNav)
+        (PlaybackSettings, PlaybackSettingsNav), (SubtitleSettings, SubtitleSettingsNav), (LibrarySettings, LibrarySettingsNav), (GeneralSettings, GeneralSettingsNav),
+        (ServerSettings, ServerSettingsNav), (PrivacySettings, PrivacySettingsNav), (UpdateSettings, UpdateSettingsNav), (ReportSettings, ReportSettingsNav),
+        (SharingSettings, SharingSettingsNav), (CareSettings, CareSettingsNav), (JellyfinSettings, JellyfinSettingsNav), (TorLinkSettings, TorLinkSettingsNav)
     ];
 
     private void SettingsSearch_Changed(object sender, TextChangedEventArgs e)
@@ -325,12 +325,15 @@ public partial class MainWindow
     {
         if (!_settingsSearching) { _settingsSearching = true; if (PrivacySettings.Children.Count == 0) ShowPrivacy(); }
         WatchViewers(false);
+        // L’essentiel only shows settings of the sections: each one is found once, in its own section.
+        EssentialsSettings.Visibility = Visibility.Collapsed;
         var total = 0;
         var counts = new Dictionary<Button, int>();
         foreach (var (panel, nav) in SettingsSections)
         {
             var count = 0;
-            if (nav.Visibility == Visibility.Visible)
+            // « Ton bilan » is not in the list (it opens from the account card) but is found all the same.
+            if (nav.Visibility == Visibility.Visible || panel == ReportSettings)
                 foreach (var child in panel.Children.OfType<FrameworkElement>())
                 {
                     if (child is Expander { Content: Panel inside } expander)

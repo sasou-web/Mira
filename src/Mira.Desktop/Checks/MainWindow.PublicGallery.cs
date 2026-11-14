@@ -74,17 +74,25 @@ public partial class MainWindow
             ShowFavorite(false); ShowWatched(shown, false); ShowState(FollowButton, "follow", false, L("Suivre…", "Follow…"), L("Suivre…", "Follow…"));
             ShowState(OfflineButton, "offline", false, L("Arrive sur ce PC · 42 %", "Coming to this PC · 42%"), L("Arrive sur ce PC · 42 %", "Coming to this PC · 42%"), .42);
             await CaptureAsync(output, "06-film-states-off"); AssertActions("all off, a copy coming");
-            Settings_Click(this, new()); await CaptureAsync(output, "07-playback-settings");
-            // A switch applies on its own, with no button to press: in the settings a moment later, and back the same way.
+            // Réglages opens on « L’essentiel »: Mira's card, the account's, and six settings that are those of their sections.
+            Settings_Click(this, new());
+            if (!EssentialsSettings.IsVisible || EssentialsQuality.Items.Count != QualityChoice.Items.Count || EssentialsQuality.SelectedIndex != QualityChoice.SelectedIndex)
+                throw new InvalidOperationException("Réglages did not open on « L’essentiel », its quality the one of Lecture.");
+            await CaptureAsync(output, "07a-essentials-settings");
+            // A switch applies on its own, with no button to press: in the settings a moment later, and back the same way;
+            // turned on « L’essentiel », it is the one of Lecture.
             var autoNext = _settings.AutoNext;
             for (var turn = 0; turn < 2; turn++)
             {
-                AutoNextCheck.IsChecked = !(AutoNextCheck.IsChecked == true); await Task.Delay(800);
+                EssentialsAutoNext.IsChecked = !(EssentialsAutoNext.IsChecked == true); await Task.Delay(800);
+                if (AutoNextCheck.IsChecked != EssentialsAutoNext.IsChecked) throw new InvalidOperationException("A switch of « L’essentiel » is not the one of its section.");
                 if (_settings.AutoNext != (AutoNextCheck.IsChecked == true)) throw new InvalidOperationException("A switch of the settings was not applied on its own.");
             }
             if (_settings.AutoNext != autoNext) throw new InvalidOperationException("The settings did not come back as they were.");
+            SelectSettingsTab("playback"); await CaptureAsync(output, "07-playback-settings");
             SelectSettingsTab("subtitles"); await CaptureAsync(output, "08-subtitles-settings");
-            SelectSettingsTab("appearance"); await CaptureAsync(output, "09-appearance-settings");
+            SelectSettingsTab("library"); await CaptureAsync(output, "09b-library-settings");
+            SelectSettingsTab("general"); await CaptureAsync(output, "09-appearance-settings");
             SelectSettingsTab("server"); await CaptureAsync(output, "10-server-settings");
             SelectSettingsTab("updates"); await CaptureAsync(output, "10b-this-pc-settings");
             SelectSettingsTab("privacy"); await CaptureAsync(output, "10d-privacy-settings");
@@ -94,6 +102,11 @@ public partial class MainWindow
             SettingsSearchBox.Text = L("sous-titres", "subtitles"); await CaptureAsync(output, "10e-settings-search");
             if (!SubtitleSettings.IsVisible || SettingsSectionTitle.Text == L("Aucun résultat", "No results"))
                 throw new InvalidOperationException("The settings' search did not find the subtitles in their sections: " + SettingsSectionTitle.Text);
+            // The person's own words: « mettre à jour » finds « Mises à jour » in English as in French, and « L’essentiel »
+            // never shows its shortcuts a second time among the results.
+            SettingsSearchBox.Text = "mettre à jour"; await CaptureAsync(output, "10f-settings-search-update");
+            if (!UpdateSettings.IsVisible || EssentialsSettings.IsVisible)
+                throw new InvalidOperationException("The settings' search did not find the updates by another word for them: " + SettingsSectionTitle.Text);
             if (!ClearSheetSearch() || !PlaybackSettings.IsVisible || SubtitleSettings.IsVisible || PlaybackAdvanced.IsExpanded)
                 throw new InvalidOperationException("Clearing the settings' search did not give « Lecture » back as it was.");
             // Aide, the other side of the same window: turned over at once, on the same picture of the app.

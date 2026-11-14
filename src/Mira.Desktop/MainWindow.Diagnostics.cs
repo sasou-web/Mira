@@ -9,7 +9,7 @@ using Mira.Desktop.Services;
 namespace Mira.Desktop;
 
 /// <summary>
-/// Réglages → Mira sur ce PC → « Exporter un rapport » (DiagnosticReport of Core): a text file saved where the person
+/// Aide → « Signaler un problème » → « Exporter un rapport » (DiagnosticReport of Core): a text file saved where the person
 /// chooses, to send by hand when something goes wrong. Nothing leaves this PC by itself.
 /// </summary>
 public partial class MainWindow

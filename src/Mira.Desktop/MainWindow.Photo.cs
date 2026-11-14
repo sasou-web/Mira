@@ -39,8 +39,8 @@ public partial class MainWindow
             }
             catch (Exception ex) when (ex is NotSupportedException or FileFormatException or IOException or InvalidOperationException) { brush = null; }
         }
-        AvatarPhoto.Fill = PhotoImage.Fill = brush;
-        AvatarPhoto.Visibility = PhotoImage.Visibility = PhotoRemoveButton.Visibility = brush is null ? Visibility.Collapsed : Visibility.Visible;
+        AvatarPhoto.Fill = PhotoImage.Fill = EssentialsPhoto.Fill = brush;
+        AvatarPhoto.Visibility = PhotoImage.Visibility = EssentialsPhoto.Visibility = PhotoRemoveButton.Visibility = brush is null ? Visibility.Collapsed : Visibility.Visible;
         PhotoChooseButton.Content = brush is null ? L("Choisir une photo…", "Choose a photo…") : L("Changer de photo…", "Change photo…");
     }
     private void SayPhoto(string text) { PhotoStatus.Text = text; PhotoStatus.Visibility = text.Length == 0 ? Visibility.Collapsed : Visibility.Visible; }
