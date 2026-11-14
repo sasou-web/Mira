@@ -126,8 +126,8 @@ public sealed partial class PlayerPage : UserControl
         _more = Ui.IconButton("more", L("Qualité, sous-titres et minuterie", "Quality, subtitles and sleep timer"), () => { }, "player", 22);
         _tracks.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         _more.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
-        ((Flyout)_tracks.Flyout).Opening += (_, _) => { _subtitleView = false; ((Flyout)_tracks.Flyout).Content = TracksMenu(); };
-        ((Flyout)_more.Flyout).Opening += (_, _) => ((Flyout)_more.Flyout).Content = MoreMenu();
+        ((Flyout)_tracks.Flyout).Opening += (_, _) => { _subtitleView = false; ((Flyout)_tracks.Flyout).Content = TracksMenu(); AboveBar((Flyout)_tracks.Flyout, _tracks); };
+        ((Flyout)_more.Flyout).Opening += (_, _) => { ((Flyout)_more.Flyout).Content = MoreMenu(); AboveBar((Flyout)_more.Flyout, _more); };
         var play = new Button { Content = _pauseIcon, Classes = { "player" } }; play.Click += (_, _) => TogglePause();
         ToolTip.SetTip(play, L("Lecture / pause · Espace", "Play / pause · Space"));
         var mute = new Button { Content = _volumeIcon, Classes = { "player" } }; mute.Click += (_, _) => ToggleMute();
@@ -766,16 +766,29 @@ public sealed partial class PlayerPage : UserControl
         var current = (Audio: _mpv?.Get("aid"), Sub: _mpv?.Get("sid"));
         Control Column(string title, string type, string? selected, bool off)
         {
-            var list = new StackPanel { Spacing = 2, MinWidth = 240 };
-            list.Children.Add(new TextBlock { Text = title, Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
+            var list = TrackColumn(title);
             if (off) list.Children.Add(Entry(L("Désactivés", "Off"), null, selected is "no" or null, () => ChooseTrack("sid", "no")));
             foreach (var track in tracks.Where(x => x.Type == type))
                 list.Children.Add(Entry(track.Label, track.Details, selected == track.Id, () => ChooseTrack(type == "audio" ? "aid" : "sid", track.Id)));
-            if (type == "sub") { list.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync())); AddSubtitleSearch(list); }
+            if (type == "sub") AddSubtitleActions(list);
             else { AddNightSound(list); AddAudioDevices(list); }
             return list;
         }
-        return Ui.Row(18, Column(L("AUDIO", "AUDIO"), "audio", current.Audio, false), Column(L("SOUS-TITRES", "SUBTITLES"), "sub", current.Sub, true));
+        return Ui.Row(8, Column("Audio", "audio", current.Audio, false), Column(L("Sous-titres", "Subtitles"), "sub", current.Sub, true));
+    }
+    /// <summary>A column of audio and subtitles: 260 px, its title in sentence case.</summary>
+    private static StackPanel TrackColumn(string title)
+    {
+        var list = new StackPanel { Spacing = 2, Width = 260 };
+        list.Children.Add(MenuHeading(title));
+        return list;
+    }
+    /// <summary>Under the subtitles, after a line: « Load a file… » and « Search for subtitles… ».</summary>
+    private void AddSubtitleActions(StackPanel list)
+    {
+        list.Children.Add(MenuRule());
+        list.Children.Add(MenuAction("plus", L("Charger un fichier…", "Load a file…"), () => _ = LoadSubtitleAsync()));
+        AddSubtitleSearch(list);
     }
     /// <summary>A track chosen in the menu, kept for the next episodes of this series (<see cref="SeriesTracks"/>).</summary>
     private void ChooseTrack(string property, string id)
@@ -785,16 +798,24 @@ public sealed partial class PlayerPage : UserControl
         RememberTracks();
     }
     /// <summary>
-    /// « ⋮ », laid out as Mira for Windows': one column of 300 px, quality and sleep timer as rows of chips, the
-    /// group, the subtitle and audio delays, then the information.
+    /// « ⋮ », laid out as Mira for Windows': one column of 348 px, quality and sleep timer as sliders of choices, the
+    /// group, the subtitle and audio delays between two lines, then the information in two columns.
     /// </summary>
     private Control MoreMenu()
     {
         var delay = _mpv?.Number("sub-delay", 0) ?? 0;
-        var menu = new StackPanel { Width = 300 };
+        var menu = new StackPanel { Width = 348 };
         // A copy kept on this Mac plays its own file: no quality to choose.
-        if (_stream is { } stream && _playingCopy is null) { menu.Children.Add(MenuHeading(L("QUALITÉ", "QUALITY"))); menu.Children.AddRange(QualityChoices(stream)); }
-        menu.Children.Add(MenuHeading(L("MINUTERIE", "SLEEP TIMER")));
+        if (_stream is { } stream && _playingCopy is null)
+        {
+            var heading = new DockPanel { Margin = new Thickness(12, 10, 12, 8) };
+            var unit = new TextBlock { Text = "Mb/s", FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint };
+            DockPanel.SetDock(unit, Dock.Right); heading.Children.Add(unit);
+            var title = MenuHeading(L("Qualité", "Quality")); title.Margin = new Thickness(0); heading.Children.Add(title);
+            menu.Children.Add(heading); menu.Children.AddRange(QualityChoices(stream));
+        }
+        var sleepHeading = MenuHeading(L("Minuterie", "Sleep timer")); sleepHeading.Margin = new Thickness(12, 16, 12, 8);
+        menu.Children.Add(sleepHeading);
         void Sleep(int? minutes)
         {
             _sleep.Choose(minutes, DateTimeOffset.Now);
@@ -808,40 +829,50 @@ public sealed partial class PlayerPage : UserControl
         if (_sleep.Status(DateTimeOffset.Now) is { } status) menu.Children.Add(MenuNote(status));
         if (Group.Active && Group.Group is { } group)
         {
-            menu.Children.Add(MenuHeading(L("REGARDER ENSEMBLE", "WATCH TOGETHER")));
-            var people = new TextBlock { Text = Together.GroupText(group), FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            var together = MenuHeading(L("Regarder ensemble", "Watch together")); together.Margin = new Thickness(12, 16, 12, 8);
+            menu.Children.Add(together);
+            var people = new TextBlock { Text = Together.GroupText(group), FontSize = 13.5, Foreground = Ui.TextBody, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
             if (group.Participants.Count > 0) ToolTip.SetTip(people, string.Join(", ", group.Participants));
             var leave = Chip(L("Quitter", "Leave"), L("Quitter le groupe", "Leave the group"), false, () => { (_more.Flyout as Flyout)?.Hide(); _ = Group.LeaveAsync(); });
-            leave.MinWidth = 70; leave.Margin = new Thickness(0);
-            var line = new DockPanel { Margin = new Thickness(10, 0, 6, 8) };
+            leave.Classes.Add("edged"); leave.Padding = new Thickness(14, 0); leave.Margin = new Thickness(0);
+            var line = new DockPanel { Margin = new Thickness(12, 0) };
             DockPanel.SetDock(leave, Dock.Right); line.Children.Add(leave); line.Children.Add(people);
             menu.Children.Add(line);
         }
-        menu.Children.Add(new Border { Height = 1, Background = Ui.Brush("#24FFFFFF"), Margin = new Thickness(10, 2, 10, 6) });
         Button? value = null;
         value = Chip(PlayerText.Delay(delay), L("Remettre à zéro", "Reset"), false, () => Shift(0));
-        value.MinWidth = 58;
         void Shift(double change)
         {
             if (_mpv is null) return;
             var shifted = change == 0 ? 0 : Math.Round(_mpv.Number("sub-delay", 0) + change, 1);
             _mpv.Set("sub-delay", shifted.ToString(CultureInfo.InvariantCulture)); value!.Content = PlayerText.Delay(shifted);
         }
-        Button Step(string sign, string tip, double change) { var step = Chip(sign, tip, false, () => Shift(change)); step.Width = 32; step.Margin = new Thickness(0); return step; }
-        var steps = Ui.Row(0, Step("−", L("Sous-titres 0,5 s plus tôt", "Subtitles 0.5 s earlier"), -0.5), value, Step("+", L("Sous-titres 0,5 s plus tard", "Subtitles 0.5 s later"), 0.5));
-        var delayLine = new DockPanel { Margin = new Thickness(10, 0, 6, 4) };
-        DockPanel.SetDock(steps, Dock.Right); delayLine.Children.Add(steps);
-        delayLine.Children.Add(new TextBlock { Text = L("Décalage des sous-titres", "Subtitle delay"), FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-        menu.Children.Add(delayLine);
-        menu.Children.Add(AudioDelayLine());
-        // Last, as on Windows: what is playing and how, under a line of its own.
+        var delays = new StackPanel();
+        delays.Children.Add(DelayLine(L("Décalage des sous-titres", "Subtitle delay"), value, Shift, 0.5, L("Sous-titres 0,5 s plus tôt", "Subtitles 0.5 s earlier"), L("Sous-titres 0,5 s plus tard", "Subtitles 0.5 s later")));
+        delays.Children.Add(AudioDelayLine());
+        menu.Children.Add(new Border { BorderBrush = Ui.Rule, BorderThickness = new Thickness(0, 1), Margin = new Thickness(0, 14, 0, 6), Padding = new Thickness(0, 8), Child = delays });
+        // Last, as on Windows: what is playing and how.
         if (PlaybackInfo() is { } info)
         {
-            menu.Children.Add(new Border { Height = 1, Background = Ui.Brush("#24FFFFFF"), Margin = new Thickness(10, 6, 10, 2) });
-            menu.Children.Add(MenuHeading(L("INFORMATIONS", "INFO"))); menu.Children.Add(info);
+            menu.Children.Add(MenuHeading(L("Informations", "Info"))); menu.Children.Add(info);
             if (GreyRepairLine() is { } grey) menu.Children.Add(grey);
         }
         return menu;
+    }
+    /// <summary>A delay of ⋮: its name, then « − 0.0 s + » in a sunk capsule, the value in bold between the two steps.</summary>
+    private DockPanel DelayLine(string name, Button value, Action<double> shift, double step, string earlier, string later)
+    {
+        Button Step(string sign, string tip, double change) { var button = Chip(sign, tip, false, () => shift(change)); button.Classes.Add("step"); return button; }
+        value.Classes.Add("step"); value.Classes.Add("value");
+        var capsule = new Border
+        {
+            Background = Ui.Inset, BorderBrush = Ui.Rule, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(2), VerticalAlignment = VerticalAlignment.Center,
+            Child = Ui.Row(0, Step("−", earlier, -step), value, Step("+", later, step))
+        };
+        var line = new DockPanel { Margin = new Thickness(12, 5) };
+        DockPanel.SetDock(capsule, Dock.Right); line.Children.Add(capsule);
+        line.Children.Add(new TextBlock { Text = name, FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextBody, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        return line;
     }
     /// <summary>
     /// « Décalage de l’audio », as on Windows: the sound 0.1 s earlier or later (a sound bar, Bluetooth headphones), kept
@@ -849,15 +880,8 @@ public sealed partial class PlayerPage : UserControl
     /// </summary>
     private DockPanel AudioDelayLine()
     {
-        Button? value = null;
-        value = Chip(PlayerText.Delay(_shell.AudioDelay), L("Réinitialiser le décalage de l’audio", "Reset the audio delay"), false, () => ShiftAudio(0));
-        value.MinWidth = 58;
-        Button Step(string sign, string tip, double change) { var step = Chip(sign, tip, false, () => ShiftAudio(change)); step.Width = 32; step.Margin = new Thickness(0); return step; }
-        var steps = Ui.Row(0, Step("−", L("Son 0,1 s plus tôt", "Sound 0.1 s earlier"), -0.1), value, Step("+", L("Son 0,1 s plus tard (casque Bluetooth)", "Sound 0.1 s later (Bluetooth headphones)"), 0.1));
-        var line = new DockPanel { Margin = new Thickness(10, 0, 6, 4) };
-        DockPanel.SetDock(steps, Dock.Right); line.Children.Add(steps);
-        line.Children.Add(new TextBlock { Text = L("Décalage de l’audio", "Audio delay"), FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-        return line;
+        var value = Chip(PlayerText.Delay(_shell.AudioDelay), L("Réinitialiser le décalage de l’audio", "Reset the audio delay"), false, () => ShiftAudio(0));
+        return DelayLine(L("Décalage de l’audio", "Audio delay"), value, ShiftAudio, 0.1, L("Son 0,1 s plus tôt", "Sound 0.1 s earlier"), L("Son 0,1 s plus tard (casque Bluetooth)", "Sound 0.1 s later (Bluetooth headphones)"));
     }
     /// <summary>The audio delay moved by <paramref name="change"/> seconds, or back to 0 (also for the self-check).</summary>
     public void ShiftAudio(double change)
@@ -866,17 +890,28 @@ public sealed partial class PlayerPage : UserControl
         _shell.AudioDelay = shifted;
         _mpv?.Set("audio-delay", shifted.ToString(CultureInfo.InvariantCulture));
     }
-    /// <summary>A section's name in a menu, small capitals as on Windows (« VITESSE »).</summary>
-    private static TextBlock MenuHeading(string text) => new() { Text = text, FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(10, 6, 10, 8) };
-    private static TextBlock MenuNote(string text) => new() { Text = text, FontSize = 12, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 2, 10, 8) };
-    /// <summary>A row of chips of the same width, the chosen one white; <paramref name="columns"/> 0 = one row.</summary>
+    /// <summary>
+    /// A menu of the bar opens 12 px above the seek bar, not over it (« Écrin », as on Windows): its button sits under the
+    /// bar, so the menu is raised by the room between them. Left as it is when the bar is not right above the button.
+    /// </summary>
+    private void AboveBar(Flyout flyout, Control button)
+    {
+        var bar = _timeline.IsVisible ? _timeline.TranslatePoint(new Point(0, 0), button) : null;
+        flyout.VerticalOffset = bar is { Y: < 0 and > -80 } at ? at.Y - 12 : -12;
+    }
+    /// <summary>A section's name in a menu, in sentence case as on Windows (« Sleep timer »).</summary>
+    private static TextBlock MenuHeading(string text) => new() { Text = text, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Muted, Margin = new Thickness(12, 10, 12, 8) };
+    private static TextBlock MenuNote(string text) => new() { Text = text, FontSize = 12.5, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(12, 8, 12, 2) };
+    /// <summary>A line between a menu's parts.</summary>
+    private static Border MenuRule() => new() { Height = 1, Background = Ui.Rule, Margin = new Thickness(10, 6) };
+    /// <summary>A slider of choices in a sunk track, the chosen cell raised with its edge; <paramref name="columns"/> 0 = one row.</summary>
     private Control Chips(IEnumerable<(string Label, string Name, bool Chosen, Action Choose)> choices, int columns)
     {
         var list = choices.ToList();
-        var grid = new UniformGrid { Margin = new Thickness(8, 0, 8, 10) };
+        var grid = new UniformGrid();
         if (columns > 0) grid.Columns = columns; else grid.Rows = 1;
         foreach (var (label, name, chosen, choose) in list) grid.Children.Add(Chip(label, name, chosen, choose));
-        return grid;
+        return new Border { Background = Ui.Inset, BorderBrush = Ui.Rule, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(11), Padding = new Thickness(3), Margin = new Thickness(12, 0), Child = grid };
     }
     private Button Chip(string label, string name, bool chosen, Action choose)
     {
@@ -895,17 +930,44 @@ public sealed partial class PlayerPage : UserControl
         Avalonia.Automation.AutomationProperties.SetHelpText(button, shortcut);
         icon.PropertyChanged += (_, e) => { if (e.Property == Icon.KindProperty) Avalonia.Automation.AutomationProperties.SetName(button, name(icon.Kind)); };
     }
+    /// <summary>A choice of a menu (« Écrin »): its name and details, the one chosen raised and in bold, its check on the right.</summary>
     private Button Entry(string label, string? details, bool selected, Action choose)
     {
-        var text = Ui.Column(1, new TextBlock { Text = label, FontSize = 14, FontWeight = selected ? FontWeight.SemiBold : FontWeight.Normal });
-        if (!string.IsNullOrEmpty(details)) text.Children.Add(new TextBlock { Text = details, FontSize = 12, Foreground = Ui.Muted });
+        var text = Ui.Column(1, new TextBlock { Text = label, FontSize = 14, FontWeight = selected ? FontWeight.Bold : FontWeight.SemiBold, Foreground = selected ? Ui.Ink : Ui.TextBody, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (!string.IsNullOrEmpty(details)) text.Children.Add(new TextBlock { Text = details, FontSize = 12, FontWeight = FontWeight.Normal, Foreground = selected ? Ui.Muted : Ui.Faint, TextTrimming = TextTrimming.CharacterEllipsis });
+        text.VerticalAlignment = VerticalAlignment.Center;
         var row = new DockPanel();
-        var check = new Icon("check", 16) { Opacity = selected ? 1 : 0, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-        DockPanel.SetDock(check, Dock.Left); row.Children.Add(check); row.Children.Add(text);
-        var button = new Button { Content = row, Classes = { "quiet" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 8), FontWeight = FontWeight.Normal };
+        var check = new Icon("check", 16) { Opacity = selected ? 1 : 0, Foreground = Ui.Ink, Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(check, Dock.Right); row.Children.Add(check); row.Children.Add(text);
+        var button = new Button { Content = row, Classes = { "menurow" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(12, 8), MinHeight = 38 };
+        button.Classes.Set("on", selected);
         Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { label, details, selected ? L("choisi", "selected") : null }.Where(x => !string.IsNullOrEmpty(x))));
         // The menu stays open, so the other track can be chosen too; it refreshes its marks.
         button.Click += (_, _) => { choose(); RefreshMenus(); };
+        return button;
+    }
+    /// <summary>An action of a menu (« Load a file… »): its glyph in the secondary ink, then its words.</summary>
+    private static Button MenuAction(string icon, string label, Action act)
+    {
+        var row = Ui.Row(13, new Icon(icon, 17) { Foreground = Ui.TextSecondary, VerticalAlignment = VerticalAlignment.Center }, new TextBlock { Text = label, FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Ui.Ink, VerticalAlignment = VerticalAlignment.Center });
+        var button = new Button { Content = row, Classes = { "menurow" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 0), MinHeight = 38 };
+        Avalonia.Automation.AutomationProperties.SetName(button, label);
+        button.Click += (_, _) => act();
+        return button;
+    }
+    /// <summary>A choice that is on or off (« Night sound »): its name and line, a switch on the right.</summary>
+    private static Button Switch(string label, string? details, bool on, Action toggle)
+    {
+        var text = Ui.Column(1, new TextBlock { Text = label, FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Ui.Ink, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (!string.IsNullOrEmpty(details)) text.Children.Add(new TextBlock { Text = details, FontSize = 12, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap });
+        text.VerticalAlignment = VerticalAlignment.Center;
+        var dot = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), Background = on ? Ui.Black : Ui.Muted, HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+        var track = new Border { Width = 40, Height = 24, CornerRadius = new CornerRadius(12), Padding = new Thickness(3), Background = on ? Ui.Ink : Ui.Raised2, BorderBrush = on ? Ui.Ink : Ui.LineStrong, BorderThickness = new Thickness(1), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = dot };
+        var row = new DockPanel();
+        DockPanel.SetDock(track, Dock.Right); row.Children.Add(track); row.Children.Add(text);
+        var button = new Button { Content = row, Classes = { "menurow" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(12, 8), MinHeight = 38 };
+        Avalonia.Automation.AutomationProperties.SetName(button, on ? label + L(", activé", ", on") : label);
+        button.Click += (_, _) => toggle();
         return button;
     }
     public void RefreshMenus()

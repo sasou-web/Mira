@@ -124,7 +124,7 @@ public sealed partial class PlayerPage
     {
         if (_mpv is not { } mpv || !_loaded || _surface is not VideoView view || _repairing) return null;
         var next = Math.Min(3, _shell.Settings.VideoRepair + 1);
-        var repair = new Button { Content = _shell.Settings.VideoRepair > 0 ? L("Réparer encore", "Repair again") : L("Réparer", "Repair"), Classes = { "menuchip" }, MinWidth = 96, Margin = new Thickness(0) };
+        var repair = new Button { Content = _shell.Settings.VideoRepair > 0 ? L("Réparer encore", "Repair again") : L("Réparer", "Repair"), Classes = { "menuchip", "edged" }, Padding = new Thickness(14, 0), Margin = new Thickness(0) };
         var tip = L($"Essayer la réparation {next} sur 3 : ", $"Try repair {next} of 3: ") + (next switch
         {
             1 => L("couleurs de l’écran et lissage coupés", "screen colours and smoothing off"),
@@ -134,9 +134,9 @@ public sealed partial class PlayerPage
         ToolTip.SetTip(repair, tip);
         Avalonia.Automation.AutomationProperties.SetName(repair, tip);
         repair.Click += (_, _) => { (_more.Flyout as Flyout)?.Hide(); _ = RepairAsync(mpv, view, asked: true); };
-        var line = new DockPanel { Margin = new Thickness(10, 0, 6, 8) };
+        var line = new DockPanel { Margin = new Thickness(12, 4, 12, 6) };
         DockPanel.SetDock(repair, Dock.Right); line.Children.Add(repair);
-        line.Children.Add(new TextBlock { Text = L("Image grise ou noire ?", "Grey or black picture?"), FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        line.Children.Add(new TextBlock { Text = L("Image grise ou noire ?", "Grey or black picture?"), FontSize = 13.5, Foreground = Ui.TextBody, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         return line;
     }
 
@@ -144,9 +144,24 @@ public sealed partial class PlayerPage
     /// « Informations » of the ⋮ menu, as on Windows: what mpv plays and how it draws it, to tell a stream converted by
     /// Jellyfin (« Qualité » above says it), a Mac without OpenGL or without its screen's colours from a file of poor quality.
     /// </summary>
-    private Control? PlaybackInfo() => InfoText() is { } lines
-        ? new TextBlock { Text = lines, FontSize = 12, LineHeight = 18, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 0, 10, 8) }
-        : null;
+    private Control? PlaybackInfo()
+    {
+        if (InfoText() is not { } lines) return null;
+        // Two columns as on Windows: each name in the faint ink, its value beside it; the text stays InfoText's.
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Margin = new Thickness(12, 0, 12, 8) };
+        var row = 0;
+        foreach (var line in lines.Split('\n'))
+        {
+            var cut = line.IndexOf("  ", StringComparison.Ordinal);
+            var (name, value) = cut > 0 ? (line[..cut], line[(cut + 2)..]) : ("", line);
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var label = new TextBlock { Text = name, FontSize = 12.5, Foreground = Ui.Faint, Margin = new Thickness(0, 0, 18, 5) };
+            var shown = new TextBlock { Text = value, FontSize = 12.5, Foreground = Ui.TextBody, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 5) };
+            Grid.SetRow(label, row); Grid.SetRow(shown, row); Grid.SetColumn(shown, 1);
+            grid.Children.Add(label); grid.Children.Add(shown); row++;
+        }
+        return grid;
+    }
     /// <summary>The lines of « Informations »; null before the file is loaded.</summary>
     public string? InfoText()
     {

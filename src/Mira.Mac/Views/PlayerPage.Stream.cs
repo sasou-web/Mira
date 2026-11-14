@@ -252,7 +252,8 @@ public sealed partial class PlayerPage
     private IEnumerable<Control> QualityChoices(ServerStream stream)
     {
         var current = StreamQuality.Known(_shell.Settings.Quality);
-        yield return Chips(StreamQuality.Choices.Select(x => (x.Short, $"{x.Label} · {x.Details}", x.Key == current, (Action)(() => _ = ChooseQualityAsync(x.Key)))), 4);
+        // « Mb/s » is said once, beside « Quality »: each cell keeps its number (« 20 », « 1.5 »).
+        yield return Chips(StreamQuality.Choices.Select(x => (x.Short.Replace(" Mb/s", "", StringComparison.Ordinal), $"{x.Label} · {x.Details}", x.Key == current, (Action)(() => _ = ChooseQualityAsync(x.Key)))), 4);
         yield return MenuNote(StreamQuality.Describe(stream));
     }
     /// <summary>Another quality, kept in the settings: the title goes on from where it is on the stream it gives.</summary>
@@ -277,16 +278,14 @@ public sealed partial class PlayerPage
     private Control ConvertedTracksMenu(ConvertedTracks converted)
     {
         var stream = converted.Stream; var sid = _mpv?.Get("sid"); var shown = converted.Shown(sid);
-        var audio = new StackPanel { Spacing = 2, MinWidth = 240 };
-        audio.Children.Add(new TextBlock { Text = L("AUDIO", "AUDIO"), Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
+        var audio = TrackColumn("Audio");
         foreach (var track in converted.Audio)
         {
             var index = ConvertedTracks.Index(track);
             audio.Children.Add(Entry(track.Label, track.Details, index == stream.Audio, () => _ = ChooseConvertedAsync(audio: index)));
         }
         AddNightSound(audio); AddAudioDevices(audio);
-        var subtitles = new StackPanel { Spacing = 2, MinWidth = 240 };
-        subtitles.Children.Add(new TextBlock { Text = L("SOUS-TITRES", "SUBTITLES"), Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
+        var subtitles = TrackColumn(L("Sous-titres", "Subtitles"));
         subtitles.Children.Add(Entry(L("Désactivés", "Off"), null, shown is null && !converted.ShowsOther(sid), () => _ = ChooseConvertedAsync(text: -1)));
         foreach (var track in converted.Subtitles)
         {
@@ -298,9 +297,8 @@ public sealed partial class PlayerPage
         }
         foreach (var track in (_mpv?.Tracks() ?? []).Where(t => t.Type == "sub" && !converted.Fetched(t.Id)))
             subtitles.Children.Add(Entry(track.Label, track.Details, track.Id == sid, () => ChooseTrack("sid", track.Id)));
-        subtitles.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync()));
-        AddSubtitleSearch(subtitles);
-        return Ui.Row(18, audio, subtitles);
+        AddSubtitleActions(subtitles);
+        return Ui.Row(8, audio, subtitles);
     }
     /// <summary>A track of a conversion chosen: text subtitles at once; another audio track or pictures, another conversion from where it is.</summary>
     private async Task ChooseConvertedAsync(int? audio = null, int? text = null, int? burn = null)
