@@ -199,11 +199,7 @@ public partial class MainWindow
     {
         FixPanel.Children.Clear();
         FixRow.Visibility = _fixEntries.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        var unknown = _fixEntries.Count(x => x.Problems.Contains(TitleIdentity.Problem.Unidentified));
-        var count = Lang.Count(_fixEntries.Count, "titre", "titres", "title", "titles");
-        FixStatus.Text = unknown > 0
-            ? L($"{Lang.Count(unknown, "titre non reconnu", "titres non reconnus", "", "")} par Jellyfin, sur {_fixEntries.Count} à revoir.", $"{Lang.Count(unknown, "", "", "title", "titles")} Jellyfin didn’t recognize, of {_fixEntries.Count} to check.")
-            : L($"{count} à revoir.", $"{count} to check.");
+        FixStatus.Text = TitleIdentity.Summary(_fixEntries);
         foreach (var entry in _fixAll ? _fixEntries : _fixEntries.Take(FixShown))
         {
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };

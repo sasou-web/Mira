@@ -114,7 +114,7 @@ public partial class MainWindow
             UpdateState.Ready => L($"Mira {version} est prête", $"Mira {version} is ready"),
             UpdateState.UpToDate => L("À jour", "Up to date") + (updater.LastCheck is { } time ? L($" · vérifiée à {time:HH:mm}", $" · checked at {Time(time)}") : ""),
             UpdateState.Failed => L("La recherche n’a pas abouti", "The check didn’t go through"),
-            _ => _settings.AutoUpdate ? L("Elle se cherche toute seule", "Checked by itself") : L("Recherche automatique coupée", "Automatic check off"),
+            _ => _settings.AutoUpdate ? L("Mises à jour automatiques activées", "Automatic updates on") : L("Mises à jour automatiques coupées", "Automatic updates off"),
         };
         EssentialsUpdateDot.Fill = Palette.Get(ready ? "Text" : updater?.State switch { UpdateState.UpToDate => "Success", UpdateState.Failed => "Warning", _ => "Faint" });
         EssentialsRestart.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;

@@ -2100,6 +2100,16 @@ internal static class LibraryTests
                 var lines = TitleIdentity.Note(problems);
                 Assert(lines.SequenceEqual(x[1].EnumerateArray().Select(l => l.GetString()!)), $"Note {x[0]}: {string.Join(" / ", lines)}");
             }
+            // The line over the list: all unrecognized said once, never « 5 not recognized, of 5 to check ».
+            static TitleIdentity.Entry Of(TitleIdentity.Problem problem) => new(new MediaItem { Id = "x", Name = "x" }, [problem], null);
+            foreach (var (entries, said) in new (TitleIdentity.Entry[], string)[]
+            {
+                ([Of(TitleIdentity.Problem.Unidentified)], "1 titre que Jellyfin n’a pas reconnu."),
+                ([Of(TitleIdentity.Problem.Unidentified), Of(TitleIdentity.Problem.Unidentified)], "2 titres que Jellyfin n’a pas reconnus."),
+                ([Of(TitleIdentity.Problem.Unidentified), Of(TitleIdentity.Problem.NoPoster), Of(TitleIdentity.Problem.NoYear)], "3 titres à revoir, dont 1 que Jellyfin n’a pas reconnu."),
+                ([Of(TitleIdentity.Problem.NoPoster)], "1 titre à revoir."),
+            })
+                Assert(TitleIdentity.Summary(entries) == said, $"Summary: {TitleIdentity.Summary(entries)}");
             foreach (var x in root.GetProperty("queries").EnumerateArray())
             {
                 var query = TitleIdentity.Search(x[0].GetString(), x[1].GetString());
