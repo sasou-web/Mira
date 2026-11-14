@@ -485,7 +485,7 @@ public partial class MainWindow
             var tag = new TextBlock { Text = kind, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             DockPanel.SetDock(tag, Dock.Right); head.Children.Add(tag);
         }
-        head.Children.Add(new TextBlock { Text = group.Title, FontSize = 16, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, ToolTip = group.Title });
+        head.Children.Add(SlidingText.Wrap(new TextBlock { Text = group.Title, FontSize = 16, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, ToolTip = group.Title }));
         panel.Children.Add(head);
         panel.Children.Add(ServerReleaseView(searchId, group.Best, best: !ReleaseRanking.Dead(group.Best)));
         if (group.Others.Count > 0)
@@ -507,7 +507,7 @@ public partial class MainWindow
             };
             panel.Children.Add(toggle); panel.Children.Add(others);
         }
-        var card = new Border { Background = Palette.Get("Surface"), CornerRadius = Palette.Card, Padding = new Thickness(18, 16, 18, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel };
+        var card = SlidingText.Zone(new Border { Background = Palette.Get("Surface"), CornerRadius = Palette.Card, Padding = new Thickness(18, 16, 18, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel });
         AutomationProperties.SetName(card, string.Join(" · ", new[] { group.Title, group.Label, RemoteLines.KindLabel(group.Category) }.Where(x => x.Length > 0)));
         return card;
     }

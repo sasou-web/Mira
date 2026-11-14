@@ -476,6 +476,53 @@ internal static class PlayerTests
             Assert(SegmentedSwitch.Lit(0, 45, 0, 45) == 1 && SegmentedSwitch.Lit(45, 90, 0, 45) == 0 && SegmentedSwitch.Lit(22.5, 67.5, 0, 45) == .5, "Ink by the pill's cover");
             return Task.CompletedTask;
         });
+        await Test("Titre coupé : défile au survol de sa place pour montrer sa fin, puis revient à son début (Windows et Mac)", () =>
+        {
+            static TimeSpan At(double seconds) => TimeSpan.FromSeconds(seconds);
+            Assert(TitleSlide.IsCut(120.4, 100) && !TitleSlide.IsCut(100.3, 100) && !TitleSlide.IsCut(80, 100) && !TitleSlide.IsCut(double.PositiveInfinity, 100) && !TitleSlide.IsCut(120, 0), "Cut only past a pixel's rounding");
+            var slide = new TitleSlide();
+            Assert(slide.At(At(1)) == 0 && !slide.Whole && !slide.Moving && slide.Wakes is null, "At rest: its start, its « … »");
+            slide.Enter(At(10), 90);
+            Assert(slide.At(At(10.5)) == 0 && !slide.Whole && !slide.Moving && slide.Wakes == At(10) + TitleSlide.Rest, "Still for a moment under the pointer, its « … » kept");
+            slide.Leave(At(10.6));
+            Assert(slide.At(At(20)) == 0 && !slide.Whole && slide.Wakes is null, "A pointer passing by moves nothing");
+            slide.Enter(At(30), 90);
+            var start = At(30) + TitleSlide.Rest;
+            Assert(slide.At(start) == 0 && slide.Whole && slide.Moving, "Then whole, setting off");
+            var length = 90 / TitleSlide.Speed;
+            Assert(slide.At(start + At(length * .05)) is var early && early < 90 * .05, "Eased off at the start");
+            var last = 0d; var fastest = 0d;
+            for (var i = 1; i <= 100; i++)
+            {
+                var at = slide.At(start + At(length * i / 100));
+                Assert(at >= last - 1e-9 && at <= 90 + 1e-9, $"Along, never back: {i}% = {at}");
+                fastest = Math.Max(fastest, (at - last) / (length / 100));
+                last = at;
+            }
+            Assert(Math.Abs(last - 90) < 1e-9 && !slide.Moving && slide.Whole, "At its end, and it stays there");
+            Assert(fastest < TitleSlide.Speed * 1.6, $"At a reading pace: {fastest:0} px/s at its fastest");
+            Assert(slide.At(At(100)) == 90 && slide.Edges(90) is (0, 1) && slide.Edges(45) is (0, 0) && slide.Edges(TitleSlide.Fade / 2) is (.5, 0), "Its edges fade where it goes on under them");
+            slide.Leave(At(100));
+            Assert(slide.Moving && slide.Whole && slide.At(At(100)) == 90, "Left: back from its end");
+            Assert(slide.At(At(100) + TitleSlide.Back * .5) < 90 * .2, "Back quickly");
+            Assert(slide.At(At(100) + TitleSlide.Back) == 0 && !slide.Whole && !slide.Moving, "Back at its start, its « … » again");
+            // On its way back, the pointer coming back takes it on from where it is, without its rest.
+            slide.Enter(At(200), 90); slide.At(At(200) + TitleSlide.Rest + At(5));
+            slide.Leave(At(210)); var halfway = slide.At(At(210) + TitleSlide.Back * .3);
+            slide.Enter(At(210) + TitleSlide.Back * .3, 90);
+            Assert(slide.Moving && slide.At(At(210) + TitleSlide.Back * .3) == halfway && slide.At(At(220)) == 90, "Back onto its end from where it was");
+            // Cut by a letter: never a jump; its text changed to one that fits: stopped.
+            slide.Stop(); slide.Enter(At(300), 2); var off = At(300) + TitleSlide.Rest;
+            Assert(slide.At(off + TitleSlide.Shortest * .5) is > 0 and < 2 && slide.At(off + TitleSlide.Shortest) == 2, "A short way, still eased");
+            slide.Resize(At(301), 0);
+            Assert(!slide.Whole && slide.At(At(302)) == 0, "Fits again: still");
+            slide.Enter(At(400), 0);
+            Assert(!slide.Whole && slide.Wakes is null, "A name that fits never slides");
+            slide.Enter(At(500), 60); slide.At(At(500) + TitleSlide.Rest + At(10));
+            slide.Resize(At(511), 120);
+            Assert(slide.Moving && slide.At(At(511)) == 60 && slide.At(At(530)) == 120, "Longer: on to its new end from where it was");
+            return Task.CompletedTask;
+        });
         await Test("Mini-lecteur : rangé tout seul contre le bord droit, un bout de la vidéo qui dépasse, sorti au survol, rangé de nouveau après (Windows et Mac)", () =>
         {
             static TimeSpan At(double seconds) => TimeSpan.FromSeconds(seconds);

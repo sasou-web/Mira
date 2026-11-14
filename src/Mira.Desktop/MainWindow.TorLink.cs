@@ -611,7 +611,7 @@ public partial class MainWindow
             actions.Children.Add(classify);
         }
         var text = new StackPanel();
-        text.Children.Add(new TextBlock { Text = TorLinkPlacement.TitleOf(entry), FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Name });
+        text.Children.Add(SlidingText.Wrap(new TextBlock { Text = TorLinkPlacement.TitleOf(entry), FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Name }));
         text.Children.Add(new TextBlock { Text = TorLinkPlacement.DetailOf(entry), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         if (actions.Children.Count > 0) text.Children.Add(actions);
         return Row(icon, color, text, menu, TorLinkPlacement.TitleOf(entry) + ", " + TorLinkPlacement.StatusOf(entry));
@@ -620,7 +620,7 @@ public partial class MainWindow
     private FrameworkElement EarlierRow(TorLinkCompletion completion)
     {
         var text = new StackPanel();
-        text.Children.Add(new TextBlock { Text = completion.Name, FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = completion.Name });
+        text.Children.Add(SlidingText.Wrap(new TextBlock { Text = completion.Name, FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = completion.Name }));
         var when = completion.CompletedAt == DateTimeOffset.MinValue ? "" : L($" le {completion.CompletedAt.ToLocalTime():d} à {completion.CompletedAt.ToLocalTime():HH:mm}", $" on {Date(completion.CompletedAt.ToLocalTime())} at {Time(completion.CompletedAt.ToLocalTime())}");
         text.Children.Add(new TextBlock { Text = L($"Terminé{when} · pas encore rangé", $"Finished{when} · not filed yet"), FontSize = 11.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         var actions = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
@@ -636,7 +636,7 @@ public partial class MainWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18, Foreground = Palette.Get(color), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 1, 0, 0) });
         Grid.SetColumn(content, 1); grid.Children.Add(content);
-        var row = new Border { Background = Palette.Get("Surface"), CornerRadius = Palette.Control, Padding = new Thickness(14, 12, 12, 10), Margin = new Thickness(0, 0, 0, 8), Child = grid, ContextMenu = menu };
+        var row = SlidingText.Zone(new Border { Background = Palette.Get("Surface"), CornerRadius = Palette.Control, Padding = new Thickness(14, 12, 12, 10), Margin = new Thickness(0, 0, 0, 8), Child = grid, ContextMenu = menu });
         AutomationProperties.SetName(row, name);
         return row;
     }

@@ -209,7 +209,8 @@ public partial class MainWindow
     /// <summary>A row's frame: its content over a hairline at its top, shown from the second row on.</summary>
     private static (Grid Frame, Border Rule) RowFrame(FrameworkElement content, double height, Thickness padding)
     {
-        var frame = new Grid { Background = Brushes.Transparent };
+        // The row is where the pointer slides a name cut short.
+        var frame = SlidingText.Zone(new Grid { Background = Brushes.Transparent });
         var rule = new Border { Height = 1, VerticalAlignment = VerticalAlignment.Top, Background = Palette.Get("Raised"), Margin = new Thickness(12, 0, 12, 0), IsHitTestVisible = false };
         var body = new Border { Padding = padding, Child = content };
         if (height > 0) body.MinHeight = height;
@@ -233,10 +234,11 @@ public partial class MainWindow
         name.Inlines.Add(new Run(line.Title));
         if (line.Year is { } year) name.Inlines.Add(new Run($" ({year})") { Foreground = Palette.Get("Muted"), FontWeight = FontWeights.SemiBold });
         if (line.Episode.Length > 0) { name.Inlines.Add(new Run(" · ") { Foreground = Palette.Get("Faint") }); name.Inlines.Add(new Run(line.Episode)); }
-        if (!line.Followed) return name;
+        // Cut short, it slides to show its end under the pointer.
+        if (!line.Followed) return SlidingText.Wrap(name);
         var row = new DockPanel { LastChildFill = true };
         var tag = FollowedTag(L("Suivie", "Followed"));
-        DockPanel.SetDock(tag, Dock.Right); row.Children.Add(tag); row.Children.Add(name);
+        DockPanel.SetDock(tag, Dock.Right); row.Children.Add(tag); row.Children.Add(SlidingText.Wrap(name));
         // The tag stays right after the name, not at the far end of the column.
         row.HorizontalAlignment = HorizontalAlignment.Left;
         return row;
@@ -445,7 +447,7 @@ public partial class MainWindow
         var name = new TextBlock { FontSize = 14.5, FontWeight = FontWeights.Bold, TextTrimming = TextTrimming.CharacterEllipsis };
         name.Inlines.Add(new Run(follow.Name));
         if (follow.Query is { Length: > 0 } query) name.Inlines.Add(new Run(L($"   cherchée sous « {query} »", $"   searched as “{query}”")) { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Faint") });
-        text.Children.Add(name);
+        text.Children.Add(SlidingText.Wrap(name));
         var line = new TextBlock { FontSize = 12.5, Foreground = Palette.Get(row.Warning ? "WarningText" : row.Live ? "TextBody" : "Muted"), FontWeight = row.Live ? FontWeights.SemiBold : FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0), Tag = "keep" };
         text.Children.Add(line);
         TextBlock[] texts;
