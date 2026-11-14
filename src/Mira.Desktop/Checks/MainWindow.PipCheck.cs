@@ -96,6 +96,7 @@ public partial class MainWindow
             require(after != paused, $"picture in picture: a real click on its play button reaches it (paused {paused} then {after}; active before {active}; window under the pointer: {(under == controls ? "the controls'" : under == video.Handle ? "the video's" : $"0x{under:X}")})");
             ClickPointer(); await Task.Delay(700);
             require(engine.Flag("pause") == paused, "picture in picture: a second real click on it plays or pauses again");
+            await RealPipDrag(pip, controls, engine, require);
             // The pointer away from it: the controls go as they would.
             SetCursorPos((int)bounds.Left - 60, (int)bounds.Top - 60); await Task.Delay(300);
         }
@@ -157,6 +158,53 @@ public partial class MainWindow
         checks.Add($"INFO picture in picture {with.Width}x{with.Height}: subtitles drawn {lowest:0} to {highest:0} px above the bottom, controls up to {fit.Lift - 8:0}");
         require(top >= 0 && lowest >= fit.Lift - 8 && lowest <= fit.Lift + 14,
             $"picture in picture: the subtitles drawn just above its controls ({(top < 0 ? "none seen" : $"{lowest:0} px above the bottom")}, wanted {fit.Lift - 8:0} to {fit.Lift + 14:0})");
+    }
+    /// <summary>
+    /// A real drag, through Windows' own input: pressed on the picture left of the buttons, moved, let go. The small window
+    /// follows the pointer all along and stays where it was let go, its controls shown, the playback neither paused nor
+    /// played by it; then dragged back. (0.9.10 on a real PC, once: no controls under the pointer, the window would not move.)
+    /// </summary>
+    private async Task RealPipDrag(PipWindow pip, IntPtr controls, MpvEngine engine, Action<bool, string> require)
+    {
+        // Past the double click's time: the press is never the second click of the clicks before.
+        await Task.Delay(700);
+        var start = pip.Bounds(); var paused = engine.Flag("pause");
+        var (x, y) = ((int)Math.Round(start.Left + start.Width * .15), (int)Math.Round(start.Top + start.Height / 2));
+        var under = WindowFromPoint(new PointerSpot { X = x, Y = y });
+        SetCursorPos(x, y); await Task.Delay(150);
+        require(pip.ControlsShown, "picture in picture: the real pointer on the picture shows its controls");
+        async Task<(double Left, double Top)> Drag(int dx, int dy, int steps)
+        {
+            PressPointer(down: true); await Task.Delay(80);
+            (double, double) midway = default;
+            for (var i = 1; i <= steps; i++)
+            {
+                SetCursorPos(x + dx * i / steps, y + dy * i / steps); await Task.Delay(40);
+                if (i == steps / 2) { var now = pip.Bounds(); midway = (now.Left - start.Left, now.Top - start.Top); }
+            }
+            PressPointer(down: false); await Task.Delay(300);
+            return midway;
+        }
+        var (midX, midY) = await Drag(-90, -40, 6);
+        var moved = pip.Bounds();
+        var where = $"pressed at {x - (int)start.Left},{y - (int)start.Top} on window 0x{under:X} ({(under == controls ? "the controls'" : "not the controls'")}), moved {midX:0},{midY:0} halfway, {moved.Left - start.Left:0},{moved.Top - start.Top:0} at the end";
+        require(Math.Abs(midX + 45) <= 3 && Math.Abs(midY + 20) <= 3, $"picture in picture: a real drag moves it with the pointer ({where})");
+        require(Math.Abs(moved.Left - start.Left + 90) <= 3 && Math.Abs(moved.Top - start.Top + 40) <= 3 && moved.Width == start.Width && moved.Height == start.Height,
+            $"picture in picture: let go, it stays where it was dropped, at its size ({where})");
+        require(engine.Flag("pause") == paused && pip.ControlsShown, $"picture in picture: a drag neither plays nor pauses, its controls stay (paused {paused} then {engine.Flag("pause")})");
+        // Back where it was, by the same way: dragged from the same place of the picture.
+        (x, y) = ((int)Math.Round(moved.Left + moved.Width * .15), (int)Math.Round(moved.Top + moved.Height / 2));
+        SetCursorPos(x, y); await Task.Delay(700);
+        await Drag(90, 40, 6);
+        var back = pip.Bounds();
+        require(Math.Abs(back.Left - start.Left) <= 3 && Math.Abs(back.Top - start.Top) <= 3, $"picture in picture: dragged back to its place ({back.Left - start.Left:0},{back.Top - start.Top:0} from it)");
+    }
+    /// <summary>The left button pressed or let go where the pointer is, as the mouse sends it.</summary>
+    private static void PressPointer(bool down)
+    {
+        // MOUSEEVENTF_LEFTDOWN or MOUSEEVENTF_LEFTUP.
+        var inputs = new[] { new PointerInput { Type = 0, Mouse = new PointerEvent { Flags = down ? 0x0002u : 0x0004u } } };
+        if (SendPointer(1, inputs, Marshal.SizeOf<PointerInput>()) != 1) throw new InvalidOperationException("Windows refused the press.");
     }
     /// <summary>A left click where the pointer is, as the mouse sends it.</summary>
     private static void ClickPointer()
