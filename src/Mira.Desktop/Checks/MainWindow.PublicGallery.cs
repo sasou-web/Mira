@@ -188,9 +188,11 @@ public partial class MainWindow
             foreach (var size in new[] { sizes[0], (Width: 1152, Height: 676, Name: "small"), sizes[2], sizes[3] })
             {
                 await At(size, "20b-downloads-search", null, ServerDownloadsPanel);
-                if (Grid.GetColumn(ServerQueueScroll) != 2 || ServerResultsScroll.ActualHeight < 300 || ServerAddButton.IsVisible != size.Width < 1300)
-                    throw new InvalidOperationException($"The search at {size.Name}: results {ServerResultsScroll.ActualHeight:0} px high, queue in column {Grid.GetColumn(ServerQueueScroll)}, « + » {(ServerAddButton.IsVisible ? "shown" : "hidden")}.");
-                drawn.Add($"20b-downloads-search-{size.Name}: results {ServerResultsScroll.ActualHeight:0} × {ServerResultsScroll.ActualWidth:0} px, queue {ServerQueueScroll.ActualWidth:0} px wide");
+                // The page's own width decides (the runner's screen, 1024 × 768, holds the window smaller than asked).
+                var page = ServerDownloadsPanel.ActualWidth;
+                if (Grid.GetColumn(ServerQueueScroll) != 2 || ServerResultsScroll.ActualHeight < 300 || ServerAddButton.IsVisible != page < ServerWideFrom || ServerQueueScroll.ActualWidth > (page < ServerWideFrom ? 296 : 428) + 1)
+                    throw new InvalidOperationException($"The search at {size.Name} ({page:0} px of page): results {ServerResultsScroll.ActualHeight:0} px high, queue in column {Grid.GetColumn(ServerQueueScroll)}, {ServerQueueScroll.ActualWidth:0} px wide, « + » {(ServerAddButton.IsVisible ? "shown" : "hidden")}.");
+                drawn.Add($"20b-downloads-search-{size.Name}: page {page:0} px, results {ServerResultsScroll.ActualHeight:0} × {ServerResultsScroll.ActualWidth:0} px, queue {ServerQueueScroll.ActualWidth:0} px wide");
             }
             ServerQueryBox.Clear();
             HideServerDownloads(); ShowDownloaders(false);
