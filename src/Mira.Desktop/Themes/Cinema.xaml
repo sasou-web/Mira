@@ -21,7 +21,7 @@
   <SolidColorBrush x:Key="Raised" Color="#1C1C1C" po:Freeze="True"/>
   <SolidColorBrush x:Key="Raised2" Color="#242424" po:Freeze="True"/>
   <!-- The solid pill of a segmented switch (ChoiceTrack), lighter than any track it moves in: a body, never a frame. -->
-  <SolidColorBrush x:Key="Pill" Color="#363636" po:Freeze="True"/>
+  <SolidColorBrush x:Key="TrackPill" Color="#363636" po:Freeze="True"/>
   <SolidColorBrush x:Key="Line" Color="#2A2A2A" po:Freeze="True"/>
   <SolidColorBrush x:Key="LineStrong" Color="#3F3F3F" po:Freeze="True"/>
   <!-- Inside a menu (« Écrin », 2026-11-14): the rules between its parts, and the sunk track of a slider of choices or of « − 0.0 s + ». -->

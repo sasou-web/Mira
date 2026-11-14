@@ -48,7 +48,7 @@ public class ChoiceTrack : Panel
 
     public ChoiceTrack()
     {
-        SetResourceReference(PillProperty, "Pill");
+        SetResourceReference(PillProperty, "TrackPill");
         AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler((_, e) =>
         {
             if (e.OriginalSource is not UIElement part || InternalChildren.IndexOf(part) is not (>= 0 and var index)) return;
