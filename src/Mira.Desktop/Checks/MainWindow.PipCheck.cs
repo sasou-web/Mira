@@ -190,14 +190,28 @@ public partial class MainWindow
             $"picture in picture: the pointer held by Mira's window is taken back over the small one, its controls shown (held {held}, then by {Mouse.Captured?.GetType().Name ?? "nothing"}, controls {pip.ControlsShown})");
         async Task<(double Left, double Top)> Drag(int dx, int dy, int steps)
         {
+            var from = pip.Bounds();
+            // Where the window is once it is within 3 px of the pointer's move, or when the time is up.
+            async Task<ScreenFit.Pixels> Settled(int wantX, int wantY, int ms)
+            {
+                var until = Environment.TickCount64 + ms;
+                while (true)
+                {
+                    var now = pip.Bounds();
+                    if ((Math.Abs(now.Left - from.Left - wantX) <= 3 && Math.Abs(now.Top - from.Top - wantY) <= 3) || Environment.TickCount64 >= until) return now;
+                    await Task.Delay(15);
+                }
+            }
             PressPointer(down: true); await Task.Delay(80);
             (double, double) midway = default;
             for (var i = 1; i <= steps; i++)
             {
                 SetCursorPos(x + dx * i / steps, y + dy * i / steps); await Task.Delay(40);
-                if (i == steps / 2) { var now = pip.Bounds(); midway = (now.Left - start.Left, now.Top - start.Top); }
+                // Halfway, read once the move has come through (a busy runner can hold it past the 40 ms).
+                if (i == steps / 2) { var now = await Settled(dx / 2, dy / 2, 300); midway = (now.Left - from.Left, now.Top - from.Top); }
             }
-            PressPointer(down: false); await Task.Delay(300);
+            PressPointer(down: false); await Task.Delay(150);
+            await Settled(dx, dy, 1000);
             return midway;
         }
         var (midX, midY) = await Drag(-90, -40, 6);
