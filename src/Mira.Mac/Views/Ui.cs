@@ -123,9 +123,10 @@ public static class Ui
         control.ContextMenu = menu;
     }
     /// <summary>A button's menu, opened under it from its left edge (not where the pointer happens to be).</summary>
-    public static void OpenUnder(ContextMenu menu, Control button)
+    /// <param name="fromEnd">Its right edge on the button's: a button at the right end of a row (a ⋯) would send it out of the window.</param>
+    public static void OpenUnder(ContextMenu menu, Control button, bool fromEnd = false)
     {
-        menu.PlacementTarget = button; menu.Placement = PlacementMode.BottomEdgeAlignedLeft; menu.VerticalOffset = 6;
+        menu.PlacementTarget = button; menu.Placement = fromEnd ? PlacementMode.BottomEdgeAlignedRight : PlacementMode.BottomEdgeAlignedLeft; menu.VerticalOffset = 6;
         menu.Open(button);
     }
     /// <summary>A small rounded tag (« 2025 », « 1 h 58 », « ★ 8.1 »).</summary>

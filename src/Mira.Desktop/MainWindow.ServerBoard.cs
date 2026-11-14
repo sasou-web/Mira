@@ -244,7 +244,7 @@ public partial class MainWindow
         // As many as one row holds; « View all » the rest (on the PC of Jellyfin, TorLink's page's list, with its actions).
         var width = _serverNarrow ? Math.Max(0, ServerDownloadsPanel.ActualWidth - 8) : 404;
         var fit = Math.Max(1, (int)((width + 16) / 105));
-        var more = placed.Count > fit || _serverLocal;
+        var more = RemoteBoard.Shelf(placed).Count > fit || _serverLocal;
         ServerPlacedAll.Visibility = more ? Visibility.Visible : Visibility.Collapsed;
         ServerPlacedAll.Content = _serverPlacedAll ? L("Moins", "Show less") : L("Tout voir", "View all");
         AutomationProperties.SetName(ServerPlacedAll, _serverPlacedAll ? L("Montrer moins de titres rangés", "Show fewer titles sorted") : L("Voir tous les titres rangés", "View all the titles sorted"));
@@ -579,7 +579,11 @@ public partial class MainWindow
     /// <summary>The ⋯ of a series followed, in the « Écrin » menu: search now, the name searched, its page, stop following.</summary>
     private void FollowMenu(Button anchor, RelayFollow follow, StackPanel edit)
     {
-        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
+        // Under the ⋯, its right edge on the button's: the button is at the row's right end, a menu opening rightwards left
+        // the window (Dell, 2026-11-14). Above it when there is no room below.
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Custom };
+        menu.CustomPopupPlacementCallback = (size, target, _) =>
+            [new(new Point(target.Width - size.Width, target.Height + 4), PopupPrimaryAxis.Horizontal), new(new Point(target.Width - size.Width, -size.Height - 4), PopupPrimaryAxis.Horizontal)];
         menu.Items.Add(MenuAction(L("Chercher maintenant", "Search now"), "refresh", () => CheckFollowNowAsync(follow)));
         menu.Items.Add(MenuAction(L("Nom cherché…", "Search name…"), "pencil", () => { EditFollowQuery(edit, follow); return Task.CompletedTask; }));
         if (!_demo) menu.Items.Add(MenuAction(L("Ouvrir la série", "Open the series"), "tv", () => OpenTorLinkItemAsync(follow.SeriesId)));
@@ -619,8 +623,10 @@ public partial class MainWindow
     // ---- The titles placed ------------------------------------------------------------------------------
 
     /// <summary>The latest titles placed as posters: a click opens the title Jellyfin has; the one Jellyfin is still adding faded.</summary>
-    private void FillPosters(WrapPanel panel, IReadOnlyList<RelayPlaced> placed, int count)
+    private void FillPosters(WrapPanel panel, IReadOnlyList<RelayPlaced> titles, int count)
     {
+        // The episodes of one series in one poster.
+        var placed = RemoteBoard.Shelf(titles);
         // Drawn again only when something changed: every 3 s would flicker the pictures and lose the mouse.
         var drawn = string.Join("\n", placed.Take(count).Select(x => $"{x.Id}|{x.Title}|{x.Status}|{x.ItemId}|{x.Ok}|{PosterShape(x.ItemId)}"));
         if (panel.Tag is string before && before == drawn && panel.Children.Count > 0) return;

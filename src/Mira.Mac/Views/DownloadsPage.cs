@@ -571,7 +571,7 @@ public sealed class DownloadsPage : Page
         // As many as one row holds; « View all » the rest.
         var width = _narrow ? Math.Max(0, _restScroll.Bounds.Width - 8) : 404;
         var fit = Math.Max(1, (int)((width + 16) / 105));
-        _placedAll.IsVisible = placed.Count > fit;
+        _placedAll.IsVisible = RemoteBoard.Shelf(placed).Count > fit;
         _placedAll.Content = _placedAllShown ? L("Moins", "Show less") : L("Tout voir", "View all");
         AutomationProperties.SetName(_placedAll, _placedAllShown ? L("Montrer moins de titres rangés", "Show fewer titles sorted") : L("Voir tous les titres rangés", "View all the titles sorted"));
         FillPosters(_placed, placed, _placedAllShown ? placed.Count : fit);
@@ -886,7 +886,7 @@ public sealed class DownloadsPage : Page
         menu.Items.Add(Ui.Entry(L("Ouvrir la série", "Open the series"), "tv", () => _ = OpenAsync(follow.SeriesId)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Ui.Entry(L("Ne plus suivre…", "Stop following…"), "close", () => _ = UnfollowAsync(follow)));
-        Ui.OpenUnder(menu, anchor);
+        Ui.OpenUnder(menu, anchor, fromEnd: true);
     }
 
     private async Task UnfollowAsync(RelayFollow follow)
@@ -927,8 +927,10 @@ public sealed class DownloadsPage : Page
     // —— The titles placed ——
 
     /// <summary>The latest titles placed as posters: a click opens the title Jellyfin has; the one Jellyfin is still adding faded.</summary>
-    private void FillPosters(WrapPanel panel, IReadOnlyList<RelayPlaced> placed, int count)
+    private void FillPosters(WrapPanel panel, IReadOnlyList<RelayPlaced> titles, int count)
     {
+        // The episodes of one series in one poster.
+        var placed = RemoteBoard.Shelf(titles);
         // Drawn again only when something changed: every 3 s would flicker the pictures and lose the pointer.
         var drawn = string.Join("\n", placed.Take(count).Select(x => $"{x.Id}|{x.Title}|{x.Status}|{x.ItemId}|{x.Ok}|{PosterShape(x.ItemId)}"));
         if (panel.Tag is string before && before == drawn && panel.Children.Count > 0) return;

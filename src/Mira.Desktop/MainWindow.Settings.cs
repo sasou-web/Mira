@@ -174,7 +174,12 @@ public partial class MainWindow
         foreach (var row in SharingSettings.Children.OfType<FrameworkElement>().Concat(CareSettings.Children.OfType<FrameworkElement>()).Concat(JellyfinSettings.Children.OfType<FrameworkElement>()).Where(x => x is Border or Squircle)) visibility.AddValueChanged(row, (_, _) => ShowSettingsGroups());
     }
     /// <summary>A section's lines at most 940 wide, beside its list: a description across a whole screen is hard to follow.</summary>
-    private void SettingsScroll_SizeChanged(object sender, SizeChangedEventArgs e) => SettingsPage.Width = Math.Max(0, Math.Min(940, e.NewSize.Width - 8));
+    /// <summary>
+    /// The page as wide as the list leaves it, its own margins included: 8 px less than the list was 6 px more than it holds
+    /// with them, and the cards' right edge was cut flat, at every size (Dell, 2026-11-14).
+    /// </summary>
+    private void SettingsScroll_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        SettingsPage.Width = Math.Max(0, Math.Min(940, e.NewSize.Width - SettingsPage.Margin.Left - SettingsPage.Margin.Right));
     private bool _settingsNavDrawn;
     /// <summary>Each section of the list with its icon, read by its text (<see cref="DrawSheetNav"/>).</summary>
     private void DrawSettingsNavigation()

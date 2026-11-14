@@ -167,6 +167,26 @@ public static class RemoteBoard
     public static string Latest(IReadOnlyList<RelayPlaced> placed, int count = 3) =>
         placed.Count == 0 ? "" : string.Join(", ", placed.Take(count).Select(x => x.Title)) + (placed.Count > count ? "…" : "");
 
+    /// <summary>
+    /// The titles placed as posters: the episodes of one series in one poster (« The Apothecary Diaries · 8 episodes »,
+    /// where its newest one was), as eight copies of the same poster read as a fault (Dell, 2026-11-14). An episode still
+    /// being added or that failed keeps its own poster, with what it waits for.
+    /// </summary>
+    public static List<RelayPlaced> Shelf(IReadOnlyList<RelayPlaced> placed)
+    {
+        static string Name(RelayPlaced title) => title.Title.Split(" · ", 2)[0];
+        static bool Grouped(RelayPlaced title) => title.Ok && title.ItemId is not null && title.Title.Contains(" · ", StringComparison.Ordinal);
+        var counts = placed.Where(Grouped).GroupBy(Name, StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.Count(), StringComparer.OrdinalIgnoreCase);
+        var shown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var shelf = new List<RelayPlaced>();
+        foreach (var title in placed)
+        {
+            if (!Grouped(title) || counts[Name(title)] == 1) { shelf.Add(title); continue; }
+            if (shown.Add(Name(title))) shelf.Add(title with { Title = Name(title) + " · " + Lang.Count(counts[Name(title)], "épisode", "épisodes", "episode", "episodes") });
+        }
+        return shelf;
+    }
+
     /// <summary>« 4.9 TB free », « 850 GB free »: what is left on the disks of the libraries of the PC of Jellyfin.</summary>
     public static string Free(long bytes)
     {
