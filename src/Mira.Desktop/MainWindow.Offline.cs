@@ -75,7 +75,7 @@ public partial class MainWindow
             var free = await Task.Run(() => { Directory.CreateDirectory(folder); return OfflineCopies.FreeSpace(folder); });
             if (free is { } room && needed > room - OfflineCopies.Reserve)
             {
-                SetNotice(L($"Pas assez de place pour garder {(wanted.Count == 1 ? "ce titre" : $"ces {wanted.Count} épisodes")} sur ce PC : il faut {OfflineCopies.SizeText(needed)}, il reste {OfflineCopies.SizeText(Math.Max(0, room))}. Libère de la place, ou choisis un autre dossier dans Réglages → Mira sur ce PC.", $"Not enough room to keep {(wanted.Count == 1 ? "this title" : $"these {wanted.Count} episodes")} on this PC: it needs {OfflineCopies.SizeText(needed)}, {OfflineCopies.SizeText(Math.Max(0, room))} is left. Free up some space, or choose another folder in Settings → Mira on this PC."), L("Réglages", "Settings"), () => Settings_Click(this, new()));
+                SetNotice(L($"Pas assez de place pour garder {(wanted.Count == 1 ? "ce titre" : $"ces {wanted.Count} épisodes")} sur ce PC : il faut {OfflineCopies.SizeText(needed)}, il reste {OfflineCopies.SizeText(Math.Max(0, room))}. Libère de la place, ou choisis un autre dossier dans Réglages → Accueil & bibliothèque.", $"Not enough room to keep {(wanted.Count == 1 ? "this title" : $"these {wanted.Count} episodes")} on this PC: it needs {OfflineCopies.SizeText(needed)}, {OfflineCopies.SizeText(Math.Max(0, room))} is left. Free up some space, or choose another folder in Settings → Home & library."), L("Réglages", "Settings"), () => Settings_Click(this, new()));
                 return;
             }
             var now = DateTimeOffset.Now; var connection = client.Connection;
@@ -145,7 +145,7 @@ public partial class MainWindow
     {
         OfflineRefusedException => ex.Message,
         IOException when FromMira(ex) => ex.Message,
-        IOException or UnauthorizedAccessException => L($"Mira n’a pas pu écrire {(copy is null ? "le fichier" : $"« {copy.Item.DisplayTitle} »")} sur ce PC : disque plein, débranché ou dossier en lecture seule. Vérifie le dossier dans Réglages → Mira sur ce PC.", $"Mira couldn’t write {(copy is null ? "the file" : $"“{copy.Item.DisplayTitle}”")} to this PC: the disk is full or unplugged, or the folder is read-only. Check the folder in Settings → Mira on this PC."),
+        IOException or UnauthorizedAccessException => L($"Mira n’a pas pu écrire {(copy is null ? "le fichier" : $"« {copy.Item.DisplayTitle} »")} sur ce PC : disque plein, débranché ou dossier en lecture seule. Vérifie le dossier dans Réglages → Accueil & bibliothèque.", $"Mira couldn’t write {(copy is null ? "the file" : $"“{copy.Item.DisplayTitle}”")} to this PC: the disk is full or unplugged, or the folder is read-only. Check the folder in Settings → Home & library."),
         HttpRequestException { StatusCode: { } } http => L($"{(copy is null ? "" : $"« {copy.Item.DisplayTitle} » n’a pas pu venir sur ce PC. ")}{Friendly(http)}", $"{(copy is null ? "" : $"“{copy.Item.DisplayTitle}” couldn’t be copied to this PC. ")}{Friendly(http)}"),
         _ => Friendly(ex)
     };

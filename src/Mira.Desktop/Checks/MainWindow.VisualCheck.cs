@@ -43,7 +43,8 @@ public partial class MainWindow
             await CaptureAsync(output, "03-detail");
             Settings_Click(this, new()); await CaptureAsync(output, "04-playback-settings");
             SelectSettingsTab("subtitles"); await CaptureAsync(output, "05-subtitle-settings");
-            SelectSettingsTab("appearance"); await CaptureAsync(output, "06-appearance-settings");
+            SelectSettingsTab("general"); await CaptureAsync(output, "06-appearance-settings");
+            SelectSettingsTab("library"); await CaptureAsync(output, "06b-library-settings");
             if (HeroAutoPlayCheck.IsChecked == true && (HeroAutoPlayCheck.Template.FindName("Track", HeroAutoPlayCheck) as Squircle)?.Background is SolidColorBrush switchBrush && switchBrush.Color.R != 245) throw new InvalidOperationException("Enabled switch looks disabled.");
             SelectSettingsTab("server"); await CaptureAsync(output, "07-server-settings");
             // The title's page stayed under Réglages, opened over it.

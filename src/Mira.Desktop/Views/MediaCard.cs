@@ -134,7 +134,8 @@ public sealed class MediaCard : Button
         // Focus from a mouse click must not leave a highlight behind once the pointer moves on.
         GotKeyboardFocus += (_, _) => { if (InputManager.Current.MostRecentInputDevice is KeyboardDevice && Accessible.GetFocusRingShown(this)) FocusEntered?.Invoke(this); };
         LostKeyboardFocus += (_, _) => { if (!IsMouseOver) HoverLeft?.Invoke(this); };
-        if (item.Resumable && (wide || settings.ShowProgress))
+        // Always, since « Progression sur les affiches » left the settings (2026-11-14).
+        if (item.Resumable)
         {
             _visual.Children.Add(new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)) });
             _progress = new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Accent") }; _visual.Children.Add(_progress);

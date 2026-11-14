@@ -58,7 +58,7 @@ public partial class MainWindow
     private async void WelcomeConnect_Click(object sender, RoutedEventArgs e) { await LeaveWelcomeAsync(); ShowSignInForm(); FocusLogin(); }
 
     // What's new, as a list of the last versions (WhatsNew.Recent): each its version, « LATEST » on the newest, its date,
-    // then one line per change, « Catégorie : texte ». Shown after an update, and from Settings → Mira on this PC.
+    // then one line per change, « Catégorie : texte ». Shown after an update, and from Settings → Updates.
     private void ShowWhatsNew(IReadOnlyList<ReleaseHighlights> releases)
     {
         if (releases.Count == 0) return;
@@ -189,6 +189,7 @@ public partial class MainWindow
         ("jellyfin", GuideJellyfin, "tv", L("Jellyfin, TV et console", "Jellyfin, TV and consoles"), L("Gérer ton serveur sur sa page web, et le regarder sur une TV ou une console.", "Manage your server on its web page, and watch it on a TV or a console.")),
         ("keys", GuideKeys, "keyboard", L("Raccourcis clavier", "Keyboard shortcuts"), L("Tout Mira au clavier, sans la souris.", "All of Mira from the keyboard, without the mouse.")),
         ("downloads", GuideTorLink, "download", L("Téléchargements", "Downloads"), L("Où vont tes téléchargements, et comment ils rejoignent ta bibliothèque.", "Where your downloads go, and how they join your library.")),
+        ("report", GuideReport, "warning", L("Signaler un problème", "Report a problem"), L("Un rapport à joindre à ton message, pour comprendre ce qui ne va pas. Rien ne part tout seul.", "A report to attach to your message, to understand what goes wrong. Nothing is sent on its own.")),
     ];
     private void GuideTopic_Click(object sender, RoutedEventArgs e)
     {
@@ -226,7 +227,8 @@ public partial class MainWindow
         GuideStart.Children.Clear();
         foreach (var (tag, _, icon, title, about) in GuideTopics)
         {
-            if (tag == "downloads" && !_torlinkEnabled) continue;
+            // « Signaler un problème » stays under « Plus d’aide », not among the subjects to start with.
+            if (tag == "downloads" && !_torlinkEnabled || tag == "report") continue;
             var row = new DockPanel();
             var tile = new Squircle { Width = 40, Height = 40, CornerRadius = Palette.Card, Background = Palette.Get("Raised2"), Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center, Child = new Icon { Kind = icon, Width = 20, Height = 20 } };
             DockPanel.SetDock(tile, Dock.Left); row.Children.Add(tile);
@@ -251,8 +253,9 @@ public partial class MainWindow
             case "whatsnew": WhatsNewOpen_Click(sender, e); break;
             case "online": OpenWebPage(L("https://wiki.miracinema.app/fr/windows/", "https://wiki.miracinema.app/windows/")); break;
             case "report":
-                Settings_Click(sender, e); SelectSettingsTab("updates", animate: false);
-                _ = Dispatcher.BeginInvoke(() => { ExportReportButton.BringIntoView(); ExportReportButton.Focus(); }, DispatcherPriority.Loaded);
+                // Its own page in Aide (2026-11-14: it was in Réglages → Mira sur ce PC too, the same button twice).
+                if (_guideTopic != "report") SelectGuideTopic("report");
+                _ = Dispatcher.BeginInvoke(() => ExportReportButton.Focus(), DispatcherPriority.Loaded);
                 break;
         }
     }
@@ -272,7 +275,8 @@ public partial class MainWindow
             var shown = (tag != "downloads" || _torlinkEnabled) && SheetWindow.Matches(words, query);
             button.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
             if (!shown) continue;
-            if (tag is "whatsnew" or "online" or "report") more = true; else first ??= button;
+            if (tag is "whatsnew" or "online" or "report") more = true;
+            if (tag is not ("whatsnew" or "online")) first ??= button;
         }
         GuideMoreLabel.Visibility = more ? Visibility.Visible : Visibility.Collapsed;
         // The page shown follows the search while it speaks of something else.

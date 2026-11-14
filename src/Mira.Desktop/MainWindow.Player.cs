@@ -187,7 +187,7 @@ public partial class MainWindow
         {
             // An incompatible engine DLL must not leave a black screen with no way back.
             await StopPlaybackAsync();
-            PlaybackFailed(L("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Mira sur ce PC.", "The chosen mpv engine seems incompatible. Check its location in Settings → Mira on this PC."), asked, keepMini, L("Ouvrir les réglages", "Open settings"), () => { Settings_Click(this, new()); return Task.CompletedTask; });
+            PlaybackFailed(L("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Mises à jour.", "The chosen mpv engine seems incompatible. Check its location in Settings → Updates."), asked, keepMini, L("Ouvrir les réglages", "Open settings"), () => { Settings_Click(this, new()); return Task.CompletedTask; });
         }
         finally
         {

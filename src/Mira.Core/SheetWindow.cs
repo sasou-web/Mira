@@ -15,14 +15,57 @@ public static class SheetWindow
 
     /// <summary>
     /// True when every word of <paramref name="query"/> is in <paramref name="text"/>, without regard to case or accents
-    /// (« sous-titre » finds « Sous-titres », « reglage » finds « Réglages »). An empty search finds everything.
+    /// (« sous-titre » finds « Sous-titres », « reglage » finds « Réglages »). A word or phrase of <see cref="Synonyms"/>
+    /// is found by any of its group: « update », « mettre à jour » or « nouvelle version » find « Updates » as well as
+    /// « Mises à jour », « blurry » finds « Quality » (a friend could not find where Mira updates, 2026-11-14). An empty
+    /// search finds everything.
     /// </summary>
     public static bool Matches(string text, string query)
     {
-        var words = Fold(query).Split([' ', '\t', ' ', '’', '\''], StringSplitOptions.RemoveEmptyEntries);
+        var words = Fold(query).Split([' ', '\t', '\u00a0', '’', '\''], StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0) return true;
         var folded = Fold(text);
-        return words.All(word => folded.Contains(word, StringComparison.Ordinal));
+        for (var i = 0; i < words.Length;)
+        {
+            var (group, length) = Synonym(words, i);
+            if (group is not null) { if (!group.Any(phrase => folded.Contains(phrase, StringComparison.Ordinal))) return false; i += length; continue; }
+            if (!folded.Contains(words[i], StringComparison.Ordinal)) return false;
+            i++;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Words people use for a setting that the window names otherwise, folded (<see cref="Fold"/>), in English and in
+    /// French: a search for one finds the others. A phrase is matched whole, as typed; a word being typed (« upd ») is
+    /// still found as part of a word.
+    /// </summary>
+    public static readonly string[][] Synonyms =
+    [
+        ["update", "updates", "upgrade", "mise a jour", "mises a jour", "mettre a jour", "nouvelle version", "new version"],
+        ["blurry", "flou", "floue", "pixelated", "pixelise", "quality", "qualite", "resolution", "bitrate", "debit"],
+        ["away from home", "ailleurs", "loin de chez", "en deplacement", "remote", "a distance", "tailscale", "vpn"],
+        ["language", "languages", "langue", "langues"],
+        ["sign out", "log out", "logout", "deconnexion", "se deconnecter", "deconnecter", "switch account", "changer de compte"],
+        ["subtitles", "subtitle", "sous-titres", "sous-titre", "sous titres", "captions"],
+        ["notification", "notifications", "notify", "prevenir", "alert"],
+        ["skip", "intro", "intros", "opening", "generique", "recap", "recaps", "passer"],
+        ["back to back", "autoplay", "binge", "enchainer", "episode suivant", "next episode"],
+    ];
+    /// <summary>The longest phrase of <see cref="Synonyms"/> that <paramref name="words"/> spell from <paramref name="at"/> on, with its group.</summary>
+    private static (string[]? Group, int Length) Synonym(string[] words, int at)
+    {
+        (string[]? Group, int Length) best = (null, 0);
+        foreach (var group in Synonyms)
+            foreach (var phrase in group)
+            {
+                var parts = phrase.Split(' ');
+                if (parts.Length <= best.Length || at + parts.Length > words.Length) continue;
+                var same = true;
+                for (var i = 0; i < parts.Length && same; i++) same = words[at + i] == parts[i];
+                if (same) best = (group, parts.Length);
+            }
+        return best;
     }
 
     /// <summary>Lowercase, accents taken off, typographic apostrophes and dashes made plain.</summary>
