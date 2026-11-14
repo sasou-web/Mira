@@ -388,8 +388,8 @@ public sealed partial class DetailPage
                 var (found, error) = await MissingDownloads.SearchAsync(session.Client, query, MissingDownloads.Categories(anime), ct);
                 hits.AddRange(found); failure ??= error;
                 var picks = MissingDownloads.Choose(menu.Ask, known, hits);
-                // Everything found already (or a season's pack): the second, wider search would only add noise.
-                if (picks.NotFound.Count == 0 || picks.Packs.Count > 0) break;
+                // Everything found already (or three season packs to choose from): the second, wider search would only add noise.
+                if (MissingDownloads.SearchedEnough(picks)) break;
             }
             if (ct.IsCancellationRequested) return;
             menu.Picks = MissingDownloads.Choose(menu.Ask, known, hits);
@@ -518,25 +518,32 @@ public sealed partial class DetailPage
     /// <summary>The season's pack put forward; « Other choices (6) » for the others.</summary>
     private Control MissingPackRow(MissingMenu menu)
     {
-        var picks = menu.Picks!; var current = menu.Pack!;
+        var picks = menu.Picks!; var episodes = menu.Ask.Episodes.Count;
         var row = new StackPanel();
-        var shown = new Border { Padding = new Thickness(0, 6, 0, 8), Child = MissingOptionText(current, ReleaseRanking.EpisodeLabel(current.Entry.Release)) };
-        row.Children.Add(shown);
-        if (picks.Packs.Count > 1)
+        // Up to three to choose from (best picture, best balance, smallest), the best checked; the others below them.
+        var choices = MissingDownloads.PackChoices(picks.Packs, episodes);
+        Control Text(MissingOption option, string? label)
+        {
+            var text = (StackPanel)MissingOptionText(option, label);
+            text.Children.Add(new TextBlock { Text = MissingDownloads.Covers(option, episodes), FontSize = 12, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap });
+            return text;
+        }
+        RadioButton Pick(MissingOption option, string? label)
+        {
+            var pick = new RadioButton { GroupName = "missing-pack", IsChecked = ReferenceEquals(option, menu.Pack), Content = Text(option, label), Margin = new Thickness(0, 2) };
+            pick.IsCheckedChanged += (_, _) => { if (pick.IsChecked == true) { menu.Pack = option; DrawMissingFoot(menu); } };
+            return pick;
+        }
+        if (choices.Count == 1 && picks.Packs.Count == 1)
+            row.Children.Add(new Border { Padding = new Thickness(0, 6, 0, 8), Child = Text(choices[0].Option, ReleaseRanking.EpisodeLabel(choices[0].Option.Entry.Release)) });
+        else foreach (var choice in choices) row.Children.Add(Pick(choice.Option, MissingDownloads.PackKindName(choice.Kind)));
+        var rest = picks.Packs.Where(x => choices.All(c => !ReferenceEquals(c.Option, x))).ToList();
+        if (rest.Count > 0)
         {
             var others = new StackPanel { IsVisible = false };
-            var toggle = new Button { Classes = { "quiet" }, Content = MissingDownloads.OtherChoices(picks.Packs.Count - 1), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 4), Margin = new Thickness(-10, 0, 0, 0), FontSize = 12.5 };
+            var toggle = new Button { Classes = { "quiet" }, Content = MissingDownloads.OtherChoices(rest.Count), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 4), Margin = new Thickness(-10, 0, 0, 0), FontSize = 12.5 };
             toggle.Click += (_, _) => others.IsVisible = !others.IsVisible;
-            foreach (var option in picks.Packs)
-            {
-                var pick = new RadioButton { GroupName = "missing-pack", IsChecked = ReferenceEquals(option, current), Content = MissingOptionText(option, null) };
-                pick.IsCheckedChanged += (_, _) =>
-                {
-                    if (pick.IsChecked != true) return;
-                    menu.Pack = option; shown.Child = MissingOptionText(option, ReleaseRanking.EpisodeLabel(option.Entry.Release)); DrawMissingFoot(menu);
-                };
-                others.Children.Add(pick);
-            }
+            foreach (var option in rest) others.Children.Add(Pick(option, null));
             row.Children.Add(toggle); row.Children.Add(others);
         }
         // Episode by episode instead, when some were found one by one.

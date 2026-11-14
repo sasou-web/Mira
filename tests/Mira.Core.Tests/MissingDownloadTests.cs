@@ -64,6 +64,39 @@ internal static class MissingDownloadTests
             return Task.CompletedTask;
         });
 
+        foreach (var node in fixture["packChoices"]!.AsArray())
+        {
+            var c = node!;
+            await Test("Télécharger les manquants, trois choix de pack : " + (string)c["name"]!, () =>
+            {
+                var s = c["series"]!;
+                var series = new MissingSeries((string)s["name"]!, (string?)s["originalTitle"], (int?)s["year"], (int)s["before"]!, (string?)s["query"]);
+                var a = c["ask"]!;
+                var ask = new MissingAsk((int)a["season"]!, a["episodes"]!.AsArray().Select(x => (int)x!).ToList(), (bool)a["wholeSeason"]!);
+                var hits = c["hits"]!.AsArray().Select((x, i) => ("s-" + (string)x![4]!, new RelayHit(Hash(i + 1), (string)x[0]!, (long)((double)x[1]! * (1L << 30)), (int)x[2]!, 0, (string)x[3]!, null, (string)x[4]!))).ToList();
+                var choices = MissingDownloads.PackChoices(MissingDownloads.Choose(ask, series, hits).Packs, ask.Episodes.Count);
+                var got = choices.Select(x => $"{x.Kind.ToString().ToLowerInvariant()} {x.Option.Entry.Hit.Name} {MissingDownloads.Doubtful(x.Option, ask.Episodes.Count).ToString().ToLowerInvariant()}").ToList();
+                var wanted = c["choices"]!.AsArray().Select(x => $"{(string)x![0]!} {(string)x[1]!} {((bool)x[2]!).ToString().ToLowerInvariant()}").ToList();
+                Assert(got.SequenceEqual(wanted), "Choices: " + string.Join(" | ", got));
+                return Task.CompletedTask;
+            });
+        }
+        await Test("Télécharger les manquants : trois choix de pack, ce qu'il couvre, quand chercher encore", () =>
+        {
+            RelayHit Hit(string name, double gib) => new(Hash(1), name, (long)(gib * (1L << 30)), 10, 0, "nyaa", null, "anime");
+            MissingOption Pack(string name, double gib) { var hit = Hit(name, gib); var release = ReleaseRanking.Parse(name); return new("s", new RankedRelease(hit, release, 0, ReleaseRanking.Score(hit, release, "anime"))); }
+            var one = Pack("JoJo.S02.1080p.WEB-DL.AV1-TRIX", 19);
+            Assert(MissingDownloads.PackChoices([one], 48) is [{ Kind: MissingPackKind.Quality }], "One pack, one choice");
+            Assert(MissingDownloads.PackChoices([one, Pack("JoJo.S02.1080p.WEB-DL.x265-BIG", 15)], 48).Count == 1, "Nothing at most 60 % of its size: one choice");
+            Assert(MissingDownloads.Covers(Pack("JoJo.S02E01-E48.1080p.WEB-DL.AV1-TRIX", 19.2), 48) == "É1–48 · ≈ 410 Mo par épisode", MissingDownloads.Covers(Pack("JoJo.S02E01-E48.1080p.WEB-DL.AV1-TRIX", 19.2), 48));
+            Assert(MissingDownloads.Covers(one, 48) == "Épisodes non dits dans le nom · ≈ 405 Mo chacun s’il a les 48", MissingDownloads.Covers(one, 48));
+            Assert(MissingDownloads.Covers(Pack("JoJo.S02.1080p.WEB-DL.AV1-TRIX", 3), 48) == "Peut-être pas les 48 épisodes : ≈ 64 Mo chacun s’il les a", MissingDownloads.Covers(Pack("JoJo.S02.1080p.WEB-DL.AV1-TRIX", 3), 48));
+            Assert(MissingDownloads.PackKindName(MissingPackKind.Balanced) == "Meilleur compromis", "Names");
+            Assert(!MissingDownloads.SearchedEnough(new([one], [], [1, 2])) && MissingDownloads.SearchedEnough(new([one, one, one], [], [1, 2])) && MissingDownloads.SearchedEnough(new([], [], [])),
+                "One or two packs: the wider search runs too");
+            return Task.CompletedTask;
+        });
+
         await Test("Télécharger les manquants : le menu reste dans la fenêtre (dessous, dessus, plus étroit, plus court)", () =>
         {
             // ogsas's case (2026-11-14): « Get season 2 » at the right of a 1640 × 520 page, the menu 466 wide went past the window.

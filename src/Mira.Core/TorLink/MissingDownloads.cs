@@ -38,6 +38,12 @@ public sealed record MissingPicks(IReadOnlyList<MissingOption> Packs, IReadOnlyL
 /// </summary>
 public enum MissingStage { Waiting, Downloading, Adding, Failed, Placed }
 
+/// <summary>Why a season pack is put forward among the three: the best picture, the best for its size, the smallest.</summary>
+public enum MissingPackKind { Quality, Balanced, Smallest }
+
+/// <summary>A season pack put forward, and why.</summary>
+public sealed record MissingPackChoice(MissingPackKind Kind, MissingOption Option);
+
 /// <summary>
 /// <paramref name="Percent"/>: of all of them, by size; <paramref name="Title"/> and <paramref name="Line"/>: what the tile says;
 /// <paramref name="Ids"/>: the requests, to cancel or ask again. <paramref name="Rescan"/>: placed a while ago and Jellyfin has
@@ -130,6 +136,70 @@ public static partial class MissingDownloads
         }
         var found = choices.Select(x => x.Episode).ToHashSet();
         return new(Ranked(packs).Take(MaxOthers + 1).ToList(), choices, wanted.Where(x => !found.Contains(x)).Order().ToList());
+    }
+
+    /// <summary>
+    /// Whether the menu has what it needs after a search: every episode asked, or enough season packs to choose from
+    /// (<see cref="PackChoices"/>); otherwise the wider search (the name alone) runs too.
+    /// </summary>
+    public static bool SearchedEnough(MissingPicks picks) => picks.NotFound.Count == 0 || picks.Packs.Count >= 3;
+
+    /// <summary>
+    /// Up to three season packs to choose from, the best picture first (checked at first): <see cref="MissingPackKind.Quality"/>
+    /// = the best ranked; <see cref="MissingPackKind.Smallest"/> = the smallest at most 60 % of its size;
+    /// <see cref="MissingPackKind.Balanced"/> = between them, the best ranked (the larger at equal rank) at least 1.5 times the
+    /// smallest. Never a pack too small for the <paramref name="episodes"/> of the season (<see cref="Doubtful"/>) as the
+    /// lighter ones: it is still among the others. One pack found, one choice.
+    /// </summary>
+    public static IReadOnlyList<MissingPackChoice> PackChoices(IReadOnlyList<MissingOption> packs, int episodes)
+    {
+        if (packs.Count == 0) return [];
+        var best = packs[0];
+        var choices = new List<MissingPackChoice> { new(MissingPackKind.Quality, best) };
+        var size = best.Entry.Hit.Size;
+        if (size <= 0) return choices;
+        var lighter = packs.Skip(1).Where(x => x.Entry.Hit.Size > 0 && x.Entry.Hit.Size <= size * Lighter && !Doubtful(x, episodes)).ToList();
+        if (lighter.Count == 0) return choices;
+        var smallest = lighter.OrderBy(x => x.Entry.Hit.Size).ThenByDescending(x => x.Entry.Score).First();
+        var balanced = lighter.Where(x => x != smallest && x.Entry.Score >= smallest.Entry.Score && x.Entry.Hit.Size >= smallest.Entry.Hit.Size * 1.5)
+            .OrderByDescending(x => x.Entry.Score).ThenByDescending(x => x.Entry.Hit.Size).FirstOrDefault();
+        if (balanced is not null) choices.Add(new(MissingPackKind.Balanced, balanced));
+        choices.Add(new(MissingPackKind.Smallest, smallest));
+        return choices;
+    }
+    private const double Lighter = .6;
+
+    /// <summary>« Meilleure qualité », « Meilleur compromis », « Le plus léger ».</summary>
+    public static string PackKindName(MissingPackKind kind) => kind switch
+    {
+        MissingPackKind.Quality => L("Meilleure qualité", "Best quality"),
+        MissingPackKind.Balanced => L("Meilleur compromis", "Best balance"),
+        _ => L("Le plus léger", "Smallest"),
+    };
+
+    /// <summary>
+    /// What a season pack holds, as its name says, for a season of <paramref name="episodes"/> episodes: « É1–48 · ≈ 400 Mo par
+    /// épisode »; a name without its episodes: « Épisodes non dits dans le nom · ≈ 400 Mo chacun s’il a les 48 »; and when that
+    /// is too little for its picture (a season split in two, the second half elsewhere): « Peut-être pas les 48 épisodes ».
+    /// </summary>
+    public static string Covers(MissingOption pack, int episodes)
+    {
+        var release = pack.Entry.Release; var size = pack.Entry.Hit.Size;
+        var each = episodes > 0 && size > 0 ? RemoteLines.Size(size / episodes) : null;
+        if (release.Episode is { } from && release.LastEpisode is { } to)
+            return each is null ? Code(from, to) : L($"{Code(from, to)} · ≈ {each} par épisode", $"{Code(from, to)} · ≈ {each} per episode");
+        if (each is null) return L("Épisodes non dits dans le nom", "Episodes not in its name");
+        if (Doubtful(pack, episodes)) return L($"Peut-être pas les {episodes} épisodes : ≈ {each} chacun s’il les a", $"Maybe not all {episodes} episodes: ≈ {each} each if so");
+        return L($"Épisodes non dits dans le nom · ≈ {each} chacun s’il a les {episodes}", $"Episodes not in its name · ≈ {each} each for all {episodes}");
+    }
+
+    /// <summary>A pack whose name doesn't say its episodes, too small for all of them at its picture.</summary>
+    public static bool Doubtful(MissingOption pack, int episodes)
+    {
+        var release = pack.Entry.Release; var size = pack.Entry.Hit.Size;
+        if (release.Episode is not null || episodes <= 1 || size <= 0) return false;
+        var floor = release.Resolution switch { >= 2160 => 500, >= 1080 => 120, >= 720 => 70, _ => 40 } * (1L << 20);
+        return size / episodes < floor;
     }
 
     private static IEnumerable<MissingOption> Ranked(IEnumerable<MissingOption> options) =>
