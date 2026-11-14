@@ -114,7 +114,7 @@ public sealed class Catalog
         View is not ("Movie" or "Series") || search.Length > 0 || Favorites || Person is not null || Studio is not null || Saga is not null || FilterCount(query) > 0 ? null
         : ContinueRow().FirstOrDefault(x => x.Type == (View == "Movie" ? "Movie" : "Episode"));
     /// <summary>« À REPRENDRE », « À SUIVRE » (an episode not begun yet) above its title.</summary>
-    public static string PickUpLabel(MediaItem item) => item.Progress > 0 ? L("À REPRENDRE", "PICK UP WHERE YOU LEFT") : L("À SUIVRE", "UP NEXT");
+    public static string PickUpLabel(MediaItem item) => item.Resumable ? L("À REPRENDRE", "PICK UP WHERE YOU LEFT") : L("À SUIVRE", "UP NEXT");
     /// <summary>« 2023 · 2 h 20 · 1 h 27 restantes », « S02 E04 · L’épisode · 12 min restantes ».</summary>
     public static string PickUpLine(MediaItem item) => string.Join("  ·  ", new[]
     {

@@ -426,7 +426,7 @@ public sealed class BrowsePage : Page
         // Windows before its one clip). Past the corners, the shade is black on the page's black.
         var shade = new Border { Background = gradient };
         var picture = new Border { CornerRadius = new CornerRadius(16), ClipToBounds = true, Background = Ui.Brush("#111111"), Child = image };
-        var resume = item.Progress > 0;
+        var resume = item.Resumable;
         var actions = Ui.Row(12, Ui.Action(resume ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", "primary", () => _ = Shell.PlayAsync(item)),
             Ui.IconButton("info", L("Voir la fiche", "See the title page"), () => Shell.Open(item), "icon", 19));
         var body = Ui.Column(6,

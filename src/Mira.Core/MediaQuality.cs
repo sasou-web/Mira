@@ -51,14 +51,14 @@ public static class MediaQuality
     /// </summary>
     public static string? Left(MediaItem? item)
     {
-        if (item?.RunTimeTicks is not > 0 || item.UserData.PlaybackPositionTicks <= 0) return null;
+        if (item?.RunTimeTicks is not > 0 || !item.Resumable) return null;
         return Left(TimeSpan.FromTicks(item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks));
     }
-    /// <summary>The same of a time left (the episode playing, in the player's list of episodes).</summary>
+    /// <summary>The same of a time left (the episode playing, in the player's list of episodes), to the nearest minute.</summary>
     public static string? Left(TimeSpan left)
     {
-        var minutes = (int)Math.Ceiling(left.TotalMinutes);
-        if (minutes <= 0) return null;
+        if (left <= TimeSpan.Zero) return null;
+        var minutes = Math.Max(1, (int)Math.Round(left.TotalMinutes, MidpointRounding.AwayFromZero));
         return minutes >= 60
             ? L($"{minutes / 60} h {minutes % 60:00} restantes", $"{minutes / 60} hr {minutes % 60} min left")
             : L($"{minutes} min restantes", $"{minutes} min left");

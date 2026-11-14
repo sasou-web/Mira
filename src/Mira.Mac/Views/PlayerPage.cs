@@ -49,9 +49,6 @@ public sealed partial class PlayerPage : UserControl
     private readonly Button _next, _tracks, _more, _skip, _skipCancel;
     private readonly StackPanel _skipHost;
     private readonly TextBlock _skipText = new() { VerticalAlignment = VerticalAlignment.Center, FontFeatures = new FontFeatureCollection { FontFeature.Parse("tnum") } };
-    // The pill stays while the controls are shown; otherwise it lingers a few seconds, as on Windows and in Jellyfin.
-    private static readonly TimeSpan SkipLinger = TimeSpan.FromSeconds(8);
-    private DateTimeOffset _skipSince;
     /// <summary>The pill already showed the countdown at the last tick: its width is the countdown's.</summary>
     private bool _skipCounted;
     private double _skipLift = double.NaN;
@@ -1140,7 +1137,6 @@ public sealed partial class PlayerPage : UserControl
         // Without a credits marker, the next episode during the last seconds.
         if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext && !_sleep.AtEnd && !AsksStillWatching()) && _skips.Active is not null)
         {
-            _skipSince = DateTimeOffset.UtcNow;
             _skipText.Text = _skips.Label(_session.Item?.Type == "Episode");
             ToolTip.SetTip(_skip, _skipText.Text + " · S");
         }
@@ -1152,7 +1148,7 @@ public sealed partial class PlayerPage : UserControl
         if (_skips.CountdownText(_session.Position) is { } label) _skipText.Text = label;
         _skipCounted = counting;
         _skipCancel.IsVisible = counting && !_mini;
-        _skip.IsVisible = !_mini && _skips.Active is not null && (_controlsShown || counting || !_session.Paused && DateTimeOffset.UtcNow - _skipSince < SkipLinger);
+        _skip.IsVisible = !_mini && _skips.Active is not null && (_controlsShown || counting || !_session.Paused);
         // Just above the bar's title and time while they are shown, near the bottom edge otherwise (as on Windows).
         var lift = _controlsShown && _bottom.Bounds.Height > 0 ? Math.Max(36, _bottom.Bounds.Height - _bottom.Padding.Top + 16) : 36;
         if (lift != _skipLift) { _skipLift = lift; _skipHost.Margin = new Thickness(0, 0, 36, lift); }

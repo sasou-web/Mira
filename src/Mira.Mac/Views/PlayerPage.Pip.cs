@@ -192,7 +192,9 @@ public sealed partial class PlayerPage
         if (!ReferenceEquals(mpv, _pipEngine))
         {
             _pipEngine = mpv; _pipSubtitleScale = 1; _pipTracksAt = 0;
-            _pipMargin = mpv.Number("sub-margin-y", 22) is var margin and >= 0 and <= 600 ? (int)margin : 22; _pipLift = null;
+            // Lifted over the big player's bar just before, mpv's margin is 0 for now: its own is the one kept for the bar,
+            // and the small window places them from now on (lifted again by the bar once back).
+            _pipMargin = _barLift is not null && ReferenceEquals(mpv, _barEngine) ? _barMargin : mpv.Number("sub-margin-y", 22) is var margin and >= 0 and <= 600 ? (int)margin : 22; _pipLift = null; _barLift = null;
             SizePipSubtitles();
         }
         UpdatePipSubtitles();

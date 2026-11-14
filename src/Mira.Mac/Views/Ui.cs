@@ -334,7 +334,7 @@ public static class Cards
         if (item.Resumable) frame.Children.Add(Progress(item.Progress));
         var ring = Ring(10); frame.Children.Add(ring);
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
-        var line = item.Type == "Episode" ? $"{EpisodeCode(item)} — {item.Name}" : item.Progress > 0 ? Ui.Remaining(item) : Caption(item);
+        var line = item.Type == "Episode" ? $"{EpisodeCode(item)} — {item.Name}" : item.Resumable ? Ui.Remaining(item) : Caption(item);
         var caption = Ui.Column(2,
             new TextBlock { Text = item.DisplayTitle, FontSize = 14.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             new TextBlock { Text = line, FontSize = 12.5, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });

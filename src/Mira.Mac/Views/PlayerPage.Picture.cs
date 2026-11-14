@@ -88,9 +88,9 @@ public sealed partial class PlayerPage
             Repair(mpv, view, level);
             if (asked) _shell.Notice(level == 1
                 ? L("Réparation 1 sur 3 : couleurs de l’écran et lissage coupés. Toujours grise ? ⋮ → Réparer encore.",
-                    "Repair 1 of 3: screen colours and smoothing off. Still grey? ⋮ → Repair again.")
+                    "Repair 1 of 3: screen colors and smoothing off. Still gray? ⋮ → Repair again.")
                 : L("Réparation 2 sur 3 : décodage matériel coupé. Toujours grise ? ⋮ → Réparer encore.",
-                    "Repair 2 of 3: hardware decoding off. Still grey? ⋮ → Repair again."));
+                    "Repair 2 of 3: hardware decoding off. Still gray? ⋮ → Repair again."));
             return;
         }
         _repairing = true;
@@ -116,7 +116,7 @@ public sealed partial class PlayerPage
         mpv.Set("vid", track);
         if (!paused) mpv.Set("pause", "no");
         _shell.Notice(L("L’image restait grise : la vidéo s’affiche maintenant sans OpenGL. Jusqu’à un nouveau choix dans Réglages → Lecture → Image.",
-            "The picture stayed grey: the video is now drawn without OpenGL. Until Settings → Playback → Picture is chosen again."));
+            "The picture stayed gray: the video is now drawn without OpenGL. Until Settings → Playback → Picture is chosen again."));
     }
 
     /// <summary>« Image grise ou noire ? Réparer » under « Informations », while OpenGL draws the video.</summary>
@@ -127,7 +127,7 @@ public sealed partial class PlayerPage
         var repair = new Button { Content = _shell.Settings.VideoRepair > 0 ? L("Réparer encore", "Repair again") : L("Réparer", "Repair"), Classes = { "menuchip", "edged" }, Padding = new Thickness(14, 0), Margin = new Thickness(0) };
         var tip = L($"Essayer la réparation {next} sur 3 : ", $"Try repair {next} of 3: ") + (next switch
         {
-            1 => L("couleurs de l’écran et lissage coupés", "screen colours and smoothing off"),
+            1 => L("couleurs de l’écran et lissage coupés", "screen colors and smoothing off"),
             2 => L("décodage matériel coupé", "hardware decoding off"),
             _ => L("image dessinée sans OpenGL", "picture drawn without OpenGL")
         });
@@ -136,7 +136,7 @@ public sealed partial class PlayerPage
         repair.Click += (_, _) => { (_more.Flyout as Flyout)?.Hide(); _ = RepairAsync(mpv, view, asked: true); };
         var line = new DockPanel { Margin = new Thickness(12, 4, 12, 6) };
         DockPanel.SetDock(repair, Dock.Right); line.Children.Add(repair);
-        line.Children.Add(new TextBlock { Text = L("Image grise ou noire ?", "Grey or black picture?"), FontSize = 13.5, Foreground = Ui.TextBody, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        line.Children.Add(new TextBlock { Text = L("Image grise ou noire ?", "Gray or black picture?"), FontSize = 13.5, Foreground = Ui.TextBody, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         return line;
     }
 
@@ -178,19 +178,19 @@ public sealed partial class PlayerPage
         // What the frame mpv drew holds, looked at once a second while it plays: « unie #BBBBBB » with a grey screen = mpv's
         // own picture is grey; « variée » = mpv draws the film and the grey comes after it, when macOS shows the window.
         var look = _surface is VideoView { LastLook: { Length: > 0 } seen } looked
-            ? (seen == "~" ? L("variée", "varied") : seen.StartsWith('#') ? L("unie ", "single colour ") + seen : seen) + $" ({looked.Flat.Looks})"
+            ? (seen == "~" ? L("variée", "varied") : seen.StartsWith('#') ? L("unie ", "single color ") + seen : seen) + $" ({looked.Flat.Looks})"
             : null;
         var repair = _shell.Settings.VideoRepair switch
         {
-            1 => L("\nRéparé  image grise : couleurs de l’écran et lissage coupés", "\nRepaired  grey picture: screen colours and smoothing off"),
-            2 => L("\nRéparé  image grise : couleurs de l’écran, lissage et décodage matériel coupés", "\nRepaired  grey picture: screen colours, smoothing and hardware decoding off"),
-            >= 3 => L("\nRéparé  image grise : rendu sans OpenGL", "\nRepaired  grey picture: drawn without OpenGL"),
+            1 => L("\nRéparé  image grise : couleurs de l’écran et lissage coupés", "\nRepaired  gray picture: screen colors and smoothing off"),
+            2 => L("\nRéparé  image grise : couleurs de l’écran, lissage et décodage matériel coupés", "\nRepaired  gray picture: screen colors, smoothing and hardware decoding off"),
+            >= 3 => L("\nRéparé  image grise : rendu sans OpenGL", "\nRepaired  gray picture: drawn without OpenGL"),
             _ => ""
         };
         var seenLine = look is null ? "" : L($"\nImage lue  {look}", $"\nFrame read  {look}");
         var audio = PlayerText.Codec(mpv.Get("audio-codec-name")) ?? "—"; var output = AudioOutputInfo(mpv);
         return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nAudio  {audio}\nSortie  {output}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}",
-            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nAudio  {audio}\nOutput  {output}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}");
+            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColors  {colours}\nPicture  {PictureInfo}\nAudio  {audio}\nOutput  {output}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}");
     }
     /// <summary>The level playing, said in « Informations ».</summary>
     private string PictureInfo => PictureQuality.Label(_picture) + (_picture != PictureQuality.Known(_shell.Settings.Picture) ? L(" (allégée)", " (lightened)") : "");

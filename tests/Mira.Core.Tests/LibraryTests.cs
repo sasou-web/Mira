@@ -192,7 +192,7 @@ internal static class LibraryTests
         await Test("Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture", () =>
         {
             var recent = DateTimeOffset.UtcNow;
-            MediaItem Episode(string id, string series, DateTimeOffset at, long position = 30) => new() { Id = id, Type = "Episode", SeriesId = series, RunTimeTicks = 1000, UserData = new() { PlaybackPositionTicks = position, LastPlayedDate = at } };
+            MediaItem Episode(string id, string series, DateTimeOffset at, long position = 300) => new() { Id = id, Type = "Episode", SeriesId = series, RunTimeTicks = 1000, UserData = new() { PlaybackPositionTicks = position, LastPlayedDate = at } };
             var old = Episode("old", "old-series", recent.AddDays(-2));
             var latest = Episode("latest", "new-series", recent);
             var parsed = JsonSerializer.Deserialize<MediaItem>(JsonSerializer.Serialize(latest, Json.Options), Json.Options)!;
@@ -539,6 +539,17 @@ internal static class LibraryTests
             // 82 min long, begun at 60: what is left, beside Reprendre.
             Assert(MediaQuality.Left(resumed) == "22 min restantes" && MediaQuality.Left(film) is null
                 && MediaQuality.Left(film with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromMinutes(5).Ticks } }) == "1 h 17 restantes", "Left: " + MediaQuality.Left(resumed));
+            // To the nearest minute (an episode of 24:23 is « 24 min », 24:07 left at 1:44 of 25:51 « 24 min »), never 0.
+            var episode = film with { RunTimeTicks = TimeSpan.Parse("00:24:23").Ticks, UserData = new() };
+            Assert(episode.DurationLabel == "24 min" && (episode with { RunTimeTicks = TimeSpan.Parse("00:24:40").Ticks }).DurationLabel == "25 min"
+                && MediaItem.FormatDuration(TimeSpan.Parse("01:59:40")) == "2 h 00" && MediaItem.FormatDuration(TimeSpan.FromSeconds(10)) == "1 min"
+                && MediaQuality.Left(TimeSpan.Parse("00:24:07")) == "24 min restantes" && MediaQuality.Left(TimeSpan.FromSeconds(20)) == "1 min restantes" && MediaQuality.Left(TimeSpan.Zero) is null,
+                $"Rounded: {episode.DurationLabel}, {MediaQuality.Left(TimeSpan.Parse("00:24:07"))}");
+            // A few seconds watched start over (« Regarder »); a minute in, or 5 % of a short title, it resumes.
+            Assert(!(episode with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromSeconds(3).Ticks } }).Resumable
+                && (episode with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromSeconds(61).Ticks } }).Resumable
+                && (episode with { RunTimeTicks = TimeSpan.FromSeconds(18).Ticks, UserData = new() { PlaybackPositionTicks = TimeSpan.FromSeconds(7).Ticks } }).Resumable
+                && MediaQuality.Left(episode with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromSeconds(3).Ticks } }) is null, "Resume floor");
             return Task.CompletedTask;
         });
         await Test("Fiche : la rangée « Bonus » lit les vidéos des dossiers Extras, nommées comme sur Mira web (tests/fixtures/extras.json)", async () =>

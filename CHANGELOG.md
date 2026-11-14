@@ -11,7 +11,12 @@
 - **Raccourcis du lecteur dans l’Aide (Windows)** : ↑ ↓ (volume), M (couper le son), E (épisodes) et P (épisode précédent) manquaient à Aide → Raccourcis clavier ; le Mac les listait déjà.
 - **Barres du lecteur sous le pointeur (Mac)** : comme sous Windows, la barre du haut aussi reste tant que le pointeur s’y pose pendant la lecture, et les barres partent en pause même sous le pointeur, pour voir l’image entière.
 - **Pastille « Épisode suivant dans 10 s » immobile (Windows, Mac)** : elle rétrécissait au passage de 10 à 9 s et « Annuler », à côté, sautait de quelques pixels ; chiffres à chasse fixe et largeur gardée pendant le décompte.
-- **Pastille « Passer l’opening » comme sous Windows (Mac)** : elle restait tout le passage au-dessus de la barre ; elle part maintenant 8 s après son arrivée si les commandes sont cachées (elle revient avec elles), et descend près du bord quand la barre part.
+- **« Passer l’opening » tout le passage (Windows, Mac)** : la pastille partait 8 s après son arrivée avec les commandes, alors qu’un opening dure 1 min 30 ; elle reste maintenant tant que le passage joue (en pause, avec les commandes seulement). Sur Mac, elle descend près du bord quand la barre part, comme sous Windows.
+- **« Regarder » après quelques secondes (Windows, Mac)** : 3 s de visionnage suffisaient pour proposer « Reprendre » ; il faut maintenant une minute (5 % d’un titre court), comme Jellyfin, qui ne garde aucune position en dessous de son propre seuil.
+- **Minutes arrondies au plus proche (Windows, Mac)** : « 25 min restantes » à 24 min 07 et « 25 min » sur la fiche d’un épisode de 24 min 23 ; c’est maintenant 24.
+- **Menus du lecteur au clavier (Windows)** : Échap après E (Épisodes) rend le focus au bouton Épisodes, comme le menu Audio et sous-titres ; l’anneau de focus de l’épisode en cours (et des pistes) n’est plus coupé par le bord de la liste.
+- **Boutons − et + des décalages plus grands (Windows, Mac)** : 40 px de large au lieu de 30, la taille minimale d’une cible.
+- **Anglais américain (Windows, Mac)** : « Colors » dans ⋮ → Informations (et « gray picture » sur Mac), comme « Favorites » partout ailleurs.
 
 ## 0.9.10 — 2026-11-14
 

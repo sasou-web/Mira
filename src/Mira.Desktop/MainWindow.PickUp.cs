@@ -23,7 +23,7 @@ public partial class MainWindow
         PickUpLabel.Text = Catalog.PickUpLabel(item);
         PickUpTitle.Text = item.Type == "Episode" ? item.SeriesName ?? item.Name : item.Name;
         PickUpLine.Text = Catalog.PickUpLine(item);
-        PickUpPlay.Content = ActionLabel("play", item.Progress > 0 ? L("Reprendre", "Resume") : L("Regarder", "Watch"));
+        PickUpPlay.Content = ActionLabel("play", item.Resumable ? L("Reprendre", "Resume") : L("Regarder", "Watch"));
         if (image) { PickUpImage.ImageSource = null; _ = LoadPickUpImageAsync(item); }
     }
     private async Task LoadPickUpImageAsync(MediaItem item)
