@@ -52,7 +52,8 @@ public sealed class DownloadsPage : Page
     private readonly Border _freeRule = new() { Width = 1, Height = 14, Background = Line, Margin = new Thickness(12, 0), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _freeText = new() { FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox _query = new() { Watermark = L("Un film, une série, un anime…", "A movie, a show, an anime…"), MaxLength = 200 };
-    private readonly Button _search = new() { Content = L("Chercher", "Search"), Classes = { "primary" }, Padding = new Thickness(24, 12), Margin = new Thickness(12, 0, 0, 0), IsEnabled = false };
+    // Its width kept while it says « Searching… »: the field beside it never narrows.
+    private readonly Button _search = new() { Content = L("Chercher", "Search"), Classes = { "primary" }, Padding = new Thickness(20, 12), MinWidth = 136, HorizontalContentAlignment = HorizontalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), IsEnabled = false };
     private readonly Button _magnetButton;
     /// <summary>In a small window, the magnet link behind a « + » beside « Search ».</summary>
     private readonly Button _add;
@@ -152,9 +153,10 @@ public sealed class DownloadsPage : Page
         };
         _place = Ui.Row(0, new Icon("server", 16) { Foreground = Ui.Faint, Margin = new Thickness(0, 0, 9, 0), VerticalAlignment = VerticalAlignment.Center }, _placeName, _freeRule, _freeText);
         _place.Margin = new Thickness(0, 0, 12, 0); _place.VerticalAlignment = VerticalAlignment.Center; _place.IsVisible = false;
-        var right = Ui.Row(0, _place, pill);
+        var right = _headRight = Ui.Row(0, _place, pill);
         right.VerticalAlignment = VerticalAlignment.Top; right.Margin = new Thickness(24, 10, 0, 0);
-        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 26) };
+        var header = _head = new DockPanel { Margin = new Thickness(0, 0, 0, 26) };
+        header.SizeChanged += (_, _) => ShowSubtitle();
         DockPanel.SetDock(right, Dock.Right); header.Children.Add(right);
         header.Children.Add(Ui.Column(0, Ui.Heading(L("Téléchargements", "Downloads"), 32, 1, FontWeight.SemiBold), _subtitle));
 
@@ -272,6 +274,8 @@ public sealed class DownloadsPage : Page
         side.Margin = new Thickness(0, 0, 0, 40);
         _queueScroll = new ScrollViewer { Content = side };
         Grid.SetColumn(_queueScroll, 2); Grid.SetRowSpan(_queueScroll, 2); _searchView.Children.Add(_queueScroll);
+        // The lists that pass under the search field fade there rather than end cut short.
+        foreach (var scroll in new[] { _restScroll, _resultsScroll, _queueScroll }) ScrollFade.Top(scroll);
 
         // —— Why the PC cannot be reached, over the whole page ——
         var retry = new Button { Content = L("Réessayer", "Try again"), Classes = { "primary" }, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 0), Padding = new Thickness(20, 11) };
@@ -363,7 +367,20 @@ public sealed class DownloadsPage : Page
     {
         var text = _subtitle.Text ?? "";
         var usual = text.Length == 0 || text == PageLine || (_agent is { Online: true } agent && string.IsNullOrEmpty(agent.Problem));
-        _subtitle.IsVisible = !(_narrow && usual);
+        _subtitle.IsVisible = !(usual && (_narrow || !SubtitleFits(text)));
+    }
+
+    private DockPanel? _head;
+    private Control? _headRight;
+
+    /// <summary>Whether the line under the title holds on one line beside the PC's name and its pill (two lines squeeze it).</summary>
+    private bool SubtitleFits(string text)
+    {
+        if (_head is not { Bounds.Width: > 0 } head || _headRight is not { } right) return true;
+        right.Measure(Size.Infinity);
+        var room = head.Bounds.Width - right.DesiredSize.Width - right.Margin.Left - right.Margin.Right;
+        using var layout = new Avalonia.Media.TextFormatting.TextLayout(text, new Typeface(_subtitle.FontFamily, _subtitle.FontStyle, _subtitle.FontWeight), _subtitle.FontSize, null);
+        return layout.WidthIncludingTrailingWhitespace <= room;
     }
 
     private void Redraw() { if (_status is { } status) Menus.WhenClosed(() => Render(status, DateTimeOffset.UtcNow)); }
@@ -494,6 +511,8 @@ public sealed class DownloadsPage : Page
         // Out of the head in the smallest windows: the title and its pill first.
         _place.IsVisible = !_thin && !string.IsNullOrEmpty(_agent?.Name);
         _placeName.Text = _agent?.Name ?? "";
+        // The PC ready or not changes whether the line under the title says anything new (its pill says it).
+        ShowSubtitle();
         _freeText.Text = _agent?.Free is { } bytes ? RemoteBoard.Free(bytes) : "";
         _freeRule.IsVisible = _freeText.IsVisible = _agent?.Free is not null;
     }
