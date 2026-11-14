@@ -2,8 +2,8 @@
   "0.9.9": {
     "film": "coco",
     "band": [
-      { "point": 5, "shot": "windows-series", "at": [93, 86], "scale": 0.578, "width": 576 },
-      { "shot": "mac-series", "at": [0, 0], "scale": 0.5, "width": 496 }
+      { "point": 2, "shot": "windows-downloads", "at": [104, 216], "scale": 0.6, "width": 718 },
+      { "point": 4, "shot": "mac-settings", "at": [120, 40], "scale": 0.55, "width": 354 }
     ]
   },
   "0.9.8": {

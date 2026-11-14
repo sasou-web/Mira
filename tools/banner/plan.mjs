@@ -38,9 +38,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const platformOf = (shot) => /^(windows|mac|iphone)-/.exec(shot ?? '')?.[1] ?? null;
 
 // The screens each gallery captures. For a banner only: the films' filters open, Invincible's missing episodes at
-// their place (tools/web/fake-tvdb) and, on Windows, the mini-player out against the right edge over Home.
+// their place (tools/web/fake-tvdb) and, on Windows, the mini-player out against the right edge over Home and the
+// Downloads page at rest (« Régie », the README's posters, real releases' names and sizes).
 export const SHOTS = {
-  windows: ['home', 'film', 'series', 'films', 'subtitles', 'filters', 'missing', 'mini'],
+  windows: ['home', 'film', 'series', 'films', 'subtitles', 'filters', 'missing', 'mini', 'downloads'],
   mac: ['home', 'film', 'series', 'films', 'settings', 'filters', 'missing'],
   iphone: ['home', 'movies', 'film', 'together', 'series'],
 };
