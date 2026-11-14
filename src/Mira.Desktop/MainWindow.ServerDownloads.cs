@@ -51,6 +51,8 @@ public partial class MainWindow
         _serverTimer.Tick += async (_, _) => await ServerTickAsync();
         // On one line (a small window), the line under the title shows only when it says something new.
         System.ComponentModel.DependencyPropertyDescriptor.FromProperty(TextBlock.TextProperty, typeof(TextBlock)).AddValueChanged(TorLinkSubtitle, (_, _) => ShowTorLinkSubtitle());
+        // The lists that pass under the search field fade there rather than end cut short.
+        foreach (var scroll in new[] { ServerRestScroll, ServerResultsScroll, ServerQueueScroll }) ScrollFade.Top(scroll);
     }
 
     /// <summary>Jellyfin runs on another PC than this one (an account, not the demo): TorLink is not offered here.</summary>
