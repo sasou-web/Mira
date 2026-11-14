@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using Mira.Core;
 using Mira.Desktop.Playback;
@@ -171,8 +172,13 @@ public partial class MainWindow
         var start = pip.Bounds(); var paused = engine.Flag("pause");
         var (x, y) = ((int)Math.Round(start.Left + start.Width * .15), (int)Math.Round(start.Top + start.Height / 2));
         var under = WindowFromPoint(new PointerSpot { X = x, Y = y });
-        SetCursorPos(x, y); await Task.Delay(150);
-        require(pip.ControlsShown, "picture in picture: the real pointer on the picture shows its controls");
+        // Mira's own window holding the pointer, as once on a real PC (0.9.10: over the small window, no controls and no
+        // drag): Windows sends that window every move over the small one, until the small window takes it back.
+        pip.HideControlsNow(); await Task.Delay(300);
+        var held = LibraryShell.CaptureMouse();
+        SetCursorPos(x - 20, y); await Task.Delay(60); SetCursorPos(x, y); await Task.Delay(900);
+        require(held && Mouse.Captured is null && pip.ControlsShown,
+            $"picture in picture: the pointer held by Mira's window is taken back over the small one, its controls shown (held {held}, then by {Mouse.Captured?.GetType().Name ?? "nothing"}, controls {pip.ControlsShown})");
         async Task<(double Left, double Top)> Drag(int dx, int dy, int steps)
         {
             PressPointer(down: true); await Task.Delay(80);

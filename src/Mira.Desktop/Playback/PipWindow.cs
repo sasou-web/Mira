@@ -35,7 +35,8 @@ internal sealed class PipWindow : Window
     private readonly Icon _playIcon = new() { Kind = "pause", Width = 26, Height = 26 };
     private readonly Button _back, _close, _rewind, _play, _forward, _subtitles;
     private readonly Border _subtitlesOn, _progress;
-    private readonly DispatcherTimer _idle = new() { Interval = TimeSpan.FromMilliseconds(250) }, _click = new() { Interval = TimeSpan.FromMilliseconds(220) };
+    private readonly DispatcherTimer _idle = new() { Interval = TimeSpan.FromMilliseconds(250) }, _click = new() { Interval = TimeSpan.FromMilliseconds(220) },
+        _pointerWatch = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private long _lastMotion;
     private bool _shown = true, _closable, _paused, _keyboard;
     private double _fraction;
@@ -73,6 +74,8 @@ internal sealed class PipWindow : Window
     public event Action? Placed;
     /// <summary>A new size: the subtitles follow.</summary>
     public event Action? Resized;
+    /// <summary>The pointer was held by something else of Mira's while over this window, and was taken back: what held it.</summary>
+    public event Action<string>? PointerFreed;
 
     /// <param name="at">Where it opens, in device pixels (<see cref="PictureInPicture.Open"/>).</param>
     public PipWindow(ScreenFit.Pixels at)
@@ -141,8 +144,9 @@ internal sealed class PipWindow : Window
 
         _idle.Tick += (_, _) => HideWhenIdle();
         _click.Tick += (_, _) => { _click.Stop(); PlayPause?.Invoke(); };
+        _pointerWatch.Tick += (_, _) => FreePointer();
         SourceInitialized += (_, _) => Screens.Move(Handle, _opening);
-        Loaded += (_, _) => { Controls.IsOpen = true; Controls.Reposition(); KeepControlsOnTop(); ShowControls(); };
+        Loaded += (_, _) => { Controls.IsOpen = true; Controls.Reposition(); KeepControlsOnTop(); ShowControls(); _pointerWatch.Start(); };
     }
     private IntPtr Handle => new WindowInteropHelper(this).Handle;
 
@@ -166,7 +170,7 @@ internal sealed class PipWindow : Window
     /// <summary>Closed for good, by Mira (the video taken back first).</summary>
     public void Dismiss()
     {
-        _closable = true; _idle.Stop(); _click.Stop(); EndGesture();
+        _closable = true; _idle.Stop(); _click.Stop(); _pointerWatch.Stop(); EndGesture();
         Controls.IsOpen = false;
         Close();
     }
@@ -225,6 +229,27 @@ internal sealed class PipWindow : Window
         _shown = true; _time.Text = _timeText;
         foreach (var panel in new UIElement[] { _top, _middle, _bottom }) { panel.IsHitTestVisible = true; Motion.Fade(panel, 1, 140); }
         ControlsChanged?.Invoke();
+    }
+    /// <summary>
+    /// The pointer over this window while another window of Mira's holds it (the mouse captured: Windows then sends that
+    /// window every move over the windows of Mira's thread, this one's included): no controls under the pointer and no
+    /// drag, the video playing on (0.9.10, once, on a real PC). No button held, nothing of this window's own: it is taken
+    /// back, as a click outside would, and the controls show.
+    /// </summary>
+    private void FreePointer()
+    {
+        if (_gesture != Gesture.None || !IsVisible || !GetCursorPos(out var at)) return;
+        var bounds = Bounds();
+        if (at.X < bounds.Left || at.Y < bounds.Top || at.X >= bounds.Left + bounds.Width || at.Y >= bounds.Top + bounds.Height) return;
+        // A button held: a drag elsewhere, over this window on its way; it ends by itself.
+        if ((GetAsyncKeyState(0x01) | GetAsyncKeyState(0x02) | GetAsyncKeyState(0x04)) < 0) return;
+        var held = GetCapture();
+        if (held == IntPtr.Zero || held == Handle || held == Controls.Handle) return;
+        var by = Mouse.Captured?.GetType().Name ?? "a window";
+        Mouse.Capture(null);
+        if (GetCapture() != IntPtr.Zero) ReleaseCapture();
+        ShowControls();
+        PointerFreed?.Invoke(by);
     }
     /// <summary>For the player check: the controls gone at once, as once the pointer left.</summary>
     internal void HideControlsNow() { _lastMotion = 0; HideWhenIdle(); }
@@ -384,4 +409,7 @@ internal sealed class PipWindow : Window
     [DllImport("user32")] private static extern bool GetWindowRect(IntPtr hwnd, out NativeRect rect);
     [DllImport("user32")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32")] private static extern IntPtr GetWindow(IntPtr hwnd, uint command);
+    [DllImport("user32")] private static extern IntPtr GetCapture();
+    [DllImport("user32")] private static extern bool ReleaseCapture();
+    [DllImport("user32")] private static extern short GetAsyncKeyState(int key);
 }

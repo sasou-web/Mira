@@ -3,6 +3,7 @@
 ## Non publié
 
 - **Ouverture « Le clin d’œil » (Windows)** : à la place du logo qui glissait jusqu’au rail (la 0.9.10, qu’ogsas n’a finalement pas aimée en vrai), une entrée plus simple, sur place : quand l’Accueil est prêt, « mira » s’efface, le logo se ferme comme une paupière jusqu’à un trait de lumière qui s’éteint, et le noir se lève, en 0,31 s. Le rail ne bouge pas : son logo et la pastille d’Accueil sont déjà à leur place. Pendant le chargement, rien ne bouge ; aucune attente ajoutée, l’Accueil répond aux clics dès le début ; « Réduire les animations » : l’Accueil d’un coup. Maquette E choisie par ogsas ; contrôlé dans la galerie de la CI ; jamais vu sur un vrai PC.
+- **Image dans l’image qui ne répond plus (Windows)** : une fois, sur la 0.9.10, la petite fenêtre ne montrait plus ses commandes au survol et ne se déplaçait plus, la vidéo jouant toujours ; jamais revu après une relance. Cause supposée, pas vue : la fenêtre de Mira gardait le pointeur (Windows lui envoie alors chaque mouvement au-dessus de la petite fenêtre). La petite fenêtre le reprend maintenant dès que le pointeur est sur elle sans bouton enfoncé, et le note dans `errors.log` (le type de ce qui le gardait) ; à l’ouverture, plus rien de la fenêtre de Mira ne le garde. Le contrôle du lecteur le vérifie avec la vraie souris, et la glisse aussi.
 
 ## 0.9.10 — 2026-11-14
 
