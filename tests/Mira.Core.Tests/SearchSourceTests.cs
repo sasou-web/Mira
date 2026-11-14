@@ -25,6 +25,19 @@ internal static class SearchSourceTests
         ]}
         """;
 
+    // AniList: Frieren (its English name with a curly apostrophe, as AniList writes it; a synonym of its own), Attack on Titan, Dandadan
+    // (« DAN DA DAN »), an adult one never asked for, one without an English name.
+    private const string AniListSample = """
+        {"data":{"Page":{"media":[
+         {"title":{"romaji":"Enen no Shouboutai","english":"Fire Force"},"synonyms":["Fire Brigade of Flames"]},
+         {"title":{"romaji":"Sousou no Frieren","english":"Frieren: Beyond Journey’s End"},"synonyms":["Frieren at the Funeral","葬送的芙莉莲","Frieren"]},
+         {"title":{"romaji":"Sousou no Frieren 2nd Season","english":"Frieren: Beyond Journey’s End Season 2"},"synonyms":[]},
+         {"title":{"romaji":"Shingeki no Kyojin","english":"Attack on Titan"},"synonyms":["AoT","SnK"]},
+         {"title":{"romaji":"Dandadan","english":"DAN DA DAN"},"synonyms":[]},
+         {"title":{"romaji":"Tabi no Kyori","english":null},"synonyms":null}
+        ]}}}
+        """;
+
     private const string AnimeToshoSample = """
         [
          {"id":1,"title":"[BlackRabbit] Frieren - Beyond Journey's End (2023) - S01 v2 [Bluray-1080p][AV1]","info_hash":"3333333333333333333333333333333333333333","magnet_uri":null,"total_size":20000000000,"seeders":48,"leechers":10,"timestamp":1730000000},
@@ -169,11 +182,11 @@ internal static class SearchSourceTests
             static string Page(int count, int start) => "{\"hits\":[" + string.Join(",", Enumerable.Range(start, count).Select(i =>
                 $"{{\"hash\":\"{i:x40}\",\"title\":\"JoJos Bizarre Adventure S01E{i % 50:00} 1080p\",\"seeders\":{1000 - i},\"categoryId\":[2000000]}}")) + "]}";
             using var client = new SearchSourceClient(new Handler(Answer));
-            var (hits, error) = await TorrentSearch.RunAsync(TorLink, client, "JoJo's Bizarre Adventure", "tv", default);
-            Assert(error is null && forms.Order().SequenceEqual(["JoJo's Bizarre Adventure", "JoJos Bizarre Adventure"]), "TorLink in both forms: " + string.Join(" | ", forms));
+            var (hits, error, named) = await TorrentSearch.RunAsync(TorLink, client, "JoJo's Bizarre Adventure", "tv", default);
+            Assert(error is null && named.Count == 0 && forms.Order().SequenceEqual(["JoJo's Bizarre Adventure", "JoJos Bizarre Adventure"]), "TorLink in both forms, no other name for a show: " + string.Join(" | ", forms));
             Assert(asked.Count(x => x.StartsWith("POST api.knaben.org/v1", StringComparison.Ordinal)) == 3 && asked.Count(x => x.Contains("\"from\":100", StringComparison.Ordinal) && x.Contains("JoJos", StringComparison.Ordinal)) == 1
-                && asked.All(x => !x.Contains("animetosho", StringComparison.Ordinal)) && asked.Count(x => x.StartsWith("GET torrents-csv.com/service/search?q=JoJos%20Bizarre%20Adventure", StringComparison.Ordinal)) == 1,
-                "Knaben in both forms and a second page of the broadest, Torrents-CSV in the broadest, no anime site for a show: " + string.Join("\n", asked));
+                && asked.All(x => !x.Contains("animetosho", StringComparison.Ordinal) && !x.Contains("anilist", StringComparison.Ordinal)) && asked.Count(x => x.StartsWith("GET torrents-csv.com/service/search?q=JoJos%20Bizarre%20Adventure", StringComparison.Ordinal)) == 1,
+                "Knaben in both forms and a second page of the broadest, Torrents-CSV in the broadest, no anime site nor AniList for a show: " + string.Join("\n", asked));
             Assert(hits.Count == TorrentSearch.MaxHits && hits[0].Seeders == 1000 && hits.Select(x => x.Id).Distinct().Count() == hits.Count, $"Gathered up to the limit: {hits.Count}");
             Assert(hits.Any(x => x.Id.StartsWith('a')) && hits.Any(x => x.Source == SearchSources.TorrentsCsv) && hits.Count(x => x.Id == 500.ToString("x40") || x.Id == 501.ToString("x40")) == 2,
                 "TorLink's, Torrents-CSV's and the typed form's best kept beside Knaben's 202");
@@ -184,15 +197,79 @@ internal static class SearchSourceTests
 
             Task<(List<AgentHit>, string?)> Broken(string form, CancellationToken _) => Task.FromResult<(List<AgentHit>, string?)>(([], "TorLink n’a pas pu chercher : node absent"));
             using var down = new SearchSourceClient(new Handler(_ => throw new HttpRequestException("refused")));
-            var (none, failed) = await TorrentSearch.RunAsync(Broken, down, "Dune", "movies", default);
+            var (none, failed, _) = await TorrentSearch.RunAsync(Broken, down, "Dune", "movies", default);
             Assert(none.Count == 0 && failed is not null && failed.Contains("Aucun site", StringComparison.Ordinal), "Nobody answered: " + failed);
-            var (alone, torlinkError) = await TorrentSearch.RunAsync(Broken, null, "Dune", "movies", default);
+            var (alone, torlinkError, _) = await TorrentSearch.RunAsync(Broken, null, "Dune", "movies", default);
             Assert(alone.Count == 0 && torlinkError == "TorLink n’a pas pu chercher : node absent", "Mira's sites turned off: TorLink's own words: " + torlinkError);
-            var (rescued, fine) = await TorrentSearch.RunAsync(Broken, client, "Dune", "movies", default);
+            var (rescued, fine, _) = await TorrentSearch.RunAsync(Broken, client, "Dune", "movies", default);
             Assert(fine is null && rescued.Count == 2, "TorLink down, Knaben up: its results: " + rescued.Count);
             using var junk = new SearchSourceClient(new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>Cloudflare</html>") })));
             var (unreadable, said) = await junk.SearchAsync(SearchSources.Knaben, "Dune", "movies", true, default);
             Assert(unreadable.Count == 0 && said is not null && said.StartsWith("knaben", StringComparison.Ordinal), "A page instead of JSON: " + said);
+        });
+
+        await Test("Recherche : un anime aussi sous ses autres noms (AniList), la saison d’un pack en mots pour Knaben", async () =>
+        {
+            Assert(SearchSources.SeasonWords("Arcane S02") == "Arcane Season 2" && SearchSources.SeasonWords("Arcane S2") == "Arcane Season 2", "« S02 » in words");
+            Assert(SearchSources.SeasonWords("Arcane") is null && SearchSources.SeasonWords("Arcane S02E05") is null && SearchSources.SeasonWords(null) is null && SearchSources.SeasonWords(" S02") is null,
+                "Only a whole season after a title");
+            Assert(SearchSources.TitleAndRest("Frieren S02") == ("Frieren", "S02") && SearchSources.TitleAndRest("Frieren") == ("Frieren", ""), "The title, then what follows it: " + SearchSources.TitleAndRest("Frieren S02"));
+            Assert(SearchSources.TitleAndRest("Sousou no Frieren (2023) S02") == ("Sousou no Frieren", "S02"), "A year left out: " + SearchSources.TitleAndRest("Sousou no Frieren (2023) S02"));
+            Assert(SearchSources.TitleAndRest("S02") is null && SearchSources.TitleAndRest("1080p") is null && SearchSources.TitleAndRest("K") is null, "No title, no other name");
+            Assert(SearchSources.TitleAndRest("86 S01") == ("86", "S01") && SearchSources.TitleAndRest("Re:Zero S03") == ("Re:Zero", "S03"), "A title of digits, of two words in one");
+
+            Assert(SearchSources.ParseAniList(AniListSample, "Frieren").SequenceEqual(["Sousou no Frieren", "Frieren: Beyond Journey’s End"]),
+                "The first anime the title names (by a name that begins with its words), Romaji and English: " + string.Join(" | ", SearchSources.ParseAniList(AniListSample, "Frieren")));
+            Assert(SearchSources.ParseAniList(AniListSample, "Shingeki no Kyojin").SequenceEqual(["Attack on Titan"]), "The name searched is never one of its other names");
+            Assert(SearchSources.ParseAniList(AniListSample, "Dandadan").Count == 0, "« DAN DA DAN » is « Dandadan »: nothing more to search");
+            Assert(SearchSources.ParseAniList(AniListSample, "Fire Force").SequenceEqual(["Enen no Shouboutai"]), "The first of the list too");
+            Assert(SearchSources.ParseAniList(AniListSample, "Journey").Count == 0 && SearchSources.ParseAniList(AniListSample, "Force").Count == 0,
+                "Nothing when no anime is the title (a word in the middle of a name is not it)");
+            await Throws<JsonException>(() => Task.FromResult(SearchSources.ParseAniList("""{"errors":[{"message":"Too Many Requests"}],"data":null}""", "Frieren")));
+
+            var asked = new List<string>(); var forms = new List<string>();
+            Task<(List<AgentHit>, string?)> TorLink(string form, CancellationToken _) { lock (forms) forms.Add(form); return Task.FromResult<(List<AgentHit>, string?)>(([Hit("a", form, 3)], null)); }
+            var aniListDown = false;
+            async Task<HttpResponseMessage> Answer(HttpRequestMessage request)
+            {
+                var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync();
+                lock (asked) asked.Add($"{request.Method} {request.RequestUri!.Host}{request.RequestUri.PathAndQuery} {body}");
+                if (request.RequestUri!.Host == "graphql.anilist.co" && aniListDown) throw new HttpRequestException("refused");
+                var json = request.RequestUri!.Host switch
+                {
+                    "graphql.anilist.co" => AniListSample,
+                    "api.knaben.org" => """{"hits":[]}""",
+                    _ => "[]",
+                };
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+            }
+            using var client = new SearchSourceClient(new Handler(Answer));
+            var (_, error, names) = await TorrentSearch.RunAsync(TorLink, client, "Frieren S02", "anime", default);
+            Assert(error is null && names.SequenceEqual(["Sousou no Frieren", "Frieren: Beyond Journey’s End"]), "Its other names, for the devices: " + string.Join(" | ", names));
+            Assert(forms.Order().SequenceEqual(["Frieren Beyond Journeys End S02", "Frieren S02", "Sousou no Frieren S02"]), "TorLink under each name, the season kept: " + string.Join(" | ", forms));
+            var aniList = asked.Where(x => x.StartsWith("POST graphql.anilist.co", StringComparison.Ordinal)).ToList();
+            Assert(aniList.Count == 1 && aniList[0].Contains("\"search\":\"Frieren\"", StringComparison.Ordinal) && !aniList[0].Contains("S02", StringComparison.Ordinal),
+                "AniList gets the anime's name alone: " + string.Join("\n", aniList));
+            foreach (var form in new[] { "Frieren S02", "Sousou no Frieren S02", "Frieren Beyond Journeys End S02" })
+                Assert(asked.Count(x => x.StartsWith("GET feed.animetosho.net/json?q=" + Uri.EscapeDataString(form) + " ", StringComparison.Ordinal)) == 1
+                    && asked.Count(x => x.StartsWith("POST api.knaben.org", StringComparison.Ordinal) && x.Contains($"\"query\":\"{form}\"", StringComparison.Ordinal)) == 1,
+                    $"AnimeTosho and Knaben under « {form} »: " + string.Join("\n", asked));
+            Assert(asked.Count(x => x.Contains("\"query\":\"Frieren Season 2\"", StringComparison.Ordinal)) == 1, "Knaben, the season's packs in words: " + string.Join("\n", asked));
+
+            asked.Clear(); forms.Clear();
+            var (_, _, again) = await TorrentSearch.RunAsync(TorLink, client, "Frieren", "anime", default);
+            Assert(again.Count == 2 && asked.All(x => !x.Contains("anilist", StringComparison.Ordinal)) && forms.Order().SequenceEqual(["Frieren", "Frieren Beyond Journeys End", "Sousou no Frieren"]),
+                "The next search of the same anime: AniList not asked again: " + string.Join(" | ", forms));
+            asked.Clear(); forms.Clear();
+            var (_, _, show) = await TorrentSearch.RunAsync(TorLink, client, "Arcane S02", "tv", default);
+            Assert(show.Count == 0 && asked.All(x => !x.Contains("anilist", StringComparison.Ordinal)) && forms.SequenceEqual(["Arcane S02"]), "A show: no AniList");
+            asked.Clear(); forms.Clear();
+            aniListDown = true;
+            var (found, fine, none) = await TorrentSearch.RunAsync(TorLink, client, "Dandadan", "anime", default);
+            Assert(fine is null && none.Count == 0 && found.Count == 1 && forms.SequenceEqual(["Dandadan"]), "AniList down: the search goes on under its name");
+            asked.Clear(); forms.Clear();
+            var (_, _, without) = await TorrentSearch.RunAsync(TorLink, null, "Frieren", "anime", default);
+            Assert(without.Count == 0 && asked.Count == 0 && forms.SequenceEqual(["Frieren"]), "Mira's sites turned off: AniList neither");
         });
 
         await Test("Recherche : un rapport au relais jamais plus lourd que ce qu’il accepte, les autres recherches finies à la visite suivante", () =>
@@ -228,8 +305,19 @@ internal static class SearchSourceTests
                     if (hits.Any(x => RemoteDownloads.InfoHash(x.Magnet) != x.Id || x.Name.Length == 0 || x.Seeders < 0)) problems.Add($"{site} {query}: a result without its own magnet");
                     if (cut * 10 > hits.Count) problems.Add($"{site} {query}: {cut} names cut");
                 }
-                var (all, failed) = await TorrentSearch.RunAsync((_, _) => Task.FromResult<(List<AgentHit>, string?)>(([], "TorLink absent")), client, "JoJo's Bizarre Adventure", "anime", default);
-                Console.WriteLine($"      ensemble, animes, « JoJo's Bizarre Adventure » : {all.Count} résultats{(failed is null ? "" : $", {failed}")}");
+                // AniList: the names of an anime (Romaji, English), never those of another; Knaben: a season's packs in words.
+                var frieren = await client.AnimeNamesAsync("Frieren", default);
+                var attack = await client.AnimeNamesAsync("Shingeki no Kyojin", default);
+                Console.WriteLine($"      anilist « Frieren » : {string.Join(" | ", frieren)} ; « Shingeki no Kyojin » : {string.Join(" | ", attack)}");
+                if (!frieren.Any(x => ReleaseRanking.TitleKey(x) == "sousounofrieren") || !attack.Any(x => ReleaseRanking.TitleKey(x) == "attackontitan"))
+                    problems.Add($"anilist: {string.Join(" | ", frieren)} / {string.Join(" | ", attack)}");
+                foreach (var form in new[] { "Arcane S02", "Arcane Season 2" })
+                {
+                    var (season, said) = await client.SearchAsync(SearchSources.Knaben, form, "tv", broadest: false, default);
+                    Console.WriteLine($"      knaben « {form} » (tv) : {season.Count} résultats{(said is null ? "" : $", {said}")}, dont {season.Count(x => ReleaseRanking.Parse(x.Name) is { Pack: true, Season: 2 })} packs de la saison 2");
+                }
+                var (all, failed, names) = await TorrentSearch.RunAsync((_, _) => Task.FromResult<(List<AgentHit>, string?)>(([], "TorLink absent")), client, "JoJo's Bizarre Adventure", "anime", default);
+                Console.WriteLine($"      ensemble, animes, « JoJo's Bizarre Adventure » : {all.Count} résultats{(failed is null ? "" : $", {failed}")}, autres noms : {string.Join(" | ", names)}");
                 if (failed is not null || all.Count < 20) problems.Add($"together: {all.Count} {failed}");
                 Assert(problems.Count == 0, string.Join("\n", problems));
             });

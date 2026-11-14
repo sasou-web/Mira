@@ -27,7 +27,7 @@ internal static class MissingDownloadTests
             await Test("Télécharger les manquants : " + (string)c["name"]!, () =>
             {
                 var s = c["series"]!;
-                var series = new MissingSeries((string)s["name"]!, (string?)s["originalTitle"], (int?)s["year"], (int)s["before"]!, (string?)s["query"]);
+                var series = new MissingSeries((string)s["name"]!, (string?)s["originalTitle"], (int?)s["year"], (int)s["before"]!, (string?)s["query"], s["also"]?.AsArray().Select(x => (string)x!).ToList());
                 var a = c["ask"]!;
                 var ask = new MissingAsk((int)a["season"]!, a["episodes"]!.AsArray().Select(x => (int)x!).ToList(), (bool)a["wholeSeason"]!);
                 var hits = c["hits"]!.AsArray().Select((x, i) => ("s-" + (string)x![4]!, new RelayHit(Hash(i + 1), (string)x[0]!, (long)((double)x[1]! * (1L << 30)), (int)x[2]!, 0, (string)x[3]!, null, (string)x[4]!))).ToList();
@@ -47,7 +47,7 @@ internal static class MissingDownloadTests
             foreach (var q in fixture["queries"]!.AsArray())
             {
                 var s = q!["series"]!;
-                var series = new MissingSeries((string)s["name"]!, null, (int?)s["year"], (int)s["before"]!, (string?)s["query"]);
+                var series = new MissingSeries((string)s["name"]!, (string?)s["originalTitle"], (int?)s["year"], (int)s["before"]!, (string?)s["query"]);
                 var queries = MissingDownloads.Queries(series, (int)q["season"]!);
                 Assert(queries.SequenceEqual(q["queries"]!.AsArray().Select(x => (string)x!)), "Queries: " + string.Join(" | ", queries));
             }

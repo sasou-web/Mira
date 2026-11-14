@@ -30,6 +30,8 @@ enum MissingDownloads {
         var year: Int?
         var before: Int
         var query: String?
+        /// The other names the PC of Jellyfin searched the series under (an anime's, from AniList: « Sousou no Frieren »).
+        var also: [String] = []
     }
 
     /// A release, with the search that found it (the relay needs both to download it).
@@ -79,11 +81,30 @@ enum MissingDownloads {
     }
 
     /// What to search: the name typed alone; otherwise « Arcane S02 » then « Arcane », without the year Jellyfin may put
-    /// after the name.
+    /// after the name; and the same with its original title when it is another name in Latin letters (« Les Anneaux de
+    /// pouvoir », released as « The Lord of the Rings: The Rings of Power »). Never a Japanese or Korean original title.
     static func queries(_ series: Series, season: Int) -> [String] {
         if let typed = series.query.flatMap(RemoteLines.cleanQuery) { return [typed] }
-        guard let name = RemoteLines.cleanQuery(withoutYear(series.name)) ?? RemoteLines.cleanQuery(series.name) else { return [] }
-        return ["\(name) S\(season < 10 ? "0" : "")\(season)", name]
+        var names: [String] = []
+        for (name, original) in [(Optional(series.name), false), (series.originalTitle, true)] {
+            guard let name, let clean = RemoteLines.cleanQuery(withoutYear(name)) ?? RemoteLines.cleanQuery(name) else { continue }
+            if original && !latin(clean) { continue }
+            if names.contains(where: { Releases.titleKey($0) == Releases.titleKey(clean) }) { continue }
+            names.append(clean)
+        }
+        return names.map { "\($0) S\(season < 10 ? "0" : "")\(season)" } + names
+    }
+
+    /// Mostly Latin letters: a name the sites of TorLink can find releases under.
+    private static func latin(_ name: String) -> Bool {
+        let letters = name.unicodeScalars.filter {
+            switch $0.properties.generalCategory {
+            case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter: true
+            default: false
+            }
+        }
+        let latin = letters.filter { (0x41...0x5A).contains($0.value) || (0x61...0x7A).contains($0.value) || (0xC0...0x24F).contains($0.value) || (0x1E00...0x1EFF).contains($0.value) }
+        return !letters.isEmpty && latin.count * 2 >= letters.count
     }
 
     /// The episodes of the seasons before `season`: the last episode of each, from the library's own and TheTVDB's.
@@ -98,7 +119,7 @@ enum MissingDownloads {
     static func choose(_ ask: Ask, _ series: Series, _ hits: [(search: String, hit: Releases.Hit)]) -> Picks {
         let wanted = Set(ask.episodes.filter { $0 >= 1 })
         let first = wanted.min() ?? 1, last = wanted.max() ?? Int.max
-        let keys = Set([series.name, withoutYear(series.name), series.originalTitle, series.query].map(Releases.titleKey).filter { !$0.isEmpty })
+        let keys = Set(([series.name, withoutYear(series.name), series.originalTitle, series.query] + series.also.map { Optional($0) }).map(Releases.titleKey).filter { !$0.isEmpty })
         var seen = Set<String>()
         var packs: [Option] = []
         var episodes: [(episode: Int, option: Option)] = []
@@ -428,20 +449,24 @@ extension JellyfinClient {
     }
 
     /// The searches of « Télécharger les manquants », one per category, waited for together.
-    func missingSearch(_ query: String, categories: [String]) async throws -> (hits: [(search: String, hit: Releases.Hit)], error: String?) {
+    func missingSearch(_ query: String, categories: [String]) async throws -> (hits: [(search: String, hit: Releases.Hit)], error: String?, names: [String]) {
         var left: [String] = []
         for category in categories { left.append(try await torLinkSearch(query, category: category)) }
-        var hits: [(search: String, hit: Releases.Hit)] = [], error: String?
+        var hits: [(search: String, hit: Releases.Hit)] = [], error: String?, names: [String] = []
         let until = Date.now.addingTimeInterval(120)
         while !left.isEmpty, Date.now < until {
             try await Task.sleep(for: .seconds(1))
             for id in left {
                 let state = try await torLinkSearchState(id)
-                if state.state == "done" { hits += (state.results ?? []).map { (search: id, hit: $0) }; left.removeAll { $0 == id } }
+                if state.state == "done" {
+                    hits += (state.results ?? []).map { (search: id, hit: $0) }
+                    for name in state.names ?? [] where !names.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) { names.append(name) }
+                    left.removeAll { $0 == id }
+                }
                 else if state.state == "failed" { error = error ?? state.error; left.removeAll { $0 == id } }
             }
         }
         if !left.isEmpty, error == nil { error = MissingDownloads.french ? "Le PC de Jellyfin n’a pas répondu à temps." : "Your Jellyfin PC didn’t answer in time." }
-        return (hits, hits.isEmpty ? error : nil)
+        return (hits, hits.isEmpty ? error : nil, names)
     }
 }

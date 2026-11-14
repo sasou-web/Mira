@@ -131,15 +131,15 @@ public static class Privacy
             windows ? L("La désinstaller, dans Soin de la bibliothèque.", "Uninstall it, in Library care.") : L("La désinstaller depuis Mira pour Windows ou le tableau de bord de Jellyfin.", "Uninstall it from Mira for Windows or Jellyfin’s dashboard."),
             windows ? PrivacyControl.Maintenance : PrivacyControl.None, true, ["TheTVDB"]));
         list.Add(new("torrent-search", L("Recherche de téléchargements", "Download searches"),
-            L("Les sites de TorLink (The Pirate Bay par apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho et Torrents-CSV sauf si tu les coupes.",
-                "TorLink’s sites (The Pirate Bay through apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho and Torrents-CSV unless you turn them off."),
+            L("Les sites de TorLink (The Pirate Bay par apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho, Torrents-CSV et AniList (les autres noms d’un anime) sauf si tu les coupes.",
+                "TorLink’s sites (The Pirate Bay through apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho, Torrents-CSV and AniList (an anime’s other names) unless you turn them off."),
             L("Quand un administrateur cherche dans Téléchargements, quand Mira regarde une série suivie et quand tu demandes des épisodes manquants.",
                 "When an administrator searches in Downloads, when Mira checks a followed series and when you get missing episodes."),
-            L("Ce que tu cherches, tel quel et sans accents ni apostrophe, et l’adresse IP du PC de Jellyfin. Ni ton compte, ni ta bibliothèque.",
-                "What you search for, as typed and without accents or apostrophes, and the Jellyfin PC’s IP address. Neither your account nor your library."),
+            L("Ce que tu cherches, tel quel et sans accents ni apostrophe (à AniList, le nom de l’anime seul), et l’adresse IP du PC de Jellyfin. Ni ton compte, ni ta bibliothèque.",
+                "What you search for, as typed and without accents or apostrophes (to AniList, the anime’s name alone), and the Jellyfin PC’s IP address. Neither your account nor your library."),
             windows ? L("Couper « Plus de sources de recherche » dans les réglages de TorLink, ou TorLink lui-même.", "Turn off “More search sources” in TorLink’s settings, or TorLink itself.")
                 : L("Dans Mira pour Windows sur le PC de Jellyfin : réglages de TorLink.", "In Mira for Windows on the Jellyfin PC: TorLink’s settings."),
-            windows ? PrivacyControl.Downloads : PrivacyControl.None, true, ["apibay.org", "api.knaben.org", "feed.animetosho.net", "torrents-csv.com"]));
+            windows ? PrivacyControl.Downloads : PrivacyControl.None, true, ["apibay.org", "api.knaben.org", "feed.animetosho.net", "torrents-csv.com", "graphql.anilist.co"]));
         list.Add(new("extension", L("Mises à jour de l’extension Mira", "Mira extension updates"),
             L("GitHub, où Mira est publiée.", "GitHub, where Mira is published."),
             L("Quand Jellyfin cherche les mises à jour de ses extensions.", "When Jellyfin looks for updates to its extensions."),

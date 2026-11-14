@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -12,7 +13,8 @@ namespace Mira.Core.TorLink;
 /// by default; Privacy, SECURITY.md). Seen from a French box on 2026-11-14: TorLink reached only The Pirate Bay, YTS, Nyaa
 /// and SubsPlease (EZTV, 1337x and the others refused by its DNS), and Nyaa's feed gave it the 75 newest uploads only.
 /// Knaben gathers The Pirate Bay, Nyaa, YTS, 1337x and TokyoTosho, the most shared first; AnimeTosho, anime (Nyaa,
-/// TokyoTosho, AniDex); Torrents-CSV, an open index of what public trackers share. Each gets the search and nothing else.
+/// TokyoTosho, AniDex); Torrents-CSV, an open index of what public trackers share; AniList, the names an anime is released
+/// under. Each gets the search and nothing else.
 /// </summary>
 public static partial class SearchSources
 {
@@ -29,6 +31,27 @@ public static partial class SearchSources
     /// 90, « Marvels… » 205, not all the same).
     /// </summary>
     public static IReadOnlyList<string> Forms(string query) => Broad(query) is { } broad && broad != query ? [query, broad] : [query];
+
+    /// <summary>
+    /// A search for a whole season (« Arcane S02 ») as many packs are named, in words: « Arcane Season 2 » (« Arcane Season 2
+    /// (2024) [1080p] »); null for any other search. Asked of Knaben, whose titles must hold every word.
+    /// </summary>
+    public static string? SeasonWords(string? query) =>
+        query is not null && SeasonAtEnd().Match(query) is { Success: true } match && RemoteDownloads.CleanQuery(query[..match.Index]) is { } title
+            ? string.Create(CultureInfo.InvariantCulture, $"{title} Season {int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture)}") : null;
+
+    /// <summary>
+    /// The title a search names and what follows it (« Frieren S02 »: « Frieren » and « S02 »), a year left out (releases of
+    /// an anime seldom say it); null when it names no title (« S02 », « 1080p », a single letter).
+    /// </summary>
+    public static (string Title, string After)? TitleAndRest(string query)
+    {
+        var title = ReleaseRanking.Parse(query).Title?.Trim();
+        if (string.IsNullOrEmpty(title) || ReleaseRanking.TitleKey(title).Length < 2 || Marker().IsMatch(title)) return null;
+        var at = query.IndexOf(title, StringComparison.OrdinalIgnoreCase);
+        var rest = at >= 0 ? YearWord().Replace(query[(at + title.Length)..], " ") : "";
+        return (title, RemoteDownloads.CleanQuery(rest) ?? "");
+    }
 
     /// <summary>
     /// The form every site finds the most for, measured on 2026-11-14: without accents on Latin letters (The Pirate Bay:
@@ -193,6 +216,50 @@ public static partial class SearchSources
         return found;
     }
 
+    // —— AniList (graphql.anilist.co: POST, GraphQL) ——
+
+    /// <summary>
+    /// AniList's request for the animes a title may name, the closest first, never an adult one. Only the names: Romaji
+    /// (« Sousou no Frieren »), English (« Frieren: Beyond Journey's End ») and the others it knows, to find the right one.
+    /// </summary>
+    public static HttpRequestMessage AniListRequest(string title)
+    {
+        var body = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["query"] = "query ($search: String) { Page(perPage: 8) { media(search: $search, type: ANIME, isAdult: false, sort: SEARCH_MATCH) { title { romaji english } synonyms } } }",
+            ["variables"] = new Dictionary<string, string> { ["search"] = title },
+        });
+        return new HttpRequestMessage(HttpMethod.Post, "https://graphql.anilist.co") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+    }
+
+    /// <summary>
+    /// The other names of the anime <paramref name="title"/> names, from AniList's answer: the first one that is it (one of its
+    /// names is the title, or begins with all its words: « Frieren », « Frieren: Beyond Journey's End »), its Romaji and English
+    /// names that are not the title already; none when no anime is it. Releases are named after either (SubsPlease, Erai-raws:
+    /// Romaji; ASW and the scene: English).
+    /// </summary>
+    public static List<string> ParseAniList(string json, string title)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object
+            || !data.TryGetProperty("Page", out var page) || page.ValueKind != JsonValueKind.Object || !page.TryGetProperty("media", out var media) || media.ValueKind != JsonValueKind.Array)
+            throw new JsonException("No media");
+        var key = ReleaseRanking.TitleKey(title);
+        var words = Words(title);
+        foreach (var item in media.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+            var titles = item.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.Object ? t : default;
+            string?[] main = titles.ValueKind == JsonValueKind.Object ? [Text(titles, "romaji"), Text(titles, "english")] : [];
+            var others = item.TryGetProperty("synonyms", out var synonyms) && synonyms.ValueKind == JsonValueKind.Array
+                ? synonyms.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()) : [];
+            if (!main.Concat(others).OfType<string>().Any(name => ReleaseRanking.TitleKey(name) == key || words.Count > 0 && Words(name) is var named && named.Count >= words.Count && named.Take(words.Count).SequenceEqual(words)))
+                continue;
+            return [.. main.Select(RemoteDownloads.CleanName).OfType<string>().Where(x => ReleaseRanking.TitleKey(x) is { Length: > 0 } other && other != key).DistinctBy(ReleaseRanking.TitleKey)];
+        }
+        return [];
+    }
+
     // —— Together ——
 
     /// <summary>
@@ -257,6 +324,9 @@ public static partial class SearchSources
         DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) && at.Year > 1990 ? at.ToUnixTimeSeconds() : null;
 
     [GeneratedRegex(@"[^\p{L}\p{N}]+")] private static partial Regex NotWord();
+    [GeneratedRegex(@"\s[Ss](\d{1,2})\s*$")] private static partial Regex SeasonAtEnd();
+    [GeneratedRegex(@"^(?:s\d{1,2}(?:e\d{1,4})?|e\d{1,4}|\d{3,4}[pi]|[48]k)$", RegexOptions.IgnoreCase)] private static partial Regex Marker();
+    [GeneratedRegex(@"[(\[]\s*(?:19|20)\d\d\s*[)\]]|(?<![\p{L}\p{N}])(?:19|20)\d\d(?![\p{L}\p{N}])")] private static partial Regex YearWord();
     /// <summary>The apostrophe of « l' », « d' », « j' », « m' », « n' », « s' », « t' », « c' », « qu' » (« jusqu' ») before a word.</summary>
     [GeneratedRegex(@"(?<=(?<![\p{L}\p{M}'’ʼ‘`´])[cdjlmnst]|qu)['’ʼ‘`´](?=\p{L})", RegexOptions.IgnoreCase)] private static partial Regex Elision();
     [GeneratedRegex(@"\b(?:fitgirl|dodi|elamigos|codex|plaza|skidrow|empress|tenoke|razor1911)\b|\[gog\]", RegexOptions.IgnoreCase)] private static partial Regex Games();
@@ -301,6 +371,28 @@ public sealed class SearchSourceClient : IDisposable
         catch (Exception ex) when (Failed(ex, ct)) { return ([], $"{source}: {(ex is JsonException ? L("réponse illisible", "unreadable answer") : ex is OperationCanceledException ? L("pas de réponse à temps", "no answer in time") : ex.Message)}"); }
     }
 
+    /// <summary>
+    /// The other names of an anime (<see cref="SearchSources.ParseAniList"/>), kept a few hours: a search and the one after it
+    /// (« Frieren S02 » then « Frieren ») ask AniList once. None when AniList does not answer in a few seconds.
+    /// </summary>
+    public async Task<List<string>> AnimeNamesAsync(string title, CancellationToken ct)
+    {
+        var key = ReleaseRanking.TitleKey(title);
+        if (_names.TryGetValue(key, out var known) && DateTime.UtcNow - known.At < NamesKept) return known.Names;
+        using var soon = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        soon.CancelAfter(NamesWait);
+        try
+        {
+            var names = SearchSources.ParseAniList(await AskAsync(SearchSources.AniListRequest(title), soon.Token), title);
+            if (_names.Count >= 200) _names.Clear();
+            _names[key] = (DateTime.UtcNow, names);
+            return names;
+        }
+        catch (Exception ex) when (Failed(ex, ct)) { return []; }
+    }
+    private readonly ConcurrentDictionary<string, (DateTime At, List<string> Names)> _names = new();
+    private static readonly TimeSpan NamesKept = TimeSpan.FromHours(6), NamesWait = TimeSpan.FromSeconds(8);
+
     private static bool Failed(Exception ex, CancellationToken ct) =>
         ex is HttpRequestException or JsonException or IOException or DecoderFallbackException || ex is OperationCanceledException && !ct.IsCancellationRequested;
 
@@ -332,27 +424,40 @@ public sealed class SearchSourceClient : IDisposable
 /// <summary>
 /// One search on the PC of Jellyfin, in one category: TorLink's (« torlnk search », given) and, unless turned off,
 /// Mira's sites (<see cref="SearchSources"/>), each in every form of the search (<see cref="SearchSources.Forms"/>), all at
-/// once, gathered by <see cref="SearchSources.Merge"/>. An error only when nothing answered.
+/// once, gathered by <see cref="SearchSources.Merge"/>. An anime is also searched under the names AniList gives it, by
+/// TorLink and the sites alike: <c>Names</c>, for the devices to know its releases. An error only when nothing answered.
 /// </summary>
 public static class TorrentSearch
 {
     /// <summary>What one category of a search may return, as the relay keeps it.</summary>
     public const int MaxHits = 150;
 
-    public static async Task<(List<AgentHit> Hits, string? Error)> RunAsync(Func<string, CancellationToken, Task<(List<AgentHit> Hits, string? Error)>> torlink,
+    public static async Task<(List<AgentHit> Hits, string? Error, List<string> Names)> RunAsync(Func<string, CancellationToken, Task<(List<AgentHit> Hits, string? Error)>> torlink,
         SearchSourceClient? sources, string query, string category, CancellationToken ct)
     {
         var forms = SearchSources.Forms(query);
         var broadest = forms[^1];
         var asked = forms.Select(form => torlink(form, ct)).ToList();
-        var ours = sources is null ? [] : SearchSources.For(category)
-            // Torrents-CSV matches words alone: its broadest form is enough.
-            .SelectMany(site => (site == SearchSources.TorrentsCsv ? [broadest] : forms).Select(form => sources.SearchAsync(site, form, category, form == broadest, ct))).ToList();
+        var ours = new List<Task<(List<AgentHit> Hits, string? Error)>>();
+        if (sources is not null)
+            foreach (var site in SearchSources.For(category))
+                // Torrents-CSV matches words alone: its broadest form is enough. Knaben, a season's packs in words too.
+                foreach (var form in site == SearchSources.TorrentsCsv ? [broadest] : site == SearchSources.Knaben && SearchSources.SeasonWords(broadest) is { } words ? [.. forms, words] : forms)
+                    ours.Add(sources.SearchAsync(site, form, category, form == broadest, ct));
+        var names = new List<string>();
+        if (sources is not null && category == "anime" && SearchSources.TitleAndRest(query) is { } split)
+            foreach (var name in await sources.AnimeNamesAsync(split.Title, ct))
+            {
+                if (SearchSources.Broad($"{name} {split.After}") is not { } form || forms.Contains(form, StringComparer.OrdinalIgnoreCase)) continue;
+                names.Add(name);
+                asked.Add(torlink(form, ct));
+                foreach (var site in SearchSources.For(category)) ours.Add(sources.SearchAsync(site, form, category, false, ct));
+            }
         var theirs = await Task.WhenAll(asked);
         var mine = await Task.WhenAll(ours);
         var answered = theirs.Concat(mine).Where(x => x.Error is null).ToList();
         if (answered.Count == 0)
-            return ([], sources is null ? theirs[0].Error : L("Aucun site de recherche n’a répondu au PC serveur : vérifie sa connexion à Internet.", "No search site answered the server PC: check its Internet connection."));
-        return (SearchSources.Merge([.. answered.Select(x => (IReadOnlyList<AgentHit>)x.Hits)], MaxHits), null);
+            return ([], sources is null ? theirs[0].Error : L("Aucun site de recherche n’a répondu au PC serveur : vérifie sa connexion à Internet.", "No search site answered the server PC: check its Internet connection."), names);
+        return (SearchSources.Merge([.. answered.Select(x => (IReadOnlyList<AgentHit>)x.Hits)], MaxHits), null, names);
     }
 }

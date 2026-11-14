@@ -37,9 +37,13 @@ public static partial class MissingDownloads
         return folder.Length > 0 && Clean(path).StartsWith(folder + "/", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>One query in each category through the relay, waited for: the results with the search of each, or why none.</summary>
-    public static async Task<(List<(string Search, RelayHit Hit)> Hits, string? Error)> SearchAsync(JellyfinClient client, string query, IReadOnlyList<string> categories, CancellationToken ct)
+    /// <summary>
+    /// One query in each category through the relay, waited for: the results with the search of each, or why none, and the
+    /// other names the PC of Jellyfin searched the series under (an anime's, from AniList: <see cref="MissingSeries.Also"/>).
+    /// </summary>
+    public static async Task<(List<(string Search, RelayHit Hit)> Hits, string? Error, List<string> Names)> SearchAsync(JellyfinClient client, string query, IReadOnlyList<string> categories, CancellationToken ct)
     {
+        var names = new List<string>();
         var ids = new List<string>();
         foreach (var category in categories) ids.Add(await client.TorLinkSearchAsync(query, category, ct));
         var hits = new List<(string, RelayHit)>(); string? error = null;
@@ -52,11 +56,11 @@ public static partial class MissingDownloads
             {
                 var state = await client.TorLinkSearchStateAsync(id, ct);
                 if (state is null) { left.Remove(id); continue; }
-                if (state.State == "done") { hits.AddRange(state.Results.Select(x => (id, x))); left.Remove(id); }
+                if (state.State == "done") { hits.AddRange(state.Results.Select(x => (id, x))); names.AddRange(state.Names ?? []); left.Remove(id); }
                 else if (state.State == "failed") { error ??= state.Error; left.Remove(id); }
             }
         }
         if (left.Count > 0) error ??= L("Le PC de Jellyfin n’a pas répondu à temps.", "Your Jellyfin PC didn’t answer in time.");
-        return (hits, hits.Count > 0 ? null : error);
+        return (hits, hits.Count > 0 ? null : error, [.. names.Distinct(StringComparer.OrdinalIgnoreCase)]);
     }
 }

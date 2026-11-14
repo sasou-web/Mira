@@ -15,7 +15,7 @@ struct MissingTests {
 
     private func series(_ s: [String: Any]) -> MissingDownloads.Series {
         MissingDownloads.Series(name: s["name"] as? String ?? "", originalTitle: s["originalTitle"] as? String, year: (s["year"] as? NSNumber)?.intValue,
-                                before: (s["before"] as? NSNumber)?.intValue ?? 0, query: s["query"] as? String)
+                                before: (s["before"] as? NSNumber)?.intValue ?? 0, query: s["query"] as? String, also: s["also"] as? [String] ?? [])
     }
 
     @Test("Les releases mises en avant pour chaque cas")

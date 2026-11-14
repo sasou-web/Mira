@@ -71,8 +71,10 @@ public partial class MainWindow
             foreach (var query in SeriesFollowing.Queries(follow.Query, series.Name, title ?? follow.Names?.FirstOrDefault()))
                 foreach (var kind in SeriesFollowing.Categories(category))
                 {
-                    var (hits, error) = await SearchTorrentsAsync(installation, query, kind, ct);
+                    var (hits, error, also) = await SearchTorrentsAsync(installation, query, kind, ct);
                     parts.Add((kind, hits, error));
+                    // An anime's releases under its other names (AniList's): its own as much as those found before.
+                    names = [.. names, .. also];
                 }
             var (found, failure) = RemoteDownloads.Combine(parts, x => x.Id);
             if (failure is not null) return Outcome("failed", new("failed", Detail: failure));

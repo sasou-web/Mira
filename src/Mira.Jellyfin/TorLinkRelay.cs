@@ -102,7 +102,9 @@ public sealed partial class TorLinkRelay
             _watched = _now();
             if (_searches.FirstOrDefault(x => x.Id == id) is not { } s) return null;
             var (state, hits, error) = Outcome(s);
-            return new RelaySearch(s.Id, s.Query, s.Category, state, hits.Select(x => new RelayHit(x.Hit.Id, x.Hit.Name, x.Hit.Size, x.Hit.Seeders, x.Hit.Leechers, x.Hit.Source, x.Hit.Added, x.Category)).ToList(), error);
+            var names = state == "done" ? Units(s).SelectMany(x => x.Names).Distinct(StringComparer.OrdinalIgnoreCase).Take(MaxNames).ToList() : [];
+            return new RelaySearch(s.Id, s.Query, s.Category, state, hits.Select(x => new RelayHit(x.Hit.Id, x.Hit.Name, x.Hit.Size, x.Hit.Seeders, x.Hit.Leechers, x.Hit.Source, x.Hit.Added, x.Category)).ToList(), error,
+                names.Count > 0 ? names : null);
         }
     }
 
@@ -216,6 +218,7 @@ public sealed partial class TorLinkRelay
                     search.Error = search.State == "failed" ? Text(outcome.Error) ?? "La recherche n’a pas abouti." : null;
                     search.Results = search.State == "done" ? (outcome.Results ?? []).Where(x => RemoteDownloads.InfoHash(x.Magnet) == x.Id).DistinctBy(x => x.Id).Take(MaxResults)
                         .Select(x => x with { Name = Text(x.Name) ?? x.Id, Source = Text(x.Source) ?? "", Size = Math.Max(0, x.Size), Seeders = Math.Max(0, x.Seeders), Leechers = Math.Max(0, x.Leechers) }).ToList() : [];
+                    search.Names = search.State == "done" ? (outcome.Names ?? []).Select(Text).OfType<string>().Where(x => x.Length <= RemoteDownloads.MaxQuery).Take(MaxNames).ToList() : [];
                 }
             foreach (var outcome in report.Requests ?? [])
                 if (_requests.FirstOrDefault(x => x.Id == outcome.Id && x.Device == device && x.State == "claimed") is { } ask)
@@ -295,6 +298,8 @@ public sealed partial class TorLinkRelay
         public string State { get; set; } = "waiting"; public string? Device { get; set; }
         public DateTimeOffset? Claimed { get; set; }
         public List<AgentHit> Results { get; set; } = []; public string? Error { get; set; }
+        /// <summary>The other names the agent searched under (an anime's, from AniList).</summary>
+        public List<string> Names { get; set; } = [];
         /// <summary>A search in every category: its search in each, which the agent runs; empty otherwise.</summary>
         public List<Lookup> Parts { get; } = [];
     }
