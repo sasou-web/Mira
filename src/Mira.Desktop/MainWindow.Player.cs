@@ -278,7 +278,7 @@ public partial class MainWindow
             _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position)); _session.Duration = _mpv.Number("duration", _session.Duration);
             var paused = _mpv.Flag("pause"); ShowPauseState(paused);
             // The timeline interpolates between these polls on every frame.
-            if (!_seeking) { SeekBar.SetPlayback(_session.Position, _session.Duration, !paused, _mpv.Number("speed", 1)); PositionText.Text = TimeLabel(_session.Position); UpdateChapterText(_session.Position); }
+            if (!_seeking) { SeekBar.SetPlayback(_session.Position, _session.Duration, !paused, _mpv.Number("speed", 1)); PositionText.Text = PlayerTime.Position(_session.Position, _session.Duration, _settings.TimeLeft); UpdateChapterText(_session.Position); }
             SeekBar.SetBuffered(_mpv.Number("demuxer-cache-time", 0)); DurationText.Text = TimeLabel(_session.Duration);
             var changed = paused != _session.Paused; _session.Paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
             if (changed) GroupPauseChanged(paused);
@@ -555,7 +555,7 @@ public partial class MainWindow
     /// <summary>mpv may report the pre-seek time for a poll or two; keep the requested time meanwhile.</summary>
     private void HoldPosition(double target)
     {
-        _session.Hold(target, DateTimeOffset.UtcNow); SeekBar.Hold(target); PositionText.Text = TimeLabel(target); _stallFrom = target;
+        _session.Hold(target, DateTimeOffset.UtcNow); SeekBar.Hold(target); PositionText.Text = PlayerTime.Position(target, _session.Duration, _settings.TimeLeft); _stallFrom = target;
     }
     private double ReportedPosition(double reported) => _session.Settled(reported, DateTimeOffset.UtcNow);
     private void Volume_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { ShowVolumeLevel(); if (_initializing) return; _settings.Volume = e.NewValue; _mpv?.SetLevel(e.NewValue); if (e.NewValue > 0) { _lastAudibleVolume = e.NewValue; _mpv?.Set("mute", "no"); } }

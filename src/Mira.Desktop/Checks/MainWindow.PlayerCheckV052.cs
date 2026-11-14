@@ -29,6 +29,14 @@ public partial class MainWindow
         require(Math.Abs(At(playGlyph).X - textLeft) < 2 && Math.Abs(At(lastGlyph, lastGlyph.ActualWidth).X - timeRight) < 2,
             $"the first and last buttons line up with the title and the time ({At(playGlyph).X - textLeft:0.0} / {At(lastGlyph, lastGlyph.ActualWidth).X - timeRight:0.0} px)");
         require(Regex.IsMatch(PositionText.Text, @"^\d+:\d{2}$") && DurationText.Text == TimeLabel(_session.Duration), $"the time reads « {PositionText.Text} / {DurationText.Text} »");
+        // Maquette B (2026-11-14): the end above the time, after the chapter; a click on the time shows what is left, kept, then back.
+        var kept = _settings.TimeLeft;
+        require(ChapterText.IsVisible && ChapterText.Text.Contains(L("Fin à ", "Ends at "), StringComparison.Ordinal), $"the line above the time says when the title ends (« {ChapterText.Text} »)");
+        PlayerTimeButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); UpdateLayout();
+        var left = PositionText.Text;
+        PlayerTimeButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); UpdateLayout();
+        require(left.StartsWith('\u2212') && Regex.IsMatch(PositionText.Text, @"^\d+:\d{2}$") && _settings.TimeLeft == kept && Math.Abs(At(DurationText, DurationText.ActualWidth).X - timeRight) < 1,
+            $"a click on the time shows what is left (« {left} »), another what is played (« {PositionText.Text} »), the time kept on the right");
 
         if (SeekBar.Chapters.Count > 0)
         {

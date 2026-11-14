@@ -31,6 +31,7 @@ public sealed partial class PlayerPage
         flyout.Opening += (_, _) => { flyout.Content = EpisodesMenu(opening: true); AboveBar(flyout, _episodesButton); };
         flyout.Opened += (_, _) => Dispatcher.UIThread.Post(() => CurrentEpisodeRow()?.BringIntoView(), DispatcherPriority.Loaded);
         _episodesButton.Flyout = flyout;
+        MarkWhileOpen(_episodesButton);
         _previous.IsEnabled = _episodesButton.IsEnabled = false;
     }
     /// <summary>Only an episode has them, as « Suivant ».</summary>

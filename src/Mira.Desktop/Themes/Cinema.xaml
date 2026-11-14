@@ -117,7 +117,17 @@
       <Trigger Property="IsEnabled" Value="False"><Setter Property="Cursor" Value="Arrow"/></Trigger>
     </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
-  <Style x:Key="PlayerBarButton" TargetType="Button" BasedOn="{StaticResource PlayerButton}"><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="v:Motion.Radius" Value="20"/></Style>
+  <!-- The player's time, a click away from what is left (maquette B, 2026-11-14): plain text, the focus ring of every button. -->
+  <Style x:Key="PlayerTimeLink" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="v:Motion.Interactive" Value="False"/><Setter Property="ToolTipService.IsEnabled" Value="False"/><Setter Property="Padding" Value="0"/><Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="Transparent"><ContentPresenter/></Border></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- A menu's button stays lit while its menu is open (Tag "open"), a 2 px mark under its glyph (maquette A, 2026-11-14). -->
+  <Style x:Key="PlayerBarButton" TargetType="Button" BasedOn="{StaticResource PlayerButton}"><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="v:Motion.Radius" Value="20"/>
+    <Style.Triggers><Trigger Property="Tag" Value="open"><Setter Property="Opacity" Value="1"/></Trigger></Style.Triggers>
+  </Style>
+  <Style x:Key="PlayerMenuMark" TargetType="Border"><Setter Property="Height" Value="2"/><Setter Property="Width" Value="16"/><Setter Property="CornerRadius" Value="1"/><Setter Property="Background" Value="{StaticResource Text}"/><Setter Property="VerticalAlignment" Value="Bottom"/><Setter Property="Margin" Value="0,0,0,-6"/><Setter Property="IsHitTestVisible" Value="False"/><Setter Property="Visibility" Value="Collapsed"/>
+    <Style.Triggers><DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}" Value="open"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
+  </Style>
   <!-- Rows, chips and headings of the player menus (audio, subtitles, episodes, ⋮), « Écrin » (2026-11-14, maquette A
        chosen by ogsas, /mnt/project-files/popovers/): the grey of the Réglages window, rows rounded inside it, the one chosen
        raised (Raised) and in bold with its check on the right, settings in sunk sliders of choices. Nothing animates. -->

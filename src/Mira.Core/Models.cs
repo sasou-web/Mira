@@ -349,6 +349,8 @@ public sealed class PlayerSettings
     /// <summary>Told once that the window's cross keeps Mira by the clock while it works (Windows, <c>MainWindow.Windows.cs</c>).</summary>
     public bool CloseKeptTold { get; set; }
     public bool AutoNext { get; set; } = true;
+    /// <summary>The player's time shows what is left (« −26:30 / 40:12 ») instead of what is played: a click on the time (<see cref="PlayerTime"/>).</summary>
+    public bool TimeLeft { get; set; }
     /// <summary>« Tu regardes toujours ? » (<see cref="Mira.Core.StillWatching"/>): after 3 episodes in a row untouched, the next one waits for an answer.</summary>
     public bool StillWatching { get; set; } = true;
     /// <summary>« Bande-annonce avant le film » (<see cref="Trailers.PlaysFirst"/>): a film started from the beginning plays its trailer kept on the server first.</summary>

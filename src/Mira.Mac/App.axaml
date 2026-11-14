@@ -115,10 +115,12 @@
     <Style Selector="Button.heading:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.heading:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.heading:pointerover TextBlock, Button.heading:focus-visible TextBlock"><Setter Property="Foreground" Value="White"/></Style>
     <Style Selector="Button.heading:pointerover TextBlock"><Setter Property="TextDecorations" Value="Underline"/></Style>
+    <Style Selector="Button.timelink"><Setter Property="ToolTip.ServiceEnabled" Value="False"/><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="MinHeight" Value="0"/><Setter Property="CornerRadius" Value="4"/></Style>
+    <Style Selector="Button.timelink:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.timelink:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.player"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="Width" Value="44"/><Setter Property="Height" Value="44"/><Setter Property="CornerRadius" Value="22"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Foreground" Value="White"/></Style>
     <!-- Over the picture: no disc under the glyph, which alone lights up under the pointer, as on Windows; no tooltip either. -->
     <Style Selector="Button.player"><Setter Property="Opacity" Value="0.8"/><Setter Property="ToolTip.ServiceEnabled" Value="False"/></Style>
-    <Style Selector="Button.player:pointerover, Button.player:focus-visible"><Setter Property="Opacity" Value="1"/></Style>
+    <Style Selector="Button.player:pointerover, Button.player:focus-visible, Button.player.open"><Setter Property="Opacity" Value="1"/></Style>
     <Style Selector="Button.player:pressed"><Setter Property="Opacity" Value="0.6"/></Style>
     <Style Selector="Button.player:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.player:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="White"/></Style>
     <Style Selector="Button.player:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="Opacity" Value="0.4"/></Style>
