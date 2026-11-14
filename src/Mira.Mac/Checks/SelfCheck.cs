@@ -109,6 +109,36 @@ public static class SelfCheck
             }
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
+            // Mira's opening (« Le m prend sa place »), drawn again on this Home page moment by moment, its clock held: the
+            // page takes clicks from the first moment, the mark lands on the rail's, the tile on Accueil, then all as before.
+            {
+                // The Mac runner leaves out motion: set aside, as for the trackpad's slides.
+                MacMotion.Override(false);
+                window.ShowVeilForCheck(); await Task.Delay(100);
+                var started = window.StartOpening(frozen: true);
+                Check(started && !window.VeilTakesClicks, "ouverture : le m part vers le rail, l’Accueil prend les clics dès le début", window.OpeningReport);
+                if (started)
+                {
+                    foreach (var ms in new[] { 0, 250, 470, 1400 }) { window.DrawOpening(ms / 1000d); await Task.Delay(120); CaptureWindow(window, output, $"02c-opening-{ms:0000}"); }
+                    window.DrawOpening(OpeningGlide.Travel - 1e-4); await Task.Delay(50);
+                    var (mark, rail, _, _, _) = window.OpeningPlaces();
+                    Check(Math.Abs(mark.Center.X - rail.Center.X) < 1 && Math.Abs(mark.Center.Y - rail.Center.Y) < 1 && Math.Abs(mark.Width - rail.Width) < 1, "ouverture : le m se pose sur celui du rail", $"{mark} / {rail}");
+                    window.DrawOpening(OpeningGlide.Longest); await Task.Delay(50);
+                    var (_, _, drop, button, railShown) = window.OpeningPlaces();
+                    Check(drop is { } d && Math.Abs(d.X - button.X) < .5 && Math.Abs(d.Y - button.Y) < .5 && Math.Abs(d.Width - button.Width) < .5 && Math.Abs(d.Height - button.Height) < .5 && railShown, "ouverture : la pastille se pose sur Accueil", $"{drop} / {button}");
+                    window.FinishOpening();
+                    Check(!window.VeilShown && window.LitRail == "home", "ouverture : finie, Accueil allumé par son style", window.LitRail ?? "aucun");
+                }
+                // By the clock, as at a real start: over in about a second, the veil gone.
+                window.ShowVeilForCheck(); await Task.Delay(100);
+                var clocked = window.OpenAsync(); var ended = await Task.WhenAny(clocked, Task.Delay(3000)) == clocked;
+                Check(ended && !window.VeilShown && window.OpeningReport.StartsWith("glided", StringComparison.Ordinal), "ouverture à l’horloge : finie en une seconde environ", window.OpeningReport);
+                // Without motion: the Home page at once.
+                MacMotion.Override(true); window.ShowVeilForCheck();
+                await window.OpenAsync();
+                Check(!window.VeilShown && window.OpeningReport.StartsWith("at once", StringComparison.Ordinal), "ouverture sans animations : l’Accueil d’un coup", window.OpeningReport);
+                MacMotion.Override(null);
+            }
             home.ScrollToEnd(); await Task.Delay(800); Capture(window, output, "02b-home-grid"); home.ScrollToHome();
             // « Ajoutés récemment » goes on with « Afficher plus de titres »: Home refreshed (come back to, the player
             // closed, a change on the server) keeps every title shown, as Windows' grid keeps its pages. It was asked for

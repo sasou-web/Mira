@@ -98,6 +98,7 @@ public partial class MainWindow
         if (landed) { RailMark.Opacity = 1; StartupMark.Visibility = Visibility.Hidden; }
         else
         {
+            RailMark.Opacity = 0; StartupMark.Visibility = Visibility.Visible;
             var at = glide.MarkAt(t);
             // In the mark's own units (those of the veil): around its centre, stretched along its way, shrunk, then moved.
             var centre = new Point(StartupMark.ActualWidth / 2, StartupMark.ActualHeight / 2);

@@ -186,6 +186,8 @@ public sealed partial class MainWindow : Window
         }
         // « Hors connexion », over the strip of the title bar, as on Windows (MainWindow.Unanswered.cs).
         _offlineBadge = BuildOfflineBadge(); _root.Children.Add(_offlineBadge);
+        // The mark and « mira » on black while Mira loads, over everything (MainWindow.Opening.cs).
+        BuildVeil();
         Content = _root;
         ListenToTrackpad();
         BuildMenuBar();
@@ -230,7 +232,7 @@ public sealed partial class MainWindow : Window
 
     private Border BuildRail()
     {
-        var brand = new Icon("brand", 32) { Foreground = Ui.Ink, Margin = new Thickness(0, 14, 0, 26) };
+        var brand = _railMark = new Icon("brand", 32) { Foreground = Ui.Ink, Margin = new Thickness(0, 14, 0, 26) };
         foreach (var (key, icon, tip) in new[] { ("home", "home", L("Accueil · ⌘1", "Home · ⌘1")), ("search", "search", L("Rechercher · ⌘F", "Search · ⌘F")), ("Movie", "film", L("Films · ⌘2", "Movies · ⌘2")), ("Series", "series", L("Séries · ⌘3", "Shows · ⌘3")), ("library", "library", L("Toute la bibliothèque · ⌘4", "Whole library · ⌘4")), ("offline", "laptop", L("Sur ce Mac · les titres gardés pour les regarder sans connexion", "On this Mac · titles kept to watch offline")), ("downloads", "download", L("Télécharger sur le PC serveur · ⌘5", "Download to the server PC · ⌘5")) })
         {
             var button = Ui.IconButton(icon, tip, () => NavigateRoot(key), "rail", 22);
@@ -281,7 +283,8 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(brand, Dock.Top); DockPanel.SetDock(bottom, Dock.Bottom);
         dock.Children.Add(brand); dock.Children.Add(bottom); dock.Children.Add(_railItems);
         // As on Windows: the rail is the window itself (no panel of its own, no edge), only the chosen page is lit.
-        return new Border { Width = RailWidth, Background = Brushes.Transparent, Child = dock };
+        // Under the buttons, the tile that drops onto Accueil as Mira opens (MainWindow.Opening.cs).
+        return new Border { Width = RailWidth, Background = Brushes.Transparent, Child = new Panel { Children = { _railDrop, dock } } };
     }
     // A notice: a card at the bottom of the window, its icon in a tile, its button, a close button, and the time it has left under it.
     private Border BuildToast()
@@ -395,16 +398,18 @@ public sealed partial class MainWindow : Window
 
     private async Task StartAsync()
     {
-        if (Args.Contains("--self-check")) { await Checks.SelfCheck.RunAsync(this); return; }
-        if (Args.Contains("--gallery")) { await Checks.Gallery.RunAsync(this); return; }
-        if (Args.Contains("--smooth-check")) { await Checks.SmoothCheck.RunAsync(this); return; }
+        // The checks open their own account: no opening of Mira's (the self-check draws it again on its Home page).
+        if (Args.Contains("--self-check")) { DropVeil(); await Checks.SelfCheck.RunAsync(this); return; }
+        if (Args.Contains("--gallery")) { DropVeil(); await Checks.Gallery.RunAsync(this); return; }
+        if (Args.Contains("--smooth-check")) { DropVeil(); await Checks.SmoothCheck.RunAsync(this); return; }
         // The check of « Tailscale intégré »: its stand-in Jellyfin served before anything asks it.
         var tailnetCheck = Args.Contains("--tailnet-check") ? new Checks.TailnetCheck(this) : null;
         // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.
         await Tailnet.StartWithMiraAsync();
         // Off the interface thread: after an update, macOS may ask before Mira reads its keychain.
-        if (await Task.Run(Profile.LoadConnection) is { } connection) await ActivateAsync(connection);
-        else ShowLogin();
+        // The black, the mark and « mira » until the Home page is drawn, then the mark glides to the rail (MainWindow.Opening.cs).
+        if (await Task.Run(Profile.LoadConnection) is { } connection) { var activating = ActivateAsync(connection); await OpenWhenReadyAsync(activating); await activating; }
+        else { ShowLogin(); await OpenAsync(); }
         if (tailnetCheck is not null) { await tailnetCheck.RunAsync(); return; }
         // Once, beside what the opening already said (a cache recreated) rather than in its place.
         if (Profile.SettingsUnreadable)

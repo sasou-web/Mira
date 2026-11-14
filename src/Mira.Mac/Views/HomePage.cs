@@ -234,8 +234,9 @@ public sealed class HomePage : Page
         else _empty.Hide();
         // The banner: what is being watched first, then the latest titles with a backdrop.
         var heroes = resume.Take(2).Concat(latest.Where(x => x.BackdropImageTags.Length > 0)).DistinctBy(x => ContinueWatching.Group(x)).Take(5).ToList();
-        if (heroes.Select(x => x.Id).SequenceEqual(_heroItems.Select(x => x.Id)) && heroes.Count > 0) { _heroItems = heroes; ShowHero(_heroIndex, animate: false); return; }
+        if (heroes.Select(x => x.Id).SequenceEqual(_heroItems.Select(x => x.Id)) && heroes.Count > 0) { _heroItems = heroes; ShowHero(_heroIndex, animate: false); Shell.HomeDrawn(); return; }
         _heroItems = heroes; ShowHero(0);
+        Shell.HomeDrawn();
     }
     /// <summary>The latest titles in a grid of posters, 30 more at each « Afficher plus de titres » while Jellyfin has more.</summary>
     private Control LatestGrid(Session session, List<MediaItem> latest)
