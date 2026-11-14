@@ -215,7 +215,7 @@ public partial class MainWindow : Window
         try { await Task.WhenAll(artwork).WaitAsync(TimeSpan.FromMilliseconds(900)); }
         catch (TimeoutException) { }
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        // The mark glides to the rail, the page's tile drops onto its button (MainWindow.Opening.cs), or the veil fades.
+        // The mark winks where it is as the black lifts (MainWindow.Opening.cs), or the veil fades.
         await OpenAsync();
         _startupComplete = true; FrameProbe.Note($"frame probe on: render tier {System.Windows.Media.RenderCapability.Tier >> 16}, reduced motion {Motion.Reduced}, opening {_openingReport}");
     }

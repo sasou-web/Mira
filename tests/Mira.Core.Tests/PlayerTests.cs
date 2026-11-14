@@ -565,6 +565,25 @@ internal static class PlayerTests
             Assert(again.DropAt(.5) == glide.DropAt(.5) && again.MarkAt(.2) == glide.MarkAt(.2), "60 Hz and 240 Hz alike");
             return Task.CompletedTask;
         });
+        await Test("Ouverture : le m cligne sur place, un trait de lumière qui s'éteint, le noir levé en 0,31 s (Windows et Mac)", () =>
+        {
+            Assert(OpeningBlink.Word(0) == 1 && OpeningBlink.Word(.09) == 0, "« mira » gone in 90 ms");
+            Assert(OpeningBlink.Shade(0) == 1 && OpeningBlink.Shade(.09) == 1 && OpeningBlink.Shade(.31) < 1e-9, "The black lifts from 90 to 310 ms");
+            Assert(OpeningBlink.Scale(0) == (1, 1) && OpeningBlink.Mark(0) == 1, "Whole and still at first");
+            var shut = OpeningBlink.Scale(.12);
+            Assert(Math.Abs(shut.X - 1.06) < 1e-12 && Math.Abs(shut.Y - .055) < 1e-12 && OpeningBlink.Mark(.12) == 1, $"Shut in 120 ms, a line a little wider: {shut}");
+            Assert(OpeningBlink.Lid(.06) is > .2 and < .3, "Slow first, then quicker: a lid falling");
+            Assert(OpeningBlink.Mark(.185) is > .4 and < .6 && OpeningBlink.Mark(.25) < 1e-9, "The line goes out from 120 to 250 ms");
+            double last = 1;
+            for (var i = 0; i <= 80; i++)
+            {
+                var t = i / 240d; var (x, y) = OpeningBlink.Scale(t);
+                Assert(y <= last + 1e-12 && y >= .055 && x is >= 1 and <= 1.06, $"Always shutting at {i}: {x} × {y}");
+                last = y;
+            }
+            Assert(!OpeningBlink.Done(.3) && OpeningBlink.Done(.31), "All over at 310 ms");
+            return Task.CompletedTask;
+        });
         await Test("Mini-lecteur : rangé tout seul contre le bord droit, un bout de la vidéo qui dépasse, sorti au survol, rangé de nouveau après (Windows et Mac)", () =>
         {
             static TimeSpan At(double seconds) => TimeSpan.FromSeconds(seconds);
