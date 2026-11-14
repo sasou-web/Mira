@@ -10,8 +10,16 @@ public sealed class MiniDock
 {
     /// <summary>The mini-player's size and its gap to the window's edges, in device-independent pixels.</summary>
     public const double Width = 384, Height = 216, Gap = 20;
-    /// <summary>What shows of it tucked away, against the edge: enough to see the film move and to find it with the pointer.</summary>
-    public const double Peek = 14;
+    /// <summary>
+    /// What shows of it tucked away, against the edge: enough to see the film move and to find it with the pointer (14 in
+    /// 0.9.8: « trop serré », the pointer struggled to land on it, the window's own resize border taking its last pixels).
+    /// </summary>
+    public const double Peek = 28;
+    /// <summary>
+    /// Tucked away, how far past what shows of it the pointer still finds it, towards the page and above and below: a pointer
+    /// that lands just short of the sliver brings it out all the same; narrow, so that the page's edge stays the page's.
+    /// </summary>
+    public const double Reach = 12;
     /// <summary>Out after the player shrinks to it, before it tucks itself away: long enough to see where the film went.</summary>
     public static readonly TimeSpan FirstRest = TimeSpan.FromSeconds(1.6);
     /// <summary>
@@ -83,6 +91,18 @@ public sealed class MiniDock
 
     /// <summary>Its left edge, out or tucked away, in a window <paramref name="windowWidth"/> wide.</summary>
     public static double Left(bool shown, double windowWidth) => shown ? windowWidth - Gap - Width : windowWidth - Peek;
+
+    /// <summary>
+    /// Whether the pointer at (<paramref name="x"/>, <paramref name="y"/>) in the window is on it, for <see cref="Update"/>:
+    /// tucked away, the sliver and <see cref="Reach"/> around it; out, the picture and the gap to the edge, where the sliver was.
+    /// </summary>
+    /// <param name="top">Its top edge (<see cref="Top"/>).</param>
+    public static bool Catches(double x, double y, bool tucked, double top, double windowWidth)
+    {
+        var margin = tucked ? Reach : 4;
+        var left = tucked ? windowWidth - Peek - Reach : Left(true, windowWidth) - 4;
+        return x >= left && x <= windowWidth + 1 && y >= top - margin && y <= top + Height + margin;
+    }
 
     /// <summary>
     /// Its top edge: <paramref name="share"/> of the way from the highest it goes (<paramref name="top"/>, under the title bar)

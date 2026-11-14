@@ -458,7 +458,13 @@ internal static class PlayerTests
             Assert(MiniDock.Ease(MiniDock.OutCurve, .2) >= .45 && MiniDock.Ease(MiniDock.OutCurve, .1) < .25, "Half the way out in its first fifth, without a jump on the first frame");
             Assert(MiniDock.Ease(MiniDock.BackCurve, 0) == 0 && MiniDock.Ease(MiniDock.BackCurve, 1) == 1 && MiniDock.Ease(MiniDock.OutCurve, -1) == 0 && MiniDock.Ease(MiniDock.OutCurve, double.NaN) == 0, "The curves start and land where they should");
             // Places: against the right edge, a sliver tucked away; down the window in proportion.
-            Assert(MiniDock.Left(true, 1600) == 1600 - 20 - 384 && MiniDock.Left(false, 1600) == 1600 - MiniDock.Peek, "Out, 20 from the edge; tucked, 14 showing");
+            Assert(MiniDock.Left(true, 1600) == 1600 - 20 - 384 && MiniDock.Left(false, 1600) == 1600 - 28, "Out, 20 from the edge; tucked, 28 showing");
+            Assert(MiniDock.Catches(1590, 300, tucked: true, 200, 1600) && MiniDock.Catches(1562, 300, tucked: true, 200, 1600) && MiniDock.Catches(1565, 190, tucked: true, 200, 1600)
+                && MiniDock.Catches(1600, 416 + 10, tucked: true, 200, 1600), "Tucked: found on the sliver and just short of it, above and below");
+            Assert(!MiniDock.Catches(1555, 300, tucked: true, 200, 1600) && !MiniDock.Catches(1590, 180, tucked: true, 200, 1600) && !MiniDock.Catches(1590, 430, tucked: true, 200, 1600),
+                "Tucked: the page's edge stays the page's");
+            Assert(MiniDock.Catches(1600 - 20 - 384, 300, tucked: false, 200, 1600) && MiniDock.Catches(1595, 300, tucked: false, 200, 1600) && !MiniDock.Catches(1150, 300, tucked: false, 200, 1600)
+                && !MiniDock.Catches(1300, 421, tucked: false, 200, 1600) && MiniDock.Catches(1300, 419, tucked: false, 200, 1600), "Out: the picture and the gap to the edge");
             Assert(MiniDock.Top(1, 42, 900) == 900 - 20 - 216 && MiniDock.Top(0, 42, 900) == 42 && MiniDock.Top(.5, 42, 900) == 42 + (664 - 42) / 2d, "Down the window");
             Assert(MiniDock.Top(1, 42, 200) == 42 && MiniDock.Top(double.NaN, 42, 900) == 664 && MiniDock.Top(3, 42, 900) == 664, "No room, or nothing known: under the title bar or at the bottom");
             Assert(MiniDock.Share(664, 42, 900) == 1 && MiniDock.Share(42, 42, 900) == 0 && MiniDock.Share(-50, 42, 900) == 0 && MiniDock.Share(353, 42, 900) == .5, "Let go: its share of the way down");

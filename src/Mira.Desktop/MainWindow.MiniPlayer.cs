@@ -117,10 +117,7 @@ public partial class MainWindow
         Point point;
         try { point = Root.PointFromScreen(new Point(x, y)); }
         catch (InvalidOperationException) { return false; }
-        var top = MiniPoint(true).Y; var right = Root.ActualWidth;
-        // Out: the picture and the gap to the edge, where the sliver was; tucked away: the sliver.
-        var left = _miniTucked ? right - MiniDock.Peek : MiniPoint(true).X - 4;
-        return point.X >= left && point.X <= right + 1 && point.Y >= top - 4 && point.Y <= top + MiniHeight + 4;
+        return MiniDock.Catches(point.X, point.Y, _miniTucked, MiniPoint(true).Y, Root.ActualWidth);
     }
     /// <summary>Slides out, or back against the edge. Retaken from where it is when the pointer changes its mind on the way.</summary>
     private async void SlideMini(bool shown)
