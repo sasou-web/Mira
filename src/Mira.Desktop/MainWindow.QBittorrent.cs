@@ -214,7 +214,7 @@ public partial class MainWindow
             else if (_client is { } client) await client.TorLinkTorrentAsync(bytes, _connectionLifetime.Token);
             else return;
             // Its row at the top of the right column says it.
-            SmoothScroll.Jump(ServerQueueScroll);
+            SmoothScroll.Jump(_serverSearchShown ? ServerQueueScroll : ServerRestScroll);
             await LoadServerDownloadsAsync();
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); }

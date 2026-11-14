@@ -1748,6 +1748,14 @@ public sealed class JellyfinClient : IDisposable
         }
         return (episodes, series, whole);
     }
+    /// <summary>These titles with their poster's tag (the Downloads page shows them), a hundred a request; those this account cannot see are left out.</summary>
+    public async Task<List<MediaItem>> PostersAsync(IReadOnlyCollection<string> ids, CancellationToken ct = default)
+    {
+        var found = new List<MediaItem>();
+        foreach (var chunk in ids.Chunk(100))
+            found.AddRange((await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&ids={string.Join(',', chunk.Select(Uri.EscapeDataString))}&enableImageTypes=Primary&imageTypeLimit=1&enableUserData=false", ct)).Items);
+        return found;
+    }
     /// <summary>The episode Jellyfin would play next for one series (resumable first, then the following one).</summary>
     public async Task<MediaItem?> NextEpisodeAsync(string seriesId, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Shows/NextUp?userId={Connection.UserId}&seriesId={Uri.EscapeDataString(seriesId)}&limit=1&enableResumable=true&fields=Overview", ct)).Items.FirstOrDefault();

@@ -173,8 +173,12 @@ public partial class MainWindow
             foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20-downloads", null, DownloadersPanel);
             // Away from the PC of Jellyfin, the same page sends to it: what it has under way, and a search with the best
             // release of each episode first (fictional names; no relay is asked).
+            // « Régie »: the page at rest (the queue in columns, the series followed, the titles placed), then during a search.
             ShowServerDownloadsSample();
             foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20-downloads-server", null, ServerDownloadsPanel);
+            ShowServerSearchSample();
+            foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20b-downloads-search", null, ServerDownloadsPanel);
+            ServerQueryBox.Clear();
             HideServerDownloads(); ShowDownloaders(false);
             TorLinkOverlay.Visibility = Visibility.Collapsed;
             _demo = false; _catalog.Items = []; _catalog.Resume = []; _catalog.NextUp = []; _catalog.TotalCount = 0; _catalog.Loading = false; _catalog.View = "home"; RenderLibrary();
@@ -225,14 +229,35 @@ public partial class MainWindow
         DownloadersPanel.Visibility = TorLinkTerminalHost.Visibility = Visibility.Collapsed;
         DownloadersButton.Visibility = TorLinkFolderButton.Visibility = TorLinkSettingsButton.Visibility = TorLinkKeysHint.Visibility = TorLinkViewButton.Visibility = Visibility.Collapsed;
         ServerDownloadsPanel.Visibility = Visibility.Visible; ServerDownloadsPanel.Opacity = 1;
-        const long GiB = 1L << 30, MiB = 1L << 20;
+        const long GiB = 1L << 30, MiB = 1L << 20, TiB = 1L << 40;
         var now = DateTimeOffset.UtcNow;
         static string Hash(char c) => new(c, 40);
-        RenderServerStatus(new RelayStatus(new("SALON-PC", true, now, true, null),
-            [new("r1", "Les.Etoiles.du.Nord.S01E05.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, Hash('b'), "waiting", null, now)], [],
-            [new(Hash('a'), "Les.Etoiles.du.Nord.S01E04.MULTI.1080p.WEB-DL.H264-NOTAG", "downloading", 41, 2 * MiB, 12, 29 * GiB / 10, 12 * GiB / 10, 750),
+        // Fictional names only; no picture (Jellyfin is not asked in the demo): each line its plain tile.
+        const string next = "Les.Etoiles.du.Nord.S01E04.MULTI.1080p.WEB-DL.H264-NOTAG";
+        List<RelayFollow> follows =
+        [
+            new("f1", "s1", "Les Étoiles du Nord", null, now.AddDays(-40), now.AddHours(-2), now.AddHours(4), false, new FollowNote("found", "S01E04"), "S01E03",
+                [new("S01E04", next, now.AddHours(-1))], [], new RelayAiring("S01E05", now.AddDays(1))),
+            new("f2", "s2", "Brume", "Brume (2024)", now.AddDays(-90), now.AddHours(-3), now.AddHours(3), false, new FollowNote("nothing", "S02E08"), "S02E08",
+                [new("S02E08", "Brume.2024.S02E08.1080p.WEB-DL-NOTAG", now.AddDays(-6))], [], new RelayAiring("S02E09", now.AddDays(5))),
+            new("f3", "s3", "Ville Haute", null, now.AddDays(-12), now.AddMinutes(-20), now.AddHours(6), false, new FollowNote("found", "S01E07"), "S01E06",
+                [], [new("p1", "S01E07", "Ville.Haute.S01E07.1080p.WEB.H264-NOTAG", 14 * GiB / 10, "waiting", now.AddMinutes(8), null)], null),
+        ];
+        RenderServerStatus(new RelayStatus(new("SALON-PC", true, now, true, null, Free: 5 * TiB + 4 * TiB / 10),
+            [new("r1", "La.Riviere.Lente.2021.1080p.BluRay.x264-NOTAG", 9 * GiB / 2, Hash('b'), "waiting", null, now)], [],
+            [new(Hash('a'), next, "downloading", 41, 9 * MiB, 34, 29 * GiB / 10, 12 * GiB / 10, 190),
+             new(Hash('e'), "Les.Jardins.Suspendus.2019.2160p.UHD.BluRay.x265.10bit.HDR-NOTAG", "downloading", 12, 5 * MiB, 18, 22 * GiB, 26 * GiB / 10, 3900),
              new(Hash('c'), "La.Maison.du.Lac.2023.1080p.BluRay.x265.10bit-NOTAG", "paused", 63, 0, 0, 4 * GiB, 5 * GiB / 2)],
-            [new(Hash('d'), "Le Dernier Phare (2022)", L("disponible dans Jellyfin", "available in Jellyfin"), null, true)]), now);
+            [new(Hash('d'), "Le Dernier Phare", L("disponible dans Jellyfin", "available in Jellyfin"), null, true),
+             new(Hash('f'), "Les Étoiles du Nord · S01E03", L("disponible dans Jellyfin", "available in Jellyfin"), null, true),
+             new(Hash('g'), "Papier Lune", L("disponible dans Jellyfin", "available in Jellyfin"), null, true),
+             new(Hash('h'), "Brume · S02E08", L("disponible dans Jellyfin", "available in Jellyfin"), null, true),
+             new(Hash('i'), "Le Col", L("disponible dans Jellyfin", "available in Jellyfin"), null, true)], follows), now);
+    }
+
+    private void ShowServerSearchSample()
+    {
+        const long GiB = 1L << 30;
         ServerQueryBox.Text = "Les Étoiles du Nord";
         ShowServerHits("sample", "Les Étoiles du Nord",
         [

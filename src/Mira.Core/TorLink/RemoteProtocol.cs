@@ -22,10 +22,12 @@ public static class RemoteProtocol
 /// download asked from a series' page in that series' folder, a season pack included (« Télécharger les manquants », after 0.9.7).
 /// <paramref name="Sorting"/>: the info hashes of the finished downloads Mira is placing (or waits for the files of), not in
 /// <paramref name="Placed"/> yet (after 0.9.7): what a series' page asked shows « Adding to your library » meanwhile.
+/// <paramref name="Free"/>: the bytes left on the disks of its libraries (after 0.9.8; null when it cannot tell), shown at the
+/// top of the Downloads page. It stays between the PC of Jellyfin, Jellyfin and Mira.
 /// </summary>
 public sealed record AgentReport(string? Name, bool Accepting, string? Problem, List<RelayDownload>? Downloads, List<RelayPlaced>? Placed,
     List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls, List<AgentFollowOutcome>? Follows = null, bool Replaces = false,
-    bool QBittorrent = false, bool Seasons = false, List<string>? Sorting = null);
+    bool QBittorrent = false, bool Seasons = false, List<string>? Sorting = null, long? Free = null);
 /// <summary>
 /// A download in TorLink: its info hash, TorLink's status (downloading, queued, paused, failed), percent, bytes per second,
 /// its size and what it has of it (0 when unknown), and the seconds TorLink still expects (null when it cannot tell).
@@ -123,9 +125,10 @@ public sealed record RelayMissing(string Id, string SeriesId, int Season, IReadO
 /// <paramref name="Replaces"/>: it replaces a title's file by a better version (an agent of 0.8.5 or before does not).
 /// <paramref name="QBittorrent"/>: its qBittorrent takes pasted magnet links and .torrent files (an agent of 0.9.0 or before does not).
 /// <paramref name="Seasons"/>: it places what a series' page asks in that series (an agent of 0.9.7 or before does not).
+/// <paramref name="Free"/>: the bytes left on the disks of its libraries, as it last said (null: an agent of 0.9.8 or before, or it cannot tell).
 /// </summary>
 public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows = false, bool Replaces = false, bool QBittorrent = false,
-    bool Seasons = false);
+    bool Seasons = false, long? Free = null);
 /// <summary><paramref name="Replace"/>: the title (its id in Jellyfin) whose file this download is to replace.</summary>
 public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created, string? Replace = null);
 public sealed record RelayControl(string Id, string Target, string Action, string State);

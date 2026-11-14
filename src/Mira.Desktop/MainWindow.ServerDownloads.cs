@@ -34,10 +34,8 @@ public partial class MainWindow
     private JellyfinClient? _serverClient;
     /// <summary>Results sent from this page (search id / result id): « Envoyé » on their button.</summary>
     private readonly HashSet<string> _serverSent = [];
-    /// <summary>Rows of the right column by key, their texts changed in place every 3 s: a button under the mouse stays where it is.</summary>
+    /// <summary>Rows of the page by key, their texts changed in place every 3 s: a button under the mouse stays where it is.</summary>
     private readonly Dictionary<string, ServerRow> _serverRows = [];
-    private sealed record ServerRow(string Shape, Border View, TextBlock Name, TextBlock Line, ScaleTransform? Bar);
-    private sealed record ServerRowData(string Key, string Shape, string Name, string Line, int? Progress, Func<ServerRow> Make);
     /// <summary>The screen runs searches and downloads with this PC's TorLink (the PC of Jellyfin), not through the relay.</summary>
     private bool _serverLocal;
     /// <summary>Why this PC's TorLink cannot download now, in words; null when it can.</summary>
@@ -93,11 +91,14 @@ public partial class MainWindow
     {
         ++_serverVersion; ++_serverSearchVersion;
         _serverFilled = _serverReady = _serverSearching = false; _serverAgent = null; _serverClient = null;
-        _serverSent.Clear(); _serverRows.Clear(); _localMagnets.Clear(); _localProblem = null; _serverQueued = 0;
-        ServerQueue.Children.Clear(); ServerFollows.Children.Clear(); ServerPlaced.Children.Clear(); ServerResults.Children.Clear();
-        ServerPlacedTitle.Visibility = ServerFollowsTitle.Visibility = ServerProblem.Visibility = Visibility.Collapsed;
-        ServerQueueEmpty.Visibility = ServerResultsEmpty.Visibility = Visibility.Visible;
-        ServerQueueSummary.Text = ServerSearchStatus.Text = "";
+        _serverSent.Clear(); _serverRows.Clear(); _localMagnets.Clear(); _localProblem = null; _serverQueued = 0; _serverStatus = null; _serverPosters.Clear();
+        _serverPlacedAll = _serverFollowsOpen = _serverPlacedOpen = false;
+        ServerQueue.Children.Clear(); ServerFollows.Children.Clear(); ServerPlaced.Children.Clear(); ServerPlacedList.Children.Clear(); ServerResults.Children.Clear();
+        ServerQueueCompact.Children.Clear(); ServerFollowsCompact.Children.Clear(); ServerPlacedCompact.Children.Clear();
+        ServerFollowsSection.Visibility = ServerPlacedSection.Visibility = ServerProblem.Visibility = ServerPlace.Visibility = Visibility.Collapsed;
+        ServerQueueEmpty.Visibility = ServerResultsEmpty.Visibility = ServerColumns.Visibility = Visibility.Visible;
+        ServerQueueSummary.Text = ServerSideSummary.Text = ServerSearchStatus.Text = "";
+        _serverSearchShown = true; ShowServerSearch(false);
         ServerSearchButton.Content = L("Chercher", "Search"); ServerResults.Opacity = 1;
         CloseServerMagnet();
     }
@@ -106,7 +107,7 @@ public partial class MainWindow
     private void DescribeServerPlace()
     {
         var here = _serverLocal;
-        ServerQueueTitle.Text = here ? L("Dans TorLink", "In TorLink") : L("Sur le PC serveur", "On the server PC");
+        ServerQueueTitle.Text = ServerSideTitle.Text = here ? L("Dans TorLink", "In TorLink") : L("Sur le PC serveur", "On the server PC");
         ServerQueueHint.Text = here ? L("Ce que tu télécharges apparaît ici avec sa progression et le temps restant, puis rejoint ta bibliothèque.", "What you download shows up here with its progress and the time left, then joins your library.")
             : L("Ce que tu envoies apparaît ici avec sa progression et le temps restant, puis rejoint ta bibliothèque.", "What you send shows up here with its progress and the time left, then joins your library.");
         ServerResultsHint.Text = here ? L("TorLink le cherche depuis ce PC. Mira regroupe les versions par titre et par épisode, et met la meilleure en avant : la qualité de la source d’abord, le 1080p, puis MULTI ou VF.", "TorLink searches for it from this PC. Mira groups the versions by title and by episode, and puts the best one first: the source’s quality first, 1080p, then MULTI or French audio.")
@@ -115,7 +116,7 @@ public partial class MainWindow
                 : L("Le lien d’un site que tu connais : TorLink le télécharge sur ce PC, puis Mira le range dans ta bibliothèque.", "A link from a site you know: TorLink downloads it on this PC, then Mira sorts it into your library.")
             : L("Le lien d’un site que tu connais : le PC serveur le télécharge, puis Mira le range dans ta bibliothèque.", "A link from a site you know: the server PC downloads it, then Mira sorts it into your library.");
         ServerMagnetSend.Content = here ? L("Télécharger", "Download") : L("Envoyer au PC serveur", "Send to the server PC");
-        ServerPlacedTitle.Text = here ? L("Vers Jellyfin", "To Jellyfin") : L("Rangés dans ta bibliothèque", "Sorted into your library");
+        ServerPlacedTitle.Text = ServerPlacedFoldTitle.Text = here ? L("Vers Jellyfin", "To Jellyfin") : L("Rangés dans ta bibliothèque", "Sorted into your library");
         DescribeQBittorrent();
     }
 
@@ -251,6 +252,7 @@ public partial class MainWindow
     /// <summary>The header: where the PC stands, in Mira web's words, and its pill.</summary>
     private void DescribeServerAgent(DateTimeOffset now)
     {
+        DescribeServerMachine();
         if (_serverLocal)
         {
             // Searches run on their own (« torlnk search »): only downloads wait for TorLink without a window.
@@ -270,161 +272,23 @@ public partial class MainWindow
         ServerSearchButton.IsEnabled = ready && !_serverSearching;
     }
 
-    private void RenderServerStatus(RelayStatus status, DateTimeOffset now)
+    /// <summary>Beside the pill: the PC that downloads, and what is left on its media disks (sent by its Mira, never elsewhere).</summary>
+    private void DescribeServerMachine()
     {
-        _serverFilled = true; _serverAgent = status.Agent;
-        DescribeServerAgent(now);
-        var queue = new List<ServerRowData>();
-        // A request TorLink has now shows as its download; one sent and not listed yet, as sent.
-        foreach (var request in RemoteLines.Pending(status))
-            queue.Add(new($"r:{request.Id}", $"r|{request.State}", Shown(request.Name).Title, RemoteLines.Request(request), null, () => ServerRequestRow(request)));
-        foreach (var download in status.Downloads)
-        {
-            var pending = status.Controls.FirstOrDefault(x => x.Target == download.Id);
-            var line = pending is not null && RemoteLines.ActionLine(pending.Action) is { } asked ? asked : RemoteLines.Download(download);
-            queue.Add(new($"d:{download.Id}", $"d|{download.Status}|{pending is null}", Shown(download.Name).Title, line, download.Progress, () => ServerDownloadRow(download, pending is null)));
-        }
-        // On this PC, « Vers Jellyfin » is TorLink's page's own list (RenderLocalPlaced): its folder, a retry, another library.
-        var placed = _serverLocal ? new List<ServerRowData>() : status.Placed.Select(x => new ServerRowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(RemoteLines.Placed(x.Status)), null, () => ServerPlacedRow(x))).ToList();
-        var follows = ServerFollowRows(status.Follows, now);
-        UpdateServerRows(ServerQueue, queue);
-        UpdateServerRows(ServerFollows, follows);
-        ServerFollowsTitle.Visibility = follows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (!_serverLocal) UpdateServerRows(ServerPlaced, placed);
-        foreach (var key in _serverRows.Keys.Except(queue.Concat(follows).Concat(placed).Select(x => x.Key)).ToList()) _serverRows.Remove(key);
-        _serverQueued = queue.Count + follows.Count;
-        var filed = _serverLocal ? ServerPlaced.Children.Count : placed.Count;
-        ServerPlacedTitle.Visibility = filed > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ServerQueueEmpty.Visibility = queue.Count + follows.Count + filed == 0 ? Visibility.Visible : Visibility.Collapsed;
-        var downloading = status.Downloads.Count(x => x.Status == "downloading");
-        var waiting = queue.Count - downloading;
-        ServerQueueSummary.Text = queue.Count == 0 ? (filed > 0 ? L("Rien en cours. Les derniers titres rangés sont ci-dessous.", "Nothing under way. The latest titles filed are below.") : "")
-            : string.Join(" · ", new[] { downloading > 0 ? L($"{downloading} en cours", $"{downloading} downloading") : "", waiting > 0 ? L($"{waiting} en attente", $"{waiting} waiting") : "" }.Where(x => x.Length > 0));
-    }
-
-    /// <summary>On the PC of Jellyfin, the right column ends with « Vers Jellyfin » as TorLink's page shows it.</summary>
-    private void RenderLocalPlaced(TorLinkPlacement torlink)
-    {
-        ServerPlaced.Children.Clear();
-        foreach (var entry in torlink.Importer.Entries.Take(40)) ServerPlaced.Children.Add(ImportRow(entry));
-        foreach (var earlier in torlink.Earlier) ServerPlaced.Children.Add(EarlierRow(earlier));
-        ServerPlacedTitle.Visibility = ServerPlaced.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ServerQueueEmpty.Visibility = _serverQueued + ServerPlaced.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var name = _serverLocal ? Environment.MachineName : _serverAgent?.Name;
+        var free = _serverLocal ? _mediaFree.Bytes : _serverAgent?.Free;
+        ServerPlace.Visibility = _serverScreen && !string.IsNullOrEmpty(name) ? Visibility.Visible : Visibility.Collapsed;
+        ServerPlaceName.Text = name ?? "";
+        ServerFreeText.Text = free is { } bytes ? RemoteBoard.Free(bytes) : "";
+        ServerFreeRule.Visibility = ServerFreeText.Visibility = free is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_serverLocal && DateTime.UtcNow - _mediaFree.At >= TimeSpan.FromMinutes(1)) _ = AgainAsync();
+        async Task AgainAsync() { await MediaFreeAsync(); if (_serverScreen) DescribeServerMachine(); }
     }
 
     private static string Sentence(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>A release called by the title read from its name, the name itself under it (as Mira web).</summary>
     private static (string Title, string? Full) Shown(string name) => ReleaseRanking.Readable(name) is { Title.Length: > 0 } shown ? shown : (name, null);
-
-    private void UpdateServerRows(StackPanel panel, List<ServerRowData> rows)
-    {
-        var next = new List<UIElement>();
-        foreach (var data in rows)
-        {
-            if (_serverRows.TryGetValue(data.Key, out var kept) && kept.Shape == data.Shape)
-            {
-                if (kept.Name.Text != data.Name) kept.Name.Text = data.Name;
-                if (kept.Line.Text != data.Line) kept.Line.Text = data.Line;
-                if (kept.Bar is not null && data.Progress is { } progress) kept.Bar.ScaleX = Math.Clamp(progress, 0, 100) / 100.0;
-                AutomationProperties.SetName(kept.View, $"{data.Name}, {data.Line}");
-                next.Add(kept.View);
-                continue;
-            }
-            var made = data.Make() with { Shape = data.Shape };
-            _serverRows[data.Key] = made; next.Add(made.View);
-        }
-        if (next.Count == panel.Children.Count && next.Select((x, i) => ReferenceEquals(x, panel.Children[i])).All(x => x)) return;
-        panel.Children.Clear();
-        foreach (var view in next) panel.Children.Add(view);
-    }
-
-    private ServerRow ServerRowView(string icon, string color, string name, string line, int? progress, bool failed, StackPanel? actions, string? full = null)
-    {
-        var nameText = new TextBlock { Text = name, FontSize = 13, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, MaxHeight = 38, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = full ?? name };
-        var lineText = new TextBlock { Text = line, FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get(failed ? "WarningText" : "Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
-        var text = new StackPanel();
-        text.Children.Add(nameText); text.Children.Add(lineText);
-        if (full is not null)
-            text.Children.Add(new TextBlock { Text = full, FontSize = 11, LineHeight = 15, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, MaxHeight = 31, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 3, 0, 0), ToolTip = full });
-        ScaleTransform? bar = null;
-        if (progress is { } value)
-        {
-            bar = new ScaleTransform(Math.Clamp(value, 0, 100) / 100.0, 1);
-            text.Children.Add(new Border
-            {
-                Height = 3, Margin = new Thickness(0, 9, 0, 2), Background = Palette.Get("Line"), CornerRadius = new CornerRadius(1.5), ClipToBounds = true,
-                Child = new Border { Background = Palette.Get("Accent"), CornerRadius = new CornerRadius(1.5), RenderTransformOrigin = new Point(0, 0.5), RenderTransform = bar }
-            });
-        }
-        if (actions is { Children.Count: > 0 }) text.Children.Add(actions);
-        return new("", Row(icon, color, text, null, $"{name}, {line}"), nameText, lineText, bar);
-    }
-
-    private ServerRow ServerRequestRow(RelayRequest request)
-    {
-        var (name, full) = Shown(request.Name);
-        var actions = new StackPanel();
-        if (request.State != "claimed")
-        {
-            var label = request.State == "waiting" ? L("Annuler", "Cancel") : L("Retirer", "Remove");
-            var buttons = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-            buttons.Children.Add(Named(RowButton(label, "close", () => CancelServerRequestAsync(request)), L($"{label} « {name} »", $"{label} “{name}”")));
-            actions.Children.Add(buttons);
-        }
-        var failed = request.State == "failed";
-        return ServerRowView(failed ? "warning" : "clock", failed ? "Warning" : "Faint", name, RemoteLines.Request(request), null, failed, actions, full);
-    }
-
-    private ServerRow ServerDownloadRow(RelayDownload download, bool offer)
-    {
-        var (name, full) = Shown(download.Name);
-        var actions = new StackPanel();
-        if (offer && RemoteLines.Controllable(download))
-        {
-            var buttons = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-            if (download.Status != "failed")
-                buttons.Children.Add(RemoteLines.Paused(download)
-                    ? Named(RowButton(L("Reprendre", "Resume"), "play", () => ControlServerAsync(download, "resume")), L($"Reprendre « {name} »", $"Resume “{name}”"))
-                    : Named(RowButton("Pause", "pause", () => ControlServerAsync(download, "pause")), L($"Mettre en pause « {name} »", $"Pause “{name}”")));
-            buttons.Children.Add(Named(RowButton(L("Annuler", "Cancel"), "close", () => { ConfirmServerCancel(actions, download); return Task.CompletedTask; }), L($"Annuler « {name} »", $"Cancel “{name}”")));
-            actions.Children.Add(buttons);
-        }
-        var (icon, color) = download.Status switch { "failed" => ("warning", "Warning"), "completed" or "seeding" => ("check", "Success"), "downloading" => ("download", "TextBody"), _ => ("clock", "Faint") };
-        return ServerRowView(icon, color, name, RemoteLines.Download(download), download.Progress, download.Status == "failed", actions, full);
-    }
-
-    /// <summary>« Annuler » deletes what TorLink already has: asked once more, in the row.</summary>
-    private void ConfirmServerCancel(StackPanel actions, RelayDownload download)
-    {
-        var kept = actions.Children.Cast<UIElement>().ToList();
-        actions.Children.Clear();
-        actions.Children.Add(new TextBlock { Text = _serverLocal ? L("TorLink l’arrête et supprime ce qu’il en a déjà reçu.", "TorLink stops it and deletes what it has already received.") : L("TorLink l’arrête et supprime ce qu’il en a déjà reçu sur le PC serveur.", "TorLink stops it and deletes what it has already received on the server PC."), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("WarningText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
-        var buttons = new WrapPanel { Margin = new Thickness(-6, 4, 0, 0) };
-        var confirm = Named(RowButton(L("Annuler le téléchargement", "Cancel the download"), "close", () => ControlServerAsync(download, "delete")), L($"Annuler le téléchargement de « {download.Name} »", $"Cancel the download of “{download.Name}”"));
-        confirm.Foreground = Palette.Get("Danger");
-        buttons.Children.Add(confirm);
-        buttons.Children.Add(Named(RowButton(L("Garder", "Keep"), "check", () =>
-        {
-            actions.Children.Clear();
-            foreach (var element in kept) actions.Children.Add(element);
-            return Task.CompletedTask;
-        }), L($"Garder « {download.Name} »", $"Keep “{download.Name}”")));
-        actions.Children.Add(buttons);
-        _ = Dispatcher.BeginInvoke(() => confirm.Focus(), DispatcherPriority.Input);
-    }
-
-    private ServerRow ServerPlacedRow(RelayPlaced placed)
-    {
-        var actions = new StackPanel();
-        if (placed.ItemId is { } id && !_demo)
-        {
-            var buttons = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-            buttons.Children.Add(Named(RowButton(L("Voir", "View"), "play", () => OpenTorLinkItemAsync(id)), L($"Voir « {placed.Title} »", $"View “{placed.Title}”")));
-            actions.Children.Add(buttons);
-        }
-        return ServerRowView(placed.Ok ? "check" : "warning", placed.Ok ? "Success" : "Warning", placed.Title, Sentence(RemoteLines.Placed(placed.Status)), null, false, actions);
-    }
 
     private static Button Named(Button button, string name) { AutomationProperties.SetName(button, name); return button; }
 
@@ -467,6 +331,8 @@ public partial class MainWindow
     {
         ServerQueryPlaceholder.Visibility = ServerQueryBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         ServerQueryClear.Visibility = ServerQueryBox.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        // The search emptied: back to the page at rest (the queue in full, the series and the titles).
+        if (ServerQueryBox.Text.Length == 0) LeaveServerSearch();
     }
     private async void ServerQuery_KeyDown(object sender, KeyEventArgs e)
     {
@@ -486,13 +352,14 @@ public partial class MainWindow
         var client = _client;
         if (client is null && !_serverLocal) return;
         if (RemoteDownloads.CleanQuery(ServerQueryBox.Text) is not { } query) { ServerQueryBox.Focus(); return; }
+        ShowServerSearch(true);
         if (!_serverReady) { ServerSearchStatus.Text = _serverLocal ? L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC.") : RemoteLines.Agent(_serverAgent, DateTimeOffset.UtcNow).Text; return; }
         var mine = ++_serverSearchVersion; var ct = _connectionLifetime.Token;
         _serverSearching = true; ServerSearchButton.IsEnabled = false; ServerSearchButton.Content = L("Recherche…", "Searching…");
         ServerSearchStatus.Text = _serverLocal ? L($"Recherche de « {query} » dans les films, les séries et les animes…", $"Searching for “{query}” in movies, shows and anime…")
             : L($"Recherche de « {query} » dans les films, les séries et les animes sur le PC serveur…", $"Searching for “{query}” in movies, shows and anime on the server PC…");
         ServerResults.Opacity = 0.45;
-        void End(string text) { ServerSearchStatus.Text = text; ServerResults.Children.Clear(); ServerResultsEmpty.Visibility = Visibility.Collapsed; }
+        void End(string text) { ServerSearchStatus.Text = text; ServerResults.Children.Clear(); }
         try
         {
             if (_serverLocal)
@@ -549,7 +416,7 @@ public partial class MainWindow
     /// </summary>
     private void ShowServerHits(string searchId, string query, IReadOnlyList<RelayHit> hits)
     {
-        ServerResultsEmpty.Visibility = Visibility.Collapsed; ServerResults.Children.Clear(); SmoothScroll.Jump(ServerResultsScroll);
+        ShowServerSearch(true); ServerResults.Children.Clear(); SmoothScroll.Jump(ServerResultsScroll);
         // « Chercher une meilleure version »: only this title, in a better picture than its file.
         if (_upgrade is { } upgrade)
         {
@@ -712,7 +579,7 @@ public partial class MainWindow
     {
         if (replacing) SetNotice(L("Demandé : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.", "Requested: the new version will take the old one’s place once downloaded and checked."));
         else if (!_serverLocal && !_serverReady) SetNotice(L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
-        SmoothScroll.Jump(ServerQueueScroll);
+        SmoothScroll.Jump(_serverSearchShown ? ServerQueueScroll : ServerRestScroll);
         await LoadServerDownloadsAsync();
     }
 
