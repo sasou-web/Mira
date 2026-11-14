@@ -37,7 +37,9 @@ public partial class MainWindow
     private async Task CloseDetailsAsync()
     {
         ++_detailVersion; _returnToDetail = null; _detailTrail.Clear();
-        await Motion.HideAsync(DetailOverlay, 170); UpdateHeroClock();
+        // The page under it drawn first, still hidden by this one, then this one fades: drawn in the fade's first frame, the
+        // library took it whole (interface audit, 2026-11-14: the page went in one frame).
+        await Motion.HideDrawnAsync(DetailOverlay, 170, () => UncoverLibrary(DetailOverlay)); UpdateHeroClock();
         // Back to the card that opened the page, so keyboard users keep their place.
         if (_detailOrigin is UIElement { IsVisible: true } origin) origin.Focus();
         _detailOrigin = null;

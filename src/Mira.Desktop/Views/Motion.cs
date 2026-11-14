@@ -81,6 +81,60 @@ public static class Motion
         target.SetValue(VisibilityVersionProperty, (int)target.GetValue(VisibilityVersionProperty) + 1);
         target.IsHitTestVisible = false; target.Visibility = Visibility.Collapsed;
     }
+    /// <summary>
+    /// Once WPF has laid out and drawn what just changed: <paramref name="frames"/> refreshes, a quarter of a second at
+    /// most. A transition started at once on something heavy to lay out or draw (Réglages filled and measured, the
+    /// library drawn again under a title's page) had its clock run through that first frame and showed nearly all of
+    /// its change in the next one (interface audit, 2026-11-14: 88 to 100 % in one frame); started after it, it shows
+    /// each step.
+    /// </summary>
+    public static async Task DrawnAsync(int frames = 2)
+    {
+        var drawn = new TaskCompletionSource();
+        var seen = 0; var last = TimeSpan.MinValue;
+        void Tick(object? sender, EventArgs e)
+        {
+            // WPF may raise it more than once for one frame.
+            if (e is RenderingEventArgs { RenderingTime: var at }) { if (at == last) return; last = at; }
+            if (++seen < frames) return;
+            CompositionTarget.Rendering -= Tick; drawn.TrySetResult();
+        }
+        CompositionTarget.Rendering += Tick;
+        try { await Task.WhenAny(drawn.Task, Task.Delay(250)); }
+        finally { CompositionTarget.Rendering -= Tick; }
+    }
+    /// <summary>
+    /// <see cref="Reveal"/> once the page is laid out and drawn (<see cref="DrawnAsync"/>): there meanwhile, unseen.
+    /// <paramref name="started"/> starts what goes with it (the window of Réglages rising) at the same time.
+    /// </summary>
+    public static async void RevealDrawn(FrameworkElement target, int ms, double distance, Action? started = null)
+    {
+        if (Reduced) { Reveal(target, ms, distance); started?.Invoke(); return; }
+        var version = (int)target.GetValue(VisibilityVersionProperty) + 1; target.SetValue(VisibilityVersionProperty, version);
+        target.BeginAnimation(UIElement.OpacityProperty, null); target.Opacity = 0;
+        target.Visibility = Visibility.Visible; target.IsHitTestVisible = true;
+        await DrawnAsync();
+        // Shown at once or hidden meanwhile: that wins.
+        if (version != (int)target.GetValue(VisibilityVersionProperty)) return;
+        Reveal(target, ms, distance); started?.Invoke();
+    }
+    /// <summary>
+    /// <see cref="HideAsync"/> once what it uncovers is drawn: <paramref name="uncover"/> shows it under the page, still
+    /// opaque, and the page fades only after (<see cref="DrawnAsync"/>).
+    /// </summary>
+    public static async Task HideDrawnAsync(FrameworkElement target, int ms, Action uncover)
+    {
+        if (target.Visibility != Visibility.Visible) return;
+        if (Reduced) { uncover(); await HideAsync(target, ms); return; }
+        var version = (int)target.GetValue(VisibilityVersionProperty) + 1; target.SetValue(VisibilityVersionProperty, version);
+        target.IsHitTestVisible = false;
+        // Its picture made meanwhile too (a page fades as one picture).
+        if (GetPage(target)) target.CacheMode = RenderCache.Picture;
+        uncover();
+        await DrawnAsync();
+        if (version != (int)target.GetValue(VisibilityVersionProperty)) return;
+        await HideAsync(target, ms);
+    }
     public static async Task HideAsync(FrameworkElement target, int ms = 140)
     {
         if (target.Visibility != Visibility.Visible) return;
