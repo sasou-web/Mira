@@ -776,11 +776,15 @@ public static class SelfCheck
                 Check(await Until(() => window.Current is DownloadsPage { Ready: true, QueueCount: > 1 }, 10), "téléchargements : le PC serveur et sa file", $"{(window.Current as DownloadsPage)?.QueueCount} lignes");
                 if (window.Current is DownloadsPage downloads)
                 {
+                    // « Régie »: at rest, the queue in full, the series followed and the titles placed side by side.
+                    Check(await Until(() => downloads.AtRest, 5), "téléchargements : au repos, la file, les séries suivies et les titres rangés");
+                    await Task.Delay(600); Capture(window, output, "07a-downloads-rest");
                     await downloads.SearchAsync("Brume basse");
+                    var queued = downloads.QueueCount;
                     Check(downloads.ResultGroups == 1, "téléchargements : versions regroupées par titre", $"{downloads.ResultGroups} groupes");
                     await downloads.SendBestAsync();
                     bool sent; lock (mock.Requests) sent = mock.Requests.Contains("Brume.Basse.2024.MULTI.1080p.BluRay.x264-NOTAG");
-                    Check(sent && await Until(() => downloads.QueueCount > 2, 6), "téléchargements : la meilleure version envoyée", string.Join(", ", mock.Requests));
+                    Check(sent && await Until(() => downloads.QueueCount > queued, 6), "téléchargements : la meilleure version envoyée", string.Join(", ", mock.Requests));
                     await Task.Delay(800); Capture(window, output, "07-downloads");
                     // Closed into the Dock, the page asks Jellyfin nothing more (it asked every 3 s): nobody looks. Back from the
                     // Dock, it asks again, and the page is read again.
