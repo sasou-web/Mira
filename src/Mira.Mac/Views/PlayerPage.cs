@@ -48,7 +48,13 @@ public sealed partial class PlayerPage : UserControl
     private readonly TextBlock _volumeText = new() { FontSize = 12, Width = 40, Foreground = Ui.TextTertiary, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
     private readonly Button _next, _tracks, _more, _skip, _skipCancel;
     private readonly StackPanel _skipHost;
-    private readonly TextBlock _skipText = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _skipText = new() { VerticalAlignment = VerticalAlignment.Center, FontFeatures = new FontFeatureCollection { FontFeature.Parse("tnum") } };
+    // The pill stays while the controls are shown; otherwise it lingers a few seconds, as on Windows and in Jellyfin.
+    private static readonly TimeSpan SkipLinger = TimeSpan.FromSeconds(8);
+    private DateTimeOffset _skipSince;
+    /// <summary>The pill already showed the countdown at the last tick: its width is the countdown's.</summary>
+    private bool _skipCounted;
+    private double _skipLift = double.NaN;
     private readonly LoadingArc _spinner = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly DispatcherTimer _hide = new() { Interval = TimeSpan.FromMilliseconds(2600) };
@@ -188,7 +194,8 @@ public sealed partial class PlayerPage : UserControl
         _skipCancel.Click += (_, _) => { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; };
         ToolTip.SetTip(_skipCancel, L("Rester sur cet épisode", "Stay on this episode"));
         _skipHost = Ui.Row(0, _skipCancel, _skip);
-        _skipHost.HorizontalAlignment = HorizontalAlignment.Right; _skipHost.VerticalAlignment = VerticalAlignment.Bottom; _skipHost.Margin = new Thickness(0, 0, 36, 150);
+        _skipHost.HorizontalAlignment = HorizontalAlignment.Right; _skipHost.VerticalAlignment = VerticalAlignment.Bottom; _skipHost.Margin = new Thickness(0, 0, 36, 36);
+        _skipHost.Transitions = [new ThicknessTransition { Property = MarginProperty, Duration = TimeSpan.FromMilliseconds(260), Easing = new Avalonia.Animation.Easings.CubicEaseOut() }];
         _root.Children.Add(_skipHost);
         // « Regarder ensemble »: what the group is doing, top center, under the title (ShowGroup).
         _groupPill = new Border
@@ -1133,14 +1140,22 @@ public sealed partial class PlayerPage : UserControl
         // Without a credits marker, the next episode during the last seconds.
         if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext && !_sleep.AtEnd && !AsksStillWatching()) && _skips.Active is not null)
         {
+            _skipSince = DateTimeOffset.UtcNow;
             _skipText.Text = _skips.Label(_session.Item?.Type == "Episode");
             ToolTip.SetTip(_skip, _skipText.Text + " · S");
         }
         // Playback time drives the countdown, so pausing pauses it too.
         if (_skips.Due(_session.Position) is { } next) { _nextByItself = true; _ = PlayNextAsync(next, completed: true); return; }
+        // The pill keeps the width of « … 10 s » while it counts down: otherwise « Annuler », beside it, moves at 10 → 9.
+        var counting = _skips.Counting;
+        _skipText.MinWidth = counting && _skipCounted ? Math.Max(_skipText.MinWidth, _skipText.Bounds.Width) : 0;
         if (_skips.CountdownText(_session.Position) is { } label) _skipText.Text = label;
-        _skipCancel.IsVisible = _skips.Counting && !_mini;
-        _skip.IsVisible = !_mini && _skips.Active is not null && (_controlsShown || _skips.Counting || !_session.Paused);
+        _skipCounted = counting;
+        _skipCancel.IsVisible = counting && !_mini;
+        _skip.IsVisible = !_mini && _skips.Active is not null && (_controlsShown || counting || !_session.Paused && DateTimeOffset.UtcNow - _skipSince < SkipLinger);
+        // Just above the bar's title and time while they are shown, near the bottom edge otherwise (as on Windows).
+        var lift = _controlsShown && _bottom.Bounds.Height > 0 ? Math.Max(36, _bottom.Bounds.Height - _bottom.Padding.Top + 16) : 36;
+        if (lift != _skipLift) { _skipLift = lift; _skipHost.Margin = new Thickness(0, 0, 36, lift); }
     }
     private void Skip()
     {
