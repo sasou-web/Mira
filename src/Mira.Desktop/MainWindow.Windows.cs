@@ -58,8 +58,22 @@ public partial class MainWindow
     private void PublishWindowsTrack(MediaItem item)
     {
         if (_windows is null) return;
-        _windows.SetTrack(item.DisplayTitle, item.Subtitle);
-        _ = PublishWindowsArtworkAsync(item, ++_windowsArtworkGeneration);
+        _windows.SetTrack(item);
+        var generation = ++_windowsArtworkGeneration;
+        _ = PublishWindowsArtworkAsync(item, generation);
+        _ = PublishTrayPictureAsync(item, generation);
+    }
+    /// <summary>The wide picture of the card in the notification area's menu (the episode's still or the film's backdrop, spoilers kept hidden).</summary>
+    private async Task PublishTrayPictureAsync(MediaItem item, int generation)
+    {
+        try
+        {
+            ImageSource? image = _demo ? DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), landscape: true) :
+                _images is { } cache ? await cache.LandscapeAsync(item, cache.Pixels(Mira.Core.TrayMenuPlan.Width)) : null;
+            if (image is null || generation != _windowsArtworkGeneration || _closing || _windows is null || _session.Item?.Id != item.Id) return;
+            _windows.SetCardPicture(image);
+        }
+        catch (Exception ex) when (IsExpected(ex)) { }
     }
     private async Task PublishWindowsArtworkAsync(MediaItem item, int generation)
     {

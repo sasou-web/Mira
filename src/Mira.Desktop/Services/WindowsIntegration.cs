@@ -9,6 +9,8 @@ using Windows.Media;
 using Windows.Storage.Streams;
 using Forms = System.Windows.Forms;
 using Microsoft.Win32;
+using Mira.Core;
+using Mira.Desktop.Views;
 
 namespace Mira.Desktop.Services;
 
@@ -23,9 +25,13 @@ internal sealed class WindowsIntegration : IDisposable
     private readonly Dictionary<string, ImageSource> _glyphs = new();
     private Brush _glyphBrush = ShellGlyphBrush();
     private readonly Forms.NotifyIcon _tray;
+    // Empty, never shown: the right click and the keyboard (Menu key, Shift+F10 on the icon) open Mira's own menu in its Opening.
     private readonly Forms.ContextMenuStrip _menu;
     private readonly System.Drawing.Icon _trayIcon;
-    private readonly Forms.ToolStripMenuItem _trayPause, _trayBack, _trayForward, _trayNext, _trayStop;
+    private TrayMenuWindow? _trayMenu;
+    private MediaItem? _item;
+    private ImageSource? _cardPicture;
+    private double _position, _duration;
     private readonly ThumbButtonInfo _back, _pause, _forward, _next;
     private SystemMediaTransportControls? _media;
     private InMemoryRandomAccessStream? _artwork;
@@ -51,17 +57,8 @@ internal sealed class WindowsIntegration : IDisposable
         _next = AddButton(taskbar, "skip", L("Épisode suivant", "Next episode"), DesktopCommand.Next);
         window.TaskbarItemInfo = taskbar;
 
-        _menu = new Forms.ContextMenuStrip { ShowImageMargin = false };
-        AddMenu(L("Ouvrir Mira", "Open Mira"), DesktopCommand.Show).Font = new System.Drawing.Font(_menu.Font, System.Drawing.FontStyle.Bold);
-        _menu.Items.Add(new Forms.ToolStripSeparator());
-        _trayPause = AddMenu(L("Lire", "Play"), DesktopCommand.TogglePause);
-        _trayBack = AddMenu(L("Reculer de 10 secondes", "Back 10 seconds"), DesktopCommand.Back);
-        _trayForward = AddMenu(L("Avancer de 10 secondes", "Forward 10 seconds"), DesktopCommand.Forward);
-        _trayNext = AddMenu(L("Épisode suivant", "Next episode"), DesktopCommand.Next);
-        _trayStop = AddMenu(L("Arrêter la lecture", "Stop playback"), DesktopCommand.Stop);
-        _menu.Items.Add(new Forms.ToolStripSeparator());
-        AddMenu(L("Réduire dans la zone de notification", "Minimize to the notification area"), DesktopCommand.Hide);
-        AddMenu(L("Quitter Mira", "Quit Mira"), DesktopCommand.Quit);
+        _menu = new Forms.ContextMenuStrip();
+        _menu.Opening += TrayMenuOpening;
         _trayIcon = new System.Drawing.Icon(WindowsIdentity.IconPath, 32, 32);
         _tray = new Forms.NotifyIcon { Icon = _trayIcon, Text = validation ? "Mira · Validation" : "Mira", ContextMenuStrip = _menu, Visible = true };
         _tray.MouseClick += TrayClicked;
@@ -82,10 +79,21 @@ internal sealed class WindowsIntegration : IDisposable
         var button = new ThumbButtonInfo { ImageSource = Glyph(icon), Description = description, Visibility = Visibility.Collapsed };
         button.Click += (_, _) => Dispatch(command); taskbar.ThumbButtonInfos.Add(button); return button;
     }
-    private Forms.ToolStripMenuItem AddMenu(string label, DesktopCommand command)
+    /// <summary>
+    /// WinForms opens the strip at the pointer (GetCursorPos) after giving Mira the foreground: Mira's menu opens there
+    /// instead, on the screen of the click, and the strip stays closed.
+    /// </summary>
+    private void TrayMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        var item = new Forms.ToolStripMenuItem(label); item.Click += (_, _) => Dispatch(command); _menu.Items.Add(item); return item;
+        e.Cancel = true;
+        if (_disposed || Screens.Pointer() is not { } point || Screens.At(point.X, point.Y) is not { } screen) return;
+        _trayMenu ??= new TrayMenuWindow(command => Dispatch(command));
+        _trayMenu.Open(point, screen, Card(), _window.IsVisible);
     }
+    /// <summary>The card of the menu: during a playback only.</summary>
+    private TrayCard? Card() => _active && _item is { } item
+        ? new(item.DisplayTitle, TrayMenuPlan.Line(item, _paused), _position, _duration, _ready, _paused, _canNext, _cardPicture) : null;
+    private void RefreshMenu() { if (_trayMenu is { IsOpen: true } menu) menu.Refresh(Card(), _window.IsVisible); }
     private ImageSource Glyph(string kind)
     {
         if (_glyphs.TryGetValue(kind, out var cached)) return cached;
@@ -132,9 +140,11 @@ internal sealed class WindowsIntegration : IDisposable
     private void MediaSeekRequested(SystemMediaTransportControls sender, PlaybackPositionChangeRequestedEventArgs e)
         => Dispatch(DesktopCommand.Seek, e.RequestedPlaybackPosition.TotalSeconds);
 
-    public void SetTrack(string title, string subtitle)
+    public void SetTrack(MediaItem item)
     {
+        var (title, subtitle) = (item.DisplayTitle, item.Subtitle);
         ++_generation; _active = true; _ready = false; _canNext = false; _paused = false; _title = title;
+        _item = item; _cardPicture = null; _position = _duration = 0;
         _lastPosition = _lastDuration = _lastRate = -1;
         _window.Title = title + " — Mira";
         UpdateButtons();
@@ -146,6 +156,12 @@ internal sealed class WindowsIntegration : IDisposable
             display.Update();
         });
         _artwork?.Dispose(); _artwork = null;
+    }
+    /// <summary>The wide picture of the menu's card (the episode's or the film's), for the title of <see cref="SetTrack"/>.</summary>
+    public void SetCardPicture(ImageSource picture)
+    {
+        if (_disposed || !_active) return;
+        _cardPicture = picture; RefreshMenu();
     }
     public async Task SetArtworkAsync(ImageSource image)
     {
@@ -176,10 +192,12 @@ internal sealed class WindowsIntegration : IDisposable
         if (_disposed || !_active) return;
         var changed = ready != _ready || paused != _paused || canNext != _canNext;
         _ready = ready; _paused = paused; _canNext = canNext;
-        if (changed) UpdateButtons();
         position = double.IsFinite(position) ? Math.Max(0, position) : 0;
         duration = double.IsFinite(duration) ? Math.Max(0, duration) : 0;
         position = Math.Min(position, duration);
+        _position = position; _duration = duration;
+        if (changed) UpdateButtons();
+        else if (_trayMenu is { IsOpen: true } menu) menu.Progress(position, duration);
         var now = DateTimeOffset.UtcNow;
         if (changed || Math.Abs(position - _lastPosition) > 2 || duration != _lastDuration || rate != _lastRate || now - _lastTimeline >= TimeSpan.FromSeconds(1))
         {
@@ -205,16 +223,14 @@ internal sealed class WindowsIntegration : IDisposable
         { button.Visibility = _active ? Visibility.Visible : Visibility.Collapsed; button.IsEnabled = _active && _ready; }
         _next.IsEnabled = _active && _ready && _canNext;
         _pause.ImageSource = Glyph(_paused ? "play" : "pause"); _pause.Description = _paused ? L("Reprendre la lecture", "Resume playback") : L("Mettre en pause", "Pause");
-        _trayPause.Text = _paused ? L("Reprendre la lecture", "Resume playback") : L("Mettre en pause", "Pause");
-        _trayPause.Enabled = _trayBack.Enabled = _trayForward.Enabled = _trayStop.Enabled = _active && _ready;
-        _trayNext.Enabled = _active && _ready && _canNext;
+        RefreshMenu();
         var text = _active ? (_paused ? L("En pause · ", "Paused · ") : L("Lecture · ", "Playing · ")) + _title : _idleTitle;
         if (text.Length > 63) { text = text[..61]; if (char.IsHighSurrogate(text[^1])) text = text[..^1]; text += "…"; }
         _tray.Text = text;
     }
     public void Clear()
     {
-        ++_generation; _active = _ready = _canNext = false;
+        ++_generation; _active = _ready = _canNext = false; _item = null; _cardPicture = null;
         _window.Title = _idleTitle; UpdateButtons();
         WithMedia(media => { media.PlaybackStatus = MediaPlaybackStatus.Closed; media.IsEnabled = false; media.DisplayUpdater.ClearAll(); media.DisplayUpdater.Update(); });
         _artwork?.Dispose(); _artwork = null;
@@ -233,6 +249,7 @@ internal sealed class WindowsIntegration : IDisposable
         SystemEvents.UserPreferenceChanged -= ShellThemeChanged;
         if (_media is not null) WithMedia(media => { media.ButtonPressed -= MediaButtonPressed; media.PlaybackPositionChangeRequested -= MediaSeekRequested; });
         _media = null; _tray.Visible = false; _tray.Dispose(); _menu.Dispose(); _trayIcon.Dispose();
+        _trayMenu?.Destroy(); _trayMenu = null;
         _window.TaskbarItemInfo = null;
     }
 }

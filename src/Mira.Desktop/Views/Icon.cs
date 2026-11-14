@@ -27,7 +27,7 @@ public sealed class Icon : FrameworkElement
         ["phone"] = "M9 2.5H15Q18 2.5 18 5.5V18.5Q18 21.5 15 21.5H9Q6 21.5 6 18.5V5.5Q6 2.5 9 2.5Z M11 18.2H13"
     }).ToDictionary(x => x.Key, x => Shape(x.Value));
     /// <summary>True for a kind this family draws (used to check the icons named in WhatsNew.json).</summary>
-    public static bool Draws(string kind) => kind == "brand" || Shapes.ContainsKey(kind) || Solids.ContainsKey(kind);
+    public static bool Draws(string kind) => kind is "brand" or "mark" || Shapes.ContainsKey(kind) || Solids.ContainsKey(kind);
     private static readonly Geometry Speaker = Shape(IconPaths.Speaker);
     /// <summary>Solid parts, drawn under the strokes of the same kind: the player bar uses filled glyphs.</summary>
     private static readonly IReadOnlyDictionary<string, Geometry> Solids = new Dictionary<string, Geometry>
@@ -37,7 +37,9 @@ public sealed class Icon : FrameworkElement
         ["heart-fill"] = Shape(IconPaths.Heart),
         ["next-episode"] = Shape(IconPaths.NextEpisode),
         ["previous-episode"] = Shape(IconPaths.PreviousEpisode),
-        ["more"] = Shape(IconPaths.More)
+        ["more"] = Shape(IconPaths.More),
+        // Stop playback: a rounded square, filled (the menu of the notification area).
+        ["stop"] = Shape("M8 6H16Q18 6 18 8V16Q18 18 16 18H8Q6 18 6 16V8Q6 6 8 6Z")
     };
     protected override Size MeasureOverride(Size availableSize) => new(double.IsNaN(Width) ? 22 : Width, double.IsNaN(Height) ? 22 : Height);
     protected override void OnRender(DrawingContext dc)
@@ -50,6 +52,8 @@ public sealed class Icon : FrameworkElement
             dc.DrawGeometry(Foreground, null, BrandTile);
             dc.DrawGeometry(null, RoundPen(new SolidColorBrush(Color.FromRgb(16, 16, 19)), 2.65), BrandM);
         }
+        // Mira's « m » alone, in the ink of the line beside it (« Open Mira »).
+        else if (Kind == "mark") dc.DrawGeometry(null, RoundPen(Foreground, 2.5), BrandM);
         else
         {
             var solid = Solids.GetValueOrDefault(Kind);

@@ -21,6 +21,16 @@ internal static class Screens
         }, IntPtr.Zero);
         return screens.OrderByDescending(x => x.Primary).Select(x => x.Screen).ToList();
     }
+    /// <summary>The screen under a point of the virtual screen (the nearest one when the point is on none): its work area and scale.</summary>
+    public static ScreenFit.Screen? At(double x, double y)
+    {
+        var monitor = MonitorFromPoint(new NativePoint { X = (int)Math.Round(x), Y = (int)Math.Round(y) }, 2);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return null;
+        var scale = GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 && dpi > 0 ? dpi / 96d : 1;
+        var work = info.Work;
+        return new(new(work.Left, work.Top, work.Right - work.Left, work.Bottom - work.Top), scale);
+    }
     public static (double X, double Y)? Pointer() => GetCursorPos(out var point) ? (point.X, point.Y) : null;
     /// <summary>The window's top-left corner while it is neither maximized nor minimized; null otherwise.</summary>
     public static (double X, double Y)? NormalCorner(IntPtr window) =>
@@ -47,6 +57,7 @@ internal static class Screens
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect Monitor, Work; public uint Flags; }
     [DllImport("user32")] private static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorEnum callback, IntPtr data);
     [DllImport("user32", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+    [DllImport("user32")] private static extern IntPtr MonitorFromPoint(NativePoint point, uint flags);
     [DllImport("shcore")] private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
     [DllImport("user32")] private static extern bool GetCursorPos(out NativePoint point);
     [DllImport("user32")] private static extern bool GetWindowRect(IntPtr hwnd, out NativeRect rect);
