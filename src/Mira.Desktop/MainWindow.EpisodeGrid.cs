@@ -74,7 +74,7 @@ public partial class MainWindow
     private Button EpisodeTile(MediaItem episode)
     {
         var isNext = _detailNext?.Id == episode.Id; var wanted = _detailEpisode?.Id == episode.Id;
-        var button = new Button { Style = (Style)FindResource("Quiet"), Template = TileTemplate, Background = Brushes.Transparent, Padding = new Thickness(0), BorderThickness = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        var button = SlidingText.Zone(new Button { Style = (Style)FindResource("Quiet"), Template = TileTemplate, Background = Brushes.Transparent, Padding = new Thickness(0), BorderThickness = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Stretch });
         var root = new StackPanel { Background = Brushes.Transparent };
         var picture = new Grid { Background = Palette.Get("Raised2") };
         // « Cacher les spoilers »: an episode not started shows Jellyfin's BlurHash of its still, the still never fetched.
@@ -135,7 +135,7 @@ public partial class MainWindow
         var title = new TextBlock { FontSize = 14.5, FontWeight = FontWeights.Bold, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 11, 0, 0) };
         if (EpisodeTiles.Number(episode) is { Length: > 0 } number) title.Inlines.Add(new Run(number + "  ") { FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted") });
         title.Inlines.Add(new Run(episode.Name));
-        root.Children.Add(title);
+        root.Children.Add(SlidingText.Wrap(title));
         long? size = _episodeSizes is { } sizes && sizes.TryGetValue(episode.Id, out var known) ? known : null;
         var meta = new TextBlock { Text = EpisodeTiles.Meta(episode, EpisodeCalendar.Today(), size), FontSize = 12.5, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         root.Children.Add(meta); _episodeMeta[episode.Id] = (meta, episode);
@@ -162,14 +162,14 @@ public partial class MainWindow
     // An episode the library lacks: no picture to play, its name and its day (the next to come out, or one of an opened run).
     private StackPanel HollowTile(MediaItem episode, DateOnly today)
     {
-        var tile = new StackPanel();
+        var tile = SlidingText.Zone(new StackPanel { Background = Brushes.Transparent });
         var picture = new Border { CornerRadius = new CornerRadius(10), Background = Palette.Get("Bg"), BorderBrush = Palette.Get("Raised2"), BorderThickness = new Thickness(1), Child = new Icon { Kind = "calendar", Width = 26, Height = 26, Foreground = Palette.Get("Faint") } };
         tile.Children.Add(picture);
         var (_, when) = EpisodeShelf.Entry(episode, today);
         var title = new TextBlock { FontSize = 14.5, FontWeight = FontWeights.Bold, Foreground = Palette.Get("TextTertiary"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 11, 0, 0) };
         if (EpisodeTiles.Number(episode) is { Length: > 0 } number) title.Inlines.Add(new Run(number + "  ") { FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted") });
         title.Inlines.Add(new Run(EpisodeShelf.Name(episode)));
-        tile.Children.Add(title);
+        tile.Children.Add(SlidingText.Wrap(title));
         tile.Children.Add(new TextBlock { Text = when, FontSize = 12.5, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         AutomationProperties.SetName(tile, $"{EpisodeShelf.Code([episode])} {EpisodeShelf.Name(episode)}, {when}");
         return Tile(tile, picture);
