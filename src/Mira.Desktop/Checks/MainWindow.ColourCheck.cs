@@ -35,8 +35,8 @@ public partial class MainWindow
                 require(source == expected, $"{file}: mpv reads it as {source} (expected {expected})");
                 require(hdrOut != true, $"{file}: tone-mapped on this screen without HDR, never sent as HDR ({PictureColours.Line(source, hdrOut)})");
                 BuildMoreMenu();
-                require(PlaybackInfo.Text.Contains(PictureColours.Line(source, hdrOut), StringComparison.Ordinal) && PlaybackInfo.Text.Contains(L("10 bits", "10-bit"), StringComparison.Ordinal),
-                    $"{file}: ⋮ → Informations says its colours and its 10 bits ({PlaybackInfo.Text.Replace('\n', ' ')})");
+                require(PlaybackInfoText.Contains(PictureColours.Line(source, hdrOut), StringComparison.Ordinal) && PlaybackInfoText.Contains(L("10 bits", "10-bit"), StringComparison.Ordinal),
+                    $"{file}: ⋮ → Informations says its colours and its 10 bits ({PlaybackInfoText.Replace('\n', ' ')})");
                 await StopPlaybackAsync(); ReturnToLibrary(); await _engineReleased;
             }
         }

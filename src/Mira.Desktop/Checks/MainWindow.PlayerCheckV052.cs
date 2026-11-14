@@ -77,9 +77,10 @@ public partial class MainWindow
         var panelPixels = new Size(panel.ActualWidth * dpi.DpiScaleX, panel.ActualHeight * dpi.DpiScaleY);
         var shellPixels = new Size(PlayerShell.ActualWidth * dpi.DpiScaleX, PlayerShell.ActualHeight * dpi.DpiScaleY);
         var place = MenuPlacement(panelPixels, shellPixels);
-        var anchorRight = At(PlayerTracksButton, PlayerTracksButton.ActualWidth).X * dpi.DpiScaleX; var anchorTop = At(PlayerTracksButton).Y * dpi.DpiScaleY;
+        var anchorRight = At(PlayerTracksButton, PlayerTracksButton.ActualWidth).X * dpi.DpiScaleX;
+        var anchorTop = Math.Min(At(PlayerTracksButton).Y, SeekBar.IsVisible ? At(SeekBar).Y : double.MaxValue) * dpi.DpiScaleY;
         require(Math.Abs(place.X + panelPixels.Width - anchorRight) < 1 && Math.Abs(place.Y + panelPixels.Height - anchorTop) < 1 && place.X >= 0,
-            "the menu opens right above its button, aligned on its right edge, at the current DPI");
+            "the menu opens right above the seek bar, aligned on the right edge of its button, at the current DPI");
         CaptureElement(output, "player-menu-tracks", panel);
         rows[0].IsChecked = true; await Task.Delay(150);
         require((mpv.Get("sid") ?? "no") is "no" or "false" && IsChosen(rows[0]) && !IsChosen(rows[1]) && PlayerOptionsPopup.IsOpen, "choosing « Désactivés » reaches mpv, unchecks the track and keeps the menu open");
@@ -90,7 +91,7 @@ public partial class MainWindow
 
         More_Click(this, new()); UpdateLayout(); await Task.Delay(180);
         var sleep = SleepList.Children.OfType<RadioButton>().ToList();
-        require(PlayerOptionsPopup.IsOpen && MoreMenu.IsVisible && !TracksMenu.IsVisible && sleep.Count(IsChosen) == 1 && PlaybackInfo.Text.Contains("Vidéo") && Math.Abs(mpv.Number("speed", 1) - 1) < .001,
+        require(PlayerOptionsPopup.IsOpen && MoreMenu.IsVisible && !TracksMenu.IsVisible && sleep.Count(IsChosen) == 1 && PlaybackInfoText.Contains("Vidéo") && Math.Abs(mpv.Number("speed", 1) - 1) < .001,
             "⋮ opens the sleep timer, the subtitle timing and the playback information, without any speed: mpv plays at 1×");
         CaptureElement(output, "player-menu-more", panel);
         PlayerOptionsPopup.IsOpen = false;

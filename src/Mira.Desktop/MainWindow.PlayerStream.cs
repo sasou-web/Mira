@@ -209,7 +209,8 @@ public partial class MainWindow
         var current = StreamQuality.Known(_settings.Quality);
         foreach (var (key, label, chip, details) in StreamQuality.Choices)
         {
-            var choice = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "quality", Content = chip, Tag = key, ToolTip = $"{label} · {details}", IsChecked = key == current };
+            // Numbers alone in the slider: « Mb/s » is said once, beside its title.
+            var choice = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "quality", Content = chip.Replace(" Mb/s", "", StringComparison.Ordinal), Tag = key, ToolTip = $"{label} · {details}", IsChecked = key == current };
             System.Windows.Automation.AutomationProperties.SetName(choice, L("Qualité ", "Quality ") + label);
             choice.Checked += (_, _) => { if (!_menuBuilding) _ = ChooseQualityAsync(key); };
             QualityList.Children.Add(choice);
