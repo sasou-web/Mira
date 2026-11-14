@@ -162,8 +162,12 @@ public static class PictureInPicture
         /// <summary>From the window's edges to the title, the time and the corners' glyphs: the same on every side.</summary>
         public double Inset => Margin + (Corner - CornerGlyph) / 2;
         public double TextSize => Small ? 11.5 : 12.5;
-        /// <summary>How high the subtitles go while the controls show: above the time and the subtitles' button.</summary>
-        public double Lift => Inset + CornerGlyph + 8;
+        /// <summary>Above the time, the player's seek bar (maquette A, 2026-11-14): the bottom band grows by this much.</summary>
+        public double SeekRoom => Small ? 14 : 18;
+        /// <summary>The bottom shade's height: the bar, the time and the buttons beside it.</summary>
+        public double Bottom => Bar + SeekRoom;
+        /// <summary>How high the subtitles go while the controls show: above the seek bar, the time and the buttons.</summary>
+        public double Lift => Inset + CornerGlyph + 8 + SeekRoom;
     }
 
     /// <summary>The controls for a window <paramref name="width"/> × <paramref name="height"/> device-independent pixels.</summary>

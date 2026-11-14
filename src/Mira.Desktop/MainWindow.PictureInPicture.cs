@@ -47,6 +47,10 @@ public partial class MainWindow
         pip.Stop += StopFromPip;
         pip.PlayPause += () => Pause_Click(this, new());
         pip.Seek += seconds => SeekRelative(seconds);
+        pip.SeekStarted += () => _seeking = true;
+        pip.Seeking += ScrubFromPip;
+        pip.SeekCompleted += SeekTo;
+        pip.Mute += () => { Mute_Click(this, new()); UpdatePip(); };
         pip.Subtitles += () => { ToggleSubtitles(); _pipTracksAt = 0; UpdatePipSubtitles(); };
         pip.Key += PipKey;
         pip.Placed += () => RememberPip(pip);
@@ -137,7 +141,8 @@ public partial class MainWindow
         if (_pip is not { } pip || _mpv is not { } mpv) return;
         if (_session.Item is { } item) pip.SetTitle(item.DisplayTitle);
         pip.SetPaused(_session.Paused);
-        pip.SetTime($"{TimeLabel(_session.Position)} / {TimeLabel(_session.Duration)}", _session.Duration > 0 ? _session.Position / _session.Duration : 0);
+        pip.SetTime(_session.Position, _session.Duration, !_session.Paused, mpv.Number("speed", 1));
+        pip.SetMuted(mpv.Flag("mute") || VolumeSlider.Value <= 0);
         if (_loaded && VideoAspect() is { } aspect && Math.Abs(aspect - pip.Aspect) > .01) { pip.Aspect = aspect; pip.Refit(); }
         if (!ReferenceEquals(mpv, _pipEngine))
         {
@@ -148,6 +153,13 @@ public partial class MainWindow
             SizePipSubtitles();
         }
         UpdatePipSubtitles();
+    }
+    /// <summary>The small window's seek bar dragged: keyframe seeks that follow the pointer, the exact one at the release (SeekTo).</summary>
+    private void ScrubFromPip(double seconds)
+    {
+        if (_mpv is null || !_loaded || DateTimeOffset.UtcNow - _lastScrub < TimeSpan.FromMilliseconds(90)) return;
+        _lastScrub = DateTimeOffset.UtcNow;
+        TryCommand("seek", seconds.ToString(CultureInfo.InvariantCulture), "absolute+keyframes");
     }
     /// <summary>
     /// mpv sizes subtitles to the window's height: in the small window, raised to stay readable (never lowered); set
