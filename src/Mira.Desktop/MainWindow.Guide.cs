@@ -134,8 +134,9 @@ public partial class MainWindow
             ([L("Espace", "Space")], L("lecture ou pause", "play or pause")), (["←", "→"], L("10 s en arrière, en avant", "10 s back, forward")),
             (["Shift", "← →"], L("1 min en arrière, en avant", "1 min back, forward")), (["0", L("à", "to") + " 9"], L("aller à 0 – 90 %", "jump to 0 – 90 %")),
             (["F", "F11"], L("plein écran", "full screen")), (["C"], L("sous-titres", "subtitles")),
-            (["S"], L("passer le générique", "skip the intro")),
-            (["I"], L("mini-lecteur", "mini player")), (["N"], L("épisode suivant", "next episode")),
+            (["↑", "↓"], L("volume", "volume")), (["M"], L("couper le son", "mute")),
+            (["S"], L("passer le générique", "skip the intro")), (["E"], L("épisodes", "episodes")),
+            (["I"], L("mini-lecteur", "mini player")), (["N"], L("épisode suivant", "next episode")), (["P"], L("épisode précédent", "previous episode")),
             ([L("Échap", "Esc")], L("revenir en arrière", "go back")), (["Ctrl", ","], L("réglages", "settings")), (["F1"], L("aide", "help")),
         ];
         foreach (var (keys, text) in shortcuts)

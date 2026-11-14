@@ -24,6 +24,8 @@ public partial class MainWindow
     private Point? _lastSurfacePoint;
     private int _surfaceMotionCount;
     private readonly DispatcherTimer _surfaceClick = new() { Interval = TimeSpan.FromMilliseconds(220) };
+    /// <summary>The single click's wait ran out and paused or resumed: the second press of a double click undoes it.</summary>
+    private bool _surfaceClickToggled;
     private double _lastAudibleVolume = 75;
     private DateTimeOffset _lastPlayerInteraction = DateTimeOffset.UtcNow, _lastScrub;
     // Playing: controls leave quickly. Paused: they also leave, so the still frame can be captured cleanly.
@@ -43,7 +45,7 @@ public partial class MainWindow
         _fullscreenWindow = new(this);
         _windowFrame = new(this);
         InitializePlayState();
-        _surfaceClick.Tick += (_, _) => { _surfaceClick.Stop(); if (_playing) Pause_Click(this, new()); };
+        _surfaceClick.Tick += (_, _) => { _surfaceClick.Stop(); if (_playing) { Pause_Click(this, new()); _surfaceClickToggled = true; } };
         _volumeHide.Tick += (_, _) => { _volumeHide.Stop(); if (!KeepVolumeOpen) SetVolumeReveal(false); };
         if (_settings.Volume > 0) _lastAudibleVolume = _settings.Volume;
         SeekBar.SeekStarted += () => { _seeking = true; ShowPlayerControls(); };
@@ -137,7 +139,37 @@ public partial class MainWindow
         foreach (var panel in new UIElement[] { PlayerHeader, PlayerControls, PlayerTransport, PlayerWindowChrome })
         { panel.IsHitTestVisible = visible; Motion.Fade(panel, visible ? 1 : 0, duration); }
         if (!visible) { _volumeHide.Stop(); SetVolumeReveal(false); }
-        SeekBar.Live = visible; UpdateSkip();
+        SeekBar.Live = visible; UpdateSkip(); LiftSubtitlesOverBar();
+    }
+    /// <summary>The engine whose subtitles <see cref="_barLift"/> moved, and its own sub-margin-y, put back when the bar goes.</summary>
+    private MpvEngine? _barEngine;
+    private int _barMargin = 22;
+    /// <summary>The sub-pos set while the bottom bar shows; null: the subtitles at their own place.</summary>
+    private int? _barLift;
+    /// <summary>
+    /// While the bottom bar shows, the subtitles go above its title and time, as on video sites and in the small window
+    /// (<see cref="PictureInPicture.SubtitleLift"/>): the bar's shade and text would otherwise sit over them each time the
+    /// pointer moves. Back to their place once the bar goes. Never in the mini-player, nor while the small window has the
+    /// video (its own lift). <paramref name="again"/>: set again after Réglages restyled the subtitles.
+    /// </summary>
+    private void LiftSubtitlesOverBar(bool again = false)
+    {
+        if (_mpv is not { } mpv || _pip is not null) return;
+        if (!ReferenceEquals(mpv, _barEngine))
+        {
+            _barEngine = mpv; _barLift = null;
+            _barMargin = mpv.Number("sub-margin-y", 22) is var margin and >= 0 and <= 600 ? (int)margin : 22;
+        }
+        int? lift = null;
+        if (_controlsVisible && !_miniPlayer && PlayerSurface.ActualHeight > 0 && PlayerControlsBody.IsVisible)
+        {
+            var top = PlayerControlsBody.TranslatePoint(new Point(), PlayerSurface).Y;
+            lift = PictureInPicture.SubtitleLift(PlayerSurface.ActualHeight - top + 8, PlayerSurface.ActualHeight, SubtitleStyle.Height(_settings.SubtitleHeight));
+        }
+        if (lift == _barLift && !again) return;
+        if (lift is { } position) { mpv.Set("sub-margin-y", "0"); mpv.Set("sub-pos", position.ToString(CultureInfo.InvariantCulture)); }
+        else if (_barLift is not null || again) { mpv.Set("sub-margin-y", _barMargin.ToString(CultureInfo.InvariantCulture)); mpv.Set("sub-pos", SubtitleStyle.Height(_settings.SubtitleHeight).ToString(CultureInfo.InvariantCulture)); }
+        _barLift = lift;
     }
     private void ClosePlayerPopups()
     {
@@ -151,6 +183,8 @@ public partial class MainWindow
     private void UpdatePlayerControls()
     {
         if (!_playing || WindowState == WindowState.Minimized) { ClosePlayerPopups(); return; }
+        // A new engine (the next episode) or a new size: the subtitles follow the bar.
+        LiftSubtitlesOverBar();
         if (_morphing || _pip is not null || _miniPlayer && !MiniSettled) { if (PlayerOverlayLayer.IsOpen) ClosePlayerPopups(); return; }
         // Also when playback started with Mira in the background (the next episode, the group).
         OpenPlayerSurface();
@@ -200,7 +234,11 @@ public partial class MainWindow
         PlayerSurface.Focus(); ShowPlayerControls(); e.Handled = true;
         _surfaceClick.Stop();
         if (activating || InBarBand(e.GetPosition(PlayerSurface))) return;
-        if (clicks == 2) ToggleFullscreen(); else _surfaceClick.Start();
+        if (clicks != 2) { _surfaceClickToggled = false; _surfaceClick.Start(); return; }
+        // A slow double click (Windows' interval is 500 ms by default, the wait for a single click 220 ms): its first
+        // press already paused or resumed. The double click is fullscreen alone, so that first toggle is undone.
+        if (_surfaceClickToggled && _playing) Pause_Click(this, new());
+        _surfaceClickToggled = false; ToggleFullscreen();
     }
     private void PlayerSurface_MouseUp(object sender, MouseButtonEventArgs e) { if (_miniPlayer) MiniPointerUp(e); }
     private void PlayerChrome_MouseDown(object sender, MouseButtonEventArgs e)
