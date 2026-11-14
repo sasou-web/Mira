@@ -19,8 +19,9 @@
 $ErrorActionPreference = 'Stop'
 $Language = @($Language | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 foreach ($lang in $Language) { if ($lang -notin 'fr', 'en') { throw "Language: fr or en, not $lang." } }
-$Output = [IO.Path]::GetFullPath($Output)
-$exe = [IO.Path]::GetFullPath($Executable)
+# Against the current folder: .NET alone resolves against the process's own, which Set-Location does not change.
+$Output = [IO.Path]::GetFullPath([IO.Path]::Combine((Get-Location).ProviderPath, $Output))
+$exe = [IO.Path]::GetFullPath([IO.Path]::Combine((Get-Location).ProviderPath, $Executable))
 if (-not (Test-Path -LiteralPath $exe)) { throw "No Mira.exe at $exe (built with the checks: -p:MiraValidation=true, the default)." }
 foreach ($name in @('session.protected', 'device-id')) {
     if (-not (Test-Path -LiteralPath (Join-Path $SignedIn $name))) { throw "No $name in $SignedIn : sign in to Mira there first." }
@@ -46,8 +47,8 @@ foreach ($lang in $Language) {
     Write-Output "$lang : $line"
     if ($line -notlike 'OK*') { $failed += "$lang : $line" }
     if ($Previous -and (Test-Path -LiteralPath (Join-Path $Previous "$lang\findings.json"))) {
-        $before = @(Get-Content -LiteralPath (Join-Path $Previous "$lang\findings.json") -Raw -Encoding UTF8 | ConvertFrom-Json)
-        $now = @(Get-Content -LiteralPath (Join-Path $out 'findings.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
+        $before = @(Get-Content -LiteralPath (Join-Path $Previous "$lang\findings.json") -Raw -Encoding UTF8 | ConvertFrom-Json | ForEach-Object { $_ })
+        $now = @(Get-Content -LiteralPath (Join-Path $out 'findings.json') -Raw -Encoding UTF8 | ConvertFrom-Json | ForEach-Object { $_ })
         $key = { param($x) "$($x.kind)|$($x.element)|$($x.detail)" }
         $old = @{}; foreach ($x in $before) { $old[(& $key $x)] = $x }
         $new = @{}; foreach ($x in $now) { $new[(& $key $x)] = $x }
