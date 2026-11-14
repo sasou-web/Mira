@@ -317,6 +317,10 @@ public partial class MainWindow
         body.KeyDown += (_, e) => { if (e.Key == Key.Escape) { popup.IsOpen = false; e.Handled = true; anchor.Focus(); } };
         _missingPopup = popup;
         popup.IsOpen = true;
+#if MIRA_VALIDATION
+        // --ui-audit: the menu where it opens, never a search (TorLink would ask the indexers, every night).
+        if (_args.Contains("--ui-audit")) { DrawMissingMenu(menu, popup); return; }
+#endif
         _ = SearchMissingAsync(menu, popup);
     }
 

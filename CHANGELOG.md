@@ -4,6 +4,7 @@
 
 - **« ne répond pas » seulement quand Jellyfin ne répond pas (Windows)** : la carte du compte de « L’essentiel » restait sur « ne répond pas » après le retour de Jellyfin tant que les Réglages restaient ouverts ; elle suit maintenant l’état en direct, comme sur Mac. Et Jellyfin qui répond par une erreur (une 500 pour une rangée, une page illisible) n’est plus pris pour un Jellyfin muet : l’erreur est dite une fois, sans « Hors connexion » ni « ne répond pas », comme sur Mac. Signalé par ogsas sur la 0.9.9 ; seulement compilé et contrôlé en CI.
 - **Logo de Mira dans « L’essentiel » (Windows)** : la carte de Mira montrait un carré blanc arrondi percé d’un carré noir au lieu du logo : le logo (déjà une tuile claire avec son « m » sombre) était dessiné en sombre sur un second carré blanc. Il est maintenant dessiné comme dans la barre de gauche et sur Mac. Signalé par ogsas sur la 0.9.9.
+- **Audit de l’interface (outillage, Windows)** : `--ui-audit` parcourt les écrans et les menus de Mira contre un vrai Jellyfin et liste les petits défauts (menu qui sort de la fenêtre, élément ou texte coupé, cible trop petite, désalignement, survol sans retour, tuile sans zoom, transition sans animation), captures annotées à l’appui ; lancé chaque nuit sur le PC de Jellyfin par `tools/ui-audit-nightly.ps1`. Absent des paquets.
 
 ## 0.9.9 — 2026-11-14
 

@@ -30,7 +30,7 @@ public partial class App : Application
 #if !MIRA_VALIDATION
         // A package: the validation harnesses are not in it (Mira.Desktop.csproj), and their options open nothing.
         if (args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--public-gallery"
-            or "--readme-gallery" or "--server-check" or "--tailnet-check" or "--smooth-check" or "--qa-window" or "--perf-probe" or "--test-media" or "--colour-media" or "--loop-test-media" or "--tailnet-control")) { Shutdown(2); return; }
+            or "--readme-gallery" or "--server-check" or "--tailnet-check" or "--smooth-check" or "--ui-audit" or "--qa-window" or "--perf-probe" or "--test-media" or "--colour-media" or "--loop-test-media" or "--tailnet-control")) { Shutdown(2); return; }
 #endif
         // The downloaded version replacing the old files: no window, no profile, no single-instance lock.
         if (args.FirstOrDefault() == "--apply-update") { Shutdown(UpdateApplier.Run(args)); return; }
@@ -113,11 +113,17 @@ public partial class App : Application
         try
         {
             var window = _window = new MainWindow(args);
-            if (args.Contains("--visual-check") || args.Contains("--player-check") || args.Contains("--public-gallery") || args.Contains("--readme-gallery") || args.Contains("--server-check") || args.Contains("--tailnet-check") || args.Contains("--smooth-check")) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; window.ShowInTaskbar = false; }
+            // --ui-audit: on screen (WPF keeps a menu on the screen, not in the window: only there is it placed for real), never
+            // activated, out of the taskbar, under every other window once shown.
+            if (args.Contains("--ui-audit")) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = 0; window.Top = 0; window.ShowInTaskbar = false; }
+            else if (args.Contains("--visual-check") || args.Contains("--player-check") || args.Contains("--public-gallery") || args.Contains("--readme-gallery") || args.Contains("--server-check") || args.Contains("--tailnet-check") || args.Contains("--smooth-check")) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; window.ShowInTaskbar = false; }
             // --offscreen: validation runs with an isolated profile (update checks) stay off the user's screen, closable as usual.
             else if (args.Contains("--offscreen") && dataArg >= 0) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; }
             if (args.Contains("--qa-window")) window.Title = L("Mira · Validation du lecteur", "Mira · Player validation");
             window.Show(); _shown = true;
+#if MIRA_VALIDATION
+            if (args.Contains("--ui-audit")) window.KeepUnderEverything();
+#endif
             // Launched again while this one was starting: brought forward now that it is there.
             if (_activationPending) window.RestoreFromWindows();
             if ((link ?? _pendingLink) is { } opened) window.OpenLink(opened);
