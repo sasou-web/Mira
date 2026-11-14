@@ -59,13 +59,14 @@ public partial class MainWindow
         // reaches it, not mpv's own window (MainWindow.PlayerSurface_MouseDown).
         Deactivated += (_, _) => { _fullscreenWindow.ActiveChanged(); LeavePlayerControls(); };
     }
-    /// <summary>Above the button that opened the menu, right-aligned with it and kept inside the video.
-    /// WPF supplies the sizes in device pixels, including at 200% DPI.</summary>
+    /// <summary>Above the seek bar (above the button that opened the menu when the bar is hidden), right-aligned with
+    /// that button and kept inside the video. WPF supplies the sizes in device pixels, including at 200% DPI.</summary>
     private Point MenuPlacement(Size size, Size target)
     {
         var dpi = VisualTreeHelper.GetDpi(PlayerShell);
         var anchor = _menuAnchor ?? PlayerTracksButton;
         var corner = anchor.IsVisible ? InSurface(anchor, new Point(anchor.ActualWidth, 0)) : new Point(PlayerSurface.ActualWidth - 16, PlayerSurface.ActualHeight - 60);
+        if (anchor.IsVisible && SeekBar.IsVisible && InSurface(SeekBar, new Point(0, 0)).Y is var bar && bar < corner.Y && bar > corner.Y - 80) corner.Y = bar;
         var margin = 12 * dpi.DpiScaleX;
         var x = Math.Clamp(corner.X * dpi.DpiScaleX - size.Width, margin, Math.Max(margin, target.Width - size.Width - margin));
         var y = Math.Max(12 * dpi.DpiScaleY, corner.Y * dpi.DpiScaleY - size.Height);
@@ -544,7 +545,25 @@ public partial class MainWindow
         var shown = video.Length > 0 ? video : "—"; var audio = PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"; var dropped = _mpv.Get("frame-drop-count") ?? "0";
         var output = AudioOutputInfo();
         var colours = ColoursInfo();
-        PlaybackInfo.Text = L($"Vidéo  {shown}\nDécodage  {decoding}\nCouleurs  {colours}\nImage  {PictureInfo}\nAudio  {audio}\nSortie  {output}\nImages perdues  {dropped}", $"Video  {shown}\nDecoding  {decoding}\nColours  {colours}\nPicture  {PictureInfo}\nAudio  {audio}\nOutput  {output}\nDropped frames  {dropped}");
+        ShowPlaybackInfo([(L("Vidéo", "Video"), shown), (L("Décodage", "Decoding"), decoding), (L("Couleurs", "Colours"), colours), (L("Image", "Picture"), PictureInfo),
+            ("Audio", audio), (L("Sortie", "Output"), output), (L("Images perdues", "Dropped frames"), dropped)]);
+    }
+    /// <summary>What ⋮ → Informations says, a line per name (« Video  H.264 · 1920 × 1080 »): the player checks read it.</summary>
+    private string PlaybackInfoText { get; set; } = "";
+    /// <summary>⋮ → Informations in two columns: the names in the faint ink, what each says beside it.</summary>
+    private void ShowPlaybackInfo(IReadOnlyList<(string Name, string Value)> lines)
+    {
+        PlaybackInfoText = string.Join("\n", lines.Select(x => $"{x.Name}  {x.Value}"));
+        PlaybackInfo.Children.Clear(); PlaybackInfo.RowDefinitions.Clear();
+        foreach (var (name, value) in lines)
+        {
+            var row = PlaybackInfo.RowDefinitions.Count; PlaybackInfo.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var top = row == 0 ? 0 : 5;
+            var label = new TextBlock { Text = name, FontSize = 12.5, Foreground = Palette.Get("Faint"), Margin = new Thickness(0, top, 18, 0) };
+            var said = new TextBlock { Text = value, FontSize = 12.5, Foreground = Palette.Get("TextBody"), Margin = new Thickness(0, top, 0, 0), TextWrapping = TextWrapping.Wrap };
+            Grid.SetRow(label, row); Grid.SetRow(said, row); Grid.SetColumn(said, 1);
+            PlaybackInfo.Children.Add(label); PlaybackInfo.Children.Add(said);
+        }
     }
     /// <summary>
     /// « Couleurs » of ⋮ → Informations: SDR, HDR10, HLG or Dolby Vision, and whether it reaches the screen in HDR (Windows'
@@ -594,7 +613,7 @@ public partial class MainWindow
     {
         var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         label.Children.Add(new TextBlock { Text = text, TextTrimming = TextTrimming.CharacterEllipsis });
-        if (details.Length > 0) label.Children.Add(new TextBlock { Text = details, FontSize = 11.5, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Faint"), Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        if (details.Length > 0) label.Children.Add(new TextBlock { Text = details, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Faint"), Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         var full = details.Length > 0 ? text + " · " + details : text;
         var choice = new RadioButton { Style = (Style)FindResource("PlayerMenuChoice"), GroupName = group, Content = label, IsChecked = chosen, ToolTip = full.Length > 34 ? full : null };
         System.Windows.Automation.AutomationProperties.SetName(choice, full);

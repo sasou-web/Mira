@@ -43,7 +43,12 @@ public static class MediaQuality
     public static string? Left(MediaItem? item)
     {
         if (item?.RunTimeTicks is not > 0 || item.UserData.PlaybackPositionTicks <= 0) return null;
-        var minutes = (int)Math.Ceiling(TimeSpan.FromTicks(item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks).TotalMinutes);
+        return Left(TimeSpan.FromTicks(item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks));
+    }
+    /// <summary>The same of a time left (the episode playing, in the player's list of episodes).</summary>
+    public static string? Left(TimeSpan left)
+    {
+        var minutes = (int)Math.Ceiling(left.TotalMinutes);
         if (minutes <= 0) return null;
         return minutes >= 60
             ? L($"{minutes / 60} h {minutes % 60:00} restantes", $"{minutes / 60}h {minutes % 60:00}m left")

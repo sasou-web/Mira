@@ -63,24 +63,48 @@ public partial class MainWindow
         if (page is null) { EpisodeList.Children.Add(new TextBlock { Text = L("Aucun épisode disponible.", "No episodes available."), Margin = new Thickness(10, 8, 10, 8), Foreground = Palette.Get("Muted") }); return; }
         foreach (var episode in EpisodePages.Episodes(_playerEpisodes, page)) EpisodeList.Children.Add(EpisodeRow(episode));
     }
+    /// <summary>
+    /// A row of the season (« Écrin »): the picture, a check on it and its bar full once watched, the bar of a title begun;
+    /// the number in the faint ink before the name; the episode playing raised, « Playing » and what is left of it.
+    /// </summary>
     private Button EpisodeRow(MediaItem episode)
     {
         var playing = episode.Id == _session.Item?.Id;
-        var row = new Button { Style = (Style)FindResource("PlayerMenuItem"), Padding = new Thickness(8, 6, 10, 6), Tag = episode.Id };
+        var watched = episode.UserData.Played && !playing;
+        var row = new Button { Style = (Style)FindResource("PlayerMenuItem"), Padding = new Thickness(8), Tag = episode.Id };
+        Motion.SetRadius(row, Palette.Card);
         if (playing) row.Background = Palette.Get("Raised");
-        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
-        var thumb = new Grid { Width = 112, Height = 63, Clip = new RectangleGeometry(new Rect(0, 0, 112, 63), 4, 4), Background = Palette.Get("Raised2") };
+        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(124) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
+        var thumb = new Grid { Width = 124, Height = 70, Clip = new RectangleGeometry(new Rect(0, 0, 124, 70), 8, 8), Background = Palette.Get("Raised2") };
         var hidden = Spoilers.Hides(episode, _settings.HideSpoilers) && !playing;
         var image = new Image { Stretch = Stretch.UniformToFill }; thumb.Children.Add(image);
         if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
-        if (episode.Resumable) thumb.Children.Add(new Border { Height = 3, Width = 112 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
+        var progress = watched ? 1 : playing ? PlayingProgress(episode) : episode.Resumable ? episode.Progress : 0;
+        if (progress > 0)
+        {
+            var bar = new Grid { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = Palette.Get("HairlineStrong") };
+            bar.Children.Add(new Border { Width = 124 * Math.Clamp(progress, 0, 1), Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left });
+            thumb.Children.Add(bar);
+        }
+        if (watched)
+            thumb.Children.Add(new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), Background = Palette.Get("Scrim"), Opacity = .7, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 6, 0) });
+        if (watched)
+            thumb.Children.Add(new Icon { Kind = "check", Width = 11, Height = 11, Foreground = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 9.5, 9.5, 0) });
         grid.Children.Add(thumb);
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; Grid.SetColumn(text, 1);
-        var title = episode.IndexNumber is { } number ? $"{number}. {episode.Name}" : episode.Name;
-        text.Children.Add(new TextBlock { Text = title, FontWeight = playing ? FontWeights.SemiBold : FontWeights.Normal, Foreground = Palette.Get("Text"), TextTrimming = TextTrimming.CharacterEllipsis });
-        var state = playing ? L("En lecture", "Playing") : episode.UserData.Played ? L("✓ Vu", "✓ Watched") : episode.Progress > 0 ? L("En cours", "In progress") : null;
-        var details = string.Join(" · ", new[] { episode.DurationLabel, state }.Where(x => !string.IsNullOrEmpty(x)));
-        text.Children.Add(new TextBlock { Text = details, FontSize = 12, Foreground = Palette.Get(episode.UserData.Played && !playing ? "Success" : "Muted"), Margin = new Thickness(0, 4, 0, 0) });
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) }; Grid.SetColumn(text, 1);
+        var title = new TextBlock { FontSize = 14, LineHeight = 19, FontWeight = playing ? FontWeights.Bold : FontWeights.SemiBold, Foreground = Palette.Get(playing ? "Text" : "TextBody"), TextWrapping = TextWrapping.Wrap, MaxHeight = 38, TextTrimming = TextTrimming.CharacterEllipsis };
+        if (episode.IndexNumber is { } number) title.Inlines.Add(new System.Windows.Documents.Run(number.ToString(Lang.Culture)) { Foreground = Palette.Get("Faint") });
+        if (episode.IndexNumber is not null) title.Inlines.Add(new System.Windows.Documents.Run("  "));
+        title.Inlines.Add(new System.Windows.Documents.Run(episode.Name));
+        text.Children.Add(title);
+        var details = new TextBlock { FontSize = 12.5, Foreground = Palette.Get("Faint"), Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        if (playing)
+        {
+            details.Inlines.Add(new System.Windows.Documents.Run(L("En lecture", "Playing")) { Foreground = Palette.Get("Text"), FontWeight = FontWeights.Bold });
+            if (PlayingLeft() is { } left) details.Inlines.Add(new System.Windows.Documents.Run(" · " + left));
+        }
+        else details.Text = string.Join(" · ", new[] { episode.DurationLabel, watched ? L("Vu", "Watched") : episode.Progress > 0 ? L("En cours", "In progress") : null }.Where(x => !string.IsNullOrEmpty(x)));
+        text.Children.Add(details);
         grid.Children.Add(text);
         row.Content = grid;
         AutomationProperties.SetName(row, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Progress > 0 ? ", en cours" : "")}",
@@ -92,6 +116,20 @@ public partial class MainWindow
         };
         if (_images is not null && !hidden) _ = LoadEpisodeImageAsync(image, episode);
         return row;
+    }
+    /// <summary>How far the episode playing is, read off mpv (Jellyfin's progress is the one it was opened at).</summary>
+    private double PlayingProgress(MediaItem episode)
+    {
+        if (_mpv is not { } mpv) return episode.Progress;
+        var duration = mpv.Number("duration"); var position = mpv.Number("time-pos");
+        return duration > 0 && position >= 0 ? position / duration : episode.Progress;
+    }
+    /// <summary>« 26 min left » of the episode playing; null before mpv knows its length.</summary>
+    private string? PlayingLeft()
+    {
+        if (_mpv is not { } mpv) return null;
+        var duration = mpv.Number("duration"); var position = mpv.Number("time-pos");
+        return duration > 0 && position >= 0 ? MediaQuality.Left(TimeSpan.FromSeconds(Math.Max(0, duration - position))) : null;
     }
     /// <summary>The episode playing, else the first of the page: what the keyboard starts from.</summary>
     private Button? CurrentEpisodeRow() =>
