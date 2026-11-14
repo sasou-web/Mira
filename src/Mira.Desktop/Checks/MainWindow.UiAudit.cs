@@ -578,16 +578,18 @@ public partial class MainWindow
         // took 100 to 150 ms on the Dell, a 200 ms fade fell between two frames ; and PrintWindow gives a picture that no
         // longer changes for a window under others (WPF stops presenting it). Pixels only say whether the screen changed.
         var before = Gray(Picture(root, .25, backdrop: true));
-        var seen = new Dictionary<UIElement, string>(); var restless = new HashSet<UIElement>();
+        var seen = new Dictionary<UIElement, ElementState>(); var restless = new HashSet<UIElement>();
         var moving = new List<double>(); var clock = Stopwatch.StartNew(); var measuring = false;
         // Each frame of the step, with what moved in it: said in the notes when the step reads « without animation ».
-        var trace = new List<string>(); var previous = 0.0;
+        var trace = new List<string>(); var previous = 0.0; var walks = 0.0; var walked = 0;
         var last = TimeSpan.MinValue;
         void Tick(object? sender, EventArgs e)
         {
             if (e is RenderingEventArgs { RenderingTime: var at }) { if (at == last) return; last = at; }
+            var cost = Stopwatch.StartNew();
             var moved = Moved(root, seen, restless, learning: !measuring);
             if (!measuring) return;
+            walks += cost.Elapsed.TotalMilliseconds; walked++;
             var now = clock.Elapsed.TotalMilliseconds;
             if (moved.Count > 0) moving.Add(now);
             // And the pages' own opacity, whatever moved: a fade the measure would not see shows there.
@@ -610,31 +612,35 @@ public partial class MainWindow
         var total = Difference(before, Gray(Picture(root, .25, backdrop: true)));
         if (total < 1) { run.Notes.Add($"Transition « {name} » : rien n'a changé à l'écran."); return null; }
         var span = moving.Count > 1 ? moving[^1] - moving[0] : 0;
-        if (moving.Count <= 2 && wanted is null) run.Notes.Add($"Transition « {name} », image par image : " + string.Join(" · ", trace));
+        if (moving.Count <= 2 && wanted is null) run.Notes.Add($"Transition « {name} », image par image (lecture de l'arbre : {walks / Math.Max(1, walked):0.0} ms par image en moyenne) : " + string.Join(" · ", trace));
         return new(name, moving.Count, span, total, wanted);
     }
+
+    private readonly record struct ElementState(double Opacity, Point Place, Size Size, Matrix Transform);
 
     /// <summary>
     /// The shown elements that WPF animates, or that are faded or moved, whose opacity, place, size or
     /// transform changed since the last frame (those of <paramref name="restless"/> left out). While
-    /// <paramref name="learning"/>, the elements that move join <paramref name="restless"/>.
+    /// <paramref name="learning"/>, the elements that move join <paramref name="restless"/>. Kept light, as it runs at
+    /// each frame of the measure: not inside what is not seen (opacity 0), nor inside a list of many (the cards of a
+    /// grid: the grid itself is read), nor deeper than 14 (all of the window at each frame held the Dell's frames
+    /// at 110 ms, and the fades it measured fell between two).
     /// </summary>
-    private static List<string> Moved(FrameworkElement root, Dictionary<UIElement, string> seen, HashSet<UIElement> restless, bool learning)
+    private static List<string> Moved(FrameworkElement root, Dictionary<UIElement, ElementState> seen, HashSet<UIElement> restless, bool learning)
     {
         var moved = new List<string>();
-        var stack = new Stack<DependencyObject>(); stack.Push(root);
+        var stack = new Stack<(DependencyObject Node, int Depth)>(); stack.Push((root, 0));
         while (stack.Count > 0)
         {
-            var node = stack.Pop();
+            var (node, depth) = stack.Pop();
+            var visible = true;
             if (node is UIElement element)
             {
                 if (element.Visibility != Visibility.Visible) continue;
                 var transform = element.RenderTransform;
                 if (element.HasAnimatedProperties || Animated(transform) || !transform.Value.IsIdentity || element.Opacity < 1)
                 {
-                    var place = element.TranslatePoint(new Point(), root);
-                    var state = string.Create(System.Globalization.CultureInfo.InvariantCulture,
-                        $"{element.Opacity:0.###}|{place.X:0.#},{place.Y:0.#}|{element.RenderSize.Width:0.#}x{element.RenderSize.Height:0.#}|{transform.Value}");
+                    var state = new ElementState(Math.Round(element.Opacity, 3), element.TranslatePoint(new Point(), root), element.RenderSize, transform.Value);
                     if (seen.TryGetValue(element, out var was) && was != state)
                     {
                         if (learning) restless.Add(element);
@@ -642,8 +648,11 @@ public partial class MainWindow
                     }
                     seen[element] = state;
                 }
+                visible = element.Opacity > 0;
             }
-            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) stack.Push(VisualTreeHelper.GetChild(node, i));
+            var count = VisualTreeHelper.GetChildrenCount(node);
+            if (!visible || depth >= 14 || count > 40) continue;
+            for (var i = 0; i < count; i++) stack.Push((VisualTreeHelper.GetChild(node, i), depth + 1));
         }
         return moved;
     }
