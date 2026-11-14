@@ -74,7 +74,8 @@ public partial class MainWindow
     {
         HeroTitle.Text = item.DisplayTitle; HeroTitle.Visibility = logo is null ? Visibility.Visible : Visibility.Collapsed;
         HeroLogo.Source = logo; HeroLogo.Visibility = logo is null ? Visibility.Collapsed : Visibility.Visible;
-        HeroOverview.Text = HeroSmallOverview.Text = OverviewText.Plain(string.IsNullOrWhiteSpace(item.Overview) || Spoilers.Hides(item, _settings.HideSpoilers) ? series?.Overview : item.Overview, flat: true);
+        var overview = OverviewText.Plain(string.IsNullOrWhiteSpace(item.Overview) || Spoilers.Hides(item, _settings.HideSpoilers) ? series?.Overview : item.Overview, flat: true);
+        FittedText.Set(HeroOverview, overview); FittedText.Set(HeroSmallOverview, overview);
         HeroPlayText.Text = item.Resumable && _settings.RememberPosition ? L("Reprendre", "Resume") : L("Regarder", "Watch");
         HeroMetaPills.Children.Clear();
         if (item.ProductionYear is { } year) AddPill(HeroMetaPills, year.ToString());

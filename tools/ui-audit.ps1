@@ -47,8 +47,8 @@ foreach ($lang in $Language) {
     Write-Output "$lang : $line"
     if ($line -notlike 'OK*') { $failed += "$lang : $line" }
     if ($Previous -and (Test-Path -LiteralPath (Join-Path $Previous "$lang\findings.json"))) {
-        $before = @(Get-Content -LiteralPath (Join-Path $Previous "$lang\findings.json") -Raw -Encoding UTF8 | ConvertFrom-Json)
-        $now = @(Get-Content -LiteralPath (Join-Path $out 'findings.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
+        $before = @(Get-Content -LiteralPath (Join-Path $Previous "$lang\findings.json") -Raw -Encoding UTF8 | ConvertFrom-Json | ForEach-Object { $_ })
+        $now = @(Get-Content -LiteralPath (Join-Path $out 'findings.json') -Raw -Encoding UTF8 | ConvertFrom-Json | ForEach-Object { $_ })
         $key = { param($x) "$($x.kind)|$($x.element)|$($x.detail)" }
         $old = @{}; foreach ($x in $before) { $old[(& $key $x)] = $x }
         $new = @{}; foreach ($x in $now) { $new[(& $key $x)] = $x }
