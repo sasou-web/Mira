@@ -77,7 +77,8 @@ public partial class MainWindow
         // During a search, the results on the left and the queue on the right whatever the width: only the queue thins.
         ServerSearchView.ColumnDefinitions[1].Width = new GridLength(side switch { 264 => 22, 296 => 28, _ => 36 });
         ServerSearchView.ColumnDefinitions[2].Width = new GridLength(side);
-        ServerSideHead.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
+        // The summary beside the title, cut short; under it in the thinner column.
+        DockPanel.SetDock(ServerSideTitle, narrow ? Dock.Top : Dock.Left);
         ServerSideSummary.Margin = new Thickness(narrow ? 0 : 12, narrow ? 1 : 0, 0, narrow ? 0 : 2);
         ServerSideTitle.FontSize = narrow ? 17 : 18;
         foreach (var (fold, line) in new[] { (ServerFollowsFold, ServerFollowsFoldLine), (ServerPlacedFold, ServerPlacedFoldLine) })
