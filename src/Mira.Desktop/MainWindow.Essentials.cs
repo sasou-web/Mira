@@ -61,6 +61,17 @@ public partial class MainWindow
     private void ShowEssentials()
     {
         ShowEssentialsUpdate();
+        ShowEssentialsAccount();
+        var colour = (SubtitleColorChoice.SelectedItem as ComboBoxItem)?.Content as string ?? "";
+        EssentialsSubtitleStyle.Text = L("Taille", "Size") + " " + ((int)SubtitleSizeSlider.Value).ToString(Lang.Culture) + (colour.Length > 0 ? " · " + colour.ToLower(Lang.Culture) : "");
+    }
+
+    /// <summary>
+    /// The account card: who, on which Jellyfin, and whether it answers. Also told again by <see cref="SyncChanged"/>
+    /// while « L’essentiel » shows: Jellyfin answering again (a refresh behind the window) changes the line at once.
+    /// </summary>
+    private void ShowEssentialsAccount()
+    {
         EssentialsLetter.Text = AvatarLetter.Text;
         var offline = _client is not null && _sync is { } sync && SyncStatus.Offline(sync.LastSynced, _offlineSince);
         if (_demo)
@@ -85,8 +96,6 @@ public partial class MainWindow
         EssentialsRecap.Visibility = _client is null || _demo || InParty ? Visibility.Collapsed : Visibility.Visible;
         // « Synchroniser maintenant » left: the sync is automatic. « Réessayer » only while Jellyfin isn't answering.
         SyncRetryButton.Visibility = offline ? Visibility.Visible : Visibility.Collapsed;
-        var colour = (SubtitleColorChoice.SelectedItem as ComboBoxItem)?.Content as string ?? "";
-        EssentialsSubtitleStyle.Text = L("Taille", "Size") + " " + ((int)SubtitleSizeSlider.Value).ToString(Lang.Culture) + (colour.Length > 0 ? " · " + colour.ToLower(Lang.Culture) : "");
     }
 
     /// <summary>The card of Mira: its version and where its update stands, said in a few words; its buttons those of « Mises à jour ».</summary>
