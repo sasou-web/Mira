@@ -432,20 +432,48 @@ internal static class PlayerTests
             Assert(IconPaths.TenCentre("play") is null, "Only the jumps carry it");
             return Task.CompletedTask;
         });
-        await Test("Sélecteur segmenté : la pastille coulisse d'un choix à l'autre en 200 ms, sans rebond (Réglages | Aide, Windows et Mac)", () =>
+        await Test("Sélecteur segmenté : la pastille part en gelée (bord de devant d'abord, étirée puis rebond doux, posée sans bouger), pareille à 60 et 240 Hz (Windows et Mac)", () =>
         {
-            Assert(SegmentedSwitch.SlideMs == 200, "200 ms");
-            Assert(SegmentedSwitch.Ease(0) == 0 && SegmentedSwitch.Ease(1) == 1 && SegmentedSwitch.Ease(-1) == 0 && SegmentedSwitch.Ease(2) == 1, "Ends");
-            var last = 0d;
-            for (var i = 1; i <= 100; i++)
-            {
-                var at = SegmentedSwitch.Ease(i / 100d);
-                Assert(at >= last && at <= 1, $"Never back, never past its place: {i}% = {at}");
-                last = at;
-            }
-            Assert(SegmentedSwitch.Ease(.5) > .8, "Ease-out: most of the way in the first half");
             Assert(SegmentedSwitch.At(0, 2, 220) == 0 && SegmentedSwitch.At(1, 2, 220) == 110 && SegmentedSwitch.At(5, 2, 220) == 110 && SegmentedSwitch.At(1, 1, 220) == 0, "Equal parts");
             Assert(SegmentedSwitch.Part(55, 2, 220) == .5 && SegmentedSwitch.Part(110, 2, 220) == 1 && SegmentedSwitch.Part(500, 2, 220) == 1 && SegmentedSwitch.Part(10, 2, 0) == 0, "Mid-slide, read back in parts");
+            // From the first part (0-45) to the fourth (135-180), as Quality's « Auto » to « 10 ».
+            var pill = new JellyPill(); pill.Put(0, 45); pill.Go(135, 180, 10);
+            var stretched = 0d; var past = 0d; var shortest = 45d; var leadAhead = false; double? still = null;
+            for (var i = 1; i <= 240; i++)
+            {
+                var now = 10 + i / 240d;
+                var (left, right, height) = pill.At(now);
+                Assert(right > left && height is > .7 and <= JellyPill.MaxSwell, $"A pill at {i}: {left}-{right}, {height}");
+                Assert(right - left <= 45 * (1 + JellyPill.MaxStretch) + 1e-9 && right - left >= 45 * JellyPill.MinSquash - 1e-9, $"Within its stretch at {i}: {right - left}");
+                stretched = Math.Max(stretched, right - left); shortest = Math.Min(shortest, right - left);
+                past = Math.Max(past, left - 135);
+                if (i == 12) leadAhead = right - 45 > (left - 0) * 1.5;
+                if (still is null && !pill.Moving(now)) still = now - 10;
+            }
+            Assert(leadAhead, "The edge in front leads");
+            Assert(stretched > 55 && stretched < 80, $"Stretched along the way: {stretched}");
+            Assert(past > 1 && past < 8 && shortest < 45, $"A soft rebound: {past} past, {shortest} at its shortest");
+            Assert(still is > .3 and < .55, $"Still within half a second: {still}");
+            Assert(pill.At(11) == (135, 180, 1), "Landed exactly, at its height");
+            // The same curve whatever the frame rate: solved, not stepped.
+            var a = new JellyPill(); a.Put(0, 45); a.Go(135, 180, 0);
+            var b = new JellyPill(); b.Put(0, 45); b.Go(135, 180, 0);
+            for (var i = 1; i <= 4; i++) b.At(i / 240d);
+            Assert(a.At(1 / 60d) == b.At(4 / 240d), "60 Hz and 240 Hz alike");
+            // Another choice mid-way: from where the pill is, never a jump.
+            var c = new JellyPill(); c.Put(0, 45); c.Go(270, 315, 0);
+            var before = c.At(.08); c.Go(45, 90, .08); var after = c.At(.08);
+            Assert(Math.Abs(before.Left - after.Left) < 1e-9 && Math.Abs(before.Right - after.Right) < 1e-9, $"Turned mid-way from where it was: {before} {after}");
+            var back = c.At(.0833);
+            Assert(back.Right > after.Right, "Still carried on a little by its speed");
+            Assert(!c.Moving(2) && c.At(2) == (45, 90, 1), "Then lands on the new part");
+            // Each part as wide as it needs, the others equal: « Auto » no longer cut beside « 6 ».
+            var widths = SegmentedSwitch.Widths([47, 44, 42, 42, 32, 32, 42], 316);
+            Assert(Math.Abs(widths.Sum() - 316) < 1e-9 && widths[0] >= 47 && widths[1] >= 44 && widths.Skip(2).All(w => Math.Abs(w - widths[2]) < 1e-9) && widths[2] > 44, string.Join(", ", widths));
+            Assert(SegmentedSwitch.Widths([40, 40], 200).SequenceEqual([100d, 100d]), "Equal when all fit");
+            var tight = SegmentedSwitch.Widths([100, 50], 75);
+            Assert(Math.Abs(tight[0] - 50) < 1e-9 && Math.Abs(tight[1] - 25) < 1e-9, "Short of room: in proportion");
+            Assert(SegmentedSwitch.Lit(0, 45, 0, 45) == 1 && SegmentedSwitch.Lit(45, 90, 0, 45) == 0 && SegmentedSwitch.Lit(22.5, 67.5, 0, 45) == .5, "Ink by the pill's cover");
             return Task.CompletedTask;
         });
         await Test("Mini-lecteur : rangé tout seul contre le bord droit, un bout de la vidéo qui dépasse, sorti au survol, rangé de nouveau après (Windows et Mac)", () =>
