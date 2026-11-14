@@ -17,6 +17,11 @@ on:
         description: "JPEG quality of each preview, 1 to 100 (a capture to look at closely: 90)"
         required: false
         default: "50"
+      ui_audit:
+        description: "Also run the interface audit (--ui-audit) on the offline demo: report in the log, outlined captures as audit-* previews"
+        type: boolean
+        required: false
+        default: false
 # A new push to a pull request cancels its run still going (as mac.yml): the macOS and Windows runners it held go to
 # the next run instead of a commit nobody will merge. Never on main, a release or a run asked by hand.
 concurrency:
@@ -223,6 +228,26 @@ jobs:
           $sizes = Join-Path $output 'sizes.txt'
           if (Test-Path -LiteralPath $sizes) { Get-Content -LiteralPath $sizes }
           if ($run.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'Interface captures failed.' }
+      # On request only (Run workflow → ui_audit): the interface audit of the nightly task on the Dell
+      # (src/Mira.Desktop/Checks/MainWindow.UiAudit.cs), here on the offline demo, in English then French. Its report in
+      # the log; the captures where a defect is outlined join the interface's as audit-<language>-* (for the previews).
+      - name: Interface audit (offline demo, on request)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.ui_audit }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
+          foreach ($lang in 'en', 'fr') {
+            $output = Join-Path $PWD ".artifacts/ui-audit/$lang"
+            $profile = Join-Path $PWD ".artifacts/ui-audit-profile-$lang"
+            $run = Start-Process -FilePath $exe -ArgumentList @('--demo', '--data', "`"$profile`"", '--ui-audit', "`"$output`"", '--language', $lang) -PassThru
+            if (-not $run.WaitForExit(1500000)) { $run.Kill(); Write-Output "::warning::The interface audit ($lang) did not finish within 25 minutes."; continue }
+            $report = Join-Path $output 'report.md'
+            if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report -Encoding UTF8 } else { Write-Output "::warning::No audit report ($lang), exit code $($run.ExitCode)." }
+            $shots = Join-Path $output 'annotated'
+            if (Test-Path -LiteralPath $shots) { Get-ChildItem -LiteralPath $shots -Filter '*.png' | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $PWD ".artifacts/interface/audit-$lang-$($_.Name)") } }
+            if ($lang -eq 'en') { $all = Join-Path $output 'captures'; if (Test-Path -LiteralPath $all) { Get-ChildItem -LiteralPath $all -Filter '*.png' | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $PWD ".artifacts/interface/auditshot-$($_.Name)") } } }
+          }
       # The real player: libmpv as Mira installs it, a synthetic clip with chapters, the window off screen; its
       # captures join the interface's (tools/player-check.ps1). The archive is kept between runs (SourceForge).
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
