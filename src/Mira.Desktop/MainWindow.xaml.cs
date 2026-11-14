@@ -22,6 +22,8 @@ public partial class MainWindow : Window
     private SyncService? _sync;
     private ImageCache? _images;
     private MetadataCache? _metadata;
+    /// <summary>The room titles take on the server, kept for the pages (TitleStorage).</summary>
+    private TitleSizes? _sizes;
     private bool _keyboardNavigation;
     private CancellationTokenSource _connectionLifetime = new();
     private CancellationTokenSource? _browseCancellation;
@@ -311,7 +313,7 @@ public partial class MainWindow : Window
         // Never leave the previous account's posters on screen while this one loads.
         _catalog.Loading = true; RenderLibrary(); ForgetKeptCards();
         _images = new ImageCache(_client, _profile.DirectoryPath); FitArtwork(_images); _sync = sync;
-        _metadata = new MetadataCache(_client); ++_heroVersion;
+        _metadata = new MetadataCache(_client); _sizes = new TitleSizes(_client); ++_heroVersion;
         _sync.Changed += SyncChanged;
         _connectionLifetime = new(); _pageGenres.Clear(); _pageGenresAsked.Clear(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         // --smooth-check's Jellyfin has no WebSocket, and its new episodes would only add requests to what it measures.
@@ -388,7 +390,7 @@ public partial class MainWindow : Window
         if (_playing) { await StopPlaybackAsync(); ReturnToLibrary(); }
         _heroClock.Stop(); _heroClockAttached = false; _heroCandidates = [];
         _heroSeries.Clear();
-        _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
+        _metadata = null; _sizes = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
         _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); _choicesSoon.Stop(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _downloadsKnownFor = null; ShowDownloadsEntry(_torlinkEnabled); SetPhoto(null); _images = null; _store = null; _listening = false;

@@ -38,9 +38,22 @@ public static class EpisodeTiles
         return at < 0 ? (page.Label, null) : (page.Label[..at], page.Label[(at + 3)..]);
     }
 
-    /// <summary>Under a tile's title: « 24 min · 25 oct. », « 15 min restantes · 25 oct. » for the one begun.</summary>
-    public static string Meta(MediaItem episode, DateOnly today) =>
-        string.Join(" · ", new[] { episode.Resumable ? MediaQuality.Left(episode) : episode.DurationLabel, EpisodeCalendar.AirDay(episode) is { } day ? EpisodeShelf.ShortDay(day, today) : null }.Where(x => !string.IsNullOrEmpty(x)));
+    /// <summary>
+    /// Under a tile's title: « 24 min · 25 oct. », « 15 min restantes · 25 oct. » for the one begun, then its files once
+    /// known (« · 1,2 Go », <see cref="TitleStorage"/>).
+    /// </summary>
+    public static string Meta(MediaItem episode, DateOnly today, long? size = null) =>
+        string.Join(" · ", new[] { episode.Resumable ? MediaQuality.Left(episode) : episode.DurationLabel, EpisodeCalendar.AirDay(episode) is { } day ? EpisodeShelf.ShortDay(day, today) : null, TitleStorage.Text(size) }.Where(x => !string.IsNullOrEmpty(x)));
+
+    /// <summary>
+    /// Over the grid: « Épisodes · 12 », the whole season's count (also on a slice of a long one), then the room its files
+    /// take once known (« · 48 Go »).
+    /// </summary>
+    public static string Heading(IReadOnlyList<MediaItem> episodes, EpisodePage? page, IReadOnlyDictionary<string, long>? sizes)
+    {
+        var season = page is null ? [] : episodes.Where(x => (x.ParentIndexNumber ?? 1) == page.Season).ToList();
+        return string.Join("  ·  ", new[] { L("Épisodes", "Episodes"), season.Count.ToString(Culture), sizes is null ? null : TitleStorage.Text(TitleStorage.Sum(season, sizes)) }.Where(x => !string.IsNullOrEmpty(x)));
+    }
 
     /// <summary>A tile's title: « 03  Le nom », the number lighter.</summary>
     public static string Number(MediaItem episode) => episode.IndexNumber is { } number ? $"{number:00}" : "";

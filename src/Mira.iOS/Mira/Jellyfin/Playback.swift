@@ -17,6 +17,8 @@ struct MediaSource: Codable, Sendable, Hashable {
     var defaultAudioStreamIndex: Int?
     var defaultSubtitleStreamIndex: Int?
     var mediaStreams: [MediaStream]?
+    /// The file on the server: two versions of a title are two files (StorageSize counts each once).
+    var path: String?
 
     var audio: [MediaStream] { (mediaStreams ?? []).filter { $0.type == "Audio" } }
     var subtitles: [MediaStream] { (mediaStreams ?? []).filter { $0.type == "Subtitle" } }
@@ -103,6 +105,14 @@ extension JellyfinClient {
     /// with no season folder, also « Virtual » (checked on Jellyfin 12.1).
     func seasons(_ series: String) async throws -> [Item] {
         try await get("Shows/\(series)/Seasons", ["userId": userId, "isMissing": "false", "enableUserData": "true", "enableImages": "false"], as: ItemList.self).items ?? []
+    }
+
+    /// A series' episodes with their files only (StorageSize: their sizes), no pictures, no progress. Jellyfin sends each
+    /// file's tracks too (no way to leave them out): about 2 KB an episode.
+    func episodeFiles(_ series: String) async throws -> [Item] {
+        try await get("Shows/\(series)/Episodes", [
+            "userId": userId, "isMissing": "false", "fields": "MediaSources", "enableImages": "false", "enableUserData": "false",
+        ], as: ItemList.self).items ?? []
     }
 
     /// A season's episodes, in order, with their pictures, progress and files (for their languages). Only those in the

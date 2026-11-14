@@ -6491,6 +6491,16 @@
         }
       }
     },
+    "%@ TB": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ To"
+          }
+        }
+      }
+    },
     "%lld peers": {
       "localizations": {
         "en": {

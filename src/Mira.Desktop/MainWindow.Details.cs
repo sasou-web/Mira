@@ -60,6 +60,7 @@ public partial class MainWindow
             else _detailTrail.Clear();
         }
         ClosePreview(); _detail = item; _detailSettled = null; DetailOverview.Text = ""; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
+        _detailSize = null; _episodeSizes = null; _episodeMeta.Clear();
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
         StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = Visibility.Collapsed;
         _extras = []; ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
@@ -170,6 +171,7 @@ public partial class MainWindow
             if (_favoriteOverride is { } pending && pending.Id == full.Id) full.UserData.IsFavorite = pending.Favorite;
             _detail = full; RenderDetailText(full); UpdateDetailPlayLabel();
             _ = LoadDetailLogoAsync(full, version);
+            if (full.Type != "Series") _ = LoadDetailSizeAsync(full, version);
             await Task.WhenAll(LoadExtrasAsync(full, version), LoadStudioTitlesAsync(full, version));
         }
         catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion) SetError(Friendly(ex)); }
@@ -228,6 +230,7 @@ public partial class MainWindow
             _detailNext = next is null ? null : _episodes.FirstOrDefault(x => x.Id == next.Id) ?? next;
             _episodesRead = true; FillSeasons();
             RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta(); ShowOfflineButton();
+            _ = LoadEpisodeSizesAsync(item, version);
             if (_detailNext is { } target && _detailFile?.Id != target.Id) await LoadDetailFileAsync(target, version);
         }
         catch (Exception ex) when (IsExpected(ex))
@@ -248,6 +251,41 @@ public partial class MainWindow
             _detailFile = (episode.Id, full.OwnSource); RenderDetailMeta();
         }
         // Only a detail of the page: without it, the rest is complete.
+        catch (Exception ex) when (IsExpected(ex)) { }
+    }
+    /// <summary>
+    /// The room the title takes on the server (TitleStorage), in the line of facts once Jellyfin answered: never waited
+    /// for, kept for the next time (TitleSizes).
+    /// </summary>
+    private long? _detailSize;
+    /// <summary>A series' episodes' sizes by id, once known: the series' total, the season's after its count, each tile's.</summary>
+    private Dictionary<string, long>? _episodeSizes;
+    /// <summary>The line under each tile's title, said again with its size when the sizes arrive (the grid is not redrawn).</summary>
+    private readonly Dictionary<string, (TextBlock Text, MediaItem Episode)> _episodeMeta = [];
+    private async Task LoadDetailSizeAsync(MediaItem item, int version)
+    {
+        if (_sizes is not { } sizes) return;
+        try
+        {
+            var size = await sizes.FilmAsync(item);
+            if (version != _detailVersion || _detail?.Id != item.Id) return;
+            _detailSize = size; RenderDetailMeta();
+        }
+        // Only a detail of the page: without it, the rest is complete.
+        catch (Exception ex) when (IsExpected(ex)) { }
+    }
+    private async Task LoadEpisodeSizesAsync(MediaItem series, int version)
+    {
+        if (_sizes is not { } sizes) return;
+        try
+        {
+            var found = await sizes.EpisodesAsync(series.Id, _episodes.Count);
+            if (version != _detailVersion || _detail?.Id != series.Id) return;
+            _episodeSizes = found; _detailSize = TitleStorage.Sum(_episodes, found); RenderDetailMeta();
+            if ((SeasonSelector.SelectedItem as ComboBoxItem)?.Tag is EpisodePage { Absent: false } page) EpisodeHeading.Text = EpisodeTiles.Heading(_episodes, page, found);
+            var today = EpisodeCalendar.Today();
+            foreach (var (text, episode) in _episodeMeta.Values) text.Text = EpisodeTiles.Meta(episode, today, found.TryGetValue(episode.Id, out var size) ? size : null);
+        }
         catch (Exception ex) when (IsExpected(ex)) { }
     }
     /// <summary>"Titres similaires" under the page. Optional: without an answer the page is complete as it is.</summary>
@@ -460,7 +498,7 @@ public partial class MainWindow
         var file = item.Type != "Series" ? MediaQuality.Label(item) : _detailFile is { } known && known.Id == target?.Id ? MediaQuality.Label(known.Source) : null;
         var resume = target is not null && target.Resumable && _settings.RememberPosition;
         DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is { } rating and > 0 ? $"★ {Number(rating, "0.0")}" : "", item.OfficialRating ?? "",
-            file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
+            TitleStorage.Text(_detailSize) ?? "", file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
     }
     /// <summary>
     /// A state button of the page (Favori, Vu, Suivre, Garder sur ce PC): the same rounded square on or off, its glyph
@@ -519,13 +557,13 @@ public partial class MainWindow
     private void Season_Changed(object sender, SelectionChangedEventArgs e) { if (!_seasonBusy) { RenderEpisodes(); ShowOfflineButton(); Motion.Reveal(EpisodesPanel, 220, 7); } }
     private void RenderEpisodes()
     {
-        EpisodesPanel.Children.Clear(); _episodeCopyLabels.Clear(); _tiles.Clear(); _missingViews.RemoveAll(x => !x.Pill);
+        EpisodesPanel.Children.Clear(); _episodeCopyLabels.Clear(); _tiles.Clear(); _episodeMeta.Clear(); _missingViews.RemoveAll(x => !x.Pill);
         var page = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         UpdateSeasonPills(page);
         if (page is { Absent: true }) { RenderAbsentSeason(page); return; }
         var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
-        // The whole season's count, also on a slice of a long one.
-        EpisodeHeading.Text = $"{L("Épisodes", "Episodes")}  ·  {(page is null ? 0 : _episodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
+        // The whole season's count, also on a slice of a long one, and the room it takes once known.
+        EpisodeHeading.Text = EpisodeTiles.Heading(_episodes, page, _episodeSizes);
         ShowSeasonMark(page);
         if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Palette.Get("Muted") }); return; }
         // The episode Lecture plays is in another season than the one shown (a long anime opened on its first): a click brings it.

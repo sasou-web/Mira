@@ -16,6 +16,8 @@ public sealed class Session : IAsyncDisposable
     public LibraryStore Store { get; }
     public SyncService Sync { get; }
     public Images Images { get; }
+    /// <summary>The room titles take on the server, kept for the pages (TitleStorage).</summary>
+    public TitleSizes Sizes { get; }
     public Connection Connection => Client.Connection;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Dictionary<string, (DateTimeOffset Expires, object Task)> _requests = [];
@@ -28,6 +30,7 @@ public sealed class Session : IAsyncDisposable
         Client = new JellyfinClient(connection, handler);
         Sync = new SyncService(Client, Store);
         Images = new Images(Client, profile.DirectoryPath);
+        Sizes = new TitleSizes(Client);
         Lifetime = _lifetime.Token;
     }
 

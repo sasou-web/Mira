@@ -1,0 +1,28 @@
+{
+  "about": "The room a title takes on the server (TitleStorage of Mira.Core, StorageSize.swift of the iPhone): both must agree. text: [bytes, French, English], binary units as Windows' Explorer counts them (1 Go = 2^30 bytes), one decimal under 10. files: [[size or null, path or null, id], ...] the sources of one title, then the total (null: no size known); each version once, by its path, else its id. series: [[episode id, season, its files' size or null], ...], the season asked, then the series' total and the season's (null: none known).",
+  "text": [
+    [524288, "1 Mo", "1 MB"],
+    [891289600, "850 Mo", "850 MB"],
+    [1073741824, "1,0 Go", "1.0 GB"],
+    [4509715661, "4,2 Go", "4.2 GB"],
+    [15246831616, "14 Go", "14 GB"],
+    [335007449088, "312 Go", "312 GB"],
+    [1539316278886, "1,4 To", "1.4 TB"],
+    [12094627905536, "11 To", "11 TB"]
+  ],
+  "files": [
+    [[[2056905, "/media/Films/A/A.mkv", "a"]], 2056905],
+    [[[1000, "/media/Films/A/A - 720p.mkv", "a"], [3000, "/media/Films/A/A - 1080p.mkv", "b"]], 4000],
+    [[[1000, "/media/Films/A/A.mkv", "a"], [1000, "/media/films/a/a.mkv", "b"]], 1000],
+    [[[1000, null, "a"], [2000, null, "b"], [2000, null, "b"]], 3000],
+    [[[null, "/media/Films/A/A.strm", "a"], [0, "/media/Films/A/B.mkv", "b"], [500, "/media/Films/A/C.mkv", "c"]], 500],
+    [[[null, "/media/Films/A/A.strm", "a"]], null],
+    [[], null]
+  ],
+  "series": [
+    [[["e1", 1, 1000], ["e2", 1, 2000], ["e3", 2, 4000], ["e4", 2, null]], 1, 7000, 3000],
+    [[["e1", 1, 1000], ["e2", 1, 2000], ["e3", 2, 4000], ["e4", 2, null]], 2, 7000, 4000],
+    [[["e1", 1, null], ["e2", 2, 500]], 1, 500, null],
+    [[["e1", 1, null]], 1, null, null]
+  ]
+}
