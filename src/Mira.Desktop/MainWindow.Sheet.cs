@@ -223,8 +223,9 @@ public partial class MainWindow
     /// </summary>
     private void UpdateSheetCover()
     {
-        var covered = (SettingsOverlay.IsVisible && SettingsOverlay.Opacity >= .995 && SettingsBackdrop.Source is not null)
-            || (GuideOverlay.IsVisible && GuideOverlay.Opacity >= .995 && GuideBackdrop.Source is not null);
+        // A window going away covers no more, even while still nearly opaque (UncoverLibrary).
+        var covered = (SettingsOverlay.IsVisible && SettingsOverlay != _leavingCover && SettingsOverlay.Opacity >= .995 && SettingsBackdrop.Source is not null)
+            || (GuideOverlay.IsVisible && GuideOverlay != _leavingCover && GuideOverlay.Opacity >= .995 && GuideBackdrop.Source is not null);
         var clip = covered ? Geometry.Empty : null;
         foreach (var page in new UIElement[] { DetailOverlay, TorLinkOverlay, PartyOverlay })
             if (!ReferenceEquals(page.Clip, clip)) page.Clip = clip;
