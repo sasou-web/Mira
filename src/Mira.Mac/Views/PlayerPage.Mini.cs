@@ -132,14 +132,12 @@ public sealed partial class PlayerPage
         var held = _miniDragging || _miniPress is not null;
         if (_dock.Update(_dockClock.Elapsed, PointerOnMini(), held)) SlideMini(_dock.Out);
     }
-    /// <summary>The pointer on what shows of the mini-player: the sliver tucked away; out, the picture and the gap to the edge.</summary>
+    /// <summary>The pointer on what shows of the mini-player (<see cref="MiniDock.Catches"/>).</summary>
     private bool PointerOnMini()
     {
         if (MiniPointerForCheck is { } check) return check();
         if (_pointer is not { } point) return false;
-        var right = ShellWidth; var top = MiniDock.Top(_miniShare, MiniTop, ShellHeight);
-        var left = _miniTucked ? right - MiniDock.Peek : MiniDock.Left(true, right) - 4;
-        return point.X >= left && point.X <= right + 1 && point.Y >= top - 4 && point.Y <= top + MiniHeight + 4;
+        return MiniDock.Catches(point.X, point.Y, _miniTucked, MiniDock.Top(_miniShare, MiniTop, ShellHeight), ShellWidth);
     }
     private void ShellPointerMoved(object? sender, PointerEventArgs e)
     {
