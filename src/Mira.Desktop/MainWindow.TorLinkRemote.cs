@@ -21,6 +21,8 @@ namespace Mira.Desktop;
 public partial class MainWindow
 {
     private readonly TorLinkHeadless _torlinkHeadless = new();
+    /// <summary>Mira's own search sites, beside TorLink's (« Plus de sources de recherche », SearchSources).</summary>
+    private readonly SearchSourceClient _searchSources = new();
     private readonly DispatcherTimer _remoteTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private readonly List<AgentSearchOutcome> _remoteSearchOutcomes = [];
     private readonly List<AgentOutcome> _remoteRequestOutcomes = [], _remoteControlOutcomes = [];
@@ -90,7 +92,7 @@ public partial class MainWindow
 
         var problem = TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false },
             DateTime.UtcNow - _remoteElsewhereAt < TimeSpan.FromMinutes(1), !_torlinkHeadless.Running && TorLinkInUse(), installation is { Outdated: false });
-        var (searches, requests, controls, follows) = (_remoteSearchOutcomes.ToList(), _remoteRequestOutcomes.ToList(), _remoteControlOutcomes.ToList(), _remoteFollowOutcomes.ToList());
+        var (searches, requests, controls, follows) = (TorLinkRemote.ReportOf(_remoteSearchOutcomes), _remoteRequestOutcomes.ToList(), _remoteControlOutcomes.ToList(), _remoteFollowOutcomes.ToList());
         // Follows, even empty: this Mira checks the series followed (MainWindow.Follows.cs); it replaces titles (MainWindow.Upgrades.cs).
         // qBittorrent (private trackers) takes pasted links and .torrent files, whatever TorLink's state; its downloads are listed with TorLink's.
         List<RelayDownload> downloads = [.. await RemoteDownloadsAsync(ct), .. await QBittorrentDownloadsAsync(ct)];
@@ -107,6 +109,8 @@ public partial class MainWindow
         }
         // Delivered: what the relay has now is not sent again.
         _remoteSearchOutcomes.RemoveAll(searches.Contains); _remoteRequestOutcomes.RemoveAll(requests.Contains); _remoteControlOutcomes.RemoveAll(controls.Contains); _remoteFollowOutcomes.RemoveAll(follows.Contains);
+        // Searches left for a lighter report (TorLinkRemote.ReportOf), or finished meanwhile: back at once.
+        if (_remoteSearchOutcomes.Count > 0) _remoteAgain = true;
         if (work.Busy is { } other) { _remoteState = L($"Un autre Mira reçoit déjà les téléchargements de tes appareils : {other}.", $"Another Mira already receives your devices’ downloads: {other}."); return TimeSpan.FromSeconds(Math.Clamp(work.Next, 10, 120)); }
         _remoteState = !active ? L("Active TorLink dans la page Téléchargements : tes autres appareils pourront y lancer un téléchargement.", "Turn TorLink on in the Downloads page: your other devices will be able to start a download there.")
             : problem ?? (_torlinkHeadless.Running ? L("Prêt. TorLink travaille en ce moment sans fenêtre, pour un autre appareil.", "Ready. TorLink is working without a window right now, for another device.") : L("Prêt : tes autres appareils peuvent lancer un téléchargement ici.", "Ready: your other devices can start a download here."));
@@ -146,13 +150,20 @@ public partial class MainWindow
             var query = RemoteDownloads.CleanQuery(search.Query);
             var (hits, error) = query is null || !RemoteDownloads.IsCategory(search.Category) ? ([], L("Recherche refusée.", "Search refused."))
                 : installation is not { Headless: true } ? ([], TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false }, false, false, installation is { Outdated: false }) ?? L("TorLink n’est pas prêt sur le PC serveur.", "TorLink isn’t ready on the server PC."))
-                : await _torlinkHeadless.SearchAsync(installation, query, search.Category, _torlinkLifetime.Token);
+                : await SearchTorrentsAsync(installation, query, search.Category, _torlinkLifetime.Token);
             _remoteSearchOutcomes.Add(new(search.Id, error is null ? "done" : "failed", hits, error));
             VisitRelaySoon();
         }
         catch (OperationCanceledException) { }
         finally { _remoteSearching.Remove(search.Id); }
     }
+
+    /// <summary>
+    /// A search on this PC, in one category: TorLink's, and Mira's own sites beside it unless turned off in TorLink's
+    /// settings, each in every form of the search (TorrentSearch: « JoJo's » and « JoJos », « Shōgun » and « Shogun »).
+    /// </summary>
+    private Task<(List<AgentHit> Hits, string? Error)> SearchTorrentsAsync(TorLinkInstallation installation, string query, string category, CancellationToken ct) =>
+        TorrentSearch.RunAsync((form, token) => _torlinkHeadless.SearchAsync(installation, form, category, token), _settings.TorLinkMoreSources ? _searchSources : null, query, category, ct);
 
     /// <summary>Downloads into TorLink without a window, started for them; controls on downloads it has under way.</summary>
     private async Task RunRemoteDownloadsAsync(TorLinkInstallation? installation, List<WorkRequest> requests, List<WorkControl> controls)

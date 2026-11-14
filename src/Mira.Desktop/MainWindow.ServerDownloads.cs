@@ -365,10 +365,10 @@ public partial class MainWindow
             if (_serverLocal)
             {
                 if (_torlinkInstallation is not { Headless: true } installation) { End(L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC.")); return; }
-                // One search of TorLink in each category, side by side, mixed as the relay does.
+                // One search in each category (TorLink and Mira's sites), side by side, mixed as the relay does.
                 var parts = await Task.WhenAll(RemoteDownloads.Categories.Select(async kind =>
                 {
-                    var (hits, error) = await _torlinkHeadless.SearchAsync(installation, query, kind, ct);
+                    var (hits, error) = await SearchTorrentsAsync(installation, query, kind, ct);
                     return (kind, (IReadOnlyList<AgentHit>)hits, error);
                 }));
                 if (mine != _serverSearchVersion) return;

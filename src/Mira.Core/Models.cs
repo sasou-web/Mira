@@ -396,6 +396,11 @@ public sealed class PlayerSettings
     /// </summary>
     public bool TorLinkRemote { get; set; } = true;
     /// <summary>
+    /// On the PC of Jellyfin: searches ask Mira's own sites too (Knaben, AnimeTosho, Torrents-CSV: TorLink.SearchSources),
+    /// beside TorLink's, many of which a box's DNS refuses. Off: TorLink's sites alone, as before 0.9.8.
+    /// </summary>
+    public bool TorLinkMoreSources { get; set; } = true;
+    /// <summary>
     /// The Downloads page on the PC of Jellyfin: false (default) Mira's own screen, the one of Mira web (search, best
     /// release of each title, progress); true TorLink's own interface, in its terminal.
     /// </summary>

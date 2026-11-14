@@ -60,6 +60,11 @@ struct PrivacyView: View {
                            when: "Only if you installed it, at each library scan.",
                            sends: "Each series’ TheTVDB id, for its list of episodes. No name or picture from TheTVDB is kept.",
                            stop: "Uninstall it from Mira for Windows or Jellyfin’s dashboard.")
+                PrivacyRow(title: "Download searches",
+                           to: "TorLink’s sites (The Pirate Bay through apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho and Torrents-CSV unless they’re turned off.",
+                           when: "When an administrator searches in Downloads, when Mira checks a followed series and when you get missing episodes.",
+                           sends: "What you search for, as typed and without accents or apostrophes, and the Jellyfin PC’s IP address. Neither your account nor your library.",
+                           stop: "In Mira for Windows on the Jellyfin PC: TorLink’s settings.")
                 PrivacyRow(title: "Mira extension updates",
                            to: "GitHub, where Mira is published.",
                            when: "When Jellyfin looks for updates to its extensions.",

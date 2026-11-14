@@ -74,6 +74,13 @@ jobs:
         run: dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-build
       - name: The real qBittorrent 5.3.0
         run: MIRA_QBITTORRENT="$RUNNER_TEMP/qbittorrent-nox-5" dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-build -- --filter "le vrai, dans le profil"
+      # Mira's own search sites (Knaben, AnimeTosho, Torrents-CSV), asked for real: their answers still read as Mira reads
+      # them. A site down or slow is a warning, never a red CI.
+      - name: The real search sites
+        continue-on-error: true
+        env:
+          MIRA_SEARCH_LIVE: "1"
+        run: dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-build -- --filter "vrais sites"
   # Mira's own Tailscale node (src/Mira.Tailscale), built with the tags of the helper the apps ship (logs to Tailscale
   # compiled out): its tests start a whole Tailscale network in the process (control, relay, the Jellyfin PC) and sign
   # a node in as the apps do; then the helper is built for Windows and Mac. Last, Mira.Core against the real helper on
