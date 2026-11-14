@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace Mira.Desktop.Playback;
 
@@ -10,6 +11,10 @@ public sealed class VideoHost : HwndHost
     private double _radius;
     private Size _pixels;
     private bool _clipped;
+    /// <summary>Smooth corners drawn over the video by Windows' compositor; null, the region's own (in steps).</summary>
+    public VideoCorners? Corners { get; set; }
+    /// <summary>The radius the corners rest at (device pixels): the hairline shows in full there, less on the way.</summary>
+    private double _restRadius;
     /// <summary>
     /// A window class of Mira's, black behind mpv: a STATIC window paints itself in the system's light grey, and that was
     /// a flash of light on every start, from the moment the player shows until mpv's own window is there. The mouse goes
@@ -43,13 +48,39 @@ public sealed class VideoHost : HwndHost
     private const int BlackBrush = 4, HitTest = 0x0084, PositionChanging = 0x0046;
     private static readonly IntPtr Transparent = new(-1);
     /// <summary>Rounds the native video corners (WPF clipping cannot reach a child HWND). Radius in device pixels; 0 removes it.</summary>
-    public void SetCornerRadius(double devicePixels) { _radius = Math.Max(0, devicePixels); if (!_moving) ApplyRegion(); }
+    public void SetCornerRadius(double devicePixels)
+    {
+        _radius = Math.Max(0, devicePixels); if (_radius > 0) _restRadius = _radius;
+        if (!_moving) ApplyRegion();
+    }
     protected override void OnWindowPositionChanged(Rect rcBoundingBox)
     {
         if (_moving) { _laidOut = rcBoundingBox; return; }
         base.OnWindowPositionChanged(rcBoundingBox);
-        if (rcBoundingBox.Size == _pixels) return;
+        // Only moved (the mini-player dragged): the same region, the corners along.
+        if (rcBoundingBox.Size == _pixels) { FollowCorners(); return; }
         _pixels = rcBoundingBox.Size; ApplyRegion();
+    }
+    /// <summary>The window's region, rounded: a pixel inside the shape when the compositor smooths the curve over it.</summary>
+    private IntPtr RoundedRegion(int width, int height, int diameter)
+    {
+        var inset = Corners is null ? 0 : VideoCorners.Inset;
+        return CreateRoundRectRgn(inset, inset, width + 1 - inset, height + 1 - inset, Math.Max(0, diameter - 2 * inset), Math.Max(0, diameter - 2 * inset));
+    }
+    /// <summary>The smooth corners where the window is now, with its radius; gone with the radius, the window or its picture.</summary>
+    private void FollowCorners()
+    {
+        if (Corners is null || Handle == IntPtr.Zero) return;
+        if (_moving || _radius <= 0 || _concealed || !IsVisible || _pixels.Width < 1) { if (!_moving) Corners.Hide(); return; }
+        GetWindowRect(Handle, out var box); var corner = new Dot { X = box.Left, Y = box.Top }; ScreenToClient(GetParent(Handle), ref corner);
+        PlaceCorners(corner.X, corner.Y, box.Right - box.Left, box.Bottom - box.Top, _radius);
+    }
+    private void PlaceCorners(int left, int top, int width, int height, double radius)
+    {
+        if (Corners is null) return;
+        if (radius <= 0 || _concealed) { Corners.Hide(); return; }
+        var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        Corners.Place(left, top, width, height, radius, line: Math.Max(1, Math.Round(scale)), strength: _restRadius > 0 ? radius / _restRadius : 1);
     }
     /// <summary>
     /// The window itself moves and resizes, frame by frame, between the two places of the player (see
@@ -89,7 +120,7 @@ public sealed class VideoHost : HwndHost
     }
     private delegate IntPtr WindowProcedure(IntPtr hwnd, uint message, nint wParam, nint lParam);
     private readonly WindowProcedure _heldProcedure;
-    public VideoHost() => _heldProcedure = HeldProcedure;
+    public VideoHost() { _heldProcedure = HeldProcedure; IsVisibleChanged += (_, _) => FollowCorners(); }
     private IntPtr _mpvWindow, _mpvProcedure;
     private Size _toldSize;
     private const int FirstChild = 5, WindowProcedureSlot = -4;
@@ -112,9 +143,10 @@ public sealed class VideoHost : HwndHost
         if (_mpvWindow != IntPtr.Zero && resized) SetWindowPos(_mpvWindow, IntPtr.Zero, 0, 0, width, height, 0x4000 | 0x0002 | 0x0004 | 0x0010 | 0x0100 | 0x0200);
         // SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_NOOWNERZORDER
         SetWindowPos(Handle, IntPtr.Zero, left, top, width, height, 0x0004 | 0x0010 | 0x0100 | 0x0200);
+        PlaceCorners(left, top, width, height, diameter / 2.0);
         if (!resized) return;
         if (diameter <= 0) { if (_clipped) { SetWindowRgn(Handle, IntPtr.Zero, false); _clipped = false; } return; }
-        var region = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
+        var region = RoundedRegion(width, height, diameter);
         if (SetWindowRgn(Handle, region, false) == 0) DeleteObject(region); else _clipped = true;
     }
     /// <summary>The movement is over: the window where layout says, with the corners of that place.</summary>
@@ -144,6 +176,7 @@ public sealed class VideoHost : HwndHost
         if (!concealed) { _clipped = true; ApplyRegion(); return; }
         var nothing = CreateRectRgn(0, 0, 0, 0);
         if (SetWindowRgn(Handle, nothing, true) == 0) { DeleteObject(nothing); _concealed = false; }
+        FollowCorners();
     }
     private bool _concealed;
     private void ApplyRegion()
@@ -152,14 +185,16 @@ public sealed class VideoHost : HwndHost
         if (_radius <= 0 || _pixels.Width < 1)
         {
             if (_clipped) { SetWindowRgn(Handle, IntPtr.Zero, true); _clipped = false; }
+            FollowCorners();
             return;
         }
         var diameter = (int)Math.Round(_radius * 2);
-        var region = CreateRoundRectRgn(0, 0, (int)Math.Round(_pixels.Width) + 1, (int)Math.Round(_pixels.Height) + 1, diameter, diameter);
+        var region = RoundedRegion((int)Math.Round(_pixels.Width), (int)Math.Round(_pixels.Height), diameter);
         // On success the system owns the region; otherwise release it here.
         if (SetWindowRgn(Handle, region, true) == 0) DeleteObject(region); else _clipped = true;
+        FollowCorners();
     }
-    protected override void DestroyWindowCore(HandleRef hwnd) => DestroyWindow(hwnd.Handle);
+    protected override void DestroyWindowCore(HandleRef hwnd) { Corners?.Hide(); DestroyWindow(hwnd.Handle); }
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct WindowClass
     {
