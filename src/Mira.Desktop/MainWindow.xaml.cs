@@ -133,7 +133,7 @@ public partial class MainWindow : Window
         _initializing = false;
     }
     /// <summary>Validation runs set their own sizes, off screen: nothing is remembered from them.</summary>
-    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--server-check" or "--tailnet-check" or "--smooth-check" or "--offscreen");
+    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--server-check" or "--tailnet-check" or "--smooth-check" or "--ui-audit" or "--offscreen");
     /// <summary>
     /// The size the window had when Mira last closed, or the default one (1480 × 930), kept within the screen it opens
     /// on, with that screen's scale: a 1080p screen at 125 % has about 1536 × 826 usable, at 150 % about 1280 × 688 (see
@@ -319,13 +319,13 @@ public partial class MainWindow : Window
         _sync.Changed += SyncChanged;
         _connectionLifetime = new(); _pageGenres.Clear(); _pageGenresAsked.Clear(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         // --smooth-check's Jellyfin has no WebSocket, and its new episodes would only add requests to what it measures.
-        if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token, steered: !_demo);
-        if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check")) { StartEpisodeNotices(); ChoicesChanged(); }
+        if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check") && !_args.Contains("--ui-audit")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token, steered: !_demo);
+        if (!_args.Contains("--visual-check") && !_args.Contains("--smooth-check") && !_args.Contains("--ui-audit")) { StartEpisodeNotices(); ChoicesChanged(); }
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
         _ = LoadOfflineAsync(client);
-        if (!_args.Contains("--visual-check")) _ = MarkLibraryFoldersAsync(client, _connectionLifetime.Token);
-        if (!_args.Any(x => x.EndsWith("-check", StringComparison.Ordinal))) _ = KeepFunnelOpenAsync(client, _connectionLifetime.Token);
+        if (!_args.Contains("--visual-check") && !_args.Contains("--ui-audit")) _ = MarkLibraryFoldersAsync(client, _connectionLifetime.Token);
+        if (!_args.Any(x => x.EndsWith("-check", StringComparison.Ordinal) || x == "--ui-audit")) _ = KeepFunnelOpenAsync(client, _connectionLifetime.Token);
         _ = OfferDownloadsAsync();
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant(); SetPhoto(null); _ = ShowPhotoAsync();
         SettingsServerAddress.Text = connection.Server;
