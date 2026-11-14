@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Ouverture « Le clin d’œil » (Mac)** : comme sous Windows, le logo ne glisse plus jusqu’au rail : quand l’Accueil est dessiné, « mira » s’efface, le logo se ferme sur place comme une paupière jusqu’à un trait de lumière qui s’éteint, et le noir se lève, en 0,31 s ; le rail ne bouge pas. « Réduire les animations » de macOS : l’Accueil d’un coup. Contrôlé par le self-check ; jamais vu sur un vrai Mac.
 - **Ouverture « Le clin d’œil » (Windows)** : à la place du logo qui glissait jusqu’au rail (la 0.9.10, qu’ogsas n’a finalement pas aimée en vrai), une entrée plus simple, sur place : quand l’Accueil est prêt, « mira » s’efface, le logo se ferme comme une paupière jusqu’à un trait de lumière qui s’éteint, et le noir se lève, en 0,31 s. Le rail ne bouge pas : son logo et la pastille d’Accueil sont déjà à leur place. Pendant le chargement, rien ne bouge ; aucune attente ajoutée, l’Accueil répond aux clics dès le début ; « Réduire les animations » : l’Accueil d’un coup. Maquette E choisie par ogsas ; contrôlé dans la galerie de la CI ; jamais vu sur un vrai PC.
 
 ## 0.9.10 — 2026-11-14

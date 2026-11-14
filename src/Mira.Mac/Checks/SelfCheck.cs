@@ -109,30 +109,39 @@ public static class SelfCheck
             }
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
-            // Mira's opening (« Le m prend sa place »), drawn again on this Home page moment by moment, its clock held: the
-            // page takes clicks from the first moment, the mark lands on the rail's, the tile on Accueil, then all as before.
+            // Mira's opening (« Le clin d'œil »), drawn again on this Home page moment by moment, its clock held: the page
+            // takes clicks from the first moment, the mark shuts where it stood into a line and goes out with the black,
+            // the rail's mark shown all along, then all as before.
             {
                 // The Mac runner leaves out motion: set aside, as for the trackpad's slides.
                 MacMotion.Override(false);
                 window.ShowVeilForCheck(); await Task.Delay(100);
+                var (standing, _, _, _) = window.OpeningPlaces();
                 var started = window.StartOpening(frozen: true);
-                Check(started && !window.VeilTakesClicks, "ouverture : le m part vers le rail, l’Accueil prend les clics dès le début", window.OpeningReport);
+                Check(started && !window.VeilTakesClicks, "ouverture : le m cligne, l’Accueil prend les clics dès le début", window.OpeningReport);
                 if (started)
                 {
-                    foreach (var ms in new[] { 0, 250, 470, 1400 }) { window.DrawOpening(ms / 1000d); await Task.Delay(120); CaptureWindow(window, output, $"02c-opening-{ms:0000}"); }
-                    window.DrawOpening(OpeningGlide.Travel - 1e-4); await Task.Delay(50);
-                    var (mark, rail, _, _, _) = window.OpeningPlaces();
-                    Check(Math.Abs(mark.Center.X - rail.Center.X) < 1 && Math.Abs(mark.Center.Y - rail.Center.Y) < 1 && Math.Abs(mark.Width - rail.Width) < 1, "ouverture : le m se pose sur celui du rail", $"{mark} / {rail}");
-                    window.DrawOpening(OpeningGlide.Longest); await Task.Delay(50);
-                    var (_, _, drop, button, railShown) = window.OpeningPlaces();
-                    Check(drop is { } d && Math.Abs(d.X - button.X) < .5 && Math.Abs(d.Y - button.Y) < .5 && Math.Abs(d.Width - button.Width) < .5 && Math.Abs(d.Height - button.Height) < .5 && railShown, "ouverture : la pastille se pose sur Accueil", $"{drop} / {button}");
+                    var railAlong = true;
+                    foreach (var ms in new[] { 0, 60, 120, 180, 250, 310 })
+                    {
+                        window.DrawOpening(ms / 1000d); await Task.Delay(120); CaptureWindow(window, output, $"02c-opening-{ms:0000}");
+                        railAlong &= window.OpeningPlaces().RailMarkShown;
+                    }
+                    Check(railAlong, "ouverture : le rail ne bouge pas, son m toujours là");
+                    window.DrawOpening(OpeningBlink.Shut); await Task.Delay(50);
+                    var (line, lit, _, _) = window.OpeningPlaces();
+                    Check(Math.Abs(line.Center.X - standing.Center.X) < .5 && Math.Abs(line.Center.Y - standing.Center.Y) < .5 && Math.Abs(line.Width - standing.Width * OpeningBlink.Wide) < .5
+                        && Math.Abs(line.Height - standing.Height * OpeningBlink.Slit) < .5 && lit >= 1, "ouverture : le m fermé en un trait, à sa place", $"{line} / {standing}");
+                    window.DrawOpening(OpeningBlink.Length); await Task.Delay(50);
+                    var (_, gone, shade, _) = window.OpeningPlaces();
+                    Check(gone < 1e-6 && shade < 1e-6, "ouverture : le trait éteint, le noir levé", $"{gone} / {shade}");
                     window.FinishOpening();
-                    Check(!window.VeilShown && window.LitRail == "home", "ouverture : finie, Accueil allumé par son style", window.LitRail ?? "aucun");
+                    Check(!window.VeilShown && window.LitRail == "home", "ouverture : finie, Accueil allumé", window.LitRail ?? "aucun");
                 }
                 // By the clock, as at a real start: over in about a second, the veil gone.
                 window.ShowVeilForCheck(); await Task.Delay(100);
                 var clocked = window.OpenAsync(); var ended = await Task.WhenAny(clocked, Task.Delay(3000)) == clocked;
-                Check(ended && !window.VeilShown && window.OpeningReport.StartsWith("glided", StringComparison.Ordinal), "ouverture à l’horloge : finie en une seconde environ", window.OpeningReport);
+                Check(ended && !window.VeilShown && window.OpeningReport.StartsWith("blinked", StringComparison.Ordinal), "ouverture à l’horloge : finie en un tiers de seconde environ", window.OpeningReport);
                 // Without motion: the Home page at once.
                 MacMotion.Override(true); window.ShowVeilForCheck();
                 await window.OpenAsync();
