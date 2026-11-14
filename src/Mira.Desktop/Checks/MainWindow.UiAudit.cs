@@ -101,7 +101,8 @@ public partial class MainWindow
             box.IsDropDownOpen = false;
         }
         CloseFilters();
-        _catalog.View = "search"; _filterBusy = true; SearchBox.Text = "mira-ui-audit-aucun-titre-93718"; _filterBusy = false; await RefreshAsync();
+        // By the rail, as a person goes there: the library page's filters stay with it (a stray Films filter showed « Reset filters »).
+        await GoToPageAsync("search"); _filterBusy = true; SearchBox.Text = "mira-ui-audit-aucun-titre-93718"; _filterBusy = false; await RefreshAsync();
         await AuditShotAsync(run, "recherche sans résultat");
         ResetFilters(); await GoToPageAsync("home");
 
