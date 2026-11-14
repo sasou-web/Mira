@@ -3,7 +3,7 @@
     "film": "puss-in-boots",
     "band": [
       { "point": 1, "shot": "mac-home", "at": [0, 0], "scale": 0.6, "width": 572 },
-      { "point": 5, "shot": "windows-mini", "at": [885, 585], "scale": 0.9, "width": 500 }
+      { "point": 5, "shot": "windows-mini", "at": [880, 585], "scale": 0.9, "width": 500 }
     ]
   },
   "0.9.9": {
