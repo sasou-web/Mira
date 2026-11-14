@@ -580,12 +580,18 @@ public partial class MainWindow
         var before = Gray(Picture(root, .25, backdrop: true));
         var seen = new Dictionary<UIElement, string>(); var restless = new HashSet<UIElement>();
         var moving = new List<double>(); var clock = Stopwatch.StartNew(); var measuring = false;
+        // Each frame of the step, with what moved in it: said in the notes when the step reads « without animation ».
+        var trace = new List<string>(); var previous = 0.0;
         var last = TimeSpan.MinValue;
         void Tick(object? sender, EventArgs e)
         {
             if (e is RenderingEventArgs { RenderingTime: var at }) { if (at == last) return; last = at; }
             var moved = Moved(root, seen, restless, learning: !measuring);
-            if (measuring && moved) moving.Add(clock.Elapsed.TotalMilliseconds);
+            if (!measuring) return;
+            var now = clock.Elapsed.TotalMilliseconds;
+            if (moved.Count > 0) moving.Add(now);
+            if (trace.Count < 24) trace.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{now:0} ms (+{now - previous:0}) {(moved.Count == 0 ? "—" : string.Join(", ", moved.Take(4)))}"));
+            previous = now;
         }
         Moved(root, seen, restless, learning: true);
         CompositionTarget.Rendering += Tick;
@@ -600,17 +606,18 @@ public partial class MainWindow
         var total = Difference(before, Gray(Picture(root, .25, backdrop: true)));
         if (total < 1) { run.Notes.Add($"Transition « {name} » : rien n'a changé à l'écran."); return null; }
         var span = moving.Count > 1 ? moving[^1] - moving[0] : 0;
+        if (moving.Count <= 2 && wanted is null) run.Notes.Add($"Transition « {name} », image par image : " + string.Join(" · ", trace));
         return new(name, moving.Count, span, total, wanted);
     }
 
     /// <summary>
-    /// Whether a shown element that WPF animates, or that is faded or moved, has another opacity, place, size or
-    /// transform than at the last frame (those of <paramref name="restless"/> left out). While
+    /// The shown elements that WPF animates, or that are faded or moved, whose opacity, place, size or
+    /// transform changed since the last frame (those of <paramref name="restless"/> left out). While
     /// <paramref name="learning"/>, the elements that move join <paramref name="restless"/>.
     /// </summary>
-    private static bool Moved(FrameworkElement root, Dictionary<UIElement, string> seen, HashSet<UIElement> restless, bool learning)
+    private static List<string> Moved(FrameworkElement root, Dictionary<UIElement, string> seen, HashSet<UIElement> restless, bool learning)
     {
-        var moved = false;
+        var moved = new List<string>();
         var stack = new Stack<DependencyObject>(); stack.Push(root);
         while (stack.Count > 0)
         {
@@ -627,7 +634,7 @@ public partial class MainWindow
                     if (seen.TryGetValue(element, out var was) && was != state)
                     {
                         if (learning) restless.Add(element);
-                        else if (!restless.Contains(element)) moved = true;
+                        else if (!restless.Contains(element)) moved.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(element is FrameworkElement { Name: { Length: > 0 } named } ? named : element.GetType().Name)} {element.Opacity:0.##}"));
                     }
                     seen[element] = state;
                 }
