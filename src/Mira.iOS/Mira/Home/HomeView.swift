@@ -446,10 +446,10 @@ struct BannerView: View {
     @State private var touched = 0
 
     /// How long a title stays before the next (Windows: 6.5 s).
-    static let period: TimeInterval = 6.5
+    nonisolated static let period: TimeInterval = 6.5
 
     /// The banner's height on a screen of `size`.
-    static func height(_ size: CGSize) -> CGFloat { min(size.width * 1.3, max(440, size.height * 0.64)) }
+    nonisolated static func height(_ size: CGSize) -> CGFloat { min(size.width * 1.3, max(440, size.height * 0.64)) }
 
     /// A slide's picture: the address asked, the width (points) it is made at, its blurred placeholder.
     struct Picture: Equatable {
