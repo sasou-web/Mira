@@ -130,8 +130,11 @@ public static class Motion
         if (Reduced) { uncover(); await HideAsync(target, ms); return; }
         var version = (int)target.GetValue(VisibilityVersionProperty) + 1; target.SetValue(VisibilityVersionProperty, version);
         target.IsHitTestVisible = false;
-        // Its picture made meanwhile too (a page fades as one picture).
+        // Its picture made meanwhile too (a page fades as one picture), and already a hair see-through: WPF's first frame
+        // of a see-through page is heavy too (its layer made), 80 to 120 ms on the Dell, and it ate the fade begun
+        // before it (interface audit, 2026-11-14). Both now fall in the wait, before the fade's clock starts.
         if (GetPage(target)) target.CacheMode = RenderCache.Picture;
+        target.BeginAnimation(UIElement.OpacityProperty, null); target.Opacity = .999;
         uncover();
         await DrawnAsync();
         if (version != (int)target.GetValue(VisibilityVersionProperty)) return;
