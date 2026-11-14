@@ -65,7 +65,9 @@ public partial class MainWindow
     {
         UpdateSheetCover();
         var covered = false;
-        foreach (var cover in _libraryCovers) if (cover.IsVisible && cover.Opacity >= .995) { covered = true; break; }
+        // The opening's veil hides it only while it takes the clicks: as it goes, the library is drawn again under its black
+        // from the first frame, not halfway through its lifting (MainWindow.Opening.cs).
+        foreach (var cover in _libraryCovers) if (cover.IsVisible && cover.Opacity >= .995 && (cover != StartupVeil || StartupVeil.IsHitTestVisible)) { covered = true; break; }
         if (covered == _libraryCovered) return;
         _libraryCovered = covered; LibraryShell.Opacity = covered ? 0 : 1;
     }

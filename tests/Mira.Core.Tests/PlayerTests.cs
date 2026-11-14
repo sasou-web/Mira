@@ -523,6 +523,48 @@ internal static class PlayerTests
             Assert(slide.Moving && slide.At(At(511)) == 60 && slide.At(At(530)) == 120, "Longer: on to its new end from where it was");
             return Task.CompletedTask;
         });
+        await Test("Ouverture : le m glisse du centre à sa place dans le rail, puis la pastille tombe sur Accueil en gelée (Windows et Mac)", () =>
+        {
+            // The window of the mock-up: the mark of 56 in the middle of 1440 × 900, the rail's of 32 at (34, 36), Accueil below.
+            var glide = new OpeningGlide(new OpeningGlide.Spot(720, 427.5, 56), new OpeningGlide.Spot(34, 36, 32), 10, 76, 48, 46, 13);
+            Assert(OpeningGlide.Word(0) == 1 && OpeningGlide.Word(OpeningGlide.WordOut) == 0, "« mira » gone in 110 ms");
+            Assert(OpeningGlide.Shade(0) == 1 && OpeningGlide.Shade(OpeningGlide.ShadeFrom) == 1 && OpeningGlide.Shade(.34) < 1e-9, "The black lifts from 40 to 340 ms");
+            Assert(glide.MarkAt(0) == new OpeningGlide.Mark(720, 427.5, 56, 0, glide.MarkAt(0).Angle), "Still in the middle at first");
+            var landed = glide.MarkAt(OpeningGlide.Travel);
+            Assert(landed.X == 34 && landed.Y == 36 && landed.Size == 32 && landed.Stretch == 0, $"In the rail at 430 ms: {landed}");
+            double way = 0, stretched = 0;
+            for (var i = 1; i <= 104; i++)
+            {
+                var t = i / 240d; var now = OpeningGlide.Way(t);
+                Assert(now >= way - 1e-12 && now <= 1, $"Always onwards at {i}: {now}");
+                way = now; stretched = Math.Max(stretched, glide.MarkAt(t).Stretch);
+            }
+            Assert(stretched is > .05 and <= OpeningGlide.MaxStretch, $"Stretched along its way, a little: {stretched}");
+            Assert(OpeningGlide.Way(OpeningGlide.Travel * .2) < .1, "A soft start: nothing seems to happen while the Home page shows");
+            // The tile: nowhere until the mark has (nearly) landed, then out of its own tile, without a jump.
+            Assert(!glide.DropAt(OpeningGlide.DropFrom - .001).Shown && glide.Ink(.2) == 0, "No tile while the mark travels");
+            var first = glide.DropAt(OpeningGlide.DropFrom);
+            Assert(first.Shown && Math.Abs(first.Top - (36 - 16 * OpeningGlide.Tile)) < 1e-6 && Math.Abs(first.Width - 32 * OpeningGlide.Tile) < 1e-6 && Math.Abs(first.Left + first.Width / 2 - 34) < 1e-6, $"Out of the mark's tile: {first}");
+            var early = glide.DropAt(OpeningGlide.DropFrom + .05);
+            Assert(early.Top + early.Height - (first.Top + first.Height) > (early.Top - first.Top) * 1.5, $"The bottom leads, the top follows: {early}");
+            double? still = null; var longest = 0d;
+            for (var i = 0; i <= 336; i++)
+            {
+                var t = OpeningGlide.DropFrom + i / 240d; var drop = glide.DropAt(t);
+                Assert(drop.Width > 0 && drop.Height > 0 && drop.Radius >= 0 && drop.Radius <= Math.Min(drop.Width, drop.Height) / 2 + 1e-9, $"A tile at {i}: {drop}");
+                longest = Math.Max(longest, drop.Height);
+                if (still is null && glide.Done(t)) still = t;
+            }
+            Assert(longest > 50 && longest <= 46 * (1 + JellyPill.MaxStretch) + 1e-9, $"Stretched as it drops: {longest}");
+            Assert(still is > .7 and < 1.1, $"All still in about a second: {still}");
+            Assert(glide.DropAt(OpeningGlide.Longest) == new OpeningGlide.Drop(10, 76, 48, 46, 13, true), $"On Accueil exactly: {glide.DropAt(OpeningGlide.Longest)}");
+            Assert(glide.Ink(OpeningGlide.Longest) == 1 && glide.Done(OpeningGlide.Longest), "Its ink as on the tile, the opening over");
+            // Solved, not stepped: the same at 60 Hz and 240 Hz.
+            var again = new OpeningGlide(new OpeningGlide.Spot(720, 427.5, 56), new OpeningGlide.Spot(34, 36, 32), 10, 76, 48, 46, 13);
+            for (var i = 1; i <= 120; i++) again.DropAt(i / 240d);
+            Assert(again.DropAt(.5) == glide.DropAt(.5) && again.MarkAt(.2) == glide.MarkAt(.2), "60 Hz and 240 Hz alike");
+            return Task.CompletedTask;
+        });
         await Test("Mini-lecteur : rangé tout seul contre le bord droit, un bout de la vidéo qui dépasse, sorti au survol, rangé de nouveau après (Windows et Mac)", () =>
         {
             static TimeSpan At(double seconds) => TimeSpan.FromSeconds(seconds);

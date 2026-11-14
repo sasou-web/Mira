@@ -206,6 +206,8 @@ public partial class MainWindow
             drawn.Add(await CheckCouchAsync(output));
             // The menu of the notification area (« Carte »): its three states, above a taskbar at the bottom of the screen.
             drawn.Add(await CheckTrayMenuAsync(output));
+            // Mira's opening (« Le m prend sa place »): moment by moment, the mark to the rail, the tile onto Accueil.
+            drawn.Add(await CheckOpeningAsync(output));
             await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {16 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }
