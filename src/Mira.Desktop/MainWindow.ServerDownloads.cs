@@ -46,7 +46,12 @@ public partial class MainWindow
     private readonly Dictionary<string, string> _localMagnets = [];
     private int _localSearches, _serverQueued;
 
-    private void InitializeServerDownloads() => _serverTimer.Tick += async (_, _) => await ServerTickAsync();
+    private void InitializeServerDownloads()
+    {
+        _serverTimer.Tick += async (_, _) => await ServerTickAsync();
+        // On one line (a small window), the line under the title shows only when it says something new.
+        System.ComponentModel.DependencyPropertyDescriptor.FromProperty(TextBlock.TextProperty, typeof(TextBlock)).AddValueChanged(TorLinkSubtitle, (_, _) => ShowTorLinkSubtitle());
+    }
 
     /// <summary>Jellyfin runs on another PC than this one (an account, not the demo): TorLink is not offered here.</summary>
     private async Task<bool> JellyfinElsewhereAsync() => !_demo && _client is { } client && !await JellyfinOnThisPcAsync(client);
@@ -277,7 +282,8 @@ public partial class MainWindow
     {
         var name = _serverLocal ? Environment.MachineName : _serverAgent?.Name;
         var free = _serverLocal ? _mediaFree.Bytes : _serverAgent?.Free;
-        ServerPlace.Visibility = _serverScreen && !string.IsNullOrEmpty(name) ? Visibility.Visible : Visibility.Collapsed;
+        // Out of the head on one line in the smallest windows: the title and its buttons first.
+        ServerPlace.Visibility = _serverScreen && !_headThin && !string.IsNullOrEmpty(name) ? Visibility.Visible : Visibility.Collapsed;
         ServerPlaceName.Text = name ?? "";
         ServerFreeText.Text = free is { } bytes ? RemoteBoard.Free(bytes) : "";
         ServerFreeRule.Visibility = ServerFreeText.Visibility = free is null ? Visibility.Collapsed : Visibility.Visible;
@@ -458,85 +464,117 @@ public partial class MainWindow
             catch (Exception ex) when (IsExpected(ex)) { return; } // Nothing said rather than a guess.
             foreach (var (group, view) in mine)
             {
-                if (!ServerResults.Children.Contains(view) || view.Child is not StackPanel panel || OwnedTitles.Line(group, items, episodes) is not { } line) continue;
+                if (!ServerResults.Children.Contains(view) || view.Child is not StackPanel panel || panel.Children[0] is not SpreadRow head || head.Children.Count > 1 || OwnedTitles.Line(group, items, episodes) is not { } line) continue;
                 var content = new StackPanel { Orientation = Orientation.Horizontal };
-                content.Children.Add(new Icon { Kind = line.Owned ? "check" : "info", Width = 14, Height = 14, Margin = new Thickness(0, 0, 7, 0) });
-                content.Children.Add(new TextBlock { Text = line.Text, FontSize = 12.5, FontWeight = FontWeights.SemiBold });
-                var button = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(8, 5, 9, 5), Margin = new Thickness(-8, -6, 0, 8), HorizontalAlignment = HorizontalAlignment.Left, Content = content, Foreground = Palette.Get(line.Owned ? "Warning" : "TextSecondary") };
+                content.Children.Add(new Icon { Kind = line.Owned ? "check" : "info", Width = 14, Height = 14, Margin = new Thickness(0, 0, 6, 0) });
+                content.Children.Add(new TextBlock { Text = line.Text, FontSize = 12.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+                content.Children.Add(new Icon { Kind = "next", Width = 12, Height = 12, Opacity = 0.7, Margin = new Thickness(6, 0, 0, 0) });
+                // The wash of the hover around it, its words where the line's are: at the right end, or under the name.
+                var button = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(-6, -2, -6, -2), Content = content, Foreground = Palette.Get(line.Owned ? "Warning" : "TextSecondary") };
                 AutomationProperties.SetName(button, L($"{line.Text} : ouvrir « {group.Title} »", $"{line.Text}: open “{group.Title}”"));
                 var id = line.ItemId;
                 button.Click += async (_, _) => await OpenTorLinkItemAsync(id);
-                panel.Children.Insert(1, button);
+                head.Children.Add(button);
             }
         }));
     }
 
+    /// <summary>
+    /// A title found, tight (maquette C of the small window, 2026-11-14; the same card in a large one): one line with its name,
+    /// its episode or season and its kind (« dans ta bibliothèque » at the right end, or under it when it does not fit), then
+    /// its best release on two lines, « +N » beside its button for the others.
+    /// </summary>
     private Border ServerGroupView(string searchId, ReleaseGroup group)
     {
         var panel = new StackPanel();
-        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
-        if (group.Label.Length > 0)
-        {
-            var episode = new Border { CornerRadius = Palette.Small, Background = Palette.Get("Raised"), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = group.Label, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextBody") } };
-            DockPanel.SetDock(episode, Dock.Right); head.Children.Add(episode);
-        }
+        // Right-docked from the outside in: the kind, then the episode, then the name that fills what is left (cut short).
+        var name = new DockPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
         if (RemoteLines.KindLabel(group.Category) is { Length: > 0 } kind)
         {
-            var tag = new TextBlock { Text = kind, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            DockPanel.SetDock(tag, Dock.Right); head.Children.Add(tag);
+            var tag = new TextBlock { Text = kind, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted"), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(tag, Dock.Right); name.Children.Add(tag);
         }
-        head.Children.Add(SlidingText.Wrap(new TextBlock { Text = group.Title, FontSize = 16, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, ToolTip = group.Title }));
+        if (group.Label.Length > 0)
+        {
+            var episode = new Border { CornerRadius = Palette.Small, Background = Palette.Get("Raised"), Padding = new Thickness(8, 2, 8, 3), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = group.Label, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextBody") } };
+            DockPanel.SetDock(episode, Dock.Right); name.Children.Add(episode);
+        }
+        name.Children.Add(SlidingText.Wrap(new TextBlock { Text = group.Title, FontSize = 15.5, FontWeight = FontWeights.Bold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, ToolTip = group.Title }));
+        var head = new SpreadRow { MinHeight = 22 };
+        head.Children.Add(name);
         panel.Children.Add(head);
-        panel.Children.Add(ServerReleaseView(searchId, group.Best, best: !ReleaseRanking.Dead(group.Best)));
+        Button? toggle = null;
+        StackPanel? others = null;
         if (group.Others.Count > 0)
         {
-            var others = new StackPanel { Visibility = Visibility.Collapsed };
-            foreach (var entry in group.Others) others.Children.Add(ServerReleaseView(searchId, entry, best: false));
+            others = new StackPanel { Visibility = Visibility.Collapsed };
+            foreach (var entry in group.Others) others.Children.Add(ServerReleaseView(searchId, entry, best: false, more: null));
             var more = Count(group.Others.Count, "autre version", "autres versions", "other version", "other versions");
-            var text = new TextBlock { Text = more, FontSize = 12, FontWeight = FontWeights.SemiBold };
-            var chevron = new Icon { Kind = "down", Width = 14, Height = 14, Foreground = Palette.Get("TextBody"), Margin = new Thickness(6, 0, 0, 0) };
-            var content = new StackPanel { Orientation = Orientation.Horizontal }; content.Children.Add(text); content.Children.Add(chevron);
-            var toggle = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(8, 6, 9, 6), Margin = new Thickness(-8, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Content = content, Foreground = Palette.Get("TextBody") };
-            AutomationProperties.SetName(toggle, L($"{more} de {group.Title}", $"{more} of {group.Title}"));
+            var chevron = new Icon { Kind = "down", Width = 13, Height = 13, Margin = new Thickness(5, 0, 0, 0) };
+            var content = new StackPanel { Orientation = Orientation.Horizontal };
+            content.Children.Add(new TextBlock { Text = "+" + group.Others.Count.ToString(Lang.Culture), FontSize = 12.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            content.Children.Add(chevron);
+            string Closed() => L($"{more} de {group.Title}", $"{more} of {group.Title}");
+            toggle = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(7, 5, 7, 5), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Content = content, Foreground = Palette.Get("TextBody"), ToolTip = more };
+            AutomationProperties.SetName(toggle, Closed());
+            var shown = others;
             toggle.Click += (_, _) =>
             {
-                var open = others.Visibility != Visibility.Visible;
-                others.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-                text.Text = open ? L("Masquer les autres versions", "Hide the other versions") : more; chevron.Kind = open ? "up" : "down";
-                AutomationProperties.SetName(toggle, open ? L("Masquer les autres versions", "Hide the other versions") : L($"{more} de {group.Title}", $"{more} of {group.Title}"));
+                var open = shown.Visibility != Visibility.Visible;
+                shown.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+                chevron.Kind = open ? "up" : "down";
+                var said = open ? L("Masquer les autres versions", "Hide the other versions") : more;
+                toggle.ToolTip = said;
+                AutomationProperties.SetName(toggle, open ? said : Closed());
             };
-            panel.Children.Add(toggle); panel.Children.Add(others);
         }
-        var card = SlidingText.Zone(new Border { Background = Palette.Get("Surface"), CornerRadius = Palette.Card, Padding = new Thickness(18, 16, 18, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel });
+        panel.Children.Add(ServerReleaseView(searchId, group.Best, best: !ReleaseRanking.Dead(group.Best), more: toggle));
+        if (others is not null) panel.Children.Add(others);
+        var card = SlidingText.Zone(new Border { Background = Palette.Get("Surface"), CornerRadius = Palette.Card, Padding = new Thickness(16, 11, 14, 11), Margin = new Thickness(0, 0, 0, 8), Child = panel });
         AutomationProperties.SetName(card, string.Join(" · ", new[] { group.Title, group.Label, RemoteLines.KindLabel(group.Category) }.Where(x => x.Length > 0)));
         return card;
     }
 
-    private FrameworkElement ServerReleaseView(string searchId, RankedRelease entry, bool best)
+    /// <summary>
+    /// A release on two lines: its quality (« Best pick » beside the best), then its size, sources and site before its full
+    /// name cut on one line; « +N » (the title's other versions) and its button at the right end.
+    /// </summary>
+    private FrameworkElement ServerReleaseView(string searchId, RankedRelease entry, bool best, Button? more)
     {
         var hit = entry.Hit;
-        var grid = new Grid();
+        var grid = new Grid { Margin = new Thickness(0, 5, 0, 0) };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var text = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
-        var quality = new WrapPanel();
-        quality.Children.Add(new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : L("Qualité non précisée", "Quality not given"), FontSize = 13.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        if (best) quality.Children.Add(new Border { CornerRadius = Palette.Small, Background = Palette.Get("Accent"), Padding = new Thickness(7, 2, 7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = L("Meilleur choix", "Best pick"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("OnAccent") } });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var text = new StackPanel { Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
+        var quality = new DockPanel { HorizontalAlignment = HorizontalAlignment.Left };
+        if (best)
+        {
+            var pick = new Border { CornerRadius = Palette.Small, Background = Palette.Get("Accent"), Padding = new Thickness(7, 1, 7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = L("Meilleur choix", "Best pick"), FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Palette.Get("OnAccent") } };
+            DockPanel.SetDock(pick, Dock.Right); quality.Children.Add(pick);
+        }
+        quality.Children.Add(new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : L("Qualité non précisée", "Quality not given"), FontSize = 14, FontWeight = best ? FontWeights.Bold : FontWeights.SemiBold, Foreground = Palette.Get(best ? "Text" : "TextBody"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
         text.Children.Add(quality);
-        text.Children.Add(new TextBlock { Text = RemoteLines.Hit(hit), FontSize = 12, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(0, 4, 0, 0) });
-        text.Children.Add(new TextBlock { Text = hit.Name, FontSize = 11.5, LineHeight = 16, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, MaxHeight = 33, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0), ToolTip = hit.Name });
+        var facts = new DockPanel { Margin = new Thickness(0, 2, 0, 0) };
+        var said = new TextBlock { Text = RemoteLines.Hit(hit), FontSize = 12.5, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(said, Dock.Left); facts.Children.Add(said);
+        facts.Children.Add(new TextBlock { Text = hit.Name, FontSize = 11.5, Foreground = Palette.Get("Faint"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, ToolTip = hit.Name });
+        text.Children.Add(facts);
         if (ReleaseRanking.Warning(entry) is { Length: > 0 } caution)
-            text.Children.Add(new TextBlock { Text = caution, FontSize = 12, Foreground = Palette.Get("WarningText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+            text.Children.Add(new TextBlock { Text = caution, FontSize = 12, Foreground = Palette.Get("WarningText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
         grid.Children.Add(text);
+        if (more is not null) { Grid.SetColumn(more, 1); grid.Children.Add(more); }
         var key = searchId + "/" + hit.Id;
-        var button = new Button { Style = (Style)FindResource(best ? "Primary" : "Quiet"), Padding = new Thickness(16, 9, 16, 9), VerticalAlignment = VerticalAlignment.Center };
+        var button = new Button { Style = (Style)FindResource(best ? "Primary" : "Quiet"), Padding = new Thickness(14, 0, 14, 0), Height = 36, MinWidth = 118, VerticalAlignment = VerticalAlignment.Center };
+        if (!best) button.Background = Palette.Get("Raised");
         ShowSendState(button, _serverSent.Contains(key), best);
         AutomationProperties.SetName(button, _upgrade is null ? L($"Télécharger {hit.Name}", $"Download {hit.Name}") : L($"Remplacer par {hit.Name}", $"Replace with {hit.Name}"));
         button.Click += async (_, _) => await SendServerHitAsync(searchId, hit, button, best);
-        Grid.SetColumn(button, 1); grid.Children.Add(button);
+        Grid.SetColumn(button, 2); grid.Children.Add(button);
         if (best) return grid;
         // The other versions, each under a hairline.
-        return new Border { BorderBrush = Palette.Get("Line"), BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 12, 0, 0), Margin = new Thickness(0, 12, 0, 0), Child = grid };
+        grid.Margin = new Thickness(0);
+        return new Border { BorderBrush = Palette.Get("Line"), BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 8, 0, 0), Margin = new Thickness(0, 8, 0, 0), Child = grid };
     }
 
     private void ShowSendState(Button button, bool sent, bool best)
@@ -590,7 +628,7 @@ public partial class MainWindow
         ServerMagnetRow.Visibility = Visibility.Visible; ServerMagnetButton.Visibility = ServerMagnetError.Visibility = Visibility.Collapsed;
         _ = Dispatcher.BeginInvoke(() => ServerMagnetBox.Focus(), DispatcherPriority.Input);
     }
-    private void ServerMagnetClose_Click(object sender, RoutedEventArgs e) { CloseServerMagnet(); ServerMagnetButton.Focus(); }
+    private void ServerMagnetClose_Click(object sender, RoutedEventArgs e) { CloseServerMagnet(); MagnetReturn().Focus(); }
     private void CloseServerMagnet()
     {
         ServerMagnetRow.Visibility = ServerMagnetError.Visibility = Visibility.Collapsed; ServerMagnetButton.Visibility = Visibility.Visible;
@@ -604,7 +642,7 @@ public partial class MainWindow
     private async void ServerMagnet_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) { e.Handled = true; await SendServerMagnetAsync(); }
-        else if (e.Key == Key.Escape) { e.Handled = true; CloseServerMagnet(); ServerMagnetButton.Focus(); }
+        else if (e.Key == Key.Escape) { e.Handled = true; CloseServerMagnet(); MagnetReturn().Focus(); }
     }
     private async void ServerMagnetSend_Click(object sender, RoutedEventArgs e) => await SendServerMagnetAsync();
 
@@ -621,7 +659,7 @@ public partial class MainWindow
             var qbittorrent = _serverLocal && QBittorrentInstalled();
             if (!_serverLocal) await client!.TorLinkRequestAsync(magnet, _connectionLifetime.Token);
             else if (await (qbittorrent ? AddToQBittorrentAsync(magnet, null) : DownloadHereAsync(magnet)) is { } refused) { ShowMagnetError(refused); return; }
-            CloseServerMagnet(); ServerMagnetButton.Focus();
+            CloseServerMagnet(); MagnetReturn().Focus();
             await SentToServerAsync();
         }
         catch (Exception ex) when (IsExpected(ex)) { ShowMagnetError(ServerError(ex)); }

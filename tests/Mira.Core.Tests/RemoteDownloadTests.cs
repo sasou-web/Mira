@@ -161,6 +161,11 @@ internal static class RemoteDownloadTests
             Assert(merged[0].Error == "ENOSPC: no space left on device" && merged[1].Error is null && TorLinkRemote.ParseQueue(queue, true)[1].Error is null
                 && ReferenceEquals(TorLinkRemote.WithErrors(merged, queue), merged) && TorLinkRemote.WithErrors(live, null)[0].Error is null, "Failure reason from queue.json");
             Assert(RemoteLines.TimeLeft(download) is null && RemoteLines.TimeLeft(download with { Status = "downloading", Eta = null, Speed = 10 }) is null, "No time left while paused, nor without a size");
+            // The thin column beside a search: no size, no peers.
+            var going = new RelayDownload(Hash, "Dune", "downloading", 62, 11_400_000, 38, Size: 8_600_000_000, Downloaded: 5_300_000_000, Eta: 300);
+            Assert(RemoteLines.Brief(going) == $"62 % · {RemoteLines.Speed(11_400_000)} · reste 5 min" && RemoteLines.Brief(download with { Progress = 42 }) == "En pause · 42 %"
+                && RemoteLines.Brief(going with { Speed = 0, Peers = 0 }) == "62 % · recherche de pairs…" && RemoteLines.Brief(download with { Status = "stopped" }) == "Arrêté · 10 %"
+                && RemoteLines.Brief(download with { Status = "failed" }) == RemoteLines.Download(download with { Status = "failed" }), $"Brief: {RemoteLines.Brief(going)}");
             Assert(RemoteLines.Controllable(download with { Status = "queued" }) && RemoteLines.Paused(download) && !RemoteLines.Controllable(download with { Status = "completed" }), "Controllable");
             var status = new RelayStatus(null, [new("1", "Dune", 0, Hash, "sent", null, now), new("2", "Alien", 0, Other, "sent", null, now)], [], [download], []);
             Assert(RemoteLines.Pending(status).Select(x => x.Id).SequenceEqual(["2"]), "A request TorLink lists shows as its download");
