@@ -26,6 +26,14 @@ public static class Ui
     /// <summary>States, as Windows' palette: a line that went well, and one that warns (« Hors connexion »).</summary>
     public static readonly IBrush Success = Brush("#86C6A2"), Warning = Brush("#D5B787"), WarningText = Brush("#E9DCC3");
     public static SolidColorBrush Brush(string color) => new(Color.Parse(color));
+    /// <summary>
+    /// The menus, « Écrin » as on Windows (Themes/Cinema.xaml; mockup A chosen by ogsas on 2026-11-14): their window
+    /// (Surface, its edge Line), a row raised (Raised) or pressed (Raised2), the edge of a chosen cell (LineStrong), the lines
+    /// between their parts (Rule), the sunk track of a slider of choices or of « − 0.0 s + » (Inset), the body and
+    /// secondary inks of their rows.
+    /// </summary>
+    public static readonly IBrush Surface = Brush("#111111"), MenuLine = Brush("#2A2A2A"), Raised2 = Brush("#242424"), LineStrong = Brush("#3F3F3F"),
+        Rule = Brush("#222222"), Black = Brush("#000000"), Inset = Brush("#0A0A0A"), TextBody = Brush("#E0E0E0"), TextSecondary = Brush("#C7C7C7");
     /// <summary>When the wheel or the trackpad last scrolled (Environment.TickCount64), set by the window for every event, momentum included.</summary>
     public static long ScrolledAt { get; set; } = long.MinValue / 2;
     /// <summary>The page is scrolling under the pointer: what is under it changes without the pointer moving.</summary>
@@ -95,12 +103,10 @@ public static class Ui
     public static MenuItem Entry(string label, string? icon, Action? action)
     {
         var entry = new MenuItem { Header = label, IsEnabled = action is not null };
-        if (icon is not null) entry.Icon = new Icon(icon, 16) { Foreground = MenuInk };
+        if (icon is not null) entry.Icon = new Icon(icon, 17) { Foreground = TextSecondary };
         if (action is not null) entry.Click += (_, _) => action();
         return entry;
     }
-    /// <summary>A menu line's glyph: TextBody of Windows' menus.</summary>
-    public static readonly IBrush MenuInk = Brush("#E0E0E0");
     /// <summary>
     /// <paramref name="control"/>'s right-click menu, made as it opens: what it offers (rights read after the control was drawn,
     /// a copy on this Mac, a mark changed) is as it is then. No line: no menu.

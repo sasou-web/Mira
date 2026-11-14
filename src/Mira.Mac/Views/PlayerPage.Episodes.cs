@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -27,7 +28,7 @@ public sealed partial class PlayerPage
         _previous = Ui.IconButton("previous-episode", L("Épisode précédent · P", "Previous episode · P"), PlayPrevious, "player", 22);
         _episodesButton = Ui.IconButton("episodes", L("Épisodes · E", "Episodes · E"), () => { }, "player", 22);
         var flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
-        flyout.Opening += (_, _) => { flyout.Content = EpisodesMenu(opening: true); };
+        flyout.Opening += (_, _) => { flyout.Content = EpisodesMenu(opening: true); AboveBar(flyout, _episodesButton); };
         flyout.Opened += (_, _) => Dispatcher.UIThread.Post(() => CurrentEpisodeRow()?.BringIntoView(), DispatcherPriority.Loaded);
         _episodesButton.Flyout = flyout;
         _previous.IsEnabled = _episodesButton.IsEnabled = false;
@@ -82,17 +83,17 @@ public sealed partial class PlayerPage
             step.Width = step.Height = 32; step.Padding = new Thickness(0);
             return step;
         }
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(4, 2, 4, 6) };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(4, 4, 4, 8) };
         var back = Step("back", L("Saison précédente", "Previous season"), -1);
         var forward = Step("next", L("Saison suivante", "Next season"), 1); Grid.SetColumn(forward, 2);
-        var label = new TextBlock { Text = page?.Label ?? L("Épisodes", "Episodes"), FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var label = new TextBlock { Text = page?.Label ?? L("Épisodes", "Episodes"), FontSize = 14.5, FontWeight = FontWeight.Bold, Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(label, 1);
         header.Children.Add(back); header.Children.Add(label); header.Children.Add(forward);
         var list = new StackPanel { Spacing = 2 };
         if (page is null) list.Children.Add(MenuNote(L("Aucun épisode disponible.", "No episodes available.")));
         else foreach (var episode in EpisodePages.Episodes(_episodes, page)) list.Children.Add(EpisodeRow(episode));
         var scroll = new ScrollViewer { Content = list, MaxHeight = 460, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        return new DockPanel { Width = 380, Children = { Docked(header), scroll } };
+        return new DockPanel { Width = 432, Children = { Docked(header), scroll } };
         static Control Docked(Control top) { DockPanel.SetDock(top, Dock.Top); return top; }
     }
     private Button EpisodeRow(MediaItem episode)
@@ -101,22 +102,42 @@ public sealed partial class PlayerPage
         var hidden = Spoilers.Hides(episode, _shell.Settings.HideSpoilers) && !playing;
         var image = new Image { Stretch = Stretch.UniformToFill };
         if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? Cards.Blur(hash, 16 / 9d) : null;
-        var thumb = new Grid { Width = 112, Height = 63 };
-        thumb.Children.Add(new Border { Background = Ui.Brush("#232323") });
+        // « Écrin », as on Windows: a wider still, a full bar and a check on it once watched; the episode playing raised,
+        // « Playing » and what is left of it under its name.
+        var thumb = new Grid { Width = 124, Height = 70 };
+        thumb.Children.Add(new Border { Background = Ui.Raised2 });
         thumb.Children.Add(image);
-        if (episode.Resumable) thumb.Children.Add(new Border { Height = 3, Width = 112 * episode.Progress, Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
-        var art = new Border { CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = thumb };
-        var title = episode.IndexNumber is { } number ? $"{number}. {episode.Name}" : episode.Name;
-        var state = playing ? L("En lecture", "Playing") : episode.UserData.Played ? L("✓ Vu", "✓ Watched") : episode.Progress > 0 ? L("En cours", "In progress") : null;
-        var details = string.Join(" · ", new[] { episode.DurationLabel, state }.Where(x => !string.IsNullOrEmpty(x)));
-        var text = Ui.Column(4,
-            new TextBlock { Text = title, FontSize = 13.5, FontWeight = playing ? FontWeight.SemiBold : FontWeight.Normal, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
-            new TextBlock { Text = details, FontSize = 12, Foreground = episode.UserData.Played && !playing ? Ui.Brush("#A0C7A8") : Ui.Muted });
-        text.VerticalAlignment = VerticalAlignment.Center; text.Margin = new Thickness(12, 0, 0, 0);
+        var progress = episode.UserData.Played && !playing ? 1 : playing ? PlayingProgress() : episode.Resumable ? episode.Progress : 0;
+        if (progress > 0)
+        {
+            thumb.Children.Add(new Border { Height = 3, Background = Ui.Brush("#33FFFFFF"), VerticalAlignment = VerticalAlignment.Bottom });
+            thumb.Children.Add(new Border { Height = 3, Width = 124 * Math.Clamp(progress, 0, 1), Background = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
+        }
+        if (episode.UserData.Played && !playing)
+            thumb.Children.Add(new Border
+            {
+                Width = 18, Height = 18, CornerRadius = new CornerRadius(9), Background = Ui.Brush("#B3000000"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 5, 5, 0),
+                Child = new Icon("check", 11) { Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+            });
+        var art = new Border { CornerRadius = new CornerRadius(8), ClipToBounds = true, Child = thumb };
+        var title = new TextBlock { FontSize = 14, LineHeight = 19, MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = playing ? FontWeight.Bold : FontWeight.SemiBold, Foreground = playing ? Ui.Ink : Ui.TextBody };
+        title.Inlines = [];
+        if (episode.IndexNumber is { } number) { title.Inlines.Add(new Run(number.ToString(Culture)) { Foreground = Ui.Faint }); title.Inlines.Add(new Run("  ")); }
+        title.Inlines.Add(new Run(episode.Name));
+        var details = new TextBlock { FontSize = 12.5, Foreground = Ui.Faint, TextTrimming = TextTrimming.CharacterEllipsis };
+        details.Inlines = [];
+        if (playing)
+        {
+            details.Inlines.Add(new Run(L("En lecture", "Playing")) { FontWeight = FontWeight.Bold, Foreground = Ui.Ink });
+            if (PlayingLeft() is { } left) details.Inlines.Add(new Run(" · " + left));
+        }
+        else details.Inlines.Add(new Run(string.Join(" · ", new[] { episode.DurationLabel, episode.UserData.Played ? L("Vu", "Watched") : episode.Progress > 0 ? L("En cours", "In progress") : null }.Where(x => !string.IsNullOrEmpty(x)))));
+        var text = Ui.Column(4, title, details);
+        text.VerticalAlignment = VerticalAlignment.Center; text.Margin = new Thickness(14, 0, 0, 0);
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         grid.Children.Add(art); Grid.SetColumn(text, 1); grid.Children.Add(text);
-        var row = new Button { Content = grid, Classes = { "quiet" }, Tag = episode.Id, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8, 6, 10, 6) };
-        if (playing) row.Background = Ui.Brush("#272727");
+        var row = new Button { Content = grid, Classes = { "menurow" }, Tag = episode.Id, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8), CornerRadius = new CornerRadius(12) };
+        row.Classes.Set("on", playing);
         Avalonia.Automation.AutomationProperties.SetName(row, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Progress > 0 ? ", en cours" : "")}",
             $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(playing ? ", playing" : episode.UserData.Played ? ", watched" : episode.Progress > 0 ? ", in progress" : "")}"));
         row.Click += (_, _) =>
@@ -127,6 +148,10 @@ public sealed partial class PlayerPage
         if (_shell.Session is { } session && !hidden) Ui.LoadWhenVisible(row, image, () => session.Images.EpisodeAsync(episode, 224));
         return row;
     }
+    /// <summary>How far the episode playing is, from mpv.</summary>
+    private double PlayingProgress() => _session.Duration > 0 ? _session.Position / _session.Duration : 0;
+    /// <summary>What is left of the episode playing (« 12 min left »), from mpv.</summary>
+    private string? PlayingLeft() => _session.Duration > 0 ? MediaQuality.Left(TimeSpan.FromSeconds(Math.Max(0, _session.Duration - _session.Position))) : null;
     /// <summary>The episode playing, else the first of the page: brought into view when the menu opens.</summary>
     private Button? CurrentEpisodeRow()
     {

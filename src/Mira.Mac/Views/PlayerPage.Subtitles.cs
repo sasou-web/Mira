@@ -44,7 +44,7 @@ public sealed partial class PlayerPage
     /// <summary>« Chercher des sous-titres… », under « Charger un fichier… ».</summary>
     private void AddSubtitleSearch(Panel list)
     {
-        if (_canSearchSubtitles) list.Children.Add(Entry(L("Chercher des sous-titres…", "Search for subtitles…"), null, false, OpenSubtitleSearch));
+        if (_canSearchSubtitles) list.Children.Add(MenuAction("search", L("Chercher des sous-titres…", "Search for subtitles…"), OpenSubtitleSearch));
     }
     private void OpenSubtitleSearch()
     {
@@ -58,10 +58,10 @@ public sealed partial class PlayerPage
         var menu = new StackPanel { Width = 420 };
         var back = Ui.IconButton("back", L("Retour aux pistes", "Back to the tracks"), () => { ++_subtitleSearch; _subtitleView = false; RefreshMenus(); }, "player", 17);
         back.Width = back.Height = 32;
-        var header = Ui.Row(6, back, new TextBlock { Text = L("Chercher des sous-titres", "Search for subtitles"), FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
-        header.Margin = new Thickness(2, 0, 0, 6);
+        var header = Ui.Row(6, back, new TextBlock { Text = L("Chercher des sous-titres", "Search for subtitles"), FontSize = 14.5, FontWeight = FontWeight.Bold, Foreground = Ui.Ink, VerticalAlignment = VerticalAlignment.Center });
+        header.Margin = new Thickness(4, 4, 4, 6);
         menu.Children.Add(header);
-        menu.Children.Add(MenuHeading(L("LANGUE", "LANGUAGE")));
+        menu.Children.Add(MenuHeading(L("Langue", "Language")));
         var languages = JellyfinSubtitles.SearchLanguages(_shell.Settings.SubtitleLanguage);
         var chips = Chips(languages.Select(code =>
         {
@@ -71,7 +71,7 @@ public sealed partial class PlayerPage
         chips.IsEnabled = !_keepingSubtitle;
         menu.Children.Add(chips);
         if (_subtitlePrivacy is { Length: > 0 } privacy) menu.Children.Add(MenuNote(privacy));
-        if (_subtitleStatus is { Length: > 0 } status) menu.Children.Add(new TextBlock { Text = status, FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 4, 10, 8) });
+        if (_subtitleStatus is { Length: > 0 } status) menu.Children.Add(new TextBlock { Text = status, FontSize = 13, Foreground = Ui.TextBody, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(12, 4, 12, 8) });
         if (_subtitlesFound is { Count: > 0 } found)
         {
             var list = new StackPanel { Spacing = 2, IsEnabled = !_keepingSubtitle };

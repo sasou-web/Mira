@@ -42,8 +42,8 @@ public sealed partial class PlayerPage
     private void AddNightSound(StackPanel list)
     {
         var settings = _shell.Settings; var chosen = settings.NightSound;
-        list.Children.Add(new Border { Height = 1, Background = Ui.Brush("#24FFFFFF"), Margin = new Thickness(10, 6, 10, 2) });
-        list.Children.Add(Entry(NightSound.Name, NightSound.Details(chosen, settings.AudioPassthrough, refused: chosen && _mpv?.NightSoundRefused == true), chosen, () => ChooseNightSound(!chosen)));
+        list.Children.Add(MenuRule());
+        list.Children.Add(Switch(NightSound.Name, NightSound.Details(chosen, settings.AudioPassthrough, refused: chosen && _mpv?.NightSoundRefused == true), chosen, () => { ChooseNightSound(!chosen); RefreshMenus(); }));
     }
     /// <summary>For the self-check too: chosen as the menu does.</summary>
     public void ChooseNightSound(bool on)
@@ -59,7 +59,8 @@ public sealed partial class PlayerPage
         var devices = _mpv?.AudioDevices() ?? [];
         if (devices.Count < 2) return;
         var current = AudioOutput.Device(_shell.Settings.AudioDevice, devices);
-        list.Children.Add(new TextBlock { Text = L("SORTIE", "OUTPUT"), Classes = { "label" }, Margin = new Thickness(10, 14, 0, 8) });
+        var heading = MenuHeading(L("Sortie", "Output")); heading.Margin = new Thickness(12, 14, 12, 8);
+        list.Children.Add(heading);
         list.Children.Add(Entry(MacDefault, null, current == AudioOutput.Default, () => ChooseAudioDevice(AudioOutput.Default, "")));
         foreach (var (name, label) in devices) list.Children.Add(Entry(label, null, current == name, () => ChooseAudioDevice(name, label)));
     }
