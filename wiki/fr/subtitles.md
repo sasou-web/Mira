@@ -25,7 +25,7 @@ Le menu **audio et sous-titres** montre les deux listes côte à côte, la piste
 
 ## Sous-titres automatiques
 
-L’extension de Mira sur Jellyfin peut trouver seule des sous-titres pour chaque nouveau film ou épisode, dans les langues que tu choisis, vérifier qu’ils vont avec la vidéo et les recaler dessus. Sous Windows et Mac, connecté avec le compte administrateur de Jellyfin : **Réglages → Entretien → Sous-titres automatiques**.
+L’extension de Mira sur Jellyfin peut trouver seule des sous-titres pour chaque nouveau film ou épisode, dans les langues que tu choisis, vérifier qu’ils vont avec la vidéo et les recaler dessus. Sous Windows et Mac, connecté avec le compte administrateur de Jellyfin : **Réglages → Soin de la bibliothèque → Sous-titres automatiques**.
 
 1. Choisis tes **Langues**, et si les sous-titres pour sourds et malentendants (SDH) sont préférés, indifférents ou évités.
 2. Choisis les sources : **OpenSubtitles** marche sans compte (un compte ne fait que relever le quota du jour) ; **SubDL** demande une clé API gratuite à toi.

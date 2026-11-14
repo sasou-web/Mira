@@ -68,7 +68,7 @@ Jellyfin met ensuite l’extension à jour à chaque version de Mira. Avec un PC
 
 ## Garder Jellyfin à l’abri
 
-Dans Mira pour Windows, sur le PC de Jellyfin : **Réglages → Entretien → Jellyfin sur ce PC** montre sa version et sa dernière sauvegarde (Jellyfin 10.11 ou plus récent).
+Dans Mira pour Windows, sur le PC de Jellyfin : **Réglages → Serveur Jellyfin → Jellyfin sur ce PC** montre sa version et sa dernière sauvegarde (Jellyfin 10.11 ou plus récent).
 
 - **Sauvegarder maintenant** fait la sauvegarde intégrée de Jellyfin : comptes, progression de chacun, bibliothèques, images et réglages, pas tes vidéos. Mira peut copier chaque sauvegarde sur un autre disque (**Copier aussi dans…**) et y garde les trois plus récentes. Il te la rappelle après 30 jours sans sauvegarde.
 - Quand un Jellyfin plus récent sort, Mira le dit une fois. **Mettre à jour Jellyfin** sauvegarde d’abord, télécharge l’installateur officiel, le vérifie, puis Windows demande une autorisation. C’est refusé pendant que quelqu’un regarde.

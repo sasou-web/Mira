@@ -45,7 +45,7 @@ Mira plays with mpv. Its engine (31 MB) is not inside Mira's files: Mira downloa
 
 Mira updates itself. A few seconds after it opens, then every 6 hours, it asks GitHub for a new version, downloads it in the background, checks that it is signed by Mira with the announced size and SHA-256, and installs it when you close Mira. **Restart** in the notice installs it right away.
 
-To stop the automatic check, turn off **Settings → Mira on this PC → Update automatically**. The **Search** button stays.
+To stop the automatic check, turn off **Settings → Updates → Update automatically**. The **Search** button stays.
 
 Your settings and session live in the `data` folder and are never touched by an update.
 

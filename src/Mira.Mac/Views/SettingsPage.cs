@@ -38,14 +38,12 @@ public sealed partial class SettingsPage : Page
                 settings.RememberPosition = v != ResumeOff;
                 if (int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out var back)) settings.ResumeBack = back;
             }, L("Quelques secondes avant, pour retrouver le fil.", "A few seconds earlier, to pick up the thread.")),
-            Toggle(L("Enchaîner les épisodes", "Play episodes back to back"), L("L’épisode suivant démarre tout seul à la fin.", "The next episode starts by itself at the end."), settings.AutoNext, v => settings.AutoNext = v),
+            Toggle(L("Enchaîner les épisodes", "Play episodes back to back"), L("L’épisode suivant démarre tout seul à la fin.", "The next episode starts by itself at the end."), settings.AutoNext, v => settings.AutoNext = v, out _autoNext),
             Toggle(StillWatching.Setting, StillWatching.SettingHelp, settings.StillWatching, v => settings.StillWatching = v),
             Toggle(Trailers.BeforeFilmLabel, Trailers.BeforeFilmHint, settings.TrailerFirst, v => settings.TrailerFirst = v),
-            Toggle(Spoilers.Setting, Spoilers.SettingHelp, settings.HideSpoilers, v => settings.HideSpoilers = Spoilers.On = v),
-            Toggle(EpisodeShelf.Setting, EpisodeShelf.SettingHelp, settings.ShowMissingEpisodes, v => settings.ShowMissingEpisodes = v),
-            Toggle(L("Passer les intros et les récaps", "Skip intros and recaps"), L("Tout seul, quand Jellyfin les a repérés. Sinon, touche S.", "On its own, when Jellyfin has found them. Otherwise, press S."), settings.AutoSkip, v => settings.AutoSkip = v),
+            Toggle(L("Passer les intros et les récaps", "Skip intros and recaps"), L("Tout seul, quand Jellyfin les a repérés. Sinon, touche S.", "On its own, when Jellyfin has found them. Otherwise, press S."), settings.AutoSkip, v => settings.AutoSkip = v, out _autoSkip),
             Choice(L("Qualité", "Quality"), [.. StreamQuality.Choices.Select(x => (x.Label, x.Key))], StreamQuality.Known(settings.Quality), v => settings.Quality = v,
-                L("« Automatique » s’adapte à ta connexion, chez toi comme ailleurs. Aussi dans le lecteur, sous ⋮.", "“Automatic” adapts to your connection, at home or away. Also in the player, under ⋮."))));
+                L("« Automatique » s’adapte à ta connexion, chez toi comme ailleurs. Aussi dans le lecteur, sous ⋮.", "“Automatic” adapts to your connection, at home or away. Also in the player, under ⋮."), out _quality)));
         Tab("playback").Children.Add(Advanced(L("Réglages avancés", "Advanced settings"),
             Choice(L("Image", "Picture"), [.. PictureQuality.MacChoices.Select(x => (x.Label, x.Key))], PictureQuality.Known(settings.Picture), v => { settings.Picture = v; settings.VideoRepair = 0; },
                 L("« Maximale » ajoute la mise à l’échelle la plus fine. Si ce Mac ne suit pas, Mira baisse d’un cran jusqu’à ce que tu le quittes.", "“Maximum” adds the finest scaling. If this Mac can’t keep up, Mira steps down a level until you quit it.")),
@@ -56,26 +54,38 @@ public sealed partial class SettingsPage : Page
         Tab("audio").Children.Add(Section(null,
             Choice(L("Langue audio préférée", "Preferred audio language"), TrackChoices, Shown(settings.AudioLanguage),
                 v => settings.AudioLanguage = Order(v, x => TrackLanguages.Audio(x, TrackLanguages.JapaneseFirst(settings.AudioLanguage))),
-                L("Puis l’anglais quand le fichier ne l’a pas (après l’anglais, le français).", "Then English when the file doesn’t have it (after English, French).")),
+                L("Puis l’anglais quand le fichier ne l’a pas (après l’anglais, le français).", "Then English when the file doesn’t have it (after English, French)."), out _audioLanguage),
             Toggle(L("Le japonais d’abord", "Japanese first"), L("Quand un titre a une piste japonaise, comme la plupart des animes.", "When a title has a Japanese track, as most anime do."),
                 TrackLanguages.JapaneseFirst(settings.AudioLanguage),
                 v => { if (TrackLanguages.FirstOf(settings.AudioLanguage) is { } first) settings.AudioLanguage = TrackLanguages.Audio(first, v); }),
             Choice(L("Langue des sous-titres", "Subtitle language"), TrackChoices, Shown(settings.SubtitleLanguage), v => settings.SubtitleLanguage = Order(v, TrackLanguages.Subtitles),
-                L("Puis l’anglais. Choisies parmi les pistes du fichier ; tu peux en changer pendant la lecture.", "Then English. Picked from the file’s tracks; you can change them during playback.")),
+                L("Puis l’anglais. Choisies parmi les pistes du fichier ; tu peux en changer pendant la lecture.", "Then English. Picked from the file’s tracks; you can change them during playback."), out _subtitleLanguage),
             SubtitleStyleCard(settings)));
         // « Sortie audio », as on Windows: the device, its channels, the amplifier, and « Tester ».
         Tab("audio").Children.Add(Advanced(L("Sortie audio et ampli", "Audio output and amplifier"), AudioRows(settings)));
 
-        // —— Apparence: Mira's language and Home's rows ——
-        Tab("appearance").Children.Add(Section(null, AppLanguage(settings),
-            // « Mode canapé »: applied at once, the window full screen (MainWindow.Couch.cs).
-            Toggle(Couch.Title, Couch.Description + " " + Couch.Keys, settings.CouchMode, shell.SetCouchMode),
-            // « Animer l’accueil », as on Windows: the banner turns by itself, or stays on its title.
-            Toggle(L("Animer l’accueil", "Animate Home"), L("Le titre en vedette change toutes les 6,5 s.", "The featured title changes every 6.5 s."), settings.HeroAutoPlay, v => settings.HeroAutoPlay = v)));
+        // —— Accueil & bibliothèque: what Home and the pages show, and the titles kept on this Mac ——
         // « Accueil à ta main »: the libraries come from Jellyfin, for their « Nouveau dans … ».
-        Tab("appearance").Children.Add(_home);
+        Tab("library").Children.Add(_home);
         DrawHome();
         if (shell.Session is { } account) _ = LoadLibrariesAsync(account.Client);
+        Tab("library").Children.Add(Section(null,
+            // « Animer l’accueil », as on Windows: the banner turns by itself, or stays on its title.
+            Toggle(L("Animer l’accueil", "Animate Home"), L("Le titre en vedette change toutes les 6,5 s.", "The featured title changes every 6.5 s."), settings.HeroAutoPlay, v => settings.HeroAutoPlay = v),
+            Toggle(Spoilers.Setting, Spoilers.SettingHelp, settings.HideSpoilers, v => settings.HideSpoilers = Spoilers.On = v),
+            Toggle(EpisodeShelf.Setting, EpisodeShelf.SettingHelp, settings.ShowMissingEpisodes, v => settings.ShowMissingEpisodes = v),
+            // « Sur ce Mac »: where the titles kept to watch offline go, and all of them removed at once.
+            OfflineCard()));
+
+        // —— Général: Mira's language, couch mode, what Mira tells you about ——
+        Tab("general").Children.Add(Section(null, AppLanguage(settings),
+            // « Mode canapé »: applied at once, the window full screen (MainWindow.Couch.cs).
+            Toggle(Couch.Title, Couch.Description + " " + Couch.Keys, settings.CouchMode, shell.SetCouchMode),
+            // « Prévenir des nouveaux épisodes », as on Windows: a notification of the Mac (MainWindow.Notifications.cs). Switched
+            // back on, the next look only sets the mark again: what came out meanwhile is not news.
+            Toggle(L("Prévenir des nouveaux épisodes", "Notify me of new episodes"),
+                L("Une notification du Mac quand un épisode d’une série que tu suis arrive. Tant que Mira est ouvert, même dans le Dock.", "A Mac notification when an episode of a show you follow arrives. While Mira is open, even in the Dock."),
+                settings.EpisodeNotices, v => { if (v && !settings.EpisodeNotices) settings.EpisodesSeenFor = ""; settings.EpisodeNotices = v; if (v) shell.EpisodesMayHaveArrived(); })));
 
         // —— Compte & serveur: the account and its photo, the way to Jellyfin, who plays what ——
         var connection = shell.Session?.Connection;
@@ -86,9 +96,6 @@ public sealed partial class SettingsPage : Page
             Row(L("En te déconnectant, effacer aussi ses données sur ce Mac", "When signing out, also erase its data on this Mac"),
                 L("Le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.",
                     "Your library’s cache, the posters and any progress not yet sent to Jellyfin. Your settings stay."), erase)));
-        // « Extension Mira sur Jellyfin »: installed from here by an administrator of a Jellyfin without it, as Windows' guide does.
-        Extension = new ExtensionSection(shell, Section);
-        Tab("server").Children.Add(Extension.Section);
         // This account's photo, as on Windows: kept by Jellyfin, on every device.
         if (connection is not null) Tab("server").Children.Add(Section(null, PhotoRow()));
         // « Mira sur ton iPhone »: the QR code the iPhone's camera reads, Mira opening there with this server filled in.
@@ -97,25 +104,14 @@ public sealed partial class SettingsPage : Page
         // « Tailscale intégré »: how Mira reaches Jellyfin away from home without the Tailscale app.
         Tailnet = new TailnetSection(shell, Section);
         Tab("server").Children.Add(Tailnet.Section);
-        // « Prévenir des nouveaux épisodes », as on Windows: a notification of the Mac (MainWindow.Notifications.cs). Switched
-        // back on, the next look only sets the mark again: what came out meanwhile is not news.
-        Tab("server").Children.Add(Section(null, Toggle(L("Prévenir des nouveaux épisodes", "Notify me of new episodes"),
-            L("Une notification du Mac quand un épisode d’une série que tu suis arrive. Tant que Mira est ouvert, même dans le Dock.", "A Mac notification when an episode of a show you follow arrives. While Mira is open, even in the Dock."),
-            settings.EpisodeNotices, v => { if (v && !settings.EpisodeNotices) settings.EpisodesSeenFor = ""; settings.EpisodeNotices = v; if (v) shell.EpisodesMayHaveArrived(); })));
-        // « En ce moment sur Jellyfin »: who plays what, as on Windows.
-        Viewing = new ViewersSection(shell, Section);
-        Tab("server").Children.Add(Viewing.Section);
 
-        // —— Mira sur ce Mac: its version and updates, the titles kept here ——
+        // —— Mises à jour: Mira's version and its updates (the report for a problem is in Aide, the kept titles in
+        // « Accueil & bibliothèque ») ——
         Tab("updates").Children.Add(Section(null,
             Version(),
             // Switched back on: GitHub is asked now rather than at the next launch, as on Windows.
             Toggle(L("Mettre à jour automatiquement", "Update automatically"), L("Chaque version est vérifiée, puis installée quand tu quittes Mira. Tes données restent en place.", "Each version is checked, then installed when you quit Mira. Your data stays in place."),
                 settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }, out _updatesSwitch),
-            // « Sur ce Mac »: where the titles kept to watch offline go, and all of them removed at once.
-            OfflineCard(),
-            // « Exporter un rapport » (SettingsPage.Diagnostics.cs).
-            ReportRow(),
             Row(L("Projet", "Project"), L("Le code, les nouveautés et les versions pour Windows et Mac.", "The code, what’s new and the versions for Windows and Mac."), Ui.Action(L("Ouvrir GitHub", "Open GitHub"), "globe", "", () => Updates.Open(Updates.Project)))));
 
         // —— Ton bilan: the month or the year, from Jellyfin's record of what was played to the end ——
@@ -137,6 +133,17 @@ public sealed partial class SettingsPage : Page
         Tab("care").Children.Add(Fix.Section);
         // « Sous-titres automatiques »: the extension's search and alignment of subtitles, for an administrator.
         Tab("care").Children.Add(new AutoSubtitlesSection(shell, Section).Section);
+        // —— Serveur Jellyfin: who plays what, and Mira's extension on it ——
+        // « En ce moment sur Jellyfin »: who plays what, as on Windows; asked only while it shows.
+        Viewing = new ViewersSection(shell, Section);
+        Tab("jellyfin").Children.Add(Viewing.Section);
+        // « Extension Mira sur Jellyfin »: installed from here by an administrator of a Jellyfin without it, as Windows' guide does.
+        Extension = new ExtensionSection(shell, Section);
+        Tab("jellyfin").Children.Add(Extension.Section);
+
+        // —— L’essentiel: Mira and the account at a glance, the six settings changed most (SettingsPage.Essentials.cs) ——
+        Tab("home").Children.Add(Essentials());
+        if (shell.Session is { } own && !shell.InParty) _ = JellyfinAdminAsync(own);
         Content = Layout(shell, help);
     }
     /// <summary>« Tailscale intégré », its node and the way to Jellyfin.</summary>
@@ -165,6 +172,7 @@ public sealed partial class SettingsPage : Page
         {
             if (Shell.SyncLine is not { } status) { line.IsVisible = false; return; }
             line.IsVisible = true; line.Text = status.Text; line.Foreground = status.Warning ? Ui.Warning : Ui.Success;
+            if (_retry is not null) _retry.IsVisible = Shell.NotAnswering;
         }
         Page.WhileShown(line, shown => { if (shown) { Shell.SyncShown += ShowLine; ShowLine(); } else Shell.SyncShown -= ShowLine; });
         if (connection is not null)
@@ -176,13 +184,15 @@ public sealed partial class SettingsPage : Page
                 try { await Shell.SyncNowAsync(); }
                 finally { sync.IsEnabled = true; }
             }
-            sync = Ui.Action(L("Synchroniser maintenant", "Sync now"), "refresh", "", () => _ = SyncAsync());
+            // The sync is automatic: « Réessayer » only while Jellyfin isn't answering.
+            sync = Ui.Action(L("Réessayer", "Retry"), "refresh", "primary", () => _ = SyncAsync());
             buttons.Children.Add(sync);
+            _retry = sync;
         }
         // Jellyfin's own page, signed in with the same account, on its dashboard (libraries, users, network), as on Windows.
         if (connection is not null && Uri.TryCreate(connection.Server.TrimEnd('/') + "/", UriKind.Absolute, out var server))
             buttons.Children.Add(Ui.Action(L("Ouvrir Jellyfin dans le navigateur", "Open Jellyfin in the browser"), "globe", "", () => Updates.Open(new Uri(server, "web/#/dashboard"), plainHttp: true)));
-        buttons.Children.Add(SignOut(erase));
+        buttons.Children.Add(_signOut = SignOut(erase));
         foreach (var button in buttons.Children) button.Margin = new Thickness(0, 0, 10, 8);
         return Ui.Column(0, name, Description(connection?.Server ?? "—"), line, buttons);
     }
@@ -211,7 +221,7 @@ public sealed partial class SettingsPage : Page
     /// <summary>This version, « Rechercher » and « Notes de version », as Windows' card; what the search finds is said by a notice.</summary>
     private Control Version()
     {
-        var check = Ui.Action(L("Rechercher", "Search"), "refresh", "", () => _ = Updates.CheckAsync(Shell, asked: true));
+        var check = Ui.Action(L("Rechercher une mise à jour", "Check for updates"), "refresh", "", () => _ = Updates.CheckAsync(Shell, asked: true));
         Avalonia.Automation.AutomationProperties.SetName(check, L("Rechercher une mise à jour", "Check for an update"));
         check.VerticalAlignment = VerticalAlignment.Top;
         var dock = new DockPanel();
@@ -221,6 +231,12 @@ public sealed partial class SettingsPage : Page
         Avalonia.Automation.AutomationProperties.SetName(notes, L("Voir les notes de version", "View release notes"));
         notes.VerticalAlignment = VerticalAlignment.Top; notes.Margin = new Thickness(0, 0, 10, 0);
         DockPanel.SetDock(notes, Dock.Right); dock.Children.Add(notes);
+        // A version ready: installed now rather than at the next quit, as « L’essentiel » offers.
+        var restart = Ui.Action(L("Redémarrer et mettre à jour", "Restart and update"), null, "primary", () => Updates.Restart(Shell));
+        restart.VerticalAlignment = VerticalAlignment.Top; restart.Margin = new Thickness(0, 0, 10, 0);
+        DockPanel.SetDock(restart, Dock.Right); dock.Children.Add(restart);
+        void Ready() { restart.IsVisible = Updates.ReadyVersion is not null; check.IsVisible = !restart.IsVisible; }
+        Page.WhileShown(restart, shown => { if (shown) { Updates.Changed += Ready; Ready(); } else Updates.Changed -= Ready; });
         var text = Ui.Column(0, new TextBlock { Text = $"Mira {Updates.Current}", FontSize = 18, FontWeight = FontWeight.SemiBold }, Description(L("Mira pour Mac (Apple Silicon).", "Mira for Mac (Apple silicon).")));
         text.Margin = new Thickness(0, 0, 16, 0);
         dock.Children.Add(text);
@@ -234,7 +250,7 @@ public sealed partial class SettingsPage : Page
     {
         var mac = Resolve(null, null, SystemLanguage.Preferred()) == French ? "Français" : "English";
         (string, string)[] options = [(L($"Langue du Mac ({mac})", $"Mac’s language ({mac})"), ""), ("English", English), ("Français", French)];
-        return Choice(L("Langue", "Language"), options, Known(settings.Language) ?? "", v =>
+        return Choice(L("Langue de Mira", "Mira’s language"), options, Known(settings.Language) ?? "", v =>
         {
             settings.Language = v;
             var chosen = Resolve(v, null, SystemLanguage.Preferred());
@@ -244,7 +260,7 @@ public sealed partial class SettingsPage : Page
             // Opened again once this Mira has quit, which saves the settings and closes the session as any quit does.
             if (SystemLanguage.Bundle() is { } bundle) Shell.Notice(text, Said("Relancer", "Relaunch"), () => { if (Updates.RelaunchAfterInstall() || SystemLanguage.RelaunchAfterExit(bundle)) Shell.Quit(); }, sticky: false);
             else Shell.Notice(text);
-        }, L("Celle de Mira. Elle change à la prochaine ouverture de Mira.", "Mira’s own. It changes the next time Mira opens."));
+        }, L("Celle de Mira. Elle change à la prochaine ouverture de Mira.", "Mira’s own. It changes the next time Mira opens."), out _language);
     }
     private Control Report()
     {
@@ -574,5 +590,6 @@ public sealed partial class SettingsPage : Page
         box.SelectionChanged += (_, _) => { if (box.SelectedItem is ComboBoxItem { Tag: string value }) { set(value); Save(); } };
         return box;
     }
-    private Control Choice(string title, (string Label, string Value)[] options, string current, Action<string> set, string detail) => Row(title, detail, Combo(title, options, current, set));
+    private Control Choice(string title, (string Label, string Value)[] options, string current, Action<string> set, string detail) => Choice(title, options, current, set, detail, out _);
+    private Control Choice(string title, (string Label, string Value)[] options, string current, Action<string> set, string detail, out ComboBox box) => Row(title, detail, box = Combo(title, options, current, set));
 }

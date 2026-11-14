@@ -78,4 +78,4 @@ In the player's **⋮** menu: pause in 15 minutes, 30 minutes, 1 hour, or at the
 
 At home, Mira plays the file as it is. Away, a 4K film may not fit your connection: **Quality** (Settings → Playback and the player's **⋮** menu) sets a limit, or **Auto** measures the connection to Jellyfin. Under the limit, Jellyfin converts the file while you watch. If the connection drops, or the video stops coming for 15 seconds, Mira waits for Jellyfin, reopens the stream once where it was, and only then says it cannot play. When the computer sleeps (a laptop's lid closed), the film pauses, and on waking Mira reopens it where it was, still paused.
 
-Converting is heavy for the server. On the Jellyfin PC, Mira can have the graphics card do it: **Settings → Maintenance → Convert with the graphics card**, tried first on one of your titles.
+Converting is heavy for the server. On the Jellyfin PC, Mira can have the graphics card do it: **Settings → Jellyfin server → Convert with the graphics card**, tried first on one of your titles.

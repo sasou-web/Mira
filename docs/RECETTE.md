@@ -8,7 +8,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] « Tout préparer » : une seule autorisation de Windows, puis toutes les étapes de la carte du téléphone cochées
 - [ ] Après « Tout préparer » : le téléphone joint Jellyfin à la maison (Wi-Fi) et en 4G par Tailscale
 - [ ] Avis « Jellyfin convertit maintenant avec ta … » (carte Intel), puis une conversion qui ne saccade pas
-- [ ] Sauvegarde de Jellyfin faite toute seule (Réglages → Entretien : date de la dernière)
+- [ ] Sauvegarde de Jellyfin faite toute seule (Réglages → Serveur Jellyfin : date de la dernière)
 - [ ] Mise à jour de Jellyfin au clic (quand une version sort) : service revenu, Jellyfin répond
 - [ ] Téléchargements : un magnet public par TorLink, rangé dans la bibliothèque
 - [ ] Un `.torrent` de C411 par qBittorrent, rangé (lien physique), qBittorrent continue de partager
@@ -30,7 +30,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Narrateur : Accueil, fiche et lecteur lus avec des noms (pas « bouton »)
 - [ ] Snap Layouts au survol du bouton agrandir
 - [ ] Tailscale intégré (sans l'app Tailscale, depuis un autre réseau) : se connecter, lire un film, se déconnecter
-- [ ] Mode canapé sur la télé (HDMI) : Réglages → Apparence → Mode canapé, plein écran lisible depuis le canapé ; flèches partout (rail compris), Entrée, Retour arrière ; une manette Xbox (A, B, Y, LB/RB, dans le lecteur A, X, LB/RB) ; la télécommande de la télé si un adaptateur HDMI-CEC est là
+- [ ] Mode canapé sur la télé (HDMI) : Réglages → Général → Mode canapé, plein écran lisible depuis le canapé ; flèches partout (rail compris), Entrée, Retour arrière ; une manette Xbox (A, B, Y, LB/RB, dans le lecteur A, X, LB/RB) ; la télécommande de la télé si un adaptateur HDMI-CEC est là
 - [ ] Filtres de Films : Filtrer → Image 4K + Langue audio Français + Non vus : seulement tes films 4K pas vus avec une piste française ; « Filtres · 3 » ; Réinitialiser rend tout ; « Plus courts d'abord »
 - [ ] Bandes-annonces : un film avec un dossier `trailers` (ou `…-trailer.mkv`) : bouton « Bande-annonce » de la fiche, lue dans Mira ; un film sans : le bouton dit « sur YouTube, dans ton navigateur » et ouvre le navigateur ; Réglages → Lecture → « Bande-annonce avant le film » : elle passe d'abord, « Passer la bande-annonce » mène au film, rien en reprise ; « Depuis le début » d'un film laissé en cours : la bande-annonce, puis le film depuis son début
 - [ ] Télécommande : depuis l'iPhone, « … » d'un film → « Lire sur… » → ce PC : Mira s'ouvre et le lit (fenêtre réduite ou dans la zone de notification comprise) ; la télécommande de l'iPhone met en pause, ±10 s, volume, muet, Arrêter ; Jellyfin web (« Lire sur ») aussi ; Réglages → En ce moment sur Jellyfin d'un autre appareil : « Arrêter » arrête ce PC

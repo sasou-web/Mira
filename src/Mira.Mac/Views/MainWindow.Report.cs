@@ -8,7 +8,7 @@ using static Mira.Core.Lang;
 namespace Mira.Mac.Views;
 
 /// <summary>
-/// « Exporter un rapport » (DiagnosticReport of Core), as on Windows: from Réglages → Mira sur ce Mac or the Help menu, a
+/// « Exporter un rapport » (DiagnosticReport of Core), as on Windows: from Aide or the Help menu, a
 /// text file saved where the person chooses, to send by hand. Nothing leaves this Mac by itself.
 /// </summary>
 public sealed partial class MainWindow

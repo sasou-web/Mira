@@ -68,7 +68,7 @@ Jellyfin then updates the extension with each version of Mira. With a Windows PC
 
 ## Keep Jellyfin safe
 
-In Mira for Windows, on the Jellyfin PC: **Settings → Maintenance → Jellyfin on this PC** shows its version and last backup (Jellyfin 10.11 or later).
+In Mira for Windows, on the Jellyfin PC: **Settings → Jellyfin server → Jellyfin on this PC** shows its version and last backup (Jellyfin 10.11 or later).
 
 - **Back up now** makes Jellyfin's built-in backup: accounts, everyone's progress, libraries, artwork and settings, not your videos. Mira can copy each backup to another drive and keeps the three most recent there. It reminds you after 30 days without one.
 - When a newer Jellyfin comes out, Mira says so once. **Update Jellyfin** backs up first, downloads the official installer, checks it, then Windows asks for permission. It is refused while someone is watching.

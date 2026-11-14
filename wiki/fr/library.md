@@ -9,7 +9,7 @@ platforms: Windows, Mac, iPhone
 
 L’accueil s’ouvre sur un grand bandeau de tes titres, puis **Continuer à regarder** : les films et les séries commencés, le plus récent d’abord, une carte par série, avec le temps qui reste. Dessous viennent les épisodes suivants, les titres ajoutés récemment et les rangées que tu as choisies.
 
-- **Rangées de l’accueil** (Réglages → Apparence) permet de les remettre dans un autre ordre ou de les masquer, dont une rangée « Nouveau dans… » par bibliothèque. La disposition est gardée par appareil.
+- **Rangées de l’accueil** (Réglages → Accueil & bibliothèque) permet de les remettre dans un autre ordre ou de les masquer, dont une rangée « Nouveau dans… » par bibliothèque. La disposition est gardée par appareil.
 - Clic droit sur une carte de Continuer à regarder (appui long sur iPhone), puis **Retirer de Continuer à regarder** pour l’oublier jusqu’à la prochaine lecture. **Annuler** la remet.
 
 ## Films et séries
@@ -40,7 +40,7 @@ Dans **Réglages → Lecture**, **Cacher les spoilers** (coupé par défaut) flo
 
 ## Épisodes manquants et à venir
 
-Avec l’extension TheTVDB sur ton Jellyfin (**Réglages → Entretien → Épisodes manquants et sorties** de Mira pour Windows l’active, pour un administrateur), la page d’une série montre ce que ta bibliothèque n’a pas, chacun à sa place. Les épisodes sortis qui n’y sont pas forment une case vide entre ceux que tu as (« É3–4 », « Pas dans ta bibliothèque », « Sortis du 25 oct. au 1 nov. ») ; **Voir les 2** l’ouvre en une case par épisode. Le prochain épisode à sortir est une case vide à sa place, avec son jour. Une saison dont tu n’as aucun épisode est dans la liste des saisons (« Saison 1 · absente »), montrée par une carte qui dit combien d’épisodes elle compte et quand ils sont sortis. Rien à lancer, rien d’urgent : **Réglages → Lecture → Montrer les épisodes manquants** coupé ne garde que ceux à venir.
+Avec l’extension TheTVDB sur ton Jellyfin (**Réglages → Soin de la bibliothèque → Épisodes manquants et sorties** de Mira pour Windows l’active, pour un administrateur), la page d’une série montre ce que ta bibliothèque n’a pas, chacun à sa place. Les épisodes sortis qui n’y sont pas forment une case vide entre ceux que tu as (« É3–4 », « Pas dans ta bibliothèque », « Sortis du 25 oct. au 1 nov. ») ; **Voir les 2** l’ouvre en une case par épisode. Le prochain épisode à sortir est une case vide à sa place, avec son jour. Une saison dont tu n’as aucun épisode est dans la liste des saisons (« Saison 1 · absente »), montrée par une carte qui dit combien d’épisodes elle compte et quand ils sont sortis. Rien à lancer, rien d’urgent : **Réglages → Lecture → Montrer les épisodes manquants** coupé ne garde que ceux à venir.
 
 ## Lire sur un autre appareil
 
@@ -57,7 +57,7 @@ Sous Windows et Mac, le menu d’un film ou d’une série propose **Ajouter à 
 Il faut le compte administrateur de Jellyfin, ou un compte que Jellyfin autorise à gérer les collections.
 
 > [!TIP]
-> **Réglages → Entretien → Ranger mes films en sagas** (administrateur) demande à Jellyfin de regrouper tout seul les films d’une même saga, d’après TMDb.
+> **Réglages → Soin de la bibliothèque → Ranger mes films en sagas** (administrateur) demande à Jellyfin de regrouper tout seul les films d’une même saga, d’après TMDb.
 
 ## Regarder sans connexion
 

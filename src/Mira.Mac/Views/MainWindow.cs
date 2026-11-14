@@ -244,6 +244,20 @@ public sealed partial class MainWindow : Window
         _helpRail = Ui.IconButton("help", L("Aide · ⌘/", "Help · ⌘/"), () => OpenSheet("keys"), "rail", 22);
         var settings = Ui.IconButton("settings", L("Réglages · ⌘,", "Settings · ⌘,"), () => NavigateRoot("settings"), "rail", 22);
         _railButtons["settings"] = settings;
+        // A version ready to install: a dot on the gear, as on « Mises à jour » in Réglages (SettingsPage.Essentials.cs).
+        var gear = (Control)settings.Content!; settings.Content = null;
+        var dot = new Avalonia.Controls.Shapes.Ellipse
+        {
+            Width = 9, Height = 9, Fill = Ui.Ink, Stroke = Brushes.Black, StrokeThickness = 2, IsVisible = false, IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -3, -4, 0),
+        };
+        settings.Content = new Grid { Children = { gear, dot } };
+        void ShowDot()
+        {
+            dot.IsVisible = Updates.ReadyVersion is not null;
+            Avalonia.Automation.AutomationProperties.SetHelpText(settings, dot.IsVisible ? L("Une nouvelle version de Mira est prête.", "A new version of Mira is ready.") : "⌘,");
+        }
+        Updates.Changed += ShowDot;
         // The avatar is a button, as Windows' (its « Ton compte »): Réglages on « Compte et serveur », where the account,
         // its server and « Se déconnecter » are.
         _accountRail.Classes.Add("rail");

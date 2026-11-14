@@ -15,7 +15,7 @@ Mira has no account, no ads, no analytics and no telemetry. It talks to your Jel
 | Who | To | What |
 | --- | --- | --- |
 | Mira, every device | **your Jellyfin server** | your library, playback and progress, with your session's token in a header, never in an address (except the iPhone's player stream, which Apple's player cannot send otherwise) |
-| Mira for Windows and Mac | **GitHub** (`api.github.com`) | the update check, at startup then every 6 hours: the request itself (your IP address, Mira's version), nothing else. Turn it off in **Settings → Mira on this PC → Update automatically** |
+| Mira for Windows and Mac | **GitHub** (`api.github.com`) | the update check, at startup then every 6 hours: the request itself (your IP address, Mira's version), nothing else. Turn it off in **Settings → Updates → Update automatically** |
 
 Before you sign in, Mira looks for Jellyfin on this computer, on your home network (Jellyfin's discovery question, never beyond your network) and on your Tailscale devices. Nothing identifying is sent; your password goes only to the address you sign in to.
 

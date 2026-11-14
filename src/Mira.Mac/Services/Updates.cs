@@ -31,6 +31,21 @@ public static class Updates
     private static Version? _ready;
     private static string? _image;
 
+    /// <summary>
+    /// Where the search stands, for Réglages (« L’essentiel », its card, and the dots on « Mises à jour » and the rail's
+    /// gear): said again by <see cref="Changed"/>, on the interface's thread.
+    /// </summary>
+    public static event Action? Changed;
+    public static bool Checking => _busy;
+    /// <summary>The version waiting to be swapped in at the next quit.</summary>
+    public static Version? ReadyVersion => _ready;
+    /// <summary>When GitHub last said this version is the latest.</summary>
+    public static DateTimeOffset? UpToDateAt { get; private set; }
+    /// <summary>The last search did not go through (network, GitHub, a release refused).</summary>
+    public static bool SearchFailed { get; private set; }
+    /// <summary>« Redémarrer et mettre à jour »: Mira quits, the new version takes its place and opens.</summary>
+    public static void Restart(MainWindow window) { _relaunch = true; window.Quit(); }
+
     private static string Folder(MainWindow window) => Path.Combine(window.Profile.DirectoryPath, "updates");
 
     /// <summary>At launch: what the last quit installed, then the first check and the next ones every six hours.</summary>
@@ -78,12 +93,15 @@ public static class Updates
         if (!asked && !window.Settings.AutoUpdate) return;
         if (_ready is { } waiting) { if (asked) Ready(window, waiting); return; }
         if (_busy) { if (asked) window.Notice(L("Mira cherche déjà une mise à jour.", "Mira is already looking for an update.")); return; }
-        _busy = true;
+        _busy = true; Changed?.Invoke();
         try
         {
             using var client = new UpdateClient(Current, UpdateKeys.Trusted);
-            if (await client.CheckAsync("mac") is not { } offer)
+            var offer = await client.CheckAsync("mac");
+            SearchFailed = false;
+            if (offer is null)
             {
+                UpToDateAt = DateTimeOffset.Now;
                 if (asked) window.Notice(L($"Mira {Current} est à jour.", $"Mira {Current} is up to date."));
                 return;
             }
@@ -113,6 +131,7 @@ public static class Updates
         }
         catch (UpdateException ex)
         {
+            SearchFailed = true;
             // A network or a GitHub limit is said only when asked; a release that fails its checks is always said.
             if (asked || ex is { Network: false, Status: null })
             {
@@ -122,15 +141,16 @@ public static class Updates
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            SearchFailed = true;
             ErrorLog.Append(window.Profile.DirectoryPath, ex);
             if (asked) window.Notice(L("Impossible de vérifier les mises à jour pour le moment.", "Can’t check for updates right now."), tone: NoticeTone.Error);
         }
-        finally { _busy = false; }
+        finally { _busy = false; Changed?.Invoke(); }
     }
 
     private static void Ready(MainWindow window, Version version) =>
         window.Notice(L($"Mira {version.ToString(3)} est prête : elle s’installera quand tu quitteras Mira ou fermeras sa fenêtre.", $"Mira {version.ToString(3)} is ready: it’ll install when you quit Mira or close its window."),
-            L("Redémarrer", "Restart"), () => { _relaunch = true; window.Quit(); }, sticky: true, tone: NoticeTone.Done);
+            L("Redémarrer", "Restart"), () => Restart(window), sticky: true, tone: NoticeTone.Done);
 
     /// <summary>A new version waits beside this one, ready to be swapped in.</summary>
     public static bool Waiting => _ready is not null && SystemLanguage.Bundle() is { } bundle && Directory.Exists(MacInstall.Staging(bundle));

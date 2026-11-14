@@ -54,7 +54,7 @@ Mira se met à jour seule. À l’ouverture, puis toutes les 6 heures, elle dema
 
 Mira ne peut pas se remplacer quand elle tourne depuis l’image disque, depuis le dossier Téléchargements (macOS lance une copie protégée), ou depuis un dossier que ton compte ne peut pas modifier. Elle télécharge et vérifie quand même la nouvelle version, et **Ouvrir l’image disque** te laisse la glisser dans Applications.
 
-Pour arrêter la recherche automatique, désactive **Réglages → Mira sur ce Mac → Mettre à jour automatiquement**.
+Pour arrêter la recherche automatique, désactive **Réglages → Mises à jour → Mettre à jour automatiquement**.
 
 ## Fenêtre et menus
 
