@@ -295,17 +295,61 @@ public partial class MainWindow
         if (_missingPopup is { IsOpen: true }) _missingPopup.IsOpen = false;
         var body = new Squircle
         {
-            Background = Palette.Get("Menu"), BorderBrush = Palette.Get("Hairline"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(16, 14, 16, 14), Width = 440, Margin = new Thickness(0, 8, 0, 0),
+            Background = Palette.Get("Menu"), BorderBrush = Palette.Get("Hairline"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(16, 14, 16, 14), Width = MissingMenuWidth,
         };
         TextElement.SetFontFamily(body, (FontFamily)FindResource("AppFont")); TextElement.SetForeground(body, Palette.Get("Text"));
         var menu = new MissingMenu { Series = series, Ask = ask, Heading = heading, Body = body };
-        var popup = new Popup { PlacementTarget = anchor, Placement = PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true, Child = body, PopupAnimation = PopupAnimation.None };
-        popup.Closed += (_, _) => { if (ReferenceEquals(_missingPopup, popup)) { _missingSearch?.Cancel(); _missingPopup = null; } };
+        // Kept inside Mira's window (a Popup is a window of its own, which WPF only keeps on the screen): below the button or
+        // above it, narrower in a narrow window, its list scrolling in a short one (MenuFit of Core).
+        var popup = new Popup { PlacementTarget = anchor, Placement = PlacementMode.Custom, StaysOpen = false, AllowsTransparency = true, Child = body, PopupAnimation = PopupAnimation.None };
+        popup.CustomPopupPlacementCallback = (size, _, _) => [new CustomPopupPlacement(MissingMenuPlace(anchor, size), PopupPrimaryAxis.None)];
+        FitMissingMenu(anchor, body);
+        // The window resized or the page scrolled under it: the menu follows its button, still inside the window.
+        void Refit(object? sender, EventArgs e) { if (!popup.IsOpen) return; FitMissingMenu(anchor, body); NudgeMissingMenu(popup); }
+        ScrollChangedEventHandler scrolled = Refit;
+        SizeChanged += Refit;
+        AddHandler(ScrollViewer.ScrollChangedEvent, scrolled);
+        popup.Closed += (_, _) =>
+        {
+            SizeChanged -= Refit;
+            RemoveHandler(ScrollViewer.ScrollChangedEvent, scrolled);
+            if (ReferenceEquals(_missingPopup, popup)) { _missingSearch?.Cancel(); _missingPopup = null; }
+        };
         body.KeyDown += (_, e) => { if (e.Key == Key.Escape) { popup.IsOpen = false; e.Handled = true; anchor.Focus(); } };
         _missingPopup = popup;
         popup.IsOpen = true;
         _ = SearchMissingAsync(menu, popup);
     }
+
+    private const double MissingMenuWidth = 440;
+    /// <summary>The menu's width and tallest height, from where its button is in the window (title bar excluded).</summary>
+    private void FitMissingMenu(FrameworkElement anchor, Squircle body)
+    {
+        if (MissingMenuArea(anchor) is not { } area) return;
+        var bounds = MenuFit.Size(area.Width, area.Height, area.Anchor, MissingMenuWidth);
+        body.Width = bounds.Width; body.MaxHeight = bounds.MaxHeight;
+    }
+    /// <summary>Where WPF puts the menu: relative to its button's top-left corner, in device pixels.</summary>
+    private Point MissingMenuPlace(FrameworkElement anchor, Size size)
+    {
+        var dpi = VisualTreeHelper.GetDpi(anchor);
+        if (MissingMenuArea(anchor) is not { } area) return new Point(0, (anchor.ActualHeight + MenuFit.Gap) * dpi.DpiScaleY);
+        var at = MenuFit.At(area.Width, area.Height, area.Anchor, size.Width / dpi.DpiScaleX, size.Height / dpi.DpiScaleY);
+        return new Point((at.X - area.Anchor.Left) * dpi.DpiScaleX, (at.Y - area.Anchor.Top) * dpi.DpiScaleY);
+    }
+    /// <summary>The window below its title bar and the button in it, in device-independent pixels (screen positions: the
+    /// pages' zoom of the couch mode and the text size are in them).</summary>
+    private (double Width, double Height, MenuFit.Box Anchor)? MissingMenuArea(FrameworkElement anchor)
+    {
+        if (Content is not FrameworkElement root || !anchor.IsVisible || PresentationSource.FromVisual(anchor) is null || PresentationSource.FromVisual(root) is null) return null;
+        var dpi = VisualTreeHelper.GetDpi(root);
+        var origin = root.PointToScreen(new Point(0, TitleHeight)); var end = root.PointToScreen(new Point(root.ActualWidth, root.ActualHeight));
+        var from = anchor.PointToScreen(new Point(0, 0)); var to = anchor.PointToScreen(new Point(anchor.ActualWidth, anchor.ActualHeight));
+        double X(double x) => (x - origin.X) / dpi.DpiScaleX; double Y(double y) => (y - origin.Y) / dpi.DpiScaleY;
+        return (X(end.X), Y(end.Y), new MenuFit.Box(X(from.X), Y(from.Y), X(to.X) - X(from.X), Y(to.Y) - Y(from.Y)));
+    }
+    /// <summary>WPF places a popup again when an offset changes.</summary>
+    private static void NudgeMissingMenu(Popup popup) => popup.HorizontalOffset = popup.HorizontalOffset == 0 ? .01 : 0;
 
     private async Task SearchMissingAsync(MissingMenu menu, Popup popup)
     {
@@ -346,57 +390,70 @@ public partial class MainWindow
 
     private void DrawMissingMenu(MissingMenu menu, Popup popup)
     {
-        var stack = new StackPanel();
+        // Heading on top, foot below, what is between scrolling when the window leaves the menu too little height.
+        var stack = new Grid { RowDefinitions = { new RowDefinition { Height = GridLength.Auto }, new RowDefinition(), new RowDefinition { Height = GridLength.Auto } } };
+        var middle = new StackPanel();
+        var foot = new StackPanel();
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         var close = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(6), Content = new Icon { Kind = "close", Width = 13, Height = 13 } };
         AutomationProperties.SetName(close, L("Fermer", "Close")); close.Click += (_, _) => popup.IsOpen = false;
         DockPanel.SetDock(close, Dock.Right); head.Children.Add(close);
-        head.Children.Add(new TextBlock { Text = menu.Heading, FontSize = 15, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center });
+        head.Children.Add(new TextBlock { Text = menu.Heading, FontSize = 15, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         stack.Children.Add(head);
         var picks = menu.Picks;
+        // Inside the scrolled part, « Retry » and the rows reach 12 px past the text on each side (their hover).
+        var scrolled = middle;
+        var listMargin = new Thickness(-12, 0, -12, 0);
+        middle.Margin = new Thickness(12, 0, 12, 0);
         if (menu.Error is { } error && picks is null or { Empty: true })
         {
-            stack.Children.Add(new TextBlock { Text = error, Foreground = Palette.Get("Danger"), TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19 });
+            middle.Children.Add(new TextBlock { Text = error, Foreground = Palette.Get("Danger"), TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19 });
             var again = new Button { Style = (Style)FindResource("Quiet"), Content = MissingDownloads.Retry, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(-12, 8, 0, 0) };
             again.Click += (_, _) => _ = SearchMissingAsync(menu, popup);
-            stack.Children.Add(again);
+            middle.Children.Add(again);
         }
         else if (picks is null)
         {
-            stack.Children.Add(new TextBlock { Text = MissingDownloads.Searching, FontSize = 13, Foreground = Palette.Get("TextSecondary") });
+            middle.Children.Add(new TextBlock { Text = MissingDownloads.Searching, FontSize = 13, Foreground = Palette.Get("TextSecondary") });
             for (var i = 0; i < 3; i++)
             {
                 var row = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Opacity = 1 - i * 0.25 };
                 row.Children.Add(new Border { Height = 11, Width = 240 - i * 30, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(5), Background = Palette.Get("Raised2") });
                 row.Children.Add(new Border { Height = 9, Width = 150, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(4), Background = Palette.Get("Raised2"), Margin = new Thickness(0, 7, 0, 0), Opacity = 0.7 });
-                stack.Children.Add(row);
+                middle.Children.Add(row);
             }
-            AutomationProperties.SetLiveSetting(stack, AutomationLiveSetting.Polite);
+            AutomationProperties.SetLiveSetting(middle, AutomationLiveSetting.Polite);
         }
-        else if (picks.Empty) stack.Children.Add(MissingNothing(menu, popup));
+        else if (picks.Empty) middle.Children.Add(MissingNothing(menu, popup));
         else
         {
             var list = new StackPanel();
             if (menu.Pack is not null) list.Children.Add(MissingPackRow(menu, popup));
             else foreach (var choice in picks.Episodes) list.Children.Add(MissingEpisodeRow(menu, popup, choice));
-            stack.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(-10, 0, -10, 0) });
+            scrolled = list; listMargin = new Thickness(-10, 0, -10, 0); middle.Margin = new Thickness(0);
             if (menu.Pack is null && MissingDownloads.NotFound(picks.NotFound) is { Length: > 0 } nothing)
-                stack.Children.Add(new TextBlock { Text = nothing, FontSize = 12.5, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
-            stack.Children.Add(new Border { Height = 1, Background = Palette.Get("Wash"), Margin = new Thickness(0, 12, 0, 12) });
-            var foot = new DockPanel();
+                foot.Children.Add(new TextBlock { Text = nothing, FontSize = 12.5, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
+            foot.Children.Add(new Border { Height = 1, Background = Palette.Get("Wash"), Margin = new Thickness(0, 12, 0, 12) });
+            var bar = new DockPanel();
             var go = menu.Go = new Button { Style = (Style)FindResource("Primary"), Padding = new Thickness(18, 8, 18, 8) };
             Motion.SetRadius(go, new CornerRadius(17));
             go.Click += async (_, _) => await SendMissingAsync(menu, popup);
-            DockPanel.SetDock(go, Dock.Right); foot.Children.Add(go);
-            foot.Children.Add(menu.Total = new TextBlock { FontSize = 12.5, Foreground = Palette.Get("Muted"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) });
-            stack.Children.Add(foot);
+            DockPanel.SetDock(go, Dock.Right); bar.Children.Add(go);
+            bar.Children.Add(menu.Total = new TextBlock { FontSize = 12.5, Foreground = Palette.Get("Muted"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) });
+            foot.Children.Add(bar);
             DrawMissingFoot(menu);
-            if (menu.Error is { } refused) stack.Children.Add(new TextBlock { Text = refused, Foreground = Palette.Get("Danger"), TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Margin = new Thickness(0, 10, 0, 0) });
+            if (menu.Error is { } refused) foot.Children.Add(new TextBlock { Text = refused, Foreground = Palette.Get("Danger"), TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Margin = new Thickness(0, 10, 0, 0) });
         }
-        stack.Children.Add(new TextBlock { Text = MissingDownloads.Privacy, FontSize = 11.5, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
+        foot.Children.Add(new TextBlock { Text = MissingDownloads.Privacy, FontSize = 11.5, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
+        // Never taller than its list (380): beyond that, the list scrolls even in a tall window, as before.
+        var scroller = new ScrollViewer { Content = scrolled, MaxHeight = ReferenceEquals(scrolled, middle) ? double.PositiveInfinity : 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Margin = listMargin, Focusable = false };
+        Grid.SetRow(scroller, 1); Grid.SetRow(foot, 2);
+        stack.Children.Add(scroller); stack.Children.Add(foot);
         var shown = menu.Error is not null && picks is null or { Empty: true } ? "error" : picks is null ? "searching" : picks.Empty ? "nothing" : menu.Pack is null ? "episodes" : "pack";
         var moved = shown != menu.Shown && !menu.Sending; menu.Shown = shown;
         menu.Body.Child = stack;
+        // A new height: placed again (above the button when the results no longer fit below it).
+        _ = Dispatcher.BeginInvoke(() => { if (popup.IsOpen) NudgeMissingMenu(popup); }, DispatcherPriority.Loaded);
         // Into the menu once its results come (keyboard and screen readers start there), never again while it is used.
         if (moved && shown != "searching") _ = Dispatcher.BeginInvoke(() => stack.MoveFocus(new TraversalRequest(FocusNavigationDirection.First)), DispatcherPriority.Input);
     }

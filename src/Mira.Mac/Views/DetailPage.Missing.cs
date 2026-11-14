@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -314,14 +315,54 @@ public sealed partial class DetailPage
     {
         _missingSearch?.Cancel();
         _missingFlyout?.Hide();
-        var body = new Border { Width = 440, Padding = new Thickness(10, 8) };
-        var flyout = new Flyout { Placement = PlacementMode.BottomEdgeAlignedLeft, ShowMode = FlyoutShowMode.Standard, Content = body };
+        var body = new Border { Width = MissingMenuWidth, Padding = new Thickness(10, 8) };
+        // Kept inside Mira's window (a popup is a window of its own on macOS, which Avalonia only keeps on the screen): below
+        // the button or above it, narrower in a narrow window, its list scrolling in a short one (MenuFit of Core). Avalonia
+        // places it again when its button moves (the page scrolls) or its size changes.
+        var flyout = new Flyout { Placement = PlacementMode.Custom, ShowMode = FlyoutShowMode.Standard, Content = body };
+        flyout.CustomPopupPlacementCallback = placement => PlaceMissingMenu(anchor, placement);
         var menu = new MissingMenu { Ask = ask, Heading = heading, Body = body, Flyout = flyout, Open = true };
-        flyout.Closed += (_, _) => { menu.Open = false; if (ReferenceEquals(_missingFlyout, flyout)) { _missingSearch?.Cancel(); _missingFlyout = null; } };
+        var window = TopLevel.GetTopLevel(anchor);
+        void Refit(object? sender, SizeChangedEventArgs e) { if (menu.Open) FitMissingMenu(anchor, body); }
+        FitMissingMenu(anchor, body);
+        if (window is not null) window.SizeChanged += Refit;
+        flyout.Closed += (_, _) =>
+        {
+            menu.Open = false;
+            if (window is not null) window.SizeChanged -= Refit;
+            if (ReferenceEquals(_missingFlyout, flyout)) { _missingSearch?.Cancel(); _missingFlyout = null; }
+        };
         body.KeyDown += (_, e) => { if (e.Key == Key.Escape) { flyout.Hide(); e.Handled = true; anchor.Focus(); } };
         _missingFlyout = flyout; _missingMenu = menu;
         flyout.ShowAt(anchor);
         _ = SearchMissingAsync(menu);
+    }
+
+    private const double MissingMenuWidth = 440;
+    // The flyout's presenter around the menu (App.axaml: padding 6, border 1), and the window's title bar (MainWindow).
+    private const double MissingMenuFrame = 14, MissingTitleBar = 30;
+    /// <summary>The menu's width and tallest height, from where its button is in the window (title bar excluded).</summary>
+    private void FitMissingMenu(Control anchor, Border body)
+    {
+        if (MissingMenuArea(anchor) is not { } area) return;
+        var bounds = MenuFit.Size(area.Width, area.Height, area.Anchor, MissingMenuWidth + MissingMenuFrame);
+        body.Width = Math.Max(0, bounds.Width - MissingMenuFrame); body.MaxHeight = Math.Max(0, bounds.MaxHeight - MissingMenuFrame);
+    }
+    /// <summary>Where Avalonia puts the menu: its top-left corner from its button's.</summary>
+    private void PlaceMissingMenu(Control anchor, CustomPopupPlacement placement)
+    {
+        placement.Anchor = PopupAnchor.TopLeft; placement.Gravity = PopupGravity.BottomRight; placement.ConstraintAdjustment = PopupPositionerConstraintAdjustment.None;
+        placement.AnchorRectangle = new Rect(anchor.Bounds.Size);
+        if (MissingMenuArea(anchor) is not { } area) { placement.Offset = new Point(0, anchor.Bounds.Height + MenuFit.Gap); return; }
+        var at = MenuFit.At(area.Width, area.Height, area.Anchor, placement.PopupSize.Width, placement.PopupSize.Height);
+        placement.Offset = new Point(at.X - area.Anchor.Left, at.Y - area.Anchor.Top);
+    }
+    /// <summary>The window below its title bar and the button in it.</summary>
+    private static (double Width, double Height, MenuFit.Box Anchor)? MissingMenuArea(Control anchor)
+    {
+        if (TopLevel.GetTopLevel(anchor) is not { } window || anchor.TranslatePoint(new Point(0, 0), window) is not { } from
+            || anchor.TranslatePoint(new Point(anchor.Bounds.Width, anchor.Bounds.Height), window) is not { } to) return null;
+        return (window.Bounds.Width, window.Bounds.Height - MissingTitleBar, new MenuFit.Box(from.X, from.Y - MissingTitleBar, to.X - from.X, to.Y - from.Y));
     }
 
     private async Task SearchMissingAsync(MissingMenu menu)
@@ -363,53 +404,64 @@ public sealed partial class DetailPage
 
     private void DrawMissingMenu(MissingMenu menu)
     {
-        var stack = new StackPanel();
+        // Heading on top, foot below, what is between scrolling when the window leaves the menu too little height.
+        var stack = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        var middle = new StackPanel();
+        var foot = new StackPanel();
         var close = Ui.IconButton("close", L("Fermer", "Close"), () => menu.Flyout.Hide(), "icon", 13);
         close.Width = close.Height = 28;
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         DockPanel.SetDock(close, Dock.Right); head.Children.Add(close);
-        head.Children.Add(new TextBlock { Text = menu.Heading, FontSize = 15, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center });
+        head.Children.Add(new TextBlock { Text = menu.Heading, FontSize = 15, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         stack.Children.Add(head);
         var picks = menu.Picks;
+        // Inside the scrolled part, « Retry » reaches 12 px past the text on its left (its hover).
+        Control scrolled = middle;
+        var listMargin = new Thickness(-12, 0, -12, 0);
+        middle.Margin = new Thickness(12, 0, 12, 0);
         if (menu.Error is { } error && picks is null or { Empty: true })
         {
-            stack.Children.Add(new TextBlock { Text = error, Foreground = Ui.Brush("#FF6B6B"), TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19 });
+            middle.Children.Add(new TextBlock { Text = error, Foreground = Ui.Brush("#FF6B6B"), TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19 });
             var again = new Button { Classes = { "quiet" }, Content = MissingDownloads.Retry, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(-12, 8, 0, 0) };
             again.Click += (_, _) => _ = SearchMissingAsync(menu);
-            stack.Children.Add(again);
+            middle.Children.Add(again);
         }
         else if (picks is null)
         {
-            stack.Children.Add(new TextBlock { Text = MissingDownloads.Searching, FontSize = 13, Foreground = Ui.Brush("#E0E0E3") });
+            middle.Children.Add(new TextBlock { Text = MissingDownloads.Searching, FontSize = 13, Foreground = Ui.Brush("#E0E0E3") });
             for (var i = 0; i < 3; i++)
             {
                 var row = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Opacity = 1 - i * 0.25 };
                 row.Children.Add(new Border { Height = 11, Width = 240 - i * 30, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(5), Background = Ui.Brush("#2A2A2A") });
                 row.Children.Add(new Border { Height = 9, Width = 150, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(4), Background = Ui.Brush("#2A2A2A"), Margin = new Thickness(0, 7, 0, 0), Opacity = 0.7 });
-                stack.Children.Add(row);
+                middle.Children.Add(row);
             }
-            AutomationProperties.SetLiveSetting(stack, AutomationLiveSetting.Polite);
+            AutomationProperties.SetLiveSetting(middle, AutomationLiveSetting.Polite);
         }
-        else if (picks.Empty) stack.Children.Add(MissingNothing(menu));
+        else if (picks.Empty) middle.Children.Add(MissingNothing(menu));
         else
         {
             var list = new StackPanel();
             if (menu.Pack is not null) list.Children.Add(MissingPackRow(menu));
             else foreach (var choice in picks.Episodes) list.Children.Add(MissingEpisodeRow(menu, choice));
-            stack.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380 });
+            scrolled = list; listMargin = new Thickness(0); middle.Margin = new Thickness(0);
             if (menu.Pack is null && MissingDownloads.NotFound(picks.NotFound) is { Length: > 0 } nothing)
-                stack.Children.Add(new TextBlock { Text = nothing, FontSize = 12.5, Foreground = Ui.Muted, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
-            stack.Children.Add(new Border { Height = 1, Background = Ui.Brush("#2A2A2A"), Margin = new Thickness(0, 12) });
-            var foot = new DockPanel();
+                foot.Children.Add(new TextBlock { Text = nothing, FontSize = 12.5, Foreground = Ui.Muted, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
+            foot.Children.Add(new Border { Height = 1, Background = Ui.Brush("#2A2A2A"), Margin = new Thickness(0, 12) });
+            var bar = new DockPanel();
             var go = menu.Go = new Button { Classes = { "primary" }, Padding = new Thickness(18, 8), CornerRadius = new CornerRadius(17) };
             go.Click += async (_, _) => await SendMissingAsync(menu);
-            DockPanel.SetDock(go, Dock.Right); foot.Children.Add(go);
-            foot.Children.Add(menu.Total = new TextBlock { FontSize = 12.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) });
-            stack.Children.Add(foot);
+            DockPanel.SetDock(go, Dock.Right); bar.Children.Add(go);
+            bar.Children.Add(menu.Total = new TextBlock { FontSize = 12.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) });
+            foot.Children.Add(bar);
             DrawMissingFoot(menu);
-            if (menu.Error is { } refused) stack.Children.Add(new TextBlock { Text = refused, Foreground = Ui.Brush("#FF6B6B"), TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Margin = new Thickness(0, 10, 0, 0) });
+            if (menu.Error is { } refused) foot.Children.Add(new TextBlock { Text = refused, Foreground = Ui.Brush("#FF6B6B"), TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Margin = new Thickness(0, 10, 0, 0) });
         }
-        stack.Children.Add(new TextBlock { Text = MissingDownloads.Privacy, FontSize = 11.5, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
+        foot.Children.Add(new TextBlock { Text = MissingDownloads.Privacy, FontSize = 11.5, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
+        // Never taller than its list (380): beyond that, the list scrolls even in a tall window, as before.
+        var scroller = new ScrollViewer { Content = scrolled, MaxHeight = ReferenceEquals(scrolled, middle) ? double.PositiveInfinity : 380, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Margin = listMargin, Focusable = false };
+        Grid.SetRow(scroller, 1); Grid.SetRow(foot, 2);
+        stack.Children.Add(scroller); stack.Children.Add(foot);
         var shown = menu.Error is not null && picks is null or { Empty: true } ? "error" : picks is null ? "searching" : picks.Empty ? "nothing" : menu.Pack is null ? "episodes" : "pack";
         var moved = shown != menu.Shown && !menu.Sending; menu.Shown = shown;
         menu.Body.Child = stack;

@@ -64,6 +64,33 @@ internal static class MissingDownloadTests
             return Task.CompletedTask;
         });
 
+        await Test("Télécharger les manquants : le menu reste dans la fenêtre (dessous, dessus, plus étroit, plus court)", () =>
+        {
+            // ogsas's case (2026-11-14): « Get season 2 » at the right of a 1640 × 520 page, the menu 466 wide went past the window.
+            var button = new MenuFit.Box(1393, 170, 165, 46);
+            var size = MenuFit.Size(1640, 520, button, 440);
+            Assert(size.Width == 440 && size.MaxHeight == 520 - 12 - 216 - 8, "Room below: " + size);
+            var place = MenuFit.At(1640, 520, button, 440, 250);
+            Assert(place == new MenuFit.Place(1558 - 440, 224, false), "Right-aligned with its button, below it: " + place);
+            // Too tall for below, fits above: above the button.
+            place = MenuFit.At(1640, 520, button, 440, 300);
+            Assert(!place.Above && place.Y == 520 - 12 - 300, "Below has 284, above 150: the larger side, moved up to stay inside: " + place);
+            var low = new MenuFit.Box(40, 600, 165, 46);
+            place = MenuFit.At(1640, 700, low, 440, 300);
+            Assert(place == new MenuFit.Place(40, 600 - 8 - 300, true), "Above a button near the bottom, left-aligned: " + place);
+            // A narrow window: the menu narrower, inside its margins.
+            size = MenuFit.Size(400, 700, new MenuFit.Box(300, 100, 80, 40), 440);
+            Assert(size.Width == 400 - 24, "Narrower: " + size);
+            place = MenuFit.At(400, 700, new MenuFit.Box(300, 100, 80, 40), size.Width, 200);
+            Assert(place.X == 12 && place.Y == 148, "Inside the margins: " + place);
+            // A short window: never shorter than Shortest where there is room for it, and placed inside.
+            size = MenuFit.Size(1000, 200, new MenuFit.Box(10, 80, 100, 40), 440);
+            Assert(size.MaxHeight == 160, "Shortest: " + size);
+            place = MenuFit.At(1000, 200, new MenuFit.Box(10, 80, 100, 40), 440, 160);
+            Assert(place.Y == 200 - 12 - 160 && place.X == 12, "Moved inside: " + place);
+            return Task.CompletedTask;
+        });
+
         await Test("Télécharger les manquants : le relais range la demande dans la série, la garde jusqu'au rangement, la refuse à un Mira trop ancien", () =>
         {
             var now = DateTimeOffset.Parse("2026-11-13T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
