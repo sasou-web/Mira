@@ -340,11 +340,23 @@ public sealed class MockJellyfin : HttpMessageHandler
         List<string> sent; lock (Requests) sent = [.. Requests];
         return Json(new
         {
-            agent = new { name = "SALON-PC", online = true, seen = DateTimeOffset.UtcNow, accepting = true, problem = (string?)null, seasons = true },
+            agent = new { name = "SALON-PC", online = true, seen = DateTimeOffset.UtcNow, accepting = true, problem = (string?)null, seasons = true, free = 54 * (1L << 40) / 10 },
             requests = sent.Select((name, i) => new { id = $"request-{i + 1}", name, size = 3 * GiB, infoHash = "", state = "waiting", error = (string?)null, created = DateTimeOffset.UtcNow }),
             controls = Array.Empty<object>(),
             downloads = new[] { new { id = "download-1", name = "Ciel.Ouvert.2023.MULTI.1080p.WEB-DL.x264-GRP", status = "downloading", progress = 41, speed = 2 * MiB, peers = 12, size = 29 * GiB / 10, downloaded = 12 * GiB / 10, eta = 750L } },
-            placed = new[] { new { id = "placed-1", title = "Les heures bleues", status = "rangé dans Films", itemId = "movie-1", ok = true } }
+            placed = new[] { new { id = "placed-1", title = "Les heures bleues", status = "rangé dans Films", itemId = "movie-1", ok = true } },
+            // « Suivre une série »: its next episode chosen and waiting its turn, its latest taken, the one coming.
+            follows = new[]
+            {
+                new
+                {
+                    id = "follow-1", seriesId = "series-2", name = "Longue série", query = (string?)null, created = DateTimeOffset.UtcNow.AddDays(-10), @checked = DateTimeOffset.UtcNow.AddHours(-1),
+                    next = DateTimeOffset.UtcNow.AddHours(5), checking = false, note = (object?)null, latest = "S01E130",
+                    taken = new[] { new { episode = "S01E130", name = "Longue.Serie.S01E130.1080p.WEB.x264-GRP", at = DateTimeOffset.UtcNow.AddDays(-2) } },
+                    picks = new[] { new { id = "pick-1", episode = "S01E131", name = "Longue.Serie.S01E131.1080p.WEB.x264-GRP", size = GiB, state = "waiting", sendAt = DateTimeOffset.UtcNow.AddMinutes(6), error = (string?)null } },
+                    airs = new { episode = "S01E133", day = DateTimeOffset.UtcNow.Date.AddDays(3) }
+                }
+            }
         });
     }
     /// <summary>A video as Jellyfin streams the file as it is (Videos/{id}/stream?static=true): whole, or the range mpv asks for.</summary>
