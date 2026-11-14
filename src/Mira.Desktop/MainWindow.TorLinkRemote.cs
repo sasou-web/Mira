@@ -77,6 +77,7 @@ public partial class MainWindow
     private async Task<TimeSpan> VisitRelayCoreAsync()
     {
         await TidyHeadlessAsync();
+        _servingRelay = false;
         if (!_torlinkEnabled || _demo || _closing || OwnClient is not { } client || _torlink is not { } torlink) { _remoteState = ""; return TimeSpan.FromSeconds(30); }
         if (!await JellyfinOnThisPcAsync(client))
         {
@@ -84,6 +85,7 @@ public partial class MainWindow
                 "Jellyfin runs on another PC: TorLink is only offered there, next to your library. This PC’s Downloads page sends it your searches and downloads.");
             return TimeSpan.FromMinutes(5);
         }
+        _servingRelay = _settings.TorLinkRemote;
         if (!_settings.TorLinkRemote) { _remoteState = ""; return TimeSpan.FromSeconds(30); }
         // TorLink off: still said to Mira web, which explains it rather than « Mira n'est pas ouvert ».
         var active = TorLinkActive();

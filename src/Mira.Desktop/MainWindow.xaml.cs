@@ -819,5 +819,5 @@ public partial class MainWindow : Window
         return null;
     }
     private void SearchClear_Click(object sender, RoutedEventArgs e) { SearchBox.Clear(); SearchBox.Focus(); }
-    private void Close_Click(object sender, RoutedEventArgs e) => Close();
+    private void Close_Click(object sender, RoutedEventArgs e) { _closeFromCross = true; Close(); }
 }
