@@ -156,9 +156,15 @@ public sealed class VideoHost : HwndHost
         _moving = false;
         var mpv = _mpvWindow; _mpvWindow = IntPtr.Zero;
         if (mpv != IntPtr.Zero) SetWindowLongPtr(mpv, WindowProcedureSlot, _mpvProcedure);
-        if (_laidOut is { } place) { _pixels = default; OnWindowPositionChanged(place); if (place.Size != _toldSize) TellSize(mpv, 0, place.Size); }
+        PutBackShown = false;
+        if (_laidOut is { } place) { PutBackShown = IsWindowVisible(Handle) && !IsVisible; _pixels = default; OnWindowPositionChanged(place); if (place.Size != _toldSize) TellSize(mpv, 0, place.Size); }
         else ApplyRegion();
     }
+    /// <summary>
+    /// For the player check: the last <see cref="EndMove"/> put the window back where layout last had it although layout no
+    /// longer shows it, while Windows still did (HwndHost hides it by a posted message: until then, there it is).
+    /// </summary>
+    public bool PutBackShown { get; private set; }
     private bool _moving;
     /// <summary>The size and corners the movement gave the window last (<see cref="Move"/>).</summary>
     private Size _movedSize;
@@ -207,6 +213,7 @@ public sealed class VideoHost : HwndHost
     [DllImport("gdi32")] private static extern IntPtr GetStockObject(int kind);
     [DllImport("user32", CharSet = CharSet.Unicode)] private static extern IntPtr CreateWindowEx(int extended, string cls, string title, int style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr param);
     [DllImport("user32")] private static extern bool DestroyWindow(IntPtr hwnd);
+    [DllImport("user32")] private static extern bool IsWindowVisible(IntPtr hwnd);
     [StructLayout(LayoutKind.Sequential)] private struct Box { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct Dot { public int X, Y; }
     [DllImport("user32")] private static extern bool GetWindowRect(IntPtr hwnd, out Box box);
