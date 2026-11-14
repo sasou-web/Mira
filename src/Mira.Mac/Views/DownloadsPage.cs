@@ -547,7 +547,8 @@ public sealed class DownloadsPage : Page
     /// <summary>A row's frame: its content over a hairline at its top, shown from the second row on.</summary>
     private static (Grid Frame, Border Rule) RowFrame(Control content, double height, Thickness padding)
     {
-        var frame = new Grid { Background = Brushes.Transparent };
+        // The row is where the pointer slides a name cut short.
+        var frame = SlidingText.Zone(new Grid { Background = Brushes.Transparent });
         var rule = new Border { Height = 1, VerticalAlignment = VerticalAlignment.Top, Background = Ui.Raised, Margin = new Thickness(12, 0), IsHitTestVisible = false };
         var body = new Border { Padding = padding, Child = content };
         if (height > 0) body.MinHeight = height;
@@ -571,10 +572,11 @@ public sealed class DownloadsPage : Page
         name.Inlines!.Add(new Run(line.Title));
         if (line.Year is { } year) name.Inlines.Add(new Run($" ({year})") { Foreground = Ui.Muted, FontWeight = FontWeight.SemiBold });
         if (line.Episode.Length > 0) { name.Inlines.Add(new Run(" · ") { Foreground = Ui.Faint }); name.Inlines.Add(new Run(line.Episode)); }
-        if (!line.Followed) return name;
+        // Cut short, it slides to show its end under the pointer.
+        if (!line.Followed) return SlidingText.Wrap(name);
         var row = new DockPanel { HorizontalAlignment = HorizontalAlignment.Left };
         var tag = FollowedTag(L("Suivie", "Followed"));
-        DockPanel.SetDock(tag, Dock.Right); row.Children.Add(tag); row.Children.Add(name);
+        DockPanel.SetDock(tag, Dock.Right); row.Children.Add(tag); row.Children.Add(SlidingText.Wrap(name));
         return row;
     }
     private static Border FollowedTag(string text) => new()
@@ -773,7 +775,7 @@ public sealed class DownloadsPage : Page
         name.Inlines!.Add(new Run(follow.Name));
         if (follow.Query is { Length: > 0 } query) name.Inlines.Add(new Run(L($"   cherchée sous « {query} »", $"   searched as “{query}”")) { FontSize = 12, FontWeight = FontWeight.Normal, Foreground = Ui.Faint });
         ToolTip.SetTip(name, follow.Name);
-        text.Children.Add(name);
+        text.Children.Add(SlidingText.Wrap(name));
         var line = new TextBlock { FontSize = 12.5, Foreground = row.Warning ? WarningText : row.Live ? Body : Ui.Muted, FontWeight = row.Live ? FontWeight.SemiBold : FontWeight.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0), Tag = "keep" };
         text.Children.Add(line);
         TextBlock[] texts;
@@ -1101,7 +1103,7 @@ public sealed class DownloadsPage : Page
         }
         var title = new TextBlock { Text = group.Title, FontSize = 17, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         ToolTip.SetTip(title, group.Title);
-        head.Children.Add(title);
+        head.Children.Add(SlidingText.Wrap(title));
         panel.Children.Add(head);
         panel.Children.Add(ReleaseView(searchId, group.Best, best: !ReleaseRanking.Dead(group.Best)));
         if (group.Others.Count > 0)
@@ -1121,7 +1123,7 @@ public sealed class DownloadsPage : Page
             };
             panel.Children.Add(toggle); panel.Children.Add(others);
         }
-        var card = new Border { Background = Surface, CornerRadius = new CornerRadius(12), Padding = new Thickness(20, 16, 20, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel };
+        var card = SlidingText.Zone(new Border { Background = Surface, CornerRadius = new CornerRadius(12), Padding = new Thickness(20, 16, 20, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel });
         AutomationProperties.SetName(card, string.Join(" · ", new[] { group.Title, group.Label, RemoteLines.KindLabel(group.Category) }.Where(x => x.Length > 0)));
         return card;
     }

@@ -918,20 +918,21 @@ public sealed partial class DetailPage : Page
         _tiles.Add((tile, picture)); SizeTile(tile, picture);
         return tile;
     }
-    private static TextBlock TileTitle(MediaItem episode, string name, IBrush? ink = null)
+    /// <summary>An episode's name in its tile: cut short, it slides to show its end under the pointer (its tile is the zone).</summary>
+    private static SlidingText TileTitle(MediaItem episode, string name, IBrush? ink = null)
     {
         var title = new TextBlock { FontSize = 15, FontWeight = FontWeight.Bold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, Margin = new Thickness(0, 11, 0, 0) };
         if (ink is not null) title.Foreground = ink;
         if (EpisodeTiles.Number(episode) is { Length: > 0 } number) title.Inlines!.Add(new Avalonia.Controls.Documents.Run(number + "  ") { FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted });
         title.Inlines!.Add(new Avalonia.Controls.Documents.Run(name));
-        return title;
+        return SlidingText.Wrap(title);
     }
     // An episode the library lacks: no picture to play, its name and its day (the next to come out, or one of an opened run).
     private StackPanel HollowTile(MediaItem episode, DateOnly today)
     {
         var picture = new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#0B0B0B"), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), Child = new Icon("calendar", 26) { Foreground = Ui.Faint } };
         var (_, when) = EpisodeShelf.Entry(episode, today);
-        var tile = new StackPanel { Children = { picture, TileTitle(episode, EpisodeShelf.Name(episode), Ui.TextTertiary), new TextBlock { Text = when, FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 } } };
+        var tile = new StackPanel { Background = Brushes.Transparent, [SlidingText.ZoneProperty] = true, Children = { picture, TileTitle(episode, EpisodeShelf.Name(episode), Ui.TextTertiary), new TextBlock { Text = when, FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 } } };
         Avalonia.Automation.AutomationProperties.SetName(tile, $"{EpisodeShelf.Code([episode])} {EpisodeShelf.Name(episode)}, {when}");
         return Tile(tile, picture);
     }
@@ -1091,7 +1092,7 @@ public sealed partial class DetailPage : Page
             root.Children.Add(new TextBlock { Text = overview, FontSize = 13, FontStyle = hidden ? FontStyle.Italic : FontStyle.Normal, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19, Margin = new Thickness(0, 6, 0, 0) });
         // « Sur ce Mac », « 42 % », « En attente »: a copy kept on this Mac.
         if (Shell.CopyState(episode.Id) is { } kept) root.Children.Add(new TextBlock { Text = kept, FontSize = 12, Foreground = Ui.Brush("#DADAE0"), Margin = new Thickness(0, 6, 0, 0) });
-        var button = new Button { Content = root, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top };
+        var button = SlidingText.Zone(new Button { Content = root, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top });
         // As a poster: the still zooms inside its rounded frame (its marks stay still), the ring and play come.
         Cards.Hover(button, ring, [image], up => { if (!isNext) play.Opacity = up ? 1 : 0; });
         button.Click += (_, _) => _ = Shell.PlayAsync(episode);

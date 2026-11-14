@@ -821,6 +821,20 @@ public static class SelfCheck
                     // « Régie »: at rest, the queue in full, the series followed and the titles placed side by side.
                     Check(await Until(() => downloads.AtRest, 5), "téléchargements : au repos, la file, les séries suivies et les titres rangés");
                     await Task.Delay(600); Capture(window, output, "07a-downloads-rest");
+                    // A name cut short slides to show its end while the pointer rests on its row, and comes back once it has left.
+                    MacMotion.Override(reduced: false);
+                    var slider = downloads.GetVisualDescendants().OfType<SlidingText>().FirstOrDefault(x => x.IsCut);
+                    var unmoved = downloads.GetVisualDescendants().OfType<SlidingText>().Where(x => !x.IsCut && x.IsEffectivelyVisible).ToList();
+                    slider?.HoverForCheck(true); foreach (var other in unmoved) other.HoverForCheck(true);
+                    await Task.Delay(300);
+                    var resting = slider is { Slid: 0, Whole: false };
+                    var slid = slider is not null && await Until(() => slider.Slid > 20, 8);
+                    Check(slider is not null && resting && slid && unmoved.All(x => x.Slid == 0 && !x.Whole), "téléchargements : un nom coupé défile au survol de sa ligne, un nom qui tient ne bouge pas",
+                        $"{(slider is null ? "aucun nom coupé" : $"{slider.Slid:0} px")}, {unmoved.Count} immobiles");
+                    await Task.Delay(200); Capture(window, output, "07a2-downloads-slid");
+                    slider?.HoverForCheck(false); foreach (var other in unmoved) other.HoverForCheck(false);
+                    Check(slider is not null && await Until(() => slider is { Slid: 0, Whole: false }, 3), "téléchargements : le pointeur parti, le nom revient à son début et son « … »");
+                    MacMotion.Override(null);
                     await downloads.SearchAsync("Brume basse");
                     var queued = downloads.QueueCount;
                     Check(downloads.ResultGroups == 1, "téléchargements : versions regroupées par titre", $"{downloads.ResultGroups} groupes");

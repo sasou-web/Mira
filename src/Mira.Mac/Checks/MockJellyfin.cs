@@ -366,7 +366,12 @@ public sealed class MockJellyfin : HttpMessageHandler
             agent = new { name = "SALON-PC", online = true, seen = DateTimeOffset.UtcNow, accepting = true, problem = (string?)null, seasons = true, free = 54 * (1L << 40) / 10 },
             requests = sent.Select((name, i) => new { id = $"request-{i + 1}", name, size = 3 * GiB, infoHash = "", state = "waiting", error = (string?)null, created = DateTimeOffset.UtcNow }),
             controls = Array.Empty<object>(),
-            downloads = new[] { new { id = "download-1", name = "Ciel.Ouvert.2023.MULTI.1080p.WEB-DL.x264-GRP", status = "downloading", progress = 41, speed = 2 * MiB, peers = 12, size = 29 * GiB / 10, downloaded = 12 * GiB / 10, eta = 750L } },
+            downloads = new[]
+            {
+                new { id = "download-1", name = "Ciel.Ouvert.2023.MULTI.1080p.WEB-DL.x264-GRP", status = "downloading", progress = 41, speed = 2 * MiB, peers = 12, size = 29 * GiB / 10, downloaded = 12 * GiB / 10, eta = 750L },
+                // A name too long for its column: cut short, it slides under the pointer.
+                new { id = "download-2", name = "La.Tres.Longue.Traversee.Des.Heures.Bleues.Au.Bout.Du.Monde.2024.MULTI.1080p.BluRay.x265-GRP", status = "paused", progress = 8, speed = 0L, peers = 0, size = 9 * GiB, downloaded = 7 * GiB / 10, eta = 0L }
+            },
             placed = new[] { new { id = "placed-1", title = "Les heures bleues", status = "rangé dans Films", itemId = "movie-1", ok = true } },
             // « Suivre une série »: its next episode chosen and waiting its turn, its latest taken, the one coming.
             follows = new[]
