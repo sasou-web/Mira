@@ -32,6 +32,11 @@ public sealed class DownloadsPage : Page
     private static string PageLine => L("Chaque téléchargement terminé rejoint ta bibliothèque.", "Each finished download joins your library.");
     /// <summary>Below this width of the page, one column (« Régie » keeps both side by side above it).</summary>
     private const double WideFrom = 1150;
+    /// <summary>Below this width of the page, the queue beside a search thinner still, the server PC's name out of the head.</summary>
+    private const double ThinFrom = 900;
+    /// <summary>The width of the queue beside a search: 428, 296 or 264 (maquette C of the small window, 2026-11-14).</summary>
+    private double _side = 428;
+    private bool _thin;
     // The Windows app's states and secondary ink (Themes/Cinema.xaml).
     private static readonly IBrush Success = Ui.Brush("#86C6A2"), Warning = Ui.Brush("#D5B787"), WarningText = Ui.Brush("#E9DCC3"), Danger = Ui.Brush("#F3AD99"),
         Secondary = Ui.Brush("#C5C5CA"), Line = Ui.Brush("#272727"), Surface = Ui.Brush("#121212"), Accent = Ui.Brush("#F5F5F7"), OnAccent = Ui.Brush("#0B0B0B"),
@@ -49,6 +54,8 @@ public sealed class DownloadsPage : Page
     private readonly TextBox _query = new() { Watermark = L("Un film, une série, un anime…", "A movie, a show, an anime…"), MaxLength = 200 };
     private readonly Button _search = new() { Content = L("Chercher", "Search"), Classes = { "primary" }, Padding = new Thickness(24, 12), Margin = new Thickness(12, 0, 0, 0), IsEnabled = false };
     private readonly Button _magnetButton;
+    /// <summary>In a small window, the magnet link behind a « + » beside « Search ».</summary>
+    private readonly Button _add;
     private readonly Border _magnetPanel;
     private readonly TextBox _magnet = new() { Watermark = "magnet:?xt=urn:btih:…", FontSize = 14, Padding = new Thickness(12, 9) };
     private readonly Button _magnetSend = new() { Content = L("Envoyer au PC serveur", "Send to the server PC"), Classes = { "primary" }, Padding = new Thickness(18, 9), Margin = new Thickness(10, 0, 0, 0) };
@@ -72,6 +79,7 @@ public sealed class DownloadsPage : Page
     private readonly DockPanel _resultsColumn = new();
     private readonly ScrollViewer _queueScroll;
     private readonly TextBlock _sideSummary = new() { FontSize = 13.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 0, 0, 2), TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _sideTitle = Title18(L("Sur le PC serveur", "On the server PC"));
     private readonly StackPanel _queueCompact = new(), _followsCompact = new();
     private readonly TextBlock _queueCompactEmpty = new() { Text = L("Rien en cours.", "Nothing in progress."), FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(13, 12) };
     private readonly Button _followsFold, _placedFold;
@@ -106,6 +114,8 @@ public sealed class DownloadsPage : Page
     /// <summary>What the PC has under way and sent from here, as shown, and the titles it placed (the self-check).</summary>
     public int QueueCount => (_searchShown ? _queueCompact : _queue).Children.Count + (_status?.Placed.Count ?? 0);
     public int ResultGroups => _results.Children.Count;
+    /// <summary>For the self-check: the queue still beside the results (whatever the width), how wide, how tall the results are, the « + » shown.</summary>
+    public (bool Beside, double Side, double Results, bool Add) SearchLayout => (_searchView.IsVisible && Grid.GetColumn(_queueScroll) == 2 && _queueScroll.Bounds.Width > 0, _queueScroll.Bounds.Width, _resultsScroll.Bounds.Height, _add.IsVisible);
     public bool Ready => _ready;
     /// <summary>The page at rest shows its series followed and its titles placed side by side (the self-check).</summary>
     public bool AtRest => !_searchShown && _followsSection.IsVisible && _placedSection.IsVisible;
@@ -175,17 +185,22 @@ public sealed class DownloadsPage : Page
         Grid.SetColumn(_search, 1); _searchRow.Children.Add(_search);
         Grid.SetColumn(_searchRule, 2); _searchRow.Children.Add(_searchRule);
         Grid.SetColumn(_magnetButton, 3); _searchRow.Children.Add(_magnetButton);
+        _add = Ui.IconButton("plus", L("Coller un lien magnet", "Paste a magnet link"), OpenMagnet, "icon", 19);
+        _add.Width = _add.Height = 48; _add.Background = Ui.Raised; _add.CornerRadius = new CornerRadius(12); _add.Margin = new Thickness(10, 0, 0, 0); _add.IsVisible = false;
+        Grid.SetColumn(_add, 3); _searchRow.Children.Add(_add);
+        // On one line (a small window), the line under the title shows only when it says something new.
+        _subtitle.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) ShowSubtitle(); };
 
         AutomationProperties.SetName(_magnet, L("Lien magnet", "Magnet link"));
         _magnet.TextChanged += (_, _) => _magnetError.IsVisible = false;
         _magnet.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Enter) { e.Handled = true; _ = SendMagnetAsync(); }
-            else if (e.Key == Key.Escape) { e.Handled = true; CloseMagnet(); _magnetButton.Focus(); }
+            else if (e.Key == Key.Escape) { e.Handled = true; CloseMagnet(); MagnetReturn().Focus(); }
         };
         _magnetSend.Click += (_, _) => _ = SendMagnetAsync();
         var close = new Button { Content = L("Fermer", "Close"), Classes = { "quiet" }, Padding = new Thickness(14, 9), Margin = new Thickness(6, 0, 0, 0) };
-        close.Click += (_, _) => { CloseMagnet(); _magnetButton.Focus(); };
+        close.Click += (_, _) => { CloseMagnet(); MagnetReturn().Focus(); };
         var magnetRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(0, 12, 0, 0) };
         magnetRow.Children.Add(_magnet);
         Grid.SetColumn(_magnetSend, 1); magnetRow.Children.Add(_magnetSend);
@@ -244,7 +259,9 @@ public sealed class DownloadsPage : Page
         _resultsScroll = new ScrollViewer { Content = _results };
         DockPanel.SetDock(_searchStatus, Dock.Top); _resultsColumn.Children.Add(_searchStatus); _resultsColumn.Children.Add(_resultsScroll);
         Grid.SetRowSpan(_resultsColumn, 2); _searchView.Children.Add(_resultsColumn);
-        var sideHead = Ui.Row(0, Title18(L("Sur le PC serveur", "On the server PC")), _sideSummary);
+        // The summary beside the title, cut short (a StackPanel would not cut it); under it in the thinner column.
+        var sideHead = new DockPanel();
+        DockPanel.SetDock(_sideTitle, Dock.Left); sideHead.Children.Add(_sideTitle); sideHead.Children.Add(_sideSummary);
         var compactCard = Card(new Panel { Children = { _queueCompact, _queueCompactEmpty } });
         compactCard.Margin = new Thickness(0, 10, 0, 0);
         _followsFold = Fold("calendar", L("Séries suivies", "Followed series"), _followsFoldCount, _followsFoldLine, _followsChevron, () => { _followsOpen = !_followsOpen; Redraw(); });
@@ -302,24 +319,51 @@ public sealed class DownloadsPage : Page
         return button;
     }
 
-    /// <summary>Side by side above <see cref="WideFrom"/>, one under the other below it.</summary>
+    /// <summary>
+    /// Below <see cref="WideFrom"/> the page at rest lays its sections one under the other, and a search keeps the large
+    /// window's two columns with a thinner queue (maquette C, 2026-11-14): 296 px, 264 below <see cref="ThinFrom"/>; the head
+    /// on one line, the magnet link behind a « + ».
+    /// </summary>
     private void Fit(double width)
     {
         var narrow = width < WideFrom;
-        if (narrow == _narrow && _columns.Tag is not null) { if (_status is { } same && !_placedAllShown) RenderPlaced(same); return; }
-        _narrow = narrow; _columns.Tag = true;
+        var side = narrow ? width < ThinFrom ? 264 : 296 : 428;
+        if (narrow == _narrow && side == _side && _columns.Tag is not null) { if (_status is { } same && !_placedAllShown) RenderPlaced(same); return; }
+        _narrow = narrow; _side = side; _thin = width < ThinFrom; _columns.Tag = true;
         _columns.ColumnDefinitions = new ColumnDefinitions(narrow ? "*,0,0" : "*,40,404");
         Grid.SetColumn(_placedSection, narrow ? 0 : 2); Grid.SetRow(_placedSection, narrow ? 1 : 0);
-        _searchView.ColumnDefinitions = new ColumnDefinitions(narrow ? "*,0,0" : "*,36,428");
-        Grid.SetColumn(_queueScroll, narrow ? 0 : 2); Grid.SetRowSpan(_queueScroll, narrow ? 1 : 2);
-        _queueScroll.MaxHeight = narrow ? 320 : double.PositiveInfinity; _queueScroll.Margin = new Thickness(0, 0, 0, narrow ? 18 : 0);
-        Grid.SetRow(_resultsColumn, narrow ? 1 : 0); Grid.SetRowSpan(_resultsColumn, narrow ? 1 : 2);
+        // During a search, the results on the left and the queue on the right whatever the width: only the queue thins.
+        _searchView.ColumnDefinitions = new ColumnDefinitions($"*,{(side switch { 264 => 22, 296 => 28, _ => 36 })},{side}");
+        DockPanel.SetDock(_sideTitle, narrow ? Dock.Top : Dock.Left);
+        _sideTitle.FontSize = narrow ? 17 : 18;
+        _sideSummary.Margin = new Thickness(narrow ? 0 : 12, narrow ? 1 : 0, 0, narrow ? 0 : 2);
+        foreach (var (fold, line) in new[] { (_followsFold, _followsFoldLine), (_placedFold, _placedFoldLine) })
+        {
+            fold.Height = narrow ? 44 : 52; fold.Padding = new Thickness(narrow ? 14 : 18, 0, narrow ? 12 : 16, 0); fold.Margin = new Thickness(0, narrow ? 8 : 10, 0, 0);
+            line.IsVisible = !narrow;
+        }
         _searchRule.IsVisible = !narrow;
-        Grid.SetColumn(_magnetButton, narrow ? 0 : 3); Grid.SetRow(_magnetButton, narrow ? 1 : 0); Grid.SetColumnSpan(_magnetButton, narrow ? 4 : 1);
-        _magnetButton.HorizontalAlignment = HorizontalAlignment.Left; _magnetButton.Margin = new Thickness(narrow ? -10 : 0, narrow ? 10 : 0, 0, 0);
+        _magnetButton.IsVisible = !narrow && !_magnetPanel.IsVisible;
+        _add.IsVisible = narrow;
+        _place.IsVisible = !_thin && !string.IsNullOrEmpty(_agent?.Name);
+        ShowSubtitle();
         // The queue's columns change: its rows are made again.
         foreach (var key in _rows.Keys.Where(x => x.StartsWith("w:", StringComparison.Ordinal)).ToList()) _rows.Remove(key);
         Redraw();
+    }
+
+    /// <summary>Where the keyboard goes back once the magnet link's row closes: its button, or the « + » that opened it.</summary>
+    private Button MagnetReturn() => _narrow ? _add : _magnetButton;
+
+    /// <summary>
+    /// The line under the title, hidden on one line when it only says its usual words: this page's line, or the server PC
+    /// ready (its pill says it). A problem, a PC closed or never opened always shows.
+    /// </summary>
+    private void ShowSubtitle()
+    {
+        var text = _subtitle.Text ?? "";
+        var usual = text.Length == 0 || text == PageLine || (_agent is { Online: true } agent && string.IsNullOrEmpty(agent.Problem));
+        _subtitle.IsVisible = !(_narrow && usual);
     }
 
     private void Redraw() { if (_status is { } status) Menus.WhenClosed(() => Render(status, DateTimeOffset.UtcNow)); }
@@ -447,7 +491,8 @@ public sealed class DownloadsPage : Page
             : !string.IsNullOrEmpty(_agent.Problem) ? (L("Occupé", "Busy"), Warning) : (L("Prêt", "Ready"), Success);
         _pillText.Text = L("PC serveur · ", "Server PC · ") + status; _pillDot.Fill = dot;
         _search.IsEnabled = ready && !_searching;
-        _place.IsVisible = !string.IsNullOrEmpty(_agent?.Name);
+        // Out of the head in the smallest windows: the title and its pill first.
+        _place.IsVisible = !_thin && !string.IsNullOrEmpty(_agent?.Name);
         _placeName.Text = _agent?.Name ?? "";
         _freeText.Text = _agent?.Free is { } bytes ? RemoteBoard.Free(bytes) : "";
         _freeRule.IsVisible = _freeText.IsVisible = _agent?.Free is not null;
@@ -724,18 +769,20 @@ public sealed class DownloadsPage : Page
     {
         var status = _status;
         var download = line.Download;
-        var said = RemoteBoard.Waiting(line, now) ?? (download is not null && status?.Controls.FirstOrDefault(x => x.Target == download.Id) is { } pending ? RemoteLines.ActionLine(pending.Action) : null) ?? RemoteLines.Download(download!);
+        // Beside a search in a small window: the state without the size and the peers.
+        var thin = _side < 428;
+        var said = RemoteBoard.Waiting(line, now) ?? (download is not null && status?.Controls.FirstOrDefault(x => x.Target == download.Id) is { } pending ? RemoteLines.ActionLine(pending.Action) : null) ?? (thin ? RemoteLines.Brief(download!) : RemoteLines.Download(download!));
         var withBar = download is not null && download.Status is "downloading" or "queued" or "paused" or "stopped";
-        var shape = $"{LineShape(line, status)}|{withBar}|{PosterShape(line.PosterId)}";
-        return new("c:" + line.Key, shape, line.Episode.Length > 0 ? $"{line.Title} · {line.Episode}" : line.Title, [said], withBar ? download!.Progress : null, () => MakeCompactLine(line, withBar, status));
+        var shape = $"{LineShape(line, status)}|{withBar}|{PosterShape(line.PosterId)}|{thin}";
+        return new("c:" + line.Key, shape, line.Episode.Length > 0 ? $"{line.Title} · {line.Episode}" : line.Title, [said], withBar ? download!.Progress : null, () => MakeCompactLine(line, withBar, status, thin));
     }
 
-    private QueueRow MakeCompactLine(BoardLine line, bool withBar, RelayStatus? status)
+    private QueueRow MakeCompactLine(BoardLine line, bool withBar, RelayStatus? status, bool thin)
     {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("36,*,Auto") };
-        grid.Children.Add(Thumb(line.PosterId, line.Episodic, 36, 54));
-        var text = new StackPanel { Margin = new Thickness(13, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(LineName(line, 14));
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(thin ? "30,*,Auto" : "36,*,Auto") };
+        grid.Children.Add(thin ? Thumb(line.PosterId, line.Episodic, 30, 45) : Thumb(line.PosterId, line.Episodic, 36, 54));
+        var text = new StackPanel { Margin = new Thickness(thin ? 11 : 13, 0, thin ? 2 : 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(LineName(line, thin ? 13.5 : 14));
         Border? bar = null;
         if (withBar)
         {
@@ -747,9 +794,9 @@ public sealed class DownloadsPage : Page
         text.Children.Add(said);
         Grid.SetColumn(text, 1); grid.Children.Add(text);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var button in LineActions(line, status)) actions.Children.Add(button);
+        foreach (var button in LineActions(line, status)) { if (thin) button.Width = 28; actions.Children.Add(button); }
         Grid.SetColumn(actions, 2); grid.Children.Add(actions);
-        var (frame, rule) = RowFrame(grid, 0, new Thickness(12, 11, 8, 11));
+        var (frame, rule) = RowFrame(grid, 0, thin ? new Thickness(9, 9, 2, 9) : new Thickness(12, 11, 8, 11));
         return new("", frame, [said], bar, rule);
     }
 
@@ -1068,98 +1115,136 @@ public sealed class DownloadsPage : Page
             catch (Exception ex) when (Errors.Expected(ex)) { return; } // Nothing said rather than a guess.
             foreach (var (group, view) in mine)
             {
-                if (!_results.Children.Contains(view) || view.Child is not StackPanel panel || OwnedTitles.Line(group, items, episodes) is not { } line) continue;
+                if (!_results.Children.Contains(view) || view.Child is not StackPanel panel || panel.Children[0] is not SpreadRow head || head.Children.Count > 1 || OwnedTitles.Line(group, items, episodes) is not { } line) continue;
+                // The wash of the hover around it, its words where the line's are: at the right end, or under the name.
                 var button = new Button
                 {
-                    Classes = { "quiet" }, Padding = new Thickness(10, 5), Margin = new Thickness(-10, -6, 0, 8), HorizontalAlignment = HorizontalAlignment.Left,
+                    Classes = { "quiet" }, Padding = new Thickness(6, 2), Margin = new Thickness(-6, -2), VerticalAlignment = VerticalAlignment.Center,
                     Foreground = line.Owned ? Warning : Secondary,
-                    Content = Ui.Row(7, new Icon(line.Owned ? "check" : "info", 14) { VerticalAlignment = VerticalAlignment.Center }, new TextBlock { Text = line.Text, FontSize = 13, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center }),
+                    Content = Ui.Row(6, new Icon(line.Owned ? "check" : "info", 14) { VerticalAlignment = VerticalAlignment.Center },
+                        new TextBlock { Text = line.Text, FontSize = 12.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center },
+                        new Icon("next", 12) { Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center }),
                 };
                 AutomationProperties.SetName(button, L($"{line.Text} : ouvrir « {group.Title} »", $"{line.Text}: open “{group.Title}”"));
                 var id = line.ItemId;
                 button.Click += (_, _) => _ = OpenAsync(id);
-                panel.Children.Insert(1, button);
+                head.Children.Add(button);
             }
         }));
     }
 
+    /// <summary>
+    /// A title found, tight (maquette C of the small window, 2026-11-14; the same card in a large one, as on Windows): one
+    /// line with its name, its episode or season and its kind (« dans ta bibliothèque » at the right end, or under it when
+    /// it does not fit), then its best release on two lines, « +N » beside its button for the others.
+    /// </summary>
     private Border GroupView(string searchId, ReleaseGroup group)
     {
         var panel = new StackPanel();
-        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        // Right-docked from the outside in: the kind, then the episode, then the name that fills what is left (cut short).
+        var name = new DockPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+        if (RemoteLines.KindLabel(group.Category) is { Length: > 0 } kind)
+        {
+            var tag = new TextBlock { Text = kind, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(tag, Dock.Right); name.Children.Add(tag);
+        }
         if (group.Label.Length > 0)
         {
             var episode = new Border
             {
-                CornerRadius = new CornerRadius(6), Background = Ui.Raised, Padding = new Thickness(9, 4), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock { Text = group.Label, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Secondary }
+                CornerRadius = new CornerRadius(6), Background = Ui.Raised, Padding = new Thickness(8, 2, 8, 3), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock { Text = group.Label, FontSize = 11.5, FontWeight = FontWeight.SemiBold, Foreground = Secondary }
             };
-            DockPanel.SetDock(episode, Dock.Right); head.Children.Add(episode);
+            DockPanel.SetDock(episode, Dock.Right); name.Children.Add(episode);
         }
-        if (RemoteLines.KindLabel(group.Category) is { Length: > 0 } kind)
-        {
-            var tag = new TextBlock { Text = kind, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Secondary, Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            DockPanel.SetDock(tag, Dock.Right); head.Children.Add(tag);
-        }
-        var title = new TextBlock { Text = group.Title, FontSize = 17, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        var title = new TextBlock { Text = group.Title, FontSize = 15.5, FontWeight = FontWeight.Bold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         ToolTip.SetTip(title, group.Title);
-        head.Children.Add(SlidingText.Wrap(title));
+        name.Children.Add(SlidingText.Wrap(title));
+        var head = new SpreadRow { MinHeight = 22 };
+        head.Children.Add(name);
         panel.Children.Add(head);
-        panel.Children.Add(ReleaseView(searchId, group.Best, best: !ReleaseRanking.Dead(group.Best)));
+        Button? toggle = null;
+        StackPanel? others = null;
         if (group.Others.Count > 0)
         {
-            var others = new StackPanel { IsVisible = false };
-            foreach (var entry in group.Others) others.Children.Add(ReleaseView(searchId, entry, best: false));
+            others = new StackPanel { IsVisible = false };
+            foreach (var entry in group.Others) others.Children.Add(ReleaseView(searchId, entry, best: false, more: null));
             var more = Count(group.Others.Count, "autre version", "autres versions", "other version", "other versions");
-            var text = new TextBlock { Text = more, FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
-            var chevron = new Icon("down", 14) { VerticalAlignment = VerticalAlignment.Center };
-            var toggle = new Button { Classes = { "quiet" }, Padding = new Thickness(10, 6), Margin = new Thickness(-10, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Foreground = Secondary, Content = Ui.Row(6, text, chevron) };
-            AutomationProperties.SetName(toggle, L($"{more} de {group.Title}", $"{more} of {group.Title}"));
-            toggle.Click += (_, _) =>
+            var chevron = new Icon("down", 13) { VerticalAlignment = VerticalAlignment.Center };
+            string Closed() => L($"{more} de {group.Title}", $"{more} of {group.Title}");
+            var button = new Button
             {
-                others.IsVisible = !others.IsVisible;
-                text.Text = others.IsVisible ? L("Masquer les autres versions", "Hide the other versions") : more; chevron.Kind = others.IsVisible ? "up" : "down";
-                AutomationProperties.SetName(toggle, others.IsVisible ? L("Masquer les autres versions", "Hide the other versions") : L($"{more} de {group.Title}", $"{more} of {group.Title}"));
+                Classes = { "quiet" }, Padding = new Thickness(7, 5), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Secondary,
+                Content = Ui.Row(5, new TextBlock { Text = "+" + group.Others.Count.ToString(Lang.Culture), FontSize = 12.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center }, chevron),
             };
-            panel.Children.Add(toggle); panel.Children.Add(others);
+            ToolTip.SetTip(button, more);
+            AutomationProperties.SetName(button, Closed());
+            var shown = others;
+            button.Click += (_, _) =>
+            {
+                shown.IsVisible = !shown.IsVisible;
+                chevron.Kind = shown.IsVisible ? "up" : "down";
+                var said = shown.IsVisible ? L("Masquer les autres versions", "Hide the other versions") : more;
+                ToolTip.SetTip(button, said);
+                AutomationProperties.SetName(button, shown.IsVisible ? said : Closed());
+            };
+            toggle = button;
         }
-        var card = SlidingText.Zone(new Border { Background = Surface, CornerRadius = new CornerRadius(12), Padding = new Thickness(20, 16, 20, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel });
+        panel.Children.Add(ReleaseView(searchId, group.Best, best: !ReleaseRanking.Dead(group.Best), more: toggle));
+        if (others is not null) panel.Children.Add(others);
+        var card = SlidingText.Zone(new Border { Background = Surface, CornerRadius = new CornerRadius(12), Padding = new Thickness(16, 11, 14, 11), Margin = new Thickness(0, 0, 0, 8), Child = panel });
         AutomationProperties.SetName(card, string.Join(" · ", new[] { group.Title, group.Label, RemoteLines.KindLabel(group.Category) }.Where(x => x.Length > 0)));
         return card;
     }
 
-    private Control ReleaseView(string searchId, RankedRelease entry, bool best)
+    /// <summary>
+    /// A release on two lines: its quality (« Best pick » beside the best), then its size, sources and site before its full
+    /// name cut on one line; « +N » (the title's other versions) and its button at the right end.
+    /// </summary>
+    private Control ReleaseView(string searchId, RankedRelease entry, bool best, Button? more)
     {
         var hit = entry.Hit;
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        var text = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
-        var quality = new WrapPanel();
-        quality.Children.Add(new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : L("Qualité non précisée", "Quality not given"), FontSize = 14, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(0, 5, 0, 0) };
+        var text = new StackPanel { Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
+        var quality = new DockPanel { HorizontalAlignment = HorizontalAlignment.Left };
         if (best)
-            quality.Children.Add(new Border
+        {
+            var pick = new Border
             {
-                CornerRadius = new CornerRadius(5), Background = Accent, Padding = new Thickness(7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock { Text = L("Meilleur choix", "Best pick"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Foreground = OnAccent }
-            });
+                CornerRadius = new CornerRadius(5), Background = Accent, Padding = new Thickness(7, 1, 7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock { Text = L("Meilleur choix", "Best pick"), FontSize = 11, FontWeight = FontWeight.Bold, Foreground = OnAccent }
+            };
+            DockPanel.SetDock(pick, Dock.Right); quality.Children.Add(pick);
+        }
+        var shown = new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : L("Qualité non précisée", "Quality not given"), FontSize = 14, FontWeight = best ? FontWeight.Bold : FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        // The page's ink for the best (a null brush would draw nothing), a softer one for the others.
+        if (!best) shown.Foreground = Secondary;
+        quality.Children.Add(shown);
         text.Children.Add(quality);
-        text.Children.Add(new TextBlock { Text = RemoteLines.Hit(hit), FontSize = 12.5, Foreground = Secondary, Margin = new Thickness(0, 4, 0, 0) });
-        var name = new TextBlock { Text = hit.Name, FontSize = 12, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0) };
+        var facts = new DockPanel { Margin = new Thickness(0, 2, 0, 0) };
+        var said = new TextBlock { Text = RemoteLines.Hit(hit), FontSize = 12.5, Foreground = Secondary, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(said, Dock.Left); facts.Children.Add(said);
+        var name = new TextBlock { Text = hit.Name, FontSize = 11.5, Foreground = Ui.Faint, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         ToolTip.SetTip(name, hit.Name);
-        text.Children.Add(name);
+        facts.Children.Add(name);
+        text.Children.Add(facts);
         if (ReleaseRanking.Warning(entry) is { Length: > 0 } caution)
-            text.Children.Add(new TextBlock { Text = caution, FontSize = 12.5, Foreground = WarningText, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+            text.Children.Add(new TextBlock { Text = caution, FontSize = 12, Foreground = WarningText, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
         grid.Children.Add(text);
+        if (more is not null) { Grid.SetColumn(more, 1); grid.Children.Add(more); }
         var key = searchId + "/" + hit.Id;
-        var button = new Button { Padding = new Thickness(16, 9), VerticalAlignment = VerticalAlignment.Center };
+        var button = new Button { Padding = new Thickness(14, 0), Height = 36, MinWidth = 118, VerticalAlignment = VerticalAlignment.Center, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
         if (best) _firstBest ??= (searchId, hit, button);
         if (best) button.Classes.Add("primary");
+        else { button.Classes.Add("quiet"); button.Background = Ui.Raised; }
         ShowSendState(button, _sent.Contains(key));
         AutomationProperties.SetName(button, _upgrade is null ? L($"Télécharger {hit.Name}", $"Download {hit.Name}") : L($"Remplacer par {hit.Name}", $"Replace with {hit.Name}"));
         button.Click += async (_, _) => await SendHitAsync(searchId, hit, button);
-        Grid.SetColumn(button, 1); grid.Children.Add(button);
+        Grid.SetColumn(button, 2); grid.Children.Add(button);
         if (best) return grid;
         // The other versions, each under a hairline.
-        return new Border { BorderBrush = Line, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 12, 0, 0), Margin = new Thickness(0, 12, 0, 0), Child = grid };
+        grid.Margin = new Thickness(0);
+        return new Border { BorderBrush = Line, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 8, 0, 0), Margin = new Thickness(0, 8, 0, 0), Child = grid };
     }
 
     private void ShowSendState(Button button, bool sent)
@@ -1210,7 +1295,7 @@ public sealed class DownloadsPage : Page
     }
     private void CloseMagnet()
     {
-        _magnetPanel.IsVisible = _magnetError.IsVisible = false; _magnetButton.IsVisible = true;
+        _magnetPanel.IsVisible = _magnetError.IsVisible = false; _magnetButton.IsVisible = !_narrow;
         _magnet.Text = ""; _magnetSend.IsEnabled = true;
     }
 
@@ -1223,7 +1308,7 @@ public sealed class DownloadsPage : Page
         try
         {
             await session.Client.TorLinkRequestAsync(magnet, session.Lifetime);
-            CloseMagnet(); _magnetButton.Focus();
+            CloseMagnet(); MagnetReturn().Focus();
             await SentAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { ShowMagnetError(Errors.Friendly(ex)); }
