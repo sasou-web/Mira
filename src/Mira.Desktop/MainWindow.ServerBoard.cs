@@ -146,14 +146,27 @@ public partial class MainWindow
     private bool _headThin;
 
     /// <summary>
-    /// The line under the title, hidden on one line when it only says its usual words: this page's line, or the server PC
-    /// ready (its pill says it). A problem, a PC closed or never opened always shows.
+    /// The line under the title, hidden when it only says its usual words (this page's line, or the server PC ready: its pill
+    /// says it) and the head is on one line or the line would take two, squeezed between the title and the buttons. A problem,
+    /// a PC closed or never opened always shows.
     /// </summary>
     private void ShowTorLinkSubtitle()
     {
         var text = TorLinkSubtitle.Text;
         var usual = text.Length == 0 || text == TorLinkPageLine || (_serverScreen && !_serverLocal && _serverAgent is { Online: true } agent && string.IsNullOrEmpty(agent.Problem));
-        TorLinkSubtitle.Visibility = _headIcons == true && usual ? Visibility.Collapsed : Visibility.Visible;
+        TorLinkSubtitle.Visibility = usual && (_headIcons == true || !SubtitleFits(text)) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>Whether the line under the title holds on one line beside the head's buttons.</summary>
+    private bool SubtitleFits(string text)
+    {
+        if (TorLinkHead.ActualWidth <= 0 || TorLinkHead.Children[0] is not FrameworkElement tools) return true;
+        // The buttons as they are now (their words just hidden or shown, the PC's name too), not as last laid out.
+        tools.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var room = Math.Min(TorLinkSubtitle.MaxWidth, TorLinkHead.ActualWidth - tools.DesiredSize.Width - 16);
+        var words = new FormattedText(text, Lang.Culture, FlowDirection.LeftToRight, new Typeface(TorLinkSubtitle.FontFamily, TorLinkSubtitle.FontStyle, TorLinkSubtitle.FontWeight, TorLinkSubtitle.FontStretch),
+            TorLinkSubtitle.FontSize, Brushes.Black, VisualTreeHelper.GetDpi(TorLinkSubtitle).PixelsPerDip);
+        return words.WidthIncludingTrailingWhitespace <= room;
     }
 
     private void ServerPlacedAll_Click(object sender, RoutedEventArgs e)
