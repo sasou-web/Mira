@@ -204,7 +204,7 @@ public sealed partial class PlayerPage : UserControl
 
         _tick.Tick += (_, _) => Tick();
         _hide.Tick += (_, _) => { _hide.Stop(); SetControls(false); };
-        _click.Tick += (_, _) => { _click.Stop(); TogglePause(); };
+        _click.Tick += (_, _) => { _click.Stop(); TogglePause(); _clickToggled = true; };
         _dockTimer.Tick += (_, _) => DockTick();
         AttachedToVisualTree += (_, _) => FollowPointer(true);
         DetachedFromVisualTree += (_, _) => { FollowPointer(false); _dockTimer.Stop(); };
@@ -224,7 +224,11 @@ public sealed partial class PlayerPage : UserControl
             if (Environment.TickCount64 - _shell.ActivatedAt < 400 || !_mini && InBarBand(e.GetPosition(_chrome))) { ShowControls(); return; }
             if (_mini) { MiniPressed(e, twice); return; }
             // A double click toggles fullscreen; a single one, after a short wait, pauses or resumes.
-            if (twice) ToggleFullscreen(); else _click.Start();
+            if (!twice) { _clickToggled = false; _click.Start(); return; }
+            // A slow double click (macOS's interval is up to 2 s, the wait for a single click 230 ms): its first press
+            // already paused or resumed. The double click is fullscreen alone, so that first toggle is undone.
+            if (_clickToggled) TogglePause();
+            _clickToggled = false; ToggleFullscreen();
         };
         PointerMoved += (_, _) => ShowControls();
         _videoHost.PointerMoved += (_, e) => { if (_mini) MiniMoved(e); };
@@ -239,9 +243,14 @@ public sealed partial class PlayerPage : UserControl
     /// <summary>The progress bar (self-check: what the pointer hits along it).</summary>
     public Control ProgressBar => _timeline;
     public void ShowControlsForCheck() => ShowControls();
+    public void HideControlsForCheck() { _hide.Stop(); SetControls(false); }
+    /// <summary>Where the subtitles go while the bottom bar shows (self-check); null where their own place is already above it.</summary>
+    public int? BarLift => _barLift;
     public bool InBarBand(Point point) => _top.Bounds.Contains(point) || _bottom.Bounds.Contains(point);
     /// <summary>When the picture was last pressed (Avalonia's timestamp, in ms).</summary>
     private ulong? _pictureClickAt;
+    /// <summary>The single click's wait ran out and paused or resumed: the second press of a double click undoes it.</summary>
+    private bool _clickToggled;
     /// <summary>macOS's double-click interval (System Settings → Accessibility), 0.5 s where it is not known.</summary>
     private ulong DoubleClickTime() => (ulong)(TopLevel.GetTopLevel(this)?.PlatformSettings?.GetDoubleTapTime(PointerType.Mouse).TotalMilliseconds ?? 500);
     private static LinearGradientBrush Fade(bool top) => new()
@@ -644,7 +653,7 @@ public sealed partial class PlayerPage : UserControl
             if (paused != _session.Paused) { _session.Paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _session.LastReport = DateTimeOffset.MinValue; GroupPauseChanged(paused); }
             WatchGroupStall(mpv); WatchPicture(mpv, paused); WatchGrey(mpv, paused);
             _timeline.SetPlayback(_session.Position, _session.Duration, mpv.Number("demuxer-cache-time", 0));
-            ShowTime(_session.Position); MiniProgress(); UpdatePip();
+            ShowTime(_session.Position); MiniProgress(); UpdatePip(); LiftSubtitlesOverBar();
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
@@ -747,14 +756,42 @@ public sealed partial class PlayerPage : UserControl
     private void SetControls(bool shown)
     {
         // The mini-player: its own controls while the pointer is on it.
-        if (_mini) { ShowMiniControls(shown && IsPointerOver || _session.Paused); _controlsShown = shown; return; }
-        // The controls stay while a menu is open or the bar is being dragged.
-        if (!shown && (_timeline.Dragging || _tracks.Flyout?.IsOpen == true || _more.Flyout?.IsOpen == true || _episodesButton.Flyout?.IsOpen == true || _bottom.IsPointerOver)) { _hide.Start(); return; }
+        if (_mini) { ShowMiniControls(shown && IsPointerOver || _session.Paused); _controlsShown = shown; LiftSubtitlesOverBar(); return; }
+        // The controls stay while a menu is open or the bar is being dragged, and, as on Windows, while the pointer rests on
+        // the top or bottom bar during playback. Once paused they leave anyway: the still frame is seen whole.
+        if (!shown && (_timeline.Dragging || _tracks.Flyout?.IsOpen == true || _more.Flyout?.IsOpen == true || _episodesButton.Flyout?.IsOpen == true || !_session.Paused && (_bottom.IsPointerOver || _top.IsPointerOver))) { _hide.Start(); return; }
         _controlsShown = shown;
         _top.Opacity = _bottom.Opacity = shown ? 1 : 0;
         _top.IsHitTestVisible = _bottom.IsHitTestVisible = shown;
         Cursor = shown ? Cursor.Default : new Cursor(StandardCursorType.None);
-        UpdateSkip(); ShowGroup();
+        UpdateSkip(); ShowGroup(); LiftSubtitlesOverBar();
+    }
+    /// <summary>The engine whose subtitles <see cref="_barLift"/> moved, and its own sub-margin-y, put back when the bar goes.</summary>
+    private MpvPlayer? _barEngine;
+    private int _barMargin = 22;
+    /// <summary>The sub-pos set while the bottom bar shows; null: the subtitles at their own place.</summary>
+    private int? _barLift;
+    /// <summary>
+    /// While the bottom bar shows, the subtitles go above its title and time, as on Windows, on video sites and in the small
+    /// window (<see cref="PictureInPicture.SubtitleLift"/>); back to their place once the bar goes. Never in the mini-player,
+    /// nor while the small window has the video (its own lift).
+    /// </summary>
+    private void LiftSubtitlesOverBar()
+    {
+        if (_mpv is not { } mpv || _pip is not null || _pipMoving) return;
+        if (!ReferenceEquals(mpv, _barEngine))
+        {
+            _barEngine = mpv; _barLift = null;
+            _barMargin = mpv.Number("sub-margin-y", 22) is var margin and >= 0 and <= 600 ? (int)margin : 22;
+        }
+        var height = Bounds.Height;
+        int? lift = _controlsShown && !_mini && height > 0 && _bottom.Bounds.Height > 0
+            ? PictureInPicture.SubtitleLift(height - (_bottom.Bounds.Y + _bottom.Padding.Top) + 8, height, SubtitleStyle.Height(_shell.Settings.SubtitleHeight))
+            : null;
+        if (lift == _barLift) return;
+        if (lift is { } position) { mpv.Set("sub-margin-y", "0"); mpv.Set("sub-pos", position.ToString(CultureInfo.InvariantCulture)); }
+        else { mpv.Set("sub-margin-y", _barMargin.ToString(CultureInfo.InvariantCulture)); mpv.Set("sub-pos", SubtitleStyle.Height(_shell.Settings.SubtitleHeight).ToString(CultureInfo.InvariantCulture)); }
+        _barLift = lift;
     }
 
     // —— Menus ——

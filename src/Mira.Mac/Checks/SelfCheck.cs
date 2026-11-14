@@ -1629,11 +1629,19 @@ public static class SelfCheck
         check(Math.Abs(Margin() - usual) < .5 && Math.Abs(Position() - own) < .5, $"image dans l’image : sous-titres à leur place une fois les commandes parties ({renderer})", $"sub-margin-y {Margin()}, sub-pos {Position()}");
 
         await player.ReturnFromPipAsync();
+        // The bottom bar gone: the subtitles at their place (above it while it shows: checked just after).
+        player.HideControlsForCheck(); await Task.Delay(100);
         frames = player.Surface?.Frames ?? 0;
         check(player.Pip is null && !pip.IsVisible && player.IsVisible && !player.IsMini && player.Surface?.View.Parent is { } host && host != pip.VideoHost && ReferenceEquals(player.Engine, engine)
             && Math.Abs(engine.Number("sub-scale") - 1) < .001 && Math.Abs(engine.Number("sub-margin-y") - engine.Number("option-info/sub-margin-y/default-value", 22)) < .5
             && Math.Abs(engine.Number("sub-pos") - SubtitleStyle.Height(window.Settings.SubtitleHeight)) < .5 && await Until(() => player.Surface?.Frames > frames + 12, 10),
             $"image dans l’image : de retour dans Mira, le lecteur entier ({renderer})", $"{player.Surface?.GetType().Name}, sub-scale {engine.Get("sub-scale")}");
+        player.ShowControlsForCheck(); await Task.Delay(100);
+        check(player.BarLift is { } barAt && Math.Abs(engine.Number("sub-pos") - barAt) < .5 && engine.Number("sub-margin-y") == 0,
+            $"lecteur : sous-titres au-dessus de la barre tant qu’elle se voit ({renderer})", $"sub-pos {engine.Get("sub-pos")}, attendu {player.BarLift}, sub-margin-y {engine.Get("sub-margin-y")}");
+        player.HideControlsForCheck(); await Task.Delay(100);
+        check(Math.Abs(engine.Number("sub-margin-y") - engine.Number("option-info/sub-margin-y/default-value", 22)) < .5 && Math.Abs(engine.Number("sub-pos") - own) < .5,
+            $"lecteur : sous-titres à leur place une fois la barre partie ({renderer})", $"sub-margin-y {engine.Get("sub-margin-y")}, sub-pos {engine.Get("sub-pos")}");
         engine.Set("sid", "no");
 
         await player.EnterPipAsync();

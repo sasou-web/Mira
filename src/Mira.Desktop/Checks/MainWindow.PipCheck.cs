@@ -112,8 +112,17 @@ public partial class MainWindow
 
         // Back to Mira: the whole player, the same engine, mpv's own subtitle size.
         ReturnFromPip(); await Task.Delay(400);
+        // The bottom bar shown or not: the subtitles above it while it shows (LiftSubtitlesOverBar), at their place otherwise.
+        HidePlayerControls(); await Task.Delay(100);
         require(_pip is null && !pip.IsVisible && !_miniPlayer && PlayerShell.IsVisible && GetParent(video.Handle) == main && ReferenceEquals(engine, _mpv) && Math.Abs(engine.Number("sub-scale") - 1) < .001
             && Math.Abs(engine.Number("sub-margin-y") - usual) < .5 && Math.Abs(engine.Number("sub-pos") - own) < .5, "picture in picture: back in Mira, the whole player with the same engine, subtitles at their own size and place");
+        ShowPlayerControls(); LiftSubtitlesOverBar(); await Task.Delay(100);
+        var barTop = PlayerControlsBody.TranslatePoint(new Point(), PlayerSurface).Y;
+        var barLift = PictureInPicture.SubtitleLift(PlayerSurface.ActualHeight - barTop + 8, PlayerSurface.ActualHeight, own);
+        require(barLift is { } barAt && Math.Abs(engine.Number("sub-pos") - barAt) < .5 && engine.Number("sub-margin-y") == 0,
+            $"player: while the bottom bar shows, the subtitles go above its title and time (sub-pos {engine.Get("sub-pos")} for {barLift}, sub-margin-y {engine.Get("sub-margin-y")})");
+        HidePlayerControls(); await Task.Delay(100);
+        require(Math.Abs(engine.Number("sub-margin-y") - usual) < .5 && Math.Abs(engine.Number("sub-pos") - own) < .5, $"player: the bar gone, the subtitles back at their place (sub-margin-y {engine.Get("sub-margin-y")}, sub-pos {engine.Get("sub-pos")})");
 
         // From the whole player, then « Fermer »: playback stopped, the video back in Mira's window, no window left.
         EnterPip(); await Task.Delay(500);
