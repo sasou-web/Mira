@@ -139,7 +139,7 @@ public partial class MainWindow
             if (_videoHost is null)
             {
                 var ready = new TaskCompletionSource<IntPtr>(TaskCreationOptions.RunContinuationsAsynchronously);
-                _videoHost = new VideoHost(); _videoHost.Ready += hwnd => { _videoHandle = hwnd; ready.TrySetResult(hwnd); };
+                _videoHost = new VideoHost { Corners = Layers is { } layers ? new VideoCorners(layers) : null }; _videoHost.Ready += hwnd => { _videoHandle = hwnd; ready.TrySetResult(hwnd); };
                 VideoContainer.Children.Add(_videoHost); _videoHandle = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
             }
             ResetMarkers(); _skips.Film = film;

@@ -64,7 +64,7 @@ public partial class MainWindow
         if (PlayerShell.IsMouseCaptured) PlayerShell.ReleaseMouseCapture();
         PlayerShell.HorizontalAlignment = HorizontalAlignment.Stretch; PlayerShell.VerticalAlignment = VerticalAlignment.Stretch;
         PlayerShell.Width = PlayerShell.Height = double.NaN; PlayerShell.Margin = new Thickness(0); PlayerShell.Clip = null;
-        MiniFrame.Visibility = MiniOutline.Visibility = Visibility.Collapsed;
+        MiniFrame.Visibility = Visibility.Collapsed;
         _videoHost?.SetCornerRadius(0);
     }
     /// <summary>

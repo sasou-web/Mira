@@ -186,12 +186,22 @@ public partial class MainWindow
         get
         {
             if (Motion.Reduced) return null;
-            if (!_shadeMade) { _shadeMade = true; _shade = WindowShade.TryCreate(new WindowInteropHelper(this).Handle); }
+            if (_shade is null && Layers is { } layers) _shade = new WindowShade(layers);
             return _shade;
         }
     }
     private WindowShade? _shade;
-    private bool _shadeMade;
+    /// <summary>Windows' compositor over this window, made at first use; null where Windows has none.</summary>
+    private WindowLayers? Layers
+    {
+        get
+        {
+            if (!_layersMade) { _layersMade = true; _layers = WindowLayers.TryCreate(new WindowInteropHelper(this).Handle); }
+            return _layers;
+        }
+    }
+    private WindowLayers? _layers;
+    private bool _layersMade;
     /// <summary>mpv draws the first picture of this title unseen: it comes up from black (<see cref="RevealVideo"/>).</summary>
     private bool _videoWaits;
     /// <summary>A start that takes longer than usual: the sheet goes, black on black, and the spinner shows.</summary>

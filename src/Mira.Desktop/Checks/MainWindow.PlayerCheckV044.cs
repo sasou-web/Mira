@@ -127,8 +127,9 @@ public partial class MainWindow
     }
     private async Task RunMiniPlayerChecksAsync(string output, List<string> checks, Action<bool, string> require, MpvEngine? engine)
     {
-        require(Near(PlayerShell.Margin, MiniPoint(true)) && Math.Abs(PlayerShell.Margin.Left + MiniWidth + MiniDock.Gap - Root.ActualWidth) < 1 && MiniFrame.IsVisible && PlayerShell.Clip is not null && MiniOutline.IsVisible, "mini-player rests rounded and shadowed against the right edge, at the bottom");
+        require(Near(PlayerShell.Margin, MiniPoint(true)) && Math.Abs(PlayerShell.Margin.Left + MiniWidth + MiniDock.Gap - Root.ActualWidth) < 1 && MiniFrame.IsVisible && PlayerShell.Clip is not null, "mini-player rests rounded and shadowed against the right edge, at the bottom");
         CaptureElement(output, "mini-player", PlayerSurface);
+        await CheckMiniCornersAsync(output, checks, require);
         if (_args.Contains("--perf-probe")) { ShowPlayerControls(); _lastPlayerInteraction = DateTimeOffset.UtcNow.AddSeconds(30); await Task.Delay(300); }
         if (_args.Contains("--perf-probe")) checks.Add($"INFO mini buttons' row animation {PlayerTransport.ActualWidth:0}x{PlayerTransport.ActualHeight:0} DIP: {await MeasureFpsAsync((UIElement)PauseButton.Template.FindName("Hover", PauseButton))}");
         // By itself, with the pointer elsewhere: tucked away against the edge, a sliver of the video showing, still playing.

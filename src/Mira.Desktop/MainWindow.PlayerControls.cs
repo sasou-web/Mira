@@ -391,7 +391,7 @@ public partial class MainWindow
         PlayerControlsBody.Margin = mini ? new Thickness(14, 0, 14, 8) : new Thickness(24, 0, 24, 14);
         // The mini-player shows its title at the top and keeps only play / pause, centred under the timeline.
         PlayerInfo.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
-        MiniTitle.Visibility = MiniPipButton.Visibility = MiniExpandButton.Visibility = MiniCloseButton.Visibility = MiniOutline.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
+        MiniTitle.Visibility = MiniPipButton.Visibility = MiniExpandButton.Visibility = MiniCloseButton.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
         PlayerTransport.Height = PlayerTransportSlot.Height = mini ? 36 : 44; PlayerTransportSlot.Margin = new Thickness(-8, mini ? 0 : 2, -8, 0);
         Grid.SetColumnSpan(PlayerLeftGroup, mini ? 3 : 1); PlayerLeftGroup.HorizontalAlignment = mini ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         foreach (var control in new FrameworkElement[] { PlayerBackButton, PlayerVolumeGroup, PlayerRightGroup }) control.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
