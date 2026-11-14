@@ -229,12 +229,18 @@ public partial class MainWindow
     /// <summary>The Windows account of the captures' sample paths.</summary>
     private static string You => L("Toi", "You");
 
-    private void ShowServerDownloadsSample()
+    /// <summary>The Downloads page « Régie » as the captures fill it, no relay asked (<paramref name="status"/>: what it shows).</summary>
+    private void ShowServerBoardForCheck(RelayStatus status, DateTimeOffset now)
     {
         _serverScreen = true;
         DownloadersPanel.Visibility = TorLinkTerminalHost.Visibility = Visibility.Collapsed;
         DownloadersButton.Visibility = TorLinkFolderButton.Visibility = TorLinkSettingsButton.Visibility = TorLinkKeysHint.Visibility = TorLinkViewButton.Visibility = Visibility.Collapsed;
         ServerDownloadsPanel.Visibility = Visibility.Visible; ServerDownloadsPanel.Opacity = 1;
+        RenderServerStatus(status, now);
+    }
+
+    private void ShowServerDownloadsSample()
+    {
         const long GiB = 1L << 30, MiB = 1L << 20, TiB = 1L << 40;
         var now = DateTimeOffset.UtcNow;
         static string Hash(char c) => new(c, 40);
@@ -249,7 +255,7 @@ public partial class MainWindow
             new("f3", "s3", "Ville Haute", null, now.AddDays(-12), now.AddMinutes(-20), now.AddHours(6), false, new FollowNote("found", "S01E07"), "S01E06",
                 [], [new("p1", "S01E07", "Ville.Haute.S01E07.1080p.WEB.H264-NOTAG", 14 * GiB / 10, "waiting", now.AddMinutes(8), null)], null),
         ];
-        RenderServerStatus(new RelayStatus(new("SALON-PC", true, now, true, null, Free: 5 * TiB + 4 * TiB / 10),
+        ShowServerBoardForCheck(new RelayStatus(new("SALON-PC", true, now, true, null, Free: 5 * TiB + 4 * TiB / 10),
             [new("r1", "La.Riviere.Lente.2021.1080p.BluRay.x264-NOTAG", 9 * GiB / 2, Hash('b'), "waiting", null, now)], [],
             [new(Hash('a'), next, "downloading", 41, 9 * MiB, 34, 29 * GiB / 10, 12 * GiB / 10, 190),
              new(Hash('e'), "Les.Jardins.Suspendus.2019.2160p.UHD.BluRay.x265.10bit.HDR-NOTAG", "downloading", 12, 5 * MiB, 18, 22 * GiB, 26 * GiB / 10, 3900),

@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Mira.Core;
+using Mira.Core.TorLink;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
@@ -77,6 +78,8 @@ public partial class MainWindow
         await shot("windows-missing");
         DetailOverlay.Visibility = Visibility.Collapsed;
 
+        await DownloadsShotAsync(shot);
+
         _catalog.View = "home"; _catalog.ParentId = null; await NavigateLibraryAsync(); SmoothScroll.Jump(LibraryScroll);
         var film = _catalog.Resume.FirstOrDefault(x => x.Type == "Movie" && x.Name.Contains("Across the Spider-Verse", StringComparison.Ordinal))
             ?? _catalog.Resume.FirstOrDefault(x => x.Type == "Movie") ?? throw new InvalidOperationException("No film in « Continuer à regarder ».");
@@ -96,6 +99,50 @@ public partial class MainWindow
             await CaptureWithVideoAsync(output, "windows-mini");
         }
         finally { _miniPointerForCheck = null; }
+    }
+    /// <summary>
+    /// The Downloads page « Régie » (windows-downloads) as the server PC of a real home would fill it, on the README's
+    /// library: the posters are this Jellyfin's, the releases' names, sizes, speeds and dates those of real downloads of
+    /// such titles (no relay is asked; the banner's videos are tiny black files, never their sizes).
+    /// </summary>
+    private async Task DownloadsShotAsync(Func<string, Task> shot)
+    {
+        ResetFilters(); _catalog.View = "Series"; await NavigateLibraryAsync();
+        var series = _catalog.Items.Where(x => x.Type == "Series").ToList();
+        ResetFilters(); _catalog.View = "Movie"; await NavigateLibraryAsync();
+        var films = _catalog.Items.Where(x => x.Type == "Movie").ToList();
+        static MediaItem Named(List<MediaItem> items, string name) =>
+            items.FirstOrDefault(x => x.Name.StartsWith(name, StringComparison.OrdinalIgnoreCase)) ?? throw new InvalidOperationException($"No title named {name} in the library.");
+        var (invincible, samurai, robots) = (Named(series, "Invincible"), Named(series, "Blue Eye Samurai"), Named(series, "Love, Death"));
+        var spirited = Named(films, "Spirited Away");
+        const long GiB = 1L << 30, MiB = 1L << 20, TiB = 1L << 40;
+        var now = DateTimeOffset.UtcNow;
+        static string Hash(char c) => new(c, 40);
+        const string taken = "Invincible.S01E04.1080p.AMZN.WEB-DL.DDP5.1.H.264-FLUX";
+        const string pack = "Love.Death.and.Robots.S01.1080p.NF.WEB-DL.DDP5.1.x264-NTb";
+        List<RelayFollow> follows =
+        [
+            new("f1", invincible.Id, "Invincible", null, now.AddDays(-21), now.AddMinutes(-25), now.AddHours(2), false, new FollowNote("found", "S01E05"), "S01E03",
+                [new("S01E04", taken, now.AddMinutes(-25))], [new("p1", "S01E05", "Invincible.S01E05.1080p.AMZN.WEB-DL.DDP5.1.H.264-FLUX", 1652 * MiB, "waiting", now.AddMinutes(7), null)], null),
+            new("f2", samurai.Id, "Blue Eye Samurai", null, now.AddDays(-48), now.AddHours(-3), now.AddHours(3), false, new FollowNote("nothing", "S01E03"), "S01E03",
+                [new("S01E03", "Blue.Eye.Samurai.S01E03.1080p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX", now.AddDays(-9))], [], new RelayAiring("S02E01", now.AddDays(4))),
+        ];
+        var status = new RelayStatus(new("LIVING-ROOM-PC", true, now, true, null, Follows: true, Replaces: true, Seasons: true, Free: 4 * TiB + 6 * TiB / 10),
+            [new("r1", "Spirited.Away.2001.2160p.UHD.BluRay.x265.10bit.HDR.DTS-HD.MA.5.1-SWTYBLZ", 31 * GiB + 4 * GiB / 10, Hash('b'), "waiting", null, now.AddMinutes(-2), spirited.Id)], [],
+            [new(Hash('a'), taken, "downloading", 64, 4 * MiB + MiB / 10, 37, 1618 * MiB, 1036 * MiB, 142),
+             new(Hash('e'), pack, "downloading", 23, 8 * MiB + 4 * MiB / 10, 21, 9 * GiB + 8 * GiB / 10, 2 * GiB + 3 * GiB / 10, 940),
+             new(Hash('c'), "Ponyo.2008.1080p.BluRay.x264.DTS-HD.MA.5.1-SbR", "paused", 63, 0, 0, 10 * GiB + 2 * GiB / 10, 6 * GiB + 4 * GiB / 10)],
+            [.. films.Where(x => x.Name is "Flow" or "The Wild Robot" or "Suzume" or "Klaus").Select((x, i) => new RelayPlaced($"pl{i}", x.Name, L("disponible dans Jellyfin", "available in Jellyfin"), x.Id, true)),
+             new("pl-inv", "Invincible · S01E03", L("disponible dans Jellyfin", "available in Jellyfin"), invincible.Id, true)],
+            follows, [new("m1", robots.Id, 1, [], pack, 9 * GiB + 8 * GiB / 10, Hash('e'), "sent", null, now.AddMinutes(-40))]);
+        TorLinkOverlay.Visibility = Visibility.Visible; TorLinkOverlay.Opacity = 1;
+        ShowServerBoardForCheck(status, now);
+        // Every poster asked of Jellyfin, then drawn.
+        var ids = new[] { invincible.Id, samurai.Id, robots.Id, spirited.Id }.Concat(status.Placed.Select(x => x.ItemId!)).ToList();
+        for (var i = 0; i < 100 && ids.Any(x => !_serverPosters.ContainsKey(x)); i++) await Task.Delay(100);
+        await Task.Delay(1500);
+        await shot("windows-downloads");
+        HideServerDownloads(); TorLinkOverlay.Visibility = Visibility.Collapsed;
     }
     /// <summary>
     /// The window at twice its size with the mini-player's video in it: WPF does not draw mpv's own window, so mpv writes
