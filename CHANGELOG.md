@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Logo de Mira dans « L’essentiel » (Windows)** : la carte de Mira montrait un carré blanc arrondi percé d’un carré noir au lieu du logo : le logo (déjà une tuile claire avec son « m » sombre) était dessiné en sombre sur un second carré blanc. Il est maintenant dessiné comme dans la barre de gauche et sur Mac. Signalé par ogsas sur la 0.9.9.
+
 ## 0.9.9 — 2026-11-14
 
 - **Page Téléchargements « Régie » (Mac)** : la même page que sous Windows, au repos et pendant une recherche, avec le menu ⋯ des séries suivies au style « Écrin » et une colonne sous 1150 px.
