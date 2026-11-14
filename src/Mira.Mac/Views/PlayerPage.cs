@@ -825,7 +825,7 @@ public sealed partial class PlayerPage : UserControl
         var sleeps = new List<(string, string, bool, Action)> { (L("Non", "Off"), L("Pas de minuterie", "No sleep timer"), _sleep.Chosen is null, () => Sleep(null)) };
         sleeps.AddRange(SleepTimer.Choices.Select(m => (SleepTimer.Duration(m), L("Pause dans ", "Pause in ") + SleepTimer.Duration(m), _sleep.Chosen == m, (Action)(() => Sleep(m)))));
         if (_session.Item?.Type == "Episode") sleeps.Add((L("Fin", "End"), L("Arrêter à la fin de l’épisode", "Stop at the end of the episode"), _sleep.AtEnd, () => Sleep(0)));
-        menu.Children.Add(Chips(sleeps, 0));
+        menu.Children.Add(Chips(sleeps, 0, "sleep"));
         if (_sleep.Status(DateTimeOffset.Now) is { } status) menu.Children.Add(MenuNote(status));
         if (Group.Active && Group.Group is { } group)
         {
@@ -905,13 +905,20 @@ public sealed partial class PlayerPage : UserControl
     /// <summary>A line between a menu's parts.</summary>
     private static Border MenuRule() => new() { Height = 1, Background = Ui.Rule, Margin = new Thickness(10, 6) };
     /// <summary>A slider of choices in a sunk track, the chosen cell raised with its edge; <paramref name="columns"/> 0 = one row.</summary>
-    private Control Chips(IEnumerable<(string Label, string Name, bool Chosen, Action Choose)> choices, int columns)
+    /// <summary>
+    /// A slider of choices (quality, sleep timer, the language of a subtitle search): a <see cref="ChoiceTrack"/> in a sunk
+    /// track, its pill going to a new choice as a jelly. <paramref name="key"/> names it across the menu built anew after
+    /// each choice, so its pill goes on moving.
+    /// </summary>
+    private Control Chips(IEnumerable<(string Label, string Name, bool Chosen, Action Choose)> choices, int columns, string key)
     {
-        var list = choices.ToList();
-        var grid = new UniformGrid();
-        if (columns > 0) grid.Columns = columns; else grid.Rows = 1;
-        foreach (var (label, name, chosen, choose) in list) grid.Children.Add(Chip(label, name, chosen, choose));
-        return new Border { Background = Ui.Inset, BorderBrush = Ui.Rule, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(11), Padding = new Thickness(3), Margin = new Thickness(12, 0), Child = grid };
+        var track = new ChoiceTrack(columns, "player." + key);
+        foreach (var (label, name, chosen, choose) in choices)
+        {
+            var index = track.Count;
+            track.Add(Chip(label, name, chosen, () => { track.Select(index); choose(); }), chosen);
+        }
+        return new Border { Background = Ui.Inset, BorderBrush = Ui.Rule, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(11), Padding = new Thickness(3), Margin = new Thickness(12, 0), Child = track };
     }
     private Button Chip(string label, string name, bool chosen, Action choose)
     {

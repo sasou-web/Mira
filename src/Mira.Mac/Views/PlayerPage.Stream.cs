@@ -253,7 +253,7 @@ public sealed partial class PlayerPage
     {
         var current = StreamQuality.Known(_shell.Settings.Quality);
         // « Mb/s » is said once, beside « Quality »: each cell keeps its number (« 20 », « 1.5 »).
-        yield return Chips(StreamQuality.Choices.Select(x => (x.Short.Replace(" Mb/s", "", StringComparison.Ordinal), $"{x.Label} · {x.Details}", x.Key == current, (Action)(() => _ = ChooseQualityAsync(x.Key)))), 4);
+        yield return Chips(StreamQuality.Choices.Select(x => (x.Short.Replace(" Mb/s", "", StringComparison.Ordinal), $"{x.Label} · {x.Details}", x.Key == current, (Action)(() => _ = ChooseQualityAsync(x.Key)))), 0, "quality");
         yield return MenuNote(StreamQuality.Describe(stream));
     }
     /// <summary>Another quality, kept in the settings: the title goes on from where it is on the stream it gives.</summary>
