@@ -241,7 +241,9 @@ function New-Hub([hashtable]$plans, [string[]]$ci, [int]$pullFailures = 0) {
     [void](New-Run 'ci.yml' 'main' $global:MiraHub.Commit $ci 'in_progress')
 }
 function Invoke-Release {
-    try { & $release -Unsigned *>&1 | ForEach-Object { Write-Host "    $_" }; $null }
+    # The banner of the version under preparation comes with banner.yml, after this check's run: without it, -NoBanner.
+    $noBanner = -not (Test-Path -LiteralPath (Join-Path $root "docs/releases/$version.jpg"))
+    try { & $release -Unsigned -NoBanner:$noBanner *>&1 | ForEach-Object { Write-Host "    $_" }; $null }
     catch { $_.Exception.Message }
 }
 $failures = New-Object System.Collections.Generic.List[string]

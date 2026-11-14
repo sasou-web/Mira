@@ -10,15 +10,7 @@
     "film": "arcane",
     "band": [
       { "point": 1, "shot": "windows-series", "at": [93, 86], "scale": 0.578, "width": 576 },
-      { "shot": "mac-series", "at": [0, 0], "scale": 0.5, "width": 496 }
-    ]
-  },
-  "0.9.7": {
-    "film": "spider-verse",
-    "band": [
-      { "point": 1, "shot": "windows-subtitles", "at": [109, 34], "scale": 1, "width": 284 },
-      { "point": 2, "shot": "windows-series", "at": [93, 86], "scale": 0.578, "width": 576 },
-      { "point": 3, "shot": "mac-home", "at": [0, 0], "scale": 0.5, "width": 520 }
+      { "point": 4, "shot": "mac-series", "at": [0, 0], "scale": 0.5, "width": 496 }
     ]
   },
   "0.9.5": {
