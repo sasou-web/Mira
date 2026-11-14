@@ -148,8 +148,11 @@ public partial class MainWindow
                 StopPlayer_Click(this, new()); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
                 Require(!_playing && _mpv is null && !_morphing && LibraryShell.IsVisible, "closed smoothly: the page back");
                 await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded && !_videoWaits); SetMiniPlayerSmoothly(true); await Task.Delay(700);
-                StopPlayer_Click(this, new()); await Task.Delay(1200);
+                var watch = new VideoWatch(_videoHost!.Handle, new System.Windows.Interop.WindowInteropHelper(this).Handle);
+                StopPlayer_Click(this, new()); await Task.Delay(1200); await _engineReleased; await Task.Delay(300); watch.Stop();
                 Require(!_playing && _mpv is null && !_morphing && LibraryShell.IsVisible && !_miniPlayer, "the mini-player's ✕: it slides out, the page stays");
+                Require(watch.Left && watch.CameBack == 0, $"the mini-player's ✕: once out of the window, its video never shows in it again (seen {watch.CameBack} times after leaving)");
+                checks.Add("INFO the mini-player's place while ✕ closes it (brightness): " + watch.Story());
                 await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded && !_videoWaits); ToggleFullscreen(); await Task.Delay(300);
                 SetMiniPlayerSmoothly(true); await Task.Delay(1200);
                 Require(_miniPlayer && !_fullscreen && !_morphing && PlayerShell.ActualWidth == MiniWidth, "out of full screen to the mini-player");
