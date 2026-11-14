@@ -646,7 +646,21 @@ public static class SelfCheck
                 var account = sheetPage.CurrentTab;
                 window.ClickRailForCheck("help");
                 var topic = sheetPage.HelpTopic;
+                // Réglages | Aide: the pill slides to Aide (200 ms, Segmented), seen between the two on its way (looked at
+                // every 10 ms); at once without motion (macOS's « Réduire les animations », the Mac runner's choice).
+                var turn = sheetPage.Turn;
+                var between = false;
+                var onHelp = false;
+                for (var end = DateTime.UtcNow.AddSeconds(3); DateTime.UtcNow < end && !onHelp; await Task.Delay(10))
+                {
+                    between |= turn.PillAt > 1 && turn.PillAt < turn.PillTarget - 1;
+                    onHelp = turn.Selected == 1 && turn.PillTarget > 0 && Math.Abs(turn.PillAt - turn.PillTarget) < .5;
+                }
+                var helpAt = turn.PillAt;
                 sheetPage.Show("playback");
+                var onSettings = await Until(() => turn.Selected == 0 && Math.Abs(turn.PillAt) < .5, 3);
+                Check(onHelp && onSettings && (between || MacMotion.Reduced), "réglages : la pastille de Réglages | Aide coulisse d’un côté à l’autre",
+                    $"{helpAt:0.#} px, vue entre les deux : {between}, sans animation : {MacMotion.Reduced}, retour {turn.PillAt:0.#} px");
                 Check(account == "server" && topic == "keys" && window.Current == sheetPage && window.LitRail == litBefore, "rail : l’avatar ouvre le compte, « ? » l’aide, comme sous Windows", $"{account}, {topic}, {window.LitRail}");
             }
             // « L’essentiel », the front page (maquette A, 2026-11-14): its shortcuts are the switches of their sections, and

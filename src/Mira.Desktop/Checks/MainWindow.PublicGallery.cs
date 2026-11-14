@@ -113,6 +113,12 @@ public partial class MainWindow
             SheetToHelp_Click(this, new());
             if (!Shown(GuideOverlay) || SettingsOverlay.Visibility == Visibility.Visible || GuideBackdrop.Source is null && !SystemParameters.HighContrast)
                 throw new InvalidOperationException("« Aide » did not turn the window over.");
+            // Its Réglages | Aide: the pill slides over from Réglages (Segmented, 200 ms), seen between the two on its way.
+            var between = false;
+            for (var end = Environment.TickCount64 + 2000; Environment.TickCount64 < end && GuideSwitch.Position < .999; await Task.Delay(10))
+                between |= GuideSwitch.Position is > .02 and < .98;
+            if (GuideSwitch.Position < .999 || !between && !Motion.Reduced)
+                throw new InvalidOperationException($"Réglages | Aide's pill did not slide over to Aide: at {GuideSwitch.Position:0.##}, seen between: {between}.");
             await CaptureAsync(output, "10f-help"); SheetToSettings_Click(this, new());
             await Page("library", "11-hover");
             CardHoverEntered((MediaCard)PosterCards.Children[0]);
