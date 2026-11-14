@@ -12,6 +12,10 @@ on:
         default: en
         type: choice
         options: [en, fr]
+      audit:
+        description: "Interface audit of Mira for Windows (--ui-audit at three sizes) instead of the README's captures: committed to the branch under .ui-audit/, never main"
+        default: false
+        type: boolean
   # A release's banner (banner.yml) takes Mira for Windows' and Mira for iPhone's captures from here: one job, nothing committed.
   workflow_call:
     inputs:
@@ -38,7 +42,7 @@ jobs:
   windows:
     if: ${{ !inputs.iphone_only }}
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: ${{ inputs.audit && 90 || 45 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,7 +67,7 @@ jobs:
       # For a release's banner only: a stand-in for TheTVDB's plugin, whose missing episodes of Invincible the banner's
       # windows-missing shows (tools/web/fake-tvdb), in Jellyfin's plugins before it starts.
       - name: Missing episodes (banner)
-        if: inputs.windows_only
+        if: inputs.windows_only || inputs.audit
         shell: pwsh
         run: |
           $plugin = Join-Path $PWD '.artifacts/jf-data/data/plugins/FakeTvdb_9999.0.0.0'
@@ -124,6 +128,28 @@ jobs:
           $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
           Write-Output $result
           if ($run.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'The captures failed.' }
+      # On request (audit): the same signed-in profile walks every screen and menu at 1440 × 900, 1024 × 720 and
+      # 1920 × 1080 (src/Mira.Desktop/Checks/MainWindow.UiAudit.cs): report, findings, captures and the defects outlined.
+      - name: Interface audit
+        if: inputs.audit
+        shell: pwsh
+        run: |
+          $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
+          $output = Join-Path $PWD '.artifacts/ui-audit'
+          $profile = Join-Path $PWD '.artifacts/gallery-profile'
+          $env:DOTNET_DISABLE_GUI_ERRORS = '1'
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', $env:GALLERY_LANGUAGE, '--ui-audit', "`"$output`"") -PassThru
+          $null = $run.Handle
+          if (-not $run.WaitForExit(2400000)) { $run.Kill(); throw 'The audit did not finish within 40 minutes.' }
+          $summary = Join-Path $output 'summary.txt'
+          if (-not (Test-Path -LiteralPath $summary)) { throw "No report (exit code $($run.ExitCode))." }
+          Get-Content -LiteralPath $summary -Encoding UTF8
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && inputs.audit
+        with:
+          name: ui-audit
+          path: .artifacts/ui-audit
+          retention-days: 7
       - name: Jellyfin log
         if: failure()
         shell: pwsh
@@ -139,7 +165,7 @@ jobs:
     # Mira for iPhone on the simulator (an iPhone 17 Pro, 1206 × 2622), signed in to Jellyfin 12.1 built from its
     # sources on this Mac with the same library: Home, the films, a film's page, a group on it, a series' episodes
     # (testGallery of MiraUITests, skipped by ios.yml).
-    if: ${{ !inputs.windows_only }}
+    if: ${{ !inputs.windows_only && !inputs.audit }}
     runs-on: macos-26
     timeout-minutes: 60
     env:
@@ -251,7 +277,7 @@ jobs:
 
   commit:
     # Only on another branch than main: main takes them through a pull request.
-    if: github.ref_name != 'main' && !inputs.windows_only && !inputs.iphone_only
+    if: github.ref_name != 'main' && !inputs.windows_only && !inputs.iphone_only && !inputs.audit
     needs: [windows, iphone]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -279,4 +305,42 @@ jobs:
           git add docs/screenshots/readme
           if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Refresh the README's captures"
+          git push origin "HEAD:$BRANCH"
+
+  # The interface audit (audit), for a review away from the runner: JPEG copies of its captures, its report and its
+  # findings, committed to the branch it ran on (never main) under .ui-audit/, to be taken by git and dropped before the
+  # branch's pull request is merged.
+  audit:
+    if: inputs.audit && github.ref_name != 'main'
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ui-audit
+          path: .artifacts/ui-audit
+      - name: JPEG copies in .ui-audit
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          rm -rf .ui-audit; mkdir -p .ui-audit
+          cp .artifacts/ui-audit/*.md .artifacts/ui-audit/*.json .artifacts/ui-audit/*.txt .ui-audit/ 2>/dev/null || true
+          for folder in captures annotated; do
+            [ -d ".artifacts/ui-audit/$folder" ] || continue
+            mkdir -p ".ui-audit/$folder"
+            for file in ".artifacts/ui-audit/$folder"/*.png; do
+              [ -e "$file" ] || continue
+              ffmpeg -loglevel error -y -i "$file" -q:v 4 ".ui-audit/$folder/$(basename "$file" .png).jpg"
+            done
+          done
+          du -sh .ui-audit
+      - name: Commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git add -f .ui-audit
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Interface audit (drop before merging)"
           git push origin "HEAD:$BRANCH"
