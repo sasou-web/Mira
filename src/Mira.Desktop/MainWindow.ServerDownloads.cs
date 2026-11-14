@@ -289,6 +289,8 @@ public partial class MainWindow
         ServerPlaceName.Text = name ?? "";
         ServerFreeText.Text = free is { } bytes ? RemoteBoard.Free(bytes) : "";
         ServerFreeRule.Visibility = ServerFreeText.Visibility = free is null ? Visibility.Collapsed : Visibility.Visible;
+        // The PC ready or not changes whether the line under the title says anything new (its pill says it).
+        ShowTorLinkSubtitle();
         if (_serverLocal && DateTime.UtcNow - _mediaFree.At >= TimeSpan.FromMinutes(1)) _ = AgainAsync();
         async Task AgainAsync() { await MediaFreeAsync(); if (_serverScreen) DescribeServerMachine(); }
     }
