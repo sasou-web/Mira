@@ -43,14 +43,14 @@ Mira dit ce qui ne va pas avec ses mots, avec un bouton qui aide quand il y en a
 | Saccades hors de chez toi | Baisse la **Qualité** dans le menu **⋮** du lecteur, ou choisis **Auto**. |
 | Image saccadée ou noire (Windows) | Coupe le **Décodage matériel** dans **Réglages → Lecture**. |
 | Image grise ou noire (Mac) | Dans le lecteur, **⋮ → Image grise ou noire ? Réparer**. Chaque réparation va un cran plus loin ; Mira garde celle qui marche. |
-| « Lecture impossible » | Mira a rouvert le flux et Jellyfin n’a toujours pas pu servir le fichier. L’administrateur de Jellyfin trouve la raison dans **Réglages → Entretien → Lectures impossibles signalées**. |
+| « Lecture impossible » | Mira a rouvert le flux et Jellyfin n’a toujours pas pu servir le fichier. L’administrateur de Jellyfin trouve la raison dans **Réglages → Soin de la bibliothèque → Lectures impossibles signalées**. |
 | Un fichier ajouté n’apparaît pas | Vérifie qu’il est dans **Films**, **Séries** ou **Animes**, et nommé comme Jellyfin l’attend (voir [Nommer tes vidéos](jellyfin.md#nommer-tes-videos)). Puis **Actualiser** dans la bibliothèque. |
 
 ## Mises à jour
 
 | Symptôme | Quoi faire |
 | --- | --- |
-| Windows : une mise à jour ne s’installe pas | **Réglages → Mira sur ce PC** montre la dernière erreur ; `data\updates\update.log` donne les détails. Le dossier de Mira doit rester modifiable. |
+| Windows : une mise à jour ne s’installe pas | **Réglages → Mises à jour** montre la dernière erreur ; `data\updates\update.log` donne les détails. Le dossier de Mira doit rester modifiable. |
 | Mac : Mira demande le trousseau après une mise à jour | Seulement après une mise à jour par Homebrew ou à la main, une fois par version : choisis **Toujours autoriser**. Voir [Installer sur Mac](mac.md#mises-a-jour). |
 | iPhone : Mira ne s’ouvre plus | Elle a expiré au bout de 7 jours. Ouvre AltStore à la maison et touche **Refresh All**. Rien n’est perdu. |
 

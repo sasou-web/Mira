@@ -43,14 +43,14 @@ Mira says what is wrong in its own words, with a button that helps when there is
 | Stutters away from home | Lower **Quality** in the player's **⋮** menu, or choose **Auto**. |
 | Picture stutters or stays black (Windows) | Turn off **Hardware decoding** in **Settings → Playback**. |
 | Grey or black picture (Mac) | In the player, **⋮ → Grey or black picture? Repair**. Each repair goes one step further; Mira keeps the one that works. |
-| "Can't play this" | Mira reopened the stream and Jellyfin still could not serve the file. Jellyfin's administrator finds the reason in **Settings → Maintenance → Reported playback failures**. |
+| "Can't play this" | Mira reopened the stream and Jellyfin still could not serve the file. Jellyfin's administrator finds the reason in **Settings → Library care → Reported playback failures**. |
 | A file was added but doesn't show | Check it is in **Movies**, **Shows** or **Anime**, and named the way Jellyfin expects (see [Name your videos](jellyfin.md#name-your-videos)). Then **Refresh** in the library. |
 
 ## Updates
 
 | Symptom | What to do |
 | --- | --- |
-| Windows: an update doesn't install | **Settings → Mira on this PC** shows the last error; `data\updates\update.log` has the details. Mira's folder must stay writable. |
+| Windows: an update doesn't install | **Settings → Updates** shows the last error; `data\updates\update.log` has the details. Mira's folder must stay writable. |
 | Mac: Mira asks for the keychain after an update | Only after an update made by Homebrew or by hand, once per version: choose **Always Allow**. See [Install on Mac](mac.md#updates). |
 | iPhone: Mira no longer opens | It expired after 7 days. Open AltStore at home and tap **Refresh All**. Nothing is lost. |
 

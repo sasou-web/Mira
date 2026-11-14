@@ -9,7 +9,7 @@ platforms: Windows, Mac, iPhone
 
 Home opens on a large banner of your titles, then **Continue watching**: the films and series you started, the most recent first, one card per series, with the time left. Below come the next episodes, recently added titles and the rows you chose.
 
-- **Home rows** (Settings → Appearance) lets you reorder rows or hide them, including a "New in…" row per library. The layout is kept per device.
+- **Home rows** (Settings → Home & library) lets you reorder rows or hide them, including a "New in…" row per library. The layout is kept per device.
 - Right-click a card in Continue watching (long press on iPhone) and choose **Remove from Continue watching** to forget it until you play it again. **Undo** puts it back.
 
 ## Movies and series
@@ -40,7 +40,7 @@ In **Settings → Playback**, **Hide spoilers** (off by default) blurs the pictu
 
 ## Missing and coming episodes
 
-With TheTVDB's plugin on your Jellyfin (**Settings → Maintenance → Missing episodes and air dates** in Mira for Windows turns it on, for an administrator), a series' page shows what your library doesn't have, each where it belongs. Episodes that aired and aren't in your library are one hollow tile between those you have ("E3–4", "Not in your library", "Aired Oct 25 – Nov 1"); **Show all** opens it into one tile each. The next episode to come out is a hollow tile at its place, with its day. A season you have none of is in the season list ("Season 1 · not in library"), shown as a card that tells how many episodes it has and when they aired. Nothing to play, nothing urgent: **Settings → Playback → Show missing episodes** off keeps only the coming ones.
+With TheTVDB's plugin on your Jellyfin (**Settings → Library care → Missing episodes and air dates** in Mira for Windows turns it on, for an administrator), a series' page shows what your library doesn't have, each where it belongs. Episodes that aired and aren't in your library are one hollow tile between those you have ("E3–4", "Not in your library", "Aired Oct 25 – Nov 1"); **Show all** opens it into one tile each. The next episode to come out is a hollow tile at its place, with its day. A season you have none of is in the season list ("Season 1 · not in library"), shown as a card that tells how many episodes it has and when they aired. Nothing to play, nothing urgent: **Settings → Playback → Show missing episodes** off keeps only the coming ones.
 
 ## Play on another device
 
@@ -57,7 +57,7 @@ On Windows and Mac, a film's or series' menu has **Add to collection…**: tick 
 You need Jellyfin's administrator account, or an account Jellyfin allows to manage collections.
 
 > [!TIP]
-> **Settings → Maintenance → Group my movies into collections** (administrator) asks Jellyfin to group the films of a same saga automatically, from TMDb.
+> **Settings → Library care → Group my movies into collections** (administrator) asks Jellyfin to group the films of a same saga automatically, from TMDb.
 
 ## Watch without a connection
 

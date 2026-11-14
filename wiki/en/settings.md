@@ -9,26 +9,29 @@ Each change applies and is saved at once: there is no Save button.
 
 ## Windows and Mac
 
-Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on Mac).
+Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on Mac), on **Essentials**: Mira's version and where its update stands (with **Restart and update** when a new version is ready), your account and whether Jellyfin answers, and the six settings people change most (quality, audio and subtitle languages, subtitle style, next episode, skip intros, Mira's language). They are the same settings as in their own parts: changed here, changed there. A dot on the gear and on **Updates** says a new version is ready. The search (<kbd>Ctrl</kbd> + <kbd>F</kbd>, <kbd>⌘</kbd> + <kbd>F</kbd>) finds any setting, by its name or a common word ("update", "blurry", "away from home").
 
 | Part | What is in it |
 | --- | --- |
-| **Playback** | Skip intros and recaps, play episodes back to back, trailer before the film, hide spoilers, show missing episodes, "still watching?", resume where you left off, picture, quality away from home, hardware decoding, the mpv engine (Windows) |
+| **Playback** | Resume where you left off, play episodes back to back, "still watching?", skip intros and recaps, trailer before the film, quality, and under advanced settings the picture and hardware decoding |
 | **Audio & subtitles** | Preferred audio and subtitle languages, subtitle size and style, audio output and amplifier |
-| **Appearance** | Mira's language, couch mode, home rows, library density, automatic carousel, reduce animations |
-| **Account & server** | Your Jellyfin account and photo, sign out, Built-in Tailscale, new episode notifications, who is watching on Jellyfin right now |
-| **Mira on this PC / Mac** | Updates, and the titles kept to watch offline |
+| **Home & library** | Home rows, automatic carousel, poster size (Windows), hide spoilers, show missing episodes, the titles kept to watch offline |
+| **General** | Mira's language, couch mode, reduce animations (Windows), new episode notifications |
+| **Account & server** | Your Jellyfin account and photo, sign out or switch account, Built-in Tailscale, and **Retry** while Jellyfin doesn't answer |
 | **Privacy** | Everything Mira sends, to whom and when, with the switch of each connection that has one |
-| **Your recap** | What you watched this month and this year, from Jellyfin |
+| **Updates** | Mira's version, its updates, and on Windows the mpv engine |
+
+**Your recap** (what you watched this month and this year, from Jellyfin) opens from the account's card of **Essentials**.
 
 Under **Your server**, for Jellyfin's administrator:
 
 | Part | What is in it |
 | --- | --- |
 | **Friends & guests** | Add a friend (an account of their own), your party link and its guests, allow a device by its code |
-| **Maintenance** | Titles to fix, automatic subtitles, missing episodes, movie collections, seek bar previews, and on the Jellyfin PC: backup and update of Jellyfin, conversions with the graphics card |
+| **Library care** | Titles to fix, automatic subtitles, missing episodes, movie collections, seek bar previews, playback failures reported (Windows) |
+| **Jellyfin server** | Who is watching on Jellyfin right now, and on the Jellyfin PC: backup and update of Jellyfin, conversions with the graphics card (Windows); Mira's extension to install when Jellyfin doesn't have it (Mac) |
 
-The guide (**?** in the rail, <kbd>F1</kbd> on Windows) is separate: where your videos go, and the **Mira on your iPhone** card that gets the server ready.
+Help (**?** in the rail, <kbd>F1</kbd> on Windows) is separate: where your videos go, the **Mira on your iPhone** card that gets the server ready, and **Report a problem** (a report to export).
 
 ## iPhone and iPad
 
@@ -43,11 +46,11 @@ The **Settings** tab has:
 
 ## Language
 
-Mira speaks English and French. By default it follows the language you chose when installing it, otherwise your system's. Change it in **Settings → Appearance → Mira's language**: it applies the next time Mira opens. The default audio and subtitle languages follow it.
+Mira speaks English and French. By default it follows the language you chose when installing it, otherwise your system's. Change it in **Settings → General → Mira's language**: it applies the next time Mira opens. The default audio and subtitle languages follow it.
 
 ## Couch mode
 
-For a PC or a Mac plugged into the TV, watched from the couch (Windows and Mac). Turn it on in **Settings → Appearance → Couch mode**: it applies at once, and stays on the next times Mira opens.
+For a PC or a Mac plugged into the TV, watched from the couch (Windows and Mac). Turn it on in **Settings → General → Couch mode**: it applies at once, and stays on the next times Mira opens.
 
 - Mira fills the whole screen, and every page is drawn larger, as on a 1280 × 720 window: readable from across the room. The player keeps its size.
 - A white ring shows what is selected. The arrow keys go from one thing to the next anywhere on the screen, the rail included; <kbd>Enter</kbd> opens, <kbd>Esc</kbd> or <kbd>Backspace</kbd> goes back.
@@ -58,4 +61,4 @@ For a PC or a Mac plugged into the TV, watched from the couch (Windows and Mac).
 > [!NOTE]
 > Couch mode reads the controller only while Mira is in front, and sends nothing anywhere.
 
-To leave it, **Settings → Appearance → Couch mode** again.
+To leave it, **Settings → General → Couch mode** again.

@@ -15,7 +15,7 @@ Mira n’a ni compte, ni pub, ni statistiques, ni télémétrie. Il parle à ton
 | Qui | Vers | Quoi |
 | --- | --- | --- |
 | Mira, sur chaque appareil | **ton serveur Jellyfin** | ta bibliothèque, la lecture et la progression, avec le jeton de ta session dans un en-tête, jamais dans une adresse (sauf le flux du lecteur de l’iPhone, que le lecteur d’Apple ne sait pas envoyer autrement) |
-| Mira pour Windows et Mac | **GitHub** (`api.github.com`) | la recherche de mises à jour, au démarrage puis toutes les 6 heures : la requête elle-même (ton adresse IP, la version de Mira), rien d’autre. Coupe-la dans **Réglages → Mira sur ce PC → Mettre à jour automatiquement** |
+| Mira pour Windows et Mac | **GitHub** (`api.github.com`) | la recherche de mises à jour, au démarrage puis toutes les 6 heures : la requête elle-même (ton adresse IP, la version de Mira), rien d’autre. Coupe-la dans **Réglages → Mises à jour → Mettre à jour automatiquement** |
 
 Avant ta connexion, Mira cherche Jellyfin sur cet ordinateur, sur le réseau de la maison (la question de découverte de Jellyfin, jamais au-delà de ton réseau) et sur tes appareils Tailscale. Rien d’identifiant n’est envoyé ; ton mot de passe ne va qu’à l’adresse où tu te connectes.
 

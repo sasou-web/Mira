@@ -21,18 +21,21 @@ public sealed partial class SettingsPage
 {
     private static IReadOnlyList<(string Key, string Title, string Icon, string About)> Tabs =>
     [
+        ("home", L("L’essentiel", "Essentials"), "home", L("Mira en un coup d’œil, et les réglages qu’on change le plus.", "Mira at a glance, and the settings people change most.")),
         ("playback", L("Lecture", "Playback"), "play", L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")),
         ("audio", L("Audio & sous-titres", "Audio & subtitles"), "subtitles", L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles.")),
-        ("appearance", L("Apparence", "Appearance"), "sparkle", L("La langue de Mira et ce que montre l’accueil.", "Mira’s language and what Home shows.")),
-        ("server", L("Compte & serveur", "Account & server"), "server", L("Ton compte, ton serveur Jellyfin et le chemin jusqu’à lui.", "Your account, your Jellyfin server and the way to it.")),
-        ("updates", L("Mira sur ce Mac", "Mira on this Mac"), "laptop", L("Mises à jour, titres gardés sur ce Mac et rapport pour signaler un problème.", "Updates, titles kept on this Mac and a report for a problem.")),
+        ("library", L("Accueil & bibliothèque", "Home & library"), "library", L("Ce que montrent l’accueil et les pages : rangées, spoilers, épisodes manquants, titres gardés sur ce Mac.", "What Home and the pages show: rows, spoilers, missing episodes, titles kept on this Mac.")),
+        ("general", L("Général", "General"), "sliders", L("La langue de Mira, le mode canapé et ce que Mira te signale.", "Mira’s language, couch mode and what Mira tells you about.")),
+        ("server", L("Compte & serveur", "Account & server"), "user", L("Ton compte, ton serveur Jellyfin, et le joindre loin de chez toi.", "Your account, your Jellyfin server, and reaching it away from home.")),
         ("privacy", L("Confidentialité", "Privacy"), "shield", L("Tout ce qui part sur le réseau, et comment l’arrêter.", "Everything that goes out on the network, and how to stop it.")),
+        ("updates", L("Mises à jour", "Updates"), "refresh", L("La version de Mira et ses mises à jour.", "Mira’s version and its updates.")),
         ("report", L("Ton bilan", "Your recap"), "clock", L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices.")),
         ("sharing", L("Amis & invités", "Friends & guests"), "users", L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
-        ("care", L("Entretien", "Maintenance"), "sliders", L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres.", "What keeps your library in shape: titles to fix, subtitles.")),
+        ("care", L("Soin de la bibliothèque", "Library care"), "pencil", L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres.", "What keeps your library in shape: titles to fix, subtitles.")),
+        ("jellyfin", L("Serveur Jellyfin", "Jellyfin server"), "server", L("Qui regarde quoi, et l’extension de Mira sur Jellyfin.", "Who is watching what, and Mira’s extension on Jellyfin.")),
     ];
     /// <summary>The sections only the server's owner has something in, listed under « Ton serveur ».</summary>
-    private static readonly string[] ServerTools = ["sharing", "care"];
+    private static readonly string[] ServerTools = ["sharing", "care", "jellyfin"];
     /// <summary>Aide's topics: the shortcuts, shown in the window; the others open what they name.</summary>
     private static IReadOnlyList<(string Key, string Title, string Icon, bool Outside)> HelpTopics =>
     [
@@ -41,7 +44,7 @@ public sealed partial class SettingsPage
         ("online", L("Guide en ligne", "Online guide"), "globe", true),
         ("report", L("Exporter un rapport…", "Export a report…"), "warning", false),
     ];
-    private static string _lastTab = "playback";
+    private static string _lastTab = "home";
     private readonly Dictionary<string, StackPanel> _tabs = [];
     private readonly Dictionary<string, Button> _tabButtons = [];
     private readonly Dictionary<string, Button> _helpButtons = [];
@@ -59,7 +62,7 @@ public sealed partial class SettingsPage
     private readonly List<(Control Line, string Words, Control Group)> _keyLines = [];
     private readonly StackPanel _keys = new() { Spacing = 10 };
 
-    /// <summary>The section shown: « playback », « audio », « appearance », « server », « updates », « privacy », « report », « sharing » or « care ».</summary>
+    /// <summary>The section shown: « home », « playback », « audio », « library », « general », « server », « privacy », « updates », « report », « sharing », « care » or « jellyfin ».</summary>
     public string CurrentTab { get; private set; } = _lastTab;
     /// <summary>Aide's topic shown (« keys »), or null on Réglages.</summary>
     public string? HelpTopic { get; private set; }
@@ -80,7 +83,12 @@ public sealed partial class SettingsPage
             var button = NavButton(title, icon, false);
             button.Click += (_, _) => { if (Again(HelpTopic is null && CurrentTab == key)) return; _search.Text = ""; _searched = ""; Show(key); };
             _tabButtons[key] = button; _settingsList.Children.Add(button);
+            // « L’essentiel » apart from the sections, as on Windows.
+            if (key == "home") _settingsList.Children.Add(new Border { Height = 1, Background = Ui.Brush("#1F1F1F"), Margin = new Thickness(12, 8, 12, 8) });
         }
+        // « Ton bilan » is opened from the account's card of « L’essentiel »; the search still finds it.
+        _tabButtons["report"].IsVisible = false;
+        UpdateDot(_tabButtons["updates"]);
         var moreLabel = new TextBlock { Text = L("Plus", "More"), FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(14, 16, 0, 4) };
         foreach (var (key, title, icon, outside) in HelpTopics)
         {
@@ -89,13 +97,15 @@ public sealed partial class SettingsPage
             button.Click += (_, _) => { if (!Again(key == "keys" && HelpTopic == "keys")) OpenTopic(key); };
             _helpButtons[key] = button; _helpList.Children.Add(button);
         }
-        // « Amis & invités » and « Entretien » hold only what an administrator sees: listed while one of their sections
-        // shows, and « Ton serveur » with them.
+        // « Amis & invités », « Soin de la bibliothèque » and « Serveur Jellyfin » hold only what an administrator sees:
+        // listed while one of their sections shows, and « Ton serveur » with them. « Serveur Jellyfin » for any
+        // administrator: who watches what is asked only while it shows.
         void Listed()
         {
-            foreach (var key in ServerTools) _tabButtons[key].IsVisible = _tabs[key].Children.Any(x => x.IsVisible);
+            foreach (var key in ServerTools) _tabButtons[key].IsVisible = _tabs[key].Children.Any(x => x.IsVisible) || key == "jellyfin" && _jellyfinAdmin;
             serverLabel.IsVisible = ServerTools.Any(x => _tabButtons[x].IsVisible);
         }
+        _listed = Listed;
         foreach (var key in ServerTools)
             foreach (var section in _tabs[key].Children) section.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) Listed(); };
         Listed();
@@ -258,7 +268,7 @@ public sealed partial class SettingsPage
         HelpTopic = null;
         if (was) _search.Text = ""; _searched = "";
         Side(false);
-        Show(_tabs.ContainsKey(_lastTab) && _tabButtons[_lastTab].IsVisible ? _lastTab : "playback");
+        Show(_tabs.ContainsKey(_lastTab) && (_tabButtons[_lastTab].IsVisible || _lastTab == "report") ? _lastTab : "home");
     }
     /// <summary>
     /// A section or topic chosen again while it shows, nothing searched: back to its top, nothing drawn again, as the rail's
@@ -287,6 +297,7 @@ public sealed partial class SettingsPage
         Light(_tabButtons, key);
         // Drawn each time it opens: a switch changed in another section shows as it is (SettingsPage.Privacy.cs).
         if (key == "privacy") DrawPrivacy();
+        if (key == "home") ShowEssentials();
         _tabBody.Content = tab;
         _tabScroll.Offset = default;
     }
@@ -391,6 +402,8 @@ public sealed partial class SettingsPage
         var total = 0;
         foreach (var (key, title, _, _) in Tabs)
         {
+            // « L’essentiel » only repeats settings of the other sections: found there, in their own place.
+            if (key == "home") { _found[key] = 0; continue; }
             var tab = _tabs[key];
             var count = 0;
             if (_tabButtons[key].IsVisible || !ServerTools.Contains(key))

@@ -649,6 +649,25 @@ public static class SelfCheck
                 sheetPage.Show("playback");
                 Check(account == "server" && topic == "keys" && window.Current == sheetPage && window.LitRail == litBefore, "rail : l’avatar ouvre le compte, « ? » l’aide, comme sous Windows", $"{account}, {topic}, {window.LitRail}");
             }
+            // « L’essentiel », the front page (maquette A, 2026-11-14): its shortcuts are the switches of their sections, and
+            // « mettre à jour » finds « Mises à jour » while « L’essentiel » itself is never a result.
+            if (window.Current is SettingsPage essentials)
+            {
+                essentials.Show("home"); await Task.Delay(500); Capture(window, output, "07a-settings-essentials");
+                var before = window.Settings.AutoNext;
+                essentials.EssentialsAutoNext.IsChecked = !before;
+                var followed = essentials.AutoNextSwitch.IsChecked == !before && window.Settings.AutoNext == !before;
+                essentials.AutoNextSwitch.IsChecked = before;
+                var back = essentials.EssentialsAutoNext.IsChecked == before && window.Settings.AutoNext == before;
+                Check(followed && back, "réglages : un raccourci de « L’essentiel » est l’interrupteur de sa section", $"suivi {followed}, retour {back}");
+                essentials.SearchFor(Lang.L("mettre à jour", "update"));
+                var updates = essentials.Found.GetValueOrDefault("updates");
+                var front = essentials.Found.GetValueOrDefault("home");
+                await Task.Delay(400); Capture(window, output, "07l-settings-search-update");
+                essentials.SearchFor("");
+                Check(updates > 0 && front == 0 && essentials.CurrentTab == "home", "réglages : « mettre à jour » trouve « Mises à jour »", $"mises à jour {updates}, essentiel {front}, section {essentials.CurrentTab}");
+                essentials.Show("playback");
+            }
             // Réglages in a window over the page (MainWindow.Sheet.cs): its search finds settings in every section at once,
             // « sous titres » finding « Sous-titres », then gives back the section open before it.
             if (window.Current is SettingsPage searched)
@@ -662,8 +681,8 @@ public static class SelfCheck
                 Check(count > 0 && audio > 0 && searched.CurrentTab == "playback" && window.CanGo(-1) == false, "réglages : une fenêtre, la recherche dans toutes les sections",
                     $"{sections} ; section {searched.CurrentTab}");
             }
-            // The categories, as on Windows: those of the server's account hold its sections (friends and guests, maintenance apart).
-            (window.Current as SettingsPage)?.Show("server");
+            // The categories, as on Windows: those of the server's account hold its sections (who watches what in « Serveur Jellyfin »).
+            (window.Current as SettingsPage)?.Show("jellyfin");
             // « Titres à corriger », as on Windows: the mock's titles have no ids from a metadata source.
             if (mock is not null)
                 Check(await Until(() => window.Current is SettingsPage { Fix.Count: > 0, Fix.Section.IsVisible: true }, 10), "réglages : titres à corriger", $"{(window.Current as SettingsPage)?.Fix.Count} titres");
@@ -675,7 +694,7 @@ public static class SelfCheck
             {
                 var hidden = await Until(() => !withExtension.Extension.Section.IsVisible, 3);
                 mock.NoExtension = true; mock.Watching = true;
-                withExtension.Show("playback"); withExtension.Show("server");
+                withExtension.Show("playback"); withExtension.Show("jellyfin");
                 var offered = await Until(() => withExtension.Extension.Section.IsVisible, 10);
                 if (hidden && offered)
                 {
@@ -717,9 +736,9 @@ public static class SelfCheck
             if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Show("care"); withFix.Fix.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
             // The other sections, as on Windows: the account and the way to Jellyfin, this Mac's version and kept titles, Home's rows.
             if (window.Current is SettingsPage others)
-                foreach (var (tab, shot) in new[] { ("server", "07e-settings-server"), ("updates", "07f-settings-updates"), ("appearance", "07g-settings-appearance"), ("audio", "07h-settings-subtitles") })
+                foreach (var (tab, shot) in new[] { ("server", "07e-settings-server"), ("updates", "07f-settings-updates"), ("library", "07g-settings-library"), ("general", "07m-settings-general"), ("audio", "07h-settings-subtitles") })
                 { others.Show(tab); await Task.Delay(500); Capture(window, output, shot); }
-            // Confidentialité: every connection, and the update check's switch the same as the one of « Mira sur ce Mac ».
+            // Confidentialité: every connection, and the update check's switch the same as the one of « Mises à jour ».
             if (window.Current is SettingsPage privacy)
             {
                 privacy.Show("privacy"); await Task.Delay(500); Capture(window, output, "07i-settings-privacy");

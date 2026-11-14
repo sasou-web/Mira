@@ -189,6 +189,8 @@ public sealed partial class MainWindow
         else await RetryJellyfinAsync(saysStill: true);
     }
 
+    /// <summary>Jellyfin does not answer (the badge shows): « Réessayer » in Réglages, the account's card of « L’essentiel ».</summary>
+    public bool NotAnswering => _offlineShown;
     /// <summary>For the self-check: the badge's words while it shows.</summary>
     internal string? OfflineBadgeText => _offlineShown ? _offlineText.Text : null;
     /// <summary>For the self-check: « Réessayer » pressed.</summary>

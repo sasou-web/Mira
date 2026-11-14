@@ -78,4 +78,4 @@ Dans le menu **⋮** du lecteur : pause dans 15 minutes, 30 minutes, 1 heure, ou
 
 À la maison, Mira lit le fichier tel quel. Ailleurs, un film en 4K peut ne pas passer par ta connexion : **Qualité** (Réglages → Lecture et menu **⋮** du lecteur) fixe une limite, ou **Auto** mesure la connexion jusqu’à Jellyfin. Sous la limite, Jellyfin convertit le fichier pendant que tu regardes. Si la connexion tombe, ou que la vidéo n’arrive plus pendant 15 secondes, Mira attend Jellyfin, rouvre le flux une fois là où il en était, et seulement ensuite dit qu’il ne peut pas lire. Quand l’ordinateur se met en veille (capot d’un portable refermé), le film se met en pause, et au réveil Mira le rouvre là où il en était, toujours en pause.
 
-Convertir est lourd pour le serveur. Sur le PC de Jellyfin, Mira peut le confier à la carte graphique : **Réglages → Entretien → Conversions par la carte graphique**, essayé d’abord sur un de tes titres.
+Convertir est lourd pour le serveur. Sur le PC de Jellyfin, Mira peut le confier à la carte graphique : **Réglages → Serveur Jellyfin → Conversions par la carte graphique**, essayé d’abord sur un de tes titres.

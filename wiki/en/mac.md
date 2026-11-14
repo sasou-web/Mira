@@ -54,7 +54,7 @@ Mira updates itself. When it opens, then every 6 hours, it asks GitHub for a new
 
 Mira cannot replace itself when it runs from the disk image, from the Downloads folder (macOS runs a protected copy), or from a folder your account cannot change. It still downloads and checks the new version, and **Open the disk image** lets you drag it to Applications.
 
-To stop the automatic check, turn off **Settings → Mira on this Mac → Update automatically**.
+To stop the automatic check, turn off **Settings → Updates → Update automatically**.
 
 ## Window and menus
 

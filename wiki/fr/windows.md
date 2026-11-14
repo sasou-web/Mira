@@ -45,7 +45,7 @@ Mira lit avec mpv. Son moteur (31 Mo) n’est pas dans les fichiers de Mira : Mi
 
 Mira se met à jour seul. Quelques secondes après son ouverture, puis toutes les 6 heures, il demande à GitHub s’il existe une nouvelle version, la télécharge en arrière-plan, vérifie qu’elle est signée par Mira avec la taille et le SHA-256 annoncés, et l’installe quand tu fermes Mira. **Redémarrer**, dans l’avis, l’installe tout de suite.
 
-Pour arrêter la recherche automatique, désactive **Réglages → Mira sur ce PC → Mettre à jour automatiquement**. Le bouton **Rechercher** reste là.
+Pour arrêter la recherche automatique, désactive **Réglages → Mises à jour → Mettre à jour automatiquement**. Le bouton **Rechercher** reste là.
 
 Tes réglages et ta session sont dans le dossier `data`, qu’une mise à jour ne touche jamais.
 

@@ -49,7 +49,7 @@ Si Jellyfin est déjà installé et configuré sur ce PC, Mira le signale et pro
 
 ## Sauvegarder et mettre à jour Jellyfin
 
-Sur le PC de Jellyfin, connecté avec un compte administrateur, **Réglages → Jellyfin → Jellyfin sur ce PC** montre sa version et sa dernière sauvegarde (Jellyfin 10.11 ou plus).
+Sur le PC de Jellyfin, connecté avec un compte administrateur, **Réglages → Serveur Jellyfin → Jellyfin sur ce PC** montre sa version et sa dernière sauvegarde (Jellyfin 10.11 ou plus).
 
 - **Sauvegarder maintenant** demande à Jellyfin sa sauvegarde intégrée : ses comptes, la progression de chacun, les bibliothèques, leurs images, les sous-titres extraits et ses réglages, pas tes vidéos ni ses extensions. Elle est rangée dans `%ProgramData%\Jellyfin\Server\data\backups` (Jellyfin exige 5 Go libres sur ce disque). **Copier aussi dans…** choisit un dossier sur une clé USB ou un autre disque : chaque sauvegarde y est copiée, et Mira y garde les trois plus récentes. Elle contient les jetons de connexion de tes appareils : ne la copie pas dans un dossier partagé.
 - Après 30 jours sans sauvegarde, Mira te le rappelle par un avis (**Sauvegarder**), puis chaque semaine.

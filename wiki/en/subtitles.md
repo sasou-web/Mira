@@ -25,7 +25,7 @@ The **audio and subtitles** menu shows both lists side by side, the current trac
 
 ## Automatic subtitles
 
-Mira's extension on Jellyfin can find subtitles by itself for each new film or episode, in the languages you choose, check that they fit the video and sync them to it. On Windows and Mac, signed in as Jellyfin's administrator: **Settings → Maintenance → Automatic subtitles**.
+Mira's extension on Jellyfin can find subtitles by itself for each new film or episode, in the languages you choose, check that they fit the video and sync them to it. On Windows and Mac, signed in as Jellyfin's administrator: **Settings → Library care → Automatic subtitles**.
 
 1. Choose your **Languages**, and whether subtitles for the deaf and hard of hearing (SDH) are preferred, either, or avoided.
 2. Choose the sources: **OpenSubtitles** works without an account (an account only raises the daily quota); **SubDL** needs a free API key of yours.
