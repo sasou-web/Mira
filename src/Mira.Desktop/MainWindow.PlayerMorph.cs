@@ -143,6 +143,8 @@ public partial class MainWindow
         {
             await (shade?.DarkenAsync(DarkenMs) ?? DismissMiniAsync());
             if (version != _morphVersion) return true;
+            // Out of the window or under the sheet: put away now, never seen again where it was (EndMorph puts it back there).
+            _videoHost?.PutAway();
             await StopPlaybackAsync(); FrameProbe.Mark("stopped");
             // The page is there at once, under the sheet: no fade of its own.
             if (_returnToDetail is { } page && _detail?.Id == page.Id) { DetailOverlay.BeginAnimation(OpacityProperty, null); DetailOverlay.Opacity = 1; DetailOverlay.Visibility = Visibility.Visible; }

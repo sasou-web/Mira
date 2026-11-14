@@ -157,6 +157,9 @@ public sealed class VideoHost : HwndHost
         var mpv = _mpvWindow; _mpvWindow = IntPtr.Zero;
         if (mpv != IntPtr.Zero) SetWindowLongPtr(mpv, WindowProcedureSlot, _mpvProcedure);
         PutBackShown = false;
+        // Put away meanwhile (the player closed): never back at the place it left, its last picture with it. Layout places
+        // it again when it shows.
+        if (_hidden) { _hidden = false; _laidOut = null; return; }
         if (_laidOut is { } place) { PutBackShown = IsWindowVisible(Handle) && !IsVisible; _pixels = default; OnWindowPositionChanged(place); if (place.Size != _toldSize) TellSize(mpv, 0, place.Size); }
         else ApplyRegion();
     }
@@ -165,6 +168,18 @@ public sealed class VideoHost : HwndHost
     /// longer shows it, while Windows still did (HwndHost hides it by a posted message: until then, there it is).
     /// </summary>
     public bool PutBackShown { get; private set; }
+    /// <summary>
+    /// Out of sight now, its corners with it. HwndHost hides its window by a posted message once layout has run: until
+    /// then, a window moved back where layout last put it shows its last picture there (0.9.9: the mini-player's ✕, the
+    /// video back « en flashbang » before it went). Layout shows it again (SW_SHOW) the next time it is visible.
+    /// </summary>
+    public void PutAway()
+    {
+        if (Handle == IntPtr.Zero) return;
+        ShowWindow(Handle, 0); Corners?.Hide();
+        if (_moving) _hidden = true;
+    }
+    private bool _hidden;
     private bool _moving;
     /// <summary>The size and corners the movement gave the window last (<see cref="Move"/>).</summary>
     private Size _movedSize;
@@ -214,6 +229,7 @@ public sealed class VideoHost : HwndHost
     [DllImport("user32", CharSet = CharSet.Unicode)] private static extern IntPtr CreateWindowEx(int extended, string cls, string title, int style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr param);
     [DllImport("user32")] private static extern bool DestroyWindow(IntPtr hwnd);
     [DllImport("user32")] private static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32")] private static extern bool ShowWindow(IntPtr hwnd, int command);
     [StructLayout(LayoutKind.Sequential)] private struct Box { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct Dot { public int X, Y; }
     [DllImport("user32")] private static extern bool GetWindowRect(IntPtr hwnd, out Box box);
