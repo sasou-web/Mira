@@ -27,6 +27,10 @@
 //     banner pixels. Pieces start at x = 56, 16 apart, and must reach x = 1144 (the last one may run off the edge).
 //     Mac: the traffic lights drawn when the piece starts at [0, 0]; iPhone: its corners and Dynamic Island.
 //   - no band (a release of fixes only): Mira for Windows' Home, whole, without a caption.
+//   Every release its own banner (ogsas, 2026-11-14: the 0.9.9's first one showed the 0.9.8's title page again): each
+//   piece shows one of this version's points (point or caption), and none cuts more than half of what a piece of the
+//   release before cut from the same screen (its entry is kept for this: never prune the latest one); no band twice in a
+//   row either. The newest version of WhatsNew.json must have its entry (plan.test.mjs, ci.yml).
 // lineup: the version and its summary over the film, Mira for Windows, Mac and iPhone in front of it.
 //   "lineup": { "lead", "focus"?, "back", "phone" } the window in front (focus: [x, y, w, h] in fractions of it, lit),
 //   the one behind and the phone; windows-home, mac-films and iphone-home by default.
@@ -114,7 +118,7 @@ export function band(version, entry, items) {
       const point = items[piece.point - 1];
       if (!Number.isInteger(piece.point) || !point) throw new Error(`${where(i)}: point ${piece.point} is not one of the ${items.length} points of WhatsNew.json`);
       caption = point.en?.title ?? point.title;
-    }
+    } else if (entry.band?.length) throw new Error(`${where(i)}: no point nor caption (each piece shows one of this version's news, under its title)`);
     const at = left;
     left += piece.width + BAND.gap;
     return { shot: piece.shot, at: piece.at, scale: piece.scale, width: piece.width, left: at, caption, units: units(piece.shot) };
@@ -122,6 +126,42 @@ export function band(version, entry, items) {
   const end = left - BAND.gap;
   if (end < BAND.right) throw new Error(`${version}: the band ends at x = ${end}, short of ${BAND.right} (widen a piece by ${BAND.right - end} px)`);
   return laid;
+}
+
+// What a piece cuts from its capture, in the app's units.
+const cut = (piece) => ({ shot: piece.shot, x: piece.at[0], y: piece.at[1], w: piece.width / piece.scale, h: (BAND.bottom - BAND.top + 2) / piece.scale });
+const overlap = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+
+// The release before this one (the next entry of WhatsNew.json) and its scene, if scenes.json still has it.
+export function before(version, scenes, news) {
+  const at = news.findIndex((x) => x.version === version);
+  const previous = at >= 0 ? news[at + 1]?.version : null;
+  return previous && scenes[previous] ? { version: previous, entry: scenes[previous] } : null;
+}
+
+// Never the banner of the release before: a piece that cuts more than half of what one of its pieces cut from the same
+// screen, no band twice in a row, the same lineup twice in a row.
+function repeats(version, entry, template, scenes, news) {
+  const last = before(version, scenes, news);
+  if (!last) return;
+  const lastTemplate = last.entry.template ?? (Number(last.version.split('.')[2]) > 0 ? 'film' : 'lineup');
+  if (template !== lastTemplate) return;
+  if (template === 'lineup') {
+    const l = (e) => JSON.stringify([e.lineup?.lead ?? 'windows-home', e.lineup?.back ?? 'mac-films', e.lineup?.phone ?? 'iphone-home', e.lineup?.focus ?? null]);
+    if (l(entry) === l(last.entry)) throw new Error(`${version}: the same lineup as ${last.version}: show this version's own screens`);
+    return;
+  }
+  const mine = entry.band?.length ? entry.band : WHOLE, theirs = last.entry.band?.length ? last.entry.band : WHOLE;
+  if (!entry.band?.length && !last.entry.band?.length) throw new Error(`${version}: no band, as ${last.version}: show at least one of this version's points`);
+  mine.forEach((piece, i) => {
+    const a = cut(piece);
+    for (const other of theirs) {
+      const b = cut(other);
+      if (a.shot === b.shot && overlap(a, b) > 0.5 * Math.min(a.w * a.h, b.w * b.h)) {
+        throw new Error(`${version}, piece ${i + 1}: ${piece.shot} at [${piece.at}] shows again what ${last.version}'s banner showed: show this version's own news`);
+      }
+    }
+  });
 }
 
 export function plan(version, { template: forced = null, scenes, news } = {}) {
@@ -148,6 +188,7 @@ export function plan(version, { template: forced = null, scenes, news } = {}) {
       if (!p || !SHOTS[p].includes(s.slice(p.length + 1))) throw new Error(`${version}: no gallery takes ${s}`);
     }
   }
+  repeats(version, entry, template, scenes, news);
   const shots = [...new Set([...pieces.map((x) => x.shot), lineup?.lead, lineup?.back, lineup?.phone].filter(Boolean))];
   return {
     version, template, date: longDate(release.date), summary, sentence: sentence(summary), film, place: FILMS[film], band: pieces, lineup, shots,

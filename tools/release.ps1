@@ -1,4 +1,4 @@
-﻿param([switch]$Unsigned, [switch]$DryRun)
+﻿param([switch]$Unsigned, [switch]$DryRun, [switch]$NoBanner)
 # Publishes the version in src/Mira.Desktop/Mira.Desktop.csproj in one command, on the PC that holds the signing key:
 #   1. checks gh, immutable releases on the repository, the signing key (it opens, installed copies trust it), a clean
 #      checkout with no untracked file, then brings main up to date (fast-forward only) and waits for GitHub's Windows
@@ -26,6 +26,8 @@
 # -Unsigned has windows.yml skip SignPath (Windows files without Authenticode signature: before SignPath accepts the
 # project, or while it is down). -DryRun does all of it but the publication: the draft stays, unseen, and the next run
 # publishes it without building anything again.
+# Every release has its own banner (docs/releases/X.Y.Z.jpg, not the file of the version before): without one it stops,
+# -NoBanner publishes without.
 # Works in Windows PowerShell 5.1 and PowerShell 7 (saved with a BOM; messages with an apostrophe in double quotes:
 # PowerShell reads a typographic apostrophe as a single quote). jq expressions passed to gh hold no double quote: Windows
 # PowerShell drops them from a native command's arguments. tools/release-check.ps1 runs it against a stand-in GitHub.
@@ -320,9 +322,25 @@ try {
     Remove-Item -LiteralPath $notes -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path (Split-Path -Parent $notes) -Force | Out-Null
     $notesOptions = @(); if ($Unsigned) { $notesOptions += '--unsigned' }
-    # The banner on top of the page (tools/banner), committed by banner.yml on the preparation branch.
-    if (Test-Path -LiteralPath (Join-Path $workspace "docs/releases/$version.jpg")) { $notesOptions += '--banner' }
-    else { Write-Warning "Pas de bannière pour $version (docs/releases/$version.jpg) : la release paraîtra sans. Elle se fait sur la branche de préparation : tools/banner/scenes.json, puis banner.yml (Run workflow)." }
+    # The banner on top of the page (tools/banner), committed by banner.yml on the preparation branch: every release its
+    # own (tools/banner/plan.mjs refuses the scene of the release before), never the file of another version.
+    $banner = Join-Path $workspace "docs/releases/$version.jpg"
+    if (-not (Test-Path -LiteralPath $banner)) {
+        if (-not $NoBanner) { throw "Pas de bannière pour $version (docs/releases/$version.jpg) : chaque release a la sienne. Elle se fait sur la branche de préparation : une entrée de tools/banner/scenes.json qui montre les nouveautés de $version, puis banner.yml (Run workflow). (-NoBanner : publier sans.)" }
+        Write-Warning "Pas de bannière pour $version (docs/releases/$version.jpg) : la release paraîtra sans (-NoBanner)."
+    }
+    else {
+        # (Windows PowerShell 5.1 hands a JSON array on as one object: enumerated from the variable.)
+        $news = Get-Content -LiteralPath (Join-Path $workspace 'src/Mira.Core/WhatsNew.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $versions = @($news | ForEach-Object { [string]$_.version })
+        $at = [array]::IndexOf($versions, [string]$version)
+        $previous = if ($at -ge 0 -and $at + 1 -lt $versions.Count) { $versions[$at + 1] } else { $null }
+        $previousBanner = if ($previous) { Join-Path $workspace "docs/releases/$previous.jpg" } else { $null }
+        if ($previousBanner -and (Test-Path -LiteralPath $previousBanner) -and (Get-FileHash -LiteralPath $banner -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $previousBanner -Algorithm SHA256).Hash) {
+            throw "La bannière de $version est celle de la $previous (docs/releases/$version.jpg) : refais-la avec les nouveautés de $version (tools/banner/scenes.json, puis banner.yml)."
+        }
+        $notesOptions += '--banner'
+    }
     Invoke-Native 'Mira.Release notes' { dotnet run --project $tool -c Release -- notes --version $version --out $notes @notesOptions }
 
     # Only a commit GitHub's Windows build and tests passed (ci.yml, at each push to main) is published.
