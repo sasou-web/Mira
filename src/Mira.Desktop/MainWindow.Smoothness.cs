@@ -69,6 +69,12 @@ public partial class MainWindow
         if (covered == _libraryCovered) return;
         _libraryCovered = covered; LibraryShell.Opacity = covered ? 0 : 1;
     }
+    /// <summary>The library drawn again under <paramref name="leaving"/>, before it starts to go (unless another page still covers it).</summary>
+    private void UncoverLibrary(UIElement leaving)
+    {
+        foreach (var cover in _libraryCovers) if (cover != leaving && cover.IsVisible && cover.Opacity >= .995) return;
+        _libraryCovered = false; LibraryShell.Opacity = 1;
+    }
 
     /// <summary>
     /// Each card keeps its picture within a window's height (and width) of the window, and lets it go beyond two, or on

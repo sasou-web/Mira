@@ -48,8 +48,10 @@ public partial class MainWindow
         if (sheet.Visibility == Visibility.Visible && (sheet == SettingsOverlay ? SettingsBackdrop : GuideBackdrop).Source is not null) { Motion.Reveal(sheet, 200, 0); return; }
         TakeBackdrop();
         if (at) { Motion.Show(sheet); return; }
-        Motion.Reveal(sheet, 200, 0);
-        RiseSheet(sheet == SettingsOverlay ? SettingsSheet : GuideSheet);
+        // Once the window is laid out and drawn: filled and measured, its first frame is long, and a fade started before it
+        // was nearly over by the next one (interface audit, 2026-11-14).
+        var window = sheet == SettingsOverlay ? SettingsSheet : GuideSheet;
+        Motion.RevealDrawn(sheet, 200, 0, () => RiseSheet(window));
     }
     /// <summary>The window rises into place as one picture: nothing inside it is drawn again meanwhile.</summary>
     private static void RiseSheet(Squircle window)
@@ -298,12 +300,19 @@ public partial class MainWindow
     /// <summary>The window's list: the page shown lit (as the rail's), the others quiet; during a search, those with nothing found dimmer.</summary>
     private static void LightSheetNav(Panel list, string? shown, Func<Button, bool>? found = null)
     {
+        Button? lit = null;
         foreach (var button in list.Children.OfType<Button>())
         {
             var active = shown is not null && button.Tag?.ToString() == shown;
             button.Background = active ? Palette.Get("Text") : Brushes.Transparent;
             button.Foreground = active ? Palette.Get("OnAccent") : found is null || found(button) ? Palette.Get("TextBody") : Palette.Get("Faint");
+            if (active) lit = button;
         }
+        // The section shown whole in its list, a little room around it: one of the last ones (« Serveur Jellyfin ») was
+        // left half under the list's foot in a small window (interface audit, 2026-11-14). Once laid out: a section's
+        // own row may only just have come (ShowSettingsGroups).
+        if (lit is not null)
+            lit.Dispatcher.BeginInvoke(() => { if (lit.IsVisible) lit.BringIntoView(new Rect(0, -10, lit.ActualWidth, lit.ActualHeight + 20)); }, DispatcherPriority.Loaded);
     }
 
     // The search of Réglages: every section's settings at once, those found kept where they are (their switches and

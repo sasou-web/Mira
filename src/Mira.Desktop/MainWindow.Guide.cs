@@ -390,13 +390,14 @@ public partial class MainWindow
         }
         var steps = PhoneSetup.Steps(facts);
         for (var i = 0; i < steps.Count; i++) PhoneSteps.Children.Add(PhoneStepRow(steps[i], i + 1));
-        // Mira's rule in the firewall can be taken back: phones then get in only by rules of someone else's.
+        // Mira's rule in the firewall can be taken back: phones then get in only by rules of someone else's. Its words in
+        // line with the steps' (38 px: the badge and its gap), its wash reaching out beside them (interface audit, 2026-11-14).
         if (facts.Local && facts.MiraRule != JellyfinFirewall.RuleState.Missing)
         {
             var close = new Button
             {
                 Content = L("Ne plus ouvrir Jellyfin au réseau", "Close Jellyfin to the network"), Style = (Style)FindResource("Quiet"), Padding = new Thickness(12, 5, 12, 5), HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(38, 0, 0, 14), IsEnabled = !_preparing, ToolTip = L("Retire la règle « Mira - Jellyfin » du pare-feu de Windows, avec son autorisation", "Removes the “Mira - Jellyfin” rule from Windows’ firewall, with its permission")
+                Margin = new Thickness(26, 0, 0, 14), IsEnabled = !_preparing, ToolTip = L("Retire la règle « Mira - Jellyfin » du pare-feu de Windows, avec son autorisation", "Removes the “Mira - Jellyfin” rule from Windows’ firewall, with its permission")
             };
             close.Click += async (_, _) => await ClosePhoneAsync();
             PhoneSteps.Children.Add(close);
