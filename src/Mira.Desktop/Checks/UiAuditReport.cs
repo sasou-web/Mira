@@ -18,12 +18,13 @@ internal static class UiAuditReport
         "Le liseré au survol : seul le zoom des tuiles est mesuré, pas la couleur ni le contour réellement dessinés.",
         "Le survol des boutons : l'audit lit leurs déclencheurs et gestionnaires, il ne déplace jamais la souris.",
         "Le goût : couleurs, hiérarchie, équilibre d'un écran. C'est la revue visuelle des captures (`captures/`).",
+        "Les transitions : ce qui bouge est lu dans WPF (opacité, place, taille, transformation), pas dans les pixels ; une animation faite à la main sur une autre propriété (une largeur posée à chaque image) n'y est pas vue.",
         "Le Mac : cet audit tourne sur l'app Windows (la référence) ; l'app Mac n'est pas comparée.",
         "Les écrans qui demandent une action (connexion, ajout d'un ami, invitation, « Suivre ») : jamais ouverts, rien n'est changé sur Jellyfin.",
     ];
 
     public static void Write(string output, List<UiFinding> findings, List<(string Screen, string Capture, string? Annotated, int Defects)> shots, List<string> notes,
-        List<(string Name, int Frames, double Ms, double Jump, string? Wanted)> transitions, string? failure, DateTimeOffset started, string version)
+        List<(string Name, int Frames, double Ms, double Change, string? Wanted)> transitions, string? failure, DateTimeOffset started, string version)
     {
         var grouped = findings.GroupBy(x => x.Key).Select(g => (First: g.First(), Screens: g.Select(x => x.Screen).Distinct().ToList())).ToList();
         var captureOf = shots.GroupBy(x => x.Screen).ToDictionary(x => x.Key, x => x.First().Annotated ?? x.First().Capture);
@@ -70,12 +71,12 @@ internal static class UiAuditReport
             text.AppendLine();
             text.AppendLine("## Transitions mesurées");
             text.AppendLine();
-            text.AppendLine("Images où l'écran change, sur la durée de la transition ; « saut » = part du changement faite en une seule image (100 % = aucune animation).");
+            text.AppendLine("Images où quelque chose d'animé bouge (opacité, place, taille, transformation lues dans WPF à chaque image), sur la durée de la transition ; 2 ou moins = l'écran change d'un coup. « Changement » = écart moyen de luminosité de l'écran entre avant et après (0 à 255).");
             text.AppendLine();
-            text.AppendLine("| Transition | Images | Durée | Saut | |");
+            text.AppendLine("| Transition | Images | Durée | Changement | |");
             text.AppendLine("|---|---|---|---|---|");
-            foreach (var (name, frames, ms, jump, wanted) in transitions)
-                text.AppendLine(CultureInfo.InvariantCulture, $"| {Cell(name)} | {frames} | {ms:0} ms | {jump:P0} | {(jump > .8 && frames <= 2 ? wanted is null ? "à juger" : Cell(wanted) : "animée")} |");
+            foreach (var (name, frames, ms, change, wanted) in transitions)
+                text.AppendLine(CultureInfo.InvariantCulture, $"| {Cell(name)} | {frames} | {ms:0} ms | {change:0.0} | {(frames <= 2 ? wanted is null ? "à juger" : Cell(wanted) : "animée")} |");
         }
         if (notes.Count > 0)
         {

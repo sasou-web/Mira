@@ -39,7 +39,7 @@ public partial class MainWindow
         public int Count { get; set; }
     }
     private sealed record AuditShot(string Screen, string Capture, string? Annotated, int Defects);
-    private sealed record AuditTransition(string Name, int Frames, double Ms, double Jump, string? Wanted);
+    private sealed record AuditTransition(string Name, int Frames, double Ms, double Change, string? Wanted);
 
     private async Task RunUiAuditAsync()
     {
@@ -65,7 +65,7 @@ public partial class MainWindow
         finally
         {
             UiAuditReport.Write(run.Output, run.Findings, run.Shots.Select(x => (x.Screen, x.Capture, x.Annotated, x.Defects)).ToList(), run.Notes,
-                run.Transitions.Select(x => (x.Name, x.Frames, x.Ms, x.Jump, x.Wanted)).ToList(), failure, started, SettingsVersion.Text);
+                run.Transitions.Select(x => (x.Name, x.Frames, x.Ms, x.Change, x.Wanted)).ToList(), failure, started, SettingsVersion.Text);
             Close();
         }
     }
@@ -561,11 +561,11 @@ public partial class MainWindow
         foreach (var name in rounds.Select(x => x.Name).Distinct())
         {
             var both = rounds.Where(x => x.Name == name).ToList();
-            var best = both.MinBy(x => x.Jump)!;
+            var best = both.MaxBy(x => x.Frames)!;
             run.Transitions.Add(best);
-            if (both.Count == 2 && both.All(x => x.Jump > .8 && x.Frames <= 2))
+            if (both.Count == 2 && both.All(x => x.Frames <= 2))
                 run.Findings.Add(new("sans-animation", best.Wanted is null ? "à juger" : "info", $"{run.Size} · transition", name, Rect.Empty,
-                    $"{best.Jump:P0} du changement en une seule image, deux fois sur deux" + (best.Wanted is null ? "" : " — " + best.Wanted)));
+                    $"l'écran change sans rien d'animé ({best.Frames} image(s) où quelque chose bouge), deux fois sur deux" + (best.Wanted is null ? "" : " — " + best.Wanted)));
         }
     }
 
@@ -573,32 +573,72 @@ public partial class MainWindow
     {
         await AuditSettleAsync(600);
         var root = (FrameworkElement)Content;
-        var frames = new List<(double Ms, byte[] Pixels)>(); var clock = Stopwatch.StartNew();
-        // What Windows composed, a quarter of each side (PrintWindow, a few ms): drawing the tree again for each frame
-        // (RenderTargetBitmap) took 100 to 150 ms on the Dell, and a 200 ms fade fell between two frames, « in one frame ».
-        var handle = new WindowInteropHelper(this).Handle;
-        var composed = ClientArea(handle, out var area) && area.Right > area.Left && area.Bottom > area.Top;
-        int width = area.Right - area.Left, height = area.Bottom - area.Top;
-        void Grab()
+        // What moves is read in WPF's own values at each frame (opacity, place, size, transform of each element that
+        // animates or is faded or moved), never in pixels: drawing the window again for each frame (RenderTargetBitmap)
+        // took 100 to 150 ms on the Dell, a 200 ms fade fell between two frames ; and PrintWindow gives a picture that no
+        // longer changes for a window under others (WPF stops presenting it). Pixels only say whether the screen changed.
+        var before = Gray(Picture(root, .25, backdrop: true));
+        var seen = new Dictionary<UIElement, string>(); var restless = new HashSet<UIElement>();
+        var moving = new List<double>(); var clock = Stopwatch.StartNew(); var measuring = false;
+        var last = TimeSpan.MinValue;
+        void Tick(object? sender, EventArgs e)
         {
-            var pixels = composed ? CopyScreen(handle, 0, 0, width, height, Math.Max(1, width / 4), Math.Max(1, height / 4)) : null;
-            if (pixels is null && composed) { composed = false; frames.Clear(); run.Notes.Add($"Transition « {name} » : PrintWindow a échoué, images refaites par WPF (plus lentes)."); }
-            frames.Add((clock.Elapsed.TotalMilliseconds, pixels is null ? Gray(Picture(root, .25, backdrop: true)) : Gray(pixels)));
+            if (e is RenderingEventArgs { RenderingTime: var at }) { if (at == last) return; last = at; }
+            var moved = Moved(root, seen, restless, learning: !measuring);
+            if (measuring && moved) moving.Add(clock.Elapsed.TotalMilliseconds);
         }
-        void Tick(object? sender, EventArgs e) { if (frames.Count < 150) Grab(); }
-        Grab();
+        Moved(root, seen, restless, learning: true);
         CompositionTarget.Rendering += Tick;
-        try { await act(); await Task.Delay(900); }
+        try
+        {
+            // What already moves before the step (the banner's progress, a spinner) is not the step's transition.
+            await Task.Delay(250);
+            measuring = true; clock.Restart();
+            await act(); await Task.Delay(900);
+        }
         finally { CompositionTarget.Rendering -= Tick; }
-        Grab();
-        var total = Difference(frames[0].Pixels, frames[^1].Pixels);
+        var total = Difference(before, Gray(Picture(root, .25, backdrop: true)));
         if (total < 1) { run.Notes.Add($"Transition « {name} » : rien n'a changé à l'écran."); return null; }
-        var steps = Enumerable.Range(1, frames.Count - 1).Select(i => (frames[i].Ms, Change: Difference(frames[i - 1].Pixels, frames[i].Pixels))).ToList();
-        var moving = steps.Where(x => x.Change > total * .01).ToList();
-        var jump = steps.Max(x => x.Change) / total;
-        var span = moving.Count > 1 ? moving[^1].Ms - moving[0].Ms : 0;
-        return new(name, moving.Count, span, jump, wanted);
+        var span = moving.Count > 1 ? moving[^1] - moving[0] : 0;
+        return new(name, moving.Count, span, total, wanted);
     }
+
+    /// <summary>
+    /// Whether a shown element that WPF animates, or that is faded or moved, has another opacity, place, size or
+    /// transform than at the last frame (those of <paramref name="restless"/> left out). While
+    /// <paramref name="learning"/>, the elements that move join <paramref name="restless"/>.
+    /// </summary>
+    private static bool Moved(FrameworkElement root, Dictionary<UIElement, string> seen, HashSet<UIElement> restless, bool learning)
+    {
+        var moved = false;
+        var stack = new Stack<DependencyObject>(); stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node is UIElement element)
+            {
+                if (element.Visibility != Visibility.Visible) continue;
+                var transform = element.RenderTransform;
+                if (element.HasAnimatedProperties || Animated(transform) || !transform.Value.IsIdentity || element.Opacity < 1)
+                {
+                    var place = element.TranslatePoint(new Point(), root);
+                    var state = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                        $"{element.Opacity:0.###}|{place.X:0.#},{place.Y:0.#}|{element.RenderSize.Width:0.#}x{element.RenderSize.Height:0.#}|{transform.Value}");
+                    if (seen.TryGetValue(element, out var was) && was != state)
+                    {
+                        if (learning) restless.Add(element);
+                        else if (!restless.Contains(element)) moved = true;
+                    }
+                    seen[element] = state;
+                }
+            }
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) stack.Push(VisualTreeHelper.GetChild(node, i));
+        }
+        return moved;
+    }
+
+    private static bool Animated(Transform transform) =>
+        transform.HasAnimatedProperties || transform is TransformGroup group && group.Children.Any(Animated);
 
     private static byte[] Gray(BitmapSource picture)
     {
