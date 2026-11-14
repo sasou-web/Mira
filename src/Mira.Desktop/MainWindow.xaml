@@ -49,7 +49,7 @@
        </Grid>
       </Canvas>
       <!-- Films and Séries: their genres one click away, as chips (the same choice as Genre under « Filtrer »). -->
-      <ScrollViewer x:Name="GenreChipsScroll" Style="{StaticResource {x:Type ScrollViewer}}" v:SmoothScroll.Across="True" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,0,0,24" Visibility="Collapsed"><StackPanel x:Name="GenreChips" Orientation="Horizontal" v:Accessible.ArrowKeys="True"/></ScrollViewer>
+      <ScrollViewer x:Name="GenreChipsScroll" Style="{StaticResource {x:Type ScrollViewer}}" v:SmoothScroll.Across="True" v:EdgeFade.Across="True" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,0,0,24" Visibility="Collapsed"><StackPanel x:Name="GenreChips" Orientation="Horizontal" v:Accessible.ArrowKeys="True"/></ScrollViewer>
      </StackPanel>
      <StackPanel x:Name="LibraryRows" Margin="110,0,40,42">
       <!-- On top of Films the film last started, of Séries the episode to pick up (Catalog.PickUp): each page its own way back in. -->
