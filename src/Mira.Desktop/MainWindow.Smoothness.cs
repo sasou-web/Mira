@@ -17,6 +17,8 @@ public partial class MainWindow
     /// <summary>The pages that hide the library entirely once in place (opaque, the size of the window).</summary>
     private UIElement[] _libraryCovers = [];
     private bool _libraryCovered;
+    /// <summary>The page going away over the library (<see cref="UncoverLibrary"/>): it no longer covers it, even while still opaque at its fade's start.</summary>
+    private UIElement? _leavingCover;
     /// <summary>Cards taken off a page, to come back with it (<see cref="AddCards"/>).</summary>
     private readonly CardShelf _cardShelf = new(600);
     /// <summary>The cards' pictures looked at again after a scroll or a change of page, at most every 60 ms.</summary>
@@ -65,9 +67,12 @@ public partial class MainWindow
     {
         UpdateSheetCover();
         var covered = false;
+        if (_leavingCover is { } leaving && (!leaving.IsVisible || leaving.IsHitTestVisible)) _leavingCover = null;
         // The opening's veil hides it only while it takes the clicks: as it goes, the library is drawn again under its black
-        // from the first frame, not halfway through its lifting (MainWindow.Opening.cs).
-        foreach (var cover in _libraryCovers) if (cover.IsVisible && cover.Opacity >= .995 && (cover != StartupVeil || StartupVeil.IsHitTestVisible)) { covered = true; break; }
+        // from the first frame, not halfway through its lifting (MainWindow.Opening.cs). A page shown again (it takes the
+        // pointer again) covers again; one that goes, never: hidden again at its fade's first frame, still at 0.998, the
+        // library was drawn again in the next one (interface audit, 2026-11-14).
+        foreach (var cover in _libraryCovers) if (cover != _leavingCover && cover.IsVisible && cover.Opacity >= .995 && (cover != StartupVeil || StartupVeil.IsHitTestVisible)) { covered = true; break; }
         if (covered == _libraryCovered) return;
         _libraryCovered = covered; LibraryShell.Opacity = covered ? 0 : 1;
     }
@@ -75,7 +80,7 @@ public partial class MainWindow
     private void UncoverLibrary(UIElement leaving)
     {
         foreach (var cover in _libraryCovers) if (cover != leaving && cover.IsVisible && cover.Opacity >= .995) return;
-        _libraryCovered = false; LibraryShell.Opacity = 1;
+        _leavingCover = leaving; _libraryCovered = false; LibraryShell.Opacity = 1;
     }
 
     /// <summary>

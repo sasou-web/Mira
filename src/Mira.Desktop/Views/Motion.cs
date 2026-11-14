@@ -82,28 +82,27 @@ public static class Motion
         target.IsHitTestVisible = false; target.Visibility = Visibility.Collapsed;
     }
     /// <summary>
-    /// Once WPF has laid out and drawn what just changed: <paramref name="frames"/> refreshes at least, then one that
-    /// comes at the usual pace (a heavy frame holds the next refresh back until it is drawn), 0.6 s at most. A transition
+    /// Once WPF has laid out and drawn what just changed: a refresh held back (the render thread busy drawing it holds
+    /// the next ones, often from the third) then one at the usual pace, or <paramref name="frames"/> refreshes at the
+    /// usual pace in a row, 0.6 s at most; told by the clock on the wall (RenderingTime does not see a refresh held
+    /// back: two refreshes came 16 ms apart before the 130 ms one on the Dell, and the fade began before it). A transition
     /// started at once on something heavy to lay out or draw (Réglages filled and measured, the library drawn again
     /// under a title's page) had its clock run through that frame and showed nearly all of its change in the next one
     /// (interface audit, 2026-11-14: 88 to 100 % in one frame, then 2 frames for 170 ms on the Dell with two refreshes
     /// alone); started after it, it shows each step.
     /// </summary>
-    public static async Task DrawnAsync(int frames = 2)
+    public static async Task DrawnAsync(int frames = 4)
     {
         var drawn = new TaskCompletionSource();
-        var seen = 0; var last = TimeSpan.MinValue;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var last = TimeSpan.MinValue; var then = 0.0; var steady = 0; var held = false;
         void Tick(object? sender, EventArgs e)
         {
-            var steady = false;
-            if (e is RenderingEventArgs { RenderingTime: var at })
-            {
-                // WPF may raise it more than once for one frame.
-                if (at == last) return;
-                steady = last != TimeSpan.MinValue && (at - last).TotalMilliseconds < 40; last = at;
-            }
-            else steady = true;
-            if (++seen < frames || !steady) return;
+            // WPF may raise it more than once for one frame.
+            if (e is RenderingEventArgs { RenderingTime: var at }) { if (at == last) return; last = at; }
+            var now = clock.Elapsed.TotalMilliseconds; var gap = now - then; then = now;
+            if (gap >= 80) { held = true; steady = 0; return; }
+            if (!held && ++steady < frames) return;
             CompositionTarget.Rendering -= Tick; drawn.TrySetResult();
         }
         CompositionTarget.Rendering += Tick;
