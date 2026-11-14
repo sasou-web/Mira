@@ -331,7 +331,7 @@ public sealed partial class DetailPage : Page
         // The picture of the file Lecture plays and when it ends: the film's, or the episode's it picks up at.
         var played = _item.Type == "Series" ? SeriesTarget : _item;
         if ((_item.Type != "Series" ? MediaQuality.Label(_item) : _targetFile is { } known && known.Id == played?.Id ? MediaQuality.Label(known.Source) : null) is { } file) meta.Add(file);
-        if (MediaQuality.EndsAt(played, DateTime.Now, played is not null && Resumes(played)) is { } end) meta.Add(end);
+        if (MediaQuality.EndsAt(played, DateTime.Now, played is not null && Resumes(played), named: _item.Type == "Series") is { } end) meta.Add(end);
         Add(new TextBlock { Text = string.Join("  ·  ", meta), FontSize = 14.5, Foreground = Ui.Brush("#C7C7C7"), Margin = new Thickness(1, 16, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         // The summary on three lines over the picture, « Lire la suite » for the rest.
         var summary = OverviewText.Plain(string.IsNullOrWhiteSpace(_item.Overview) ? L("Aucun résumé disponible pour ce titre.", "No summary available for this title.") : _item.Overview);

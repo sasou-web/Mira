@@ -30,16 +30,25 @@ public static class MediaQuality
         var parts = new[] { size, range }.Where(x => x is not null).ToArray();
         return parts.Length > 0 ? string.Join("  ·  ", parts) : null;
     }
-    /// <summary>« Fin à 23 h 12 »: when the title ends if started now, from where it resumes; null without a length.</summary>
-    public static string? EndsAt(MediaItem? item, DateTime now, bool resume)
+    /// <summary>
+    /// « Fin à 23 h 12 »: when the title ends if started now, from where it resumes; null without a length. On a series'
+    /// page (<paramref name="named"/>), the episode Lecture opens says it is its own end: « S01 E03 finit à 23 h 12 ».
+    /// </summary>
+    public static string? EndsAt(MediaItem? item, DateTime now, bool resume, bool named = false)
     {
         if (item?.RunTimeTicks is not > 0) return null;
         var left = item.RunTimeTicks.Value - (resume ? Math.Max(0, item.UserData.PlaybackPositionTicks) : 0);
         if (left <= 0) return null;
         var end = now + TimeSpan.FromTicks(left);
-        return IsFrench ? string.Create(CultureInfo.InvariantCulture, $"Fin à {end.Hour} h {end.Minute:00}") : "Ends at " + Time(end);
+        var at = IsFrench ? string.Create(CultureInfo.InvariantCulture, $"{end.Hour} h {end.Minute:00}") : Time(end);
+        if (named && item.Type == "Episode")
+            return string.Create(CultureInfo.InvariantCulture, $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00} ") + L("finit à ", "ends at ") + at;
+        return L("Fin à ", "Ends at ") + at;
     }
-    /// <summary>« 1 h 27 restantes », « 42 min restantes » (« 1h 27m left »): beside Reprendre, what is left of a title begun.</summary>
+    /// <summary>
+    /// « 1 h 27 restantes », « 42 min restantes » (“1 hr 27 min left”, written as the durations): beside Reprendre and
+    /// on the cards of Continuer à regarder, what is left of a title begun, the same minute everywhere (rounded up).
+    /// </summary>
     public static string? Left(MediaItem? item)
     {
         if (item?.RunTimeTicks is not > 0 || item.UserData.PlaybackPositionTicks <= 0) return null;
@@ -51,7 +60,7 @@ public static class MediaQuality
         var minutes = (int)Math.Ceiling(left.TotalMinutes);
         if (minutes <= 0) return null;
         return minutes >= 60
-            ? L($"{minutes / 60} h {minutes % 60:00} restantes", $"{minutes / 60}h {minutes % 60:00}m left")
+            ? L($"{minutes / 60} h {minutes % 60:00} restantes", $"{minutes / 60} hr {minutes % 60} min left")
             : L($"{minutes} min restantes", $"{minutes} min left");
     }
 }

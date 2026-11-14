@@ -183,7 +183,8 @@ public sealed class Catalog
             _ when Saga is not null => ("film", L("Aucun titre dans cette collection", "No titles in this collection"), L("Ajoute-y un film ou une série depuis son menu « Ajouter à une collection… ».", "Add a movie or show to it from its menu, “Add to collection…”.")),
             _ => ("library", L("Rien à afficher ici", "Nothing to show here"), L("Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.", "Titles added to your Jellyfin library will show up here."))
         };
-        return new(icon, title, hint, Reset: !AwaitsSearch(search) && (filtered || search.Length > 0 || Favorites), Guide: emptyLibrary);
+        // A search alone has its own ×: « Réinitialiser les filtres » only when a filter or the favourites narrow the list.
+        return new(icon, title, hint, Reset: !AwaitsSearch(search) && (filtered || Favorites || search.Length > 0 && View != "search"), Guide: emptyLibrary);
     }
 
     /// <summary>The demo's list for this page, searched, filtered and sorted as Jellyfin would.</summary>

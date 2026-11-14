@@ -779,6 +779,21 @@ public partial class MainWindow : Window
     {
         // Escape first clears the search, then (a second press) goes back as usual.
         if (e.Key == Key.Escape && SearchBox.Text.Length > 0) { SearchBox.Clear(); e.Handled = true; }
+        // ↓ or Entrée: to the first result (a person, a title), its ring shown, as a list under a search field does.
+        else if (e.Key is Key.Down or Key.Enter && Keyboard.Modifiers == ModifierKeys.None && SearchBox.Text.Trim().Length > 0 && FirstResult(LibraryRows) is { } first)
+        {
+            _keyboardNavigation = true; Accessible.SetFocusRingShown(this, true);
+            first.BringIntoView(); Keyboard.Focus(first); e.Handled = true;
+        }
+    }
+    /// <summary>The first card shown in the search's rows, in their order (people, then titles).</summary>
+    private static Control? FirstResult(DependencyObject node)
+    {
+        if (node is UIElement { IsVisible: false }) return null;
+        if (node is MediaCard or PersonCard && node is Control { Focusable: true, IsEnabled: true } card) return card;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+            if (FirstResult(VisualTreeHelper.GetChild(node, i)) is { } found) return found;
+        return null;
     }
     private void SearchClear_Click(object sender, RoutedEventArgs e) { SearchBox.Clear(); SearchBox.Focus(); }
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

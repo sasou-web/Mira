@@ -62,10 +62,7 @@ public partial class MainWindow
         var known = GenreFilter.Items.OfType<ComboBoxItem>().SelectMany(x => (x.Tag?.ToString() ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries))
             .Concat(_pageGenres.Values.SelectMany(x => x).SelectMany(x => x.Value.Split('|')));
         var group = GenreGroups.Of(genre, known);
-        _filterBusy = true;
-        if (GenreFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == group.Value) is not { } choice)
-            GenreFilter.Items.Add(choice = new ComboBoxItem { Content = group.Label, Tag = group.Value });
-        GenreFilter.SelectedItem = choice; _filterBusy = false;
+        _filterBusy = true; GenreFilter.SelectedItem = GenreItem(group.Value, group.Label); _filterBusy = false;
         await NavigateLibraryAsync();
     }
     /// <summary>A collection (a saga, or one made by hand) found by a search or on Home: the library with its titles in the order they came out, the search kept to come back to.</summary>
@@ -112,11 +109,61 @@ public partial class MainWindow
         Fill(QualityFilter, LibraryFilters.Qualities()); Fill(RatingFilter, LibraryFilters.Ratings());
         Fill(AudioFilter, languages ? LibraryFilters.Audio() : [LibraryFilters.Audio()[0]]); Fill(SubtitleFilter, LibraryFilters.Subtitles(languages));
         AudioField.Visibility = languages ? Visibility.Visible : Visibility.Collapsed;
-        GenreFilter.Items.Clear(); GenreFilter.Items.Add(new ComboBoxItem { Content = L("Tous", "All"), Tag = "" });
-        foreach (var genre in GenreGroups.FromNames(filters.Genres)) GenreFilter.Items.Add(new ComboBoxItem { Content = genre.Label, Tag = genre.Value });
-        YearFilter.Items.Clear(); YearFilter.Items.Add(new ComboBoxItem { Content = L("Toutes", "All"), Tag = "" });
-        foreach (var year in filters.Years.OrderDescending()) YearFilter.Items.Add(new ComboBoxItem { Content = year.ToString(), Tag = year.ToString() });
+        _filterChoices.Clear(); _filterChoices["Movie,Series"] = Task.FromResult(filters); _choicesShown = "";
+        FillChoices(filters, "Movie,Series");
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = 0; _filterBusy = false;
+    }
+    /// <summary>The genres and years Jellyfin lists for each page's kind of title (read once per connection).</summary>
+    private readonly Dictionary<string, Task<CatalogFilters>> _filterChoices = [];
+    private string _choicesShown = "";
+    private string ChoiceTypes => _catalog.View switch { "Movie" => "Movie", "Series" => "Series", _ => "Movie,Series" };
+    /// <summary>
+    /// Genre and Year offer what the page holds: on Films, the films' genres and years, never a series' one that gave an
+    /// empty page (the Dell, 2026-11-14). The choice made stays, added back if this page's list lacks it.
+    /// </summary>
+    private async Task ShowFilterChoicesAsync()
+    {
+        var types = ChoiceTypes;
+        if (types == _choicesShown || _demo || _client is not { } client) return;
+        if (!_filterChoices.TryGetValue(types, out var task)) _filterChoices[types] = task = client.FiltersAsync(types, _connectionLifetime.Token);
+        CatalogFilters filters;
+        try { filters = await task; }
+        catch (Exception ex) when (ExpectedErrors.Are(ex)) { _filterChoices.Remove(types); return; }
+        if (!ReferenceEquals(_client, client) || ChoiceTypes != types) return;
+        _filterBusy = true; FillChoices(filters, types); _filterBusy = false;
+    }
+    private void FillChoices(CatalogFilters filters, string types)
+    {
+        _choicesShown = types;
+        var genre = GenreFilter.SelectedItem as ComboBoxItem; var year = (YearFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+        var (genreTag, genreLabel) = (genre?.Tag?.ToString() ?? "", genre?.Content?.ToString() ?? "");
+        GenreFilter.Items.Clear(); GenreFilter.Items.Add(new ComboBoxItem { Content = L("Tous", "All"), Tag = "" });
+        // One line per label: two groups of the same name (« Comedy » twice on the Dell) are one choice of all their names.
+        foreach (var same in GenreGroups.FromNames(filters.Genres).GroupBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase))
+            GenreFilter.Items.Add(new ComboBoxItem { Content = same.First().Label, Tag = string.Join('|', same.SelectMany(x => x.Value.Split('|')).Distinct(StringComparer.Ordinal)) });
+        YearFilter.Items.Clear(); YearFilter.Items.Add(new ComboBoxItem { Content = L("Toutes", "All"), Tag = "" });
+        foreach (var each in filters.Years.OrderDescending()) YearFilter.Items.Add(new ComboBoxItem { Content = each.ToString(), Tag = each.ToString() });
+        GenreFilter.SelectedItem = genreTag.Length == 0 ? GenreFilter.Items[0] : GenreItem(genreTag, genreLabel);
+        YearFilter.SelectedItem = year.Length == 0 ? YearFilter.Items[0]
+            : YearFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == year) ?? Added(YearFilter, new ComboBoxItem { Content = year, Tag = year });
+        static ComboBoxItem Added(ComboBox box, ComboBoxItem item) { box.Items.Add(item); return item; }
+    }
+    /// <summary>
+    /// The Genre filter's line for these names: the same, or one sharing a name or the label (its names joined), or a new
+    /// one; never a second « Comedy » for a genre chosen from a chip or a title page.
+    /// </summary>
+    private ComboBoxItem GenreItem(string value, string label)
+    {
+        var lines = GenreFilter.Items.OfType<ComboBoxItem>().Skip(1).ToList();
+        if (lines.FirstOrDefault(x => x.Tag?.ToString() == value) is { } same) return same;
+        var names = value.Split('|', StringSplitOptions.RemoveEmptyEntries);
+        if (lines.FirstOrDefault(x => (x.Tag?.ToString() ?? "").Split('|').Intersect(names, StringComparer.OrdinalIgnoreCase).Any()
+            || string.Equals(x.Content?.ToString(), label, StringComparison.CurrentCultureIgnoreCase)) is { } near)
+        {
+            near.Tag = string.Join('|', (near.Tag?.ToString() ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries).Concat(names).Distinct(StringComparer.OrdinalIgnoreCase));
+            return near;
+        }
+        var added = new ComboBoxItem { Content = label, Tag = value }; GenreFilter.Items.Add(added); return added;
     }
     /// <summary>A list of choices of <see cref="LibraryFilters"/>, the one chosen kept when it is still there.</summary>
     private static void Fill(ComboBox box, IEnumerable<FilterChoice> choices)
@@ -203,14 +250,23 @@ public partial class MainWindow
     /// « Filtrer », or « Filtres · 2 » lit like the favourites while filters narrow the list, folded or not: a list
     /// shorter than expected always says why. Recherche and « Sur ce PC » have none.
     /// </summary>
+    private static double TextWidth(TextBlock like, string text)
+    {
+        var copy = new TextBlock { Text = text, FontFamily = like.FontFamily, FontSize = like.FontSize, FontWeight = like.FontWeight, FontStyle = like.FontStyle, FontStretch = like.FontStretch };
+        copy.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return copy.DesiredSize.Width;
+    }
     private void ShowFilters()
     {
         var browsing = _catalog.View is not ("search" or "offline");
         CatalogTools.Visibility = browsing ? Visibility.Visible : Visibility.Collapsed;
         CatalogFilters.Visibility = browsing && _filtersOpen ? Visibility.Visible : Visibility.Collapsed;
         FiltersSummary.Text = ItemCount.Text;
+        if (browsing) _ = ShowFilterChoicesAsync();
         var count = _catalog.FilterCount(CurrentQuery());
         FiltersText.Text = Catalog.FiltersLabel(count);
+        // As wide as « Filtres · 8 » from the start: a filter chosen no longer widens the button and pushes « Trier par ».
+        if (FiltersText.MinWidth == 0) FiltersText.MinWidth = Math.Ceiling(Math.Max(TextWidth(FiltersText, Catalog.FiltersLabel(0)), TextWidth(FiltersText, Catalog.FiltersLabel(8))));
         if (count > 0) { FiltersToggle.Background = Palette.Get("Text"); FiltersToggle.Foreground = FiltersIcon.Foreground = Palette.Get("OnAccent"); }
         else { FiltersToggle.ClearValue(BackgroundProperty); FiltersToggle.ClearValue(ForegroundProperty); FiltersIcon.ClearValue(Views.Icon.ForegroundProperty); }
         System.Windows.Automation.AutomationProperties.SetName(FiltersToggle, (count > 0 ? FiltersText.Text : L("Filtrer", "Filter")) + (_filtersOpen ? L(", ouverts", ", open") : ""));
@@ -330,9 +386,13 @@ public partial class MainWindow
         ResizePosters();
         var empty = grid && !found && !_catalog.Loading && _catalog.Items.Count == 0;
         if (empty) DescribeEmptyState(search);
+        // A search that found nothing says so once, in the middle of the page: no « Résultats pour … » and « 0 titre » above it.
+        if (empty && _catalog.View == "search" && search.Length > 0) GridHeader.Visibility = Visibility.Collapsed;
         if (empty && EmptyState.Visibility != Visibility.Visible) Motion.Reveal(EmptyState, 260, 8); else if (!empty) EmptyState.Visibility = Visibility.Collapsed;
         ShowSkeleton(grid && _catalog.Loading);
         if (_catalog.Loading) ItemCount.Text = L("Chargement…", "Loading…");
+        // The panel's count follows the list it filters, never the one before it (ShowFilters ran before this list came).
+        FiltersSummary.Text = ItemCount.Text;
         UpdateGridMore();
         UpdateResumeArrows(); UpdateHeroClock();
         if (!_startupComplete && !_catalog.Loading && (_catalog.Items.Count > 0 || _catalog.Resume.Count > 0)) _ = RevealStartupAsync();

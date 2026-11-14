@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 
 namespace Mira.Desktop.Views;
@@ -55,7 +55,10 @@ public static class FittedText
             Text = text, FontFamily = block.FontFamily, FontSize = block.FontSize, FontWeight = block.FontWeight, FontStyle = block.FontStyle, FontStretch = block.FontStretch,
             TextWrapping = TextWrapping.Wrap, LineHeight = block.LineHeight, LineStackingStrategy = block.LineStackingStrategy, Padding = block.Padding,
         };
-        copy.Measure(new Size(width, double.PositiveInfinity));
+        // A pixel to spare: the block itself is measured at its width rounded to the screen's pixels (layout rounding at
+        // 125 or 150 %), a hair under the width read here; a text that just fits at this width wrapped once more there
+        // and the third line was clipped at MaxHeight with no « … » (the Dell at 1024 × 720, 2026-11-14).
+        copy.Measure(new Size(Math.Max(0, width - 1), double.PositiveInfinity));
         return copy.DesiredSize.Height <= block.MaxHeight + 0.5;
     }
 }

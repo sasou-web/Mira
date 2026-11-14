@@ -44,9 +44,7 @@ public partial class MainWindow
     {
         _filterBusy = true;
         // A genre chosen from a title page may not be one of the list's: put back as it was then.
-        if (state.Genre.Length > 0 && !GenreFilter.Items.OfType<ComboBoxItem>().Any(x => x.Tag?.ToString() == state.Genre))
-            GenreFilter.Items.Add(new ComboBoxItem { Content = state.GenreLabel, Tag = state.Genre });
-        Pick(GenreFilter, state.Genre); Pick(YearFilter, state.Year); Pick(WatchedFilter, state.Watched); Pick(SortFilter, state.Sort); Pick(LibraryFilter, state.Library);
+        if (state.Genre.Length > 0) GenreFilter.SelectedItem = GenreItem(state.Genre, state.GenreLabel); else Pick(GenreFilter, state.Genre); Pick(YearFilter, state.Year); Pick(WatchedFilter, state.Watched); Pick(SortFilter, state.Sort); Pick(LibraryFilter, state.Library);
         Pick(QualityFilter, state.Quality); Pick(RatingFilter, state.Rating); Pick(AudioFilter, state.Audio); Pick(SubtitleFilter, state.Subtitles);
         _catalog.ParentId = state.Library.Length > 0 ? state.Library : null;
         _catalog.Favorites = state.Favorites; _filtersOpen = false; SearchBox.Text = state.Search;

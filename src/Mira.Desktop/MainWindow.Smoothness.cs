@@ -74,13 +74,13 @@ public partial class MainWindow
         // library was drawn again in the next one (interface audit, 2026-11-14).
         foreach (var cover in _libraryCovers) if (cover != _leavingCover && cover.IsVisible && cover.Opacity >= .995 && (cover != StartupVeil || StartupVeil.IsHitTestVisible)) { covered = true; break; }
         if (covered == _libraryCovered) return;
-        _libraryCovered = covered; LibraryShell.Opacity = covered ? 0 : 1;
+        _libraryCovered = covered; LibraryShell.Opacity = covered ? 0 : 1; LibraryShell.Covered = covered;
     }
     /// <summary>The library drawn again under <paramref name="leaving"/>, before it starts to go (unless another page still covers it).</summary>
     private void UncoverLibrary(UIElement leaving)
     {
         foreach (var cover in _libraryCovers) if (cover != leaving && cover.IsVisible && cover.Opacity >= .995) return;
-        _leavingCover = leaving; _libraryCovered = false; LibraryShell.Opacity = 1;
+        _leavingCover = leaving; _libraryCovered = false; LibraryShell.Opacity = 1; LibraryShell.Covered = false;
     }
 
     /// <summary>

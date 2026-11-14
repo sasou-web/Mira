@@ -141,6 +141,8 @@ public partial class MainWindow
         DetailHero.Height = Math.Max(wanted, DetailHeroText.ActualHeight + DetailHeroText.Margin.Bottom + 110);
     }
     private void DetailScroll_SizeChanged(object sender, SizeChangedEventArgs e) { if (e.HeightChanged) SizeDetailHero(); }
+    /// <summary>The shade under the window's buttons: none on the picture at the top, whole once the page has gone 160 px down.</summary>
+    private void DetailScroll_ScrollChanged(object sender, ScrollChangedEventArgs e) => DetailTopShade.Opacity = Math.Clamp(DetailScroll.VerticalOffset / 160, 0, 1);
     private void DetailHeroText_SizeChanged(object sender, SizeChangedEventArgs e) { if (e.HeightChanged) SizeDetailHero(); }
     /// <summary>« Lire la suite »: the whole summary, then three lines again.</summary>
     private void DetailOverviewMore_Click(object sender, RoutedEventArgs e)
@@ -500,7 +502,7 @@ public partial class MainWindow
         var file = item.Type != "Series" ? MediaQuality.Label(item) : _detailFile is { } known && known.Id == target?.Id ? MediaQuality.Label(known.Source) : null;
         var resume = target is not null && target.Resumable && _settings.RememberPosition;
         DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is { } rating and > 0 ? $"★ {Number(rating, "0.0")}" : "", item.OfficialRating ?? "",
-            TitleStorage.Text(_detailSize) ?? "", file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
+            TitleStorage.Text(_detailSize) ?? "", file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume, named: item.Type == "Series") ?? "" }.Where(x => x.Length > 0));
     }
     /// <summary>
     /// A state button of the page (Favori, Vu, Suivre, Garder sur ce PC): the same rounded square on or off, its glyph

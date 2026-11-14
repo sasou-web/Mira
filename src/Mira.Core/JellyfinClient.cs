@@ -221,11 +221,13 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>The genres of every film or every series (one list per title), for the chips of Films and Séries.</summary>
     public async Task<IReadOnlyList<string[]>> TitleGenresAsync(string type, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&includeItemTypes={type}&recursive=true&fields=Genres&enableImages=false&enableUserData=false&enableTotalRecordCount=false", ct)).Items.Select(x => x.Genres).ToList();
-    public async Task<CatalogFilters> FiltersAsync(CancellationToken ct = default)
+    /// <param name="types">« Movie », « Series » or both: the genres and years of Films are those of its films only (a
+    /// series' genre or year there gave an empty page, the Dell, 2026-11-14).</param>
+    public async Task<CatalogFilters> FiltersAsync(string types = "Movie,Series", CancellationToken ct = default)
     {
         // The legacy Filters endpoint only examines immediate children of the user root.
-        var filters = GetAsync<JsonElement>($"Items/Filters2?userId={Connection.UserId}&includeItemTypes=Movie,Series&recursive=true", ct);
-        var years = GetAsync<ItemsResult>($"Years?userId={Connection.UserId}&includeItemTypes=Movie,Series&recursive=true&enableImages=false", ct);
+        var filters = GetAsync<JsonElement>($"Items/Filters2?userId={Connection.UserId}&includeItemTypes={types}&recursive=true", ct);
+        var years = GetAsync<ItemsResult>($"Years?userId={Connection.UserId}&includeItemTypes={types}&recursive=true&enableImages=false", ct);
         await Task.WhenAll(filters, years);
         var genres = filters.Result.TryGetProperty("Genres", out var values) && values.ValueKind == JsonValueKind.Array
             ? values.EnumerateArray().Select(x => x.GetProperty("Name").GetString()).Where(x => !string.IsNullOrWhiteSpace(x)).Cast<string>().ToArray() : [];
