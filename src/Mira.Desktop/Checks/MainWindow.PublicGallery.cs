@@ -195,6 +195,8 @@ public partial class MainWindow
             // « Régie »: the page at rest (the queue in columns, the series followed, the titles placed), then during a search.
             ShowServerDownloadsSample();
             foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20-downloads-server", null, ServerDownloadsPanel);
+            // « Coller un lien magnet »: the window under « + », each state, still inside the window.
+            drawn.AddRange(await CheckLinkWindowAsync(output, sizes));
             ShowServerSearchSample();
             // Two columns down to the smallest window (maquette C, 2026-11-14): the results keep most of the height, the
             // queue a thin column beside them. 1152 × 676 = a 1080p laptop's screen at 150 % less the taskbar.

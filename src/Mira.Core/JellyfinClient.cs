@@ -1174,11 +1174,34 @@ public sealed class JellyfinClient : IDisposable
         using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { torrent = Convert.ToBase64String(torrent) }, RemoteProtocol.Json, ct);
         return await RelayIdAsync(response, ct);
     }
-    /// <summary>A pasted magnet link, sent to the PC of Jellyfin: the request's id.</summary>
-    public async Task<string> TorLinkRequestAsync(string magnet, CancellationToken ct = default)
+    /// <summary>
+    /// A pasted magnet link, sent to the PC of Jellyfin: the request's id. <paramref name="files"/>: of a link read before
+    /// (<see cref="TorLinkLookAsync"/>), the indexes of the files to download; null: all of them.
+    /// </summary>
+    public async Task<string> TorLinkRequestAsync(string magnet, CancellationToken ct = default, IReadOnlyList<int>? files = null)
     {
-        using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { magnet }, RemoteProtocol.Json, ct);
+        using var response = files is null
+            ? await _http.PostAsJsonAsync("Mira/torlink/requests", new { magnet }, RemoteProtocol.Json, ct)
+            : await _http.PostAsJsonAsync("Mira/torlink/requests", new { magnet, files }, RemoteProtocol.Json, ct);
         return await RelayIdAsync(response, ct);
+    }
+    /// <summary>
+    /// « Coller un lien magnet »: the PC of Jellyfin reads what a pasted link holds (its qBittorrent asks the link's peers),
+    /// nothing downloaded yet: the reading's id, to follow with <see cref="TorLinkLookStateAsync"/>. Refused (a
+    /// <see cref="JellyfinException"/>) when no Mira there knows how: the window then proposes from the link's name alone.
+    /// </summary>
+    public async Task<string> TorLinkLookAsync(string magnet, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/look", new { magnet }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
+    /// <summary>Where a reading stands: waiting, running, done (name, files, place), silent or failed; null once forgotten.</summary>
+    public async Task<RelayLook?> TorLinkLookStateAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Mira/torlink/look/{Uri.EscapeDataString(id)}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckRelayAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<RelayLook>(RemoteProtocol.Json, ct);
     }
     /// <summary>A request not yet taken by the PC, withdrawn: true; false when the PC has it already; null when it is gone.</summary>
     public async Task<bool?> TorLinkCancelAsync(string id, CancellationToken ct = default)

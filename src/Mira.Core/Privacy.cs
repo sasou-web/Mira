@@ -111,8 +111,8 @@ public static class Privacy
                 L("Rien à couper : rien ne part sans ton clic.", "Nothing to turn off: nothing goes without your click."), PrivacyControl.None, false, ["downloads.sourceforge.net", "registry.npmjs.org", "repo.jellyfin.org"]));
             list.Add(new("torrents", L("TorLink et qBittorrent", "TorLink and qBittorrent"),
                 L("Les pairs BitTorrent, les trackers, la DHT et ton routeur (UPnP).", "BitTorrent peers, trackers, the DHT and your router (UPnP)."),
-                L("Tant qu’ils tournent, une fois activés.", "While they run, once turned on."),
-                L("Ce qu’envoie tout client BitTorrent : ton adresse IP et ce que tu télécharges ou partages.", "What any BitTorrent client sends: your IP address and what you download or share."),
+                L("Tant qu’ils tournent, une fois activés ; qBittorrent aussi dès qu’il lit un lien magnet collé, avant « Télécharger ».", "While they run, once turned on; qBittorrent also as soon as it reads a pasted magnet link, before “Download”."),
+                L("Ce qu’envoie tout client BitTorrent : ton adresse IP et ce que tu télécharges ou partages (un lien collé : de quoi lire sa liste de fichiers, rien de ses fichiers).", "What any BitTorrent client sends: your IP address and what you download or share (a pasted link: enough to read its list of files, none of its files)."),
                 L("Couper TorLink dans Téléchargements.", "Turn TorLink off in Downloads."), PrivacyControl.Downloads, false, ["BitTorrent"]));
             list.Add(new("funnel", L("Liens d’invités (Tailscale Funnel)", "Guest links (Tailscale Funnel)"),
                 L("Les relais de Tailscale, puis Internet.", "Tailscale’s relays, then the internet."),

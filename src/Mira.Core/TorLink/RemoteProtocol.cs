@@ -24,10 +24,12 @@ public static class RemoteProtocol
 /// <paramref name="Placed"/> yet (after 0.9.7): what a series' page asked shows « Adding to your library » meanwhile.
 /// <paramref name="Free"/>: the bytes left on the disks of its libraries (after 0.9.8; null when it cannot tell), shown at the
 /// top of the Downloads page. It stays between the PC of Jellyfin, Jellyfin and Mira.
+/// <paramref name="Looks"/>: it reads what a pasted link holds before it is downloaded, through its qBittorrent, and downloads
+/// only the files chosen (« Coller un lien magnet », after 0.9.12); <paramref name="Looked"/>: what it read.
 /// </summary>
 public sealed record AgentReport(string? Name, bool Accepting, string? Problem, List<RelayDownload>? Downloads, List<RelayPlaced>? Placed,
     List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls, List<AgentFollowOutcome>? Follows = null, bool Replaces = false,
-    bool QBittorrent = false, bool Seasons = false, List<string>? Sorting = null, long? Free = null);
+    bool QBittorrent = false, bool Seasons = false, List<string>? Sorting = null, long? Free = null, bool Looks = false, List<AgentLookOutcome>? Looked = null);
 /// <summary>
 /// A download in TorLink: its info hash, TorLink's status (downloading, queued, paused, failed), percent, bytes per second,
 /// its size and what it has of it (0 when unknown), and the seconds TorLink still expects (null when it cannot tell).
@@ -48,18 +50,39 @@ public sealed record AgentOutcome(string Id, string State, string? Error);
 
 /// <summary>
 /// What the agent leaves with, and in how many seconds it comes back. <paramref name="Busy"/>: another Mira has the role.
-/// <paramref name="Follows"/>: the series to check now (« Suivre une série »).
+/// <paramref name="Follows"/>: the series to check now (« Suivre une série »). <paramref name="Looks"/>: the pasted links to read
+/// (<see cref="WorkLook"/>).
 /// </summary>
-public sealed record AgentWork(List<WorkSearch> Searches, List<WorkRequest> Requests, List<WorkControl> Controls, int Next, string? Busy, List<WorkFollow>? Follows = null);
+public sealed record AgentWork(List<WorkSearch> Searches, List<WorkRequest> Requests, List<WorkControl> Controls, int Next, string? Busy, List<WorkFollow>? Follows = null,
+    List<WorkLook>? Looks = null);
 public sealed record WorkSearch(string Id, string Query, string Category);
 /// <summary>
 /// <paramref name="Place"/>: an episode of a followed series, placed in its folder whatever its release calls it.
 /// <paramref name="Replace"/>: the film or episode of Jellyfin (its id) whose file this download replaces once checked.
 /// <paramref name="Torrent"/>: a .torrent someone gave (base64), for qBittorrent only; <paramref name="Magnet"/> is then its
 /// info hash's magnet link, for the name and the hash. <paramref name="Pasted"/>: a magnet link someone pasted (not a
-/// search result): qBittorrent takes it when it is ready (a private tracker's, often).
+/// search result): qBittorrent takes it when it is ready (a private tracker's, often). <paramref name="Files"/>: of a pasted link
+/// read before (<see cref="WorkLook"/>), the files to download, by their index in qBittorrent; null: all of them.
 /// </summary>
-public sealed record WorkRequest(string Id, string Magnet, string Name, FollowPlace? Place = null, string? Replace = null, string? Torrent = null, bool Pasted = false);
+public sealed record WorkRequest(string Id, string Magnet, string Name, FollowPlace? Place = null, string? Replace = null, string? Torrent = null, bool Pasted = false,
+    List<int>? Files = null);
+/// <summary>
+/// « Coller un lien magnet »: a pasted link whose files the agent reads (its qBittorrent joins the people who share it until
+/// it has the list, then stops), for the window that proposes what to download of it.
+/// </summary>
+public sealed record WorkLook(string Id, string Magnet);
+/// <summary>A file of a link as qBittorrent lists it: its index there, its path inside the link, its size.</summary>
+public sealed record LinkFile(int Index, string Path, long Size);
+/// <summary>
+/// Where Mira would place a link on the PC of Jellyfin: the library folder's name (« SERIES ») and the title's folder in it
+/// (« Severance », « Millennium Actress (2001) »), <paramref name="Exists"/> when that folder is there already.
+/// </summary>
+public sealed record LinkPlace(string Root, string Folder, bool Exists);
+/// <summary>
+/// A link read: <paramref name="State"/> done (its name and files, and where it would go), silent (nobody shared it in time,
+/// <see cref="MagnetLinks.Patience"/>) or failed (why, in the agent's words).
+/// </summary>
+public sealed record AgentLookOutcome(string Id, string State, string? Name, List<LinkFile>? Files, LinkPlace? Place, string? Error);
 public sealed record WorkControl(string Id, string Target, string Action);
 
 // « Suivre une série »: the series whose new episodes the agent fetches by itself, kept by the relay on the server
@@ -129,9 +152,12 @@ public sealed record RelayMissing(string Id, string SeriesId, int Season, IReadO
 /// <paramref name="QBittorrent"/>: its qBittorrent takes pasted magnet links and .torrent files (an agent of 0.9.0 or before does not).
 /// <paramref name="Seasons"/>: it places what a series' page asks in that series (an agent of 0.9.7 or before does not).
 /// <paramref name="Free"/>: the bytes left on the disks of its libraries, as it last said (null: an agent of 0.9.8 or before, or it cannot tell).
+/// <paramref name="Looks"/>: it reads a pasted link's files and downloads only those chosen (an agent of 0.9.12 or before does not).
 /// </summary>
 public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows = false, bool Replaces = false, bool QBittorrent = false,
-    bool Seasons = false, long? Free = null);
+    bool Seasons = false, long? Free = null, bool Looks = false);
+/// <summary>A pasted link being read (GET /Mira/torlink/look/{id}): waiting, running, then as <see cref="AgentLookOutcome"/> says.</summary>
+public sealed record RelayLook(string Id, string State, string? Name, List<LinkFile>? Files, LinkPlace? Place, string? Error);
 /// <summary><paramref name="Replace"/>: the title (its id in Jellyfin) whose file this download is to replace.</summary>
 public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created, string? Replace = null);
 public sealed record RelayControl(string Id, string Target, string Action, string State);

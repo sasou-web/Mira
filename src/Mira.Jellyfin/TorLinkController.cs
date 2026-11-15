@@ -45,9 +45,22 @@ public sealed class TorLinkController : ControllerBase
     public async Task<IActionResult> Ask(CancellationToken cancellationToken)
     {
         var body = await ReadAsync<RequestBody>(cancellationToken).ConfigureAwait(false);
-        var (id, error) = Relay.Request(body?.Magnet, body?.Search, body?.Result, body?.Name, body?.Size, body?.Replace, body?.Torrent, body?.Missing);
+        var (id, error) = Relay.Request(body?.Magnet, body?.Search, body?.Result, body?.Name, body?.Size, body?.Replace, body?.Torrent, body?.Missing, body?.Files);
         return id is null ? Refuse(error) : Answer(new { id });
     }
+
+    /// <summary>« Coller un lien magnet »: the agent reads what a pasted link holds, before anything of it is downloaded.</summary>
+    [HttpPost("look")]
+    [RequestSizeLimit(16_384)]
+    public async Task<IActionResult> Look(CancellationToken cancellationToken)
+    {
+        var body = await ReadAsync<LookBody>(cancellationToken).ConfigureAwait(false);
+        var (id, error) = Relay.Look(body?.Magnet);
+        return id is null ? Refuse(error) : Answer(new { id });
+    }
+
+    [HttpGet("look/{id}")]
+    public IActionResult LookState(string id) => Relay.LookState(id) is { } look ? Answer(look with { Error = RelayText.For(look.Error, French) }) : NotFound();
 
     [HttpDelete("requests/{id}")]
     public IActionResult Cancel(string id) => Relay.Cancel(id) switch
@@ -128,7 +141,8 @@ public sealed class TorLinkController : ControllerBase
     }
 
     private sealed record SearchBody(string? Query, string? Category);
-    private sealed record RequestBody(string? Magnet, string? Search, string? Result, string? Name, long? Size, string? Replace, string? Torrent, MissingPlace? Missing = null);
+    private sealed record RequestBody(string? Magnet, string? Search, string? Result, string? Name, long? Size, string? Replace, string? Torrent, MissingPlace? Missing = null, List<int>? Files = null);
+    private sealed record LookBody(string? Magnet);
     private sealed record ControlBody(string? Id, string? Action);
     private sealed record FollowBody(string? SeriesId, string? Name, string? Query);
 }

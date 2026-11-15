@@ -374,7 +374,9 @@ public sealed class QBittorrentClient : IDisposable
     /// Hands qBittorrent a magnet link or a .torrent, into <paramref name="savePath"/> under Mira's category. False when
     /// qBittorrent refuses it (« Fails. »: already there, or not a torrent).
     /// </summary>
-    public async Task<bool> AddAsync(string? magnet, byte[]? torrent, string savePath, CancellationToken ct)
+    /// <paramref name="look"/>: a pasted link to read (« Coller un lien magnet »), under <see cref="MagnetLinks.LookCategory"/>: qBittorrent
+    /// stops it as soon as it has its metadata, before any of its files is downloaded (<see cref="ChooseAsync"/> starts it).
+    public async Task<bool> AddAsync(string? magnet, byte[]? torrent, string savePath, CancellationToken ct, bool look = false)
     {
         if (magnet is null == torrent is null) throw new ArgumentException("A magnet link or a .torrent.");
         HttpContent Content()
@@ -388,14 +390,103 @@ public sealed class QBittorrentClient : IDisposable
                 form.Add(file, "torrents", "mira.torrent");
             }
             form.Add(new StringContent(savePath), "savepath");
-            form.Add(new StringContent(QBittorrentSettings.Category), "category");
+            form.Add(new StringContent(look ? MagnetLinks.LookCategory : QBittorrentSettings.Category), "category");
+            // qBittorrent 4.5 and later (Web API 2.8.15): stopped once its metadata comes.
+            if (look) form.Add(new StringContent("MetadataReceived"), "stopCondition");
             form.Add(new StringContent("false"), "paused");
             form.Add(new StringContent("false"), "stopped");
             form.Add(new StringContent("false"), "autoTMM");
             return form;
         }
+        // A category qBittorrent doesn't know yet: made first (an answer of 409 says it was there).
+        await CategoryAsync(look ? MagnetLinks.LookCategory : QBittorrentSettings.Category, ct);
         var body = await TextAsync(HttpMethod.Post, "torrents/add", Content, ct, accept: [HttpStatusCode.UnsupportedMediaType, HttpStatusCode.Conflict]);
         return body is not null && !body.Trim().StartsWith("Fails", StringComparison.Ordinal);
+    }
+
+    private readonly HashSet<string> _categories = [];
+    private async Task CategoryAsync(string name, CancellationToken ct)
+    {
+        if (_categories.Contains(name)) return;
+        await TextAsync(HttpMethod.Post, "torrents/createCategory", () => new FormUrlEncodedContent([new("category", name), new("savePath", "")]), ct, accept: [HttpStatusCode.Conflict]);
+        _categories.Add(name);
+    }
+
+    /// <summary>A download whatever its category (a link being read included); null when qBittorrent hasn't it.</summary>
+    public async Task<QBittorrentTorrent?> TorrentAsync(string hash, CancellationToken ct)
+    {
+        var text = await TextAsync(HttpMethod.Get, "torrents/info?hashes=" + Uri.EscapeDataString(hash), null, ct);
+        try { using var document = JsonDocument.Parse(text ?? ""); return QBittorrentDownloads.Parse(document.RootElement).FirstOrDefault(x => x.Hash == hash); }
+        catch (JsonException) { throw new QBittorrentException(L("qBittorrent a répondu sans liste.", "qBittorrent answered without a list.")); }
+    }
+
+    /// <summary>
+    /// Every file of a download with its index in qBittorrent (« Coller un lien magnet »), as its paths are inside the link;
+    /// empty until qBittorrent has its metadata.
+    /// </summary>
+    public async Task<List<LinkFile>> ContentAsync(string hash, CancellationToken ct)
+    {
+        var text = await TextAsync(HttpMethod.Get, "torrents/files?hash=" + Uri.EscapeDataString(hash), null, ct, accept: [HttpStatusCode.NotFound]);
+        try
+        {
+            using var document = JsonDocument.Parse(text ?? "[]");
+            if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+            var files = new List<LinkFile>(); var position = 0;
+            foreach (var item in document.RootElement.EnumerateArray())
+            {
+                // The index qBittorrent gives (Web API 2.8.2 and later), otherwise its place in the list: the same.
+                var index = item.ValueKind == JsonValueKind.Object && item.TryGetProperty("index", out var i) && i.ValueKind == JsonValueKind.Number ? i.GetInt32() : position;
+                position++;
+                if (item.ValueKind == JsonValueKind.Object && QBittorrentDownloads.Text(item, "name") is { Length: > 0 } name) files.Add(new(index, name, QBittorrentDownloads.Whole(item, "size")));
+            }
+            return files;
+        }
+        catch (JsonException) { throw new QBittorrentException(L("qBittorrent a répondu sans liste.", "qBittorrent answered without a list.")); }
+    }
+
+    /// <summary>
+    /// The files of a link being read (<see cref="AddAsync"/> with look); empty until its metadata comes. Read, it is stopped
+    /// here too: qBittorrent's stop condition only waits for metadata it hasn't, so a link it had before would download on.
+    /// </summary>
+    public async Task<List<LinkFile>> ReadAsync(string hash, CancellationToken ct)
+    {
+        var files = await ContentAsync(hash, ct);
+        if (files.Count > 0 && await TorrentAsync(hash, ct) is { Category: MagnetLinks.LookCategory } read && QBittorrentDownloads.Status(read.State) != "paused")
+            await ControlAsync(hash, "pause", ct);
+        return files;
+    }
+
+    /// <summary>
+    /// A link read before, downloaded now: only <paramref name="files"/> (null: all of them; the others at priority 0, never
+    /// downloaded), into Mira's category, then started.
+    /// </summary>
+    public async Task ChooseAsync(string hash, IReadOnlyCollection<int>? files, CancellationToken ct)
+    {
+        if (files is not null)
+        {
+            var skipped = (await ContentAsync(hash, ct)).Select(x => x.Index).Where(x => !files.Contains(x)).ToList();
+            // A long list in parts: qBittorrent reads each « id » list whole.
+            foreach (var part in skipped.Chunk(500))
+                await TextAsync(HttpMethod.Post, "torrents/filePrio", () => new FormUrlEncodedContent([new("hash", hash), new("id", string.Join('|', part)), new("priority", "0")]), ct);
+        }
+        await CategoryAsync(QBittorrentSettings.Category, ct);
+        await TextAsync(HttpMethod.Post, "torrents/setCategory", () => new FormUrlEncodedContent([new("hashes", hash), new("category", QBittorrentSettings.Category)]), ct);
+        await ControlAsync(hash, "resume", ct);
+    }
+
+    /// <summary>The links read and not downloaded (<see cref="MagnetLinks.LookCategory"/>), with when they were added.</summary>
+    public async Task<List<(string Hash, DateTimeOffset Added)>> LooksAsync(CancellationToken ct)
+    {
+        var text = await TextAsync(HttpMethod.Get, "torrents/info?category=" + Uri.EscapeDataString(MagnetLinks.LookCategory), null, ct);
+        try
+        {
+            using var document = JsonDocument.Parse(text ?? "[]");
+            if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+            return document.RootElement.EnumerateArray()
+                .Where(x => x.ValueKind == JsonValueKind.Object && QBittorrentDownloads.Text(x, "hash") is { } h && RemoteDownloads.IsInfoHash(h.ToLowerInvariant()))
+                .Select(x => (QBittorrentDownloads.Text(x, "hash")!.ToLowerInvariant(), DateTimeOffset.FromUnixTimeSeconds(Math.Max(0, QBittorrentDownloads.Whole(x, "added_on"))))).ToList();
+        }
+        catch (JsonException) { return []; }
     }
 
     /// <summary>app/shutdown: qBittorrent saves its settings and list, then quits.</summary>
@@ -421,8 +512,9 @@ public sealed class QBittorrentClient : IDisposable
         {
             using var document = JsonDocument.Parse(text ?? "");
             if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+            // A file left out when the link was chosen from (priority 0) is never downloaded: never placed either.
             return document.RootElement.EnumerateArray()
-                .Where(x => x.ValueKind == JsonValueKind.Object && QBittorrentDownloads.Text(x, "name") is { Length: > 0 })
+                .Where(x => x.ValueKind == JsonValueKind.Object && QBittorrentDownloads.Text(x, "name") is { Length: > 0 } && !(x.TryGetProperty("priority", out var p) && p.ValueKind == JsonValueKind.Number && p.GetInt32() == 0))
                 .Select(x => new TorrentFileEntry(QBittorrentDownloads.Text(x, "name")!.Replace('/', Path.DirectorySeparatorChar), QBittorrentDownloads.Whole(x, "size"))).ToList();
         }
         catch (JsonException) { throw new QBittorrentException(L("qBittorrent a répondu sans liste.", "qBittorrent answered without a list.")); }

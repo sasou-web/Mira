@@ -53,6 +53,7 @@ public partial class MainWindow
         System.ComponentModel.DependencyPropertyDescriptor.FromProperty(TextBlock.TextProperty, typeof(TextBlock)).AddValueChanged(TorLinkSubtitle, (_, _) => ShowTorLinkSubtitle());
         // The lists that pass under the search field fade there rather than end cut short.
         foreach (var scroll in new[] { ServerRestScroll, ServerResultsScroll, ServerQueueScroll }) ScrollFade.Top(scroll);
+        ServerDownloadsPanel.PreviewKeyDown += ServerDownloads_PreviewKeyDown;
     }
 
     /// <summary>Jellyfin runs on another PC than this one (an account, not the demo): TorLink is not offered here.</summary>
@@ -107,7 +108,7 @@ public partial class MainWindow
         ServerQueueSummary.Text = ServerSideSummary.Text = ServerSearchStatus.Text = "";
         _serverSearchShown = true; ShowServerSearch(false);
         ServerSearchButton.Content = L("Chercher", "Search"); ServerResults.Opacity = 1;
-        CloseServerMagnet();
+        CloseServerMagnet(); CloseLinkWindow();
     }
 
     /// <summary>The words of the screen: the server PC, or this PC's TorLink.</summary>
@@ -361,6 +362,9 @@ public partial class MainWindow
     {
         var client = _client;
         if (client is null && !_serverLocal) return;
+        // A magnet link pasted in the search field: its window, not a search.
+        if (RemoteDownloads.InfoHash(ServerQueryBox.Text.Trim()) is not null && ServerQueryBox.Text.Trim().StartsWith("magnet:", StringComparison.OrdinalIgnoreCase))
+        { var pasted = ServerQueryBox.Text.Trim(); ServerQueryBox.Clear(); OpenLinkWindow(pasted); return; }
         if (RemoteDownloads.CleanQuery(ServerQueryBox.Text) is not { } query) { ServerQueryBox.Focus(); return; }
         ShowServerSearch(true);
         if (!_serverReady) { ServerSearchStatus.Text = _serverLocal ? L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC.") : RemoteLines.Agent(_serverAgent, DateTimeOffset.UtcNow).Text; return; }
@@ -629,6 +633,8 @@ public partial class MainWindow
 
     private void ServerMagnet_Click(object sender, RoutedEventArgs e)
     {
+        // A link on the clipboard: its window at once (« Coller un lien magnet », MainWindow.MagnetLink.cs).
+        if (OpenClipboardLink()) return;
         ServerMagnetRow.Visibility = Visibility.Visible; ServerMagnetButton.Visibility = ServerMagnetError.Visibility = Visibility.Collapsed;
         _ = Dispatcher.BeginInvoke(() => ServerMagnetBox.Focus(), DispatcherPriority.Input);
     }
@@ -643,31 +649,21 @@ public partial class MainWindow
         ServerMagnetPlaceholder.Visibility = ServerMagnetBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         ServerMagnetError.Visibility = Visibility.Collapsed;
     }
-    private async void ServerMagnet_KeyDown(object sender, KeyEventArgs e)
+    private void ServerMagnet_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter) { e.Handled = true; await SendServerMagnetAsync(); }
+        if (e.Key == Key.Enter) { e.Handled = true; SendServerMagnet(); }
         else if (e.Key == Key.Escape) { e.Handled = true; CloseServerMagnet(); MagnetReturn().Focus(); }
     }
-    private async void ServerMagnetSend_Click(object sender, RoutedEventArgs e) => await SendServerMagnetAsync();
+    private void ServerMagnetSend_Click(object sender, RoutedEventArgs e) => SendServerMagnet();
 
-    private async Task SendServerMagnetAsync()
+    private void SendServerMagnet()
     {
         var client = _client;
         if ((client is null && !_serverLocal) || !ServerMagnetSend.IsEnabled) return;
         var magnet = ServerMagnetBox.Text.Trim();
-        if (RemoteDownloads.InfoHash(magnet) is null) { ShowMagnetError(L("Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).", "That’s not a magnet link (“magnet:?xt=urn:btih:…”).")); ServerMagnetBox.Focus(); return; }
-        ServerMagnetSend.IsEnabled = false;
-        try
-        {
-            // On this PC, qBittorrent takes it when it is installed: a pasted link is often a private tracker's.
-            var qbittorrent = _serverLocal && QBittorrentInstalled();
-            if (!_serverLocal) await client!.TorLinkRequestAsync(magnet, _connectionLifetime.Token);
-            else if (await (qbittorrent ? AddToQBittorrentAsync(magnet, null) : DownloadHereAsync(magnet)) is { } refused) { ShowMagnetError(refused); return; }
-            CloseServerMagnet(); MagnetReturn().Focus();
-            await SentToServerAsync();
-        }
-        catch (Exception ex) when (IsExpected(ex)) { ShowMagnetError(ServerError(ex)); }
-        finally { ServerMagnetSend.IsEnabled = true; }
+        if (RemoteDownloads.InfoHash(magnet) is null || magnet.Length > RemoteDownloads.MaxMagnet) { ShowMagnetError(MagnetLinks.NotMagnet); ServerMagnetBox.Focus(); return; }
+        // Its window says what it holds and what to download of it.
+        OpenLinkWindow(magnet);
     }
     private void ShowMagnetError(string text) { ServerMagnetError.Text = text; ServerMagnetError.Visibility = Visibility.Visible; }
 }

@@ -23,6 +23,8 @@ public partial class MainWindow
     private QBittorrentHost QbHost => _qbHost ??= new(_profile.DirectoryPath);
     private bool _qbInstalling;
     private DateTime _qbPlacedAt = DateTime.MinValue;
+    /// <summary>Links being read or shown in this PC's window right now: never tidied away under it.</summary>
+    private readonly HashSet<string> _linksRead = [];
 
     /// <summary>qBittorrent is installed on this PC (Mira's or the person's own).</summary>
     private static bool QBittorrentInstalled() => QBittorrentHost.Program() is not null;
@@ -78,7 +80,7 @@ public partial class MainWindow
                 try { await client.ControlAsync(done.Hash, "pause", ct); }
                 catch (HttpRequestException) { }
             }
-            if (DateTime.UtcNow - _qbPlacedAt > TimeSpan.FromSeconds(15)) { _qbPlacedAt = DateTime.UtcNow; _ = PlaceQBittorrentAsync(client, torrents); }
+            if (DateTime.UtcNow - _qbPlacedAt > TimeSpan.FromSeconds(15)) { _qbPlacedAt = DateTime.UtcNow; _ = PlaceQBittorrentAsync(client, torrents); await TidyLinksAsync(client, ct); }
             // A finished one is in the library: listed there (placed), not as a download.
             return torrents.Where(x => !QBittorrentDownloads.Finished(x)).Select(QBittorrentDownloads.Download).ToList();
         }
@@ -127,6 +129,90 @@ public partial class MainWindow
         }
         catch (QBittorrentException ex) { return ex.Message; }
         catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException && !ct.IsCancellationRequested) { QbHost.Lost(); return L("qBittorrent ne répond pas à Mira.", "qBittorrent isn’t answering Mira."); }
+    }
+
+    // ---- A pasted link, read before it is downloaded (« Coller un lien magnet ») -------------------------------
+
+    /// <summary>
+    /// What a link holds, read by qBittorrent: added under <see cref="MagnetLinks.LookCategory"/>, stopped as soon as its
+    /// metadata comes (nothing of its files downloaded), then its files and where Mira will put them. Nobody sharing it for
+    /// <see cref="MagnetLinks.Patience"/>: « silent », taken out again. Never shown among the downloads.
+    /// </summary>
+    private async Task<AgentLookOutcome> LookWithQBittorrentAsync(string id, string magnet, CancellationToken ct)
+    {
+        if (RemoteDownloads.InfoHash(magnet) is not { } hash) return new(id, "failed", null, null, null, MagnetLinks.NotMagnet);
+        var (client, problem) = await QBittorrentAsync(ct);
+        if (client is null) return new(id, "failed", null, null, null, problem ?? L("qBittorrent ne répond pas à Mira.", "qBittorrent isn’t answering Mira."));
+        try
+        {
+            var existing = await client.TorrentAsync(hash, ct);
+            if (existing is null && !await client.AddAsync(magnet, null, QBittorrentFolder(), ct, look: true) && await client.TorrentAsync(hash, ct) is null)
+                return new(id, "failed", null, null, null, L("qBittorrent a refusé ce lien.", "qBittorrent refused this link."));
+            var until = DateTime.UtcNow + MagnetLinks.Patience;
+            while (true)
+            {
+                if (await client.ReadAsync(hash, ct) is { Count: > 0 } files)
+                {
+                    var name = RemoteDownloads.CleanName((await client.TorrentAsync(hash, ct))?.Name) ?? hash;
+                    var place = _torlink is { } torlink ? MagnetLinks.Place(name, files, torlink.Libraries, MediaPlanner.KnownShows(torlink.Importer.Entries)) : null;
+                    return new(id, "done", name, files.Take(MagnetLinks.MaxFiles).Select(x => x.Path.Length > MagnetLinks.MaxPath ? x with { Path = x.Path[..MagnetLinks.MaxPath] } : x).ToList(), place, null);
+                }
+                if (DateTime.UtcNow > until)
+                {
+                    // Read for this window only: taken out (a download already there stays).
+                    if (existing is null || existing.Category == MagnetLinks.LookCategory) await client.ControlAsync(hash, "delete", ct);
+                    return new(id, "silent", null, null, null, null);
+                }
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            }
+        }
+        catch (QBittorrentException ex) { return new(id, "failed", null, null, null, ex.Message); }
+        catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException && !ct.IsCancellationRequested) { QbHost.Lost(); return new(id, "failed", null, null, null, L("qBittorrent ne répond pas à Mira.", "qBittorrent isn’t answering Mira.")); }
+    }
+
+    /// <summary>
+    /// A link read before, downloaded: only <paramref name="files"/> (null: all of it). Its reading is gone (15 min, or never
+    /// read): read again first, the choice applied once its metadata comes. Null once qBittorrent has it, otherwise why not.
+    /// </summary>
+    private async Task<string?> DownloadLinkAsync(string magnet, IReadOnlyCollection<int>? files)
+    {
+        var ct = _torlinkLifetime.Token;
+        if (RemoteDownloads.InfoHash(magnet) is not { } hash) return MagnetLinks.NotMagnet;
+        var (client, problem) = await QBittorrentAsync(ct);
+        if (client is null) return problem ?? L("qBittorrent ne répond pas à Mira.", "qBittorrent isn’t answering Mira.");
+        try
+        {
+            var torrent = await client.TorrentAsync(hash, ct);
+            if (torrent is not null && torrent.Category != MagnetLinks.LookCategory) return null;
+            if (torrent is null)
+            {
+                if (files is null) return await AddToQBittorrentAsync(magnet, null);
+                var read = await LookWithQBittorrentAsync("", magnet, ct);
+                if (read.State != "done") return read.Error ?? MagnetLinks.Silent;
+            }
+            await client.ChooseAsync(hash, files, ct);
+            return null;
+        }
+        catch (QBittorrentException ex) { return ex.Message; }
+        catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException && !ct.IsCancellationRequested) { QbHost.Lost(); return L("qBittorrent ne répond pas à Mira.", "qBittorrent isn’t answering Mira."); }
+    }
+
+    /// <summary>A link read and closed without downloading it: taken out of qBittorrent at once (otherwise after 15 minutes).</summary>
+    private async Task ForgetLinkAsync(string hash)
+    {
+        if (_demo || QbHost.Client is not { } client) return;
+        try
+        {
+            if (await client.TorrentAsync(hash, CancellationToken.None) is { Category: MagnetLinks.LookCategory }) await client.ControlAsync(hash, "delete", CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or QBittorrentException or OperationCanceledException) { }
+    }
+
+    /// <summary>Links read more than 15 minutes ago and never downloaded: taken out of qBittorrent.</summary>
+    private async Task TidyLinksAsync(QBittorrentClient client, CancellationToken ct)
+    {
+        foreach (var (hash, added) in await client.LooksAsync(ct))
+            if (DateTimeOffset.UtcNow - added > MagnetLinks.Kept && !_linksRead.Contains(hash)) await client.ControlAsync(hash, "delete", ct);
     }
 
     /// <summary>

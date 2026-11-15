@@ -35,13 +35,14 @@ public sealed partial class TorLinkRelay
     /// <summary>A request done or refused stays listed this long, a control this long too.</summary>
     public static readonly TimeSpan Kept = TimeSpan.FromMinutes(15);
     public const int Hurry = 2, Idle = 10, Busy = 30;
-    public const int MaxWaiting = 30, MaxSearches = 20, MaxResults = 150, MaxDownloads = 60, MaxPlaced = 20, MaxControls = 20;
+    public const int MaxWaiting = 30, MaxSearches = 20, MaxResults = 150, MaxDownloads = 60, MaxPlaced = 20, MaxControls = 20, MaxLooks = 10;
 
     private readonly object _gate = new();
     private readonly Func<DateTimeOffset> _now;
     private readonly List<Lookup> _searches = [];
     private readonly List<Ask> _requests = [];
     private readonly List<Order> _controls = [];
+    private readonly List<Reading> _looks = [];
     private Agent? _agent;
     private DateTimeOffset _watched = DateTimeOffset.MinValue;
 
@@ -62,7 +63,7 @@ public sealed partial class TorLinkRelay
             var now = _now();
             _watched = now;
             Prune(now);
-            var agent = _agent is { } a ? new RelayAgent(a.Name, now - a.Seen < Online, a.Seen, a.Accepting, a.Problem, a.Follows, a.Replaces, a.QBittorrent, a.Seasons, a.Free) : null;
+            var agent = _agent is { } a ? new RelayAgent(a.Name, now - a.Seen < Online, a.Seen, a.Accepting, a.Problem, a.Follows, a.Replaces, a.QBittorrent, a.Seasons, a.Free, a.Looks) : null;
             // An episode of a series followed shows with its series (Follows), not among the requests.
             return new RelayStatus(agent,
                 _requests.Where(x => x.FollowId is null).OrderByDescending(x => x.Created).Select(x => new RelayRequest(x.Id, x.Name, x.Size, x.InfoHash, x.State, x.Error, x.Created, x.Replace)).ToList(),
@@ -115,12 +116,20 @@ public sealed partial class TorLinkRelay
     /// <paramref name="torrent"/>: a .torrent (base64) instead, for the agent's qBittorrent (a private tracker's).
     /// <paramref name="missing"/>: episodes or a season asked from a series' page, placed in that series (TorLinkRelay.Missing.cs).
     /// </summary>
-    public (string? Id, string? Error) Request(string? magnet, string? searchId, string? hitId, string? name, long? size, string? replace = null, string? torrent = null, MissingPlace? missing = null)
+    public (string? Id, string? Error) Request(string? magnet, string? searchId, string? hitId, string? name, long? size, string? replace = null, string? torrent = null, MissingPlace? missing = null,
+        List<int>? files = null)
     {
         lock (_gate)
         {
             var now = _now();
             _watched = now;
+            // Files chosen of a pasted link read before: only for an agent that reads them (it downloads through qBittorrent).
+            if (files is not null)
+            {
+                if (searchId is not null || hitId is not null || torrent is not null || replace is not null || missing is not null
+                    || files.Count is 0 or > RemoteDownloads.MaxLinkFiles || files.Any(x => x is < 0 or > 1_000_000) || files.Distinct().Count() != files.Count) return (null, "Demande inconnue.");
+                if (_agent is not { Looks: true }) return (null, "Mira sur le PC serveur ne sait pas encore choisir les fichiers d’un lien : mets-le à jour.");
+            }
             if (missing is not null && MissingProblem(missing, replace, torrent, searchId) is { } problem) return (null, problem);
             if (replace is not null)
             {
@@ -151,7 +160,7 @@ public sealed partial class TorLinkRelay
                 return (null, "Une meilleure version de ce titre est déjà demandée.");
             if (_requests.Count(x => x.State is "waiting" or "claimed" && x.FollowId is null) >= MaxWaiting) return (null, "Trop de demandes attendent déjà le PC serveur.");
             var ask = new Ask(NewId(), magnet!.Trim(), RemoteDownloads.CleanName(name) ?? RemoteDownloads.DisplayName(magnet) ?? hash, Math.Max(0, size ?? 0), hash, now)
-            { Replace = replace?.ToLowerInvariant(), Torrent = torrent, Pasted = pasted, Missing = Clean(missing) };
+            { Replace = replace?.ToLowerInvariant(), Torrent = torrent, Pasted = pasted, Missing = Clean(missing), Files = files?.Order().ToList() };
             _requests.Add(ask);
             if (ask.Missing is not null) Watch(ask);
             return (ask.Id, null);
@@ -191,6 +200,38 @@ public sealed partial class TorLinkRelay
         }
     }
 
+    /// <summary>
+    /// « Coller un lien magnet »: a pasted link for the agent to read (its files, through its qBittorrent), before the person
+    /// chooses what to download of it. Refused without an agent online that knows how (<see cref="RelayAgent.Looks"/>): the
+    /// window then proposes from the link's name alone.
+    /// </summary>
+    public (string? Id, string? Error) Look(string? magnet)
+    {
+        if (RemoteDownloads.InfoHash(magnet) is not { } hash || magnet!.Length > RemoteDownloads.MaxMagnet) return (null, "Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).");
+        lock (_gate)
+        {
+            var now = _now();
+            _watched = now;
+            if (_agent is not { Looks: true } agent || now - agent.Seen >= Online) return (null, "Mira sur le PC serveur ne sait pas encore choisir les fichiers d’un lien : mets-le à jour.");
+            // The same link read again (the window opened twice): the same reading, unless it ended without a list.
+            if (_looks.FirstOrDefault(x => x.InfoHash == hash && x.State is "waiting" or "running" or "done") is { } same) return (same.Id, null);
+            var look = new Reading(NewId(), magnet.Trim(), hash, now);
+            _looks.Add(look);
+            if (_looks.Count > MaxLooks) _looks.RemoveAt(0);
+            return (look.Id, null);
+        }
+    }
+
+    /// <summary>Where a reading is: waiting, running, done (the link's name, files and where Mira would put it), silent or failed.</summary>
+    public RelayLook? LookState(string id)
+    {
+        lock (_gate)
+        {
+            _watched = _now();
+            return _looks.FirstOrDefault(x => x.Id == id) is { } l ? new RelayLook(l.Id, l.State, l.Name, l.Files, l.Place, l.Error) : null;
+        }
+    }
+
     // ---- Mira for Windows --------------------------------------------------------------------------------
 
     /// <summary>
@@ -205,6 +246,7 @@ public sealed partial class TorLinkRelay
             var now = _now();
             if (_agent is { } current && current.Device != device && now - current.Seen < Online) return new([], [], [], Busy, current.Name);
             _agent = new Agent(device, Text(report.Name) ?? "PC serveur", now, report.Accepting, Text(report.Problem), report.Follows is not null, report.Replaces, report.QBittorrent, report.Seasons, report.Free is >= 0 ? report.Free : null,
+                report.Looks && report.QBittorrent,
                 (report.Sorting ?? []).Where(RemoteDownloads.IsInfoHash).Take(MaxDownloads).ToList(),
                 (report.Downloads ?? []).Where(x => RemoteDownloads.IsInfoHash(x.Id)).Take(MaxDownloads)
                     .Select(x => x with { Name = Text(x.Name) ?? x.Id, Status = Text(x.Status) ?? "", Progress = Math.Clamp(x.Progress, 0, 100), Speed = Math.Max(0, x.Speed), Peers = Math.Max(0, x.Peers), Size = Math.Max(0, x.Size), Downloaded = Math.Clamp(x.Downloaded, 0, x.Size > 0 ? x.Size : long.MaxValue), Eta = x.Eta is > 0 and <= RemoteDownloads.MaxEta ? x.Eta : null, Error = x.Status == "failed" ? Text(x.Error) : null }).ToList(),
@@ -228,6 +270,17 @@ public sealed partial class TorLinkRelay
                     if (ask.State == "sent") Took(ask, now);
                 }
             ReportFollows(device, report, now);
+            foreach (var outcome in report.Looked ?? [])
+                if (_looks.FirstOrDefault(x => x.Id == outcome.Id && x.Device == device && x.State == "running") is { } look)
+                {
+                    look.State = outcome.State is "done" or "silent" ? outcome.State : "failed";
+                    look.Error = look.State == "failed" ? Text(outcome.Error) ?? "Le PC serveur n’a pas pu lire ce lien." : null;
+                    look.Name = look.State == "done" ? Text(outcome.Name) : null;
+                    look.Files = look.State == "done" ? (outcome.Files ?? []).Where(x => x.Index >= 0 && x.Size >= 0 && Text(x.Path) is not null).DistinctBy(x => x.Index).Take(RemoteDownloads.MaxLinkFiles)
+                        .Select(x => x with { Path = x.Path.Length > RemoteDownloads.MaxLinkPath ? x.Path[..RemoteDownloads.MaxLinkPath] : x.Path }).ToList() : null;
+                    look.Place = look.State == "done" && outcome.Place is { } place && Text(place.Root) is { } root && Text(place.Folder) is { } folder ? new LinkPlace(root, folder, place.Exists) : null;
+                    look.Done = now;
+                }
             foreach (var outcome in report.Controls ?? [])
                 if (_controls.FirstOrDefault(x => x.Id == outcome.Id && x.Device == device && x.State == "claimed") is { } order)
                     (order.State, order.Done) = (outcome.State == "done" ? "done" : "failed", now);
@@ -241,17 +294,21 @@ public sealed partial class TorLinkRelay
             var searches = _searches.SelectMany(Units).Where(x => Free(x.State, x.Device, x.Claimed)).Take(3).ToList();
             // A replacement goes only to a Mira that knows how: another would place it beside the title; so does what a series' page asked.
             // A pasted magnet or a .torrent goes to its qBittorrent, which takes them whatever TorLink's state; a .torrent to nothing else.
-            bool Takes(Ask x) => x.Torrent is not null ? report.QBittorrent : report.Accepting || report.QBittorrent && x.Pasted && x.Replace is null && x.FollowId is null;
+            bool Takes(Ask x) => x.Torrent is not null || x.Files is not null ? report.QBittorrent : report.Accepting || report.QBittorrent && x.Pasted && x.Replace is null && x.FollowId is null;
             var requests = _requests.Where(x => Free(x.State, x.Device, x.Claimed) && !(x.NotBefore > now) && (x.Replace is null || report.Replaces) && (x.Missing is null || report.Seasons) && Takes(x)).Take(5).ToList();
             var controls = report.Accepting || report.QBittorrent ? _controls.Where(x => Free(x.State, x.Device, x.Claimed)).Take(10).ToList() : [];
             foreach (var s in searches) (s.State, s.Device, s.Claimed) = ("running", device, now);
             foreach (var r in requests) (r.State, r.Device, r.Claimed) = ("claimed", device, now);
             foreach (var c in controls) (c.State, c.Device, c.Claimed) = ("claimed", device, now);
+            // A reading goes only to a Mira that reads with its qBittorrent; one at a time is enough (a person pastes one link).
+            var looks = report.Looks && report.QBittorrent ? _looks.Where(x => Free(x.State, x.Device, x.Claimed)).Take(2).ToList() : [];
+            foreach (var l in looks) (l.State, l.Device, l.Claimed) = ("running", device, now);
             var follows = report.Follows is not null && report.Accepting ? DueFollows(device, now) : null;
-            var hurry = now - _watched < Watched || _searches.SelectMany(Units).Any(x => x.State == "waiting") || (report.Accepting || report.QBittorrent) && (_requests.Any(x => x.State == "waiting" && !(x.NotBefore > now)) || _controls.Any(x => x.State == "waiting"));
+            var hurry = now - _watched < Watched || _searches.SelectMany(Units).Any(x => x.State == "waiting") || _looks.Any(x => x.State == "waiting") || (report.Accepting || report.QBittorrent) && (_requests.Any(x => x.State == "waiting" && !(x.NotBefore > now)) || _controls.Any(x => x.State == "waiting"));
             return new(searches.Select(x => new WorkSearch(x.Id, x.Query, x.Category)).ToList(),
-                requests.Select(x => new WorkRequest(x.Id, x.Magnet, x.Name, PlaceOf(x), x.Replace, x.Torrent, x.Pasted)).ToList(),
-                controls.Select(x => new WorkControl(x.Id, x.Target, x.Action)).ToList(), hurry ? Hurry : Idle, null, follows);
+                requests.Select(x => new WorkRequest(x.Id, x.Magnet, x.Name, PlaceOf(x), x.Replace, x.Torrent, x.Pasted, x.Files)).ToList(),
+                controls.Select(x => new WorkControl(x.Id, x.Target, x.Action)).ToList(), hurry ? Hurry : Idle, null, follows,
+                looks.Count > 0 ? looks.Select(x => new WorkLook(x.Id, x.Magnet)).ToList() : null);
         }
     }
 
@@ -260,6 +317,7 @@ public sealed partial class TorLinkRelay
         _searches.RemoveAll(x => now - x.Created > SearchLife);
         _requests.RemoveAll(x => x.Done is { } done && now - done > Kept);
         _controls.RemoveAll(x => x.Done is { } done && now - done > Kept);
+        _looks.RemoveAll(x => now - x.Created > SearchLife);
         PruneMissing(now);
     }
 
@@ -291,7 +349,20 @@ public sealed partial class TorLinkRelay
 
     /// <summary><paramref name="Follows"/>: the agent checks series followed (after 0.8.4); <paramref name="Replaces"/>: it replaces a title's file (after 0.8.5).</summary>
     /// <summary><paramref name="Seasons"/>: it places what a series' page asks (after 0.9.7); <paramref name="Sorting"/>: the finished downloads it is placing.</summary>
-    private sealed record Agent(string Device, string Name, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows, bool Replaces, bool QBittorrent, bool Seasons, long? Free, List<string> Sorting, List<RelayDownload> Downloads, List<RelayPlaced> Placed);
+    private sealed record Agent(string Device, string Name, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows, bool Replaces, bool QBittorrent, bool Seasons, long? Free, bool Looks,
+        List<string> Sorting, List<RelayDownload> Downloads, List<RelayPlaced> Placed);
+    /// <summary>A pasted link the agent reads (« Coller un lien magnet »).</summary>
+    private sealed class Reading(string id, string magnet, string infoHash, DateTimeOffset created)
+    {
+        public string Id { get; } = id; public string Magnet { get; } = magnet; public string InfoHash { get; } = infoHash; public DateTimeOffset Created { get; } = created;
+        public string State { get; set; } = "waiting"; public string? Device { get; set; }
+        public DateTimeOffset? Claimed { get; set; }
+        public DateTimeOffset? Done { get; set; }
+        public string? Name { get; set; }
+        public List<LinkFile>? Files { get; set; }
+        public LinkPlace? Place { get; set; }
+        public string? Error { get; set; }
+    }
     private sealed class Lookup(string id, string query, string category, DateTimeOffset created)
     {
         public string Id { get; } = id; public string Query { get; } = query; public string Category { get; } = category; public DateTimeOffset Created { get; } = created;
@@ -324,6 +395,8 @@ public sealed partial class TorLinkRelay
         public bool Pasted { get; init; }
         /// <summary>Episodes or a season asked from a series' page (« Télécharger les manquants »).</summary>
         public MissingPlace? Missing { get; init; }
+        /// <summary>Of a pasted link read before, the files chosen (their index in qBittorrent); null: all of them.</summary>
+        public List<int>? Files { get; init; }
     }
     private sealed class Order(string id, string target, string action, DateTimeOffset created)
     {

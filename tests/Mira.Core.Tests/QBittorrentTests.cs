@@ -198,6 +198,17 @@ internal static class QBittorrentTests
         return (Ben(new Dictionary<string, object> { ["announce"] = "http://127.0.0.1:9/announce?passkey=0123", ["info"] = info }), Ben(info));
     }
 
+    /// <summary>A .torrent of several files in a folder, and its info dictionary's bytes.</summary>
+    private static (byte[] Bytes, byte[] Info) Torrents(string folder, (string Name, int Size)[] files)
+    {
+        const int piece = 16384;
+        var content = files.SelectMany(f => Enumerable.Repeat((byte)f.Name.Length, f.Size)).ToArray();
+        var pieces = content.Chunk(piece).SelectMany(SHA1.HashData).ToArray();
+        var list = files.Select(f => (object)new Dictionary<string, object> { ["length"] = (long)f.Size, ["path"] = new List<object> { f.Name } }).ToList();
+        var info = new Dictionary<string, object> { ["name"] = folder, ["files"] = list, ["piece length"] = (long)piece, ["pieces"] = pieces };
+        return (Ben(new Dictionary<string, object> { ["announce"] = "http://127.0.0.1:9/announce", ["info"] = info }), Ben(info));
+    }
+
     private static int FreePort()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -275,6 +286,28 @@ internal static class QBittorrentTests
             await client.ControlAsync(hash, "delete", ct);
             while (await Find() is not null) await Task.Delay(200, ct);
             Assert((await client.TorrentsAsync(ct)).Count == 1, "Only Mira's category");
+
+            // « Coller un lien magnet »: a link of three files read (stopped at its metadata, out of Mira's list), then two of them chosen.
+            var (season, _) = Torrents("Show.S01", [("Show.S01E01.mkv", 40_000), ("Show.S01E02.mkv", 40_000), ("sample.mkv", 20_000)]);
+            var seasonHash = Bencode.ReadFile(season)!.InfoHash;
+            Assert(await client.AddAsync(null, season, downloads, ct, look: true), "The link to read refused");
+            List<LinkFile> inside;
+            while ((inside = await client.ReadAsync(seasonHash, ct)).Count == 0) await Task.Delay(200, ct);
+            Assert(inside.Select(x => (x.Index, x.Path)).SequenceEqual([(0, "Show.S01/Show.S01E01.mkv"), (1, "Show.S01/Show.S01E02.mkv"), (2, "Show.S01/sample.mkv")]), "Content: " + string.Join(", ", inside));
+            Assert((await client.TorrentAsync(seasonHash, ct))?.Category == MagnetLinks.LookCategory, "Under the category of links read");
+            // Stopped once read (a .torrent has its metadata at once: qBittorrent's condition doesn't stop it): nothing downloaded before the choice.
+            for (var i = 0; i < 50 && QBittorrentDownloads.Status((await client.TorrentAsync(seasonHash, ct))!.State) != "paused"; i++) await Task.Delay(100, ct);
+            Assert(QBittorrentDownloads.Status((await client.TorrentAsync(seasonHash, ct))!.State) == "paused", "Stopped once read: " + (await client.TorrentAsync(seasonHash, ct))!.State);
+            Assert(!(await client.TorrentsAsync(ct)).Any(x => x.Hash == seasonHash) && (await client.LooksAsync(ct)).Any(x => x.Hash == seasonHash), "Never among Mira's downloads while read");
+            Assert(MagnetLinks.Read("Show.S01", inside) is { Episodic: true, Episodes.Count: 2 } read && MagnetLinks.FilesOf(LinkOption.Everything, read, new HashSet<(int, int)>(), new HashSet<(int, int)>()) is null, "Read by Mira");
+            await client.ChooseAsync(seasonHash, [0, 1], ct);
+            Assert((await client.TorrentsAsync(ct)).Any(x => x.Hash == seasonHash), "Among Mira's downloads once chosen");
+            for (var i = 0; i < 50 && QBittorrentDownloads.Status((await client.TorrentAsync(seasonHash, ct))!.State) == "paused"; i++) await Task.Delay(100, ct);
+            Assert(QBittorrentDownloads.Status((await client.TorrentAsync(seasonHash, ct))!.State) != "paused", "Started once chosen");
+            var chosenFiles = await client.FilesAsync(seasonHash, ct);
+            Assert(chosenFiles.Select(x => x.RelativePath).SequenceEqual([Path.Combine("Show.S01", "Show.S01E01.mkv"), Path.Combine("Show.S01", "Show.S01E02.mkv")]), "The sample left out: " + string.Join(", ", chosenFiles));
+            await client.ControlAsync(seasonHash, "delete", ct);
+            Assert(await client.TorrentAsync(seasonHash, ct) is null, "Gone");
 
             // Its own session forgotten (qBittorrent restarted, or the cookie expired): signed in again.
             await client.ControlAsync(file.InfoHash, "pause", ct);
