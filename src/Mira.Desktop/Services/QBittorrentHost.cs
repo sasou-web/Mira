@@ -17,7 +17,7 @@ namespace Mira.Desktop.Services;
 /// The qBittorrent Mira drives on the PC of Jellyfin, for private trackers: the one installed on this PC (its official
 /// installer, Mira's or the person's), started under a profile of its own in Mira's data (its settings, list and window
 /// apart from a qBittorrent the person uses), with its Web UI on 127.0.0.1 behind a password Mira draws once and keeps
-/// with DPAPI. It is never tied to Mira's lifetime: it goes on sharing, in the notification area, once Mira closes.
+/// with DPAPI. It is never tied to Mira's lifetime: it goes on, in the notification area, once Mira closes (sharing a private download until its 72 hours).
 /// </summary>
 internal sealed class QBittorrentHost(string profile) : IDisposable
 {

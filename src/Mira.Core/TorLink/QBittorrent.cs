@@ -7,10 +7,11 @@ using System.Text.Json;
 namespace Mira.Core.TorLink;
 
 // qBittorrent for private trackers: their torrents only reach a client the tracker allows (WebTorrent, under TorLink, never
-// is), keep their « private » flag (no DHT, no peer exchange) and must go on sharing for the account's ratio. Mira for
+// is), keep their « private » flag (no DHT, no peer exchange) and must go on sharing for a while (« hit and run »). Mira for
 // Windows, on the PC of Jellyfin, runs the real qBittorrent under a profile of its own (its own settings, downloads and
 // window, beside a qBittorrent the person may use too) and drives it through its Web API, on 127.0.0.1 only, with a
-// password Mira draws and keeps.
+// password Mira draws and keeps. Sharing (ogsas, 2026-11-15): a public download stops as soon as it is finished, a
+// private one after 72 hours (QBittorrentSettings.PrivateSharing), never longer.
 
 /// <summary>
 /// qBittorrent for Windows as Mira installs it when it is not there yet: its official x64 installer, at the address and
@@ -128,7 +129,9 @@ public static class QBittorrentSettings
 
     /// <summary>
     /// What Mira sets through the Web API at each start (app/setPreferences): where downloads go, the port peers reach,
-    /// and new downloads started at once with nothing asked.
+    /// new downloads started at once with nothing asked, and sharing stopped (never removed) after
+    /// <see cref="PrivateSharing"/>: what a private tracker asks; a public download Mira stops sooner
+    /// (<see cref="QBittorrentDownloads.StopsSharing"/>).
     /// </summary>
     public static Dictionary<string, object> Preferences(string savePath, int listenPort) => new()
     {
@@ -140,13 +143,25 @@ public static class QBittorrentSettings
         ["add_stopped_enabled"] = false,
         ["start_paused_enabled"] = false,
         ["auto_tmm_enabled"] = false,
+        ["max_ratio_enabled"] = false,
+        ["max_seeding_time_enabled"] = true,
+        ["max_seeding_time"] = (int)PrivateSharing.TotalMinutes,
+        ["max_inactive_seeding_time_enabled"] = false,
+        // 0: stop (« pause » before qBittorrent 5); 1 and after remove the download.
+        ["max_ratio_act"] = 0,
     };
+
+    /// <summary>
+    /// How long a finished download goes on sharing at most: 72 hours, what private trackers ask most often before a
+    /// download no longer counts as « hit and run ».
+    /// </summary>
+    public static readonly TimeSpan PrivateSharing = TimeSpan.FromHours(72);
 }
 
 /// <summary>
 /// qBittorrent's finished downloads in Mira's category, read once (torrents/info, then torrents/files of each), for
-/// <see cref="TorLinkImporter"/>: placed in the library by hard link or copy, never taken from qBittorrent, which goes on
-/// sharing them.
+/// <see cref="TorLinkImporter"/>: placed in the library by hard link or copy, never taken from qBittorrent (a private one
+/// goes on sharing for a while).
 /// </summary>
 public sealed class QBittorrentHistory(IReadOnlyList<TorLinkCompletion> completions, IReadOnlyDictionary<string, TorrentInfo> files) : IDownloadSource
 {
@@ -220,7 +235,7 @@ public sealed class QBittorrentHistory(IReadOnlyList<TorLinkCompletion> completi
 
 /// <summary>A download in qBittorrent, as its Web API lists it (torrents/info): the fields Mira reads.</summary>
 public sealed record QBittorrentTorrent(string Hash, string Name, string State, double Progress, long Speed, int Peers, long Size, long Completed, long Eta,
-    string SavePath, string? ContentPath, string Category, long CompletedOn, double Ratio);
+    string SavePath, string? ContentPath, string Category, long CompletedOn, double Ratio, bool? Private = null);
 
 /// <summary>qBittorrent's downloads in the words of Mira's downloads page (<see cref="RelayDownload"/>).</summary>
 public static class QBittorrentDownloads
@@ -244,6 +259,13 @@ public static class QBittorrentDownloads
 
     public static bool Finished(QBittorrentTorrent torrent) => Status(torrent.State) == "seeding" && torrent.Progress >= 1;
 
+    /// <summary>
+    /// A finished download Mira stops now: a public one still sharing. A private one, or one qBittorrent doesn't say
+    /// (no metadata, qBittorrent 4), goes on until <see cref="QBittorrentSettings.PrivateSharing"/>.
+    /// </summary>
+    public static bool StopsSharing(QBittorrentTorrent torrent) =>
+        Finished(torrent) && torrent.Private == false && torrent.State is not ("pausedUP" or "stoppedUP");
+
     public static RelayDownload Download(QBittorrentTorrent torrent)
     {
         var status = Status(torrent.State);
@@ -265,12 +287,16 @@ public static class QBittorrentDownloads
             if (item.ValueKind != JsonValueKind.Object || Text(item, "hash")?.ToLowerInvariant() is not { } hash || !RemoteDownloads.IsInfoHash(hash)) continue;
             torrents.Add(new(hash, Text(item, "name") ?? hash, Text(item, "state") ?? "", Real(item, "progress"), Whole(item, "dlspeed"),
                 (int)Math.Min(int.MaxValue, Whole(item, "num_seeds") + Whole(item, "num_leechs")), Whole(item, "size"), Whole(item, "completed"), Whole(item, "eta"),
-                Text(item, "save_path") ?? "", Text(item, "content_path"), Text(item, "category") ?? "", Whole(item, "completion_on"), Real(item, "ratio")));
+                Text(item, "save_path") ?? "", Text(item, "content_path"), Text(item, "category") ?? "", Whole(item, "completion_on"), Real(item, "ratio"),
+                Flag(item, "private") ?? Flag(item, "isPrivate")));
         }
         return torrents;
     }
 
     internal static string? Text(JsonElement item, string name) => item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    /// <summary>A true or false; null when absent or null (qBittorrent 4, or a magnet without its metadata yet).</summary>
+    internal static bool? Flag(JsonElement item, string name) =>
+        item.TryGetProperty(name, out var value) ? value.ValueKind switch { JsonValueKind.True => true, JsonValueKind.False => false, _ => null } : null;
     internal static double Real(JsonElement item, string name) => item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var real) && double.IsFinite(real) ? real : 0;
     internal static long Whole(JsonElement item, string name) =>
         item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number ? (value.TryGetInt64(out var whole) ? whole : value.TryGetDouble(out var real) ? (long)Math.Clamp(real, long.MinValue, long.MaxValue) : 0) : 0;

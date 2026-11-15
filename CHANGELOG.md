@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **qBittorrent ne partage plus sans fin (Windows)** : un torrent public s’arrête dès qu’il est fini et rangé, un torrent d’un tracker privé (C411…) après 72 h de partage, assez pour ne pas compter comme « hit and run » chez la plupart des trackers ; jamais supprimé, ses fichiers restent dans la bibliothèque. Avant, le qBittorrent de Mira partageait tout sans limite (demandé par ogsas, choix « public tout de suite, privé 3 jours »). La limite de 72 h est posée dans qBittorrent même : elle tient Mira fermé. Seulement compilé et contrôlé en CI (avec le vrai qBittorrent sous Linux).
+
 ## 0.9.11 — 2026-11-15
 
 - **Tab depuis la recherche (Windows)** : Tab passait du champ de recherche à « Effacer », puis aux trois boutons de la fenêtre et aux neuf boutons du rail avant le premier résultat (14e Tab, vu sur le Dell) : l’en-tête de la page est dessiné au-dessus des résultats (`Panel.ZIndex`), ce qui le met après eux dans l’arbre que suit Tab. Bandeau, en-tête et résultats ont maintenant leur ordre (`KeyboardNavigation.TabIndex`) : Tab va du champ à « Effacer » puis au premier résultat. Contrôlé par la galerie publique (`12-search`).

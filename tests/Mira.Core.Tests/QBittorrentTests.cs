@@ -90,6 +90,27 @@ internal static class QBittorrentTests
             return Task.CompletedTask;
         });
 
+        await Test("qBittorrent : partage arrêté dès la fin pour un torrent public, après 72 h pour un privé ou un inconnu, jamais supprimé", () =>
+        {
+            using var document = JsonDocument.Parse("""
+                [{"hash":"0123456789abcdef0123456789abcdef01234567","name":"Haikyu","state":"stalledUP","progress":1,"private":false},
+                 {"hash":"89abcdef0123456789abcdef0123456789abcdef","name":"Sonic 2","state":"uploading","progress":1,"private":true},
+                 {"hash":"c12fe1c06bba254a9dc9f519b335aa7c1367a88a","name":"Dune","state":"stalledUP","progress":1},
+                 {"hash":"fedcba9876543210fedcba9876543210fedcba98","name":"Arcane","state":"stoppedUP","progress":1,"isPrivate":false},
+                 {"hash":"00112233445566778899aabbccddeeff00112233","name":"Klaus","state":"downloading","progress":0.5,"private":false},
+                 {"hash":"ffeeddccbbaa99887766554433221100ffeeddcc","name":"Coco","state":"metaDL","progress":0,"private":null}]
+                """);
+            var torrents = QBittorrentDownloads.Parse(document.RootElement);
+            Assert(torrents.Select(x => x.Private).SequenceEqual(new bool?[] { false, true, null, false, false, null }), "Private read from « private », else « isPrivate »: " + string.Join(", ", torrents.Select(x => x.Private)));
+            Assert(torrents.Where(QBittorrentDownloads.StopsSharing).Select(x => x.Name).SequenceEqual(["Haikyu"]),
+                "Only the finished public one still sharing: " + string.Join(", ", torrents.Where(QBittorrentDownloads.StopsSharing).Select(x => x.Name)));
+            Assert(QBittorrentDownloads.Finished(torrents[3]), "Stopped, it is still finished: placed in the library");
+            var preferences = QBittorrentSettings.Preferences("D:\\Mira", 51413);
+            Assert(preferences["max_seeding_time_enabled"] is true && preferences["max_seeding_time"] is 4320 && preferences["max_ratio_enabled"] is false
+                && preferences["max_inactive_seeding_time_enabled"] is false && preferences["max_ratio_act"] is 0, "72 hours, then stopped (0), never removed");
+            return Task.CompletedTask;
+        });
+
         await Test("qBittorrent : un .torrent envoyé d’un autre appareil passe par le relais seulement vers un PC serveur qui a qBittorrent, avec les liens collés", () =>
         {
             var now = DateTimeOffset.Parse("2026-11-02T02:00:00Z");
@@ -234,6 +255,8 @@ internal static class QBittorrentTests
             QBittorrentTorrent? torrent = null;
             while ((torrent = (await client.TorrentsAsync(ct)).FirstOrDefault(x => x.Hash == file.InfoHash)) is null || !QBittorrentDownloads.Finished(torrent)) await Task.Delay(200, ct);
             Assert(torrent.Category == QBittorrentSettings.Category && Path.GetFullPath(torrent.SavePath).TrimEnd('/', '\\') == target, $"Category and folder: {torrent}");
+            // qBittorrent 5 says a torrent's private flag in its list; 4 doesn't, and Mira then leaves it to the 72 hours.
+            Assert(torrent.Private == true || version.StartsWith("v4", StringComparison.Ordinal), $"Private flag read from qBittorrent {version}: {torrent.Private}");
             var files = await client.FilesAsync(file.InfoHash, ct);
             Assert(files.Count == 1 && files[0] == new TorrentFileEntry("Sonic 2 (2022).mkv", 100_000), "Files: " + string.Join(", ", files));
 
