@@ -65,6 +65,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         AddHandler(PreviewMouseDownEvent, new MouseButtonEventHandler(Window_PreviewMouseDownSwallowed), true);
         KeepFootOut(SettingsNavigationScroll, SettingsFoot); KeepFootOut(GuideNavigationScroll, GuideFoot);
+        LoginOverlay.SizeChanged += LoginOverlay_SizeChanged;
+        LoginOverlay.IsVisibleChanged += (_, _) => { if (LoginOverlay.IsVisible) Dispatcher.BeginInvoke(ComposeLoginBackdrop, DispatcherPriority.Loaded); };
         Views.PasswordReveal.Attach(PasswordBox, PasswordBoxPlain, PasswordBoxEye, PasswordBoxEyeIcon, PasswordBoxCaps);
         Views.PasswordReveal.Attach(SetupPasswordBox, SetupPasswordBoxPlain, SetupPasswordBoxEye, SetupPasswordBoxEyeIcon, SetupPasswordBoxCaps);
         // After InitializeComponent: the XAML's 1480 × 930 would otherwise replace the size chosen here.
@@ -715,7 +717,7 @@ public partial class MainWindow : Window
         ClosePreview(); UsernameBox.Text = _client?.Connection.UserName ?? "";
         if (_client is not null) ServerBox.Text = _client.Connection.Server; else if (ServerBox.Text.Trim().Length == 0) FindServer();
         RenderTailnetLogin();
-        LoginArt.Source = _demo ? null : LoginBackdrop(HeroImage.Source);
+        _loginPicture = _demo ? null : LoginPicture(HeroImage.Source); ComposeLoginBackdrop();
         LogoutButton.Visibility = _profile.LoadConnection() is null ? Visibility.Collapsed : Visibility.Visible; EraseAccountData.IsChecked = false;
         BackToLibrary.Visibility = _client is not null || _demo ? Visibility.Visible : Visibility.Collapsed;
         var signedIn = _client is not null && LogoutButton.Visibility == Visibility.Visible;
@@ -726,12 +728,10 @@ public partial class MainWindow : Window
     }
     /// <summary>
     /// The banner's picture behind the account form, blurred once here: shrunk to 160 px and softened (the blur of
-    /// Réglages' window, <see cref="SheetWindow.Soften"/>), then stretched back. WPF's own blur, drawn live over the whole
-    /// window, scattered white streaks and dots over it (Dell, 2026-11-14); so did this small picture stretched twelve times
-    /// by « HighQuality » scaling (Dell, 2026-11-15): it is enlarged four times smoothly here (<see cref="SheetWindow.Enlarge"/>),
-    /// softened once more, and WPF only stretches it the rest of the way, linearly.
+    /// Réglages' window, <see cref="SheetWindow.Soften"/>), enlarged four times smoothly (<see cref="SheetWindow.Enlarge"/>)
+    /// and softened once more; <see cref="ComposeLoginBackdrop"/> makes the page's background of it.
     /// </summary>
-    private static System.Windows.Media.Imaging.BitmapSource? LoginBackdrop(ImageSource? source)
+    private static (byte[] Pixels, int Width, int Height)? LoginPicture(ImageSource? source)
     {
         if (source is not System.Windows.Media.Imaging.BitmapSource picture || picture.PixelWidth <= 0 || picture.PixelHeight <= 0) return null;
         try
@@ -747,11 +747,41 @@ public partial class MainWindow : Window
             var large = SheetWindow.Enlarge(pixels, width, height, factor);
             width *= factor; height *= factor;
             SheetWindow.Soften(large, width, height, radius: 3, light: 1, colour: 1);
-            var soft = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, large, width * 4);
-            soft.Freeze();
-            return soft;
+            return (large, width, height);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or NotSupportedException or System.Runtime.InteropServices.COMException) { return null; }
+    }
+    private (byte[] Pixels, int Width, int Height)? _loginPicture;
+    private DispatcherTimer? _loginBackdropLater;
+    /// <summary>
+    /// The account page's whole background as one picture at the page's size (<see cref="SheetWindow.AccountBackdrop"/>):
+    /// the banner's picture, the dark vignette and the faint light in the middle, with a little noise, at most 1280 pixels
+    /// wide, which WPF only stretches to the screen, linearly. The vignette and the light were two gradients drawn by WPF
+    /// over the picture: still arcs of white specks near the logo and right of the form stayed on the Dell whatever was
+    /// done to the picture (2026-11-14, 2026-11-15). Made again when the page shows and, a moment after, when it changes size.
+    /// </summary>
+    private void ComposeLoginBackdrop()
+    {
+        if (LoginOverlay.Visibility != Visibility.Visible || LoginOverlay.ActualWidth < 1 || LoginOverlay.ActualHeight < 1) return;
+        var dip = Math.Min(1, 1280 / LoginOverlay.ActualWidth);
+        int width = Math.Max(1, (int)Math.Round(LoginOverlay.ActualWidth * dip)), height = Math.Max(1, (int)Math.Round(LoginOverlay.ActualHeight * dip));
+        if (LoginArt.Source is System.Windows.Media.Imaging.BitmapSource shown && shown.PixelWidth == width && shown.PixelHeight == height && ReferenceEquals(LoginArt.Tag, _loginPicture?.Pixels ?? (object)this)) return;
+        try
+        {
+            var picture = _loginPicture;
+            var pixels = SheetWindow.AccountBackdrop(picture?.Pixels, picture?.Width ?? 0, picture?.Height ?? 0, width, height, dip);
+            var backdrop = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+            backdrop.Freeze();
+            LoginArt.Source = backdrop; LoginArt.Tag = picture?.Pixels ?? (object)this;
+        }
+        catch (Exception ex) when (ex is ArgumentException or OutOfMemoryException or InvalidOperationException) { LoginArt.Source = null; }
+    }
+    private void LoginOverlay_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (LoginOverlay.Visibility != Visibility.Visible) return;
+        if (LoginArt.Source is null) { ComposeLoginBackdrop(); return; }
+        _loginBackdropLater ??= new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Background, (_, _) => { _loginBackdropLater!.Stop(); ComposeLoginBackdrop(); }, Dispatcher);
+        _loginBackdropLater.Stop(); _loginBackdropLater.Start();
     }
     /// <summary>Signed out (or the session ended): the form says « Se connecter » again.</summary>
     private void SignInHeading() { LoginHeading.Text = L("Se connecter", "Sign in"); LoginSignedIn.Visibility = Visibility.Collapsed; }
@@ -785,7 +815,7 @@ public partial class MainWindow : Window
             // Its titles kept on this PC too, wherever they were put.
             if (erased is not null && connection is not null) { var roots = OfflineRoots; erased &= await Task.Run(() => OfflineCopies.Erase(roots, connection)); }
             RenderLibrary(); _ = RefreshTorLinkLibrariesAsync();
-            LoginArt.Source = null;
+            _loginPicture = null; ComposeLoginBackdrop();
             LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed;
             LoginError.Text = connection is null ? L("Session déconnectée sur ce PC.", "Signed out on this PC.") : AccountData.SignedOut(L("ce PC", "this PC"), closed, erased); FocusLogin();
         }
