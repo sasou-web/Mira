@@ -671,9 +671,8 @@
   </Grid>
   <Grid x:Name="LoginOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="{StaticResource Bg}" KeyboardNavigation.TabNavigation="Cycle">
    <Grid IsHitTestVisible="False" ClipToBounds="True">
-    <Image x:Name="LoginArt" Stretch="UniformToFill" Opacity="0.20" RenderOptions.BitmapScalingMode="Linear"/>
-    <Border><Border.Background><RadialGradientBrush Center="0.5,0.35" GradientOrigin="0.5,0.35" RadiusX="0.65" RadiusY="0.8"><GradientStop Color="#00212125"/><GradientStop Color="#ED000000" Offset="1"/></RadialGradientBrush></Border.Background></Border>
-    <Ellipse Width="650" Height="650" VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0.035"><Ellipse.Fill><RadialGradientBrush><GradientStop Color="White"/><GradientStop Color="#00FFFFFF" Offset="1"/></RadialGradientBrush></Ellipse.Fill></Ellipse>
+    <!-- The picture, the vignette and the light in the middle, made as one picture by ComposeLoginBackdrop: no gradient drawn by WPF here. -->
+    <Image x:Name="LoginArt" Stretch="Fill" RenderOptions.BitmapScalingMode="Linear"/>
    </Grid>
    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="38,40,0,0" IsHitTestVisible="False"><v:Icon Kind="brand" Width="31" Height="31"/><TextBlock Text="mira" FontSize="25" FontWeight="ExtraBold" Margin="12,-1,0,0"/></StackPanel>
    <Button x:Name="BackToLibrary" Style="{StaticResource Quiet}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,42,38,0" Padding="13,8" Click="CloseAccount_Click" ToolTip="{v:L 'Retour à la bibliothèque · Échap', 'Back to the library · Esc'}" AutomationProperties.Name="{v:L 'Retour à la bibliothèque', 'Back to the library'}" Visibility="Collapsed"><StackPanel Orientation="Horizontal"><v:Icon Kind="back" Width="15" Height="15" Margin="0,0,7,0"/><TextBlock Text="{v:L 'Bibliothèque', 'Library'}" FontSize="12"/></StackPanel></Button>

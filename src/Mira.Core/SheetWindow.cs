@@ -198,5 +198,67 @@ public static class SheetWindow
         return result;
     }
 
+    /// <summary>
+    /// The whole background of the account page as one opaque picture of <paramref name="width"/> × <paramref name="height"/>
+    /// pixels (4 bytes a pixel, blue, green, red, alpha), <paramref name="dip"/> pixels to the window's unit: the banner's
+    /// picture (<paramref name="picture"/>, already soft, none = black) filling it as WPF's « UniformToFill » would, at a
+    /// fifth of its light, then the dark vignette from (0.5, 0.35) and the faint light of 325 units around the middle,
+    /// each step added up in full precision and rounded once, with a little noise so that no ring of equal colour forms.
+    /// The vignette and the light were two gradients drawn by WPF over the picture: they left still arcs of specks near
+    /// the logo and right of the form whatever the picture was (Dell, 2026-11-14 and 15, blurred by WPF, then by Mira).
+    /// </summary>
+    public static byte[] AccountBackdrop(byte[]? picture, int pictureWidth, int pictureHeight, int width, int height, double dip)
+    {
+        if (width <= 0 || height <= 0 || dip <= 0) throw new ArgumentOutOfRangeException(nameof(width));
+        if (picture is not null && (pictureWidth <= 0 || pictureHeight <= 0 || picture.Length < pictureWidth * pictureHeight * 4)) throw new ArgumentException("The picture is smaller than its size says.", nameof(picture));
+        var result = new byte[width * height * 4];
+        double scale = picture is null ? 1 : Math.Max((double)width / pictureWidth, (double)height / pictureHeight);
+        double left = picture is null ? 0 : (width - pictureWidth * scale) / 2, top = picture is null ? 0 : (height - pictureHeight * scale) / 2;
+        // The vignette: transparent #212125 in the middle to #ED000000 at its edge, as the gradient was.
+        const double edge = 0xED / 255d; double[] middle = [0x25, 0x21, 0x21];
+        double glowRadius = 325 * dip;
+        Span<double> colour = stackalloc double[3];
+        for (var y = 0; y < height; y++)
+        {
+            var py = Math.Clamp((y + .5 - top) / scale - .5, 0, (picture is null ? 1 : pictureHeight) - 1);
+            int y0 = (int)py, y1 = picture is null ? 0 : Math.Min(y0 + 1, pictureHeight - 1); var fy = py - y0;
+            for (var x = 0; x < width; x++)
+            {
+                var px = Math.Clamp((x + .5 - left) / scale - .5, 0, (picture is null ? 1 : pictureWidth) - 1);
+                int x0 = (int)px, x1 = picture is null ? 0 : Math.Min(x0 + 1, pictureWidth - 1); var fx = px - x0;
+                for (var c = 0; c < 3; c++)
+                {
+                    if (picture is null) { colour[c] = 0; continue; }
+                    double above = picture[(y0 * pictureWidth + x0) * 4 + c] * (1 - fx) + picture[(y0 * pictureWidth + x1) * 4 + c] * fx;
+                    double below = picture[(y1 * pictureWidth + x0) * 4 + c] * (1 - fx) + picture[(y1 * pictureWidth + x1) * 4 + c] * fx;
+                    colour[c] = (above * (1 - fy) + below * fy) * .2;
+                }
+                double dx = (x + .5) / width - .5, dy = (y + .5) / height - .35;
+                var t = Math.Min(1, Math.Sqrt(dx * dx / (.65 * .65) + dy * dy / (.8 * .8)));
+                var shade = edge * t;
+                double gx = x + .5 - width / 2d, gy = y + .5 - height / 2d;
+                var glow = .035 * Math.Max(0, 1 - Math.Sqrt(gx * gx + gy * gy) / glowRadius);
+                // The same noise for the three colours: grey stays grey.
+                var noise = Noise(x, y);
+                for (var c = 0; c < 3; c++)
+                {
+                    var value = colour[c] * (1 - shade) + middle[c] * (1 - t) * shade;
+                    value = value * (1 - glow) + 255 * glow;
+                    result[(y * width + x) * 4 + c] = Byte(value + noise);
+                }
+                result[(y * width + x) * 4 + 3] = 255;
+            }
+        }
+        return result;
+    }
+
+    /// <summary>A value from -0.5 to 0.5 for each pixel, always the same for the same pixel.</summary>
+    private static double Noise(int x, int y)
+    {
+        var h = (uint)x * 0x8DA6B343u ^ (uint)y * 0xD8163841u;
+        h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+        return (h & 0xFFFF) / 65536d - .5;
+    }
+
     private static byte Byte(double value) => (byte)Math.Clamp(Math.Round(value), 0, 255);
 }

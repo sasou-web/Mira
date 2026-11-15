@@ -90,6 +90,18 @@ internal static class AccessibilityTests
             var two = new byte[] { 0, 0, 0, 255, 200, 200, 200, 255 };
             var wide = SheetWindow.Enlarge(two, 2, 1, 4);
             Assert(wide.Length == 8 * 4 * 4 && wide[0] == 0 && wide[7 * 4] == 200 && wide[3 * 4] > 0 && wide[3 * 4] < wide[4 * 4] && wide[4 * 4] < 200 && wide[3] == 255, string.Join(",", wide.Where((_, i) => i % 4 == 0)));
+            // The account page's background: one picture, darker at the edges, no step between neighbours (no ring, no line).
+            var plain = new byte[40 * 25 * 4];
+            for (var i = 0; i < plain.Length; i++) plain[i] = 200;
+            var page = SheetWindow.AccountBackdrop(plain, 40, 25, 300, 200, 1);
+            int At(byte[] p, int x, int y) => p[(y * 300 + x) * 4];
+            var steepest = 0;
+            for (var y = 0; y < 200; y++) for (var x = 1; x < 300; x++) steepest = Math.Max(steepest, Math.Abs(At(page, x, y) - At(page, x - 1, y)));
+            for (var x = 0; x < 300; x++) for (var y = 1; y < 200; y++) steepest = Math.Max(steepest, Math.Abs(At(page, x, y) - At(page, x, y - 1)));
+            Assert(page.Length == 300 * 200 * 4 && page[3] == 255 && steepest <= 3, $"Smooth: {steepest}");
+            Assert(At(page, 150, 70) > 40 && At(page, 150, 70) < 50 && At(page, 0, 199) < 10, $"Picture at a fifth in the middle, dark at the edge: {At(page, 150, 70)}, {At(page, 0, 199)}");
+            var black = SheetWindow.AccountBackdrop(null, 0, 0, 300, 200, .25);
+            Assert(At(black, 150, 100) is > 3 and < 18 && At(black, 0, 0) < 5, $"No picture: the faint light only: {At(black, 150, 100)}");
             // The person's own words (a friend could not find where Mira updates): any of a group finds the others.
             Assert(SheetWindow.Matches("Mises à jour Mira 0.9.8", "update") && SheetWindow.Matches("Updates Check for updates", "mettre à jour") && SheetWindow.Matches("Updates", "Nouvelle version"), "Updates, in both languages");
             Assert(SheetWindow.Matches("Quality Automatic", "blurry") && SheetWindow.Matches("Built-in Tailscale", "away from home") && SheetWindow.Matches("Sign out or switch account", "déconnexion"), "Blurry, away from home, sign out");

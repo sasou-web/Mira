@@ -478,7 +478,7 @@ public partial class MainWindow
         {
             switch (node)
             {
-                case TextBlock block: (titled ? details : name).Append(block.Text).Append(' '); titled = true; break;
+                case TextBlock block: (titled ? details : name).Append(block.Text).Append(' '); titled = true; return; // Its runs (Run, then the run's text) are its own text again: never read twice, never as the name.
                 case string text: name.Append(text).Append(' '); return;
                 case HeaderedContentControl { Header: string header }: name.Append(header).Append(' '); break;
             }

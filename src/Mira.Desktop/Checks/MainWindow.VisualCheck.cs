@@ -57,7 +57,7 @@ public partial class MainWindow
             AssertContained(SettingsScroll, "Small settings");
             await RunMotionChecksAsync(output);
             SettingsOverlay.Visibility = DetailOverlay.Visibility = Visibility.Collapsed;
-            LoginArt.Source = null; UsernameBox.Text = ""; PasswordBox.Clear(); LoginError.Text = "";
+            _loginPicture = null; ComposeLoginBackdrop(); UsernameBox.Text = ""; PasswordBox.Clear(); LoginError.Text = "";
             LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed;
             LoginOverlay.Visibility = Visibility.Visible; LoginOverlay.Opacity = 1;
             Width = 1440; Height = 900; await CaptureAsync(output, "18-login");
@@ -65,7 +65,7 @@ public partial class MainWindow
             Width = 1024; Height = 700; await CaptureAsync(output, "19-login-small"); AssertContained(LoginPanel, "Small login panel");
             var loginBottom = ConnectButton.TranslatePoint(new Point(0, ConnectButton.ActualHeight), (UIElement)Content).Y;
             if (loginBottom > ActualHeight - 25) throw new InvalidOperationException("Login action falls below the window.");
-            LoginArt.Source = LoginBackdrop(HeroImage.Source); BackToLibrary.Visibility = LogoutButton.Visibility = Visibility.Visible;
+            _loginPicture = LoginPicture(HeroImage.Source); ComposeLoginBackdrop(); BackToLibrary.Visibility = LogoutButton.Visibility = Visibility.Visible;
             Width = 1440; Height = 900; await CaptureAsync(output, "20-account");
             await File.WriteAllTextAsync(Path.Combine(output, "result.txt"), "PASS: screens rendered at 1024, 1440 and 1920 pixels; genre facets, filtering, empty state and layout bounds checked. No playback or library mutations performed.");
         }
