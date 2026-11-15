@@ -86,11 +86,16 @@ public partial class MainWindow
         var wanted = PictureInPicture.Controls.Margin + pip.Fit.Corner + pip.Fit.SeekRoom / 2;
         require(bar.IsEnabled && bar.IsVisible && bar.ActualWidth > pip.VideoHeight && Math.Abs(line - wanted) < 1.5,
             $"picture in picture: the seek bar above the time ({bar.ActualWidth:0} px wide, its line {line:0.#} px above the bottom for {wanted:0.#}, enabled {bar.IsEnabled})");
-        var loud = engine.Flag("mute");
+        // The check plays at volume 0, which is « sound off » too: the sound is put back first, then cut by the button.
+        bool Off() => engine.Flag("mute") || VolumeSlider.Value <= 0;
+        var (volume, muted) = (VolumeSlider.Value, engine.Flag("mute"));
+        if (Off()) { Mute_Click(this, new()); UpdatePip(); }
+        pip.ShowControls(); await Task.Delay(100);
         Mute_Click(this, new()); UpdatePip(); pip.HideControlsNow(); await Task.Delay(400);
-        require(engine.Flag("mute") != loud && pip.MutedPillShown, $"picture in picture: the sound cut, a pill says it once the controls go (mute {engine.Flag("mute")}; {pip.ControlsState})");
+        require(Off() && pip.MutedPillShown, $"picture in picture: the sound cut, a pill says it once the controls go (mute {engine.Flag("mute")}, volume {VolumeSlider.Value:0}; {pip.ControlsState})");
         Mute_Click(this, new()); UpdatePip(); await Task.Delay(300);
-        require(engine.Flag("mute") == loud && !pip.MutedPillShown, "picture in picture: the sound back, the pill gone");
+        require(!Off() && !pip.MutedPillShown, $"picture in picture: the sound back, the pill gone (mute {engine.Flag("mute")}, volume {VolumeSlider.Value:0})");
+        VolumeSlider.Value = volume; engine.Set("mute", muted ? "yes" : "no"); UpdateMuteIcon(); UpdatePip();
 
         // A real click, through Windows' own input as a mouse gives it, while the small window is not the active one: the
         // pointer over it shows its controls, and the click lands on the play button, in the controls' window above the
