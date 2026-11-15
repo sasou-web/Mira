@@ -187,13 +187,15 @@ public partial class MainWindow
         var join = OpenMenuItems().FirstOrDefault(x => x.Header is string h && h.Contains("Sam", StringComparison.Ordinal));
         if (join is not null) { await tour.MoveAsync(join, .4, .5, 600); await TourDirector.Wait(350); await tour.ClickAsync(); await TourDirector.Wait(2200); }
         else await tour.KeyAsync(0x1B);
-        await tour.MoveAsync(DetailPlay, .5, .5, 750); await TourDirector.Wait(450); await tour.ClickAsync();
+        await tour.MoveAsync(DetailPlay, .5, .5, 750); await SyncGroupClockAsync(); await TourDirector.Wait(250); await tour.ClickAsync();
         for (var i = 0; i < 400 && (!_loaded || _videoWaits); i++) await TourDirector.Wait(50);
         await TourDirector.Wait(1300);
         // The group starts paused, every device ready: Play, for everyone.
         if (_session.Paused)
         {
-            await tour.MoveAsync(PauseButton, .5, .5, 750); await TourDirector.Wait(350); await tour.ClickAsync();
+            // Mira's clock runs slower than Jellyfin's while filming: the group's clock read again just before, or
+            // « play at » would be seconds away for this PC.
+            await tour.MoveAsync(PauseButton, .5, .5, 750); await SyncGroupClockAsync(); await TourDirector.Wait(150); await tour.ClickAsync();
             for (var i = 0; i < 80 && _session.Paused; i++) await TourDirector.Wait(50);
         }
         await TourDirector.Wait(1800);
