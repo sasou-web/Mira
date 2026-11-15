@@ -235,7 +235,7 @@ public sealed partial class DownloadsPage : Page
 
         var followsHead = new Grid { ColumnDefinitions = new ColumnDefinitions("50,*,146,104,74"), Height = 30, Margin = new Thickness(12, 0) };
         void Head(int column, string text) { var caption = Caption(text); Grid.SetColumn(caption, column); followsHead.Children.Add(caption); }
-        Head(1, L("SÉRIE", "SERIES")); Head(2, L("PROCHAIN ÉPISODE", "NEXT EPISODE")); Head(3, L("PROCHAINE RECHERCHE", "NEXT SEARCH"));
+        Head(1, L("SÉRIE", "SERIES")); Head(2, L("PROCHAIN ÉPISODE", "NEXT EPISODE")); Head(3, L("RECHERCHE", "NEXT SEARCH"));
         var followsTitle = Ui.Row(0, Title18(L("Séries suivies", "Followed series")), _followsCount);
         followsTitle.Height = 26;
         var followsCard = Card(Ui.Column(0, followsHead, _follows), 0);

@@ -127,6 +127,10 @@ internal static class MagnetLinkTests
                 Assert(film is { Root: "FILMS", Folder: "Millennium Actress (2001)" } && MagnetLinks.Destination(film, [], false).Where == "FILMS › Millennium Actress (2001)", $"Film: {film}");
                 Assert(MagnetLinks.Place("x", episodes, new MediaLibraries(null, null, null)) is null && MagnetLinks.Destination(null, [], true).Where == "ta bibliothèque", "No library");
                 Assert(MagnetLinks.Free(5_000_000_000_000, "MAISON-PC") == "4,5 To libres sur MAISON-PC" && MagnetLinks.Free(null, "MAISON-PC") == "", MagnetLinks.Free(5_000_000_000_000, "MAISON-PC"));
+                // Who reads the link: this PC on Jellyfin's PC itself, never « the server PC »; the time left counts down from 60 s.
+                Assert(MagnetLinks.ReadingHow("MAISON-PC").StartsWith("MAISON-PC ") && MagnetLinks.ReadingHow(null, here: true).StartsWith("Ce PC ") && MagnetLinks.SilentHow(null).StartsWith("Le PC serveur ")
+                    && MagnetLinks.Privacy(here: true).Contains("ce PC rejoint"), MagnetLinks.ReadingHow(null, here: true));
+                Assert(MagnetLinks.ReadingLeft(TimeSpan.Zero) == "60 s au plus" && MagnetLinks.ReadingLeft(TimeSpan.FromSeconds(12.4)) == "48 s au plus" && MagnetLinks.ReadingLeft(TimeSpan.FromSeconds(90)) == "1 s au plus", MagnetLinks.ReadingLeft(TimeSpan.FromSeconds(12.4)));
             }
             finally { Directory.Delete(root, recursive: true); }
             return Task.CompletedTask;

@@ -332,10 +332,18 @@ public static class MagnetLinks
         free is not { } bytes || bytes < 0 ? "" : pc is { Length: > 0 } name ? L($"{RemoteLines.Size(bytes)} libres sur {name}", $"{RemoteLines.Size(bytes)} free on {name}") : L($"{RemoteLines.Size(bytes)} libres", $"{RemoteLines.Size(bytes)} free");
 
     public static string Reading => L("Lecture de son contenu…", "Reading what’s inside…");
-    public static string ReadingHow(string? pc) => L($"{pc ?? "Le PC serveur"} demande la liste aux personnes qui partagent ce lien.", $"{pc ?? "The server PC"} is asking the people who share this link.");
+    /// <summary>Who asks: this PC when the link is read here (Mira on Jellyfin's PC), else the server PC by its name.</summary>
+    private static string Asker(string? pc, bool here) => here ? L("Ce PC", "This PC") : pc ?? L("Le PC serveur", "The server PC");
+    public static string ReadingHow(string? pc, bool here = false) => L($"{Asker(pc, here)} demande la liste aux personnes qui partagent ce lien.", $"{Asker(pc, here)} is asking the people who share this link.");
+    /// <summary>« 48 s at most », the time left before « No one is sharing », counted from when the reading began.</summary>
+    public static string ReadingLeft(TimeSpan waited)
+    {
+        var left = (int)Math.Ceiling(Math.Max(1, (Patience - waited).TotalSeconds));
+        return L($"{left} s au plus", $"{left} s at most");
+    }
     public static string Silent => L("Personne ne partage ce lien en ce moment", "No one is sharing this link right now");
-    public static string SilentHow(string? pc) => L($"{pc ?? "Le PC serveur"} a cherché une source pendant 60 secondes sans en trouver : Mira ne peut pas lire ce qu’il contient.",
-        $"{pc ?? "The server PC"} looked for 60 seconds without finding a source, so Mira can’t read what’s inside.");
+    public static string SilentHow(string? pc, bool here = false) => L($"{Asker(pc, here)} a cherché une source pendant 60 secondes sans en trouver : Mira ne peut pas lire ce qu’il contient.",
+        $"{Asker(pc, here)} looked for 60 seconds without finding a source, so Mira can’t read what’s inside.");
     public static string AnywayHow => L("« Télécharger quand même » : il part tout seul si une source revient.", "“Download anyway”: it starts on its own if a source comes back.");
     public static string WholeOnly(bool local) => local
         ? L("Pour choisir les épisodes, installe qBittorrent sur ce PC : TorLink prend tout le lien.", "To choose the episodes, install qBittorrent on this PC: TorLink takes the whole link.")
@@ -356,6 +364,9 @@ public static class MagnetLinks
     public static string AllNone => L("Tout · Rien", "All · None");
     public static string NoVideo => L("Aucune vidéo dans ce lien : Mira n’a rien à ranger.", "No video in this link: Mira has nothing to sort.");
     /// <summary>Said beside the window, for the privacy page: reading a link joins those who share it.</summary>
-    public static string Privacy => L("Pour lire ce qu’il contient, le PC serveur rejoint les personnes qui partagent ce lien, avant ton clic sur Télécharger.",
-        "To read what’s inside, the server PC joins the people who share this link, before you click Download.");
+    public static string Privacy(bool here = false) => here
+        ? L("Pour lire ce qu’il contient, ce PC rejoint les personnes qui partagent ce lien, avant ton clic sur Télécharger.",
+            "To read what’s inside, this PC joins the people who share this link, before you click Download.")
+        : L("Pour lire ce qu’il contient, le PC serveur rejoint les personnes qui partagent ce lien, avant ton clic sur Télécharger.",
+            "To read what’s inside, the server PC joins the people who share this link, before you click Download.");
 }

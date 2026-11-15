@@ -34,6 +34,8 @@ public partial class MainWindow
         public LinkContents? Contents { get; set; }
         public LinkPlace? Place { get; set; }
         public bool ReadHere { get; set; }
+        /// <summary>When the reading began, for the time left before « No one is sharing ».</summary>
+        public DateTime ReadingSince { get; set; } = DateTime.UtcNow;
         // What the library has: null until Jellyfin answered (nothing said rather than a guess).
         public bool? InLibrary { get; set; }
         public string? LookedFor { get; set; }
@@ -130,7 +132,7 @@ public partial class MainWindow
     private async Task ReadLinkAsync(LinkWindow link)
     {
         var ct = link.Life.Token;
-        link.Stage = "reading"; link.Error = null; DrawLinkWindow(link);
+        link.Stage = "reading"; link.Error = null; link.ReadingSince = DateTime.UtcNow; DrawLinkWindow(link);
         AgentLookOutcome? read = null;
         try
         {
@@ -236,8 +238,8 @@ public partial class MainWindow
         switch (link.Stage)
         {
             case "already": middle.Children.Add(LinkAlready(link)); foot.Children.Add(LinkAlreadyFoot(link)); break;
-            case "reading": LinkReading(LinkPc, middle); foot.Children.Add(LinkFoot(link, enabled: false)); break;
-            case "silent" or "failed": LinkTrouble(link, LinkPc, middle); foot.Children.Add(LinkTroubleFoot(link)); break;
+            case "reading": LinkReading(link, LinkPc, _serverLocal, middle); foot.Children.Add(LinkFoot(link, enabled: false)); break;
+            case "silent" or "failed": LinkTrouble(link, LinkPc, _serverLocal, middle); foot.Children.Add(LinkTroubleFoot(link)); break;
             default: LinkProposals(link, middle); foot.Children.Add(LinkFoot(link, enabled: true)); break;
         }
         var scroll = link.Scroll = new ScrollViewer { Content = middle, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
@@ -306,13 +308,25 @@ public partial class MainWindow
     };
 
     /// <summary>« Reading what’s inside… », who is asked, the privacy line, and the lines to come.</summary>
-    private static void LinkReading(string? pc, StackPanel middle)
+    private static void LinkReading(LinkWindow link, string? pc, bool here, StackPanel middle)
     {
         var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(14, 6, 14, 0) };
-        line.Children.Add(new Icon { Kind = "refresh", Width = 15, Height = 15, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(0, 0, 9, 0), VerticalAlignment = VerticalAlignment.Center });
+        // The icon turns and the time left counts down, so the 60 s of a slow link never look stuck.
+        var spin = new RotateTransform();
+        line.Children.Add(new Icon { Kind = "refresh", Width = 15, Height = 15, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(0, 0, 9, 0), VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = spin });
+        spin.BeginAnimation(RotateTransform.AngleProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(Motion.Reduced ? 2400 : 1100)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
         line.Children.Add(new TextBlock { Text = MagnetLinks.Reading, FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        var left = new TextBlock { Text = MagnetLinks.ReadingLeft(DateTime.UtcNow - link.ReadingSince), FontSize = 12.5, Foreground = Palette.Get("Muted"), Margin = new Thickness(10, 1, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        line.Children.Add(left);
+        var clock = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
+        clock.Tick += (_, _) =>
+        {
+            if (link.Stage != "reading" || !link.Popup.IsOpen || PresentationSource.FromVisual(left) is null) { clock.Stop(); return; }
+            left.Text = MagnetLinks.ReadingLeft(DateTime.UtcNow - link.ReadingSince);
+        };
+        clock.Start();
         middle.Children.Add(line);
-        middle.Children.Add(new TextBlock { Text = MagnetLinks.ReadingHow(pc), FontSize = 12.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(38, 3, 14, 0) });
+        middle.Children.Add(new TextBlock { Text = MagnetLinks.ReadingHow(pc, here), FontSize = 12.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(38, 3, 14, 0) });
         for (var i = 0; i < 3; i++)
         {
             var row = new StackPanel { Margin = new Thickness(14, 16, 14, 0), Opacity = 1 - i * 0.25 };
@@ -320,7 +334,7 @@ public partial class MainWindow
             row.Children.Add(new Border { Height = 9, Width = 150, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(4), Background = Palette.Get("Raised2"), Margin = new Thickness(0, 7, 0, 0), Opacity = 0.7 });
             middle.Children.Add(row);
         }
-        middle.Children.Add(new TextBlock { Text = MagnetLinks.Privacy, FontSize = 12, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(14, 16, 14, 6) });
+        middle.Children.Add(new TextBlock { Text = MagnetLinks.Privacy(here), FontSize = 12, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(14, 16, 14, 6) });
         AutomationProperties.SetLiveSetting(middle, AutomationLiveSetting.Polite);
     }
 
@@ -580,7 +594,7 @@ public partial class MainWindow
     }
 
     /// <summary>Nobody shares the link (or it could not be read): why, « Download anyway » and « Try again ».</summary>
-    private static void LinkTrouble(LinkWindow link, string? pc, StackPanel middle)
+    private static void LinkTrouble(LinkWindow link, string? pc, bool here, StackPanel middle)
     {
         var silent = link.Stage == "silent";
         var card = new Squircle { Background = Palette.Get("Raised"), CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 12, 14, 12), Margin = new Thickness(6, 4, 6, 4) };
@@ -589,7 +603,7 @@ public partial class MainWindow
         DockPanel.SetDock(icon, Dock.Left); line.Children.Add(icon);
         var words = new StackPanel();
         words.Children.Add(new TextBlock { Text = silent ? MagnetLinks.Silent : L("Mira n’a pas pu lire ce lien", "Mira couldn’t read this link"), FontSize = 14, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
-        words.Children.Add(new TextBlock { Text = silent ? MagnetLinks.SilentHow(pc) : link.Error ?? "", FontSize = 12.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        words.Children.Add(new TextBlock { Text = silent ? MagnetLinks.SilentHow(pc, here) : link.Error ?? "", FontSize = 12.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         line.Children.Add(words);
         card.Child = line;
         middle.Children.Add(card);

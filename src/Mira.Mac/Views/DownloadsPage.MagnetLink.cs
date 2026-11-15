@@ -48,6 +48,8 @@ public sealed partial class DownloadsPage
         public LinkEpisode? From { get; set; }
         public bool Shift { get; set; }
         public bool Sending { get; set; }
+        /// <summary>When the reading began, for the time left before « No one is sharing ».</summary>
+        public DateTime ReadingSince { get; set; } = DateTime.UtcNow;
         public bool Sent { get; set; }
         public bool IsOpen { get; set; } = true;
         public string? Shown { get; set; }
@@ -145,7 +147,7 @@ public sealed partial class DownloadsPage
     {
         if (_session is not { } session) return;
         var ct = link.Life.Token;
-        link.Stage = "reading"; link.Error = null; DrawLinkWindow(link);
+        link.Stage = "reading"; link.Error = null; link.ReadingSince = DateTime.UtcNow; DrawLinkWindow(link);
         if (_agent is not { Looks: true }) { link.Stage = "name"; DrawLinkWindow(link); return; }
         RelayLook? read = null;
         try
@@ -235,7 +237,7 @@ public sealed partial class DownloadsPage
         switch (link.Stage)
         {
             case "already": middle.Children.Add(LinkAlready(link)); foot.Children.Add(LinkAlreadyFoot(link)); break;
-            case "reading": LinkReading(LinkPc, middle); foot.Children.Add(LinkFoot(link, enabled: false)); break;
+            case "reading": LinkReading(link, LinkPc, middle); foot.Children.Add(LinkFoot(link, enabled: false)); break;
             case "silent" or "failed": LinkTrouble(link, LinkPc, middle); foot.Children.Add(LinkTroubleFoot(link)); break;
             default: LinkProposals(link, middle); foot.Children.Add(LinkFoot(link, enabled: true)); break;
         }
@@ -308,11 +310,19 @@ public sealed partial class DownloadsPage
     }
 
     /// <summary>« Reading what’s inside… », who is asked, the privacy line, and the lines to come.</summary>
-    private static void LinkReading(string? pc, StackPanel middle)
+    private static void LinkReading(LinkWindow link, string? pc, StackPanel middle)
     {
+        // The time left counts down, so the 60 s of a slow link never look stuck.
+        var left = new TextBlock { Text = MagnetLinks.ReadingLeft(DateTime.UtcNow - link.ReadingSince), FontSize = 12.5, Foreground = Ui.Muted, Margin = new Thickness(1, 1, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         var line = Ui.Row(9, new Icon("refresh", 15) { Foreground = Ui.TextSecondary, VerticalAlignment = VerticalAlignment.Center },
-            new TextBlock { Text = MagnetLinks.Reading, FontSize = 14, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            new TextBlock { Text = MagnetLinks.Reading, FontSize = 14, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center }, left);
         line.Margin = new Thickness(14, 6, 14, 0);
+        DispatcherTimer.Run(() =>
+        {
+            if (link.Stage != "reading" || !left.IsAttachedToVisualTree()) return false;
+            left.Text = MagnetLinks.ReadingLeft(DateTime.UtcNow - link.ReadingSince);
+            return true;
+        }, TimeSpan.FromSeconds(1));
         middle.Children.Add(line);
         middle.Children.Add(new TextBlock { Text = MagnetLinks.ReadingHow(pc), FontSize = 12.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(38, 3, 14, 0) });
         for (var i = 0; i < 3; i++)
@@ -322,7 +332,7 @@ public sealed partial class DownloadsPage
             row.Children.Add(new Border { Height = 9, Width = 150, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(4), Background = Ui.Raised2, Margin = new Thickness(0, 7, 0, 0), Opacity = 0.7 });
             middle.Children.Add(row);
         }
-        middle.Children.Add(new TextBlock { Text = MagnetLinks.Privacy, FontSize = 12, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(14, 16, 14, 6) });
+        middle.Children.Add(new TextBlock { Text = MagnetLinks.Privacy(), FontSize = 12, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(14, 16, 14, 6) });
         AutomationProperties.SetLiveSetting(middle, AutomationLiveSetting.Polite);
     }
 
