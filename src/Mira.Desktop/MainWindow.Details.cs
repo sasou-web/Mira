@@ -457,8 +457,6 @@ public partial class MainWindow
     private void RenderDetailText(MediaItem item)
     {
         DetailTitle.Text = item.DisplayTitle;
-        var kind = item.Type switch { "Series" => L("SÉRIE", "SERIES"), "Episode" => L("ÉPISODE", "EPISODE"), _ => L("FILM", "MOVIE") };
-        DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
         RenderDetailMeta();
         // The same summary drawn again (after a click on Vu) stays as it was, opened or not.
         var overview = OverviewText.Plain(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title."));
@@ -501,7 +499,15 @@ public partial class MainWindow
         var target = item.Type == "Series" ? _detailNext : item;
         var file = item.Type != "Series" ? MediaQuality.Label(item) : _detailFile is { } known && known.Id == target?.Id ? MediaQuality.Label(known.Source) : null;
         var resume = target is not null && target.Resumable && _settings.RememberPosition;
-        DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is { } rating and > 0 ? $"★ {Number(rating, "0.0")}" : "", item.OfficialRating ?? "",
+        // The facts say the type and the year once, the year first (no kicker above the logo): « 2021 · 2 seasons »,
+        // « 2023 · 2 hr 20 min », « 2021 · S01 · E03 — Name »; the cards keep item.Subtitle (« 2021 · Series »).
+        var kind = item.Type switch
+        {
+            "Series" => item.ChildCount is > 0 ? Lang.Count(item.ChildCount.Value, "saison", "saisons", "season", "seasons") : "",
+            "Episode" => item.Subtitle,
+            _ => item.DurationLabel,
+        };
+        DetailMeta.Text = string.Join("  ·  ", new[] { item.ProductionYear?.ToString() ?? "", kind, item.CommunityRating is { } rating and > 0 ? $"★ {Number(rating, "0.0")}" : "", item.OfficialRating ?? "",
             TitleStorage.Text(_detailSize) ?? "", file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume, named: item.Type == "Series") ?? "" }.Where(x => x.Length > 0));
     }
     /// <summary>

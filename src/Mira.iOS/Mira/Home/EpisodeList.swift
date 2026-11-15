@@ -276,7 +276,7 @@ struct EpisodeTileTitle: View {
     }
 }
 
-/// One episode as a tile: its still (a check on it once watched, its progress, framed in white with « UP NEXT » for the
+/// One episode as a tile: its still (a check on it once watched, its progress, « UP NEXT » and a white play for the
 /// one Play plays), then its number, name, length and summary. The still plays it at once; the text opens its page.
 struct EpisodeTile: View {
     let episode: Item
@@ -333,17 +333,18 @@ struct EpisodeTile: View {
                     }
                     .overlay {
                         if isNext {
+                            // White as the page's Play, as on Windows and the Mac: the tile wears no frame of its own.
                             Image(systemName: "play.fill")
                                 .font(.footnote.weight(.bold))
-                                .foregroundStyle(Palette.ink)
+                                .foregroundStyle(Palette.onAccent)
                                 .frame(width: 36, height: 36)
-                                .glassEffect(.clear, in: .circle)
+                                .background(Palette.ink, in: .circle)
                         }
                     }
                     .clipShape(.rect(cornerRadius: 10, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(isNext ? Palette.ink : .white.opacity(0.06), lineWidth: isNext ? 2 : 1)
+                            .strokeBorder(.white.opacity(0.06), lineWidth: 1)
                     }
                     .contentShape(.rect)
             }
