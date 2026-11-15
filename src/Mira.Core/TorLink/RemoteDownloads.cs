@@ -19,6 +19,8 @@ public static partial class RemoteDownloads
     public const int MaxQuery = 120, MaxMagnet = 8192, MaxName = 300;
     /// <summary>A .torrent sent from another device: real ones are a few hundred kilobytes at most.</summary>
     public const int MaxTorrent = 4 << 20;
+    /// <summary>A pasted link read before downloading: at most this many files, each path cut to this length.</summary>
+    public const int MaxLinkFiles = 2000, MaxLinkPath = 200;
     /// <summary>A month: TorLink's guess beyond that (a few bytes a second) is no time to show.</summary>
     public const long MaxEta = 30L * 24 * 3600;
 

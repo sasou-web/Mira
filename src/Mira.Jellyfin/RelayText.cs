@@ -28,6 +28,9 @@ internal static class RelayText
         ["Demande inconnue."] = "Unknown request.",
         ["La recherche n’a pas abouti."] = "The search didn’t go through.",
         ["TorLink a refusé ce téléchargement."] = "TorLink refused this download.",
+        // « Coller un lien magnet ».
+        ["Mira sur le PC serveur ne sait pas encore choisir les fichiers d’un lien : mets-le à jour."] = "Mira on the server PC can’t choose a link’s files yet: update it.",
+        ["Le PC serveur n’a pas pu lire ce lien."] = "The server PC couldn’t read this link.",
         ["PC serveur"] = "Server PC",
         // « Suivre une série ».
         ["Série inconnue."] = "Unknown series.",

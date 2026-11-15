@@ -27,6 +27,8 @@ public partial class MainWindow
     private readonly List<AgentSearchOutcome> _remoteSearchOutcomes = [];
     private readonly List<AgentOutcome> _remoteRequestOutcomes = [], _remoteControlOutcomes = [];
     private readonly HashSet<string> _remoteSearching = [];
+    private readonly List<AgentLookOutcome> _remoteLookOutcomes = [];
+    private readonly HashSet<string> _remoteLooking = [];
     private bool _remoteVisiting, _remoteAgain;
     /// <summary>What Réglages → TorLink says of it.</summary>
     private string _remoteState = "";
@@ -95,11 +97,14 @@ public partial class MainWindow
         var problem = TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false },
             DateTime.UtcNow - _remoteElsewhereAt < TimeSpan.FromMinutes(1), !_torlinkHeadless.Running && TorLinkInUse(), installation is { Outdated: false });
         var (searches, requests, controls, follows) = (TorLinkRemote.ReportOf(_remoteSearchOutcomes), _remoteRequestOutcomes.ToList(), _remoteControlOutcomes.ToList(), _remoteFollowOutcomes.ToList());
+        // A link's files (up to 2000 lines): one reading a visit, beside the rest.
+        var looked = _remoteLookOutcomes.Take(1).ToList();
         // Follows, even empty: this Mira checks the series followed (MainWindow.Follows.cs); it replaces titles (MainWindow.Upgrades.cs).
         // qBittorrent (private trackers) takes pasted links and .torrent files, whatever TorLink's state; its downloads are listed with TorLink's.
         List<RelayDownload> downloads = [.. await RemoteDownloadsAsync(ct), .. await QBittorrentDownloadsAsync(ct)];
         var report = new AgentReport(Environment.MachineName, problem is null, problem, downloads, TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls, follows, Replaces: true,
-            QBittorrent: !_demo && QBittorrentInstalled(), Seasons: true, Sorting: TorLinkRemote.Sorting(torlink.Importer.Entries), Free: await MediaFreeAsync());
+            QBittorrent: !_demo && QBittorrentInstalled(), Seasons: true, Sorting: TorLinkRemote.Sorting(torlink.Importer.Entries), Free: await MediaFreeAsync(),
+            Looks: !_demo && QBittorrentInstalled(), Looked: looked.Count > 0 ? looked : null);
         var (work, status) = await client.TorLinkExchangeAsync(report, ct);
         if (!ReferenceEquals(client, _client)) return TimeSpan.FromSeconds(5);
         if (work is null)
@@ -111,6 +116,8 @@ public partial class MainWindow
         }
         // Delivered: what the relay has now is not sent again.
         _remoteSearchOutcomes.RemoveAll(searches.Contains); _remoteRequestOutcomes.RemoveAll(requests.Contains); _remoteControlOutcomes.RemoveAll(controls.Contains); _remoteFollowOutcomes.RemoveAll(follows.Contains);
+        _remoteLookOutcomes.RemoveAll(looked.Contains);
+        if (_remoteLookOutcomes.Count > 0) _remoteAgain = true;
         // Searches left for a lighter report (TorLinkRemote.ReportOf), or finished meanwhile: back at once.
         if (_remoteSearchOutcomes.Count > 0) _remoteAgain = true;
         if (work.Busy is { } other) { _remoteState = L($"Un autre Mira reçoit déjà les téléchargements de tes appareils : {other}.", $"Another Mira already receives your devices’ downloads: {other}."); return TimeSpan.FromSeconds(Math.Clamp(work.Next, 10, 120)); }
@@ -119,6 +126,7 @@ public partial class MainWindow
 
         foreach (var search in work.Searches) _ = RunRemoteSearchAsync(installation, search);
         foreach (var follow in work.Follows ?? []) _ = RunFollowCheckAsync(installation, follow);
+        foreach (var look in work.Looks ?? []) _ = RunRemoteLookAsync(look);
         if (work.Requests.Count > 0 || work.Controls.Count > 0) { await RunRemoteDownloadsAsync(installation, work.Requests, work.Controls); _remoteAgain = true; }
         return TimeSpan.FromSeconds(Math.Clamp(work.Next, 1, 60));
     }
@@ -160,6 +168,19 @@ public partial class MainWindow
         finally { _remoteSearching.Remove(search.Id); }
     }
 
+    /// <summary>« Coller un lien magnet » on another device: the link read by this PC's qBittorrent, its files sent back.</summary>
+    private async Task RunRemoteLookAsync(WorkLook look)
+    {
+        if (!_remoteLooking.Add(look.Id)) return;
+        try
+        {
+            _remoteLookOutcomes.Add(await LookWithQBittorrentAsync(look.Id, look.Magnet, _torlinkLifetime.Token));
+            VisitRelaySoon();
+        }
+        catch (OperationCanceledException) { }
+        finally { _remoteLooking.Remove(look.Id); }
+    }
+
     /// <summary>
     /// A search on this PC, in one category: TorLink's, and Mira's own sites beside it unless turned off in TorLink's
     /// settings, each in every form of the search (TorrentSearch: « JoJo's » and « JoJos », « Shōgun » and « Shogun »), an
@@ -174,7 +195,7 @@ public partial class MainWindow
         var ct = _torlinkLifetime.Token;
         // A .torrent, or a pasted link once qBittorrent is installed: qBittorrent's (a private tracker's, often), never TorLink's.
         var qbittorrent = QBittorrentInstalled();
-        var theirs = requests.Where(x => x.Torrent is not null || x.Pasted && qbittorrent && x.Place is null && x.Replace is null).ToList();
+        var theirs = requests.Where(x => x.Torrent is not null || x.Files is not null || x.Pasted && qbittorrent && x.Place is null && x.Replace is null).ToList();
         foreach (var request in theirs)
         {
             byte[]? file = null;
@@ -183,7 +204,8 @@ public partial class MainWindow
                 try { file = Convert.FromBase64String(encoded); } catch (FormatException) { }
                 if (file is null || Bencode.ReadFile(file) is null) { _remoteRequestOutcomes.Add(new(request.Id, "failed", L("Ce n’est pas un fichier .torrent.", "That’s not a .torrent file."))); continue; }
             }
-            var declined = await AddToQBittorrentAsync(file is null ? request.Magnet : null, file);
+            // A pasted link: read before (its reading may still be in qBittorrent), only the files chosen.
+            var declined = file is null ? await DownloadLinkAsync(request.Magnet, request.Files) : await AddToQBittorrentAsync(null, file);
             _remoteRequestOutcomes.Add(new(request.Id, declined is null ? "sent" : "failed", declined));
         }
         requests = requests.Except(theirs).ToList();

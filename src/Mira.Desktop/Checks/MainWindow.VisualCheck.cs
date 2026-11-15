@@ -80,7 +80,7 @@ public partial class MainWindow
         if (_images is not null && _hero is not null) await _heroReady;
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
     }
-    private async Task CaptureAsync(string directory, string name, double scale = 1)
+    private async Task CaptureAsync(string directory, string name, double scale = 1, FrameworkElement? popup = null)
     {
         if (!Motion.Reduced) await Task.Delay(440);
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); UpdateLayout();
@@ -94,7 +94,16 @@ public partial class MainWindow
         // Without the posters' pictures (RenderCache): made at the window's scale, a capture at ×2 would stretch them.
         var pictured = MediaCard.Live.Where(x => x.Pictured).ToList();
         foreach (var card in pictured) card.Pictured = false;
-        try { bitmap.Render(backdrop); bitmap.Render(visual); }
+        // A popup is a window of its own, outside the content: drawn over it at its place on the screen.
+        var over = new DrawingVisual();
+        if (popup is { IsVisible: true } && PresentationSource.FromVisual(popup) is not null)
+        {
+            var origin = visual.PointToScreen(new Point(0, 0)); var at = popup.PointToScreen(new Point(0, 0));
+            var place = new Point((at.X - origin.X) / dpi.DpiScaleX, (at.Y - origin.Y) / dpi.DpiScaleY);
+            using var context = over.RenderOpen();
+            context.DrawRectangle(new VisualBrush(popup) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(place, popup.RenderSize));
+        }
+        try { bitmap.Render(backdrop); bitmap.Render(visual); bitmap.Render(over); }
         finally { foreach (var card in pictured) card.Pictured = true; }
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using (var file = File.Create(Path.Combine(directory, name + ".png"))) encoder.Save(file);
