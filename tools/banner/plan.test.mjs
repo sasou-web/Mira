@@ -41,7 +41,7 @@ test('a patch takes « film », x.y.0 « lineup », and the entry can force eith
   assert.deepEqual([l.windows, l.mac, l.iphone], [true, true, true]);
   assert.equal(plan('1.0.0', { scenes: { '1.0.0': { template: 'film' } }, news }).template, 'film');
   assert.throws(() => planned({ template: 'changes' }), /unknown template changes/);
-  assert.throws(() => plan('1.0.0', { scenes: { '1.0.0': { lineup: { lead: 'windows-player' } } }, news }), /no gallery takes windows-player/);
+  assert.throws(() => plan('1.0.0', { scenes: { '1.0.0': { lineup: { lead: 'windows-trailer' } } }, news }), /no gallery takes windows-trailer/);
 });
 
 test('the sentence is cut at the first comma, the comma kept in the bold part', () => {
@@ -77,7 +77,7 @@ test('the band\'s refusals say what to change', () => {
   assert.throws(() => planned({ band: [piece({ scale: 0.4, width: 1088 })] }), /scale 0.4 is out of 0.45 to 1.2/);
   assert.throws(() => planned({ band: [piece({ scale: 1.5, width: 1088 })] }), /scale 1.5 is out of/);
   assert.throws(() => planned({ band: [piece({ width: 1000 })] }), /ends at x = 1056, short of 1144 \(widen a piece by 88 px\)/);
-  assert.throws(() => planned({ band: [piece({ shot: 'windows-player', width: 1088 })] }), /no gallery takes windows-player/);
+  assert.throws(() => planned({ band: [piece({ shot: 'windows-trailer', width: 1088 })] }), /no gallery takes windows-trailer/);
   assert.throws(() => planned({ band: [piece({ shot: 'android-home', width: 1088 })] }), /no gallery takes android-home/);
   assert.throws(() => planned({ band: [piece({ point: 4, width: 1088 })] }), /point 4 is not one of the 3 points/);
   assert.throws(() => planned({ band: [piece({ point: 0, width: 1088 })] }), /point 0 is not one of the 3 points/);

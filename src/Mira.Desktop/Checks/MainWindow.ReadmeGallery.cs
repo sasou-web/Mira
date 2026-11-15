@@ -62,7 +62,8 @@ public partial class MainWindow
     /// <summary>
     /// The screens only a release's banner shows (tools/banner/plan.mjs): the films' filters open, a series' missing
     /// episodes at their place (Invincible's, from tools/web/fake-tvdb), the mini-player out against the right edge over
-    /// Home, its controls shown, playing a film whose video gallery.yml made of its backdrop (libmpv as Mira installs it).
+    /// Home, its controls shown, playing a film whose video gallery.yml made of its backdrop (libmpv as Mira installs it),
+    /// then the player whole (windows-player).
     /// </summary>
     private async Task BannerShotsAsync(string output, Func<string, Task> shot)
     {
@@ -97,6 +98,12 @@ public partial class MainWindow
             ShowPlayerControls(); _lastPlayerInteraction = DateTimeOffset.UtcNow.AddMinutes(5);
             Keyboard.ClearFocus(); await ArtworkAsync();
             await CaptureWithVideoAsync(output, "windows-mini");
+            // The player whole, paused, its controls shown: the line above the time says when the film ends (« Ends at »).
+            SetMiniPlayer(false); UpdateLayout(); await Task.Delay(1200);
+            if (_miniPlayer) throw new InvalidOperationException("The player did not come back from the mini-player.");
+            ShowPlayerControls(); _lastPlayerInteraction = DateTimeOffset.UtcNow.AddMinutes(5);
+            Keyboard.ClearFocus(); await ArtworkAsync();
+            await CaptureWithVideoAsync(output, "windows-player");
         }
         finally { _miniPointerForCheck = null; }
     }
@@ -168,7 +175,8 @@ public partial class MainWindow
         using (var dc = visual.RenderOpen())
         {
             dc.DrawImage(window, new Rect(size));
-            dc.PushClip(new RectangleGeometry(shell, MiniRadius, MiniRadius));
+            var radius = _miniPlayer ? MiniRadius : 0;
+            dc.PushClip(new RectangleGeometry(shell, radius, radius));
             dc.DrawRectangle(Brushes.Black, null, shell);
             var scale = Math.Min(shell.Width / frame.PixelWidth, shell.Height / frame.PixelHeight);
             var shown = new Size(frame.PixelWidth * scale, frame.PixelHeight * scale);
