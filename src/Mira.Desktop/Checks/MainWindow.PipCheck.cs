@@ -88,7 +88,7 @@ public partial class MainWindow
             $"picture in picture: the seek bar above the time ({bar.ActualWidth:0} px wide, its line {line:0.#} px above the bottom for {wanted:0.#}, enabled {bar.IsEnabled})");
         var loud = engine.Flag("mute");
         Mute_Click(this, new()); UpdatePip(); pip.HideControlsNow(); await Task.Delay(400);
-        require(engine.Flag("mute") != loud && pip.MutedPillShown, "picture in picture: the sound cut, a pill says it once the controls go");
+        require(engine.Flag("mute") != loud && pip.MutedPillShown, $"picture in picture: the sound cut, a pill says it once the controls go (mute {engine.Flag("mute")}; {pip.ControlsState})");
         Mute_Click(this, new()); UpdatePip(); await Task.Delay(300);
         require(engine.Flag("mute") == loud && !pip.MutedPillShown, "picture in picture: the sound back, the pill gone");
 

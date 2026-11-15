@@ -50,6 +50,8 @@ internal sealed class PipWindow : Window
     private Gesture _gesture;
     private PictureInPicture.Edge _edge;
     private NativePoint _from;
+    /// <summary>Where the pointer was at the last move that showed the controls, on the screen.</summary>
+    private NativePoint _pointerAt = new() { X = int.MinValue, Y = int.MinValue };
     private ScreenFit.Pixels _start;
     private ScreenFit.Screen? _screen;
     private bool _clickPlays;
@@ -249,6 +251,8 @@ internal sealed class PipWindow : Window
     }
     /// <summary>For the player check: « son coupé » said at rest.</summary>
     internal bool MutedPillShown => _mutedFor.IsEnabled;
+    /// <summary>For the player check: whether the controls show, and the gesture under way.</summary>
+    internal string ControlsState => $"shown {_shown}, gesture {_gesture}, keyboard {_keyboard}, muted {_muted}";
     private void SayMuted() { Motion.Fade(_mutedPill, 1, 140); _mutedFor.Stop(); _mutedFor.Start(); }
     /// <summary>The subtitles' button: null without subtitles, else whether they show.</summary>
     public void SetSubtitles(bool? shown)
@@ -334,6 +338,10 @@ internal sealed class PipWindow : Window
                 _ => Cursors.Arrow
             };
             if (_surface.Cursor != cursor) _surface.Cursor = cursor;
+            // WPF also raises a move when what lies under a still pointer changes, as the controls fade and stop taking
+            // it: only a pointer that moved shows them again, else they came back at once and the muted pill with them.
+            if (GetCursorPos(out var at) && at.X == _pointerAt.X && at.Y == _pointerAt.Y) return;
+            _pointerAt = at;
             ShowControls();
             return;
         }
