@@ -1,5 +1,31 @@
 [
   {
+    "version": "0.9.11", "date": "2026-11-15",
+    "summary": "Un lecteur plus clair, une image dans l’image avec sa barre, un clin d’œil à l’ouverture.",
+    "en": { "summary": "A clearer player, picture in picture with its own bar and a wink at opening." },
+    "changes": [
+      { "category": "Lecteur", "text": "Menus au-dessus du titre et du temps, l’heure de fin au-dessus du temps, le temps restant d’un clic (Windows, Mac).", "en": { "category": "Player", "text": "Menus above the title and time, the end time above it, the time left at a click (Windows, Mac)." } },
+      { "category": "Épisode suivant", "text": "Une carte avec son image, son nom et un anneau autour de Lecture pendant le décompte (Windows, Mac).", "en": { "category": "Next episode", "text": "A card with its picture, name and a ring around Play during the countdown (Windows, Mac)." } },
+      { "category": "Image dans l’image", "text": "La barre de lecture, un bouton du son, un glisser qui suit le pointeur (Windows, Mac).", "en": { "category": "Picture in picture", "text": "The seek bar, a sound button and a drag that follows the pointer (Windows, Mac)." } },
+      { "category": "Fiches", "text": "L’épisode à suivre a un disque de lecture blanc, plus de surtitre au-dessus du logo (Windows, Mac).", "en": { "category": "Title pages", "text": "The episode up next has a white play disc, and no line above the logo (Windows, Mac)." } },
+      { "category": "Téléchargements", "text": "La recherche garde deux colonnes jusqu’à la plus petite fenêtre, avec des cartes serrées (Windows, Mac).", "en": { "category": "Downloads", "text": "The search keeps two columns down to the smallest window, with tight cards (Windows, Mac)." } },
+      { "category": "Ouverture", "text": "Le logo se ferme comme une paupière, puis le noir se lève (Windows, Mac).", "en": { "category": "Opening", "text": "The logo closes like an eyelid, then the black lifts (Windows, Mac)." } },
+      { "category": "Corrections", "text": "Plus d’épisodes noirs enchaînés, son coupé gardé, la croix range Mira près de l’horloge quand il travaille.", "en": { "category": "Fixes", "text": "No more black episodes in a row, mute kept, the cross keeps Mira by the clock while it works." } }
+    ],
+    "items": [
+      { "icon": "play", "title": "Un lecteur plus clair", "text": "Les menus s’ouvrent au-dessus du titre et du temps, l’heure de fin s’affiche, un clic sur le temps montre ce qui reste, et l’épisode suivant arrive en carte.",
+        "en": { "title": "A clearer player", "text": "Menus open above the title and time, the end time shows, a click on the time shows what is left, and the next episode comes as a card." } },
+      { "icon": "pip", "title": "L’image dans l’image a sa barre", "text": "La barre de lecture et un bouton du son dans la petite fenêtre, qui suit le pointeur quand on la glisse.",
+        "en": { "title": "Picture in picture with its bar", "text": "The seek bar and a sound button in the small window, which follows the pointer as you drag it." } },
+      { "icon": "series", "title": "Des fiches plus calmes", "text": "L’épisode à suivre a un disque de lecture blanc au lieu d’un cadre, et le logo n’a plus de ligne au-dessus de lui.",
+        "en": { "title": "Calmer title pages", "text": "The episode up next has a white play disc instead of a frame, and the logo no longer has a line above it." } },
+      { "icon": "download", "title": "La recherche en petite fenêtre", "text": "Dans Téléchargements, les résultats à gauche et la file à droite jusqu’à la plus petite fenêtre, en cartes serrées.",
+        "en": { "title": "Search in a small window", "text": "In Downloads, results on the left and the queue on the right down to the smallest window, in tight cards." } },
+      { "icon": "sparkle", "title": "Un clin d’œil à l’ouverture", "text": "Le logo se ferme sur place comme une paupière, puis le noir se lève, sous Windows comme sur Mac.",
+        "en": { "title": "A wink at opening", "text": "The logo closes in place like an eyelid, then the black lifts, on Windows and Mac." } }
+    ]
+  },
+  {
     "version": "0.9.10", "date": "2026-11-14",
     "summary": "Une ouverture qui glisse, des sélecteurs en gelée, des noms qui défilent, un mini-lecteur plus net.",
     "en": { "summary": "An opening that glides, jelly switches, names that slide and a cleaner mini-player." },

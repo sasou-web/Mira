@@ -1,4 +1,11 @@
 {
+  "0.9.11": {
+    "film": "klaus",
+    "band": [
+      { "point": 1, "shot": "windows-player", "at": [20, 336], "scale": 0.5, "width": 700 },
+      { "point": 3, "shot": "windows-series", "at": [659, 190], "scale": 0.72, "width": 372 }
+    ]
+  },
   "0.9.10": {
     "film": "puss-in-boots",
     "band": [
