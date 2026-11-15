@@ -61,7 +61,7 @@ Mira pour iPhone est une app native, avec son propre lecteur (image dans l’ima
   <tr><td align="center">Tous tes films</td><td align="center">Langues et sous-titres</td></tr>
 </table>
 
-<sub>Captures de la vraie application, connectée à un serveur Jellyfin de démonstration (vidéos factices ; affiches et résumés fournis par TMDb). <i>Arcane</i> © Riot Games, Fortiche ; <i>Spider-Man : Across the Spider-Verse</i> © Sony Pictures Animation ; les autres titres appartiennent à leurs ayants droit.</sub>
+<sub>Captures de la vraie application, connectée à un serveur Jellyfin de démonstration (vidéos factices ; affiches et résumés fournis par TMDb). <i>Le Château ambulant</i> © Studio Ghibli ; <i>Arcane</i> © Riot Games, Fortiche ; <i>Cowboy Bebop</i> © Sunrise ; les autres titres appartiennent à leurs ayants droit.</sub>
 
 ## Installer
 

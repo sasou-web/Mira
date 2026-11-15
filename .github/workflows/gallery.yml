@@ -1,6 +1,6 @@
 name: README captures
 # The captures of the README (docs/screenshots/readme/): Mira for Windows, the real window, and Mira for iPhone on the
-# simulator, each signed in to a real Jellyfin 12.1 whose library is the README's demonstration one (tools/banner/media.sh: animated films and series, black placeholder
+# simulator, each signed in to a real Jellyfin 12.1 whose library is the README's demonstration one (tools/banner/media.sh: films and series, black placeholder
 # videos) with its TMDb artwork. Run on request (Run workflow) from a branch other than main: the captures are committed to that branch, to
 # go to main through its pull request; from main, they are only kept as an artifact. Never on a push or a pull
 # request: its own commit would start it again.
@@ -38,6 +38,10 @@ env:
   GALLERY_USER: Camille
   GALLERY_PASSWORD: mira-gallery
   GALLERY_LANGUAGE: ${{ inputs.language || 'en' }}
+  # The film resumed on Home whose page every app captures (the start of its name), and the one the banner's mini-player
+  # and player play, a video made of its backdrop (its folder in tools/banner/media.sh).
+  GALLERY_FILM: Howl
+  GALLERY_PLAYING: Blade Runner 2049 (2017)
 jobs:
   windows:
     if: ${{ !inputs.iphone_only }}
@@ -63,7 +67,10 @@ jobs:
         run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
       - name: The library
         shell: bash
-        run: tools/banner/media.sh "$PWD/.artifacts/media"
+        run: |
+          tools/banner/media.sh "$PWD/.artifacts/media"
+          # Every film, series and episode, for setup.mjs to wait for the whole scan.
+          echo "MIRA_GALLERY_TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
       # For a release's banner only: a stand-in for TheTVDB's plugin, whose missing episodes of Invincible the banner's
       # windows-missing shows (tools/web/fake-tvdb), in Jellyfin's plugins before it starts.
       - name: Missing episodes (banner)
@@ -96,13 +103,16 @@ jobs:
         shell: bash
         run: |
           pwsh -NoProfile -File tools/mpv-engine.ps1 -Work .artifacts/player-work -ProfileFolder .artifacts/gallery-profile
-          node tools/banner/stills.mjs http://127.0.0.1:8096 "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/stills
-          name="Spider-Man Across the Spider-Verse (2023)"
-          ffmpeg -loglevel error -y -loop 1 -framerate 1 -i .artifacts/stills/still-spider-verse.jpg -f lavfi -i anullsrc=r=48000:cl=stereo -t 600 \
+          MIRA_STILLS_ALL=1 node tools/banner/stills.mjs http://127.0.0.1:8096 "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/stills
+          name="$GALLERY_PLAYING"
+          slug=$(echo "${name% (*}" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g')
+          file=".artifacts/media/Films/$name/$name.mkv"
+          minutes=$(( $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$file" | cut -d. -f1) / 60 ))
+          ffmpeg -loglevel error -y -loop 1 -framerate 1 -i ".artifacts/stills/backdrop-$slug.jpg" -f lavfi -i anullsrc=r=48000:cl=stereo -t 600 \
             -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,format=yuv420p" \
             -c:v libx264 -preset ultrafast -tune stillimage -crf 20 -g 600 -c:a aac -b:a 32k .artifacts/still-master.mkv
-          ffmpeg -loglevel error -y -stream_loop -1 -i .artifacts/still-master.mkv -t $((140 * 60)) -c copy -metadata:s:a:0 language=eng .artifacts/still-film.mkv
-          mv -f .artifacts/still-film.mkv ".artifacts/media/Films/$name/$name.mkv"
+          ffmpeg -loglevel error -y -stream_loop -1 -i .artifacts/still-master.mkv -t $((minutes * 60)) -c copy -metadata:s:a:0 language=eng .artifacts/still-film.mkv
+          mv -f .artifacts/still-film.mkv "$file"
       # The runner's screen is 1024 × 768, smaller than the window captured: Windows would shrink it to fit.
       - name: Screen of 1920 × 1080
         shell: pwsh
@@ -115,13 +125,18 @@ jobs:
         shell: pwsh
         env:
           MIRA_GALLERY_SERVER: http://127.0.0.1:8096
-          # A release's banner: its own screens too (filters, missing episodes, the mini-player, the player, Settings → Discord).
+          # A release's banner: its own screens too (more films, filters, missing episodes, Downloads, Settings: The
+          # essentials, Privacy, Discord; the mini-player, the player).
           MIRA_GALLERY_BANNER: ${{ inputs.windows_only && '1' || '0' }}
         run: |
           $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
           $output = Join-Path $PWD '.artifacts/gallery'
           $profile = Join-Path $PWD '.artifacts/gallery-profile'
           $env:MIRA_GALLERY_USER = $env:GALLERY_USER; $env:MIRA_GALLERY_PASSWORD = $env:GALLERY_PASSWORD
+          $env:MIRA_GALLERY_PLAYING = $env:GALLERY_PLAYING -replace '\s*\(\d{4}\)$', ''
+          # The pointer off the window: a card under it would be captured hovered.
+          Add-Type -AssemblyName System.Windows.Forms
+          [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(1919, 1079)
           # In the language asked for (en by default, fr for docs/README.fr.md): the runner's Windows is in English, which Mira would otherwise follow.
           $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', $env:GALLERY_LANGUAGE, '--readme-gallery', "`"$output`"") -PassThru
           if (-not $run.WaitForExit(420000)) { $run.Kill(); throw 'The captures did not finish within 7 minutes.' }
@@ -237,7 +252,7 @@ jobs:
         run: |
           status=0
           TEST_RUNNER_MIRA_GALLERY_SERVER=127.0.0.1:8096 TEST_RUNNER_MIRA_GALLERY_USER="$GALLERY_USER" \
-          TEST_RUNNER_MIRA_GALLERY_PASSWORD="$GALLERY_PASSWORD" TEST_RUNNER_MIRA_GALLERY_LANGUAGE="$GALLERY_LANGUAGE" \
+          TEST_RUNNER_MIRA_GALLERY_PASSWORD="$GALLERY_PASSWORD" TEST_RUNNER_MIRA_GALLERY_LANGUAGE="$GALLERY_LANGUAGE" TEST_RUNNER_MIRA_GALLERY_FILM="$GALLERY_FILM" \
           xcodebuild test -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" -resultBundlePath .artifacts/gallery.xcresult \
             -only-testing:MiraUITests/MiraUITests/testGallery > .artifacts/gallery.log 2>&1 || status=$?
           grep -E "error:|Test Case .* (passed|failed|skipped)|\*\* TEST" .artifacts/gallery.log | tail -40 || true

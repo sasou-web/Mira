@@ -61,7 +61,7 @@ Mira for iPhone is a native app with its own player (Picture in Picture, AirPlay
   <tr><td align="center">All your films</td><td align="center">Languages and subtitles</td></tr>
 </table>
 
-<sub>Captures of the real application, connected to a demo Jellyfin server (placeholder videos; posters and summaries from TMDb). <i>Arcane</i> © Riot Games, Fortiche; <i>Spider-Man: Across the Spider-Verse</i> © Sony Pictures Animation; the other titles belong to their rights holders.</sub>
+<sub>Captures of the real application, connected to a demo Jellyfin server (placeholder videos; posters and summaries from TMDb). <i>Howl's Moving Castle</i> © Studio Ghibli; <i>Arcane</i> © Riot Games, Fortiche; <i>Cowboy Bebop</i> © Sunrise; the other titles belong to their rights holders.</sub>
 
 ## Install
 

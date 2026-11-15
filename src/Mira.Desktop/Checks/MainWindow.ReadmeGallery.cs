@@ -27,6 +27,8 @@ public partial class MainWindow
             if (_demo || string.IsNullOrEmpty(server) || string.IsNullOrEmpty(user) || password is null || !_args.Contains("--data"))
                 throw new InvalidOperationException("The README's captures need MIRA_GALLERY_SERVER, _USER and _PASSWORD, an isolated --data profile and no demo.");
             _fallbackRefresh.Stop(); _searchTimer.Stop(); Width = 1440; Height = 900; _artworkScale = 2;
+            // The library's placeholder videos weigh a few megabytes: no size on the pages.
+            TitleStorage.Shown = false;
             Connection connection;
             using (var client = new JellyfinClient(new(server, "", user, "", _profile.DeviceId))) connection = await client.LoginAsync(user, password);
             _profile.SaveConnection(connection);
@@ -47,9 +49,18 @@ public partial class MainWindow
             DetailOverlay.Visibility = Visibility.Collapsed;
             ResetFilters(); _catalog.View = "Movie"; await NavigateLibraryAsync(); SmoothScroll.Jump(LibraryScroll);
             await Shot("windows-films");
-            // The release banners' own screens (gallery.yml for banner.yml), never the README's.
-            if (Environment.GetEnvironmentVariable("MIRA_GALLERY_BANNER") == "1") await BannerShotsAsync(output, Shot);
+            // Before the banner's screens: its player would cover the window.
             Settings_Click(this, new()); SelectSettingsTab("subtitles"); await Shot("windows-subtitles");
+            AutoSaveSettings(); SettingsOverlay.Visibility = Visibility.Collapsed;
+            // The release banners' own screens (gallery.yml for banner.yml), never the README's.
+            if (Environment.GetEnvironmentVariable("MIRA_GALLERY_BANNER") == "1")
+            {
+                // The films further down, a wall of posters without the page's head.
+                LibraryScroll.UpdateLayout(); SmoothScroll.Jump(LibraryScroll, 560); await Task.Delay(600);
+                await Shot("windows-films-more");
+                SmoothScroll.Jump(LibraryScroll);
+                await BannerShotsAsync(output, Shot);
+            }
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: Mira signed in to {server} as {user}.");
         }
         catch (Exception ex)
@@ -63,7 +74,7 @@ public partial class MainWindow
     /// The screens only a release's banner shows (tools/banner/plan.mjs): the films' filters open, a series' missing
     /// episodes at their place (Invincible's, from tools/web/fake-tvdb), the mini-player out against the right edge over
     /// Home, its controls shown, playing a film whose video gallery.yml made of its backdrop (libmpv as Mira installs it),
-    /// then the player whole (windows-player).
+    /// then the player whole (windows-player). Settings too: The essentials, Privacy and Discord.
     /// </summary>
     private async Task BannerShotsAsync(string output, Func<string, Task> shot)
     {
@@ -81,13 +92,21 @@ public partial class MainWindow
 
         await DownloadsShotAsync(shot);
 
-        // Settings → Discord, its live preview of the card: before the player, which would cover the window.
-        Settings_Click(this, new()); SelectSettingsTab("discord"); await Task.Delay(1500);
+        // Settings: The essentials, Privacy, then Discord and its live preview of the card: before the player, which
+        // would cover the window.
+        Settings_Click(this, new()); SelectSettingsTab("home"); await Task.Delay(1500);
+        await shot("windows-settings");
+        SelectSettingsTab("privacy"); await Task.Delay(1500);
+        await shot("windows-privacy");
+        SelectSettingsTab("discord"); await Task.Delay(1500);
         await shot("windows-discord");
         AutoSaveSettings(); SettingsOverlay.Visibility = Visibility.Collapsed;
 
         _catalog.View = "home"; _catalog.ParentId = null; await NavigateLibraryAsync(); SmoothScroll.Jump(LibraryScroll);
-        var film = _catalog.Resume.FirstOrDefault(x => x.Type == "Movie" && x.Name.Contains("Across the Spider-Verse", StringComparison.Ordinal))
+        // The film whose video gallery.yml made of its backdrop (MIRA_GALLERY_PLAYING, its name without punctuation).
+        static string Letters(string text) => string.Concat(text.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant));
+        var playing = Letters(Environment.GetEnvironmentVariable("MIRA_GALLERY_PLAYING") is { Length: > 0 } named ? named : "Across the Spider-Verse");
+        var film = _catalog.Resume.FirstOrDefault(x => x.Type == "Movie" && Letters(x.Name).Contains(playing, StringComparison.Ordinal))
             ?? _catalog.Resume.FirstOrDefault(x => x.Type == "Movie") ?? throw new InvalidOperationException("No film in « Continuer à regarder ».");
         _settings.Volume = 0; VolumeSlider.Value = 0;
         // The pointer resting on it, as far as the mini-player knows: it stays out, its controls with it.

@@ -766,7 +766,8 @@ final class MiraUITests: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
         guard let server = environment["MIRA_GALLERY_SERVER"], !server.isEmpty else { throw XCTSkip("Only for gallery.yml") }
         let french = environment["MIRA_GALLERY_LANGUAGE"] == "fr"
-        let app = launch(language: french ? "fr" : "en", locale: french ? "fr_FR" : "en_US")
+        // No size on the pages: the library's placeholder videos weigh a few megabytes.
+        let app = launch(language: french ? "fr" : "en", locale: french ? "fr_FR" : "en_US", extra: ["-mira-no-sizes"])
         let address = app.textFields["login.address"]
         XCTAssertTrue(address.waitForExistence(timeout: 10), "No sign-in screen")
         focus(address)
@@ -782,13 +783,17 @@ final class MiraUITests: XCTestCase {
         capture("iphone-home")
 
         app.buttons["tab.movies"].tap()
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Coco'")).firstMatch.waitForExistence(timeout: 15), "Movies shows no grid of films")
+        // Any film of the library's first ones, whatever the order.
+        let films = NSPredicate(format: "label BEGINSWITH 'Coco' OR label BEGINSWITH 'Dune' OR label BEGINSWITH 'Arrival' OR label BEGINSWITH 'Akira' OR label BEGINSWITH '5 Centimeters'")
+        XCTAssertTrue(app.buttons.matching(films).firstMatch.waitForExistence(timeout: 15), "Movies shows no grid of films")
         Thread.sleep(forTimeInterval: 5)
         capture("iphone-movies")
 
         app.buttons["tab.home"].tap()
-        let film = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Spider-Man: Across the Spider-Verse'")).firstMatch
-        XCTAssertTrue(film.waitForExistence(timeout: 10), "No card for Spider-Man: Across the Spider-Verse on Home")
+        // The film resumed on Home (MIRA_GALLERY_FILM, the start of its name), the one Windows and Mac capture too.
+        let filmName = environment["MIRA_GALLERY_FILM"].flatMap { $0.isEmpty ? nil : $0 } ?? "Spider-Man: Across the Spider-Verse"
+        let film = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", filmName)).firstMatch
+        XCTAssertTrue(film.waitForExistence(timeout: 10), "No card for \(filmName) on Home")
         tapCard(app, film)
         XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "The film's page did not open")
         Thread.sleep(forTimeInterval: 5)
