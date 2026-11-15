@@ -958,6 +958,9 @@ public sealed partial class PlayerPage : UserControl
     {
         if (button.Flyout is not Flyout flyout || button.Content is not Control glyph) return;
         var mark = new Border { Height = 2, Width = 16, CornerRadius = new CornerRadius(1), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, -6), IsVisible = false, IsHitTestVisible = false };
+        // The glyph leaves the button before it joins the panel: else the button, given its new content, takes the glyph's
+        // logical parent away while the panel holds it, and Avalonia throws when the page joins the window.
+        button.Content = null;
         button.Content = new Panel { Children = { glyph, mark } };
         flyout.Opened += (_, _) => { mark.IsVisible = true; button.Classes.Add("open"); };
         flyout.Closed += (_, _) => { mark.IsVisible = false; button.Classes.Remove("open"); };
