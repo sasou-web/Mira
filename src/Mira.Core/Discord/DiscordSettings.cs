@@ -22,12 +22,13 @@ public sealed class DiscordSettings
     public bool ShowTime { get; set; } = true;
     /// <summary>Mira's badge on the poster (the play or pause sign with « No artwork »).</summary>
     public bool ShowBadge { get; set; } = true;
-    /// <summary>The two buttons (<see cref="DiscordButton"/>): Discord shows two at most, to the others only.</summary>
-    public string FirstButton { get; set; } = DiscordButton.Mira;
-    public string SecondButton { get; set; } = DiscordButton.None;
-    /// <summary>« Custom link… » of a button: its label (1 to 32 characters) and its https address.</summary>
-    public string CustomLabel { get; set; } = "";
-    public string CustomUrl { get; set; } = "";
+    /// <summary>
+    /// The two buttons (<see cref="DiscordButton"/>): Discord shows two at most, to the others only. A value Mira no longer
+    /// offers (« Custom link… » until 2026-11-15, an address typed by hand) falls back to the default as it is read.
+    /// </summary>
+    public string FirstButton { get => _first; set => _first = DiscordButton.Known(value, DiscordButton.Mira); }
+    public string SecondButton { get => _second; set => _second = DiscordButton.Known(value, DiscordButton.None); }
+    private string _first = DiscordButton.Mira, _second = DiscordButton.None;
     /// <summary>
     /// « Let friends join my party from Discord »: while watching together, the second button is « Join the party », the
     /// party's public link (Funnel only). Off by default: anyone who sees the profile can then open it.
@@ -99,8 +100,10 @@ public static class DiscordStatusLine
 /// <summary>The buttons a card may carry, two at most (Discord's limit), each a plain https page without any tracking.</summary>
 public static class DiscordButton
 {
-    public const string None = "none", Mira = "mira", Tmdb = "tmdb", Imdb = "imdb", Trailer = "trailer", GitHub = "github", Community = "discord", Custom = "custom";
-    public static readonly string[] All = [None, Mira, Tmdb, Imdb, Trailer, GitHub, Community, Custom];
+    public const string None = "none", Mira = "mira", Tmdb = "tmdb", Imdb = "imdb", Trailer = "trailer", GitHub = "github", Community = "discord";
+    public static readonly string[] All = [None, Mira, Tmdb, Imdb, Trailer, GitHub, Community];
+    /// <summary>The button itself when Mira offers it, otherwise <paramref name="fallback"/>.</summary>
+    public static string Known(string? button, string fallback) => button is not null && All.Contains(button, StringComparer.Ordinal) ? button : fallback;
     public const string Site = "https://miracinema.app/";
     public const string Repository = "https://github.com/sasou-web/Mira";
     public const string Server = "https://discord.miracinema.app";
@@ -114,7 +117,6 @@ public static class DiscordButton
         Trailer => L("Voir la bande-annonce", "Watch the trailer"),
         GitHub => L("Mira sur GitHub", "Mira on GitHub"),
         Community => L("Rejoindre le Discord de Mira", "Join Mira’s Discord"),
-        Custom => L("Lien personnalisé…", "Custom link…"),
         _ => button,
     };
     /// <summary>Where it leads, as the list says it.</summary>

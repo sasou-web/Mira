@@ -213,30 +213,20 @@ public static class DiscordPresence
         foreach (var button in new[] { settings.FirstButton, settings.SecondButton })
         {
             if (links.Count == 2) break;
-            if (Button(button, settings, showTitle ? title : null) is { } link && links.All(x => x.Url != link.Url)) links.Add(link);
+            if (Button(button, showTitle ? title : null) is { } link && links.All(x => x.Url != link.Url)) links.Add(link);
         }
         return links;
     }
 
-    private static DiscordLink? Button(string button, DiscordSettings settings, DiscordTitle? title) => button switch
+    private static DiscordLink? Button(string button, DiscordTitle? title) => button switch
     {
         DiscordButton.Mira => new(DiscordButton.Label(button), DiscordButton.Site),
         DiscordButton.GitHub => new(DiscordButton.Label(button), DiscordButton.Repository),
         DiscordButton.Community => new(DiscordButton.Label(button), DiscordButton.Server),
         DiscordButton.Tmdb or DiscordButton.Imdb when title is not null && TitleLink(button, title) is { } page => new(DiscordButton.Label(button), page),
         DiscordButton.Trailer when title?.Trailer is { } trailer && Trailers.WebLink(trailer) is { } uri && uri.AbsoluteUri.Length <= 512 => new(DiscordButton.Label(button), uri.AbsoluteUri),
-        DiscordButton.Custom when CustomLink(settings.CustomLabel, settings.CustomUrl) is { } custom => custom,
         _ => null,
     };
-
-    /// <summary>« Custom link… »: a label of 1 to 32 characters and a plain https address of 512 at most; null otherwise.</summary>
-    public static DiscordLink? CustomLink(string? label, string? url)
-    {
-        label = label?.Trim();
-        if (string.IsNullOrEmpty(label) || label.Length > 32 || url is null || url.Trim().Length > 512) return null;
-        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length > 0 || uri.HostNameType != UriHostNameType.Dns || !uri.Host.Contains('.', StringComparison.Ordinal)) return null;
-        return new(label, uri.AbsoluteUri);
-    }
 
     /// <summary>« Join the party »: the party's link only when it is Funnel's public https address, never a home or Tailscale one.</summary>
     public static DiscordLink? PartyButton(string? link)

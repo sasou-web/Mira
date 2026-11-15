@@ -28,10 +28,8 @@ public sealed partial class SettingsPage
     private readonly StackPanel _discordLibraryRows = new() { Spacing = 8, Margin = new Thickness(0, 10, 0, 0) };
     private readonly StackPanel _discordHiddenRows = new() { Spacing = 6, IsVisible = false, Margin = new Thickness(0, 12, 0, 0) };
     private readonly TextBlock _discordHiddenCount = new() { FontSize = 12, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-    private readonly TextBlock _discordCustomNote = new() { FontSize = 12, LineHeight = 19, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 30, 0) };
     private readonly List<(ToggleSwitch Switch, Func<bool> Read)> _discordSwitches = [];
     private readonly List<(Button Card, string Style)> _discordStyles = [];
-    private Control? _discordCustom;
     private Button? _discordForNow;
     private ToggleSwitch? _discordSwitch;
     private int _discordGeneration;
@@ -77,11 +75,9 @@ public sealed partial class SettingsPage
 
         // The buttons, the party, where the title leads.
         var buttons = DiscordButton.All.Select(x => (DiscordButton.Hint(x) is { Length: > 0 } hint ? $"{DiscordButton.Name(x)} · {hint}" : DiscordButton.Name(x), x)).ToArray();
-        _discordCustom = CustomLink(s);
         tab.Children.Add(Section(L("Boutons · deux au plus, la limite de Discord", "Buttons · two at most, Discord’s limit"),
             Row(L("Premier bouton", "First button"), "", DiscordCombo(L("Premier bouton", "First button"), buttons, () => s.FirstButton, v => s.FirstButton = v)),
             Row(L("Second bouton", "Second button"), "", DiscordCombo(L("Second bouton", "Second button"), buttons, () => s.SecondButton, v => s.SecondButton = v)),
-            _discordCustom,
             Row(L("Laisser mes amis rejoindre ma party depuis Discord", "Let friends join my party from Discord"),
                 L("Pendant que vous regardez ensemble, le second bouton devient « Rejoindre la party ». Toute personne qui voit ton profil Discord peut alors ouvrir ton lien de party. Seulement un lien qui passe par Internet (Tailscale Funnel), jamais l’adresse de chez toi.",
                     "While you watch together, the second button becomes “Join the party”. Anyone who can see your Discord profile can then open your party link. Only a link that goes through the internet (Tailscale Funnel), never your home address."),
@@ -89,8 +85,6 @@ public sealed partial class SettingsPage
             Row(L("L’affiche et le titre ouvrent", "Poster and title open"), "", DiscordCombo(L("L’affiche et le titre ouvrent", "Poster and title open"),
                 [(L("La page TMDB du titre", "The title’s TMDB page"), DiscordButton.Tmdb), (L("La page IMDb du titre", "The title’s IMDb page"), DiscordButton.Imdb), (L("Rien", "Nothing"), DiscordButton.None)],
                 () => s.TitleLink, v => s.TitleLink = v))));
-        // A card of its own is wrapped by Section: its own Border shows while a button is « Custom link… ».
-        if (_discordCustom.Parent is Border customCard) _discordCustom = customCard;
 
         // Who sees what.
         var libraries = new DockPanel();
@@ -170,20 +164,6 @@ public sealed partial class SettingsPage
         return box;
     }
 
-    /// <summary>« Custom link… »: its label and https address, shown while a button uses it.</summary>
-    private Control CustomLink(DiscordSettings s)
-    {
-        var label = new TextBox { Text = s.CustomLabel, MaxLength = 32, Width = 220, Margin = new Thickness(0, 0, 10, 0) };
-        var url = new TextBox { Text = s.CustomUrl, Watermark = "https://" };
-        Avalonia.Automation.AutomationProperties.SetName(label, L("Texte du bouton", "Button text"));
-        Avalonia.Automation.AutomationProperties.SetName(url, L("Adresse du bouton (https)", "Button address (https)"));
-        void Changed() { s.CustomLabel = (label.Text ?? "").Trim(); s.CustomUrl = (url.Text ?? "").Trim(); Shell.DiscordSettingChanged(); }
-        label.LostFocus += (_, _) => Changed(); url.LostFocus += (_, _) => Changed();
-        var fields = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
-        DockPanel.SetDock(label, Dock.Left); fields.Children.Add(label); fields.Children.Add(url);
-        return Ui.Column(0, CardTitle(L("Lien personnalisé", "Custom link")), fields, _discordCustomNote);
-    }
-
     /// <summary>Show, Discreet or Hide side by side, the pill of the player's menus.</summary>
     private Border Ways(string name, string key, Func<string> read, Action<string> write)
     {
@@ -228,9 +208,6 @@ public sealed partial class SettingsPage
             Avalonia.Automation.AutomationProperties.SetName(_discordForNow, hidden ? L("Remettre mon statut Discord", "Show my Discord status again") : L("Masquer mon statut Discord pour l’instant", "Hide my Discord status for now"));
             _discordForNow.IsEnabled = s.Enabled;
         }
-        if (_discordCustom is not null) _discordCustom.IsVisible = s.FirstButton == DiscordButton.Custom || s.SecondButton == DiscordButton.Custom;
-        _discordCustomNote.Text = DiscordPresence.CustomLink(s.CustomLabel, s.CustomUrl) is not null ? L("Le bouton mène à cette page.", "The button leads to this page.")
-            : L("Un texte de 1 à 32 caractères et une adresse https complète : sinon, pas de bouton.", "A text of 1 to 32 characters and a full https address: otherwise, no button.");
         _discordHiddenCount.Text = s.Hidden.Count == 0 ? L("Aucun", "None") : Lang.Count(s.Hidden.Count, "titre jamais montré", "titres jamais montrés", "title never shown", "titles never shown");
         if (_discordHiddenRows.IsVisible) FillDiscordHidden();
         FillDiscordLibraries();

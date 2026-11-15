@@ -46,7 +46,6 @@ internal static class DiscordTests
             finally { Lang.Use(was); }
             foreach (var row in fixture["mature"]!.AsArray()) Assert(DiscordPresence.Mature((string?)row![0]) == (bool)row[1]!, $"Pour adultes : {row[0]}");
             foreach (var row in fixture["posters"]!.AsArray()) Assert(DiscordPresence.Poster((string?)row![0]) == (string?)row[1], $"Affiche : {row[0]} → {DiscordPresence.Poster((string?)row[0])}");
-            foreach (var row in fixture["custom"]!.AsArray()) Assert(DiscordPresence.CustomLink((string?)row![0], (string?)row[1]) is not null == (bool)row[2]!, $"Lien personnalisé : {row[0]} {row[1]}");
             foreach (var row in fixture["party"]!.AsArray()) Assert(DiscordPresence.PartyButton((string?)row![0]) is not null == (bool)row[1]!, $"Party : {row[0]}");
             return Task.CompletedTask;
         });

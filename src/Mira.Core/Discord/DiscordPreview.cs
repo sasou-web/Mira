@@ -91,7 +91,7 @@ public static class DiscordPreview
     {
         Enabled = s.Enabled, Offered = s.Offered, Style = s.Style, ShowTitle = s.ShowTitle, ShowEpisode = s.ShowEpisode, ShowEpisodeName = s.ShowEpisodeName,
         ShowPoster = s.ShowPoster, ShowTime = s.ShowTime, ShowBadge = s.ShowBadge, FirstButton = s.FirstButton, SecondButton = s.SecondButton,
-        CustomLabel = s.CustomLabel, CustomUrl = s.CustomUrl, JoinParty = s.JoinParty, TitleLink = s.TitleLink, Libraries = new(s.Libraries),
+        JoinParty = s.JoinParty, TitleLink = s.TitleLink, Libraries = new(s.Libraries),
         Mature = s.Mature, Hidden = [.. s.Hidden], PausedMinutes = s.PausedMinutes, MemberLine = s.MemberLine, ShowBrowsing = s.ShowBrowsing, Guest = s.Guest,
     };
 
