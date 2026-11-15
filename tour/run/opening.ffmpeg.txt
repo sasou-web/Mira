@@ -1,3 +1,1 @@
-[in#0/gdigrab @ 00000156f9f9c180] Stream #0: not enough frames to estimate rate; consider increasing probesize
-[libx264 @ 00000156f9f9f000] non-strictly-monotonic PTS
-    Last message repeated 55 times
+[in#0/gdigrab @ 00000229f0c6bf00] Stream #0: not enough frames to estimate rate; consider increasing probesize
