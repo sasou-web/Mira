@@ -1,0 +1,102 @@
+name: Captures 2026-11-15
+# One-off (never merged): fresh captures of Mira for Windows, Mac (Linux preview) and iPhone on the README's library,
+# every screen in high definition, committed to this branch under captures/ for the project's mock-ups.
+on:
+  push:
+    branches: [claude/captures-2026-11-15]
+    paths: ['.github/workflows/captures.yml']
+permissions:
+  contents: read
+env:
+  JELLYFIN_IMAGE: jellyfin/jellyfin:12.1.20260915-010956
+  GALLERY_USER: Camille
+  GALLERY_PASSWORD: mira-gallery
+jobs:
+  windows:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/gallery.yml
+    with:
+      language: en
+      windows_only: true
+
+  iphone:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/gallery.yml
+    with:
+      language: en
+      iphone_only: true
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: The library
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          tools/banner/media.sh "$PWD/.artifacts/media"
+          echo "MIRA_GALLERY_TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+      - name: Jellyfin 12.1 and its library
+        run: |
+          mkdir -p .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0 .artifacts/jf-cache
+          dotnet build tools/web/fake-tvdb/FakeTvdb.csproj -c Release -o .artifacts/fake-tvdb -nologo -v q
+          cp .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0/
+          docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
+          GALLERY_LANGUAGE=en node tools/gallery/setup.mjs http://127.0.0.1:8096 /media "$GALLERY_USER" "$GALLERY_PASSWORD" | tee .artifacts/setup.log
+      - name: Every title's backdrop and poster
+        run: MIRA_STILLS_ALL=1 node tools/banner/stills.mjs http://127.0.0.1:8096 "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/captures/artwork
+      - name: Mira for Mac (Linux, virtual display, at ×2)
+        run: |
+          sudo apt-get install -y -q xvfb libgl1-mesa-dri >/dev/null
+          dotnet build src/Mira.Mac/Mira.Mac.csproj -c Release -nologo -v q
+          dll=$(find src/Mira.Mac/bin/Release -name Mira.dll | head -1)
+          export MIRA_GALLERY_SERVER=http://127.0.0.1:8096 MIRA_GALLERY_USER="$GALLERY_USER" MIRA_GALLERY_PASSWORD="$GALLERY_PASSWORD" AVALONIA_GLOBAL_SCALE_FACTOR=2 LANG=en_US.UTF-8
+          timeout 300 xvfb-run -a -s "-screen 0 3200x2000x24" dotnet "$dll" --data .artifacts/mac-profile --gallery .artifacts/captures/mac || true
+          cat .artifacts/captures/mac/gallery-result.txt || true
+          cp .artifacts/setup.log .artifacts/captures/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: captures-linux
+          path: .artifacts/captures
+          retention-days: 7
+
+  commit:
+    needs: [windows, iphone, linux]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: gallery-windows
+          path: captures/windows
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: gallery-iphone
+          path: captures/iphone
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: captures-linux
+          path: captures
+      - name: Commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          find captures -type f | sort; du -sh captures
+          git add -f captures
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Captures (never merged)"
+          git push origin "HEAD:$BRANCH"
