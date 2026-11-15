@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Mira.Core;
 using Mira.Core.TorLink;
 using Mira.Core.Updates;
@@ -129,6 +130,18 @@ public partial class MainWindow
                 throw new InvalidOperationException("The search page does not wait for a first letter.");
             _filterBusy = true; SearchBox.Text = L("étoiles", "stars"); _filterBusy = false; RenderDemo();
             await CaptureAsync(output, "12-search");
+            // Tab from the field: « Effacer », then the first result, never the window's buttons and the rail first (B3 on the Dell).
+            Activate(); SearchBox.Focus(); await Task.Delay(100);
+            if (!SearchBox.IsKeyboardFocused) throw new InvalidOperationException("The search field did not take the keyboard focus.");
+            var tabbed = new List<string>();
+            for (var tab = 0; tab < 2 && Keyboard.FocusedElement is UIElement here && !ReferenceEquals(here, FirstResult(LibraryRows)); tab++)
+            {
+                here.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
+                tabbed.Add(Keyboard.FocusedElement is FrameworkElement now ? AutomationProperties.GetName(now) is { Length: > 0 } name ? name : now.GetType().Name : "nothing");
+            }
+            if (FirstResult(LibraryRows) is not { } firstResult || !ReferenceEquals(Keyboard.FocusedElement, firstResult))
+                throw new InvalidOperationException("Tab from the search field does not reach the first result: " + string.Join(" → ", tabbed));
+            Keyboard.ClearFocus();
             await Page("home", "01-home");
             Width = 1024; Height = 720; await CaptureAsync(output, "13-compact-window");
             Width = 1440; Height = 960;
