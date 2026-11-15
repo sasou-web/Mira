@@ -144,7 +144,17 @@ public sealed partial class SettingsPage
         DockPanel.SetDock(switcher, Dock.Top); side.Children.Add(switcher);
         DockPanel.SetDock(searchBox, Dock.Top); side.Children.Add(searchBox);
         DockPanel.SetDock(foot, Dock.Bottom); side.Children.Add(foot);
-        side.Children.Add(new ScrollViewer { Content = lists });
+        var sections = new ScrollViewer { Content = lists };
+        side.Children.Add(sections);
+        // The foot goes while the sections do not fit above it, so that the last ones show without scrolling in a short window.
+        var room = 0d;
+        sections.ScrollChanged += (_, e) =>
+        {
+            if (e.ExtentDelta.Y == 0 && e.ViewportDelta.Y == 0) return;
+            if (foot.IsVisible && foot.Bounds.Height > 0) room = foot.Bounds.Height + foot.Margin.Top + foot.Margin.Bottom;
+            var keep = SheetWindow.FootShown(foot.IsVisible, sections.Extent.Height, sections.Viewport.Height, room);
+            if (keep != foot.IsVisible) foot.IsVisible = keep;
+        };
         var sideBack = new Border { Background = Ui.Brush("#0C0C0C"), BorderBrush = Ui.Brush("#1F1F1F"), BorderThickness = new Thickness(0, 0, 1, 0), Child = side };
         // Its own left corners, those of the window inside its edge: otherwise its fill may cover the window's edge there.
         sideBack.CornerRadius = new CornerRadius(19, 0, 0, 19);
@@ -412,7 +422,8 @@ public sealed partial class SettingsPage
                 foreach (var card in tab.GetLogicalDescendants().OfType<Border>().Where(x => x.Classes.Contains("setting")).ToList())
                 {
                     if (!ShownIn(card, tab)) continue;
-                    var found = SheetWindow.Matches(Words(card), query);
+                    var (name, details) = Words(card);
+                    var found = SheetWindow.Matches(name, details, query);
                     if (!found) Hide(card); else count++;
                 }
                 // A section's label and « Réglages avancés » go with their cards.
@@ -457,16 +468,21 @@ public sealed partial class SettingsPage
             if (!parent.IsVisible) return false;
         return control.IsVisible;
     }
-    /// <summary>Everything a card says: its titles, its lines, what its lists show.</summary>
-    private static string Words(Control root)
+    /// <summary>
+    /// Everything a card says, its name (its first text, the names of its controls) apart from its details (its other
+    /// lines, what its lists show), for <see cref="SheetWindow.Matches(string, string, string)"/>: « mini » never finds a
+    /// « …even minimized » in an explanation.
+    /// </summary>
+    private static (string Name, string Details) Words(Control root)
     {
-        var words = new List<string>();
+        List<string> name = [], details = [];
+        var titled = false;
         foreach (var part in root.GetLogicalDescendants())
         {
-            if (part is TextBlock { Text: { Length: > 0 } text }) words.Add(text);
-            else if (part is Control control && Avalonia.Automation.AutomationProperties.GetName(control) is { Length: > 0 } name) words.Add(name);
+            if (part is TextBlock { Text: { Length: > 0 } text }) { (titled ? details : name).Add(text); titled = true; }
+            else if (part is Control control && Avalonia.Automation.AutomationProperties.GetName(control) is { Length: > 0 } said) name.Add(said);
         }
-        return string.Join(" ", words);
+        return (string.Join(" ", name), string.Join(" ", details));
     }
     /// <summary>Entrée: the first setting found, in its own section.</summary>
     private void OpenFirstFound()

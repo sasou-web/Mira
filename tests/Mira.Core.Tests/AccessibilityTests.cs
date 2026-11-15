@@ -74,6 +74,22 @@ internal static class AccessibilityTests
             Assert(SheetWindow.Matches("Lecture", "  ") && !SheetWindow.Matches("Lecture", "audio"), "Empty and missed searches");
             Assert(SheetWindow.Matches("Minimize to the notification area", "mini") && !SheetWindow.Matches("Administrators only", "mini") && SheetWindow.Matches("Built-in Tailscale", "scale") is false,
                 "A word found at the start of a word, never inside one");
+            // Explanations only find whole words, give or take an ending (Dell, 2026-11-15: « mini » found two « …even minimized »).
+            Assert(!SheetWindow.Matches("Notify me of new episodes", "A Windows notification when an episode arrives. While Mira is open, even minimized.", "mini")
+                && SheetWindow.Matches("Mini player", "Where it goes", "mini") && SheetWindow.Matches("Close button", "Puts Mira away by the clock while it works", "clock"),
+                "Mini: the name, not the explanation");
+            Assert(SheetWindow.Matches("Check", "Mira looks for updates once a day", "update") && SheetWindow.Matches("Episodes", "Notify me", "noti")
+                && !SheetWindow.Matches("Server", "Configuration of Jellyfin", "config") && SheetWindow.Matches("Server", "Configuration of Jellyfin", "configuration"),
+                "An ending or two in an explanation, never a word half typed");
+            Assert(SheetWindow.Matches("Quality", "Lower it when the picture is blurry", "flou"), "Synonyms in explanations too");
+            // The foot of the list goes while the sections do not fit, and comes back once they fit with it.
+            Assert(!SheetWindow.FootShown(true, 520, 480, 50) && SheetWindow.FootShown(true, 470, 480, 50), "Shown: goes once the list overflows");
+            Assert(!SheetWindow.FootShown(false, 520, 530, 50) && SheetWindow.FootShown(false, 470, 530, 50), "Gone: back only with room for it");
+            Assert(SheetWindow.FootShown(true, 0, 0, 0) && !SheetWindow.FootShown(false, double.NaN, 400, 50), "Not laid out yet: as it was");
+            // Enlarged smoothly: corners kept, steps between them in between.
+            var two = new byte[] { 0, 0, 0, 255, 200, 200, 200, 255 };
+            var wide = SheetWindow.Enlarge(two, 2, 1, 4);
+            Assert(wide.Length == 8 * 4 * 4 && wide[0] == 0 && wide[7 * 4] == 200 && wide[3 * 4] > 0 && wide[3 * 4] < wide[4 * 4] && wide[4 * 4] < 200 && wide[3] == 255, string.Join(",", wide.Where((_, i) => i % 4 == 0)));
             // The person's own words (a friend could not find where Mira updates): any of a group finds the others.
             Assert(SheetWindow.Matches("Mises à jour Mira 0.9.8", "update") && SheetWindow.Matches("Updates Check for updates", "mettre à jour") && SheetWindow.Matches("Updates", "Nouvelle version"), "Updates, in both languages");
             Assert(SheetWindow.Matches("Quality Automatic", "blurry") && SheetWindow.Matches("Built-in Tailscale", "away from home") && SheetWindow.Matches("Sign out or switch account", "déconnexion"), "Blurry, away from home, sign out");

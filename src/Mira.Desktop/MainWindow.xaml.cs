@@ -64,6 +64,7 @@ public partial class MainWindow : Window
         FollowHighContrast(); _textScale = TextScale();
         InitializeComponent();
         AddHandler(PreviewMouseDownEvent, new MouseButtonEventHandler(Window_PreviewMouseDownSwallowed), true);
+        KeepFootOut(SettingsNavigationScroll, SettingsFoot); KeepFootOut(GuideNavigationScroll, GuideFoot);
         Views.PasswordReveal.Attach(PasswordBox, PasswordBoxPlain, PasswordBoxEye, PasswordBoxEyeIcon, PasswordBoxCaps);
         Views.PasswordReveal.Attach(SetupPasswordBox, SetupPasswordBoxPlain, SetupPasswordBoxEye, SetupPasswordBoxEyeIcon, SetupPasswordBoxCaps);
         // After InitializeComponent: the XAML's 1480 × 930 would otherwise replace the size chosen here.
@@ -726,7 +727,9 @@ public partial class MainWindow : Window
     /// <summary>
     /// The banner's picture behind the account form, blurred once here: shrunk to 160 px and softened (the blur of
     /// Réglages' window, <see cref="SheetWindow.Soften"/>), then stretched back. WPF's own blur, drawn live over the whole
-    /// window, scattered white streaks and dots over it (Dell, 2026-11-14).
+    /// window, scattered white streaks and dots over it (Dell, 2026-11-14); so did this small picture stretched twelve times
+    /// by « HighQuality » scaling (Dell, 2026-11-15): it is enlarged four times smoothly here (<see cref="SheetWindow.Enlarge"/>),
+    /// softened once more, and WPF only stretches it the rest of the way, linearly.
     /// </summary>
     private static System.Windows.Media.Imaging.BitmapSource? LoginBackdrop(ImageSource? source)
     {
@@ -740,7 +743,11 @@ public partial class MainWindow : Window
             var pixels = new byte[width * height * 4];
             small.CopyPixels(pixels, width * 4, 0);
             SheetWindow.Soften(pixels, width, height, radius: 3, light: 1, colour: 1);
-            var soft = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+            const int factor = 4;
+            var large = SheetWindow.Enlarge(pixels, width, height, factor);
+            width *= factor; height *= factor;
+            SheetWindow.Soften(large, width, height, radius: 3, light: 1, colour: 1);
+            var soft = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, large, width * 4);
             soft.Freeze();
             return soft;
         }

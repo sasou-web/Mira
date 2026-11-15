@@ -15,7 +15,14 @@ public partial class MainWindow
     {
         // Offscreen visual/player fixtures must not publish fictitious titles to the user's Shell.
         if (_args.Contains("--visual-check") || _args.Contains("--player-check") || _args.Contains("--public-gallery") || _args.Contains("--smooth-check")) return;
-        SourceInitialized += (_, _) => _windows = new WindowsIntegration(this, App.ShellAppId, App.ShellValidation, WindowsCommand);
+        SourceInitialized += (_, _) =>
+        {
+            _windows = new WindowsIntegration(this, App.ShellAppId, App.ShellValidation, WindowsCommand);
+            // The icon's tooltip says what Mira does by the clock (TrayMenuPlan.Tooltip): read every few seconds, set only when it changes.
+            var work = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(3) };
+            work.Tick += (_, _) => { if (_closing) work.Stop(); else _windows?.SetWork(_torlinkHeadless.Running || _torlinkTerminal?.Running == true, _offlineRunning, _servingRelay); };
+            work.Start();
+        };
         StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) _lastVisibleState = WindowState; };
     }
     internal void RestoreFromWindows()
