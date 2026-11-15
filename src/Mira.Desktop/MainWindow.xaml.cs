@@ -57,7 +57,7 @@ public partial class MainWindow : Window
         _args = args;
         var dataArg = Array.IndexOf(args, "--data");
         _profile = new LocalProfile(dataArg >= 0 && dataArg + 1 < args.Length ? args[dataArg + 1] : null);
-        _settings = _profile.LoadSettings();
+        _settings = _profile.LoadSettings(); _settings.Discord.Upgrade();
         Motion.Reduced = _settings.ReduceMotion; Motion.FollowsWindows = !ValidationRun; Spoilers.On = _settings.HideSpoilers;
         SlidingText.Quiet = () => PageScrolling;
         // Before the pages load: they read these colours once.

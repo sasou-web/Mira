@@ -162,20 +162,13 @@ public sealed partial class MainWindow
         DiscordSettingChanged();
     }
 
-    /// <summary>The one offer, after a playback while Discord runs on this Mac: answered or put away, never made again.</summary>
+    /// <summary>The one notice, after a playback while Discord runs on this Mac: the card is on by default, said once.</summary>
     private void OfferDiscord()
     {
         var settings = Settings.Discord;
-        if (settings.Enabled || settings.Offered || !DiscordAllowed || InParty || !DiscordIpc.Available()) return;
+        if (!settings.Enabled || settings.Offered || !DiscordAllowed || InParty || !DiscordIpc.Available()) return;
         settings.Offered = true; Profile.SaveSettings(Settings);
-        Notice(L("Discord est ouvert : montrer ce que tu regardes sur ton profil ? Tu choisis ce qui s’affiche dans Réglages → Discord.",
-                "Discord is open: show what you watch on your profile? You choose what shows in Settings → Discord."),
-            L("Activer", "Turn on"), () =>
-            {
-                settings.Enabled = true; DiscordSettingChanged();
-                Notice(L("Ta carte Discord s’affichera pendant tes lectures.", "Your Discord card will show while you watch."), L("Choisir ce qui s’affiche", "Choose what shows"),
-                    () => { SettingsPage.OpenAt("discord"); OpenSheet(); });
-            }, sticky: true);
+        Notice(DiscordPreview.Told, L("Réglages", "Settings"), () => { SettingsPage.OpenAt("discord"); OpenSheet(); }, sticky: true);
     }
 
     private async Task CloseDiscordAsync()

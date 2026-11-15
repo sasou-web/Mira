@@ -150,21 +150,15 @@ public partial class MainWindow
     private void DiscordStatus_Click(object sender, RoutedEventArgs e) => ToggleDiscordForNow();
 
     /// <summary>
-    /// The one offer, after a playback ends while Discord runs on this PC (in the player, a notice would be under the
-    /// video): answered or put away, never made again.
+    /// The one notice, after a playback ends while Discord runs on this PC (in the player, a notice would be under the
+    /// video): the card is on by default, Mira says so once, with the way to Réglages → Discord.
     /// </summary>
     private void OfferDiscord()
     {
         var settings = _settings.Discord;
-        if (settings.Enabled || settings.Offered || !DiscordAllowed || InParty || !DiscordIpc.Available()) return;
+        if (!settings.Enabled || settings.Offered || !DiscordAllowed || InParty || !DiscordIpc.Available()) return;
         settings.Offered = true; TrySaveSettings();
-        SetNotice(L("Discord est ouvert : montrer ce que tu regardes sur ton profil ? Tu choisis ce qui s’affiche dans Réglages → Discord.",
-                "Discord is open: show what you watch on your profile? You choose what shows in Settings → Discord."),
-            L("Activer", "Turn on"), () =>
-            {
-                settings.Enabled = true; DiscordSettingChanged();
-                SetNotice(L("Ta carte Discord s’affichera pendant tes lectures.", "Your Discord card will show while you watch."), L("Choisir ce qui s’affiche", "Choose what shows"), OpenDiscordSettings);
-            }, sticky: true);
+        SetNotice(DiscordPreview.Told, L("Réglages", "Settings"), OpenDiscordSettings, sticky: true);
     }
 
     private void OpenDiscordSettings() { Settings_Click(this, new()); SelectSettingsTab("discord"); }

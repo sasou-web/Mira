@@ -30,7 +30,7 @@ Before you sign in, Mira looks for Jellyfin on this computer, on your home netwo
 | **Search for subtitles…** with another Jellyfin plugin | that plugin's service, from your server | what the plugin sends; Mira tells you before |
 | **Your party link** through Tailscale Funnel | Tailscale's relays, then your guests | your guests' traffic to Mira's page, encrypted to your PC. Your PC's Tailscale name becomes public |
 | **A trailer from the web**, at your click | the trailer's site (often YouTube), in your browser | what your browser sends (your IP address, the site's cookies). Mira loads nothing from it before your click and has no web view; a trailer kept on your server goes through it alone |
-| **Discord status** (Windows, Mac), once turned on | the Discord app on your computer, through its local channel; Discord then shows the card on your profile and fetches the poster from TMDB | what you choose in **Settings → Discord**: title, episode, time, poster, buttons. Never your server's address, your Tailscale address or your account |
+| **Discord status** (Windows, Mac), on by default, off in **Settings → Discord** | the Discord app on your computer, through its local channel; Discord then shows the card on your profile and fetches the poster from TMDB | what you choose in **Settings → Discord**: title, episode, time, poster, buttons. Never your server's address, your Tailscale address or your account |
 | **AltStore** (iPhone) | Apple, `miracinema.app`, GitHub | your Apple ID to Apple only, for the free certificate; Mira's source and app |
 
 ## On your devices

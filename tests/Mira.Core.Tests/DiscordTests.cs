@@ -46,6 +46,12 @@ internal static class DiscordTests
             finally { Lang.Use(was); }
             foreach (var row in fixture["mature"]!.AsArray()) Assert(DiscordPresence.Mature((string?)row![0]) == (bool)row[1]!, $"Pour adultes : {row[0]}");
             foreach (var row in fixture["posters"]!.AsArray()) Assert(DiscordPresence.Poster((string?)row![0]) == (string?)row[1], $"Affiche : {row[0]} → {DiscordPresence.Poster((string?)row[0])}");
+            Assert(new DiscordSettings().Enabled, "allumé par défaut");
+            foreach (var (json, on) in new[] { ("{\"enabled\":false}", true), ("{\"enabled\":false,\"offered\":true}", false), ("{\"enabled\":true,\"offered\":true}", true), ("{\"enabled\":false,\"defaults\":1}", false) })
+            {
+                var read = JsonSerializer.Deserialize<DiscordSettings>(json, Json.Options)!; read.Upgrade();
+                Assert(read.Enabled == on && read.Defaults == 1, $"Réglages d'avant : {json}");
+            }
             foreach (var row in fixture["party"]!.AsArray()) Assert(DiscordPresence.PartyButton((string?)row![0]) is not null == (bool)row[1]!, $"Party : {row[0]}");
             return Task.CompletedTask;
         });
@@ -73,7 +79,7 @@ internal static class DiscordTests
             try
             {
                 Assert(DiscordIpc.Available(), "Discord trouvé sans s’y connecter");
-                var settings = new DiscordSettings();
+                var settings = new DiscordSettings { Enabled = false };
                 await using var status = new DiscordStatus("Windows", retry: TimeSpan.FromMilliseconds(200), window: TimeSpan.FromSeconds(1)) { Private = () => ["maison-pc"] };
                 async Task<JsonNode> Next(TimeSpan? wait = null)
                 {
