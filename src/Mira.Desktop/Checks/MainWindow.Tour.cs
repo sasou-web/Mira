@@ -33,6 +33,8 @@ public partial class MainWindow
             var server = Environment.GetEnvironmentVariable("MIRA_GALLERY_SERVER") ?? throw new InvalidOperationException("MIRA_GALLERY_SERVER?");
             var user = Environment.GetEnvironmentVariable("MIRA_GALLERY_USER")!; var password = Environment.GetEnvironmentVariable("MIRA_GALLERY_PASSWORD")!;
             Motion.FollowsWindows = false; Motion.Reduced = false;
+            // Mira's clocks run up to ten times slower: a keep-alive every 3 s of theirs is under Jellyfin's 60 s.
+            JellyfinClient.KeepAliveEvery = TimeSpan.FromSeconds(3);
             _fallbackRefresh.Stop(); _searchTimer.Stop();
             TitleStorage.Shown = false;
             _settings.Discord.Offered = true; _settings.Picture = PictureQuality.Standard; _settings.Volume = 0; _settings.AutoNext = false;
@@ -65,8 +67,8 @@ public partial class MainWindow
             var tour = new TourDirector(output);
             foreach (var (name, scene) in new (string, Func<TourDirector, Task>)[]
             {
-                ("opening", OpeningSceneAsync), ("home", HomeSceneAsync), ("series", SeriesSceneAsync), ("movies", MoviesSceneAsync),
-                ("together", TogetherSceneAsync), ("settings", SettingsSceneAsync),
+                ("opening", OpeningSceneAsync), ("home", HomeSceneAsync), ("series", SeriesSceneAsync), ("settings", SettingsSceneAsync),
+                ("movies", MoviesSceneAsync), ("together", TogetherSceneAsync),
             })
             {
                 try { await scene(tour); log.Add($"{name}: done"); }
@@ -213,6 +215,9 @@ public partial class MainWindow
         await tour.BeginAsync("settings");
         await TourDirector.Wait(300);
         await tour.MoveAsync(SettingsNav, .5, .5, 800); await TourDirector.Wait(250); await tour.ClickAsync(); await TourDirector.Wait(1700);
+        for (var i = 0; i < 60 && (SettingsOverlay.Visibility != Visibility.Visible || PresentationSource.FromVisual(SettingsSearchBox) is null || !SettingsSearchBox.IsVisible); i++)
+            await TourDirector.Wait(100);
+        if (PresentationSource.FromVisual(SettingsSearchBox) is null || !SettingsSearchBox.IsVisible) throw new InvalidOperationException("Settings never opened.");
         await tour.MoveAsync(SettingsSearchBox, .3, .5, 700); await TourDirector.Wait(200); await tour.ClickAsync(); await TourDirector.Wait(300);
         await tour.TypeAsync("discord", 110); await TourDirector.Wait(1100);
         await tour.MoveAsync(DiscordSettingsNav, .5, .5, 700); await TourDirector.Wait(250); await tour.ClickAsync(); await TourDirector.Wait(1500);
@@ -232,11 +237,14 @@ public partial class MainWindow
     /// <summary>The card of a title on the page, scrolled to by the wheel when it is further down.</summary>
     private async Task<MediaCard> FindCardAsync(TourDirector tour, string name)
     {
-        for (var i = 0; i < 12; i++)
+        // The wheel turns what is under the pointer: never the rail.
+        if (tour is not null) await tour.MoveToAsync(ActualWidth * .6, ActualHeight * .55, 500);
+        for (var i = 0; i < 14; i++)
         {
-            if (CardsOnScreen().FirstOrDefault(x => x.Item.Name.StartsWith(name, StringComparison.OrdinalIgnoreCase)
-                && x.TranslatePoint(new Point(0, x.ActualHeight), this).Y < ActualHeight * .92) is { } card) return card;
-            await tour.WheelAsync(-1); await TourDirector.Wait(260); await ArtworkAsync();
+            if (Under<MediaCard>(this).Where(x => x.IsVisible && x.ActualWidth > 0 && x.Item.Name.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault(x => x.TranslatePoint(new Point(), this) is var at && at.Y > 40 && at.X >= 0 && at.X + x.ActualWidth <= ActualWidth
+                    && at.Y + x.ActualHeight < ActualHeight * .97) is { } card) return card;
+            await tour!.WheelAsync(-1); await TourDirector.Wait(260); await ArtworkAsync();
         }
         throw new InvalidOperationException($"No card « {name} » on the page.");
     }

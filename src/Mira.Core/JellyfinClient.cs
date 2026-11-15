@@ -1967,13 +1967,16 @@ public sealed class JellyfinClient : IDisposable
         using var response = await _http.PostAsync($"Sessions/{Uri.EscapeDataString(sessionId)}/Command", content, ct);
         await CheckAsync(response);
     }
+    /// <summary>How often the WebSocket tells Jellyfin it is alive (Jellyfin drops it after 60 s of silence). The tour,
+    /// whose clocks run up to ten times slower, makes it shorter.</summary>
+    public static TimeSpan KeepAliveEvery { get; set; } = TimeSpan.FromSeconds(25);
     private static async Task KeepAliveAsync(ClientWebSocket socket, CancellationToken ct)
     {
         var message = Encoding.UTF8.GetBytes("{\"MessageType\":\"KeepAlive\"}");
         while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
         {
             await socket.SendAsync(message, WebSocketMessageType.Text, true, ct);
-            await Task.Delay(TimeSpan.FromSeconds(25), ct);
+            await Task.Delay(KeepAliveEvery, ct);
         }
     }
     private static Task CheckAsync(HttpResponseMessage response)
