@@ -93,8 +93,8 @@ public partial class MainWindow
         }
         if (episode.UserData.Played)
             picture.Children.Add(new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Background = Brush("#A0000000"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 8, 8, 0), Child = new Icon { Kind = "check", Width = 13, Height = 13, Foreground = Brushes.White } });
-        // Play: always on the one to watch, on the others under the pointer or the keyboard.
-        var play = new Border { Width = 46, Height = 46, CornerRadius = new CornerRadius(23), Background = Brush("#80000000"), Child = new Icon { Kind = "play", Width = 20, Height = 20, Foreground = Brushes.White, Margin = new Thickness(3, 0, 0, 0) }, Visibility = isNext ? Visibility.Visible : Visibility.Hidden };
+        // Play: always on the one to watch, white as the page's Resume; on the others, dark, under the pointer or the keyboard.
+        var play = new Border { Width = 46, Height = 46, CornerRadius = new CornerRadius(23), Background = isNext ? Palette.Get("Text") : Brush("#80000000"), Child = new Icon { Kind = "play", Width = 20, Height = 20, Foreground = isNext ? Palette.Get("OnAccent") : Brushes.White, Margin = new Thickness(3, 0, 0, 0) }, Visibility = isNext ? Visibility.Visible : Visibility.Hidden };
         picture.Children.Add(play);
         if (isNext)
         {
@@ -103,11 +103,10 @@ public partial class MainWindow
                 CornerRadius = new CornerRadius(6), Background = Palette.Get("Text"), Padding = new Thickness(9, 3, 9, 3), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 10, 0, 0),
                 Child = new TextBlock { Text = EpisodeTiles.UpNext, FontSize = 11, FontWeight = FontWeights.ExtraBold, Foreground = Palette.Get("OnAccent") }
             });
-            picture.Children.Add(new Border { BorderBrush = Palette.Get("Text"), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false });
         }
-        // The poster's light ring, under the pointer or the keyboard; the one to watch keeps its white frame and only zooms.
-        var ring = isNext ? null : new Border { BorderBrush = HoverRing, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false, Opacity = 0 };
-        if (ring is not null) picture.Children.Add(ring);
+        // The poster's light ring, under the pointer or the keyboard, the one to watch included: no frame of its own, so the two never look alike.
+        var ring = new Border { BorderBrush = HoverRing, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false, Opacity = 0 };
+        picture.Children.Add(ring);
         var lifted = false;
         void Lift(bool up)
         {
@@ -118,13 +117,13 @@ public partial class MainWindow
             if (Motion.Reduced)
             {
                 zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null); zoom.BeginAnimation(ScaleTransform.ScaleYProperty, null); zoom.ScaleX = zoom.ScaleY = scale;
-                if (ring is not null) { ring.BeginAnimation(OpacityProperty, null); ring.Opacity = opacity; }
+                ring.BeginAnimation(OpacityProperty, null); ring.Opacity = opacity;
                 return;
             }
             var time = TimeSpan.FromMilliseconds(160);
             zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale, time) { EasingFunction = Motion.Soft });
             zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale, time) { EasingFunction = Motion.Soft });
-            ring?.BeginAnimation(OpacityProperty, new DoubleAnimation(opacity, time) { EasingFunction = Motion.Soft });
+            ring.BeginAnimation(OpacityProperty, new DoubleAnimation(opacity, time) { EasingFunction = Motion.Soft });
         }
         // The pointer's own doing, as on the posters: tiles going by under a still pointer while the page scrolls stay quiet.
         button.MouseEnter += (_, _) => { if (!PageScrolling) Lift(true); };

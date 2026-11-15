@@ -316,8 +316,7 @@ public sealed partial class DetailPage : Page
         foreach (var child in _top.Children.Where(x => !ReferenceEquals(x, line) && !ReferenceEquals(x, _progressLine)).ToList()) _top.Children.Remove(child);
         var at = 0;
         void Add(Control control) => _top.Children.Insert(at++, control);
-        var kind = Ui.Kind(_item).ToUpperInvariant();
-        Add(new TextBlock { Text = _item.ProductionYear is { } y ? $"{kind}  ·  {y}" : kind, FontSize = 11.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#E0E0E0"), Margin = new Thickness(1, 0, 0, 14) });
+        // No kicker above the logo (« SERIES · 2021 »): the facts below say the type and the year once, the year first.
         Add(Title());
         if (_item.Taglines?.Select(x => x.Trim()).FirstOrDefault(x => x.Length > 0) is { } tagline)
             Add(new TextBlock { Text = tagline, FontSize = 20, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#E0E0E0"), TextWrapping = TextWrapping.Wrap, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(1, 12, 0, 0) });
@@ -1067,8 +1066,8 @@ public sealed partial class DetailPage : Page
         }
         if (episode.UserData.Played)
             still.Children.Add(new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Background = Ui.Brush("#A0000000"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 8, 8, 0), Child = new Icon("check", 13) { Foreground = Brushes.White } });
-        // Play: always on the one to watch, on the others under the pointer.
-        var play = new Border { Width = 46, Height = 46, CornerRadius = new CornerRadius(23), Background = Ui.Brush("#80000000"), Child = new Icon("play", 20) { Foreground = Brushes.White, Margin = new Thickness(3, 0, 0, 0) }, Opacity = isNext ? 1 : 0, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        // Play: always on the one to watch, white as the page's Lecture; on the others, dark, under the pointer.
+        var play = new Border { Width = 46, Height = 46, CornerRadius = new CornerRadius(23), Background = isNext ? Ui.Ink : Ui.Brush("#80000000"), Child = new Icon("play", 20) { Foreground = isNext ? Ui.Brush("#0B0B0B") : Brushes.White, Margin = new Thickness(3, 0, 0, 0) }, Opacity = isNext ? 1 : 0, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         still.Children.Add(play);
         if (isNext)
         {
@@ -1077,11 +1076,10 @@ public sealed partial class DetailPage : Page
                 CornerRadius = new CornerRadius(6), Background = Ui.Ink, Padding = new Thickness(9, 3), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 10, 0, 0),
                 Child = new TextBlock { Text = EpisodeTiles.UpNext, FontSize = 11, FontWeight = FontWeight.ExtraBold, Foreground = Ui.Brush("#0B0B0B") }
             });
-            still.Children.Add(new Border { BorderBrush = Ui.Ink, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false });
         }
-        // The posters' light ring under the pointer (Cards.Hover); the one to watch keeps its white frame and only zooms.
-        var ring = isNext ? null : Cards.Ring(10);
-        if (ring is not null) still.Children.Add(ring);
+        // The posters' light ring under the pointer (Cards.Hover), the one to watch included: no frame of its own, so the two never look alike.
+        var ring = Cards.Ring(10);
+        still.Children.Add(ring);
         var picture = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = still };
         var root = new StackPanel { Background = Brushes.Transparent, Children = { picture, TileTitle(episode, episode.Name) } };
         long? size = _episodeSizes is { } sizes && sizes.TryGetValue(episode.Id, out var known) ? known : null;
