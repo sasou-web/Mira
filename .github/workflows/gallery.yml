@@ -115,7 +115,7 @@ jobs:
         shell: pwsh
         env:
           MIRA_GALLERY_SERVER: http://127.0.0.1:8096
-          # A release's banner: its own screens too (filters, missing episodes, the mini-player, the player).
+          # A release's banner: its own screens too (filters, missing episodes, the mini-player, the player, Settings → Discord).
           MIRA_GALLERY_BANNER: ${{ inputs.windows_only && '1' || '0' }}
         run: |
           $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
