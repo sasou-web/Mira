@@ -185,7 +185,14 @@ public partial class MainWindow
         else await tour.KeyAsync(0x1B);
         await tour.MoveAsync(DetailPlay, .5, .5, 750); await TourDirector.Wait(450); await tour.ClickAsync();
         for (var i = 0; i < 400 && (!_loaded || _videoWaits); i++) await TourDirector.Wait(50);
-        await TourDirector.Wait(2600);
+        await TourDirector.Wait(1300);
+        // The group starts paused, every device ready: Play, for everyone.
+        if (!_playing)
+        {
+            await tour.MoveAsync(PauseButton, .5, .5, 750); await TourDirector.Wait(350); await tour.ClickAsync();
+            for (var i = 0; i < 80 && !_playing; i++) await TourDirector.Wait(50);
+        }
+        await TourDirector.Wait(1800);
         await tour.MoveToAsync(ActualWidth * .45, ActualHeight * .55, 700); await TourDirector.Wait(900);
         await tour.MoveAsync(SeekBar, .62, .5, 800); await TourDirector.Wait(1200);
         await tour.MoveAsync(PlayerTracksButton, .5, .5, 700); await TourDirector.Wait(250); await tour.ClickAsync(); await TourDirector.Wait(1700);
