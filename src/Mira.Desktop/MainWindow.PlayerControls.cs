@@ -599,7 +599,7 @@ public partial class MainWindow
     {
         if (_mpv is null) return;
         BuildQualityChoices(); BuildSleepChoices(); ShowGroupSection();
-        SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay")); AudioDelayReset.Content = DelayLabel(_mpv.Number("audio-delay"));
+        SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay")); AudioDelayReset.Content = DelayLabel(_mpv.Number("audio-delay")); ShowSubtitleLook();
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");
         var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null, _mpv.Get("video-params/pixelformat") is { Length: > 0 } format && format.Contains("10") ? L("10 bits", "10-bit") : null }.Where(x => x is not null));
@@ -741,5 +741,43 @@ public partial class MainWindow
         var value = delta == 0 ? 0 : Math.Round((_mpv?.Number("sub-delay") ?? 0) + delta, 1);
         _mpv?.Set("sub-delay", value.ToString(CultureInfo.InvariantCulture)); SubtitleDelayReset.Content = DelayLabel(value);
         ShowPlayerControls();
+    }
+    /// <summary>« Taille des sous-titres » of ⋮: a step smaller or larger, the value itself back to the default; on the film at once, kept in Réglages.</summary>
+    private void SubtitleSizeStep_Click(object sender, RoutedEventArgs e)
+    {
+        var steps = int.Parse(((Button)sender).Tag.ToString()!, CultureInfo.InvariantCulture);
+        _settings.SubtitleSize = SubtitleStyle.Resized(_settings.SubtitleSize, steps);
+        SubtitleLookChanged();
+    }
+    /// <summary>« Couleur des sous-titres » of ⋮: white or yellow, on the film at once, kept in Réglages.</summary>
+    private void SubtitleColour_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.SubtitleColor = ((Button)sender).Tag as string == SubtitleStyle.Yellow ? SubtitleStyle.Yellow : SubtitleStyle.White;
+        SubtitleLookChanged();
+    }
+    private void SubtitleLookChanged()
+    {
+        RestyleSubtitles(); ShowSubtitleLook(); ShowPlayerControls();
+        if (!TrySaveSettings()) SetNotice(SettingsNotSaved);
+    }
+    /// <summary>The size and the colour chosen, as ⋮ shows them: the colour chosen in full ink, the other one faint.</summary>
+    private void ShowSubtitleLook()
+    {
+        SubtitleSizeValue.Content = _settings.SubtitleSize.ToString(Lang.Culture);
+        var yellow = _settings.SubtitleColor == SubtitleStyle.Yellow;
+        foreach (var (choice, chosen) in new[] { (SubtitleWhiteChoice, !yellow), (SubtitleYellowChoice, yellow) })
+        {
+            choice.Foreground = (Brush)FindResource(chosen ? "Text" : "Faint"); choice.FontWeight = chosen ? FontWeights.Bold : FontWeights.Normal;
+            System.Windows.Automation.AutomationProperties.SetName(choice, (string)choice.Content + (chosen ? L(", choisi", ", selected") : ""));
+        }
+    }
+    /// <summary>
+    /// The subtitles' size and style given again to the playing mpv (Réglages or ⋮ changed them): seen at once, never only
+    /// at the next film; the small window's scale and the lift over the bar set again over them.
+    /// </summary>
+    private void RestyleSubtitles()
+    {
+        if (_mpv is not { } mpv) return;
+        mpv.StyleSubtitles(_settings); SizePipSubtitles(); LiftPipSubtitles(again: true); LiftSubtitlesOverBar(again: true);
     }
 }

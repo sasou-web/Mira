@@ -24,6 +24,15 @@ public static class SubtitleStyle
     /// <summary>The height offered closest to a saved one (a hand-edited settings file may hold anything).</summary>
     public static int Height(int position) => Heights.MinBy(x => Math.Abs(x.Position - position)).Position;
 
+    /// <summary>The size Réglages start from, and how far « − » and « + » of the player's ⋮ go (Windows' slider: 20 to 70).</summary>
+    public const int DefaultSize = 40, SizeStep = 4, SmallestSize = 20, LargestSize = 70;
+    /// <summary>
+    /// A size one step smaller or larger (<paramref name="steps"/> −1 or 1), 0: back to the default; kept between
+    /// <paramref name="smallest"/> and <paramref name="largest"/> (the Mac's slider: 24 to 64).
+    /// </summary>
+    public static int Resized(int size, int steps, int smallest = SmallestSize, int largest = LargestSize) =>
+        Math.Clamp(steps == 0 ? DefaultSize : size + steps * SizeStep, smallest, largest);
+
     /// <summary>The options to give mpv, in order; a null value: mpv's own default, what Mira set before is undone.</summary>
     public static IReadOnlyList<(string Name, string? Value)> Options(PlayerSettings settings)
     {

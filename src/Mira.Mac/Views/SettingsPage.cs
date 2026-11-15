@@ -568,25 +568,27 @@ public sealed partial class SettingsPage : Page
             box.Padding = dark ? new Thickness(size * .3, size * .08, size * .3, size * .12) : default;
             box.Margin = new Thickness(16, 0, 16, 22 + (100 - SubtitleStyle.Height(settings.SubtitleHeight)) / 100.0 * 165);
         }
+        // A film playing (the mini-player, the small window) shows the change at once, never only the next one.
+        void Changed() { Preview(); Shell.Player?.StyleSubtitles(); }
         var size = new Slider { Minimum = 24, Maximum = 64, Value = settings.SubtitleSize, TickFrequency = 2, IsSnapToTickEnabled = true, Margin = new Thickness(0, 6, 0, 6) };
         var sizeLabel = new TextBlock { Text = $"{settings.SubtitleSize}", FontSize = 14, Foreground = Ui.Brush("#E0E0E0"), VerticalAlignment = VerticalAlignment.Center };
-        size.ValueChanged += (_, e) => { settings.SubtitleSize = (int)e.NewValue; sizeLabel.Text = $"{settings.SubtitleSize}"; Save(); Preview(); };
+        size.ValueChanged += (_, e) => { settings.SubtitleSize = (int)e.NewValue; sizeLabel.Text = $"{settings.SubtitleSize}"; Save(); Changed(); };
         Avalonia.Automation.AutomationProperties.SetName(size, L("Taille des sous-titres", "Subtitle size"));
         Preview();
         var head = new DockPanel();
         DockPanel.SetDock(sizeLabel, Dock.Right); head.Children.Add(sizeLabel); head.Children.Add(CardTitle(L("Taille et style des sous-titres", "Subtitle size and style")));
         Control Labelled(string label, Control control) => Ui.Column(8, new TextBlock { Text = label, FontSize = 14, Foreground = Ui.Brush("#E0E0E0") }, control);
         var color = Combo(L("Couleur des sous-titres", "Subtitle color"), [(L("Blanc", "White"), SubtitleStyle.White), (L("Jaune", "Yellow"), SubtitleStyle.Yellow)],
-            settings.SubtitleColor == SubtitleStyle.Yellow ? SubtitleStyle.Yellow : SubtitleStyle.White, v => { settings.SubtitleColor = v; Preview(); });
+            settings.SubtitleColor == SubtitleStyle.Yellow ? SubtitleStyle.Yellow : SubtitleStyle.White, v => { settings.SubtitleColor = v; Changed(); });
         var height = Combo(L("Hauteur des sous-titres à l’écran", "Subtitle height on screen"), [.. SubtitleStyle.Heights.Select(x => (x.Label, x.Position.ToString(CultureInfo.InvariantCulture)))],
-            SubtitleStyle.Height(settings.SubtitleHeight).ToString(CultureInfo.InvariantCulture), v => { settings.SubtitleHeight = int.Parse(v, CultureInfo.InvariantCulture); Preview(); });
+            SubtitleStyle.Height(settings.SubtitleHeight).ToString(CultureInfo.InvariantCulture), v => { settings.SubtitleHeight = int.Parse(v, CultureInfo.InvariantCulture); Changed(); });
         color.HorizontalAlignment = height.HorizontalAlignment = HorizontalAlignment.Stretch; color.MinWidth = height.MinWidth = 0;
         var choices = new Grid { ColumnDefinitions = new ColumnDefinitions("*,14,*"), Margin = new Thickness(0, 18, 0, 0) };
         var left = Labelled(L("Couleur", "Color"), color); var right = Labelled(L("Hauteur à l’écran", "Height on screen"), height);
         Grid.SetColumn(right, 2); choices.Children.Add(left); choices.Children.Add(right);
-        var dark = Toggle(L("Fond sombre", "Dark background"), L("Un bandeau derrière le texte, lisible même sur une scène claire.", "A band behind the text, readable even on a bright scene."), settings.SubtitleBackground, v => { settings.SubtitleBackground = v; Preview(); });
+        var dark = Toggle(L("Fond sombre", "Dark background"), L("Un bandeau derrière le texte, lisible même sur une scène claire.", "A band behind the text, readable even on a bright scene."), settings.SubtitleBackground, v => { settings.SubtitleBackground = v; Changed(); });
         dark.Margin = new Thickness(0, 18, 0, 0);
-        var bold = Toggle(L("Texte en gras", "Bold text"), "", settings.SubtitleBold, v => { settings.SubtitleBold = v; Preview(); });
+        var bold = Toggle(L("Texte en gras", "Bold text"), "", settings.SubtitleBold, v => { settings.SubtitleBold = v; Changed(); });
         bold.Margin = new Thickness(0, 14, 0, 0);
         return Ui.Column(0, head, size, scene, choices, dark, bold,
             Description(L("Aperçu indicatif. Les sous-titres stylés des animés (ASS) gardent leur look : seule la hauteur s’y applique.", "Approximate preview. Anime’s styled subtitles (ASS) keep their look: only the height applies to them."), 16));

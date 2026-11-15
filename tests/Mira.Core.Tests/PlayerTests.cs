@@ -334,6 +334,9 @@ internal static class PlayerTests
             Assert(plain.Select(x => x.Name).SequenceEqual(options.Select(x => x.Name)) && options.All(x => !x.Name.StartsWith("sub-ass", StringComparison.Ordinal)), "Options: " + string.Join(", ", options));
             Assert(SubtitleStyle.Height(150) == 100 && SubtitleStyle.Height(95) == 94 && SubtitleStyle.Height(0) == 82 && SubtitleStyle.Heights[0] == (100, "En bas"), "Heights");
             Assert(SubtitleStyle.Color("White") == "#FFFFFF" && SubtitleStyle.Color("Rouge") == "#FFFFFF", "Colour");
+            // « − » and « + » of the player's ⋮: a step each, never past the slider's ends, the value itself = the default.
+            Assert(SubtitleStyle.Resized(40, 1) == 44 && SubtitleStyle.Resized(40, -1) == 36 && SubtitleStyle.Resized(68, 1) == 70 && SubtitleStyle.Resized(22, -1) == 20
+                && SubtitleStyle.Resized(56, 0) == 40 && SubtitleStyle.Resized(62, 1, 24, 64) == 64 && SubtitleStyle.Resized(26, -1, 24, 64) == 24, "Size steps");
             return Task.CompletedTask;
         });
         await Test("Image dans l’image : ouverte en bas à droite de l’écran de Mira ou là où elle était, à la forme de la vidéo, à l’échelle de son écran (Windows et Mac)", () =>

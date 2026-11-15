@@ -76,6 +76,48 @@ internal static class PlayerSafetyTests
             foreach (var result in results) Console.WriteLine($"      {(result.Passed ? "ok" : "ÉCHEC")} {result.Message}");
             Assert(results.All(r => r.Passed), string.Join(" | ", results.Where(r => !r.Passed).Select(r => r.Message)));
         });
+        // ogsas, 2026-11-15: a new size or colour only showed once the film was opened again. mpv takes them at once
+        // (StyleSubtitles): the pixels of its screenshots, paused on a line, before and after.
+        await Test("Lecteur : taille et couleur des sous-titres changées pendant la lecture, vues tout de suite (vrai mpv)", async () =>
+        {
+            var folder = Path.Combine(run.Root, "tracks");
+            var settings = new PlayerSettings { SubtitleSize = 30 };
+            using var mpv = new HeadlessMpv(library, settings);
+            var restarted = false; mpv.PlaybackRestarted += () => restarted = true;
+            mpv.Load(Path.Combine(folder, "english.mkv"), 1, paused: true);
+            var timer = Stopwatch.StartNew();
+            while (!restarted && timer.Elapsed < TimeSpan.FromSeconds(20)) { mpv.Poll(); await Task.Delay(50); }
+            Assert(restarted, "the film opened");
+            mpv.Set("sid", "1");
+            (int Yellow, int Lit) Shot(string name)
+            {
+                var png = Path.Combine(folder, name + ".png");
+                mpv.Command("screenshot-to-file", png, "subtitles");
+                // A plain black picture under the line: the subtitle's pixels alone.
+                var raw = Path.Combine(folder, name + ".rgb");
+                var start = new ProcessStartInfo(ffmpeg) { RedirectStandardError = true };
+                foreach (var argument in new[] { "-loglevel", "error", "-y", "-i", png, "-f", "rawvideo", "-pix_fmt", "rgb24", raw }) start.ArgumentList.Add(argument);
+                using (var process = Process.Start(start)!) { process.StandardError.ReadToEnd(); process.WaitForExit(); }
+                var bytes = File.ReadAllBytes(raw); var (yellow, lit) = (0, 0);
+                for (var i = 0; i + 2 < bytes.Length; i += 3)
+                {
+                    var (r, g, b) = (bytes[i], bytes[i + 1], bytes[i + 2]);
+                    if (r > 200 && g > 180 && b < 140) yellow++;
+                    if (r > 200 && g > 180) lit++;
+                }
+                return (yellow, lit);
+            }
+            mpv.Set("vf", "lavfi=[drawbox=c=black:t=fill]");
+            await Task.Delay(300); mpv.Poll();
+            var before = Shot("before");
+            settings.SubtitleSize = 70; settings.SubtitleColor = SubtitleStyle.Yellow;
+            mpv.StyleSubtitles(settings);
+            await Task.Delay(300); mpv.Poll();
+            var after = Shot("after");
+            Assert(before.Lit > 0, $"a white line at first ({before})");
+            Assert(before.Yellow * 10 < after.Yellow, $"yellow at once, the film never opened again ({before} → {after})");
+            Assert(after.Lit > before.Lit * 2, $"larger at once ({before.Lit} → {after.Lit} lit pixels)");
+        });
     }
 
     private static string? Ffmpeg()

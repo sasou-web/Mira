@@ -796,6 +796,18 @@ public sealed partial class PlayerPage : UserControl
     /// <summary>The sub-pos set while the bottom bar shows; null: the subtitles at their own place.</summary>
     private int? _barLift;
     /// <summary>
+    /// The subtitles' size and style given again to the playing mpv (Réglages or ⋮ changed them): seen at once, never only
+    /// at the next film. mpv's sub-pos goes back to the height chosen: the lift over the bar or in the small window, and
+    /// the small window's scale (it follows the size), set again over it.
+    /// </summary>
+    public void StyleSubtitles()
+    {
+        if (_mpv is not { } mpv) return;
+        mpv.StyleSubtitles(_shell.Settings);
+        if (_pip is not null) { _pipLift = int.MinValue; SizePipSubtitles(); LiftPipSubtitles(); }
+        else { _barLift = int.MinValue; LiftSubtitlesOverBar(); }
+    }
+    /// <summary>
     /// While the bottom bar shows, the subtitles go above its title and time, as on Windows, on video sites and in the small
     /// window (<see cref="PictureInPicture.SubtitleLift"/>); back to their place once the bar goes. Never in the mini-player,
     /// nor while the small window has the video (its own lift).
@@ -910,6 +922,7 @@ public sealed partial class PlayerPage : UserControl
         }
         var delays = new StackPanel();
         delays.Children.Add(DelayLine(L("Décalage des sous-titres", "Subtitle delay"), value, Shift, 0.5, L("Sous-titres 0,5 s plus tôt", "Subtitles 0.5 s earlier"), L("Sous-titres 0,5 s plus tard", "Subtitles 0.5 s later")));
+        delays.Children.AddRange(SubtitleLookLines());
         delays.Children.Add(AudioDelayLine());
         if (DiscordLine() is { } discord) delays.Children.Add(discord);
         menu.Children.Add(new Border { BorderBrush = Ui.Rule, BorderThickness = new Thickness(0, 1), Margin = new Thickness(0, 14, 0, 6), Padding = new Thickness(0, 8), Child = delays });
@@ -935,6 +948,36 @@ public sealed partial class PlayerPage : UserControl
         var line = new DockPanel { Margin = new Thickness(12, 5) };
         DockPanel.SetDock(toggle, Dock.Right); line.Children.Add(toggle); line.Children.Add(words);
         return line;
+    }
+    /// <summary>
+    /// « Taille des sous-titres » and « Couleur des sous-titres » of ⋮, as on Windows: a step smaller or larger (the value
+    /// itself: back to the default), white or yellow; on the film at once, kept in Réglages.
+    /// </summary>
+    private Control[] SubtitleLookLines()
+    {
+        var settings = _shell.Settings;
+        void Changed() { StyleSubtitles(); _shell.Profile.SaveSettings(settings); }
+        Button? value = null;
+        value = Chip(settings.SubtitleSize.ToString(Lang.Culture), L("Taille des sous-titres par défaut", "Default subtitle size"), false, () => Resize(0));
+        void Resize(int steps) { settings.SubtitleSize = SubtitleStyle.Resized(settings.SubtitleSize, steps, 24, 64); value!.Content = settings.SubtitleSize.ToString(Lang.Culture); Changed(); }
+        var size = DelayLine(L("Taille des sous-titres", "Subtitle size"), value, x => Resize((int)x), 1, L("Sous-titres plus petits", "Smaller subtitles"), L("Sous-titres plus grands", "Larger subtitles"));
+        var yellow = settings.SubtitleColor == SubtitleStyle.Yellow;
+        Button Colour(string label, string colour, bool chosen)
+        {
+            var chip = Chip(label, label, chosen, () => { settings.SubtitleColor = colour; Changed(); });
+            chip.Classes.Add("step"); chip.Classes.Add("value"); chip.Width = 64;
+            if (!chosen) { chip.Foreground = Ui.Faint; chip.FontWeight = FontWeight.Normal; }
+            return chip;
+        }
+        var colours = new Border
+        {
+            Background = Ui.Inset, BorderBrush = Ui.Rule, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(2), VerticalAlignment = VerticalAlignment.Center,
+            Child = Ui.Row(0, Colour(L("Blanc", "White"), SubtitleStyle.White, !yellow), Colour(L("Jaune", "Yellow"), SubtitleStyle.Yellow, yellow))
+        };
+        var colour = new DockPanel { Margin = new Thickness(12, 5) };
+        DockPanel.SetDock(colours, Dock.Right); colour.Children.Add(colours);
+        colour.Children.Add(new TextBlock { Text = L("Couleur des sous-titres", "Subtitle color"), FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextBody, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        return [size, colour];
     }
     /// <summary>A delay of ⋮: its name, then « − 0.0 s + » in a sunk capsule, the value in bold between the two steps.</summary>
     private DockPanel DelayLine(string name, Button value, Action<double> shift, double step, string earlier, string later)
