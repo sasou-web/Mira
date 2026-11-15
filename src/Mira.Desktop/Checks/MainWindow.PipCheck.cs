@@ -95,7 +95,7 @@ public partial class MainWindow
         require(Off() && pip.MutedPillShown, $"picture in picture: the sound cut, a pill says it once the controls go (mute {engine.Flag("mute")}, volume {VolumeSlider.Value:0}; {pip.ControlsState})");
         Mute_Click(this, new()); UpdatePip(); await Task.Delay(300);
         require(!Off() && !pip.MutedPillShown, $"picture in picture: the sound back, the pill gone (mute {engine.Flag("mute")}, volume {VolumeSlider.Value:0})");
-        VolumeSlider.Value = volume; engine.Set("mute", muted ? "yes" : "no"); UpdateMuteIcon(); UpdatePip();
+        VolumeSlider.Value = volume; engine.Set("mute", muted ? "yes" : "no"); _muted = muted; UpdateMuteIcon(); UpdatePip();
 
         // A real click, through Windows' own input as a mouse gives it, while the small window is not the active one: the
         // pointer over it shows its controls, and the click lands on the play button, in the controls' window above the

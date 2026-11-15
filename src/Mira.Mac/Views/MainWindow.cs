@@ -513,6 +513,8 @@ public sealed partial class MainWindow : Window
     private DateTimeOffset _rightsAsked;
     /// <summary>« Décalage de l’audio » of the player, in seconds: kept from one title to the next until Mira quits, never saved.</summary>
     public double AudioDelay { get; set; }
+    /// <summary>The sound cut in the player (M): kept from one episode to the next, each played by a new mpv, until Mira quits.</summary>
+    public bool Muted { get; set; }
     /// <summary>Mira's extension just installed from the settings: what it brings (Téléchargements) is offered at once.</summary>
     public void ExtensionInstalled() { if (Session is { } session) _ = OfferDownloadsAsync(session); }
     /// <summary>
