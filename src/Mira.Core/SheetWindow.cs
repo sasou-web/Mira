@@ -20,20 +20,45 @@ public static class SheetWindow
     /// « Mises à jour », « blurry » finds « Quality » (a friend could not find where Mira updates, 2026-11-14). An empty
     /// search finds everything.
     /// </summary>
-    public static bool Matches(string text, string query)
+    public static bool Matches(string text, string query) => Matches(text, "", query);
+
+    /// <summary>
+    /// As <see cref="Matches(string, string)"/>, for a setting whose <paramref name="name"/> (its title, the names of its
+    /// controls) and <paramref name="details"/> (its explanations) are told apart: a word typed may start a longer word of
+    /// the name, but in the details it must be the whole word give or take a few letters (<see cref="Slack"/>). « mini »
+    /// finds « Mini player », never a « …even minimized. » at the end of an explanation (Dell, 2026-11-15: two results
+    /// without a mini-player among them).
+    /// </summary>
+    public static bool Matches(string name, string details, string query)
     {
         var words = Fold(query).Split([' ', '\t', '\u00a0', '’', '\''], StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0) return true;
-        var folded = Fold(text);
+        var named = Fold(name); var told = Fold(details);
+        bool Found(string word) => Starts(named, word, int.MaxValue) || told.Length > 0 && Starts(told, word, Slack(word));
         for (var i = 0; i < words.Length;)
         {
             var (group, length) = Synonym(words, i);
-            if (group is not null) { if (!group.Any(phrase => Starts(folded, phrase))) return false; i += length; continue; }
-            if (!Starts(folded, words[i])) return false;
+            if (group is not null) { if (!group.Any(Found)) return false; i += length; continue; }
+            if (!Found(words[i])) return false;
             i++;
         }
         return true;
     }
+    /// <summary>
+    /// Whether the foot of the window's left column (version, « Help opens with F1 ») stays under the list of sections:
+    /// it goes while the list does not fit above it, so that the last sections (« Report a problem », « Downloads ») show
+    /// without scrolling in a short window (1152 × 676 on the Dell, 2026-11-15), and comes back once the list fits with it.
+    /// <paramref name="extent"/> and <paramref name="viewport"/> are the list's full and shown heights, <paramref name="room"/>
+    /// the height the foot takes (margin included).
+    /// </summary>
+    public static bool FootShown(bool shown, double extent, double viewport, double room)
+    {
+        if (!(extent > 0) || !(viewport > 0)) return shown;
+        return shown ? extent <= viewport + .5 : extent + room <= viewport + .5;
+    }
+
+    /// <summary>The letters a word of the details may have past what was typed: a plural, an ending (« update » finds « updates », « noti » « notify »).</summary>
+    private static int Slack(string word) => Math.Max(2, word.Length / 2);
 
     /// <summary>
     /// Words people use for a setting that the window names otherwise, folded (<see cref="Fold"/>), in English and in
@@ -53,13 +78,19 @@ public static class SheetWindow
         ["back to back", "autoplay", "binge", "enchainer", "episode suivant", "next episode"],
     ];
     /// <summary>
-    /// <paramref name="word"/> at the start of a word of <paramref name="text"/>: « mini » finds « Minimize », never
-    /// « administrator » (Dell, 2026-11-14: five results without a mini-player among them).
+    /// <paramref name="word"/> at the start of a word of <paramref name="text"/>, that word going on for at most
+    /// <paramref name="slack"/> more letters: « mini » finds « Minimize », never « administrator » (Dell, 2026-11-14:
+    /// five results without a mini-player among them).
     /// </summary>
-    private static bool Starts(string text, string word)
+    private static bool Starts(string text, string word, int slack)
     {
         for (var at = text.IndexOf(word, StringComparison.Ordinal); at >= 0; at = text.IndexOf(word, at + 1, StringComparison.Ordinal))
-            if (at == 0 || !char.IsLetterOrDigit(text[at - 1])) return true;
+        {
+            if (at > 0 && char.IsLetterOrDigit(text[at - 1])) continue;
+            var more = 0;
+            for (var end = at + word.Length; end < text.Length && char.IsLetterOrDigit(text[end]) && more <= slack; end++) more++;
+            if (more <= slack) return true;
+        }
         return false;
     }
 
@@ -134,6 +165,37 @@ public static class SheetWindow
                 sum += line[Math.Min(i + radius + 1, count - 1) * 4 + c] - line[Math.Max(i - radius, 0) * 4 + c];
             }
         }
+    }
+
+    /// <summary>
+    /// <paramref name="pixels"/> made <paramref name="factor"/> times larger each way by bilinear interpolation (pixel
+    /// centres kept, edges repeated), 4 bytes a pixel. A small blurred picture stretched twelve times by WPF's
+    /// « HighQuality » scaling came out with sharp specks and lines over it (account page, Dell, 2026-11-14): Mira
+    /// enlarges it smoothly itself first, so that WPF only stretches it a little.
+    /// </summary>
+    public static byte[] Enlarge(byte[] pixels, int width, int height, int factor)
+    {
+        if (width <= 0 || height <= 0 || pixels.Length < width * height * 4) throw new ArgumentException("The picture is smaller than its size says.", nameof(pixels));
+        if (factor < 1) throw new ArgumentOutOfRangeException(nameof(factor));
+        int large = width * factor, tall = height * factor;
+        var result = new byte[large * tall * 4];
+        for (var y = 0; y < tall; y++)
+        {
+            var sy = Math.Clamp((y + .5) / factor - .5, 0, height - 1);
+            int y0 = (int)sy, y1 = Math.Min(y0 + 1, height - 1); var fy = sy - y0;
+            for (var x = 0; x < large; x++)
+            {
+                var sx = Math.Clamp((x + .5) / factor - .5, 0, width - 1);
+                int x0 = (int)sx, x1 = Math.Min(x0 + 1, width - 1); var fx = sx - x0;
+                for (var c = 0; c < 4; c++)
+                {
+                    double top = pixels[(y0 * width + x0) * 4 + c] * (1 - fx) + pixels[(y0 * width + x1) * 4 + c] * fx;
+                    double bottom = pixels[(y1 * width + x0) * 4 + c] * (1 - fx) + pixels[(y1 * width + x1) * 4 + c] * fx;
+                    result[(y * large + x) * 4 + c] = Byte(top * (1 - fy) + bottom * fy);
+                }
+            }
+        }
+        return result;
     }
 
     private static byte Byte(double value) => (byte)Math.Clamp(Math.Round(value), 0, 255);

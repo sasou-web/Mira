@@ -272,8 +272,10 @@ public partial class MainWindow
         {
             var tag = button.Tag?.ToString();
             var topic = topics.FirstOrDefault(x => x.Tag == tag);
-            var words = System.Windows.Automation.AutomationProperties.GetName(button) + " " + topic.About + " " + (topic.Page is { } page ? Words(page) : tag == "start" ? _guideIntro : "");
-            var shown = (tag != "downloads" || _torlinkEnabled) && SheetWindow.Matches(words, query);
+            // The subject's name and line find a word being typed; its page only whole words (SheetWindow.Matches).
+            (string Name, string Details) page = topic.Page is { } content ? Words(content) : ("", tag == "start" ? _guideIntro : "");
+            var name = System.Windows.Automation.AutomationProperties.GetName(button) + " " + topic.About;
+            var shown = (tag != "downloads" || _torlinkEnabled) && SheetWindow.Matches(name, page.Name + " " + page.Details, query);
             button.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
             if (!shown) continue;
             if (tag is "whatsnew" or "online" or "report") more = true;

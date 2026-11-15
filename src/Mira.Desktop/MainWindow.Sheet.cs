@@ -366,14 +366,14 @@ public partial class MainWindow
                         var any = false;
                         foreach (var row in inside.Children.OfType<FrameworkElement>())
                         {
-                            var hit = row.Visibility == Visibility.Visible && SheetWindow.Matches(Words(row), query);
+                            var hit = row.Visibility == Visibility.Visible && Found(Words(row), query);
                             Fold(row, !hit); if (hit) { any = true; count++; }
                         }
                         Fold(expander, !any);
                         if (any && !_searchOpened.ContainsKey(expander)) { _searchOpened[expander] = expander.IsExpanded; expander.IsExpanded = true; }
                         continue;
                     }
-                    var match = child is Border or Squircle && child.Visibility == Visibility.Visible && SheetWindow.Matches(Words(child), query);
+                    var match = child is Border or Squircle && child.Visibility == Visibility.Visible && Found(Words(child), query);
                     Fold(child, !match); if (match) count++;
                 }
             panel.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -449,23 +449,45 @@ public partial class MainWindow
         if (was.Margin == DependencyProperty.UnsetValue) element.ClearValue(MarginProperty); else element.Margin = (Thickness)was.Margin;
         element.MaxHeight = was.MaxHeight; KeyboardNavigation.SetTabNavigation(element, was.Tab);
     }
-    /// <summary>What a row says: its texts and the names of its controls, as a screen reader reads them.</summary>
-    private static string Words(DependencyObject root)
+    /// <summary>
+    /// The foot of the window's left column goes while the list of sections above it does not fit, and comes back once
+    /// it does (<see cref="SheetWindow.FootShown"/>): « Report a problem » and « Downloads » show without scrolling in a
+    /// short window.
+    /// </summary>
+    private static void KeepFootOut(ScrollViewer list, FrameworkElement foot)
     {
-        var words = new StringBuilder();
+        var room = 0d;
+        list.ScrollChanged += (_, e) =>
+        {
+            if (e.ExtentHeightChange == 0 && e.ViewportHeightChange == 0) return;
+            var shown = foot.Visibility == Visibility.Visible;
+            if (shown && foot.ActualHeight > 0) room = foot.ActualHeight + foot.Margin.Top + foot.Margin.Bottom;
+            var keep = SheetWindow.FootShown(shown, list.ExtentHeight, list.ViewportHeight, room);
+            if (keep != shown) foot.Visibility = keep ? Visibility.Visible : Visibility.Collapsed;
+        };
+    }
+    /// <summary>
+    /// What a row says, as a screen reader reads it: its name (its first text, headers, the names and words of its
+    /// controls) and its details (its other texts, the explanations), told apart for <see cref="SheetWindow.Matches(string, string, string)"/>.
+    /// </summary>
+    private static (string Name, string Details) Words(DependencyObject root)
+    {
+        StringBuilder name = new(), details = new();
+        var titled = false;
         void Read(object node)
         {
             switch (node)
             {
-                case TextBlock block: words.Append(block.Text).Append(' '); break;
-                case string text: words.Append(text).Append(' '); return;
-                case HeaderedContentControl { Header: string header }: words.Append(header).Append(' '); break;
+                case TextBlock block: (titled ? details : name).Append(block.Text).Append(' '); titled = true; break;
+                case string text: name.Append(text).Append(' '); return;
+                case HeaderedContentControl { Header: string header }: name.Append(header).Append(' '); break;
             }
             if (node is not DependencyObject element) return;
-            if (AutomationProperties.GetName(element) is { Length: > 0 } name) words.Append(name).Append(' ');
+            if (AutomationProperties.GetName(element) is { Length: > 0 } said) name.Append(said).Append(' ');
             foreach (var child in LogicalTreeHelper.GetChildren(element)) Read(child);
         }
         Read(root);
-        return words.ToString();
+        return (name.ToString(), details.ToString());
     }
+    private static bool Found((string Name, string Details) words, string query) => SheetWindow.Matches(words.Name, words.Details, query);
 }

@@ -16,6 +16,29 @@ public static class TrayMenuPlan
     public readonly record struct Parts(bool Card, bool Next, bool Minimize);
     public static Parts For(bool playing, bool canNext, bool windowShown) => new(playing, playing && canNext, windowShown);
 
+    /// <summary>
+    /// The tooltip of the icon: what plays (« Playing · Arcane »), else what Mira does while it waits by the clock
+    /// (« Mira · Downloading · Serving your other devices »), else « Mira ». Cut at 63 characters, Windows' limit before
+    /// Windows 10's 127, with an ellipsis (Dell, 2026-11-15: it only said « Mira »).
+    /// </summary>
+    public static string Tooltip(string? playing, bool paused, bool downloading, bool keeping, bool serving)
+    {
+        string text;
+        if (playing is not null) text = (paused ? L("En pause · ", "Paused · ") : L("Lecture · ", "Playing · ")) + playing;
+        else
+        {
+            var doing = new List<string>();
+            if (downloading) doing.Add(L("Téléchargement en cours", "Downloading"));
+            if (keeping) doing.Add(L("Copie sur ce PC en cours", "Saving a title to this PC"));
+            if (serving) doing.Add(L("Au service de tes autres appareils", "Serving your other devices"));
+            text = string.Join(" · ", doing.Prepend("Mira"));
+        }
+        if (text.Length <= 63) return text;
+        text = text[..62];
+        if (char.IsHighSurrogate(text[^1])) text = text[..^1];
+        return text + "…";
+    }
+
     /// <summary>« S1 · E3 · The Base Violence Necessary for Change », « 2018 · Paused ».</summary>
     public static string Line(MediaItem item, bool paused)
     {

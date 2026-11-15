@@ -60,7 +60,7 @@ internal sealed class WindowsIntegration : IDisposable
         _menu = new Forms.ContextMenuStrip();
         _menu.Opening += TrayMenuOpening;
         _trayIcon = new System.Drawing.Icon(WindowsIdentity.IconPath, 32, 32);
-        _tray = new Forms.NotifyIcon { Icon = _trayIcon, Text = validation ? "Mira · Validation" : "Mira", ContextMenuStrip = _menu, Visible = true };
+        _tray = new Forms.NotifyIcon { Icon = _trayIcon, Text = "Mira", ContextMenuStrip = _menu, Visible = true };
         _tray.MouseClick += TrayClicked;
         SystemEvents.UserPreferenceChanged += ShellThemeChanged;
         UpdateButtons();
@@ -224,9 +224,19 @@ internal sealed class WindowsIntegration : IDisposable
         _next.IsEnabled = _active && _ready && _canNext;
         _pause.ImageSource = Glyph(_paused ? "play" : "pause"); _pause.Description = _paused ? L("Reprendre la lecture", "Resume playback") : L("Mettre en pause", "Pause");
         RefreshMenu();
-        var text = _active ? (_paused ? L("En pause · ", "Paused · ") : L("Lecture · ", "Playing · ")) + _title : _idleTitle;
-        if (text.Length > 63) { text = text[..61]; if (char.IsHighSurrogate(text[^1])) text = text[..^1]; text += "…"; }
-        _tray.Text = text;
+        UpdateTooltip();
+    }
+    private (bool Downloading, bool Keeping, bool Serving) _work;
+    /// <summary>What Mira does with nothing playing (TorLink, a copy kept on this PC, the relay of the other devices), told by the icon's tooltip.</summary>
+    public void SetWork(bool downloading, bool keeping, bool serving)
+    {
+        if (_disposed || _work == (downloading, keeping, serving)) return;
+        _work = (downloading, keeping, serving); UpdateTooltip();
+    }
+    private void UpdateTooltip()
+    {
+        var text = TrayMenuPlan.Tooltip(_active ? _title : null, _paused, _work.Downloading, _work.Keeping, _work.Serving);
+        if (_tray.Text != text) _tray.Text = text;
     }
     public void Clear()
     {

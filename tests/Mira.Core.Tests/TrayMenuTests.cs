@@ -19,6 +19,12 @@ internal static class TrayMenuTests
             Assert(TrayMenuPlan.Progress(822, 2412) is (var share, "13:42", "40:12") && Math.Abs(share - 822d / 2412) < 1e-9, "13:42 of 40:12");
             Assert(TrayMenuPlan.Progress(2890, 7020) is (_, "48:10", "1:57:00"), "Hours");
             Assert(TrayMenuPlan.Progress(-4, double.NaN) == (0, "0:00", "0:00") && TrayMenuPlan.Progress(90, 60) is (1, "1:00", "1:00"), "Out of bounds: clamped");
+            // The tooltip: what plays, else what Mira does by the clock, else its name (never « Validation »).
+            Assert(TrayMenuPlan.Tooltip(null, false, false, false, false) == "Mira", "Nothing to do");
+            Assert(TrayMenuPlan.Tooltip("Arcane", paused: true, true, false, true) == "En pause · Arcane", TrayMenuPlan.Tooltip("Arcane", true, true, false, true));
+            var busy = TrayMenuPlan.Tooltip(null, false, downloading: true, keeping: false, serving: true);
+            Assert(busy.Length == 63 && busy.StartsWith("Mira · Téléchargement en cours · Au service", StringComparison.Ordinal) && busy.EndsWith('…'), "Cut at 63 characters: " + busy);
+            Assert(TrayMenuPlan.Tooltip(null, false, false, true, false) == "Mira · Copie sur ce PC en cours", TrayMenuPlan.Tooltip(null, false, false, true, false));
             return Task.CompletedTask;
         });
 
