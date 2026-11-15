@@ -61,7 +61,7 @@ for (const [name, type, folder] of [['Films', 'movies', 'Films'], [english ? 'Se
     { token, body: { LibraryOptions: { AutomaticallyAddToCollection: type === 'movies', PreferredMetadataLanguage: english ? 'en' : 'fr', MetadataCountryCode: english ? 'US' : 'FR' } } });
 }
 // Every film, episode and series of tools/banner/media.sh; fewer when a caller keeps only some (MIRA_GALLERY_TITLES).
-const titleCount = Number(process.env.MIRA_GALLERY_TITLES ?? 52);
+const titleCount = Number(process.env.MIRA_GALLERY_TITLES ?? 113);
 const query = `Items?userId=${userId}&recursive=true&includeItemTypes=Movie,Series,Episode`;
 let scans = 0;
 await until('the library scan', async () => {

@@ -52,6 +52,9 @@ public partial class MainWindow
         var zoom = ValidationRun ? 1 : Legibility.Zoom(_textScale, root.ActualWidth, root.ActualHeight, 960, 600);
         // « Mode canapé »: laid out as on a 1280 × 720 window, then drawn to fill the TV (MainWindow.Couch.cs).
         if (_settings.CouchMode) zoom = Math.Max(zoom, Couch.Zoom(root.ActualWidth, root.ActualHeight));
+#if MIRA_VALIDATION
+        if (_tourZoom > 0) zoom = _tourZoom;
+#endif
         if (Math.Abs(zoom - _zoom) < .005) return false;
         _zoom = zoom; UsePictureScale();
         var scale = zoom == 1 ? Transform.Identity : new ScaleTransform(zoom, zoom);

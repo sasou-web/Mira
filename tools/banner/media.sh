@@ -1,5 +1,5 @@
 #!/bin/bash
-# The library of the release banners, the one of the README's captures: animated films and series, named as Jellyfin
+# The library of the release banners, the one of the README's captures: films and series, named as Jellyfin
 # matches them on TMDb, which gives their real posters, backdrops and summaries (© their rights holders, as in the
 # README). The videos are black with silent audio, at each title's real length: only their pages are captured.
 #   tools/banner/media.sh <folder>
@@ -42,9 +42,39 @@ film "My Neighbor Totoro (1988)" 86
 film "The Boy and the Heron (2023)" 124
 film "Flow (2024)" 85
 film "Suzume (2022)" 122
+# Ghibli, anime, neo-noir, science fiction and Tarantino, ogsas's taste (2026-11-15).
+film "Blade Runner (1982)" 117
+film "Blade Runner 2049 (2017)" 164
+film "Ghost in the Shell (1995)" 83
+film "Interstella 5555 The 5tory of the 5ecret 5tar 5ystem (2003)" 68
+film "Whisper of the Heart (1995)" 111
+film "Castle in the Sky (1986)" 125
+film "Kiki's Delivery Service (1989)" 103
+film "Porco Rosso (1992)" 94
+film "The Wind Rises (2013)" 126
+film "Akira (1988)" 124
+film "Perfect Blue (1997)" 81
+film "Paprika (2006)" 90
+film "5 Centimeters per Second (2007)" 63
+film "Drive (2011)" 100
+film "Nightcrawler (2014)" 117
+film "In the Mood for Love (2000)" 98
+film "Django Unchained (2012)" 165
+film "Pulp Fiction (1994)" 154
+film "Kill Bill Vol. 1 (2003)" 111
+film "Once Upon a Time in Hollywood (2019)" 161
+film "Arrival (2016)" 116
+film "Dune (2021)" 155
 series "Arcane (2021)" 1 9 40
 series "Arcane (2021)" 2 9 40
 series "Invincible (2021)" 1 3 45
 series "Blue Eye Samurai (2023)" 1 3 45
 series "Love, Death & Robots (2019)" 1 3 15
+series "Cowboy Bebop (1998)" 1 6 24
+series "Samurai Champloo (2004)" 1 4 24
+series "Ghost in the Shell Stand Alone Complex (2002)" 1 4 25
+series "Cyberpunk Edgerunners (2022)" 1 5 25
+series "Frieren Beyond Journey's End (2023)" 1 6 24
+series "Severance (2022)" 1 4 55
+series "True Detective (2014)" 1 3 58
 rm -rf "$work"

@@ -46,7 +46,12 @@ internal sealed class WindowShade
         ++_fade; _layers.Show(_sheet, top: true);
         var animation = _compositor.CreateScalarKeyFrameAnimation();
         animation.InsertExpressionKeyFrame(0, "this.StartingValue"); animation.InsertKeyFrame(1, to, _ease);
+#if MIRA_VALIDATION
+        // The presentation tour (never merged): the compositor's clock is the screen's, never slowed with Mira's.
+        animation.Duration = TimeSpan.FromMilliseconds(ms * TimeDilation.Factor);
+#else
         animation.Duration = TimeSpan.FromMilliseconds(ms);
+#endif
         _sheet.StartAnimation("Opacity", animation);
         return Task.Delay(ms);
     }

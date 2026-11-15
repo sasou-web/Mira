@@ -1,2 +1,0 @@
-[in#0/gdigrab @ 000002029a8dbe80] Stream #0: not enough frames to estimate rate; consider increasing probesize
-[libx264 @ 000002029a8ded00] MB rate (8160000000) > level limit (16711680)

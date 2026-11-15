@@ -15,19 +15,61 @@ concurrency:
   cancel-in-progress: true
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  GALLERY_USER: Camille
+  GALLERY_PASSWORD: mira-gallery
+  GALLERY_LANGUAGE: en
+  GALLERY_PLAYING: Blade Runner 2049 (2017)
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 80
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jellyfin/jellyfin
+          ref: v12.1
+          path: .artifacts/jellyfin-src
           persist-credentials: false
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
       - name: ffmpeg
         run: choco install ffmpeg -y --no-progress
+      - name: Jellyfin 12.1 from its sources
+        working-directory: .artifacts/jellyfin-src
+        run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
+      - name: The library
+        shell: bash
+        run: |
+          tools/banner/media.sh "$PWD/.artifacts/media"
+          echo "MIRA_GALLERY_TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+      - name: Jellyfin, its library and a viewer's traces
+        shell: pwsh
+        run: |
+          $j = Join-Path $PWD '.artifacts/jf-data'
+          foreach ($d in 'data', 'cache', 'config', 'log') { New-Item -ItemType Directory -Force -Path (Join-Path $j $d) | Out-Null }
+          $ffmpeg = (Get-Command ffmpeg).Source
+          Start-Process -FilePath dotnet -ArgumentList @('.artifacts/jf/jellyfin.dll', '--datadir', "$j/data", '--cachedir', "$j/cache", '--configdir', "$j/config", '--logdir', "$j/log", '--nowebclient', '--ffmpeg', $ffmpeg) -WindowStyle Hidden
+          node tools/gallery/setup.mjs http://127.0.0.1:8096 (Join-Path $PWD '.artifacts/media') $env:GALLERY_USER $env:GALLERY_PASSWORD
+          if ($LASTEXITCODE -ne 0) { throw 'Jellyfin setup failed.' }
+      # The film played: its backdrop, slowly drawn closer and back (the library's videos are black).
+      - name: libmpv and a film made of its backdrop
+        shell: bash
+        run: |
+          pwsh -NoProfile -File tools/mpv-engine.ps1 -Work .artifacts/player-work -ProfileFolder .artifacts/tour-profile
+          MIRA_STILLS_ALL=1 node tools/banner/stills.mjs http://127.0.0.1:8096 "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/stills
+          name="$GALLERY_PLAYING"
+          slug=$(echo "${name% (*}" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g')
+          file=".artifacts/media/Films/$name/$name.mkv"
+          minutes=$(( $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$file" | cut -d. -f1) / 60 ))
+          ffmpeg -loglevel error -y -loop 1 -framerate 24 -i ".artifacts/stills/backdrop-$slug.jpg" -f lavfi -i anullsrc=r=48000:cl=stereo -t 120 \
+            -vf "scale=3840:2160:force_original_aspect_ratio=increase,crop=3840:2160,zoompan=z='1.07-0.07*cos(2*PI*on/2880)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1920x1080:fps=24,format=yuv420p" \
+            -c:v libx264 -preset veryfast -crf 18 -g 48 -c:a aac -b:a 32k .artifacts/still-master.mkv
+          ffmpeg -loglevel error -y -stream_loop -1 -i .artifacts/still-master.mkv -t $((minutes * 60)) -c copy -metadata:s:a:0 language=eng .artifacts/still-film.mkv
+          mv -f .artifacts/still-film.mkv "$file"
       - name: Time dilation
         shell: pwsh
         run: |
@@ -44,21 +86,13 @@ jobs:
         run: |
           dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
           dotnet build src/Mira.Desktop/Mira.Desktop.csproj -c Release --no-restore
-      - name: libmpv and a test clip
-        shell: pwsh
-        run: |
-          $profile = Join-Path $PWD '.artifacts/tour-profile'
-          & ./tools/mpv-engine.ps1 -Work .artifacts/mpv -ProfileFolder $profile
-          ffmpeg -hide_banner -loglevel error -f lavfi -i "testsrc2=size=1920x1080:rate=24" -t 40 -c:v libx264 -pix_fmt yuv420p .artifacts/clip.mp4
-      # The film fills the screen: 1920 × 1080, no taskbar, Mira's pages at Windows' text size of 133 %.
+      # The film fills the screen: 1920 × 1080, no taskbar (Mira's pages zoomed by the tour itself, as on 1440 × 810).
       - name: The screen
         shell: pwsh
         run: |
           Set-DisplayResolution -Width 1920 -Height 1080 -Force
           Set-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoRestartShell -Value 0
           Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
-          New-Item -Path 'HKCU:\Software\Microsoft\Accessibility' -Force | Out-Null
-          Set-ItemProperty 'HKCU:\Software\Microsoft\Accessibility' -Name TextScaleFactor -Value 133 -Type DWord
           Start-Sleep -Seconds 2
       - name: The films
         shell: pwsh
@@ -69,8 +103,8 @@ jobs:
           $profile = Join-Path $PWD '.artifacts/tour-profile'
           $env:MIRA_DILATE_DLL = Join-Path (Split-Path $exe) 'mira-dilate.dll'
           $env:MIRA_TOUR_FFMPEG = (Get-Command ffmpeg).Source
-          $clip = Join-Path $PWD '.artifacts/clip.mp4'
-          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--demo', '--test-media', "`"$clip`"", '--language', 'en', '--tour', "`"$out`"") -PassThru
+          $env:MIRA_GALLERY_SERVER = 'http://127.0.0.1:8096'; $env:MIRA_GALLERY_USER = $env:GALLERY_USER; $env:MIRA_GALLERY_PASSWORD = $env:GALLERY_PASSWORD
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', 'en', '--tour', "`"$out`"") -PassThru
           if (-not $run.WaitForExit(3000000)) { $run.Kill() }
           Get-ChildItem $out | Format-Table Name, Length
           foreach ($f in 'tour-result.txt', 'dilation.txt') { $p = Join-Path $out $f; if (Test-Path $p) { "== $f"; Get-Content $p -Raw } }
