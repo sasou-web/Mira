@@ -62,9 +62,10 @@ public partial class MainWindow
         Deactivated += (_, _) => { _fullscreenWindow.ActiveChanged(); LeavePlayerControls(); };
     }
     /// <summary>
-    /// Maquette A (2026-11-14): 10 px above the title and time line (PlayerMenu's bottom margin), the menu's right edge on
-    /// the right edge of the button that opened it, never out of the player. Measured from the screen, in device pixels
-    /// as WPF hands them: the buttons live in another window (TransportLayer) than the popup's target.
+    /// Maquette A (2026-11-14): 10 px above the title and time line, the menu's right edge on the right edge of the button
+    /// that opened it, never out of the player. The gap is made here: a margin on the menu was not in the size WPF hands
+    /// (the menu sat on the line). Measured from the screen, in device pixels as WPF hands them: the buttons live in
+    /// another window (TransportLayer) than the popup's target.
     /// </summary>
     private Point MenuPlacement(Size size, Size target)
     {
@@ -78,7 +79,7 @@ public partial class MainWindow
         var bottom = shown ? anchor.PointToScreen(new Point()).Y - origin.Y : target.Height - 60 * dpi.DpiScaleY;
         if (shown && PlayerInfo.IsVisible && PresentationSource.FromVisual(PlayerInfo) is not null && PlayerInfo.PointToScreen(new Point()).Y - origin.Y is var info && info < bottom) bottom = info;
         var x = Math.Clamp(right - size.Width, margin, Math.Max(margin, target.Width - size.Width - margin));
-        var y = Math.Max(12 * dpi.DpiScaleY, bottom - size.Height);
+        var y = Math.Max(12 * dpi.DpiScaleY, bottom - size.Height - 10 * dpi.DpiScaleY);
         return new Point(x, y);
     }
     private void Player_SizeChanged(object sender, SizeChangedEventArgs e) => PositionPlayerControls();
