@@ -2,8 +2,8 @@
   "0.9.11": {
     "film": "klaus",
     "band": [
-      { "point": 1, "shot": "windows-player", "at": [20, 336], "scale": 0.5, "width": 700 },
-      { "point": 3, "shot": "windows-series", "at": [659, 190], "scale": 0.72, "width": 372 }
+      { "point": 1, "shot": "windows-player", "at": [440, 497], "scale": 0.7, "width": 700 },
+      { "point": 3, "shot": "windows-series", "at": [762, 175], "scale": 1.2, "width": 372 }
     ]
   },
   "0.9.10": {
