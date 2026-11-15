@@ -72,6 +72,12 @@ public partial class MainWindow
         try
         {
             var torrents = await client.TorrentsAsync(ct);
+            // A public download stops sharing once finished; a private one when qBittorrent's own limit says (72 h).
+            foreach (var done in torrents.Where(QBittorrentDownloads.StopsSharing))
+            {
+                try { await client.ControlAsync(done.Hash, "pause", ct); }
+                catch (HttpRequestException) { }
+            }
             if (DateTime.UtcNow - _qbPlacedAt > TimeSpan.FromSeconds(15)) { _qbPlacedAt = DateTime.UtcNow; _ = PlaceQBittorrentAsync(client, torrents); }
             // A finished one is in the library: listed there (placed), not as a download.
             return torrents.Where(x => !QBittorrentDownloads.Finished(x)).Select(QBittorrentDownloads.Download).ToList();
@@ -149,9 +155,9 @@ public partial class MainWindow
         // The same button on the page itself, beside « Add a .torrent »: under « Paste a magnet link » alone, nobody found it.
         QBittorrentInstallTop.Visibility = QBittorrentInstallButton.Visibility;
         QBittorrentLine.Text = !_serverLocal
-            ? L("Un lien d’un tracker privé, ou un fichier .torrent : le qBittorrent du PC serveur le télécharge, et continue de le partager pour ton ratio.", "A link from a private tracker, or a .torrent file: the server PC’s qBittorrent downloads it, and keeps sharing it for your ratio.")
+            ? L("Un lien d’un tracker privé, ou un fichier .torrent : le qBittorrent du PC serveur le télécharge. Il arrête de le partager dès la fin, ou après 72 h pour un tracker privé.", "A link from a private tracker, or a .torrent file: the server PC’s qBittorrent downloads it. It stops sharing it once finished, or after 72 hours for a private tracker.")
             : _qbInstalling ? L("Installation de qBittorrent… Windows demande ton autorisation.", "Installing qBittorrent… Windows asks for your permission.")
-            : installed ? L("qBittorrent le télécharge sur ce PC (trackers privés compris), puis continue de le partager pour ton ratio pendant que Mira le range dans ta bibliothèque.", "qBittorrent downloads it on this PC (private trackers included), then keeps sharing it for your ratio while Mira sorts it into your library.")
+            : installed ? L("qBittorrent le télécharge sur ce PC (trackers privés compris) et Mira le range dans ta bibliothèque. Le partage s’arrête dès la fin, ou après 72 h pour un tracker privé.", "qBittorrent downloads it on this PC (private trackers included) and Mira sorts it into your library. Sharing stops once it’s finished, or after 72 hours for a private tracker.")
             : L("Pour un tracker privé, il faut qBittorrent : ces trackers refusent TorLink. Mira installe la version officielle, vérifiée, et la pilote pour toi.", "A private tracker needs qBittorrent: these trackers refuse TorLink. Mira installs the official version, checked, and drives it for you.");
     }
 

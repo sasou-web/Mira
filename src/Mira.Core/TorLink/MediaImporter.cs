@@ -10,7 +10,7 @@ namespace Mira.Core;
 /// </summary>
 /// <summary>
 /// KeepSeeding: a hard link where the drive allows it, otherwise moved. Move: moved. Share: never takes anything from the
-/// download (qBittorrent goes on sharing it for a private tracker's ratio): a hard link, otherwise a copy.
+/// download (qBittorrent may still share it: a private tracker's 72 hours): a hard link, otherwise a copy.
 /// </summary>
 public enum ImportMode { KeepSeeding, Move, Share }
 
