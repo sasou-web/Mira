@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Lien du Discord : https://discord.miracinema.app** : README, site, wiki, modèle d’issue et bouton communauté du statut Discord pointent vers ce sous-domaine (redirection 301 de Porkbun vers l’invitation permanente). Si l’invitation change, seule la redirection change.
+
 ## 0.9.12 — 2026-11-15
 
 - **Place libre du disque des médias (Windows ; Mac et iPhone la lisent de lui)** : la page Téléchargements disait la place de C: (« 398 GB free ») alors que les bibliothèques sont sur un disque monté dans un dossier de C: (le WD 6 To du Dell, `C:\Users\…\Videos\MEDIAS`) : Mira demandait la lettre du chemin. Il demande maintenant le volume de chaque dossier (`GetVolumePathName`, `GetDiskFreeSpaceEx`), compté une fois même s’il a aussi une lettre (`M:`). Lu dans ce que le système de fichiers garde en mémoire : aucun disque réveillé.
