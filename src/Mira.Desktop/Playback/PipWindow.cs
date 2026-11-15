@@ -320,7 +320,8 @@ internal sealed class PipWindow : Window
         var edge = PictureInPicture.EdgeAt(point.X, point.Y, _surface.ActualWidth, _surface.ActualHeight);
         if (edge is { } pulled && _screen is not null) { _gesture = Gesture.Resizing; _edge = pulled; } else _gesture = Gesture.Pressed;
         _clickPlays = !activating && edge is null;
-        if (!_surface.CaptureMouse()) _gesture = Gesture.None;
+        if (!_surface.CaptureMouse()) { _gesture = Gesture.None; return; }
+        if (!_following) { _following = true; CompositionTarget.Rendering += FollowEachFrame; }
     }
     private void PointerReleased(object sender, MouseButtonEventArgs e)
     {
@@ -333,8 +334,18 @@ internal sealed class PipWindow : Window
         // Played or paused after the double click's delay, unless a second click comes.
         if (clicked) { _click.Stop(); _click.Start(); }
     }
+    /// <summary>
+    /// While the button is held, the window also follows the pointer at every frame: Windows may deliver a move late,
+    /// or fold it into the next one, and the window would lag a step behind the pointer.
+    /// </summary>
+    private void FollowEachFrame(object? sender, EventArgs e)
+    {
+        if (_gesture != Gesture.None && Mouse.LeftButton == MouseButtonState.Pressed) FollowPointer();
+    }
+    private bool _following;
     private void EndGesture()
     {
+        if (_following) { _following = false; CompositionTarget.Rendering -= FollowEachFrame; }
         var gesture = _gesture;
         _gesture = Gesture.None;
         if (_surface.IsMouseCaptured) _surface.ReleaseMouseCapture();
