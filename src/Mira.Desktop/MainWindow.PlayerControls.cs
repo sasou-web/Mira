@@ -551,7 +551,7 @@ public partial class MainWindow
     private void BuildTrackMenu()
     {
         if (_mpv is null) return;
-        AudioTrackList.Children.Clear(); SubtitleTrackList.Children.Clear(); BuildAudioDeviceChoices(); ShowNightSound();
+        AudioTrackList.Children.Clear(); SubtitleTrackList.Children.Clear(); BuildAudioDeviceChoices(); ShowNightSound(); ShowSubtitleLook();
         if (_converted is { } converted) { BuildConvertedTrackMenu(converted); _ = ShowSubtitleSearchAsync(); return; }
         var tracks = _mpv.Tracks(); var audio = _mpv.Get("aid") ?? ""; var subtitle = _mpv.Get("sid") ?? "no";
         foreach (var track in tracks.Where(t => t.Type == "audio"))
@@ -599,7 +599,7 @@ public partial class MainWindow
     {
         if (_mpv is null) return;
         BuildQualityChoices(); BuildSleepChoices(); ShowGroupSection();
-        SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay")); AudioDelayReset.Content = DelayLabel(_mpv.Number("audio-delay")); ShowSubtitleLook();
+        SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay")); AudioDelayReset.Content = DelayLabel(_mpv.Number("audio-delay"));
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");
         var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null, _mpv.Get("video-params/pixelformat") is { Length: > 0 } format && format.Contains("10") ? L("10 bits", "10-bit") : null }.Where(x => x is not null));
@@ -742,14 +742,14 @@ public partial class MainWindow
         _mpv?.Set("sub-delay", value.ToString(CultureInfo.InvariantCulture)); SubtitleDelayReset.Content = DelayLabel(value);
         ShowPlayerControls();
     }
-    /// <summary>« Taille des sous-titres » of ⋮: a step smaller or larger, the value itself back to the default; on the film at once, kept in Réglages.</summary>
+    /// <summary>« Taille » under the subtitles of the tracks menu: a step smaller or larger, the value itself back to the default; on the film at once, kept in Réglages.</summary>
     private void SubtitleSizeStep_Click(object sender, RoutedEventArgs e)
     {
         var steps = int.Parse(((Button)sender).Tag.ToString()!, CultureInfo.InvariantCulture);
         _settings.SubtitleSize = SubtitleStyle.Resized(_settings.SubtitleSize, steps);
         SubtitleLookChanged();
     }
-    /// <summary>« Couleur des sous-titres » of ⋮: white or yellow, on the film at once, kept in Réglages.</summary>
+    /// <summary>« Couleur » under the subtitles of the tracks menu: white or yellow, on the film at once, kept in Réglages.</summary>
     private void SubtitleColour_Click(object sender, RoutedEventArgs e)
     {
         _settings.SubtitleColor = ((Button)sender).Tag as string == SubtitleStyle.Yellow ? SubtitleStyle.Yellow : SubtitleStyle.White;
@@ -760,7 +760,7 @@ public partial class MainWindow
         RestyleSubtitles(); ShowSubtitleLook(); ShowPlayerControls();
         if (!TrySaveSettings()) SetNotice(SettingsNotSaved);
     }
-    /// <summary>The size and the colour chosen, as ⋮ shows them: the colour chosen in full ink, the other one faint.</summary>
+    /// <summary>The size and the colour chosen, as the tracks menu shows them: the colour chosen in full ink, the other one faint.</summary>
     private void ShowSubtitleLook()
     {
         SubtitleSizeValue.Content = _settings.SubtitleSize.ToString(Lang.Culture);

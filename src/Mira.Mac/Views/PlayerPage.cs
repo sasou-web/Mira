@@ -862,6 +862,7 @@ public sealed partial class PlayerPage : UserControl
         list.Children.Add(MenuRule());
         list.Children.Add(MenuAction("plus", L("Charger un fichier…", "Load a file…"), () => _ = LoadSubtitleAsync()));
         AddSubtitleSearch(list);
+        list.Children.Add(MenuRule()); list.Children.AddRange(SubtitleLookLines());
     }
     /// <summary>A track chosen in the menu, kept for the next episodes of this series (<see cref="SeriesTracks"/>).</summary>
     private void ChooseTrack(string property, string id)
@@ -922,7 +923,6 @@ public sealed partial class PlayerPage : UserControl
         }
         var delays = new StackPanel();
         delays.Children.Add(DelayLine(L("Décalage des sous-titres", "Subtitle delay"), value, Shift, 0.5, L("Sous-titres 0,5 s plus tôt", "Subtitles 0.5 s earlier"), L("Sous-titres 0,5 s plus tard", "Subtitles 0.5 s later")));
-        delays.Children.AddRange(SubtitleLookLines());
         delays.Children.Add(AudioDelayLine());
         if (DiscordLine() is { } discord) delays.Children.Add(discord);
         menu.Children.Add(new Border { BorderBrush = Ui.Rule, BorderThickness = new Thickness(0, 1), Margin = new Thickness(0, 14, 0, 6), Padding = new Thickness(0, 8), Child = delays });
@@ -950,7 +950,7 @@ public sealed partial class PlayerPage : UserControl
         return line;
     }
     /// <summary>
-    /// « Taille des sous-titres » and « Couleur des sous-titres » of ⋮, as on Windows: a step smaller or larger (the value
+    /// « Taille » and « Couleur » under the subtitles of the tracks menu, as on Windows: a step smaller or larger (the value
     /// itself: back to the default), white or yellow; on the film at once, kept in Réglages.
     /// </summary>
     private Control[] SubtitleLookLines()
@@ -960,7 +960,7 @@ public sealed partial class PlayerPage : UserControl
         Button? value = null;
         value = Chip(settings.SubtitleSize.ToString(Lang.Culture), L("Taille des sous-titres par défaut", "Default subtitle size"), false, () => Resize(0));
         void Resize(int steps) { settings.SubtitleSize = SubtitleStyle.Resized(settings.SubtitleSize, steps, 24, 64); value!.Content = settings.SubtitleSize.ToString(Lang.Culture); Changed(); }
-        var size = DelayLine(L("Taille des sous-titres", "Subtitle size"), value, x => Resize((int)x), 1, L("Sous-titres plus petits", "Smaller subtitles"), L("Sous-titres plus grands", "Larger subtitles"));
+        var size = DelayLine(L("Taille", "Size"), value, x => Resize((int)x), 1, L("Sous-titres plus petits", "Smaller subtitles"), L("Sous-titres plus grands", "Larger subtitles"));
         var yellow = settings.SubtitleColor == SubtitleStyle.Yellow;
         Button Colour(string label, string colour, bool chosen)
         {
@@ -976,7 +976,7 @@ public sealed partial class PlayerPage : UserControl
         };
         var colour = new DockPanel { Margin = new Thickness(12, 5) };
         DockPanel.SetDock(colours, Dock.Right); colour.Children.Add(colours);
-        colour.Children.Add(new TextBlock { Text = L("Couleur des sous-titres", "Subtitle color"), FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextBody, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        colour.Children.Add(new TextBlock { Text = L("Couleur", "Color"), FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextBody, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         return [size, colour];
     }
     /// <summary>A delay of ⋮: its name, then « − 0.0 s + » in a sunk capsule, the value in bold between the two steps.</summary>
