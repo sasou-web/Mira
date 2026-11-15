@@ -37,11 +37,15 @@ public partial class MainWindow
             var link = open();
             await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle); UpdateLayout();
             FitMissingMenu(link.Anchor, link.Body); NudgeMissingMenu(link.Popup);
-            await CaptureAsync(output, $"{name}-{size.Name}", popup: link.Body);
-            // Inside Mira's window, under its title bar: nothing of it to look for outside.
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle); UpdateLayout();
+            // Where Mira asks WPF to put it, from its button (MenuFit): WPF itself keeps a popup on the screen, and the gallery's
+            // window may be off it.
             var root = (FrameworkElement)Content; var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(root);
-            var origin = root.PointToScreen(new Point(0, 0)); var at = link.Body.PointToScreen(new Point(0, 0));
-            var place = new Rect((at.X - origin.X) / dpi.DpiScaleX, (at.Y - origin.Y) / dpi.DpiScaleY, link.Body.ActualWidth, link.Body.ActualHeight);
+            var anchor = link.Anchor.TransformToAncestor(root).Transform(new Point(0, 0));
+            var offset = MissingMenuPlace(link.Anchor, new Size(link.Body.ActualWidth * dpi.DpiScaleX, link.Body.ActualHeight * dpi.DpiScaleY));
+            var place = new Rect(anchor.X + offset.X / dpi.DpiScaleX, anchor.Y + offset.Y / dpi.DpiScaleY, link.Body.ActualWidth, link.Body.ActualHeight);
+            await CaptureAsync(output, $"{name}-{size.Name}", popup: (link.Body, place.TopLeft));
+            // Inside Mira's window, under its title bar: nothing of it to look for outside.
             if (place.Top < TitleHeight - 1 || place.Left < -1 || place.Right > root.ActualWidth + 1 || place.Bottom > root.ActualHeight + 1)
                 throw new InvalidOperationException($"The link's window {name} at {size.Name} leaves Mira's window: {place} in {root.ActualWidth:0} × {root.ActualHeight:0}.");
             // The Download button seen whole, whatever the list's length.
