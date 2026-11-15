@@ -277,7 +277,8 @@ public partial class MainWindow
         DockPanel.SetDock(thumb, Dock.Left); row.Children.Add(thumb);
         var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var title = new WrapPanel();
-        var name = release.Title.Length > 0 ? release.Title : link.Name ?? MagnetLinks.Unnamed;
+        // The title as the library names it once Jellyfin has it (« Longue série », not « Longue Serie » of the release).
+        var name = link.Item?.Name ?? (release.Title.Length > 0 ? release.Title : link.Name ?? MagnetLinks.Unnamed);
         var heading = new TextBlock { FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Palette.Get("Text"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
         heading.Inlines.Add(new Run(name));
         if (!episodic && release.Year is { } year) heading.Inlines.Add(new Run($" ({year})") { FontWeight = FontWeights.Normal, Foreground = Palette.Get("TextSecondary") });

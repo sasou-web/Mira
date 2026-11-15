@@ -353,9 +353,20 @@ public sealed class MockJellyfin : HttpMessageHandler
                 }
             });
         }
+        // « Coller un lien magnet »: the server PC reads the link (a season of « Longue série », its sample).
+        if (request.Method == HttpMethod.Post && path == "Mira/torlink/look") return Json(new { id = "look-1" });
+        if (path == "Mira/torlink/look/look-1")
+        {
+            const string season = "Longue.Serie.S02.1080p.WEB-DL.x264-GRP";
+            var files = Enumerable.Range(1, 12).Select(n => new { index = n - 1, path = $"{season}/Longue.Serie.S02E{n:00}.1080p.WEB-DL.x264-GRP.mkv", size = 14 * GiB / 10 + n * 31 * MiB })
+                .Append(new { index = 12, path = $"{season}/Sample/sample.mkv", size = 60 * MiB });
+            return Json(new { id = "look-1", state = "done", name = season, files, place = new { root = "Séries", folder = "Longue série", exists = true }, error = (string?)null });
+        }
         if (request.Method == HttpMethod.Post && path == "Mira/torlink/requests")
         {
             var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct)).RootElement;
+            // A link read, its files chosen: « magnet » and how many of them.
+            if (body.TryGetProperty("files", out var chosen) && chosen.ValueKind == JsonValueKind.Array) { lock (Requests) Requests.Add($"magnet:{chosen.GetArrayLength()}"); return Json(new { id = "request-" + Requests.Count }); }
             lock (Requests) Requests.Add(body.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "magnet");
             return Json(new { id = "request-" + Requests.Count });
         }
@@ -363,7 +374,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         List<string> sent; lock (Requests) sent = [.. Requests];
         return Json(new
         {
-            agent = new { name = "SALON-PC", online = true, seen = DateTimeOffset.UtcNow, accepting = true, problem = (string?)null, seasons = true, free = 54 * (1L << 40) / 10 },
+            agent = new { name = "SALON-PC", online = true, seen = DateTimeOffset.UtcNow, accepting = true, problem = (string?)null, seasons = true, free = 54 * (1L << 40) / 10, looks = true },
             requests = sent.Select((name, i) => new { id = $"request-{i + 1}", name, size = 3 * GiB, infoHash = "", state = "waiting", error = (string?)null, created = DateTimeOffset.UtcNow }),
             controls = Array.Empty<object>(),
             downloads = new[]

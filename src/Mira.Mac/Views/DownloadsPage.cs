@@ -24,7 +24,7 @@ namespace Mira.Mac.Views;
 /// « Chercher une meilleure version » of a film or an episode opens it for that title: its search made, its results
 /// only those better than its file (<see cref="TitleUpgrade"/>), each one asked as its replacement.
 /// </summary>
-public sealed class DownloadsPage : Page
+public sealed partial class DownloadsPage : Page
 {
     public override string Rail => "downloads";
     public override void ShowAgain() { Glide.ToTop(_restScroll); Glide.ToTop(_resultsScroll); Glide.ToTop(_queueScroll); }
@@ -59,7 +59,7 @@ public sealed class DownloadsPage : Page
     private readonly Button _add;
     private readonly Border _magnetPanel;
     private readonly TextBox _magnet = new() { Watermark = "magnet:?xt=urn:btih:…", FontSize = 14, Padding = new Thickness(12, 9) };
-    private readonly Button _magnetSend = new() { Content = L("Envoyer au PC serveur", "Send to the server PC"), Classes = { "primary" }, Padding = new Thickness(18, 9), Margin = new Thickness(10, 0, 0, 0) };
+    private readonly Button _magnetSend = new() { Content = L("Voir le contenu", "See what’s inside"), Classes = { "primary" }, Padding = new Thickness(18, 9), Margin = new Thickness(10, 0, 0, 0) };
     private readonly TextBlock _magnetError = new() { FontSize = 12.5, Foreground = WarningText, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), IsVisible = false };
     private readonly TextBlock _searchStatus = new() { FontSize = 13.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 0, 0, 14) };
     private readonly StackPanel _results = new() { Margin = new Thickness(0, 0, 0, 40) };
@@ -181,13 +181,14 @@ public sealed class DownloadsPage : Page
             else if (e.Key == Key.Escape && !string.IsNullOrEmpty(_query.Text)) { e.Handled = true; _query.Text = ""; }
         };
         _search.Click += (_, _) => _ = SearchAsync();
-        _magnetButton = SmallButton(L("Coller un lien magnet", "Paste a magnet link"), "link", OpenMagnet);
+        WatchPastes();
+        _magnetButton = SmallButton(L("Coller un lien magnet", "Paste a magnet link"), "link", () => _ = PasteLinkAsync());
         _magnetButton.VerticalAlignment = VerticalAlignment.Center;
         _searchRow.Children.Add(_query);
         Grid.SetColumn(_search, 1); _searchRow.Children.Add(_search);
         Grid.SetColumn(_searchRule, 2); _searchRow.Children.Add(_searchRule);
         Grid.SetColumn(_magnetButton, 3); _searchRow.Children.Add(_magnetButton);
-        _add = Ui.IconButton("plus", L("Coller un lien magnet", "Paste a magnet link"), OpenMagnet, "icon", 19);
+        _add = Ui.IconButton("plus", L("Coller un lien magnet", "Paste a magnet link"), () => _ = PasteLinkAsync(), "icon", 19);
         _add.Width = _add.Height = 48; _add.Background = Ui.Raised; _add.CornerRadius = new CornerRadius(12); _add.Margin = new Thickness(10, 0, 0, 0); _add.IsVisible = false;
         Grid.SetColumn(_add, 3); _searchRow.Children.Add(_add);
         // On one line (a small window), the line under the title shows only when it says something new.
@@ -1051,6 +1052,8 @@ public sealed class DownloadsPage : Page
     private async Task SearchAsync()
     {
         if (_session is not { } session) return;
+        // A magnet link typed or pasted in the search: its window, as « Paste a magnet link ».
+        if ((_query.Text ?? "").Trim() is var typed && typed.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase) && RemoteDownloads.InfoHash(typed) is not null) { _query.Text = ""; OpenLinkWindow(typed); return; }
         if (RemoteDownloads.CleanQuery(_query.Text) is not { } query) { _query.Focus(); return; }
         ShowSearch(true);
         if (!_ready) { _searchStatus.Text = RemoteLines.Agent(_agent, DateTimeOffset.UtcNow).Text; return; }
@@ -1320,20 +1323,14 @@ public sealed class DownloadsPage : Page
         _magnet.Text = ""; _magnetSend.IsEnabled = true;
     }
 
-    private async Task SendMagnetAsync()
+    /// <summary>The link typed: checked, then its window, which reads it before anything is sent.</summary>
+    private Task SendMagnetAsync()
     {
-        if (_session is not { } session || !_magnetSend.IsEnabled) return;
+        if (_session is null || !_magnetSend.IsEnabled) return Task.CompletedTask;
         var magnet = (_magnet.Text ?? "").Trim();
-        if (RemoteDownloads.InfoHash(magnet) is null) { ShowMagnetError(L("Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).", "That’s not a magnet link (“magnet:?xt=urn:btih:…”).")); _magnet.Focus(); return; }
-        _magnetSend.IsEnabled = false;
-        try
-        {
-            await session.Client.TorLinkRequestAsync(magnet, session.Lifetime);
-            CloseMagnet(); MagnetReturn().Focus();
-            await SentAsync();
-        }
-        catch (Exception ex) when (Errors.Expected(ex)) { ShowMagnetError(Errors.Friendly(ex)); }
-        finally { _magnetSend.IsEnabled = true; }
+        if (RemoteDownloads.InfoHash(magnet) is null || magnet.Length > RemoteDownloads.MaxMagnet) { ShowMagnetError(L("Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).", "That’s not a magnet link (“magnet:?xt=urn:btih:…”).")); _magnet.Focus(); return Task.CompletedTask; }
+        OpenLinkWindow(magnet);
+        return Task.CompletedTask;
     }
     private void ShowMagnetError(string text) { _magnetError.Text = text; _magnetError.IsVisible = true; }
 }
