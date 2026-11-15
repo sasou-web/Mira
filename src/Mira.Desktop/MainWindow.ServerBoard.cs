@@ -682,18 +682,10 @@ public partial class MainWindow
         _mediaFree = (DateTime.UtcNow, _mediaFree.Bytes);
         if (_torlink is not { } torlink) return null;
         var libraries = torlink.Libraries;
-        var bytes = await Task.Run(() => RemoteBoard.FreeSpace([libraries.Movies, libraries.Series, libraries.Anime], Root, Free));
+        // The volume of each folder, not its drive letter: a disk mounted in a folder of C: (« C:\Users\Toi\Videos\MEDIAS »)
+        // has its own space. Both calls read what the file system keeps in memory: no disk is woken for them.
+        var bytes = await Task.Run(() => RemoteBoard.FreeSpace([libraries.Movies, libraries.Series, libraries.Anime], Volumes.Id, Volumes.FreeSpace));
         _mediaFree = (DateTime.UtcNow, bytes);
         return bytes;
-        static string? Root(string path)
-        {
-            try { return Path.GetPathRoot(Path.GetFullPath(path)); }
-            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException) { return null; }
-        }
-        static long? Free(string root)
-        {
-            try { var drive = new DriveInfo(root); return drive.IsReady ? drive.AvailableFreeSpace : null; }
-            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException) { return null; }
-        }
     }
 }

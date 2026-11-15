@@ -28,6 +28,23 @@ public static class Volumes
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException or UnauthorizedAccessException) { return null; }
     }
 
+    /// <summary>
+    /// One name per volume, however it is reached (« \\?\Volume{…}\ » on Windows: a disk mounted both in a folder and as
+    /// « M:\ » is one volume), else its root by <see cref="Of"/>. Null when it cannot be told.
+    /// </summary>
+    public static string? Id(string path)
+    {
+        if (Of(path) is not { Length: > 0 } root) return null;
+        if (!OperatingSystem.IsWindows()) return root;
+        try
+        {
+            var buffer = new char[64];
+            return GetVolumeNameForVolumeMountPoint(Folder(root), buffer, (uint)buffer.Length) && Array.IndexOf(buffer, '\0') is > 0 and var end
+                ? new string(buffer, 0, end) : root;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException) { return root; }
+    }
+
     /// <summary>Two roots of <see cref="Of"/> name the same volume (case and trailing separator aside).</summary>
     public static bool Same(string? a, string? b) => a is { Length: > 0 } && b is { Length: > 0 }
         && string.Equals(Path.TrimEndingDirectorySeparator(a), Path.TrimEndingDirectorySeparator(b), StringComparison.OrdinalIgnoreCase);
@@ -60,6 +77,10 @@ public static class Volumes
     [DllImport("kernel32.dll", EntryPoint = "GetVolumePathNameW", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetVolumePathName(string fileName, [Out] char[] volumePathName, uint bufferLength);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetVolumeNameForVolumeMountPointW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetVolumeNameForVolumeMountPoint(string volumeMountPoint, [Out] char[] volumeName, uint bufferLength);
 
     [DllImport("kernel32.dll", EntryPoint = "GetDiskFreeSpaceExW", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
