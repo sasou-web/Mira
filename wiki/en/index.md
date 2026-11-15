@@ -34,7 +34,7 @@ There is no Mira for Android for now. Mira web, which Jellyfin used to serve to 
 
 - Search this wiki with the field at the top of the page, or press <kbd>/</kbd>.
 - [Troubleshooting](troubleshooting.md) lists the messages Mira shows and what to do.
-- Ask on [Discord](https://discord.gg/Bh3F6PDUvB), or [report a bug on GitHub](https://github.com/sasou-web/Mira/issues/new/choose).
+- Ask on [Discord](https://discord.miracinema.app), or [report a bug on GitHub](https://github.com/sasou-web/Mira/issues/new/choose).
 
 > [!NOTE]
 > Mira is a preview: it is used every day, but some things have not been tried on every setup yet (HDR, multichannel audio, several monitors). Mira is an independent project, not affiliated with Jellyfin, and provides no films.

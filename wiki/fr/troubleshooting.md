@@ -56,7 +56,7 @@ Mira dit ce qui ne va pas avec ses mots, avec un bouton qui aide quand il y en a
 
 ## Toujours bloqué ?
 
-Demande sur [Discord](https://discord.gg/Bh3F6PDUvB), ou [ouvre une issue](https://github.com/sasou-web/Mira/issues/new/choose) avec les versions de Mira, de ton système et de Jellyfin. Ne joins jamais un mot de passe, un jeton, le dossier `data` de Mira ou des médias personnels.
+Demande sur [Discord](https://discord.miracinema.app), ou [ouvre une issue](https://github.com/sasou-web/Mira/issues/new/choose) avec les versions de Mira, de ton système et de Jellyfin. Ne joins jamais un mot de passe, un jeton, le dossier `data` de Mira ou des médias personnels.
 
 Sur Mac, un journal du lecteur aide : dans le Terminal,
 
