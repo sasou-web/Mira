@@ -88,8 +88,8 @@ public partial class MainWindow
         var anchorRight = At(PlayerTracksButton, PlayerTracksButton.ActualWidth).X * dpi.DpiScaleX;
         // Maquette A (2026-11-14): above the title and time line, which sits above the seek bar.
         var anchorTop = Math.Min(At(PlayerTracksButton).Y, PlayerInfo.IsVisible ? At(PlayerInfo).Y : double.MaxValue) * dpi.DpiScaleY;
-        require(Math.Abs(place.X + panelPixels.Width - anchorRight) < 1 && Math.Abs(place.Y + panelPixels.Height - anchorTop) < 1 && place.X >= 0,
-            "the menu opens right above the title and time, aligned on the right edge of its button, at the current DPI");
+        require(Math.Abs(place.X + panelPixels.Width - anchorRight) < 1 && Math.Abs(place.Y + panelPixels.Height + 10 * dpi.DpiScaleY - anchorTop) < 1 && place.X >= 0,
+            "the menu opens 10 px above the title and time, aligned on the right edge of its button, at the current DPI");
         CaptureElement(output, "player-menu-tracks", panel);
         rows[0].IsChecked = true; await Task.Delay(150);
         require((mpv.Get("sid") ?? "no") is "no" or "false" && IsChosen(rows[0]) && !IsChosen(rows[1]) && PlayerOptionsPopup.IsOpen, "choosing « Désactivés » reaches mpv, unchecks the track and keeps the menu open");
