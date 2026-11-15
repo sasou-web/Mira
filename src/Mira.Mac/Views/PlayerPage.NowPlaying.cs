@@ -4,6 +4,9 @@ using Mira.Mac.Services;
 
 namespace Mira.Mac.Views;
 
+/// <summary>What plays, for the Discord card (MainWindow.Discord.cs): paused or not, where, how fast, a trailer or not.</summary>
+public readonly record struct PlayerNow(MediaItem Item, bool Paused, double Position, double Duration, double Rate, bool Trailer);
+
 // « Now Playing » and the media keys (MacNowPlaying), as the system media controls of Windows: the title and its poster,
 // where it is, whether it plays; F8, the button of AirPods or a headset, Control Center's bar act here as the player's
 // own keys do (Space, ← →, N), the group included.
@@ -33,10 +36,16 @@ public sealed partial class PlayerPage
         });
     }
 
+    /// <summary>What plays now, for the Discord card; null once stopped.</summary>
+    public PlayerNow? DiscordNow => !_stopped && _session.Item is { } item
+        ? new PlayerNow(item, _session.Paused || !_loaded, _session.Position, _session.Duration, _loaded && _mpv is { } mpv ? mpv.Number("speed", 1) : 1, _skips.Film is not null) : null;
+
     /// <summary>The playback as it is now, told when it changed: each tick, a start, a stop.</summary>
     private void TellNowPlaying()
     {
-        if (_nowTitle.Length == 0 || !ReferenceEquals(_shell.Player, this)) return;
+        if (!ReferenceEquals(_shell.Player, this)) return;
+        _shell.TellDiscord();
+        if (_nowTitle.Length == 0) return;
         var ready = _loaded && !_stopped && _mpv is not null && !FailureShown;
         MacNowPlaying.Show(new NowPlayingState(_nowTitle, _nowSubtitle, ready, !ready || _session.Paused, _skips.Next is not null,
             _session.Position, _session.Duration, ready ? _mpv!.Number("speed", 1) : 1));

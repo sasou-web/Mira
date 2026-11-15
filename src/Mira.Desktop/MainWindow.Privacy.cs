@@ -79,6 +79,8 @@ public partial class MainWindow
                 return PrivacyGo(L("Gérer", "Manage"), connection.Title, () => SelectSettingsTab("torlink"));
             case PrivacyControl.GuestLinks when SharingSettingsNav.Visibility == Visibility.Visible:
                 return PrivacyGo(L("Gérer", "Manage"), connection.Title, () => SelectSettingsTab("sharing"));
+            case PrivacyControl.Discord:
+                return PrivacyGo(_settings.Discord.Enabled ? L("Activé · Gérer", "On · Manage") : L("Coupé · Gérer", "Off · Manage"), connection.Title, () => SelectSettingsTab("discord"));
             case PrivacyControl.Maintenance when CareSettingsNav.Visibility == Visibility.Visible:
                 return PrivacyGo(L("Gérer", "Manage"), connection.Title, () => SelectSettingsTab("care"));
             default:

@@ -920,8 +920,9 @@ public sealed partial class MainWindow : Window
     {
         if (Player != player) return;
         Player = null;
-        // « Now Playing » empty, the media keys back to the other apps.
+        // « Now Playing » empty, the media keys back to the other apps; the Discord card gone (or « Browsing »).
         MacNowPlaying.Clear();
+        TellDiscord(force: true); OfferDiscord();
         // « Image dans l’image »: its window goes with the playback (the video already let go by StopAsync).
         player.ClosePip();
         // The group plays on without this Mac.
@@ -1258,6 +1259,7 @@ public sealed partial class MainWindow : Window
         {
             // The last progress report still leaves while the window is already gone.
             await AttemptAsync(StopPlaybackAsync);
+            await AttemptAsync(CloseDiscordAsync);
             Attempt(() => Profile.SaveSettings(Settings));
             // A friend's party guest leaves the friend's Jellyfin, and this Mac, with the window.
             await AttemptAsync(EndGuestSessionAsync);

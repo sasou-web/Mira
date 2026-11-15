@@ -76,6 +76,8 @@ public sealed partial class SettingsPage
                     Show("server");
                     Avalonia.Threading.Dispatcher.UIThread.Post(() => Tailnet.Section.BringIntoView(), Avalonia.Threading.DispatcherPriority.Loaded);
                 });
+            case PrivacyControl.Discord:
+                return PrivacyGo(Shell.Settings.Discord.Enabled ? L("Activé · Gérer", "On · Manage") : L("Coupé · Gérer", "Off · Manage"), connection.Title, () => Show("discord"));
             case PrivacyControl.Maintenance when _tabButtons["care"].IsVisible:
                 return PrivacyGo(L("Gérer", "Manage"), connection.Title, () => Show("care"));
             default:

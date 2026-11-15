@@ -14,7 +14,7 @@ using Mira.Desktop.Services;
 namespace Mira.Desktop.Views;
 
 /// <summary>What the card of the menu shows: the title playing, where it is, and its picture (null until it comes).</summary>
-internal sealed record TrayCard(string Title, string Line, double Position, double Duration, bool Ready, bool Paused, bool CanNext, ImageSource? Picture);
+internal sealed record TrayCard(string Title, string Line, double Position, double Duration, bool Ready, bool Paused, bool CanNext, ImageSource? Picture, bool? Discord = null);
 
 /// <summary>
 /// The menu of Mira's icon in the notification area (« Carte », 2026-11-14), in the style of Mira's menus (« Écrin »): the
@@ -34,7 +34,8 @@ internal sealed class TrayMenuWindow : Window
     private readonly Border _rule;
     private readonly TextBlock _title, _line, _elapsed, _total;
     private readonly ColumnDefinition _played = new(), _left = new();
-    private readonly Button _stop, _back, _toggle, _forward, _next, _open, _minimize, _quit;
+    private readonly Button _stop, _back, _toggle, _forward, _next, _open, _minimize, _quit, _discord;
+    private readonly TextBlock _discordState = new() { FontSize = 12, Foreground = Palette.Get("Faint"), VerticalAlignment = VerticalAlignment.Center };
     private readonly Icon _toggleIcon;
     private (double X, double Y) _point;
     private ScreenFit.Screen? _screen;
@@ -80,7 +81,12 @@ internal sealed class TrayMenuWindow : Window
         Grid.SetColumn(middle, 2); Grid.SetColumn(_next, 4);
         transport.Children.Add(_stop); transport.Children.Add(middle); transport.Children.Add(_next);
 
-        _card = new StackPanel { Margin = new Thickness(1, 1, 1, 3), Children = { _picture, words, progress, transport } };
+        // « Discord status »: hidden for now or shown again, the menu left open (it is a switch, not a place to go).
+        var discordIcon = new Icon { Kind = "status", Width = 17, Height = 17, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(0, 0, 13, 0), VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(discordIcon, Dock.Left); DockPanel.SetDock(_discordState, Dock.Right);
+        _discord = new Button { Style = (Style)FindResource("PlayerMenuItem"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0), Content = new DockPanel { Children = { discordIcon, _discordState, new TextBlock { Text = L("Statut Discord", "Discord status"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center } } } };
+        _discord.Click += (_, _) => _chosen(DesktopCommand.DiscordStatus);
+        _card = new StackPanel { Margin = new Thickness(1, 1, 1, 3), Children = { _picture, words, progress, transport, _discord } };
         _rule = new Border { Style = (Style)FindResource("PlayerMenuRule") };
         _open = Row("mark", 18, L("Ouvrir Mira", "Open Mira"), DesktopCommand.Show, strong: true);
         _minimize = Row("minus", 17, L("Réduire dans la zone de notification", "Minimize to the notification area"), DesktopCommand.Hide);
@@ -156,6 +162,9 @@ internal sealed class TrayMenuWindow : Window
             _next.Visibility = parts.Next ? Visibility.Visible : Visibility.Hidden;
             _stop.IsEnabled = _back.IsEnabled = _toggle.IsEnabled = _forward.IsEnabled = card.Ready;
             _next.IsEnabled = card.Ready && card.CanNext;
+            _discord.Visibility = card.Discord is null ? Visibility.Collapsed : Visibility.Visible;
+            _discordState.Text = card.Discord == true ? L("Affiché", "Shown") : L("Masqué pour l’instant", "Hidden for now");
+            AutomationProperties.SetName(_discord, L("Statut Discord", "Discord status") + " · " + _discordState.Text);
         }
         // The focus on a button gone (a playback stopped from here): the first line of the app takes it.
         if (IsActive && !IsKeyboardFocusWithin) _open.Focus();

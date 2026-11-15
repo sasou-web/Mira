@@ -474,7 +474,7 @@ public sealed partial class DetailPage : Page
         var trailer = _trailer!;
         trailer.IsVisible = Trailers.Source(_item) != TrailerSource.None;
         if (trailer.IsVisible) { ToolTip.SetTip(trailer, Trailers.Tip(_item)); Avalonia.Automation.AutomationProperties.SetName(trailer, Trailers.Tip(_item)); }
-        _fix!.IsVisible = _admin && _item.Type is "Movie" or "Series";
+        _fix!.IsVisible = _admin && _item.Type is "Movie" or "Series" || Shell.DiscordHideable(_item);
     }
     /// <summary>For the self-check: Lecture.</summary>
     public Button? PlayButton => _play;
@@ -676,11 +676,19 @@ public sealed partial class DetailPage : Page
             catch (OperationCanceledException) when (session.Lifetime.IsCancellationRequested) { }
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         }
-        menu.Items.Add(Ui.Entry(L("Identifier…", "Identify…"), "search", () => _ = IdentifyAsync()));
-        menu.Items.Add(Ui.Entry(L("Actualiser les métadonnées", "Refresh metadata"), "refresh", () => _ = RefreshMetadataAsync()));
-        if (_item.Type == "Movie" && Shell.Offers("downloads"))
+        if (_admin && _item.Type is "Movie" or "Series")
         {
-            menu.Items.Add(Ui.Entry(L("Chercher une meilleure version", "Find a better version"), "sparkle", () => Shell.FindBetter(_item)));
+            menu.Items.Add(Ui.Entry(L("Identifier…", "Identify…"), "search", () => _ = IdentifyAsync()));
+            menu.Items.Add(Ui.Entry(L("Actualiser les métadonnées", "Refresh metadata"), "refresh", () => _ = RefreshMetadataAsync()));
+            if (_item.Type == "Movie" && Shell.Offers("downloads"))
+                menu.Items.Add(Ui.Entry(L("Chercher une meilleure version", "Find a better version"), "sparkle", () => Shell.FindBetter(_item)));
+        }
+        // « Hide on Discord » (MainWindow.Discord.cs): a film or a series never on the card.
+        if (Shell.DiscordHideable(_item))
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+            var item = _item; var hidden = Shell.HiddenOnDiscord(item);
+            menu.Items.Add(Ui.Entry(hidden ? L("Montrer sur Discord", "Show on Discord") : L("Masquer sur Discord", "Hide on Discord"), hidden ? "eye" : "eye-off", () => Shell.HideOnDiscord(item, !hidden)));
         }
         Ui.OpenUnder(menu, button);
     }

@@ -26,6 +26,7 @@ public sealed partial class SettingsPage
         ("audio", L("Audio & sous-titres", "Audio & subtitles"), "subtitles", L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles.")),
         ("library", L("Accueil & bibliothèque", "Home & library"), "library", L("Ce que montrent l’accueil et les pages : rangées, spoilers, épisodes manquants, titres gardés sur ce Mac.", "What Home and the pages show: rows, spoilers, missing episodes, titles kept on this Mac.")),
         ("general", L("Général", "General"), "sliders", L("La langue de Mira, le mode canapé et ce que Mira te signale.", "Mira’s language, couch mode and what Mira tells you about.")),
+        ("discord", "Discord", "status", L("Ce que tes amis voient sur ton profil Discord pendant que tu regardes.", "What your friends see on your Discord profile while you watch.")),
         ("server", L("Compte & serveur", "Account & server"), "user", L("Ton compte, ton serveur Jellyfin, et le joindre loin de chez toi.", "Your account, your Jellyfin server, and reaching it away from home.")),
         ("privacy", L("Confidentialité", "Privacy"), "shield", L("Tout ce qui part sur le réseau, et comment l’arrêter.", "Everything that goes out on the network, and how to stop it.")),
         ("updates", L("Mises à jour", "Updates"), "refresh", L("La version de Mira et ses mises à jour.", "Mira’s version and its updates.")),

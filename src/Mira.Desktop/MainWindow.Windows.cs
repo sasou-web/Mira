@@ -79,6 +79,7 @@ public partial class MainWindow
                 case DesktopCommand.Forward: if (_loaded) SeekRelative(10); break;
                 case DesktopCommand.Next: if (_loaded && _skips.Next is not null) Next_Click(this, new()); break;
                 case DesktopCommand.Stop: _playerLeft++; if (_playing) { await StopPlaybackAsync(); ReturnToLibrary(); } break;
+                case DesktopCommand.DiscordStatus: ToggleDiscordForNow(); break;
                 case DesktopCommand.Seek: if (_loaded && double.IsFinite(position)) SeekRelative(position - _session.Position); break;
             }
             UpdateWindowsPlayback();
@@ -91,6 +92,7 @@ public partial class MainWindow
     }
     private void PublishWindowsTrack(MediaItem item)
     {
+        UpdateDiscord(force: true);
         if (_windows is null) return;
         _windows.SetTrack(item);
         var generation = ++_windowsArtworkGeneration;
@@ -119,6 +121,7 @@ public partial class MainWindow
     }
     private void UpdateWindowsPlayback()
     {
+        UpdateDiscord();
         if (!_playing || _mpv is null) return;
         _windows?.Update(_loaded, _mpv.Flag("pause"), _skips.Next is not null, _session.Position, _session.Duration, _mpv.Number("speed", 1));
     }

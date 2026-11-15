@@ -30,6 +30,7 @@ Avant ta connexion, Mira cherche Jellyfin sur cet ordinateur, sur le réseau de 
 | **Chercher des sous-titres…** avec une autre extension de Jellyfin | le service de cette extension, depuis ton serveur | ce que l’extension envoie ; Mira te le dit avant |
 | **Ton lien de party** par Tailscale Funnel | relais de Tailscale, puis tes invités | le trafic de tes invités vers la page de Mira, chiffré jusqu’à ton PC. Le nom Tailscale de ton PC devient public |
 | **Une bande-annonce du web**, à ton clic | le site de la bande-annonce (souvent YouTube), dans ton navigateur | ce qu’envoie ton navigateur (ton adresse IP, les cookies du site). Mira n’en charge rien avant ton clic et n’a aucune vue web ; une bande-annonce gardée sur ton serveur ne passe que par lui |
+| **Statut Discord** (Windows, Mac), une fois activé | l’app Discord de ton ordinateur, par son canal local ; Discord montre ensuite la carte sur ton profil et charge l’affiche depuis TMDB | ce que tu choisis dans **Réglages → Discord** : titre, épisode, temps, affiche, boutons. Jamais l’adresse de ton serveur, ton adresse Tailscale ni ton compte |
 | **AltStore** (iPhone) | Apple, `miracinema.app`, GitHub | ton identifiant Apple à Apple seulement, pour le certificat gratuit ; la source et l’app de Mira |
 
 ## Sur tes appareils

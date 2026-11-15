@@ -14,7 +14,7 @@ using Mira.Desktop.Views;
 
 namespace Mira.Desktop.Services;
 
-internal enum DesktopCommand { Show, Hide, Quit, TogglePause, Play, Pause, Back, Forward, Next, Stop, Seek }
+internal enum DesktopCommand { Show, Hide, Quit, TogglePause, Play, Pause, Back, Forward, Next, Stop, Seek, DiscordStatus }
 
 /// <summary>Windows surfaces are remote controls for the existing mpv session, never a second player.</summary>
 internal sealed class WindowsIntegration : IDisposable
@@ -31,6 +31,8 @@ internal sealed class WindowsIntegration : IDisposable
     private TrayMenuWindow? _trayMenu;
     private MediaItem? _item;
     private ImageSource? _cardPicture;
+    /// <summary>« Discord status » of the menu: null while the Discord card is off, else shown (true) or hidden for now.</summary>
+    private bool? _discord;
     private double _position, _duration;
     private readonly ThumbButtonInfo _back, _pause, _forward, _next;
     private SystemMediaTransportControls? _media;
@@ -92,7 +94,7 @@ internal sealed class WindowsIntegration : IDisposable
     }
     /// <summary>The card of the menu: during a playback only.</summary>
     private TrayCard? Card() => _active && _item is { } item
-        ? new(item.DisplayTitle, TrayMenuPlan.Line(item, _paused), _position, _duration, _ready, _paused, _canNext, _cardPicture) : null;
+        ? new(item.DisplayTitle, TrayMenuPlan.Line(item, _paused), _position, _duration, _ready, _paused, _canNext, _cardPicture, _discord) : null;
     private void RefreshMenu() { if (_trayMenu is { IsOpen: true } menu) menu.Refresh(Card(), _window.IsVisible); }
     private ImageSource Glyph(string kind)
     {
@@ -162,6 +164,12 @@ internal sealed class WindowsIntegration : IDisposable
     {
         if (_disposed || !_active) return;
         _cardPicture = picture; RefreshMenu();
+    }
+    /// <summary>The Discord card's state for the menu's line (null: off, no line).</summary>
+    public void SetDiscord(bool? shown)
+    {
+        if (_discord == shown) return;
+        _discord = shown; RefreshMenu();
     }
     public async Task SetArtworkAsync(ImageSource image)
     {

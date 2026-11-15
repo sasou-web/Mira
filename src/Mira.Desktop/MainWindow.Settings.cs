@@ -186,7 +186,7 @@ public partial class MainWindow
     {
         if (_settingsNavDrawn) return; _settingsNavDrawn = true;
         foreach (var button in SettingsNavigation.Children.OfType<Button>())
-            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", _ => "play" });
+            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", "discord" => "status", _ => "play" });
         ShowUpdateDots();
     }
     /// <param name="animate">False as Réglages opens: the page comes as one, its section with it.</param>
@@ -212,6 +212,7 @@ public partial class MainWindow
         ShowSettingsGroups();
         if (tab == "report") _ = ShowReportAsync();
         if (tab == "privacy") ShowPrivacy();
+        if (tab == "discord") ShowDiscordSettings();
     }
     private const string CustomOrder = "custom";
     private bool _showingLanguages;

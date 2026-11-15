@@ -423,7 +423,7 @@ public partial class MainWindow
         _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null; UpdateGroupPill(); ForgetStream();
         try
         {
-            _windows?.Clear();
+            _windows?.Clear(); UpdateDiscord(force: true);
             if (_session.Reported && _sync is not null) { _session.Reported = false; await _sync.RecordAsync(completed ? "complete" : "stop", Report()); }
             if (completed && _session.Item is { } finished)
             {
@@ -504,7 +504,7 @@ public partial class MainWindow
         SetGroupAway(true);
         PlayerShell.Visibility = Visibility.Collapsed; LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Visible;
         TitleBar.Visibility = Visibility.Visible;
-        if (reveal) Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
+        if (reveal) Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice(); OfferDiscord();
         ShowPartyState();
     }
     private MediaItem? _returnToDetail;
@@ -675,7 +675,7 @@ public partial class MainWindow
             Attempt(() => { _windows?.Dispose(); _windows = null; });
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
             _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop(); FrameProbe.Flush();
-            await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(() => _engineReleased); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
+            await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(CloseDiscordAsync); await AttemptAsync(() => _engineReleased); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
             // After the last reports to Jellyfin, which may go through it; before an update replaces its file.
             await AttemptAsync(StopTailnetAsync);
             Attempt(() => _videoHost?.Dispose()); await AttemptAsync(ApplyUpdateAtCloseAsync);
