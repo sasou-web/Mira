@@ -80,7 +80,7 @@ public partial class MainWindow
         if (_images is not null && _hero is not null) await _heroReady;
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
     }
-    private async Task CaptureAsync(string directory, string name, double scale = 1, FrameworkElement? popup = null)
+    private async Task CaptureAsync(string directory, string name, double scale = 1, (FrameworkElement Element, Point At)? popup = null)
     {
         if (!Motion.Reduced) await Task.Delay(440);
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); UpdateLayout();
@@ -94,14 +94,13 @@ public partial class MainWindow
         // Without the posters' pictures (RenderCache): made at the window's scale, a capture at ×2 would stretch them.
         var pictured = MediaCard.Live.Where(x => x.Pictured).ToList();
         foreach (var card in pictured) card.Pictured = false;
-        // A popup is a window of its own, outside the content: drawn over it at its place on the screen.
+        // A popup is a window of its own, outside the content: drawn over it where it goes in the window (WPF keeps a popup on
+        // the screen, and the gallery's window may be off it).
         var over = new DrawingVisual();
-        if (popup is { IsVisible: true } && PresentationSource.FromVisual(popup) is not null)
+        if (popup is ({ IsVisible: true } element, var place))
         {
-            var origin = visual.PointToScreen(new Point(0, 0)); var at = popup.PointToScreen(new Point(0, 0));
-            var place = new Point((at.X - origin.X) / dpi.DpiScaleX, (at.Y - origin.Y) / dpi.DpiScaleY);
             using var context = over.RenderOpen();
-            context.DrawRectangle(new VisualBrush(popup) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(place, popup.RenderSize));
+            context.DrawRectangle(new VisualBrush(element) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(place, element.RenderSize));
         }
         try { bitmap.Render(backdrop); bitmap.Render(visual); bitmap.Render(over); }
         finally { foreach (var card in pictured) card.Pictured = true; }

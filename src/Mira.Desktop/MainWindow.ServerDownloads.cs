@@ -123,7 +123,8 @@ public partial class MainWindow
         ServerMagnetHint.Text = here ? QBittorrentInstalled() ? L("Le lien d’un site que tu connais : qBittorrent le télécharge sur ce PC, puis Mira le range dans ta bibliothèque.", "A link from a site you know: qBittorrent downloads it on this PC, then Mira sorts it into your library.")
                 : L("Le lien d’un site que tu connais : TorLink le télécharge sur ce PC, puis Mira le range dans ta bibliothèque.", "A link from a site you know: TorLink downloads it on this PC, then Mira sorts it into your library.")
             : L("Le lien d’un site que tu connais : le PC serveur le télécharge, puis Mira le range dans ta bibliothèque.", "A link from a site you know: the server PC downloads it, then Mira sorts it into your library.");
-        ServerMagnetSend.Content = here ? L("Télécharger", "Download") : L("Envoyer au PC serveur", "Send to the server PC");
+        // The link opens its window first: what it holds, what goes, then Download.
+        ServerMagnetSend.Content = L("Voir le contenu", "See what’s inside");
         ServerPlacedTitle.Text = ServerPlacedFoldTitle.Text = here ? L("Vers Jellyfin", "To Jellyfin") : L("Rangés dans ta bibliothèque", "Sorted into your library");
         DescribeQBittorrent();
     }
