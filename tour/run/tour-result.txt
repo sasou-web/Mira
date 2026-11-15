@@ -1,15 +1,8 @@
-FAIL
+PASS
 sam: group made
 opening: done
 home: done
-series: FAIL InvalidOperationException: No card « Arcane » on the page.
-   at Mira.Desktop.MainWindow.FindCardAsync(TourDirector tour, String name) in D:\a\Mira\Mira\src\Mira.Desktop\Checks\MainWindow.Tour.cs:line 241
-   at Mira.Desktop.MainWindow.SeriesSceneAsync(TourDirector tour) in D:\a\Mira\Mira\src\Mira.Desktop\Checks\MainWindow.Tour.cs:line 133
-   at Mira.Desktop.MainWindow.RunTourAsync() in D:\a\Mira\Mira\src\Mira.Desktop\Checks\MainWindow.Tour.cs:line 72
+series: done
+settings: done
 movies: done
 together: done
-settings: FAIL InvalidOperationException: This Visual is not connected to a PresentationSource.
-   at System.Windows.Media.Visual.PointToScreen(Point point)
-   at Mira.Desktop.TourDirector.MoveAsync(FrameworkElement element, Double x, Double y, Double milliseconds) in D:\a\Mira\Mira\src\Mira.Desktop\Checks\TourDirector.cs:line 99
-   at Mira.Desktop.MainWindow.SettingsSceneAsync(TourDirector tour) in D:\a\Mira\Mira\src\Mira.Desktop\Checks\MainWindow.Tour.cs:line 218
-   at Mira.Desktop.MainWindow.RunTourAsync() in D:\a\Mira\Mira\src\Mira.Desktop\Checks\MainWindow.Tour.cs:line 72
