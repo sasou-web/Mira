@@ -1,4 +1,11 @@
 {
+  "0.9.12": {
+    "film": "wild-robot",
+    "band": [
+      { "point": 1, "shot": "windows-discord", "at": [431, 240], "scale": 0.75, "width": 640 },
+      { "point": 2, "shot": "windows-downloads", "at": [960, 40], "scale": 0.9, "width": 432 }
+    ]
+  },
   "0.9.11": {
     "film": "klaus",
     "band": [

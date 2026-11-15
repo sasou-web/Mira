@@ -50,6 +50,8 @@ public partial class MainWindow
             // The release banners' own screens (gallery.yml for banner.yml), never the README's.
             if (Environment.GetEnvironmentVariable("MIRA_GALLERY_BANNER") == "1") await BannerShotsAsync(output, Shot);
             Settings_Click(this, new()); SelectSettingsTab("subtitles"); await Shot("windows-subtitles");
+            // A release's banner: Settings → Discord, its live preview of the card (the film paused under it, if any).
+            if (Environment.GetEnvironmentVariable("MIRA_GALLERY_BANNER") == "1") { SelectSettingsTab("discord"); await Task.Delay(2000); await Shot("windows-discord"); }
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: Mira signed in to {server} as {user}.");
         }
         catch (Exception ex)

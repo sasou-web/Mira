@@ -1,5 +1,24 @@
 [
   {
+    "version": "0.9.12", "date": "2026-11-15",
+    "summary": "Ce que tu regardes sur Discord si tu veux, la bonne place libre, un partage qui s’arrête.",
+    "en": { "summary": "What you watch on Discord if you want, the right free space and sharing that stops." },
+    "changes": [
+      { "category": "Discord", "text": "Ce que tu regardes sur ton profil, avec affiche et temps, aperçu en direct dans les Réglages, coupé par défaut (Windows, Mac).", "en": { "category": "Discord", "text": "What you watch on your profile, with poster and time, a live preview in Settings, off by default (Windows, Mac)." } },
+      { "category": "Confidentialité", "text": "La carte Discord ne nomme jamais ton serveur, ton compte ni ton ordinateur ; ligne dans Réglages → Confidentialité.", "en": { "category": "Privacy", "text": "The Discord card never names your server, account or computer; listed in Settings → Privacy." } },
+      { "category": "Téléchargements", "text": "La place libre du disque qui tient la bibliothèque, même monté dans un dossier.", "en": { "category": "Downloads", "text": "Free space of the disk holding your library, even mounted in a folder." } },
+      { "category": "qBittorrent", "text": "Partage arrêté dès la fin d’un torrent public, après 72 h pour un tracker privé ; les fichiers restent.", "en": { "category": "qBittorrent", "text": "Sharing stops when a public torrent finishes, after 72 hours on a private tracker; files stay." } }
+    ],
+    "items": [
+      { "icon": "status", "title": "Ton statut Discord", "text": "Si tu veux, ton profil Discord montre ce que tu regardes, avec son affiche. Coupé par défaut, réglé dans Réglages → Discord, carte en aperçu.",
+        "en": { "title": "Your Discord status", "text": "If you want, your Discord profile shows what you watch, poster included. Off by default, set up in Settings → Discord with a live preview." } },
+      { "icon": "server", "title": "La bonne place libre", "text": "Téléchargements dit la place du disque qui tient tes médias, même s’il est monté dans un dossier.",
+        "en": { "title": "The right free space", "text": "Downloads shows the space left on the disk that holds your media, even when it is mounted in a folder." } },
+      { "icon": "download", "title": "Un partage qui s’arrête", "text": "qBittorrent arrête un torrent public dès qu’il est fini, un torrent privé après 72 h. Ses fichiers restent dans ta bibliothèque.",
+        "en": { "title": "Sharing that stops", "text": "qBittorrent stops a public torrent once it is done, a private one after 72 hours. Its files stay in your library." } }
+    ]
+  },
+  {
     "version": "0.9.11", "date": "2026-11-15",
     "summary": "Un lecteur plus clair, une image dans l’image avec sa barre, un clin d’œil à l’ouverture.",
     "en": { "summary": "A clearer player, picture in picture with its own bar and a wink at opening." },
