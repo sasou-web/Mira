@@ -95,6 +95,10 @@ public partial class MainWindow
     /// <summary>Mira's opening, « Le clin d'œil », on the Home page: the veil held still, then the mark winks.</summary>
     private async Task OpeningSceneAsync(TourDirector tour)
     {
+        // The veil left the screen at Mira's start by a fade, which still holds its opacity at 0: let go of it first.
+        foreach (var part in new UIElement[] { StartupVeil, StartupShade, StartupWord, StartupMark })
+        { part.BeginAnimation(OpacityProperty, null); part.CacheMode = null; }
+        StartupVeil.RenderTransform = Transform.Identity;
         StartupVeil.Visibility = Visibility.Visible; StartupVeil.IsHitTestVisible = true; StartupVeil.Opacity = 1;
         StartupShade.Opacity = 1; StartupWord.Opacity = 1; StartupMark.Opacity = 1;
         UpdateLayout();
