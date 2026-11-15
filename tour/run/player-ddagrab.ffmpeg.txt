@@ -1,0 +1,5 @@
+[Parsed_ddagrab_0 @ 000001ffd23e56c0] Failed to create D3D11VA device.
+[Parsed_ddagrab_0 @ 000001ffd23e56c0] Failed to configure output pad on Parsed_ddagrab_0
+[in#0 @ 000001ffd23d8f00] Error opening input: Unknown error occurred
+Error opening input file ddagrab=output_idx=0:framerate=15:draw_mouse=0.
+Error opening input files: Unknown error occurred
