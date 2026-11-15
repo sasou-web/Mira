@@ -1,11 +1,13 @@
 // The banner at the head of a release's page, drawn from real captures of this version's Mira (Windows, Mac, iPhone) and
 // from the English of its entry in WhatsNew.json; what it shows is planned by tools/banner/plan.mjs (scenes.json).
-// Two templates, chosen by the version:
-//   - film (a patch, x.y.z with z > 0): the release's film at the top right, melting into black as Mira shows a title,
-//     the version and its sentence on the left, below a band of real pieces of screens, each under its point's title;
+// Three templates, chosen by the version:
+//   - closeup, « Gros plan » (a patch, x.y.z with z > 0): one news, one real thing of the app whole on the right, lit by
+//     the glow of the release's film; its title large on the left, its text, then « Also » and the other points;
+//   - film (the patches from 0.9.7 to 0.9.12, kept for their entries): the release's film at the top right, the version
+//     and its sentence on the left, below a band of real pieces of screens, each under its point's title;
 //   - lineup (x.y.0): the version and its summary over a film's backdrop, in front of it Mira for Windows, Mira for Mac
 //     and Mira for iPhone.
-//   PLAYWRIGHT=<.../playwright/index.mjs> node tools/banner/banner.mjs <x.y.z> <captures folder> <out.jpg> [film|lineup]
+//   PLAYWRIGHT=<.../playwright/index.mjs> node tools/banner/banner.mjs <x.y.z> <captures folder> <out.jpg> [closeup|film|lineup]
 // The folder (searched with its subfolders) holds the captures by name: windows-*.png (Mira.exe --readme-gallery),
 // mac-*.png (Mira --gallery), iphone-*.png (testGallery of MiraUITests) and the films' backdrops, still-<name>.jpg
 // (tools/banner/stills.mjs). JPEG copies are taken as well.
@@ -13,10 +15,10 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BAND, plan, platformOf } from './plan.mjs';
+import { BAND, CLOSEUP, plan, platformOf } from './plan.mjs';
 
 const [version, folderArg, outArg, templateArg] = process.argv.slice(2);
-if (!outArg) { console.error('usage: banner.mjs <x.y.z> <captures folder> <out.jpg> [film|lineup]'); process.exit(2); }
+if (!outArg) { console.error('usage: banner.mjs <x.y.z> <captures folder> <out.jpg> [closeup|film|lineup]'); process.exit(2); }
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const folder = resolve(folderArg), out = resolve(outArg);
 const p = plan(version, { template: templateArg ?? null });
@@ -43,8 +45,8 @@ const shot = (name, focus = null) => {
   const { w, h } = size(file);
   return { name, file: pathToFileURL(file).href, w, h, kind: platformOf(name) === 'iphone' ? 'phone' : platformOf(name), focus: focus && [focus[0] * w, focus[1] * h, focus[2] * w, focus[3] * h] };
 };
-const still = named(`still-${p.film}`);
-if (!still) throw new Error(`no backdrop named still-${p.film} in ${folder}`);
+const still = named(`still-${p.still}`);
+if (!still) throw new Error(`no backdrop named still-${p.still} in ${folder}`);
 const stillUrl = pathToFileURL(still).href;
 
 const mark = (ink, cut) => `<svg viewBox="0 0 24 24" class="mark"><path fill="${ink}" d="M12 1C3 1 1 3 1 12S3 23 12 23 23 21 23 12 21 1 12 1Z"/><path fill="none" stroke="${cut}" stroke-width="2.65" stroke-linecap="round" stroke-linejoin="round" d="M6.3 16.5V10.6C6.3 6.3 12 6.3 12 10.6V15.6M12 10.6C12 6.3 17.7 6.3 17.7 10.6V16.5"/></svg>`;
@@ -127,6 +129,77 @@ const checks = `(() => {
   return problems;
 })()`;
 
+// ——— closeup: one news, one whole thing of the app, lit by the release's film ———
+const nunito = `@font-face { font-family: Nunito; font-weight: 200 1000; src: url(${pathToFileURL(join(root, 'site/fonts/nunito.woff2')).href}) format('woff2'); }`;
+function closeup() {
+  const c = p.closeup, s = shot(c.shot), k = c.scale, origin = c.at[0] === 0 && c.at[1] === 0;
+  const phone = s.kind === 'phone';
+  const inner = origin && s.kind === 'mac' ? lights(k) : '';
+  const also = c.also.map((t) => `<b>${escape(t)}</b>`).join('<i>·</i>');
+  return `<style>
+${nunito}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: ${W}px; height: ${H}px; overflow: hidden; background: #000; }
+body { position: relative; font-family: Nunito, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
+.mark { width: 22px; height: 22px; flex: none; }
+.light { position: absolute; left: 380px; top: -140px; width: 1000px; height: 880px; background: url(${stillUrl}) center / cover; opacity: 0.95;
+  filter: blur(80px) saturate(${c.glow.vivid}) brightness(${c.glow.bright}); -webkit-mask: radial-gradient(closest-side, #000 25%, transparent 100%); }
+.tag { position: absolute; left: ${CLOSEUP.left}px; top: 46px; display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 400; letter-spacing: 0.01em; }
+.tag b { font-weight: 800; font-size: 17px; margin-right: 4px; }
+.tag span { color: rgba(255,255,255,0.55); }
+.words { position: absolute; left: ${CLOSEUP.left}px; top: 0; bottom: 0; width: ${CLOSEUP.words}px; display: flex; flex-direction: column; justify-content: center; }
+h1 { font-size: 58px; line-height: 1.04; font-weight: 800; letter-spacing: -0.02em; margin: 22px 0 16px; text-wrap: balance; }
+.say { font-size: 20px; line-height: 1.38; font-weight: 400; color: rgba(255,255,255,0.72); }
+.also { position: absolute; left: ${CLOSEUP.left}px; bottom: 44px; font-size: 14.5px; color: rgba(255,255,255,0.5); white-space: nowrap; }
+.also b { color: rgba(255,255,255,0.86); font-weight: 700; }
+.also i { font-style: normal; margin: 0 9px; opacity: 0.5; }
+.thing { position: absolute; left: ${c.left}px; top: ${c.top}px; width: ${c.width}px; height: ${c.height}px; overflow: hidden; background: #0d0d0d;
+  border-radius: ${phone && origin ? 34 : c.radius}px; box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 40px 90px rgba(0,0,0,0.65); }
+.thing img { position: absolute; display: block; max-width: none; }
+.thing.phone.origin::before { content: ''; position: absolute; z-index: 2; left: 50%; top: 7px; width: 78px; height: 23px; margin-left: -39px; border-radius: 12px; background: #000; }
+${lightsCss}
+</style>
+<div class="light"></div>
+<div class="tag">${mark('#fff', '#000')}<b>Mira ${escape(version)}</b><span>${escape(p.date)}</span></div>
+<div class="words"><h1>${escape(c.title)}</h1><p class="say">${escape(c.say)}</p></div>
+${c.also.length ? `<div class="also">Also&nbsp;&nbsp;${also}</div>` : ''}
+<div class="thing${phone ? ' phone' : ''}${origin ? ' origin' : ''}" data-units="${s.w / c.units}x${s.h / c.units}" data-cut="${c.size.join('x')}"><img src="${s.file}"
+  style="width:${(s.w / c.units) * k}px;left:${-c.at[0] * k}px;top:${-c.at[1] * k}px">${inner}</div>`;
+}
+
+// What the closeup must hold, measured in the page with its real fonts: the title in three lines at most (smaller
+// first), the text in four, the words clear of the tag and of « Also », « Also » on one line (the last titles left out
+// when it is too long), clear of the thing shown, and the thing cut inside its capture.
+const closeupChecks = `(() => {
+  const problems = [], left = [];
+  const box = (e) => e.getBoundingClientRect();
+  const lines = (e) => Math.round(box(e).height / parseFloat(getComputedStyle(e).lineHeight));
+  const h1 = document.querySelector('h1'), say = document.querySelector('.say'), tag = document.querySelector('.tag');
+  const thing = document.querySelector('.thing'), also = document.querySelector('.also');
+  for (let size = 58; lines(h1) > 3 && size > 40; size -= 2) h1.style.fontSize = size - 2 + 'px';
+  if (lines(h1) > 3) problems.push('the title « ' + h1.textContent + ' » takes ' + lines(h1) + ' lines, 3 at most: write a shorter « title »');
+  if (lines(say) > 4) problems.push('the text under the title takes ' + lines(say) + ' lines, 4 at most: shorten it by hand (« say »)');
+  const t = box(thing);
+  if (also) {
+    const fits = () => box(also).right <= ${W - 64} && (box(also).right <= t.left - 16 || box(also).top >= t.bottom + 8);
+    while (!fits() && also.querySelectorAll('b').length > 1) {
+      const last = also.querySelector('b:last-of-type');
+      left.push(last.textContent);
+      last.previousElementSibling.remove(); last.remove();
+    }
+    if (!fits()) problems.push('« Also » runs into the thing shown or past the right edge: lower the thing or shorten « also »');
+  }
+  const words = box(document.querySelector('.words').firstElementChild), end = box(say).bottom;
+  if (words.top < box(tag).bottom + 12) problems.push('the title reaches the tag at y = ' + Math.round(words.top) + ': shorten the text');
+  if (also && end > box(also).top - 16) problems.push('the text ends at y = ' + Math.round(end) + ', on « Also »: shorten the text');
+  if (Math.max(box(h1).right, box(say).right) > t.left - 16) problems.push('the words run into the thing shown');
+  const img = thing.querySelector('img'), [dw, dh] = thing.dataset.units.split('x').map(Number), [cw, ch] = thing.dataset.cut.split('x').map(Number);
+  const k = parseFloat(img.style.width) / dw, x = -parseFloat(img.style.left) / k, y = -parseFloat(img.style.top) / k;
+  if (x + cw > dw + 0.5) problems.push('the thing shown runs ' + Math.round(x + cw - dw) + ' units past its capture on the right');
+  if (y + ch > dh + 0.5) problems.push('the thing shown runs ' + Math.round(y + ch - dh) + ' units past its capture at the bottom');
+  return { problems, left };
+})()`;
+
 // ——— lineup: the film behind, Mira on each of its screens in front of it ———
 const font = (weight) => pathToFileURL(join(root, 'src/Mira.Jellyfin/Pages/fonts', `nunito-${weight}.woff2`)).href;
 const base = `
@@ -187,7 +260,7 @@ ${frame(phone, 148, { style: 'left:1010px;top:236px;z-index:3' })}
 <div class="grain"></div>`;
 }
 
-const draw = { film, lineup }[template];
+const draw = { closeup, film, lineup }[template];
 const script = `(async () => {
   // A longer version (0.10.12) kept clear of the windows.
   for (const v of document.querySelectorAll('[data-fit]')) {
@@ -216,6 +289,11 @@ try {
   if (template === 'film') {
     const problems = await page.evaluate(checks);
     if (problems.length) throw new Error(`${version}: the banner does not hold:\n- ${problems.join('\n- ')}`);
+  }
+  if (template === 'closeup') {
+    const { problems, left } = await page.evaluate(closeupChecks);
+    if (problems.length) throw new Error(`${version}: the banner does not hold:\n- ${problems.join('\n- ')}`);
+    if (left.length) console.log(`Left out of « Also » (no room): ${left.reverse().join(', ')}`);
   }
   await page.screenshot({ path: out, type: out.endsWith('.png') ? 'png' : 'jpeg', ...(out.endsWith('.png') ? {} : { quality: 88 }) });
   console.log(`${out} (${template}, ${p.film})`);
