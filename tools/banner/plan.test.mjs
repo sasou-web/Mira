@@ -1,9 +1,10 @@
-// tools/banner/plan.mjs: scenes.json's format, its refusals, the sentence, the band's geometry, the film of a version.
+// tools/banner/plan.mjs: scenes.json's format, its refusals, the closeup's thing and words, the sentence, the band's
+// geometry, the film of a version.
 //   node --test tools/banner/plan.test.mjs
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { BAND, FILMS, SHOTS, before, filmOf, longDate, plan, sentence } from './plan.mjs';
+import { BAND, CLOSEUP, FILMS, NO_GLOW, SHOTS, before, filmOf, glowOf, library, longDate, plan, sentence, slug } from './plan.mjs';
 
 const point = (title) => ({ icon: 'info', title, en: { title } });
 const news = [
@@ -33,8 +34,10 @@ test('the repository: every entry of scenes.json plans, the newest version of Wh
   assert.equal(plan('0.9.5').iphone, true);
 });
 
-test('a patch takes « film », x.y.0 « lineup », and the entry can force either', () => {
+test('a patch takes « closeup » (« film » with a band), x.y.0 « lineup », and the entry can force one', () => {
   assert.equal(planned({ band: three }).template, 'film');
+  assert.equal(planned({ point: 1, shot: 'windows-series', at: [500, 100], size: [600, 400], scale: 1 }).template, 'closeup');
+  assert.equal(plan('1.0.0', { scenes: { '1.0.0': { template: 'closeup', point: 1 } }, news }).template, 'closeup');
   const l = plan('1.0.0', { scenes: { '1.0.0': {} }, news });
   assert.equal(l.template, 'lineup');
   assert.deepEqual(l.lineup, { lead: 'windows-home', back: 'mac-films', phone: 'iphone-home', focus: null });
@@ -66,7 +69,7 @@ test('the band: pieces side by side from x = 56, 16 apart, captions from the poi
 });
 
 test('no band: Mira for Windows\' Home, whole, without a caption', () => {
-  const p = planned({});
+  const p = planned({ template: 'film' });
   assert.deepEqual(p.band.map(({ shot, at, scale, width, left, caption }) => ({ shot, at, scale, width, left, caption })),
     [{ shot: 'windows-home', at: [0, 0], scale: 0.756, width: 1088, left: 56, caption: null }]);
   assert.deepEqual([p.windows, p.mac, p.iphone], [true, false, false]);
@@ -94,7 +97,7 @@ test('never the banner of the release before', () => {
   // A piece without a point of this version.
   assert.throws(() => planned({ band: [three[0], three[1], { ...three[2], point: undefined }] }), /piece 3: no point nor caption/);
   // No band twice in a row.
-  assert.throws(() => plan('0.9.8', { scenes: { '0.9.8': {}, '0.9.7': {} }, news }), /0.9.8: no band, as 0.9.7/);
+  assert.throws(() => plan('0.9.8', { scenes: { '0.9.8': { template: 'film' }, '0.9.7': { template: 'film' } }, news }), /0.9.8: no band, as 0.9.7/);
   // The release before without its entry any more: nothing to compare.
   assert.equal(plan('0.9.8', { scenes: { '0.9.8': { band: [piece({ shot: 'mac-settings', at: [0, 0], scale: 0.5, width: 1088 })] } }, news }).band.length, 1);
   assert.deepEqual(before('0.9.8', scenes({}), news), { version: '0.9.7', entry: earlier });
@@ -107,8 +110,8 @@ test('every shot a band may take is one a gallery captures', () => {
 });
 
 test('the film: the entry\'s, else the version\'s own, never the one of the release before', () => {
-  assert.equal(planned({ film: 'klaus' }).film, 'klaus');
-  assert.throws(() => planned({ film: 'spirited-away' }), /the film spirited-away has no place in FILMS/);
+  assert.equal(planned({ template: 'film', film: 'klaus' }).film, 'klaus');
+  assert.throws(() => planned({ template: 'film', film: 'spirited-away' }), /the film spirited-away has no place in FILMS/);
   const names = Object.keys(FILMS);
   for (let i = 0; i < 60; i++) {
     const version = `0.${i}.3`, before = `0.${i}.2`;
@@ -119,7 +122,7 @@ test('the film: the entry\'s, else the version\'s own, never the one of the rele
     }
     assert.equal(filmOf(version, {}, []), filmOf(version, {}, []));
   }
-  assert.notEqual(planned({}).film, 'spider-verse');
+  assert.notEqual(planned({ template: 'film' }).film, 'spider-verse');
 });
 
 test('every film\'s place covers the top right and fades before the captions', () => {
@@ -130,4 +133,90 @@ test('every film\'s place covers the top right and fades before the captions', (
     assert.ok(f.y + f.w * 9 / 16 >= BAND.caption - 6, `${name} stops at y = ${f.y + f.w * 9 / 16}`);
     assert.ok(f.x + f.fade >= 470, `${name} is bright from x = ${f.x + f.fade}, under the sentence`);
   }
+});
+
+// ——— closeup (« Gros plan ») ———
+const thing = (over = {}) => ({ point: 1, shot: 'windows-player', at: [530, 150], size: [910, 730], scale: 0.62, ...over });
+
+test('the library: every film and series of media.sh by its folder\'s name', () => {
+  assert.equal(slug("Howl's Moving Castle (2004)"), 'howl-s-moving-castle');
+  assert.equal(slug('Love, Death & Robots (2019)'), 'love-death-robots');
+  assert.equal(slug('Amélie (2001)'), 'amelie');
+  assert.deepEqual(library('film "Your Name. (2016)" 106\nseries "Arcane (2021)" 1 9 40\nseries "Arcane (2021)" 2 9 40\n# film "Not (2000)"\n'), ['your-name', 'arcane']);
+  const titles = library();
+  assert.ok(titles.length >= 8 && titles.includes('arcane'), titles.join(', '));
+});
+
+test('closeup: the point\'s title and text, the other titles in « Also », the thing centred on the right', () => {
+  const p = planned(thing());
+  assert.equal(p.template, 'closeup');
+  const c = p.closeup;
+  assert.equal(c.title, 'Get the missing episodes');
+  assert.deepEqual(c.also, ['Smoother scrolling', 'Fixes']);
+  assert.deepEqual([c.width, c.height], [564, 453]);
+  assert.equal(c.left, CLOSEUP.room[0] + Math.round((CLOSEUP.width - c.width) / 2));
+  assert.equal(c.top, Math.round((600 - c.height) / 2));
+  assert.deepEqual(p.shots, ['windows-player']);
+  assert.deepEqual([p.windows, p.mac, p.iphone], [true, false, false]);
+  // By hand: the title, the text, « Also », its place, its glow.
+  const h = planned(thing({ point: 2, title: 'Smooth', say: 'Short.', also: [], right: 64, glow: { bright: 1.6 } })).closeup;
+  assert.deepEqual([h.title, h.say, h.also, h.left, h.glow], ['Smooth', 'Short.', [], 1200 - 64 - 564, { bright: 1.6, vivid: 1.7 }]);
+  assert.equal(planned(thing({ point: 2 })).closeup.title, 'Smoother scrolling');
+  // No shot (a release of fixes only): Windows' Home, whole.
+  const home = planned({ point: 3 }).closeup;
+  assert.deepEqual([home.shot, home.at, home.size], ['windows-home', [0, 0], [1440, 900]]);
+  assert.ok(home.width <= CLOSEUP.width && home.height <= CLOSEUP.height);
+  assert.equal(planned(thing({ shot: 'iphone-film', at: [0, 0], size: [402, 874], scale: 0.55 })).closeup.units, 3);
+});
+
+test('closeup: its refusals say what to change', () => {
+  assert.throws(() => planned(thing({ scale: 0.8 })), /728 px wide, 636 at most \(lower its scale to 0.69/);
+  assert.throws(() => planned(thing({ size: [600, 900], scale: 0.8 })), /720 px high, 500 at most/);
+  assert.throws(() => planned(thing({ scale: 0.3 })), /scale 0.3 is out of 0.45 to 1.5/);
+  assert.throws(() => planned(thing({ shot: 'windows-trailer' })), /no gallery takes windows-trailer/);
+  assert.throws(() => planned(thing({ size: [10] })), /size is \[width, height\]/);
+  assert.throws(() => planned(thing({ at: [-1, 0] })), /at is \[x, y\]/);
+  assert.throws(() => planned(thing({ point: 9 })), /point 9 is not one of the 3 points/);
+  assert.throws(() => planned(thing({ point: undefined })), /no point nor title/);
+  assert.throws(() => planned(thing({ right: 640 })), /right 640 puts the thing shown at x = -4/);
+  assert.throws(() => planned(thing({ also: 'Fixes' })), /also is a list of titles/);
+  assert.throws(() => planned(thing({ film: 'spirited-away' })), /not spirited-away: its first backdrop/);
+  assert.throws(() => planned(thing({ film: 'blade-runner' })), /the film blade-runner is not in the banners' library/);
+});
+
+test('closeup: never what the release before showed, film or closeup', () => {
+  // 0.9.7 (« film ») cut mac-settings from [0, 0]: the same place refused, another one taken.
+  assert.throws(() => planned(thing({ shot: 'mac-settings', at: [0, 0], size: [800, 600], scale: 0.7 })), /0.9.8: mac-settings at \[0,0\] shows again what 0.9.7's banner showed/);
+  assert.equal(planned(thing({ shot: 'mac-settings', at: [900, 300], size: [500, 500], scale: 0.9 })).closeup.left, 500 + Math.round((636 - 450) / 2));
+  // After a closeup: the same thing, Home twice, the same film.
+  const last = thing({ film: 'klaus' });
+  const after = (entry) => plan('0.9.8', { scenes: { '0.9.8': entry, '0.9.7': last }, news });
+  assert.throws(() => after(thing({ film: 'coco', at: [560, 180] })), /windows-player at \[560,180\] shows again what 0.9.7/);
+  assert.throws(() => after(thing({ shot: 'windows-series', film: 'klaus' })), /the film klaus again, as 0.9.7/);
+  assert.throws(() => plan('0.9.8', { scenes: { '0.9.8': { point: 1 }, '0.9.7': { point: 1 } }, news }), /0.9.8: no shot, as 0.9.7/);
+  assert.equal(after(thing({ shot: 'windows-series', at: [0, 0], size: [700, 500], scale: 0.9, film: 'coco' })).film, 'coco');
+  // Old short names and the library's are the same film.
+  assert.throws(() => plan('0.9.8', { scenes: { '0.9.8': thing({ shot: 'windows-series', film: 'spider-man-across-the-spider-verse' }), '0.9.7': earlier }, news }),
+    /the film spider-man-across-the-spider-verse again, as 0.9.7/);
+});
+
+test('closeup: the glow is the version\'s own, never the film before, never one without colours', () => {
+  const titles = library();
+  for (let i = 0; i < 60; i++) {
+    const version = `0.${i}.3`, previous = `0.${i}.2`;
+    for (const film of ['arcane', 'klaus', 'wild-robot']) {
+      const chosen = glowOf(version, { [previous]: { film } }, [{ version }, { version: previous }], titles);
+      assert.ok(titles.includes(chosen) && !NO_GLOW[chosen], chosen);
+      assert.notEqual(chosen, film === 'wild-robot' ? 'the-wild-robot' : film, `${version} after ${film}`);
+    }
+  }
+  // Nothing in the entries: the release before's own glow is avoided too.
+  for (let i = 0; i < 40; i++) {
+    const v = `0.${i}.4`, previous = `0.${i}.3`;
+    const scenes = { [v]: { point: 1 }, [previous]: { point: 1, shot: 'windows-series', at: [0, 0], size: [700, 500], scale: 0.9 } };
+    const news2 = [{ version: v }, { version: previous }];
+    assert.notEqual(glowOf(v, scenes, news2, titles), glowOf(previous, scenes, news2, titles));
+  }
+  assert.equal(planned(thing()).still, planned(thing()).film);
+  assert.equal(planned(thing({ film: 'wild-robot' })).still, 'the-wild-robot');
 });
