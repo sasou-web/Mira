@@ -1072,6 +1072,8 @@ public static class SelfCheck
                     Check(!player.Sound.Muted, "télécommande : le son revient", player.Sound.ToString());
                     window.Remote(session, new RemoteCommand(RemoteAction.Message) { Header = "Mira", Text = "Check" });
                     Check(await Until(() => player.PillText == "Mira · Check", 2), "télécommande : le message d’un autre appareil en haut du lecteur", player.PillText ?? "rien");
+                    Check(player.PillOffBackRow is < 4, "lecteur : la pastille du haut sur la rangée du chevron, comme sous Windows", $"{player.PillOffBackRow:0.0} pt");
+                    Capture(window, output, "05r-player-pill");
                     window.Remote(session, new RemoteCommand(RemoteAction.Next));
                     await Task.Delay(400);
                     Check(window.Player == player && player.Item?.Id == movie.Id, "télécommande : « suivant » sans épisode suivant ne fait rien", player.Item?.Name ?? "");

@@ -208,10 +208,10 @@ public sealed partial class PlayerPage : UserControl
         _skipHost.HorizontalAlignment = HorizontalAlignment.Right; _skipHost.VerticalAlignment = VerticalAlignment.Bottom; _skipHost.Margin = new Thickness(0, 0, 36, 36);
         _skipHost.Transitions = [new ThicknessTransition { Property = MarginProperty, Duration = TimeSpan.FromMilliseconds(260), Easing = new Avalonia.Animation.Easings.CubicEaseOut() }];
         _root.Children.Add(_skipHost);
-        // « Regarder ensemble »: what the group is doing, top center, under the title (ShowGroup).
+        // « Regarder ensemble »: what the group is doing, top center, on the row of the chevron as on Windows (ShowGroup).
         _groupPill = new Border
         {
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(120, 76 + shell.TitleBarInset, 120, 0),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(120, 20 + shell.TitleBarInset, 120, 0),
             Padding = new Thickness(13, 8, 16, 8), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#E0161616"), BorderBrush = Ui.Brush("#30FFFFFF"), BorderThickness = new Thickness(1),
             IsHitTestVisible = false, IsVisible = false, Opacity = 0, Child = Ui.Row(9, new Icon("users", 16) { VerticalAlignment = VerticalAlignment.Center }, _groupText),
             Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) }]

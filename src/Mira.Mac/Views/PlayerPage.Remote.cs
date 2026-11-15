@@ -1,3 +1,5 @@
+using Avalonia;
+using Avalonia.Controls;
 using Mira.Core;
 
 namespace Mira.Mac.Views;
@@ -52,4 +54,8 @@ public sealed partial class PlayerPage
     internal void PutBackSound(double level) => _volume.Value = level;
     /// <summary>What the pill at the top says, while it shows.</summary>
     public string? PillText => _groupPill is { IsVisible: true, Opacity: > 0 } ? _groupText.Text : null;
+    /// <summary>How far the pill's middle sits from the chevron's, in points: on its row as on Windows, never in the picture.</summary>
+    public double? PillOffBackRow =>
+        _top.Child is Control back && _groupPill.TranslatePoint(new Point(0, _groupPill.Bounds.Height / 2), this) is { } pill && back.TranslatePoint(new Point(0, back.Bounds.Height / 2), this) is { } chevron
+            ? Math.Abs(pill.Y - chevron.Y) : null;
 }
