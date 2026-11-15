@@ -7,13 +7,13 @@
     <a href="https://github.com/sasou-web/Mira/releases/latest"><img src="https://img.shields.io/github/v/release/sasou-web/Mira?style=flat-square&label=pr%C3%A9version&color=e8e8ed" alt="Dernière version (préversion)" /></a>
     <a href="../LICENSE"><img src="https://img.shields.io/badge/licence-MIT-e8e8ed?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Compilation et tests" /></a>
-    <a href="https://discord.gg/Bh3F6PDUvB"><img src="https://img.shields.io/badge/discord-rejoindre-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Rejoindre le Discord de Mira" /></a>
+    <a href="https://discord.miracinema.app"><img src="https://img.shields.io/badge/discord-rejoindre-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Rejoindre le Discord de Mira" /></a>
   </p>
   <p>
     <a href="https://github.com/sasou-web/Mira/releases/latest"><strong>Télécharger pour Windows</strong></a> ·
     <a href="INSTALLATION-MAC.md">Mac</a> ·
     <a href="INSTALLATION-IOS.md">iPhone</a> ·
-    <a href="https://discord.gg/Bh3F6PDUvB">Discord</a> ·
+    <a href="https://discord.miracinema.app">Discord</a> ·
     <a href="../README.md">English</a>
   </p>
 </div>
@@ -90,7 +90,7 @@ Mira est une préversion : elle sert tous les jours, mais certaines choses manqu
 - [Toutes les fonctions et les raccourcis](USER_GUIDE.md)
 - [Historique des versions](../CHANGELOG.md)
 - [Signaler un bug](https://github.com/sasou-web/Mira/issues/new/choose) ou [une faille de sécurité](SECURITY.fr.md)
-- [Discuter de Mira sur Discord](https://discord.gg/Bh3F6PDUvB) : aide, idées, nouvelles versions
+- [Discuter de Mira sur Discord](https://discord.miracinema.app) : aide, idées, nouvelles versions
 
 ## Politique de signature du code
 

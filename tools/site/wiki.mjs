@@ -244,7 +244,7 @@ ${alternates}
     <nav aria-label="Mira">
       <a href="${home}">${lang === 'en' ? 'Website' : 'Site'}</a>
       <a href="${home}#download">${escape(w.download)}</a>
-      <a href="https://discord.gg/Bh3F6PDUvB">Discord</a>
+      <a href="https://discord.miracinema.app">Discord</a>
     </nav>
     <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}">${w.otherShort}</a>
   </header>
@@ -275,7 +275,7 @@ ${body}
       </article>
       <footer class="doc-foot">
         ${pager ? `<nav class="pager" aria-label="${escape(w.pages)}">${pager}</nav>` : ''}
-        <p class="help"><a href="${source}"><svg class="icon" aria-hidden="true"><use href="${asset('img/icons.svg')}#pencil"/></svg>${escape(w.edit)}</a><a href="https://discord.gg/Bh3F6PDUvB"><svg class="icon" aria-hidden="true"><use href="${asset('img/icons.svg')}#users"/></svg>${escape(w.ask)}</a></p>
+        <p class="help"><a href="${source}"><svg class="icon" aria-hidden="true"><use href="${asset('img/icons.svg')}#pencil"/></svg>${escape(w.edit)}</a><a href="https://discord.miracinema.app"><svg class="icon" aria-hidden="true"><use href="${asset('img/icons.svg')}#users"/></svg>${escape(w.ask)}</a></p>
       </footer>
     </main>
   </div>
@@ -287,7 +287,7 @@ ${body}
     </div>
     <nav aria-label="Links">
       <a href="${repository}">${escape(w.links.code)}</a>
-      <a href="https://discord.gg/Bh3F6PDUvB">${escape(w.links.discord)}</a>
+      <a href="https://discord.miracinema.app">${escape(w.links.discord)}</a>
       <a href="${repository}/releases">${escape(w.links.releases)}</a>
       <a href="${repository}/blob/main/${lang === 'en' ? '' : 'docs/'}SECURITY${lang === 'en' ? '' : '.fr'}.md">${escape(w.links.security)}</a>
       <a href="${otherHref}" hreflang="${other}" lang="${other}">${escape(w.other)}</a>

@@ -50,4 +50,4 @@ Ta bibliothèque, ta progression et les comptes sont sur ton serveur Jellyfin. M
 
 ## Comment aider ?
 
-Parles-en autour de toi, signale les bugs sur [GitHub](https://github.com/sasou-web/Mira/issues/new/choose), partage tes idées sur [Discord](https://discord.gg/Bh3F6PDUvB). Chaque page de ce wiki a **Modifier cette page sur GitHub** en bas.
+Parles-en autour de toi, signale les bugs sur [GitHub](https://github.com/sasou-web/Mira/issues/new/choose), partage tes idées sur [Discord](https://discord.miracinema.app). Chaque page de ce wiki a **Modifier cette page sur GitHub** en bas.

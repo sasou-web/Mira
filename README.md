@@ -7,13 +7,13 @@
     <a href="https://github.com/sasou-web/Mira/releases/latest"><img src="https://img.shields.io/github/v/release/sasou-web/Mira?style=flat-square&label=preview&color=e8e8ed" alt="Latest release (preview)" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-e8e8ed?style=flat-square" alt="MIT licence" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Build and tests" /></a>
-    <a href="https://discord.gg/Bh3F6PDUvB"><img src="https://img.shields.io/badge/discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Join the Mira Discord" /></a>
+    <a href="https://discord.miracinema.app"><img src="https://img.shields.io/badge/discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Join the Mira Discord" /></a>
   </p>
   <p>
     <a href="https://github.com/sasou-web/Mira/releases/latest"><strong>Download for Windows</strong></a> ·
     <a href="https://wiki.miracinema.app/mac/">Mac</a> ·
     <a href="https://wiki.miracinema.app/iphone/">iPhone</a> ·
-    <a href="https://discord.gg/Bh3F6PDUvB">Discord</a> ·
+    <a href="https://discord.miracinema.app">Discord</a> ·
     <a href="docs/README.fr.md">Français</a>
   </p>
 </div>
@@ -89,7 +89,7 @@ Mira is a preview: it is used every day, but some things are still missing (sign
 - [Guides for every app: features, shortcuts, help](https://wiki.miracinema.app/)
 - [Release history](https://github.com/sasou-web/Mira/releases)
 - [Report a bug](https://github.com/sasou-web/Mira/issues/new/choose) or [a vulnerability](SECURITY.md)
-- [Talk about Mira on Discord](https://discord.gg/Bh3F6PDUvB): help, ideas, new releases
+- [Talk about Mira on Discord](https://discord.miracinema.app): help, ideas, new releases
 
 ## Code signing policy
 

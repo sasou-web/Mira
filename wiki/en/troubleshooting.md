@@ -56,7 +56,7 @@ Mira says what is wrong in its own words, with a button that helps when there is
 
 ## Still stuck?
 
-Ask on [Discord](https://discord.gg/Bh3F6PDUvB), or [open an issue](https://github.com/sasou-web/Mira/issues/new/choose) with the versions of Mira, your system and Jellyfin. Never attach a password, a token, Mira's `data` folder or personal media.
+Ask on [Discord](https://discord.miracinema.app), or [open an issue](https://github.com/sasou-web/Mira/issues/new/choose) with the versions of Mira, your system and Jellyfin. Never attach a password, a token, Mira's `data` folder or personal media.
 
 On Mac, a player log helps: in Terminal,
 

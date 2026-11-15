@@ -50,4 +50,4 @@ Your library, progress and accounts are on your Jellyfin server. Mira keeps a ca
 
 ## How do I help?
 
-Tell others, report bugs on [GitHub](https://github.com/sasou-web/Mira/issues/new/choose), share ideas on [Discord](https://discord.gg/Bh3F6PDUvB). Each page of this wiki has **Edit this page on GitHub** at the bottom.
+Tell others, report bugs on [GitHub](https://github.com/sasou-web/Mira/issues/new/choose), share ideas on [Discord](https://discord.miracinema.app). Each page of this wiki has **Edit this page on GitHub** at the bottom.

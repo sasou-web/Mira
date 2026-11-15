@@ -103,7 +103,7 @@ public static class DiscordButton
     public static readonly string[] All = [None, Mira, Tmdb, Imdb, Trailer, GitHub, Community, Custom];
     public const string Site = "https://miracinema.app/";
     public const string Repository = "https://github.com/sasou-web/Mira";
-    public const string Server = "https://discord.gg/Bh3F6PDUvB";
+    public const string Server = "https://discord.miracinema.app";
     /// <summary>The name in the list of Réglages.</summary>
     public static string Name(string button) => button switch
     {
