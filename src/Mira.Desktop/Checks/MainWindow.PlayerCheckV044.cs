@@ -117,10 +117,13 @@ public partial class MainWindow
             var autoNext = _settings.AutoNext; _settings.AutoNext = true; _skips.Next = DemoLibrary.Items()[1]; _skips.Active = null;
             TryCommand("seek", (outro.Start + .5).ToString(CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(outro.Start + .5);
             await Task.Delay(350); ShowPlayerControls(); UpdateSkip(); await Task.Delay(260);
-            // Maquette A (2026-11-14): the next episode's card, its ring filling, in place of the pills.
+            // Maquette A (2026-11-14): the next episode's card in place of the pills. Its title is runs (a TextBlock's Text
+            // does not show them); the ring is empty at the countdown's start (the position is held) and drawn once it goes.
+            var nextTitle = string.Concat(NextCardTitle.Inlines.OfType<System.Windows.Documents.Run>().Select(run => run.Text));
+            DrawNextRing(_skips.CountdownDone(_session.Position + 2.5));
             require(NextCard.IsVisible && !SkipButton.IsVisible && !SkipCancel.IsVisible && NextCardCount.Text.StartsWith("Épisode suivant dans", StringComparison.Ordinal)
-                && NextCardTitle.Text.Contains(_skips.Next.Name, StringComparison.Ordinal) && NextCardRing.Data is not null,
-                $"credits show the next episode's card (« {NextCardCount.Text} », « {NextCardTitle.Text} », ring {NextCardRing.Data is not null}, pills {SkipButton.IsVisible}/{SkipCancel.IsVisible})");
+                && nextTitle.Contains(_skips.Next.Name, StringComparison.Ordinal) && NextCardRing.Data is not null,
+                $"credits show the next episode's card (« {NextCardCount.Text} », « {nextTitle} », ring {NextCardRing.Data is not null}, pills {SkipButton.IsVisible}/{SkipCancel.IsVisible})");
             CaptureElement(output, "next-episode-card", PlayerSurface);
             SkipCancel_Click(this, new()); UpdateSkip(); await Task.Delay(260);
             require(_skips.Stay && SkipText.Text == "Épisode suivant" && _skips.CountdownEnd is null && SkipButton.IsVisible && !NextCard.IsHitTestVisible, "cancelling keeps the episode and stops the countdown: the pill alone");

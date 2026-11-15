@@ -83,8 +83,10 @@ public sealed partial class PlayerPage
     internal (bool Shown, string Count, string Title, double Ring) NextCardForCheck(MediaItem next)
     {
         var at = _session.Position;
-        _skips.Next = next; _skips.Segments = [new(SkipKind.Outro, at, at + 60)]; _skips.Active = null; _skips.Stay = false;
-        _skips.Offer(at, at + 120, offering: true, autoNext: true); UpdateSkip();
+        // Credits that run to the end, so that they lead to the next episode and count down.
+        var end = Math.Max(_session.Duration, at + 60);
+        _skips.Next = next; _skips.Segments = [new(SkipKind.Outro, at, end)]; _skips.Active = null; _skips.Stay = false;
+        _skips.Offer(at, end, offering: true, autoNext: true); UpdateSkip();
         return (_nextCard.IsVisible && !_skip.IsVisible && !_skipCancel.IsVisible, _nextCount.Text ?? "", _nextTitle.Inlines?.Text ?? "", _nextRing.Value);
     }
     internal (bool Card, bool Pill) CancelNextForCheck()
