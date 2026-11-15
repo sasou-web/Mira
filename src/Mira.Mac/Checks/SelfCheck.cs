@@ -862,6 +862,17 @@ public static class SelfCheck
                     Capture(window, output, "07b-downloads-small");
                     window.Width = wide; window.Height = high;
                     await Task.Delay(500);
+                    // « Coller un lien magnet » (maquette B · Écrin): the server PC reads the link, the window proposes the episodes the
+                    // library lacks; chosen one by one, only those go. The window is one of its own: the screen, as for the menus.
+                    downloads.OpenLinkForCheck("magnet:?xt=urn:btih:" + new string('7', 40) + "&dn=Longue.Serie.S02.1080p.WEB-DL.x264-GRP");
+                    Check(await Until(() => downloads.LinkShown?.StartsWith("ready", StringComparison.Ordinal) == true, 10), "lien magnet : lu par le PC serveur, ce qu’il contient proposé", downloads.LinkShown ?? "fermé");
+                    await Task.Delay(600); Capture(window, output, "07c-magnet-link"); ScreenColour(Path.Combine(output, "07c-magnet-link-screen.png"));
+                    downloads.ChooseLinkForCheck(Mira.Core.TorLink.LinkOption.Choose);
+                    Check(await Until(() => downloads.LinkShown == "ready|Choose" && downloads.LinkGoEnabled, 5), "lien magnet : choisir les épisodes, Télécharger possible", downloads.LinkShown ?? "fermé");
+                    await Task.Delay(600); ScreenColour(Path.Combine(output, "07d-magnet-choose-screen.png"));
+                    await downloads.SendLinkForCheck();
+                    bool picked; lock (mock.Requests) picked = mock.Requests.Contains("magnet:12");
+                    Check(picked && await Until(() => downloads.LinkShown is null, 3), "lien magnet : les épisodes choisis envoyés, la fenêtre fermée", string.Join(", ", mock.Requests));
                     // Closed into the Dock, the page asks Jellyfin nothing more (it asked every 3 s): nobody looks. Back from the
                     // Dock, it asks again, and the page is read again.
                     int Asked() { lock (mock.Calls) return mock.Calls.Count; }

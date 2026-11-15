@@ -348,18 +348,18 @@ public sealed partial class DetailPage
         _ = SearchMissingAsync(menu);
     }
 
-    private const double MissingMenuWidth = 542;
+    internal const double MissingMenuWidth = 542;
     // The flyout's presenter around the menu (App.axaml: padding 8, border 1), and the window's title bar (MainWindow).
     private const double MissingMenuFrame = 18, MissingTitleBar = 30;
     /// <summary>The menu's width and tallest height, from where its button is in the window (title bar excluded).</summary>
-    private void FitMissingMenu(Control anchor, Border body)
+    internal static void FitMissingMenu(Control anchor, Border body, double width = MissingMenuWidth)
     {
         if (MissingMenuArea(anchor) is not { } area) return;
-        var bounds = MenuFit.Size(area.Width, area.Height, area.Anchor, MissingMenuWidth + MissingMenuFrame);
+        var bounds = MenuFit.Size(area.Width, area.Height, area.Anchor, width + MissingMenuFrame);
         body.Width = Math.Max(0, bounds.Width - MissingMenuFrame); body.MaxHeight = Math.Max(0, bounds.MaxHeight - MissingMenuFrame);
     }
     /// <summary>Where Avalonia puts the menu: its top-left corner from its button's.</summary>
-    private void PlaceMissingMenu(Control anchor, CustomPopupPlacement placement)
+    internal static void PlaceMissingMenu(Control anchor, CustomPopupPlacement placement)
     {
         placement.Anchor = PopupAnchor.TopLeft; placement.Gravity = PopupGravity.BottomRight; placement.ConstraintAdjustment = PopupPositionerConstraintAdjustment.None;
         // The anchor rectangle is in the window's coordinates (a rectangle at 0, 0 put the menu at the window's left edge).
