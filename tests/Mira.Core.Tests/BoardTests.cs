@@ -76,8 +76,12 @@ internal static class BoardTests
         {
             var free = new Dictionary<string, long?> { ["D:\\"] = 4 * TiB, ["E:\\"] = 900 * GiB, ["F:\\"] = null };
             string? Root(string path) => path.Length > 2 ? path[..3] : null;
-            Assert(RemoteBoard.FreeSpace(["D:\\Films", "D:\\Séries", "E:\\Animes"], Root, x => free[x]) == 4 * TiB + 900 * GiB, "Deux disques, le premier une seule fois.");
-            Assert(RemoteBoard.FreeSpace(["F:\\Films", null, ""], Root, x => free[x]) is null, "Aucun disque qui réponde : rien.");
+            Assert(RemoteBoard.FreeSpace(["D:\\Films", "D:\\Séries", "E:\\Animes"], Root, x => free[Root(x)!]) == 4 * TiB + 900 * GiB, "Deux disques, le premier une seule fois.");
+            Assert(RemoteBoard.FreeSpace(["F:\\Films", null, ""], Root, x => free[Root(x)!]) is null, "Aucun disque qui réponde : rien.");
+            // A disk mounted in a folder of C: and as M: : one volume, its own space, never C:'s.
+            var volumes = new Dictionary<string, string> { ["C:\\Users\\Toi\\Videos\\MEDIAS\\FILMS"] = "WD", ["M:\\SERIES"] = "WD", ["C:\\Animes"] = "SSD" };
+            var room = new Dictionary<string, long> { ["C:\\Users\\Toi\\Videos\\MEDIAS\\FILMS"] = 5 * TiB, ["M:\\SERIES"] = 5 * TiB, ["C:\\Animes"] = 398 * GiB };
+            Assert(RemoteBoard.FreeSpace(volumes.Keys, x => volumes[x], x => room[x]) == 5 * TiB + 398 * GiB, "Un disque monté dans un dossier compte pour lui, une seule fois.");
             var relay = new TorLinkRelay(() => now);
             relay.Exchange("pc-1", new AgentReport("PC-SALON", true, null, null, null, null, null, null, Free: 3 * TiB));
             Assert(relay.Status().Agent?.Free == 3 * TiB, "Le relais garde ce que l’agent a dit.");

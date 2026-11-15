@@ -200,14 +200,16 @@ public static class RemoteBoard
     }
 
     /// <summary>
-    /// What is left on the disks holding these folders (the libraries of Jellyfin on this PC): each disk once, those that
-    /// answer only (<paramref name="free"/> null: unknown). Null when none does.
+    /// What is left on the disks holding these folders (the libraries of Jellyfin on this PC): each volume once
+    /// (<paramref name="volume"/>: its name, a disk mounted in a folder being its own volume), asked about one of its folders,
+    /// those that answer only (<paramref name="free"/> null: unknown). Null when none does.
     /// </summary>
-    public static long? FreeSpace(IEnumerable<string?> folders, Func<string, string?> root, Func<string, long?> free)
+    public static long? FreeSpace(IEnumerable<string?> folders, Func<string, string?> volume, Func<string, long?> free)
     {
         long? total = null;
-        foreach (var disk in folders.OfType<string>().Where(x => x.Length > 0).Select(root).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
-            if (free(disk) is { } bytes and >= 0) total = (total ?? 0) + bytes;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in folders.OfType<string>().Where(x => x.Length > 0))
+            if (volume(folder) is { } name && seen.Add(name) && free(folder) is { } bytes and >= 0) total = (total ?? 0) + bytes;
         return total;
     }
 
