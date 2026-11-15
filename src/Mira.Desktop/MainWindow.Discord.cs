@@ -208,8 +208,7 @@ public partial class MainWindow
     private TextBlock? _discordState;
     private CheckBox? _discordSwitch;
     private Panel? _discordCardHost, _discordTabs, _discordStyles, _discordLibraries, _discordHiddenList;
-    private TextBlock? _discordHiddenCount, _discordCustomNote;
-    private FrameworkElement? _discordCustom;
+    private TextBlock? _discordHiddenCount;
     private Button? _discordForNow, _discordManage;
     private readonly List<(CheckBox Box, Func<bool> Read)> _discordSwitches = [];
     private int _discordPreviewGeneration;
@@ -266,8 +265,6 @@ public partial class MainWindow
         DiscordPage.Children.Add(DiscordHeading(L("Boutons · deux au plus, la limite de Discord", "Buttons · two at most, Discord’s limit")));
         DiscordPage.Children.Add(DiscordRow(L("Premier bouton", "First button"), null, DiscordButtonChoice(L("Premier bouton", "First button"), () => s.FirstButton, x => s.FirstButton = x)));
         DiscordPage.Children.Add(DiscordRow(L("Second bouton", "Second button"), null, DiscordButtonChoice(L("Second bouton", "Second button"), () => s.SecondButton, x => s.SecondButton = x)));
-        _discordCustom = DiscordCustomRow(s);
-        DiscordPage.Children.Add(_discordCustom);
         DiscordPage.Children.Add(DiscordRow(L("Laisser mes amis rejoindre ma party depuis Discord", "Let friends join my party from Discord"),
             L("Pendant que vous regardez ensemble, le second bouton devient « Rejoindre la party ». Toute personne qui voit ton profil Discord peut alors ouvrir ton lien de party. Seulement un lien qui passe par Internet (Tailscale Funnel), jamais l’adresse de chez toi.",
                 "While you watch together, the second button becomes “Join the party”. Anyone who can see your Discord profile can then open your party link. Only a link that goes through the internet (Tailscale Funnel), never your home address."),
@@ -384,20 +381,6 @@ public partial class MainWindow
     private ComboBox DiscordButtonChoice(string name, Func<string> read, Action<string> write) =>
         DiscordChoice(name, DiscordButton.All.Select(x => (x, DiscordButton.Hint(x) is { Length: > 0 } hint ? $"{DiscordButton.Name(x)} · {hint}" : DiscordButton.Name(x))).ToArray(), read, write);
 
-    /// <summary>« Custom link… »: its label and https address, shown while a button uses it.</summary>
-    private FrameworkElement DiscordCustomRow(DiscordSettings s)
-    {
-        var label = new TextBox { Text = s.CustomLabel, MaxLength = 32, Width = 220, Margin = new Thickness(0, 0, 10, 0) };
-        var url = new TextBox { Text = s.CustomUrl, MinWidth = 280 };
-        AutomationProperties.SetName(label, L("Texte du bouton", "Button text")); AutomationProperties.SetName(url, L("Adresse du bouton (https)", "Button address (https)"));
-        _discordCustomNote = new TextBlock { Style = (Style)FindResource("SettingDescription") };
-        void Changed() { s.CustomLabel = label.Text.Trim(); s.CustomUrl = url.Text.Trim(); DiscordSettingChanged(); }
-        label.LostFocus += (_, _) => Changed(); url.LostFocus += (_, _) => Changed();
-        var fields = new DockPanel { Margin = new Thickness(0, 12, 0, 0), Children = { DockLeft(label), url } };
-        var inside = new StackPanel { Children = { new TextBlock { Text = L("Lien personnalisé", "Custom link"), FontWeight = FontWeights.SemiBold }, fields, _discordCustomNote } };
-        return new Border { Style = (Style)DiscordPage.FindResource("SettingRow"), Child = inside };
-    }
-
     /// <summary>Show, Discreet or Hide, side by side (the pill of the player's menus).</summary>
     private Border DiscordWays(string name, string group, Func<string> read, Action<string> write)
     {
@@ -451,7 +434,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>The line under the switch, « Hide for now », the custom link and the hidden titles' count, as things are.</summary>
+    /// <summary>The line under the switch, « Hide for now » and the hidden titles' count, as things are.</summary>
     private void ShowDiscordSettingsState()
     {
         if (_discordSwitch is null) return;
@@ -464,14 +447,6 @@ public partial class MainWindow
             _discordForNow.Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { new Icon { Kind = hidden ? "eye" : "eye-off", Width = 15, Height = 15, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }, new TextBlock { Text = hidden ? L("Remettre", "Show again") : L("Masquer pour l’instant", "Hide for now"), VerticalAlignment = VerticalAlignment.Center } } };
             AutomationProperties.SetName(_discordForNow, hidden ? L("Remettre mon statut Discord", "Show my Discord status again") : L("Masquer mon statut Discord pour l’instant", "Hide my Discord status for now"));
             _discordForNow.IsEnabled = s.Enabled;
-        }
-        if (_discordCustom is not null)
-        {
-            var custom = s.FirstButton == DiscordButton.Custom || s.SecondButton == DiscordButton.Custom;
-            _discordCustom.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
-            if (_discordCustomNote is not null)
-                _discordCustomNote.Text = DiscordPresence.CustomLink(s.CustomLabel, s.CustomUrl) is not null ? L("Le bouton mène à cette page.", "The button leads to this page.")
-                    : L("Un texte de 1 à 32 caractères et une adresse https complète : sinon, pas de bouton.", "A text of 1 to 32 characters and a full https address: otherwise, no button.");
         }
         if (_discordHiddenCount is not null)
             _discordHiddenCount.Text = s.Hidden.Count == 0 ? L("Aucun", "None") : Lang.Count(s.Hidden.Count, "titre jamais montré", "titres jamais montrés", "title never shown", "titles never shown");
