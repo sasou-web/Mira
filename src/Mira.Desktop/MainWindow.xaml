@@ -6,7 +6,7 @@
   <v:CoverableGrid x:Name="LibraryShell" Grid.RowSpan="2" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
    <ScrollViewer Style="{StaticResource {x:Type ScrollViewer}}" v:SmoothScroll.Enabled="True" x:Name="LibraryScroll" Background="{StaticResource Bg}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="Library_Scrolled">
     <StackPanel>
-     <Grid x:Name="Hero" Height="610" ClipToBounds="True" Visibility="Collapsed">
+     <Grid x:Name="Hero" Height="610" ClipToBounds="True" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="0">
       <!-- The picture stops above the bottom edge, where the gradient is already opaque: while a page slides in, that edge falls between two pixels, and a picture cut on the same row as the gradient would show through it as a bright line. -->
        <Image x:Name="HeroPreviousImage" Stretch="UniformToFill" Margin="0,0,0,4" RenderOptions.BitmapScalingMode="HighQuality"/><Image x:Name="HeroImage" Stretch="UniformToFill" Margin="0,0,0,4" RenderOptions.BitmapScalingMode="HighQuality"/>
       <Border><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#D9000000" Offset="0"/><GradientStop Color="#44000000" Offset="0.48"/><GradientStop Color="#14000000" Offset="1"/></LinearGradientBrush></Border.Background></Border>
@@ -21,7 +21,8 @@
       <StackPanel x:Name="HeroSynopsis" Width="340" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,46,85"><TextBlock x:Name="HeroOverview" Foreground="{StaticResource TextSecondary}" FontSize="13" LineHeight="21" TextWrapping="Wrap" TextTrimming="WordEllipsis" MaxHeight="85"/><WrapPanel x:Name="HeroGenrePills" Margin="0,16,0,0"/></StackPanel>
       <StackPanel x:Name="HeroDots" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="68,0,0,23"/>
      </Grid>
-     <StackPanel x:Name="CatalogHeader" Panel.ZIndex="1" Visibility="Collapsed" Margin="110,60,46,0">
+     <!-- Panel.ZIndex puts the header after the rows in the visual tree, and Tab follows that tree: without their tab indexes, Tab went from the search field to the window's buttons and the rail before the results. -->
+     <StackPanel x:Name="CatalogHeader" Panel.ZIndex="1" Visibility="Collapsed" Margin="110,60,46,0" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
       <TextBlock x:Name="PageTitle" Text="{v:L 'Explorer', 'Browse'}" FontSize="32" FontWeight="SemiBold"/>
       <TextBlock x:Name="CatalogDescription" Text="{v:L 'Toutes tes histoires, au même endroit.', 'All your stories, in one place.'}" Foreground="{StaticResource Muted}" Margin="0,8,0,28"/>
       <!-- Recherche: a page of its own, its field alone (as in Mira web); the other pages browse with « Filtrer ». -->
@@ -51,7 +52,7 @@
       <!-- Films and Séries: their genres one click away, as chips (the same choice as Genre under « Filtrer »). -->
       <ScrollViewer x:Name="GenreChipsScroll" Style="{StaticResource {x:Type ScrollViewer}}" v:SmoothScroll.Across="True" v:EdgeFade.Across="True" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,0,0,24" Visibility="Collapsed"><StackPanel x:Name="GenreChips" Orientation="Horizontal" v:Accessible.ArrowKeys="True"/></ScrollViewer>
      </StackPanel>
-     <StackPanel x:Name="LibraryRows" Margin="110,0,40,42">
+     <StackPanel x:Name="LibraryRows" Margin="110,0,40,42" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="2">
       <!-- On top of Films the film last started, of Séries the episode to pick up (Catalog.PickUp): each page its own way back in. -->
       <Border x:Name="PickUp" Visibility="Collapsed" Height="188" Margin="0,0,0,32">
        <!-- One rounded clip for the picture and its shade: two rounded borders let the picture show at their antialiased corners. -->
