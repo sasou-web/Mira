@@ -20,7 +20,7 @@ SOURCE = Path(sys.argv[1] if len(sys.argv) > 1 else "docs/screenshots/readme")
 OUT = Path("site/img")
 # The window that comes out of the wall is as wide as a 4K screen at 175 % can show it (1840 points × 1.75 > 2880,
 # the capture's own width); the two windows side by side and the iPhones are smaller. The share cards take
-# windows-home-2400.
+# windows-home-2000.
 SHOWN = {
     "windows-home": (1280, 2000, 2880),
     "windows-film": (640, 1280, 2400),
