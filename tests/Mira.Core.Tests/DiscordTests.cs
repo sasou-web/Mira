@@ -76,6 +76,11 @@ internal static class DiscordTests
                 Assert(DiscordIpc.Available(), "Discord trouvé sans s’y connecter");
                 var settings = new DiscordSettings();
                 await using var status = new DiscordStatus("Windows", retry: TimeSpan.FromMilliseconds(200), window: TimeSpan.FromSeconds(1)) { Private = () => ["maison-pc"] };
+                async Task<JsonNode> Next(TimeSpan? wait = null)
+                {
+                    try { return await discord.NextAsync(wait); }
+                    catch (Exception ex) { throw new Exception($"{ex.Message} · état {status.State}, connexions {discord.Connections}, erreur {status.Error}, IPC {DiscordIpc.LastFailure}"); }
+                }
                 var episode = new MediaItem { Id = "ep-3", Type = "Episode", Name = "Pilot", SeriesName = "Arcane", SeriesId = "s", IndexNumber = 1, ParentIndexNumber = 1 };
                 var playing = new DiscordPlayback(episode, null, false, 10, 2400, 1);
                 var now = DateTimeOffset.UtcNow;
@@ -85,7 +90,7 @@ internal static class DiscordTests
 
                 settings.Enabled = true;
                 status.Update(settings, playing, now);
-                var first = await discord.NextAsync();
+                var first = await Next();
                 Assert(discord.ClientId == DiscordPresence.ApplicationId, $"application : {discord.ClientId}");
                 Assert((string?)first["cmd"] == "SET_ACTIVITY" && (int?)first["args"]!["pid"] == Environment.ProcessId && (string?)first["args"]!["activity"]!["details"] == "Arcane", first.ToJsonString());
                 await Until(() => status.State == DiscordState.Live, "en direct");
@@ -94,14 +99,14 @@ internal static class DiscordTests
                 status.Update(settings, playing with { Position = 11 }, now.AddSeconds(1));
                 // A pause: sent at once.
                 status.Update(settings, playing with { Paused = true, Position = 11 }, now.AddSeconds(1));
-                var paused = await discord.NextAsync();
+                var paused = await Next();
                 Assert(((string?)paused["args"]!["activity"]!["state"])!.StartsWith("Paused", StringComparison.Ordinal) || ((string?)paused["args"]!["activity"]!["state"])!.StartsWith("En pause", StringComparison.Ordinal), paused.ToJsonString());
                 Assert(discord.Received == 2, $"une seule carte par changement : {discord.Received}");
 
                 // Paused for now, then nothing plays: cleared once.
                 status.HiddenForNow = true;
                 status.Update(settings, playing with { Paused = true }, now.AddSeconds(2));
-                var cleared = await discord.NextAsync();
+                var cleared = await Next();
                 Assert(cleared["args"]!["activity"] is null, cleared.ToJsonString());
                 await Until(() => status.State == DiscordState.HiddenForNow, "masqué pour l’instant");
                 status.HiddenForNow = false;
@@ -109,7 +114,7 @@ internal static class DiscordTests
                 // Discord gone, then back: the card comes back by itself.
                 await discord.DropAsync();
                 status.Update(settings, playing with { Position = 100 }, now.AddSeconds(100));
-                var again = await discord.NextAsync(TimeSpan.FromSeconds(5));
+                var again = await Next(TimeSpan.FromSeconds(5));
                 Assert((string?)again["args"]!["activity"]!["details"] == "Arcane" && discord.Connections == 2, $"reconnecté : {discord.Connections}");
 
                 // More than 5 changes in the window: the latest one alone goes once the window allows.

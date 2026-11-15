@@ -66,6 +66,9 @@ public sealed class DiscordIpc : IAsyncDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
     }
 
+    /// <summary>Why the last path tried did not answer (the checks' diagnosis; never shown).</summary>
+    public static string? LastFailure { get; private set; }
+
     /// <summary>The first Discord that answers the handshake, or null when none does (Discord closed, or another user's).</summary>
     public static async Task<DiscordIpc?> ConnectAsync(string applicationId, CancellationToken ct = default)
     {
@@ -83,7 +86,8 @@ public sealed class DiscordIpc : IAsyncDisposable
                 var (op, body) = await ReadFrameAsync(stream, wait.Token);
                 if (op == Frame && (body as JsonObject)?["evt"]?.GetValue<string>() == "READY") { var ipc = new DiscordIpc(stream); stream = null; return ipc; }
             }
-            catch (Exception ex) when (ex is IOException or SocketException or TimeoutException or UnauthorizedAccessException or OperationCanceledException or InvalidDataException or System.Text.Json.JsonException && !ct.IsCancellationRequested) { }
+            // Whatever a pipe or socket of another program does, Mira goes on to the next one (and tries again later).
+            catch (Exception ex) when (!ct.IsCancellationRequested) { LastFailure = $"{path}: {ex.GetType().Name}: {ex.Message}"; }
             finally { if (stream is not null) await stream.DisposeAsync(); }
         }
         return null;

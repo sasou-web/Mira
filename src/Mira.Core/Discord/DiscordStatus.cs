@@ -153,11 +153,13 @@ public sealed class DiscordStatus : IAsyncDisposable
                 Say(wanted is null ? DiscordState.Idle : DiscordState.Live);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
-            catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException or ObjectDisposedException or InvalidOperationException)
+            catch (Exception ex) when (!ct.IsCancellationRequested)
             {
+                // Never the end of the loop: the card is tried again a moment later.
                 Error = ex.Message;
-                if (_ipc is not null) { await _ipc.DisposeAsync(); _ipc = null; }
+                if (_ipc is not null) { try { await _ipc.DisposeAsync(); } catch (Exception) { } _ipc = null; }
                 Say(DiscordState.Looking);
+                try { await Task.Delay(_retry, ct); } catch (OperationCanceledException) { return; }
             }
         }
     }
