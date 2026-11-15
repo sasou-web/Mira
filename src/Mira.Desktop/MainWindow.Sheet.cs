@@ -332,7 +332,7 @@ public partial class MainWindow
     private readonly Dictionary<Expander, bool> _searchOpened = [];
     private (StackPanel Panel, Button Nav)[] SettingsSections =>
     [
-        (PlaybackSettings, PlaybackSettingsNav), (SubtitleSettings, SubtitleSettingsNav), (LibrarySettings, LibrarySettingsNav), (GeneralSettings, GeneralSettingsNav),
+        (PlaybackSettings, PlaybackSettingsNav), (SubtitleSettings, SubtitleSettingsNav), (LibrarySettings, LibrarySettingsNav), (GeneralSettings, GeneralSettingsNav), (DiscordPage, DiscordSettingsNav),
         (ServerSettings, ServerSettingsNav), (PrivacySettings, PrivacySettingsNav), (UpdateSettings, UpdateSettingsNav), (ReportSettings, ReportSettingsNav),
         (SharingSettings, SharingSettingsNav), (CareSettings, CareSettingsNav), (JellyfinSettings, JellyfinSettingsNav), (TorLinkSettings, TorLinkSettingsNav)
     ];
@@ -348,7 +348,7 @@ public partial class MainWindow
 
     private void SearchSettings(string query)
     {
-        if (!_settingsSearching) { _settingsSearching = true; if (PrivacySettings.Children.Count == 0) ShowPrivacy(); }
+        if (!_settingsSearching) { _settingsSearching = true; if (PrivacySettings.Children.Count == 0) ShowPrivacy(); if (DiscordPage.Children.Count == 0) ShowDiscordSettings(); }
         WatchViewers(false);
         // L’essentiel only shows settings of the sections: each one is found once, in its own section.
         EssentialsSettings.Visibility = Visibility.Collapsed;

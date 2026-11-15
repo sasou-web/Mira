@@ -32,6 +32,7 @@ internal static class PrivacyTests
                 var mac = Privacy.Connections(PrivacyApp.Mac).Select(x => x.Key).ToList();
                 Assert(windows.Contains("updates") && mac.Contains("updates") && windows.Contains("tailscale") && mac.Contains("tailscale"), "mises à jour et Tailscale intégré partout");
                 Assert(windows.Contains("jellyfin-releases") && windows.Contains("torrents") && !mac.Contains("jellyfin-releases") && !mac.Contains("torrents"), "Jellyfin, TorLink et qBittorrent : Windows seulement");
+                Assert(windows.Contains("discord") && mac.Contains("discord") && Privacy.Connections(PrivacyApp.Mac).Single(x => x.Key == "discord").Control == PrivacyControl.Discord, "statut Discord : Windows et Mac, vers Réglages → Discord");
                 Assert(Privacy.Connections(PrivacyApp.Mac).Single(x => x.Key == "updates").Control == PrivacyControl.Updates, "mises à jour : un interrupteur");
             }
             finally { Lang.Use(was); }

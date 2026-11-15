@@ -87,6 +87,9 @@ public sealed partial class SettingsPage : Page
                 L("Une notification du Mac quand un épisode d’une série que tu suis arrive. Tant que Mira est ouvert, même dans le Dock.", "A Mac notification when an episode of a show you follow arrives. While Mira is open, even in the Dock."),
                 settings.EpisodeNotices, v => { if (v && !settings.EpisodeNotices) settings.EpisodesSeenFor = ""; settings.EpisodeNotices = v; if (v) shell.EpisodesMayHaveArrived(); })));
 
+        // —— Discord: the card friends see while Mira plays (SettingsPage.Discord.cs) ——
+        DrawDiscord();
+
         // —— Compte & serveur: the account and its photo, the way to Jellyfin, who plays what ——
         var connection = shell.Session?.Connection;
         // Read when « Se déconnecter » is clicked, never kept: each sign-out asks anew.

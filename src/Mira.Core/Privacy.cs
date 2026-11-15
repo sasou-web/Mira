@@ -25,6 +25,8 @@ public enum PrivacyControl
     GuestLinks,
     /// <summary>Automatic subtitles and missing episodes, in Soin de la bibliothèque (Library care).</summary>
     Maintenance,
+    /// <summary>The Discord card, in Réglages → Discord.</summary>
+    Discord,
 }
 
 /// <summary>One connection Mira, or the Jellyfin it drives, opens: to whom, when, what goes, and how it stops.</summary>
@@ -92,6 +94,13 @@ public static class Privacy
             L("Ce que ton navigateur envoie à ce site (ton adresse IP, ses cookies). Mira ne lui envoie rien et n’en charge rien avant ton clic. Une bande-annonce gardée sur ton serveur ne passe que par lui.",
                 "What your browser sends that site (your IP address, its cookies). Mira sends it nothing and loads nothing from it before your click. A trailer kept on your server goes through it alone."),
             L("Rien à couper : rien ne part sans ton clic.", "Nothing to turn off: nothing goes without your click."), PrivacyControl.None, false, ["YouTube"]));
+        list.Add(new("discord", L("Statut Discord", "Discord status"),
+            L("L’app Discord de cet appareil, par son canal local (jamais un serveur de Discord par Mira) ; Discord montre ensuite la carte sur ton profil et y charge l’affiche (TMDB) et le petit logo (miracinema.app).",
+                "The Discord app on this device, through its local channel (never a Discord server by Mira); Discord then shows the card on your profile and fetches its poster (TMDB) and small logo (miracinema.app)."),
+            L("Seulement une fois activé, pendant une lecture, tant que Discord est ouvert. Coupé par défaut.", "Only once turned on, while something plays and Discord is open. Off by default."),
+            L("Ce que tu choisis dans Réglages → Discord : titre, épisode, temps, adresse publique de l’affiche sur TMDB, boutons (Mira, TMDB, IMDb, bande-annonce, ton lien de party s’il passe par Internet et si tu l’as permis). Jamais l’adresse de ton Jellyfin, ton adresse Tailscale ni ton compte.",
+                "What you choose in Settings → Discord: title, episode, time, the poster’s public TMDB address, buttons (Mira, TMDB, IMDb, trailer, your party link if it goes through the internet and you allowed it). Never your Jellyfin address, your Tailscale address or your account."),
+            L("L’interrupteur de Réglages → Discord, ou « Masquer pour l’instant ».", "The switch in Settings → Discord, or “Hide for now”."), PrivacyControl.Discord, false, ["discord-ipc", "image.tmdb.org"]));
         if (windows)
         {
             list.Add(new("installs", L("Ce que tu installes", "What you install"),

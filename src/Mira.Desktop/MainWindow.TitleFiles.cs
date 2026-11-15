@@ -26,7 +26,7 @@ public partial class MainWindow
     private async Task ShowFilesButtonAsync(MediaItem item)
     {
         // Drawn again for the same title (after « Vu »), « … » stays while Mira asks again: the row does not jump.
-        if (_titleMore.Id != item.Id) { FilesButton.Visibility = Visibility.Collapsed; _titleMore = (item.Id, false, false); }
+        if (_titleMore.Id != item.Id) { FilesButton.Visibility = DiscordHideable(item) ? Visibility.Visible : Visibility.Collapsed; _titleMore = (item.Id, false, false); }
         if (_demo || _client is not { } client) { FilesButton.Visibility = Visibility.Collapsed; return; }
         bool files = false, admin = false;
         try { files = TitleFiles.Location(item) is not null && await JellyfinOnThisPcAsync(client); }
@@ -35,12 +35,12 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { }
         if (_detail?.Id != item.Id) return;
         _titleMore = (item.Id, files, admin);
-        FilesButton.Visibility = files || admin ? Visibility.Visible : Visibility.Collapsed;
+        FilesButton.Visibility = files || admin || DiscordHideable(item) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Files_Click(object sender, RoutedEventArgs e)
     {
-        if (_detail is not { } item || _titleMore.Id != item.Id) return;
+        if (_detail is not { } item || _titleMore.Id != item.Id && !DiscordHideable(item)) return;
         var menu = new ContextMenu { PlacementTarget = FilesButton, Placement = PlacementMode.Bottom };
         if (_titleMore.Admin) { AddIdentifyActions(menu, item); if (UpgradeMenuItem(item) is { } upgrade) menu.Items.Add(upgrade); }
         if (_titleMore.Files && TitleFiles.Location(item) is { } location)
@@ -48,6 +48,11 @@ public partial class MainWindow
             if (menu.Items.Count > 0) menu.Items.Add(new Separator());
             menu.Items.Add(MenuAction(L("Afficher dans l’explorateur", "Show in File Explorer"), "folder", () => { ShowInExplorer(item, location); return Task.CompletedTask; }));
             menu.Items.Add(MenuAction(L("Mettre à la Corbeille…", "Move to the Recycle Bin…"), "trash", () => AskToRecycleAsync(item)));
+        }
+        if (DiscordHideable(item))
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+            menu.Items.Add(DiscordHideMenuItem(item));
         }
         if (menu.Items.Count > 0) menu.IsOpen = true;
     }

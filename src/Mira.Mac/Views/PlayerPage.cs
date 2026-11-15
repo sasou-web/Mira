@@ -911,6 +911,7 @@ public sealed partial class PlayerPage : UserControl
         var delays = new StackPanel();
         delays.Children.Add(DelayLine(L("Décalage des sous-titres", "Subtitle delay"), value, Shift, 0.5, L("Sous-titres 0,5 s plus tôt", "Subtitles 0.5 s earlier"), L("Sous-titres 0,5 s plus tard", "Subtitles 0.5 s later")));
         delays.Children.Add(AudioDelayLine());
+        if (DiscordLine() is { } discord) delays.Children.Add(discord);
         menu.Children.Add(new Border { BorderBrush = Ui.Rule, BorderThickness = new Thickness(0, 1), Margin = new Thickness(0, 14, 0, 6), Padding = new Thickness(0, 8), Child = delays });
         // Last, as on Windows: what is playing and how.
         if (PlaybackInfo() is { } info)
@@ -919,6 +920,21 @@ public sealed partial class PlayerPage : UserControl
             if (GreyRepairLine() is { } grey) menu.Children.Add(grey);
         }
         return menu;
+    }
+    /// <summary>« Discord status » of ⋮ while the Discord card is on: hidden for now by its switch, as on Windows.</summary>
+    private DockPanel? DiscordLine()
+    {
+        if (!_shell.Settings.Discord.Enabled || _shell.IsCheckRun) return null;
+        var shown = !_shell.DiscordHiddenForNow;
+        var toggle = new ToggleSwitch { IsChecked = shown, OnContent = null, OffContent = null, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center };
+        Avalonia.Automation.AutomationProperties.SetName(toggle, L("Statut Discord", "Discord status"));
+        toggle.IsCheckedChanged += (_, _) => { if ((toggle.IsChecked == true) != !_shell.DiscordHiddenForNow) { _shell.ToggleDiscordForNow(); RefreshMenus(); } };
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        words.Children.Add(new TextBlock { Text = L("Statut Discord", "Discord status"), FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextBody });
+        words.Children.Add(new TextBlock { Text = shown ? L("Ta carte est sur ton profil.", "Your card is on your profile.") : L("Masqué jusqu’à ce que tu le remettes.", "Hidden until you turn it back on."), FontSize = 12, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap });
+        var line = new DockPanel { Margin = new Thickness(12, 5) };
+        DockPanel.SetDock(toggle, Dock.Right); line.Children.Add(toggle); line.Children.Add(words);
+        return line;
     }
     /// <summary>A delay of ⋮: its name, then « − 0.0 s + » in a sunk capsule, the value in bold between the two steps.</summary>
     private DockPanel DelayLine(string name, Button value, Action<double> shift, double step, string earlier, string later)

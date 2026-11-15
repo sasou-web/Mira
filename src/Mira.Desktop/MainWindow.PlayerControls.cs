@@ -534,7 +534,7 @@ public partial class MainWindow
         SubtitleSearchMenu.Visibility = Visibility.Collapsed;
         MoreMenu.Visibility = tracks || episodes ? Visibility.Collapsed : Visibility.Visible;
         _menuBuilding = true;
-        try { if (tracks) BuildTrackMenu(); else if (episodes) BuildEpisodesMenu(); else BuildMoreMenu(); } finally { _menuBuilding = false; }
+        try { if (tracks) BuildTrackMenu(); else if (episodes) BuildEpisodesMenu(); else { BuildMoreMenu(); ShowDiscordInMenus(); } } finally { _menuBuilding = false; }
         ShowPlayerControls(); PlayerOptionsPopup.IsOpen = true;
         if (episodes) ShowCurrentEpisodeRow();
         // The current choice takes focus: arrows and Enter work at once, and a mouse opening shows no focus ring.

@@ -489,4 +489,6 @@ public sealed class PlayerSettings
     public string JellyfinReleaseSaid { get; set; } = "";
     /// <summary>Réglages → Confidentialité: winget's catalogue on GitHub asked once a day for a newer Jellyfin; false: never asked.</summary>
     public bool JellyfinReleaseCheck { get; set; } = true;
+    /// <summary>Réglages → Discord (<see cref="Mira.Core.Discord.DiscordPresence"/>): what the Discord app of this computer shows of what plays; off by default.</summary>
+    public Discord.DiscordSettings Discord { get; set; } = new();
 }
