@@ -48,8 +48,14 @@ public sealed record ImportOperation(string Source, string Destination, string R
 /// <summary>
 /// Where a download goes. <see cref="Ignored"/>: not something for Jellyfin (game, no video), final.
 /// <see cref="Problem"/>: cannot be placed yet (no library folder), to be retried.
+/// <see cref="OtherRoots"/>: the other libraries a pack of several titles also places files in (a franchise's films beside its
+/// shows); <see cref="LibraryRoot"/> is the one most of its videos go to.
 /// </summary>
-public sealed record ImportPlan(MediaKind Kind, string Title, string? LibraryRoot, IReadOnlyList<string> Folders, IReadOnlyList<ImportOperation> Operations, IReadOnlyList<string> Notes, string? Ignored = null, string? Problem = null);
+public sealed record ImportPlan(MediaKind Kind, string Title, string? LibraryRoot, IReadOnlyList<string> Folders, IReadOnlyList<ImportOperation> Operations, IReadOnlyList<string> Notes, string? Ignored = null, string? Problem = null, IReadOnlyList<string>? OtherRoots = null)
+{
+    /// <summary>Every library this plan places files in.</summary>
+    public IEnumerable<string> Roots => new[] { LibraryRoot }.Concat(OtherRoots ?? []).OfType<string>();
+}
 
 /// <summary>
 /// « Suivre une série »: where an episode chosen for a series followed goes, whatever its release calls it: the library
@@ -64,7 +70,7 @@ public sealed record ImportTarget(string Root, string Folder, MediaKind Kind, in
 public sealed record KnownShow(string Key, string Root, string Folder, int? Season);
 
 /// <summary>Turns a finished download into Jellyfin-style paths: "Films\Title (Year)\Title (Year).mkv", "Series\Show\Season 01\Show - S01E02.mkv".</summary>
-public static class MediaPlanner
+public static partial class MediaPlanner
 {
     private static readonly HashSet<string> TvSources = new(StringComparer.OrdinalIgnoreCase) { "eztv", "solid", "tpb-tv", "x1337-tv" };
     private static readonly HashSet<string> AnimeSources = new(StringComparer.OrdinalIgnoreCase) { "nyaa", "subsplease" };
@@ -75,6 +81,14 @@ public static class MediaPlanner
     /// an episode of a series followed, placed in that series' folder under its number there.
     /// </summary>
     public static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced = null, IReadOnlyList<KnownShow>? known = null, ImportTarget? target = null)
+    {
+        // A franchise in one pack (« 01. Bakemonogatari », « 02. Nisemonogatari », a film's folder among them): each folder
+        // is a title of its own, as Jellyfin and its metadata know it, never one film whose episodes would be extras.
+        if (target is null && forced is not MediaKind.Movie && Franchise(files) is { } titles) return PlanFranchise(torrentName, source, files, titles, libraries, forced, known);
+        return Plan(torrentName, source, files, libraries, forced, known, target, franchise: false);
+    }
+
+    private static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced, IReadOnlyList<KnownShow>? known, ImportTarget? target, bool franchise)
     {
         if (target is not null) forced = target.Kind;
         if (string.Equals(source, "fitgirl", StringComparison.OrdinalIgnoreCase))
@@ -97,9 +111,12 @@ public static class MediaPlanner
             AnimeSource = source is not null && AnimeSources.Contains(source),
             TvSource = source is not null && TvSources.Contains(source),
             Grouped = ReleaseName.HasGroupPrefix(torrentName),
-            PackSeason = target?.Season ?? ReleaseName.Season(torrentName),
-            Show = ReleaseName.Show(torrentName).Title,
-            Target = target
+            // One title of a franchise: its folder's name is the title whole (« Monogatari Series Second Season »), its
+            // episodes its first season (« Bakemonogatari 01 - Hitagi Crab »).
+            PackSeason = target?.Season ?? (franchise ? 1 : ReleaseName.Season(torrentName)),
+            Show = franchise ? torrentName : ReleaseName.Show(torrentName).Title,
+            Target = target,
+            Franchise = franchise
         };
         var mains = videos.Where(v => !IsBonus(v)).ToList();
         // The one episode of a series followed: its number is the one chosen, not what the file says. A season asked from a
@@ -112,12 +129,14 @@ public static class MediaPlanner
         var collection = forced is null && target is null && context.PackSeason is null && everyPart && mains.Count > 1 && Films(mains);
         // A pack of every episode ("Complete Series") numbers them "Show - 01" as often as an anime does.
         context.AbsoluteAllowed = context.AnimeSource || context.Grouped || context.PackSeason is not null || forced is MediaKind.Anime or MediaKind.Series || everyPart && !collection;
-        var episodic = target is not null || forced switch
+        var numbered = mains.Any(v => EpisodeOf(v, context, single) is not null || HalfOf(v, context, single) is not null);
+        // In a franchise, only numbered files are episodes: « Kizumonogatari I », « II », « III » are its films.
+        var episodic = target is not null || (franchise ? numbered : forced switch
         {
             MediaKind.Movie => false,
             MediaKind.Series or MediaKind.Anime => true,
-            _ => !collection && (mains.Any(v => EpisodeOf(v, context, single) is not null || HalfOf(v, context, single) is not null) || (mains.Count > 1 && (context.PackSeason is not null || everyPart)))
-        };
+            _ => !collection && (numbered || (mains.Count > 1 && (context.PackSeason is not null || everyPart)))
+        });
         return episodic ? PlanShow(context, videos, subtitles, forced) : PlanMovies(context, videos, subtitles);
     }
 
@@ -134,6 +153,7 @@ public static class MediaPlanner
         public IReadOnlyList<KnownShow> Known = [];
         public ImportTarget? Target;
         public SourceFile? Main;
+        public bool Franchise;
     }
 
     /// <summary>
@@ -161,6 +181,66 @@ public static class MediaPlanner
             var place = byKey.GroupBy(x => (Root: x.Root.ToLowerInvariant(), Folder: x.Folder.ToLowerInvariant())).OrderByDescending(x => x.Count()).ThenByDescending(x => x.Max(y => y.At)).First().OrderByDescending(x => x.At).ToList();
             return new KnownShow(byKey.Key, place[0].Root, place[0].Folder, place.FirstOrDefault(x => x.Season is not null).Season);
         }).ToList();
+    }
+
+    /// <summary>
+    /// The titles of a franchise pack: its videos in two folders or more under the torrent's own, each named after another
+    /// title (« 01. Bakemonogatari », « 02. Nisemonogatari »: numbered in order, or each folder's files named after it),
+    /// none a season or extras folder. Null for any other download: a season pack (« Season 1 », « Show.S02 ») or one title.
+    /// </summary>
+    private static List<(string Title, List<SourceFile> Files)>? Franchise(IReadOnlyList<SourceFile> files)
+    {
+        var videos = files.Where(f => ReleaseName.IsVideo(f.RelativePath)).ToList();
+        if (videos.Count < 2) return null;
+        static string[] Parts(SourceFile f) => f.RelativePath.Split('/', '\\', StringSplitOptions.RemoveEmptyEntries);
+        // The torrent's own folder, when every file is in it.
+        var skip = files.All(f => Parts(f).Length > 1) && files.Select(f => Parts(f)[0]).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1 ? 1 : 0;
+        if (videos.Any(v => Parts(v).Length < skip + 2)) return null;
+        var groups = files.Where(f => Parts(f).Length >= skip + 2).GroupBy(f => Parts(f)[skip], StringComparer.OrdinalIgnoreCase).ToList();
+        var folders = groups.Where(g => g.Any(f => ReleaseName.IsVideo(f.RelativePath))).ToList();
+        if (folders.Count < 2) return null;
+        if (folders.Any(g => ReleaseName.SeasonOfFolder(g.Key) is not null || ReleaseName.InExtrasFolder(g.Key + "/x") || ReleaseName.InSpecialsFolder(g.Key + "/x"))) return null;
+        var numbered = folders.All(g => FranchiseOrder().IsMatch(g.Key));
+        var titles = folders.Select(g => (Folder: g.Key, Title: ReleaseName.SafeName(Tidy(FranchiseOrder().Replace(g.Key, ""))))).ToList();
+        if (titles.Any(t => ReleaseName.Key(t.Title).Length == 0) || titles.Select(t => ReleaseName.Key(t.Title)).Distinct().Count() != titles.Count) return null;
+        // A season pack names its folders after one show (« Show.S01.1080p », « Show.S02.1080p »): never a franchise.
+        if (titles.Select(t => ReleaseName.Key(ReleaseName.Show(t.Folder).Title)).Distinct().Count() == 1) return null;
+        var named = folders.All(g => g.Where(f => ReleaseName.IsVideo(f.RelativePath)).Any(f =>
+            ReleaseName.Key(Path.GetFileNameWithoutExtension(f.RelativePath)).StartsWith(ReleaseName.Key(ReleaseName.SafeName(Tidy(FranchiseOrder().Replace(g.Key, "")))), StringComparison.Ordinal)));
+        if (!numbered && !named) return null;
+        return folders.Select((g, i) => (titles[i].Title, g.Select(f => f with { RelativePath = string.Join('/', Parts(f)[(skip + 1)..]) }).ToList())).ToList();
+    }
+
+    private static string Tidy(string name) => ReleaseName.Readable(name, out _).Trim();
+
+    /// <summary>The order a franchise pack numbers its folders by: « 01. », « 02 - », « 3) ».</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\s*\d{1,3}\s*[.\-_)]\s*")]
+    private static partial System.Text.RegularExpressions.Regex FranchiseOrder();
+
+    /// <summary>Each title of a franchise pack placed as its own download would be, all in one plan.</summary>
+    private static ImportPlan PlanFranchise(string torrentName, string? source, IReadOnlyList<SourceFile> all, List<(string Title, List<SourceFile> Files)> titles, MediaLibraries libraries, MediaKind? forced, IReadOnlyList<KnownShow>? known)
+    {
+        var plans = new List<ImportPlan>();
+        // Each operation names its file as the torrent does (qBittorrent's list, the import journal), not as its folder does.
+        var original = all.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().RelativePath, StringComparer.OrdinalIgnoreCase);
+        foreach (var (title, files) in titles)
+        {
+            var plan = Plan(title, source, files, libraries, forced, known, null, franchise: true);
+            if (plan.Problem is not null) return plan;
+            if (plan.Ignored is null)
+                plans.Add(plan with { Operations = plan.Operations.Select(o => original.TryGetValue(o.Source, out var path) ? o with { RelativePath = path } : o).ToList() });
+        }
+        if (plans.Count == 0) return Ignore(L("Aucune vidéo dans ce téléchargement.", "No video in this download."));
+        var main = plans.GroupBy(p => p.Kind).OrderByDescending(g => g.Sum(p => p.Operations.Count(o => o.Role == "video"))).First();
+        var ordered = main.Concat(plans.Except(main)).ToList();
+        var shows = plans.Count(p => p.Kind != MediaKind.Movie);
+        var films = plans.Where(p => p.Kind == MediaKind.Movie).Sum(p => p.Folders.Count);
+        var parts = new List<string>();
+        if (shows > 0) parts.Add(Count(shows, "série", "séries", "show", "shows"));
+        if (films > 0) parts.Add(Count(films, "film", "films", "film", "films"));
+        var name = ReleaseName.Show(torrentName).Title is { Length: > 0 } show ? show : ReleaseName.SafeName(Path.GetFileNameWithoutExtension(torrentName));
+        return new(main.Key, $"{name} · {string.Join(", ", parts)}", main.First().LibraryRoot, ordered.SelectMany(p => p.Folders).ToList(), ordered.SelectMany(p => p.Operations).ToList(),
+            ordered.SelectMany(p => p.Notes).Distinct().ToList(), OtherRoots: ordered.Select(p => p.LibraryRoot).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).ToList());
     }
 
     private static bool IsBonus(SourceFile file) =>
@@ -235,7 +315,9 @@ public static class MediaPlanner
         var stacked = mains.Count > 1 && mains.All(v => ReleaseName.StackPart(Path.GetFileName(v.RelativePath)) is not null) && !Films(named);
         var large = mains.Where(v => v.Length >= main.Length * .5).ToList();
         var parsed = named.Where(p => large.Contains(p.File)).ToList();
-        var pack = !stacked && large.Count > 1 && Films(parsed);
+        // A franchise's films need no year to be told apart (« Kizumonogatari I - Tekketsu-hen », « II - Nekketsu-hen »).
+        var pack = !stacked && large.Count > 1 && (Films(parsed) || context.Franchise && parsed.All(p => p.Movie.Title.Length > 0)
+            && parsed.Select(p => ReleaseName.Key(p.Movie.Title)).Distinct().Count() == parsed.Count);
         if (pack)
         {
             // A collection: each feature becomes its own film, named from its own file.
@@ -298,7 +380,7 @@ public static class MediaPlanner
     private static ImportPlan PlanShow(Context context, List<SourceFile> videos, List<SourceFile> subtitles, MediaKind? forced)
     {
         var reference = videos.OrderByDescending(v => v.Length).First();
-        var (title, year) = ReleaseName.Show(context.TorrentName);
+        var (title, year) = context.Franchise ? (context.Show, (int?)null) : ReleaseName.Show(context.TorrentName);
         if (title.Length == 0) (title, year) = ReleaseName.Show(Path.GetFileName(reference.RelativePath));
         if (title.Length == 0) title = ReleaseName.SafeName(Path.GetFileNameWithoutExtension(context.TorrentName));
         var single = videos.Count == 1;
@@ -322,7 +404,10 @@ public static class MediaPlanner
             : seriesFolder is not null ? MediaKind.Series
             : context.AnimeSource ? MediaKind.Anime
             : context.TvSource ? MediaKind.Series
-            : context.Grouped || numbered.Any(x => x.Absolute) ? MediaKind.Anime : MediaKind.Series);
+            : context.Grouped || numbered.Any(x => x.Absolute) ? MediaKind.Anime
+            // A franchise's episodes numbered without any season (« Bakemonogatari 01 »), as fansubs number them: an anime.
+            : context.Franchise && numbered.Count > 0 && videos.All(v => ReleaseName.Episode(Path.GetFileName(v.RelativePath), allowAbsolute: false) is null) ? MediaKind.Anime
+            : MediaKind.Series);
         var root = context.Target?.Root ?? context.Libraries.RootFor(kind);
         if (root is null) return Blocked(kind, kind == MediaKind.Anime ? L("Choisis le dossier Animes de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Anime folder in Settings → Downloads.")
             : L("Choisis le dossier Séries de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Shows folder in Settings → Downloads."));

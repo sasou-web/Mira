@@ -37,7 +37,7 @@ public static class MediaImporter
         var conflicts = new List<ImportFailure>(); var failures = new List<ImportFailure>();
         bool linked = false, copied = false, moved = false, canceled = false, otherDrive = false;
         if (plan.LibraryRoot is null) return new(placed, already, conflicts, failures, linked, copied, moved);
-        var root = Path.GetFullPath(plan.LibraryRoot).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+        var roots = plan.Roots.Select(x => Path.GetFullPath(x).TrimEnd('\\', '/') + Path.DirectorySeparatorChar).ToList();
         try
         {
             // Videos first: a subtitle never arrives before its film.
@@ -47,7 +47,7 @@ public static class MediaImporter
                 string destination;
                 try { destination = Path.GetFullPath(operation.Destination); }
                 catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { failures.Add(new(operation, L("Nom de destination invalide.", "Invalid destination name."))); continue; }
-                if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !(ReleaseName.IsVideo(destination) || ReleaseName.IsSubtitle(destination)))
+                if (!roots.Any(root => destination.StartsWith(root, StringComparison.OrdinalIgnoreCase)) || !(ReleaseName.IsVideo(destination) || ReleaseName.IsSubtitle(destination)))
                 { failures.Add(new(operation, L("Destination refusée.", "Destination refused."))); continue; }
                 var source = new FileInfo(operation.Source);
                 if (!source.Exists || source.Attributes.HasFlag(FileAttributes.ReparsePoint)) { failures.Add(new(operation, L("Fichier source introuvable.", "Source file not found."))); continue; }

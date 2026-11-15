@@ -194,6 +194,40 @@ internal static class TorLinkTests
                 + " | Show Name/Season 01/Show Name - S01E01.fr.srt | Show Name/Season 01/Show Name - S01E02.en.srt", "Subtitles in a folder per episode");
             return Task.CompletedTask;
         });
+        await Test("TorLink : un pack de franchise (un dossier par série, des films parmi elles) rangé titre par titre, jamais en un film", () =>
+        {
+            // « Monogatari Series » (2026-11-15): one film « Monogatari Series » in Films, its three Kizumonogatari films as
+            // versions of it and its hundred episodes as extras: nothing Jellyfin could identify.
+            var dir = Path.Combine(testRoot, "torlink-franchise"); var films = Path.Combine(dir, "FILMS"); var anime = Path.Combine(dir, "ANIME");
+            var libraries = new MediaLibraries(films, Path.Combine(dir, "SERIES"), anime);
+            SourceFile File(string path, long size) => new(Path.Combine(dir, "downloads", path), path, size);
+            const string Pack = "Monogatari Series";
+            var plan = MediaPlanner.Plan(Pack, null, [
+                File($"{Pack}/01. Bakemonogatari/Bakemonogatari 01 - Hitagi Crab, Part 1.mkv", 1_500_000_000),
+                File($"{Pack}/01. Bakemonogatari/Bakemonogatari 02 - Hitagi Crab, Part 2.mkv", 1_500_000_000),
+                File($"{Pack}/01. Bakemonogatari/Bakemonogatari 02 - Hitagi Crab, Part 2.en.ass", 60_000),
+                File($"{Pack}/02. Nisemonogatari/Nisemonogatari 01 - Karen Bee, Part 1.mkv", 1_400_000_000),
+                File($"{Pack}/04. Monogatari Series Second Season/Monogatari Series Second Season 01 - Tsubasa Tiger, Part 1.mkv", 1_400_000_000),
+                File($"{Pack}/07. Kizumonogatari/Kizumonogatari I - Tekketsu-hen.mkv", 6_400_000_000),
+                File($"{Pack}/07. Kizumonogatari/Kizumonogatari II - Nekketsu-hen.mkv", 7_300_000_000),
+                File($"{Pack}/07. Kizumonogatari/Kizumonogatari III - Reiketsu-hen.mkv", 7_500_000_000)], libraries);
+            string Target(ImportOperation x) => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/');
+            var targets = string.Join(" | ", plan.Operations.Select(Target));
+            Assert(plan.Problem is null && plan.Kind == MediaKind.Anime && plan.LibraryRoot == anime && plan.Roots.Contains(films), "Libraries: " + plan.Kind + " " + plan.LibraryRoot);
+            foreach (var expected in new[] {
+                "ANIME/Bakemonogatari/Season 01/Bakemonogatari - S01E01.mkv", "ANIME/Bakemonogatari/Season 01/Bakemonogatari - S01E02.mkv", "ANIME/Bakemonogatari/Season 01/Bakemonogatari - S01E02.en.ass",
+                "ANIME/Nisemonogatari/Season 01/Nisemonogatari - S01E01.mkv",
+                "ANIME/Monogatari Series Second Season/Season 01/Monogatari Series Second Season - S01E01.mkv",
+                "FILMS/Kizumonogatari I - Tekketsu-hen/Kizumonogatari I - Tekketsu-hen.mkv", "FILMS/Kizumonogatari II - Nekketsu-hen/Kizumonogatari II - Nekketsu-hen.mkv" })
+                Assert(plan.Operations.Any(x => Target(x) == expected), $"Missing {expected}: {targets}");
+            Assert(plan.Operations.Count == 8 && plan.Operations.All(x => x.RelativePath.StartsWith(Pack + "/", StringComparison.Ordinal)), "Every file once, named as the torrent names it: " + targets);
+            Assert(plan.Title == "Monogatari Series · 3 séries, 3 films", "Title: " + plan.Title);
+            // A season pack keeps its folders as seasons of one show.
+            var office = MediaPlanner.Plan("The.Office.US.Complete", "x1337-tv", [File("The.Office.US.Complete/The.Office.US.S01.1080p/The Office - 01.mkv", 700_000_000),
+                File("The.Office.US.Complete/The.Office.US.S02.1080p/The Office - 01.mkv", 700_000_000)], libraries);
+            Assert(office.Operations.All(x => x.Destination.Contains("The Office US")) && office.OtherRoots is null, "Season pack: " + string.Join(" | ", office.Operations.Select(Target)));
+            return Task.CompletedTask;
+        });
         await Test("TorLink : un épisode « .5 » d'anime (récap, spécial) rangé dans les Extras de sa série, jamais en film ni à la place d'un épisode", () =>
         {
             // « Show - 07.5 » went to Films as a film « Show - 07.5 »; « Show S4 - 12.5 » too; « Show S3 - Episode 12.5 » and
