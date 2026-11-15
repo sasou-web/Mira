@@ -56,6 +56,8 @@ internal static class QBittorrentTests
             var preferences = merged[merged.IndexOf("[Preferences]", StringComparison.Ordinal)..merged.IndexOf("[Meta]", StringComparison.Ordinal)];
             Assert(preferences.Contains("WebUI\\Enabled=true") && preferences.TrimEnd().EndsWith("Advanced\\updateCheck=false", StringComparison.Ordinal) && preferences.EndsWith("\r\n\r\n", StringComparison.Ordinal),
                 "New keys in their section, before the blank line: " + preferences);
+            var bitTorrent = merged[..merged.IndexOf("[Preferences]", StringComparison.Ordinal)];
+            Assert(bitTorrent.Contains("Session\\Port=51413\r\nSession\\DiskIOType=3\r\nSession\\PieceExtentAffinity=true\r\n"), "Disk settings under [BitTorrent], read at its start: " + bitTorrent);
             Assert(QBittorrentSettings.Ini(merged, 18411, "a:b") == merged, "Written again: the same");
             return Task.CompletedTask;
         });
@@ -108,6 +110,7 @@ internal static class QBittorrentTests
             var preferences = QBittorrentSettings.Preferences("D:\\Mira", 51413);
             Assert(preferences["max_seeding_time_enabled"] is true && preferences["max_seeding_time"] is 4320 && preferences["max_ratio_enabled"] is false
                 && preferences["max_inactive_seeding_time_enabled"] is false && preferences["max_ratio_act"] is 0, "72 hours, then stopped (0), never removed");
+            Assert(preferences["enable_piece_extent_affinity"] is true && preferences["disk_io_type"] is 3, "A slow drive kept up with: pieces finished side by side, written by pwrite (« Simple pread/pwrite »)");
             return Task.CompletedTask;
         });
 

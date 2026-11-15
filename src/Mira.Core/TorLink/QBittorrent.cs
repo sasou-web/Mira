@@ -90,6 +90,9 @@ public static class QBittorrentSettings
         ("Preferences", @"General\ExitConfirm", "false"),
         ("Preferences", @"Advanced\updateCheck", "false"),
         ("GUI", "StartUpWindowState", "Hidden"),
+        // The same as the Web API sets (Preferences), here so that a qBittorrent Mira starts reads them at once.
+        ("BitTorrent", @"Session\DiskIOType", SimplePreadPwrite.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        ("BitTorrent", @"Session\PieceExtentAffinity", "true"),
     ];
 
     /// <summary>
@@ -149,7 +152,19 @@ public static class QBittorrentSettings
         ["max_inactive_seeding_time_enabled"] = false,
         // 0: stop (« pause » before qBittorrent 5); 1 and after remove the download.
         ["max_ratio_act"] = 0,
+        // A big download onto a slow drive (a USB hard disk, the Dell's 6 TB): left to itself, libtorrent starts thousands
+        // of pieces at once, from every peer, and writes them through memory-mapped files, which Windows flushes late and
+        // all together. Received faster than the drive writes, pieces pile up unchecked (12 993 begun, 15 % checked, for
+        // 72 % received, 2026-11-15), and each pause or restart then rereads them all before downloading on: hours at a
+        // few KB/s. Piece extent affinity has peers finish the pieces next to each other first; « simple pread/pwrite »
+        // (qBittorrent 5.1 and later, libtorrent 2) writes each block as it comes and keeps memory maps for reading
+        // only, what qBittorrent advises on Windows. The disk I/O type is read at qBittorrent's next start.
+        ["enable_piece_extent_affinity"] = true,
+        ["disk_io_type"] = SimplePreadPwrite,
     };
+
+    /// <summary>qBittorrent's DiskIOType « Simple pread/pwrite » (5.1 and later; before, an unknown value is its default).</summary>
+    public const int SimplePreadPwrite = 3;
 
     /// <summary>
     /// How long a finished download goes on sharing at most: 72 hours, what private trackers ask most often before a
