@@ -24,7 +24,7 @@ public sealed class DiscordSettings
     public bool ShowBadge { get; set; } = true;
     /// <summary>The two buttons (<see cref="DiscordButton"/>): Discord shows two at most, to the others only.</summary>
     public string FirstButton { get; set; } = DiscordButton.Mira;
-    public string SecondButton { get; set; } = DiscordButton.Tmdb;
+    public string SecondButton { get; set; } = DiscordButton.None;
     /// <summary>« Custom link… » of a button: its label (1 to 32 characters) and its https address.</summary>
     public string CustomLabel { get; set; } = "";
     public string CustomUrl { get; set; } = "";
