@@ -787,8 +787,10 @@ final class MiraUITests: XCTestCase {
         capture("iphone-movies")
 
         app.buttons["tab.home"].tap()
-        let film = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Spider-Man: Across the Spider-Verse'")).firstMatch
-        XCTAssertTrue(film.waitForExistence(timeout: 10), "No card for Spider-Man: Across the Spider-Verse on Home")
+        // The film resumed on Home (MIRA_GALLERY_FILM, the start of its name), the one Windows and Mac capture too.
+        let filmName = environment["MIRA_GALLERY_FILM"].flatMap { $0.isEmpty ? nil : $0 } ?? "Spider-Man: Across the Spider-Verse"
+        let film = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", filmName)).firstMatch
+        XCTAssertTrue(film.waitForExistence(timeout: 10), "No card for \(filmName) on Home")
         tapCard(app, film)
         XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "The film's page did not open")
         Thread.sleep(forTimeInterval: 5)
