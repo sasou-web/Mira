@@ -22,6 +22,7 @@ public partial class MainWindow
         else if (_args.Contains("--tailnet-check")) await RunTailnetCheckAsync();
         else if (_args.Contains("--smooth-check")) await RunSmoothCheckAsync();
         else if (_args.Contains("--ui-audit")) await RunUiAuditAsync();
+        else if (_args.Contains("--tour")) await RunTourAsync();
         else return false;
         return true;
     }

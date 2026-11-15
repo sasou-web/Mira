@@ -1,0 +1,107 @@
+name: Presentation tour
+# TEMPORARY (never merged): films of the real Mira for Windows for the presentation video. Mira's clocks run six times
+# slower (tools/tour/dilate.c) while ffmpeg films the screen, so that this runner, without a graphics card, draws every
+# moment of every animation; the montage plays them back six times faster, at 60 frames a second. Committed to this
+# branch under tour/ (artifacts are out of reach of the thread that edits the film).
+on:
+  push:
+    branches: [claude/project-thread-31wz5d]
+    paths: [.github/workflows/tour.yml, tools/tour/**, src/Mira.Desktop/Checks/MainWindow.Tour.cs, src/Mira.Desktop/Checks/TourDirector.cs]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tour-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: ffmpeg
+        run: choco install ffmpeg -y --no-progress
+      - name: Time dilation
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .artifacts | Out-Null
+          $gcc = Get-Command gcc -ErrorAction SilentlyContinue
+          if ($gcc) { & gcc -O2 -shared -static-libgcc -o .artifacts/mira-dilate.dll tools/tour/dilate.c; if ($LASTEXITCODE -ne 0) { exit 1 } }
+          else {
+            $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+            cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" && cl /nologo /O2 /LD tools\tour\dilate.c /Fe.artifacts\mira-dilate.dll"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          Get-Item .artifacts/mira-dilate.dll | Format-Table Name, Length
+      - name: Build Mira for Windows
+        run: |
+          dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
+          dotnet build src/Mira.Desktop/Mira.Desktop.csproj -c Release --no-restore
+      - name: libmpv and a test clip
+        shell: pwsh
+        run: |
+          $profile = Join-Path $PWD '.artifacts/tour-profile'
+          & ./tools/mpv-engine.ps1 -Work .artifacts/mpv -ProfileFolder $profile
+          ffmpeg -hide_banner -loglevel error -f lavfi -i "testsrc2=size=1920x1080:rate=24" -t 40 -c:v libx264 -pix_fmt yuv420p .artifacts/clip.mp4
+      # The film fills the screen: 1920 × 1080, no taskbar, Mira's pages at Windows' text size of 133 %.
+      - name: The screen
+        shell: pwsh
+        run: |
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          Set-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoRestartShell -Value 0
+          Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+          New-Item -Path 'HKCU:\Software\Microsoft\Accessibility' -Force | Out-Null
+          Set-ItemProperty 'HKCU:\Software\Microsoft\Accessibility' -Name TextScaleFactor -Value 133 -Type DWord
+          Start-Sleep -Seconds 2
+      - name: The films
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path 'src/Mira.Desktop/bin/Release/net10.0-windows*/Mira.exe'
+          Copy-Item .artifacts/mira-dilate.dll (Split-Path $exe)
+          $out = Join-Path $PWD 'tour/run'; New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $profile = Join-Path $PWD '.artifacts/tour-profile'
+          $env:MIRA_DILATE_DLL = Join-Path (Split-Path $exe) 'mira-dilate.dll'
+          $env:MIRA_TOUR_FFMPEG = (Get-Command ffmpeg).Source
+          $clip = Join-Path $PWD '.artifacts/clip.mp4'
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--demo', '--test-media', "`"$clip`"", '--language', 'en', '--tour', "`"$out`"") -PassThru
+          if (-not $run.WaitForExit(3000000)) { $run.Kill() }
+          Get-ChildItem $out | Format-Table Name, Length
+          foreach ($f in 'tour-result.txt', 'dilation.txt') { $p = Join-Path $out $f; if (Test-Path $p) { "== $f"; Get-Content $p -Raw } }
+          Get-ChildItem $out -Filter *.ffmpeg.txt | ForEach-Object { "== $($_.Name)"; Get-Content $_.FullName -Raw }
+          if (Test-Path (Join-Path $profile 'errors.log')) { Get-Content (Join-Path $profile 'errors.log') -Tail 60 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: tour
+          path: tour/run
+          retention-days: 3
+
+  commit:
+    needs: [windows]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: tour
+          path: tour/run
+      - name: Commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          find tour -type f | sort; du -sh tour || exit 0
+          git add -f tour
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Tour: the films (never merged) [skip ci]"
+          git push origin "HEAD:$BRANCH"

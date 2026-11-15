@@ -22,6 +22,10 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+#if MIRA_VALIDATION
+        // The presentation's films (never merged): every clock slowed from the first frame on.
+        if (e.Args.Contains("--tour") && TimeDilation.Load()) TimeDilation.TimeWpfByTheClock(Dispatcher);
+#endif
         Views.ClearText.Register();
         // A mira:// link (« Ouvrir dans Mira » of Mira web, registered by WindowsIdentity): a web page wrote it, so nothing
         // else of that command line is read, and the link itself only ever offers to join a group (MainWindow.OpenLink).
@@ -30,7 +34,7 @@ public partial class App : Application
 #if !MIRA_VALIDATION
         // A package: the validation harnesses are not in it (Mira.Desktop.csproj), and their options open nothing.
         if (args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--public-gallery"
-            or "--readme-gallery" or "--server-check" or "--tailnet-check" or "--smooth-check" or "--ui-audit" or "--qa-window" or "--perf-probe" or "--test-media" or "--colour-media" or "--loop-test-media" or "--tailnet-control")) { Shutdown(2); return; }
+            or "--readme-gallery" or "--server-check" or "--tailnet-check" or "--smooth-check" or "--ui-audit" or "--qa-window" or "--perf-probe" or "--test-media" or "--colour-media" or "--loop-test-media" or "--tailnet-control" or "--tour")) { Shutdown(2); return; }
 #endif
         // The downloaded version replacing the old files: no window, no profile, no single-instance lock.
         if (args.FirstOrDefault() == "--apply-update") { Shutdown(UpdateApplier.Run(args)); return; }
