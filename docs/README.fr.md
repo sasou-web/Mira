@@ -1,39 +1,66 @@
-<div align="center">
-  <img src="../src/Mira.Desktop/Assets/mira.png" width="80" alt="Logo Mira" />
-  <h1>Mira</h1>
-  <p><strong>Ta bibliothèque Jellyfin, comme au cinéma.</strong></p>
-  <p>Des apps pour Windows, Mac et iPhone qui lisent tout elles-mêmes.<br />Gratuite, sans compte ni abonnement, et rien ne quitte ton serveur.</p>
-  <p>
-    <a href="https://github.com/sasou-web/Mira/releases/latest"><img src="https://img.shields.io/github/v/release/sasou-web/Mira?style=flat-square&label=pr%C3%A9version&color=e8e8ed" alt="Dernière version (préversion)" /></a>
-    <a href="../LICENSE"><img src="https://img.shields.io/badge/licence-MIT-e8e8ed?style=flat-square" alt="Licence MIT" /></a>
-    <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Compilation et tests" /></a>
-    <a href="https://discord.miracinema.app"><img src="https://img.shields.io/badge/discord-rejoindre-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Rejoindre le Discord de Mira" /></a>
-  </p>
-  <p>
-    <a href="https://github.com/sasou-web/Mira/releases/latest"><strong>Télécharger pour Windows</strong></a> ·
-    <a href="INSTALLATION-MAC.md">Mac</a> ·
-    <a href="INSTALLATION-IOS.md">iPhone</a> ·
-    <a href="https://discord.miracinema.app">Discord</a> ·
-    <a href="../README.md">English</a>
-  </p>
-</div>
+<p align="center">
+  <img src="screenshots/readme/header-fr.jpg" alt="Mira : ta bibliothèque Jellyfin, comme au cinéma. Des apps gratuites pour Windows, Mac et iPhone." />
+</p>
 
-![L’accueil de Mira pour Windows : le bandeau du film du moment, « Continuer à regarder » et les ajouts récents](screenshots/readme/windows-home.jpg)
+<p align="center">
+  <a href="https://github.com/sasou-web/Mira/releases/latest"><img src="https://img.shields.io/github/v/release/sasou-web/Mira?style=flat-square&label=pr%C3%A9version&color=e8e8ed" alt="Dernière version (préversion)" /></a>
+  <a href="../LICENSE"><img src="https://img.shields.io/badge/licence-MIT-e8e8ed?style=flat-square" alt="Licence MIT" /></a>
+  <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Compilation et tests" /></a>
+  <a href="https://discord.miracinema.app"><img src="https://img.shields.io/badge/discord-rejoindre-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Rejoindre le Discord de Mira" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/sasou-web/Mira/releases/latest"><strong>Télécharger pour Windows</strong></a> ·
+  <a href="INSTALLATION-MAC.md">Mac</a> ·
+  <a href="INSTALLATION-IOS.md">iPhone</a> ·
+  <a href="https://miracinema.app/fr/">Site</a> ·
+  <a href="https://discord.miracinema.app">Discord</a> ·
+  <a href="../README.md">English</a>
+</p>
+
+Mira lit les films et les séries de ton serveur [Jellyfin](https://jellyfin.org) dans des apps pour Windows, Mac et iPhone qui lisent tout elles-mêmes. Gratuite, sans compte ni abonnement, et rien ne quitte ton serveur.
+
+![L’accueil de Mira pour Windows : le titre du moment, « Continuer à regarder » et les films ajoutés récemment](screenshots/readme/windows-home.jpg)
 
 ## Pourquoi Mira ?
 
 [Jellyfin](https://jellyfin.org) range tes films et tes séries sur ton PC et te les sert partout. Mira est la façon agréable de les regarder.
 
-- **Tout est beau dès l’ouverture.** Affiches, grands visuels, résumés, distribution, sagas : ta bibliothèque ressemble à celle d’un service de streaming.
+- **Tout est beau dès l’ouverture.** Affiches, grands visuels, résumés, distribution, collections : ta bibliothèque ressemble à celle d’un service de streaming.
 - **Tu reprends où tu en étais.** Sur le PC, le Mac ou le téléphone, « Continuer à regarder » te ramène à la bonne minute, et l’épisode suivant s’enchaîne seul.
 - **La lecture se fait dans Mira.** Le moteur mpv lit presque tous les fichiers tels quels : sous-titres, pistes audio, chapitres, intros passées d’un geste.
 - **Regarder ensemble.** Un lien suffit pour lancer le même film chez un ami, en même temps, chacun chez soi.
 - **Aucune installation compliquée.** Pas encore de Jellyfin ? Mira l’installe et le prépare pour toi, pare-feu et Tailscale compris.
 - **Ta vie privée reste chez toi.** Pas de compte Mira, pas de publicité, rien de collecté ; seule la recherche de mises à jour contacte GitHub, et Tailscale seulement si tu y connectes Mira. **Réglages → Confidentialité** liste chaque connexion, avec son interrupteur.
 
-## Sur ton iPhone aussi
+## Windows
 
-Mira pour iPhone est une app native, avec son propre lecteur (image dans l’image, AirPlay), Regarder ensemble et, loin de chez toi, Tailscale intégré, sans l’app Tailscale à installer. Elle s’installe avec AltStore et ton identifiant Apple gratuit, et le PC serveur la rafraîchit chaque semaine ([guide](INSTALLATION-IOS.md)). Mira web, que Jellyfin servait aux téléphones jusqu’à la 0.9.3, est terminée : sur Android, pas de Mira pour l’instant.
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/readme/windows-film.jpg" alt="La fiche d’un film dans Mira pour Windows, avec « Reprendre »" /></td>
+    <td width="50%"><img src="screenshots/readme/windows-series.jpg" alt="Une série dans Mira pour Windows, avec ses épisodes" /></td>
+  </tr>
+  <tr><td align="center"><sub>La fiche d’un film</sub></td><td align="center"><sub>Une série et ses épisodes</sub></td></tr>
+  <tr>
+    <td width="50%"><img src="screenshots/readme/windows-player.jpg" alt="Le lecteur de Mira pour Windows" /></td>
+    <td width="50%"><img src="screenshots/readme/windows-films.jpg" alt="Tous les films, avec recherche, filtres et tri" /></td>
+  </tr>
+  <tr><td align="center"><sub>Le lecteur</sub></td><td align="center"><sub>Tous tes films</sub></td></tr>
+</table>
+
+## Mac
+
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/readme/mac-film.jpg" alt="La fiche d’un film dans Mira pour Mac" /></td>
+    <td width="50%"><img src="screenshots/readme/mac-filters.jpg" alt="Les films filtrés par image, note et langue dans Mira pour Mac" /></td>
+  </tr>
+  <tr><td align="center"><sub>Le même film, sur Mac</sub></td><td align="center"><sub>Filtres : image, note, langues</sub></td></tr>
+</table>
+
+## iPhone
+
+Mira pour iPhone est une app native, avec son propre lecteur (image dans l’image, AirPlay), Regarder ensemble et, loin de chez toi, Tailscale intégré, sans l’app Tailscale à installer. Elle s’installe avec AltStore et ton identifiant Apple gratuit, et le PC serveur la rafraîchit chaque semaine ([guide](INSTALLATION-IOS.md)). Sur Android, pas de Mira pour l’instant.
 
 <table>
   <tr>
@@ -46,22 +73,7 @@ Mira pour iPhone est une app native, avec son propre lecteur (image dans l’ima
 
 **Regarder avec quelqu’un qui n’a pas de compte.** Ton lien de party, toujours le même, ouvre Mira chez ton ami sur Windows, Mac ou iPhone, sans compte ni Tailscale, directement dans ton groupe « Regarder ensemble ». Chaque invité a son appareil, et quand tu en retires un, il est dehors aussitôt. Il passe par Tailscale Funnel, qui n’ouvre que Mira à Internet, jamais le reste de Jellyfin (détails dans [SECURITY.md](SECURITY.fr.md#liens-dinvités-inviter-par-lien)).
 
-## Sur ton ordinateur
-
-<table>
-  <tr>
-    <td width="50%"><img src="screenshots/readme/windows-film.jpg" alt="La fiche d’un film dans Mira pour Windows, avec « Reprendre »" /></td>
-    <td width="50%"><img src="screenshots/readme/windows-series.jpg" alt="Une série dans Mira pour Windows, avec ses épisodes" /></td>
-  </tr>
-  <tr><td align="center">La fiche d’un film</td><td align="center">Une série et ses épisodes</td></tr>
-  <tr>
-    <td width="50%"><img src="screenshots/readme/windows-films.jpg" alt="Tous les films, avec recherche, filtres et tri" /></td>
-    <td width="50%"><img src="screenshots/readme/windows-subtitles.jpg" alt="Les réglages des langues et des sous-titres" /></td>
-  </tr>
-  <tr><td align="center">Tous tes films</td><td align="center">Langues et sous-titres</td></tr>
-</table>
-
-<sub>Captures de la vraie application, connectée à un serveur Jellyfin de démonstration (vidéos factices ; affiches et résumés fournis par TMDb). <i>Le Château ambulant</i> © Studio Ghibli ; <i>Arcane</i> © Riot Games, Fortiche ; <i>Cowboy Bebop</i> © Sunrise ; les autres titres appartiennent à leurs ayants droit.</sub>
+<sub>Captures des vraies applications, connectées à un serveur Jellyfin de démonstration (vidéos factices ; affiches, visuels et résumés fournis par TMDb). <i>Le Château ambulant</i> © Studio Ghibli ; chaque autre titre montré appartient à ses ayants droit.</sub>
 
 ## Installer
 
