@@ -77,6 +77,10 @@ public static class DiscordPreview
         }
     }
 
+    /// <summary>The one notice after the first playback shown on Discord (the card is on by default).</summary>
+    public static string Told => L("Ton profil Discord montre ce que tu regardes. Pour choisir ce qui s’affiche, ou le couper : Réglages → Discord.",
+        "Your Discord profile shows what you watch. To choose what shows, or turn it off: Settings → Discord.");
+
     /// <summary>The choices of « When I pause », in minutes (-1: as long as the player is open).</summary>
     public static readonly int[] PauseChoices = [0, 5, 10, 30, -1];
     public static string PauseName(int minutes) => minutes switch
@@ -89,7 +93,7 @@ public static class DiscordPreview
     /// <summary>A copy to change without touching the settings themselves (the preview's « as if on »).</summary>
     public static DiscordSettings Copy(DiscordSettings s) => new()
     {
-        Enabled = s.Enabled, Offered = s.Offered, Style = s.Style, ShowTitle = s.ShowTitle, ShowEpisode = s.ShowEpisode, ShowEpisodeName = s.ShowEpisodeName,
+        Enabled = s.Enabled, Offered = s.Offered, Defaults = s.Defaults, Style = s.Style, ShowTitle = s.ShowTitle, ShowEpisode = s.ShowEpisode, ShowEpisodeName = s.ShowEpisodeName,
         ShowPoster = s.ShowPoster, ShowTime = s.ShowTime, ShowBadge = s.ShowBadge, FirstButton = s.FirstButton, SecondButton = s.SecondButton,
         JoinParty = s.JoinParty, TitleLink = s.TitleLink, Libraries = new(s.Libraries),
         Mature = s.Mature, Hidden = [.. s.Hidden], PausedMinutes = s.PausedMinutes, MemberLine = s.MemberLine, ShowBrowsing = s.ShowBrowsing, Guest = s.Guest,

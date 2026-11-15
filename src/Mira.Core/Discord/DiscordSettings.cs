@@ -3,14 +3,20 @@ namespace Mira.Core.Discord;
 /// <summary>
 /// Réglages → Discord (Windows and Mac, panel A « Aperçu en direct », ogsas 2026-11-15): what the Discord app of this
 /// computer may show of what plays in Mira. Kept on the device (<see cref="PlayerSettings.Discord"/>), never in the choices
-/// kept on Jellyfin: another computer may have no Discord, or another person in front of it. Off until turned on.
+/// kept on Jellyfin: another computer may have no Discord, or another person in front of it. On by default (ogsas,
+/// 2026-11-15): Discord itself shows nothing unless it runs on this computer, and Mira says it once after the first playback.
 /// </summary>
 public sealed class DiscordSettings
 {
-    /// <summary>« Show what I'm watching on Discord »: off by default; off, Mira does not even look for Discord's pipe.</summary>
-    public bool Enabled { get; set; }
-    /// <summary>The one offer made at a playback's start while Discord runs: answered or put away, never made again.</summary>
+    /// <summary>« Show what I'm watching on Discord »: on by default; off, Mira does not even look for Discord's pipe.</summary>
+    public bool Enabled { get; set; } = true;
+    /// <summary>
+    /// The one notice after a playback while Discord runs: made once, never again. Until 0.9.12 it was the offer to turn the
+    /// card on (off by default then): put away or answered, it stays a « no » for <see cref="Upgrade"/>.
+    /// </summary>
     public bool Offered { get; set; }
+    /// <summary>The defaults these settings were written with: 0 = 0.9.12 (off by default), 1 = on by default.</summary>
+    public int Defaults { get; set; }
     /// <summary><see cref="DiscordStyle.Full"/>, <see cref="DiscordStyle.NoArtwork"/> or <see cref="DiscordStyle.Discreet"/>.</summary>
     public string Style { get; set; } = DiscordStyle.Full;
     public bool ShowTitle { get; set; } = true;
@@ -50,6 +56,17 @@ public sealed class DiscordSettings
     public bool ShowBrowsing { get; set; }
     /// <summary>As the guest of a friend's party (their Jellyfin, their titles): <see cref="DiscordShow.Discreet"/> by default.</summary>
     public string Guest { get; set; } = DiscordShow.Discreet;
+
+    /// <summary>
+    /// Settings read from a file of 0.9.12, where the card was off by default: « off » was then only the default, unless
+    /// the offer was made (put away or answered « no »); those stay off, every other one is on. Done once, as they are read.
+    /// </summary>
+    public void Upgrade()
+    {
+        if (Defaults >= 1) return;
+        if (!Offered) Enabled = true;
+        Defaults = 1;
+    }
 }
 
 /// <summary>A title kept off Discord, with its name for the list of Réglages.</summary>
