@@ -361,7 +361,7 @@ public sealed class PlayerSettings
     public bool ShowMissingEpisodes { get; set; } = true;
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
     public bool AutoSkip { get; set; }
-    public int SubtitleSize { get; set; } = 40;
+    public int SubtitleSize { get; set; } = SubtitleStyle.DefaultSize;
     /// <summary>« Taille et style des sous-titres » (<see cref="SubtitleStyle"/>): a dark box behind the text, its colour
     /// (<see cref="SubtitleStyle.White"/> or <see cref="SubtitleStyle.Yellow"/>), bold, and mpv's sub-pos.</summary>
     public bool SubtitleBackground { get; set; }
