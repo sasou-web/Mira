@@ -103,12 +103,12 @@ jobs:
         shell: bash
         run: |
           pwsh -NoProfile -File tools/mpv-engine.ps1 -Work .artifacts/player-work -ProfileFolder .artifacts/gallery-profile
-          MIRA_STILLS_ALL=1 node tools/banner/stills.mjs http://127.0.0.1:8096 "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/stills
+          node tools/banner/stills.mjs http://127.0.0.1:8096 "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/stills
           name="$GALLERY_PLAYING"
           slug=$(echo "${name% (*}" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g')
           file=".artifacts/media/Films/$name/$name.mkv"
           minutes=$(( $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$file" | cut -d. -f1) / 60 ))
-          ffmpeg -loglevel error -y -loop 1 -framerate 1 -i ".artifacts/stills/backdrop-$slug.jpg" -f lavfi -i anullsrc=r=48000:cl=stereo -t 600 \
+          ffmpeg -loglevel error -y -loop 1 -framerate 1 -i ".artifacts/stills/still-$slug.jpg" -f lavfi -i anullsrc=r=48000:cl=stereo -t 600 \
             -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,format=yuv420p" \
             -c:v libx264 -preset ultrafast -tune stillimage -crf 20 -g 600 -c:a aac -b:a 32k .artifacts/still-master.mkv
           ffmpeg -loglevel error -y -stream_loop -1 -i .artifacts/still-master.mkv -t $((minutes * 60)) -c copy -metadata:s:a:0 language=eng .artifacts/still-film.mkv

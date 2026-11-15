@@ -181,7 +181,7 @@ test('closeup: its refusals say what to change', () => {
   assert.throws(() => planned(thing({ right: 640 })), /right 640 puts the thing shown at x = -4/);
   assert.throws(() => planned(thing({ also: 'Fixes' })), /also is a list of titles/);
   assert.throws(() => planned(thing({ film: 'spirited-away' })), /not spirited-away: its first backdrop/);
-  assert.throws(() => planned(thing({ film: 'blade-runner' })), /the film blade-runner is not in the banners' library/);
+  assert.throws(() => planned(thing({ film: 'the-matrix' })), /the film the-matrix is not in the banners' library/);
 });
 
 test('closeup: never what the release before showed, film or closeup', () => {
