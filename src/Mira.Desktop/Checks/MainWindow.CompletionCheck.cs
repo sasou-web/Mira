@@ -17,15 +17,20 @@ public partial class MainWindow
         MediaItem Episode(string id) => new() { Id = id, Name = id, SeriesName = "Validation", SeriesId = "qa-series", Type = "Episode", RunTimeTicks = TimeSpan.FromSeconds(18).Ticks };
         async Task At(MediaItem item, double position)
         {
-            await PlayAsync(item); await Until(() => _loaded);
+            await PlayAsync(item); await Until(() => _loaded && _started);
             _mpv!.Set("pause", "yes"); _mpv.Command("seek", position.ToString(CultureInfo.InvariantCulture), "absolute+exact");
             HoldPosition(position); await Task.Delay(180); _mpv.Poll();
         }
         var originalAuto = _settings.AutoNext; _settings.AutoNext = false;
         var partial = Episode("qa-partial"); await At(partial, 3);
         _skips.Segments = []; _skips.Active = null; _skips.ToNext = false; _skips.Next = Episode("qa-after-partial");
+        // The sound cut with M stays cut on the next episode, which plays in a new mpv (the Dell, 2026-11-15).
+        var volume = VolumeSlider.Value; if (volume <= 0) VolumeSlider.Value = 20;
+        Mute_Click(this, new());
         Next_Click(this, new()); await Until(() => _session.Item?.Id == "qa-after-partial" && _loaded);
         require(!partial.UserData.Played && partial.Progress > 0, "manual next in the middle keeps the episode unwatched and resumable");
+        require(_mpv!.Flag("mute"), "the sound cut stays cut on the next episode");
+        Mute_Click(this, new()); VolumeSlider.Value = volume;
 
         var credits = Episode("qa-credits"); await At(credits, 13);
         _skips.Segments = [new SkipSegment(SkipKind.Outro, 12, 18)]; _skips.Active = null; _skips.Next = Episode("qa-after-credits");
@@ -42,6 +47,11 @@ public partial class MainWindow
         _settings.AutoNext = false; var ended = Episode("qa-eof"); await At(ended, 4);
         PlaybackEnded(true, _playGeneration); await Until(() => !_playing && _mpv is null);
         require(ended.UserData.Played && ended.Progress == 0, "end-of-file completes playback even when mpv retains an earlier time position");
+        // An end of file before mpv played anything (the Dell, 2026-11-15: five episodes in a row, black at 0:00).
+        var blank = Episode("qa-blank"); await At(blank, 2); _started = false;
+        PlaybackEnded(true, _playGeneration); await Until(() => !_playing && _mpv is null && PlayerErrorShown);
+        require(!blank.UserData.Played, "an end of file before the first picture is a failure, never the end of the title");
+        PlayerErrorBack_Click(this, new()); await Task.Delay(100);
 
         // Use the real stop/mini paths and rendered row, with synthetic entries in the demo profile.
         var films = new[] { Episode("qa-recent-a") with { Type = "Movie", SeriesId = null }, Episode("qa-recent-b") with { Type = "Movie", SeriesId = null } };

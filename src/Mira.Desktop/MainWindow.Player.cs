@@ -31,6 +31,8 @@ public partial class MainWindow
     /// <summary>The title in several files playing (« cd1 », « cd2 »), its parts one after the other; null otherwise.</summary>
     private MovieParts? _parts;
     private bool _playing, _loaded, _seeking, _fullscreen, _closing, _playBusy;
+    /// <summary>mpv began playing this title (its first playback-restart): an end of file before it is a failure.</summary>
+    private bool _started;
     /// <summary>From the first close request: the window is hidden and its services are being stopped.</summary>
     internal bool IsClosing => _closing;
     private int _playGeneration;
@@ -118,7 +120,7 @@ public partial class MainWindow
             if (darkening is not null) await darkening;
             _playingCopy = kept; UseStream(stream);
             // After the previous playback stopped: it may have been this title, now further on or watched.
-            _session.Begin(item, source, session, StartAt(), stream?.PlayMethod ?? "DirectPlay"); _loaded = false;
+            _session.Begin(item, source, session, StartAt(), stream?.PlayMethod ?? "DirectPlay"); _loaded = false; _started = false;
             if (!nextPart) _stillWatching.Started(DateTimeOffset.Now, byItself);
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
             var shown = film ?? _parts?.Title ?? item;
@@ -146,14 +148,15 @@ public partial class MainWindow
             await _engineReleased;
             _mpv = new MpvEngine(_videoHandle, _settings, picture: PictureForPlayback());
             if (_audioDelay != 0) _mpv.Set("audio-delay", _audioDelay.ToString(CultureInfo.InvariantCulture));
+            if (_muted) _mpv.Set("mute", "yes");
             SayAudioMissing();
             // Kept to reopen the stream at its position after the PC slept (MainWindow.Power.cs) or a cut (MainWindow.PlayerStream.cs).
             // Someone starting a playback has the PC awake: no earlier sleep is left to handle.
             _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
             PublishWindowsTrack(item);
             _mpv.FileLoaded += FileLoaded;
-            _mpv.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); RevealVideo(); };
             var generation = ++_playGeneration;
+            _mpv.PlaybackRestarted += () => { if (generation == _playGeneration) _started = true; _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); RevealVideo(); };
             _ = LoadServerMarkersAsync(item, generation);
             _mpv.Ended += eof =>
             {
@@ -307,6 +310,9 @@ public partial class MainWindow
             if (interrupted) { _loaded = false; _session.Failure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
             // A stream from Jellyfin that stopped before the end of its title: the connection, as on Mira web.
             if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
+            // An end of file before mpv ever played it (black, at 0:00): the file could not play, never its end. Taken for
+            // one, it was marked watched and the next episode started, which ended the same way: five in a row on the Dell.
+            if (eof && !_started) { eof = false; _session.Failure ??= L("La vidéo s’est arrêtée avant sa première image.", "The video stopped before its first frame."); }
             var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _skips.Stay; var following = _skips.Next; var film = _skips.Film;
             if (eof && _session.Duration > 0) _session.Position = _session.Duration;
             await StopPlaybackAsync(eof);
@@ -558,7 +564,7 @@ public partial class MainWindow
         _session.Hold(target, DateTimeOffset.UtcNow); SeekBar.Hold(target); PositionText.Text = PlayerTime.Position(target, _session.Duration, _settings.TimeLeft); _stallFrom = target;
     }
     private double ReportedPosition(double reported) => _session.Settled(reported, DateTimeOffset.UtcNow);
-    private void Volume_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { ShowVolumeLevel(); if (_initializing) return; _settings.Volume = e.NewValue; _mpv?.SetLevel(e.NewValue); if (e.NewValue > 0) { _lastAudibleVolume = e.NewValue; _mpv?.Set("mute", "no"); } }
+    private void Volume_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { ShowVolumeLevel(); if (_initializing) return; _settings.Volume = e.NewValue; _mpv?.SetLevel(e.NewValue); if (e.NewValue > 0) { _lastAudibleVolume = e.NewValue; _mpv?.Set("mute", "no"); _muted = false; } }
     private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
     private void ToggleFullscreen()
     {

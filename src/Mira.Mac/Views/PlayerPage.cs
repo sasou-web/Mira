@@ -67,6 +67,8 @@ public sealed partial class PlayerPage : UserControl
     private MediaItem? PlayingTitle => _session.Item is { } item && _parts is { } parts && parts.Holds(item.Id) ? parts.Title : _session.Item;
     private bool _loaded, _stopped, _controlsShown = true, _initializing;
     private double _lastAudible = 80;
+    /// <summary>mpv began playing this title (its first playback-restart): an end of file before it is a failure.</summary>
+    private bool _started;
     private int _generation;
     private readonly SkipPlanner _skips = new();
     private readonly SleepTimer _sleep = new();
@@ -324,7 +326,7 @@ public sealed partial class PlayerPage : UserControl
                 : await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(session, item)), _shell.Settings.AudioLanguage, FileHere);
             if (generation != _generation) return true;
             UseStream(stream); _playingCopy = kept;
-            _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
+            _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod); _started = false;
             // The next part after the end of one: the same title goes on, not a new start for « Tu regardes toujours ? ».
             if (!nextPart) _stillWatching.Started(DateTimeOffset.Now, _nextByItself);
             _nextByItself = false;
@@ -408,9 +410,10 @@ public sealed partial class PlayerPage : UserControl
         _mpv = player;
         // « Décalage de l’audio », kept from one title to the next until Mira quits, as on Windows.
         if (_shell.AudioDelay != 0) player.Set("audio-delay", _shell.AudioDelay.ToString(CultureInfo.InvariantCulture));
+        if (_shell.Muted) player.Set("mute", "yes");
         player.FileLoaded += FileLoaded;
-        player.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
         var generation = _generation;
+        player.PlaybackRestarted += () => { if (generation == _generation && ReferenceEquals(_mpv, player)) _started = true; _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
         player.Ended += eof =>
         {
             // The stream replaced by its reopening (another quality or track, the connection back): not an end.
@@ -534,6 +537,9 @@ public sealed partial class PlayerPage : UserControl
         if (interrupted) { _loaded = false; _session.Failure = null; _spinner.IsVisible = true; return; }
         // A stream from Jellyfin that stopped before the end of its title: the connection, as on Windows and Mira web.
         if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
+        // An end of file before mpv ever played it (black, at 0:00): the file could not play, never its end. Taken for one
+        // on Windows, it was marked watched and the next episode started, which ended the same way: five in a row.
+        if (eof && !_started) { eof = false; _session.Failure ??= L("La vidéo s’est arrêtée avant sa première image.", "The video stopped before its first frame."); }
         var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay; var film = _skips.Film;
         if (eof && _session.Duration > 0) _session.Position = _session.Duration;
         // A title in several files: its next part right away, in the same player (« Arrêter à la fin » waits for its last part).
@@ -728,7 +734,7 @@ public sealed partial class PlayerPage : UserControl
         ShowVolume();
         if (_initializing) return;
         _shell.Settings.Volume = value; _mpv?.SetLevel(value);
-        if (value > 0) { _lastAudible = value; _mpv?.Set("mute", "no"); }
+        if (value > 0) { _lastAudible = value; _mpv?.Set("mute", "no"); _shell.Muted = false; }
         ShowVolume();
     }
     private void ChangeVolume(double delta) { _volume.Value = Math.Clamp(_volume.Value + delta, 0, VolumeBoost.Maximum); ShowControls(); RevealVolume(true); HideVolumeSoon(); }
@@ -740,6 +746,7 @@ public sealed partial class PlayerPage : UserControl
         if (_mpv is null) return;
         if (_mpv.Flag("mute") || _volume.Value <= 0) { if (_volume.Value <= 0) _volume.Value = _lastAudible; _mpv.Set("mute", "no"); }
         else _mpv.Set("mute", "yes");
+        _shell.Muted = _mpv.Flag("mute");
         ShowVolume(); ShowControls();
     }
     /// <summary>The level beside the slider, brighter above 100 % where the sound is amplified.</summary>
@@ -954,7 +961,7 @@ public sealed partial class PlayerPage : UserControl
         flyout.VerticalOffset = line is { Y: < 0 and > -160 } at ? at.Y - 10 : -12;
     }
     /// <summary>Maquette A: a menu's button stays lit while its menu is open, a 2 px mark under its glyph.</summary>
-    private static void MarkWhileOpen(Button button)
+    private void MarkWhileOpen(Button button)
     {
         if (button.Flyout is not Flyout flyout || button.Content is not Control glyph) return;
         var mark = new Border { Height = 2, Width = 16, CornerRadius = new CornerRadius(1), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, -6), IsVisible = false, IsHitTestVisible = false };
@@ -962,8 +969,9 @@ public sealed partial class PlayerPage : UserControl
         // logical parent away while the panel holds it, and Avalonia throws when the page joins the window.
         button.Content = null;
         button.Content = new Panel { Children = { glyph, mark } };
-        flyout.Opened += (_, _) => { mark.IsVisible = true; button.Classes.Add("open"); };
-        flyout.Closed += (_, _) => { mark.IsVisible = false; button.Classes.Remove("open"); };
+        // The skip pill and the next episode's card leave the bottom right corner to the menu while it is open (Windows).
+        flyout.Opened += (_, _) => { mark.IsVisible = true; button.Classes.Add("open"); if (!_stopped) UpdateSkip(); };
+        flyout.Closed += (_, _) => { mark.IsVisible = false; button.Classes.Remove("open"); if (!_stopped) UpdateSkip(); };
     }
     /// <summary>A section's name in a menu, in sentence case as on Windows (« Sleep timer »).</summary>
     private static TextBlock MenuHeading(string text) => new() { Text = text, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Muted, Margin = new Thickness(12, 10, 12, 8) };
@@ -1174,9 +1182,11 @@ public sealed partial class PlayerPage : UserControl
         _skipCounted = counting;
         // The countdown shows the next episode's card (maquette A); « Annuler » leaves the pill alone.
         var card = counting && _skips.Next is not null && !_mini;
-        UpdateNextCard(card);
-        _skipCancel.IsVisible = counting && !_mini && !card;
-        _skip.IsVisible = !card && !_mini && _skips.Active is not null && (_controlsShown || counting || !_session.Paused);
+        // A player menu open over the bottom right: the pill and the card leave the corner to it; the countdown goes on.
+        var menu = _tracks.Flyout?.IsOpen == true || _more.Flyout?.IsOpen == true || _episodesButton.Flyout?.IsOpen == true;
+        UpdateNextCard(card && !menu);
+        _skipCancel.IsVisible = counting && !_mini && !card && !menu;
+        _skip.IsVisible = !card && !_mini && !menu && _skips.Active is not null && (_controlsShown || counting || !_session.Paused);
         // Just above the bar's title and time while they are shown, near the bottom edge otherwise (as on Windows).
         var lift = _controlsShown && _bottom.Bounds.Height > 0 ? Math.Max(36, _bottom.Bounds.Height - _bottom.Padding.Top + 16) : 36;
         if (lift != _skipLift) { _skipLift = lift; _skipHost.Margin = new Thickness(0, 0, 36, lift); }

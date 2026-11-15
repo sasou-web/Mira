@@ -147,12 +147,15 @@ public partial class MainWindow
         _skipCounted = counting;
         // The countdown shows the next episode's card (maquette A); « Annuler » leaves the pill alone.
         var card = counting && _skips.Next is not null;
-        UpdateNextCard(card);
+        // A player menu open over the bottom right: the pill and the card leave the corner to it (they touched the
+        // Audio and subtitles menu); the countdown goes on and they are back when it closes.
+        var menu = PlayerOptionsPopup.IsOpen;
+        UpdateNextCard(card && !menu);
         if (counting && !card && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);
         else if ((!counting || card) && SkipCancel.Visibility == Visibility.Visible && SkipCancel.IsHitTestVisible) _ = Motion.HideAsync(SkipCancel, 140);
         // The whole passage while it plays, controls shown or not (an opening lasts 1 min 30: a pill gone after 8 s was
         // missed); paused, only with the controls.
-        SetSkipVisible(!card && _skips.Active is not null && (_controlsVisible || counting || !_session.Paused));
+        SetSkipVisible(!card && !menu && _skips.Active is not null && (_controlsVisible || counting || !_session.Paused));
         // Sits just above the bar's title and time while they are shown, near the bottom edge otherwise.
         var lift = _controlsVisible ? -Math.Max(0, PlayerControlsBody.ActualHeight + PlayerControlsBody.Margin.Bottom + 16 - SkipHost.Margin.Bottom) : 0;
         if (lift != _skipLift) { _skipLift = lift; Motion.Animate(SkipShift, TranslateTransform.YProperty, lift, 260, ease: Motion.EaseOut); }

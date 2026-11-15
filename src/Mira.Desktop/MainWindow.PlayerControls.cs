@@ -27,6 +27,8 @@ public partial class MainWindow
     /// <summary>The single click's wait ran out and paused or resumed: the second press of a double click undoes it.</summary>
     private bool _surfaceClickToggled;
     private double _lastAudibleVolume = 75;
+    /// <summary>The sound cut (M, the button): kept from one episode to the next, each played by a new mpv, until Mira closes.</summary>
+    private bool _muted;
     private DateTimeOffset _lastPlayerInteraction = DateTimeOffset.UtcNow, _lastScrub;
     // Playing: controls leave quickly. Paused: they also leave, so the still frame can be captured cleanly.
     private static readonly TimeSpan PlayingIdle = TimeSpan.FromSeconds(2.6), PausedIdle = TimeSpan.FromSeconds(4), MiniIdle = TimeSpan.FromSeconds(1.4);
@@ -479,6 +481,7 @@ public partial class MainWindow
             _mpv.Set("mute", "no");
         }
         else _mpv.Set("mute", "yes");
+        _muted = _mpv.Flag("mute");
         UpdateMuteIcon(); ShowPlayerControls();
     }
     private void UpdateMuteIcon()
@@ -680,11 +683,12 @@ public partial class MainWindow
         return choice;
     }
     private static string DelayLabel(double seconds) => PlayerText.Delay(seconds);
-    private void PlayerOptions_Opened(object? sender, EventArgs e) { _menuOnRelease = null; ShowPlayerControls(); }
+    private void PlayerOptions_Opened(object? sender, EventArgs e) { _menuOnRelease = null; ShowPlayerControls(); if (_playing) UpdateSkip(); }
     private void PlayerOptions_Closed(object? sender, EventArgs e)
     {
         _lastPlayerInteraction = DateTimeOffset.UtcNow;
         foreach (var button in new[] { PlayerTracksButton, PlayerMoreButton, PlayerEpisodesButton }) button.ClearValue(TagProperty);
+        if (_playing) UpdateSkip();
     }
     /// <summary>
     /// A press outside the open menu closes it (WPF's popup, just before this handler) and goes no further, as a menu's
