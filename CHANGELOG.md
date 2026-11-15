@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **qBittorrent ne s’étrangle plus sur un disque USB (Windows)** : un gros téléchargement (176 Go) reçu plus vite que le disque n’écrit laissait des milliers de pièces entamées et non vérifiées (72 % reçus, 15 % vérifiés sur le Dell, 2026-11-15) ; une pause relisait alors tout le reçu avant de reprendre, à quelques Ko/s pendant des heures. Mira règle maintenant qBittorrent pour finir les pièces voisines d’abord (« piece extent affinity ») et écrire chaque bloc à son arrivée (type d’E/S disque « Simple pread/pwrite », qBittorrent 5.1 et après, lu à son prochain démarrage). Seulement compilé et contrôlé en CI (avec le vrai qBittorrent sous Linux) ; jamais mesuré sur le Dell.
 - **Lien du Discord : https://discord.miracinema.app** : README, site, wiki, modèle d’issue et bouton communauté du statut Discord pointent vers ce sous-domaine (redirection 301 de Porkbun vers l’invitation permanente). Si l’invitation change, seule la redirection change.
 
 ## 0.9.12 — 2026-11-15
