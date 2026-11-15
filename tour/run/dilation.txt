@@ -1,0 +1,17 @@
+15 hooked
+hooked ntdll.dll!RtlQueryPerformanceCounter
+hooked kernel32.dll!QueryPerformanceCounter
+same kernelbase.dll!QueryPerformanceCounter
+hooked kernel32.dll!GetSystemTimePreciseAsFileTime
+hooked kernelbase.dll!GetSystemTimePreciseAsFileTime
+hooked kernel32.dll!GetSystemTimeAsFileTime
+hooked kernelbase.dll!GetSystemTimeAsFileTime
+hooked kernel32.dll!GetTickCount64
+hooked kernelbase.dll!GetTickCount64
+hooked kernel32.dll!GetTickCount
+hooked kernelbase.dll!GetTickCount
+hooked kernel32.dll!QueryUnbiasedInterruptTime
+hooked kernelbase.dll!QueryUnbiasedInterruptTime
+hooked kernelbase.dll!QueryUnbiasedInterruptTimePrecise
+hooked kernelbase.dll!QueryInterruptTime
+hooked kernelbase.dll!QueryInterruptTimePrecise
