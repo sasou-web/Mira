@@ -24,6 +24,8 @@ public static class Gallery
             if (string.IsNullOrEmpty(server) || string.IsNullOrEmpty(user) || password is null || !args.Contains("--data"))
                 throw new InvalidOperationException("The gallery needs MIRA_GALLERY_SERVER, _USER and _PASSWORD and an isolated --data profile.");
             window.Width = 1440; window.Height = 900;
+            // The library's placeholder videos weigh a few megabytes: no size on the pages.
+            TitleStorage.Shown = false;
             window.ShowLogin();
             await Until(() => window.Login is not null, 10);
             await window.Login!.SignInAsync(server, user, password);

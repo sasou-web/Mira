@@ -49,7 +49,7 @@ export const platformOf = (shot) => /^(windows|mac|iphone)-/.exec(shot ?? '')?.[
 // their place (tools/web/fake-tvdb) and, on Windows, the mini-player out against the right edge over Home, the player
 // whole (paused, its controls shown) and the Downloads page at rest (« Régie », the README's posters, real releases' names and sizes).
 export const SHOTS = {
-  windows: ['home', 'film', 'series', 'films', 'subtitles', 'filters', 'missing', 'mini', 'player', 'downloads', 'discord'],
+  windows: ['home', 'film', 'series', 'films', 'subtitles', 'films-more', 'filters', 'missing', 'mini', 'player', 'downloads', 'settings', 'privacy', 'discord'],
   mac: ['home', 'film', 'series', 'films', 'settings', 'filters', 'missing'],
   iphone: ['home', 'movies', 'film', 'together', 'series'],
 };

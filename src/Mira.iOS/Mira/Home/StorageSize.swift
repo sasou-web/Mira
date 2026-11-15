@@ -45,9 +45,12 @@ enum StorageSize {
         return any ? total : nil
     }
 
-    /// « 850 MB », « 14 GB », « 1.4 TB » (RemoteLines.size, as Windows writes a size); nil for no size.
+    /// Never said under the README's captures (`-mira-no-sizes`, testGallery): their placeholder videos weigh a few megabytes.
+    private static let hidden = ProcessInfo.processInfo.arguments.contains("-mira-no-sizes")
+
+    /// « 850 MB », « 14 GB », « 1.4 TB » (RemoteLines.size, as Windows writes a size); nil for no size (or none shown).
     static func text(_ bytes: Int64?) -> String? {
-        guard let bytes, bytes > 0 else { return nil }
+        guard !hidden, let bytes, bytes > 0 else { return nil }
         return RemoteLines.size(bytes)
     }
 

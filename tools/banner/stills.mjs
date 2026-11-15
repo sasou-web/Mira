@@ -4,6 +4,8 @@
 // a wait for the films' genres: Jellyfin lists them (Items/Filters2, the chips of the Films page Mira for Mac's
 // gallery captures next) only once a scan has gone past the metadata TMDb gave.
 //   node tools/banner/stills.mjs <server> <user> <password> <folder>
+// MIRA_STILLS_ALL=1: every film's and series' backdrop and poster too, backdrop-<slug>.jpg and poster-<slug>.jpg (the
+// slug of its folder without the year: blade-runner-2049), for gallery.yml's player film and the captures' sets.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { slug } from './plan.mjs';
@@ -51,4 +53,23 @@ for (const [short, name] of [['arcane', 'Arcane (2021)'], ['spider-verse', 'Spid
   const title = find(name);
   if (title && await backdrop(title, `still-${short}.jpg`)) console.log(`still-${short}.jpg`);
   else console.log(`::warning::no backdrop for ${name}`);
+}
+
+// The slug of a title's folder: « Blade Runner 2049 (2017) » → blade-runner-2049.
+const slugOf = (folder) => folder.replace(/\s*\(\d{4}\)\s*$/, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+if (process.env.MIRA_STILLS_ALL === '1') {
+  for (const title of titles) {
+    const parts = (title.Path ?? '').replace(/\\/g, '/').split('/');
+    // A film's path is its file (its folder before it), a series' its folder.
+    const folder = title.Type === 'Movie' ? parts.at(-2) : parts.at(-1);
+    if (!folder) continue;
+    const slug = slugOf(folder);
+    for (const [kind, path] of [['backdrop', 'Backdrop?maxWidth=3840&quality=92'], ['poster', 'Primary?maxHeight=1500&quality=92']]) {
+      const image = await fetch(`${base}/Items/${title.Id}/Images/${path}`);
+      if (image.ok) writeFileSync(join(out, `${kind}-${slug}.jpg`), Buffer.from(await image.arrayBuffer()));
+      else console.log(`::warning::no ${kind} for ${folder}`);
+    }
+  }
+  console.log(`${titles.length} titles' backdrops and posters`);
 }

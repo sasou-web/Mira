@@ -49,8 +49,14 @@ public static class TitleStorage
         return sizes;
     }
 
-    /// <summary>« 850 Mo », « 14,2 Go », « 312 Go », « 1,4 To »; null for no size.</summary>
-    public static string? Text(long? bytes) => bytes is > 0 ? OfflineCopies.SizeText(bytes.Value) : null;
+    /// <summary>
+    /// False under the README's captures (--readme-gallery, --gallery): their placeholder videos weigh a few megabytes,
+    /// which no page says.
+    /// </summary>
+    public static bool Shown { get; set; } = true;
+
+    /// <summary>« 850 Mo », « 14,2 Go », « 312 Go », « 1,4 To »; null for no size (or none shown).</summary>
+    public static string? Text(long? bytes) => Shown && bytes is > 0 ? OfflineCopies.SizeText(bytes.Value) : null;
 }
 
 /// <summary>
