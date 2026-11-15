@@ -132,17 +132,28 @@ public sealed class DiscordIpc : IAsyncDisposable
                 var (op, body) = await ReadFrameAsync(_stream, _life.Token);
                 var evt = (body as JsonObject)?["evt"]?.GetValue<string>();
                 var cmd = (body as JsonObject)?["cmd"]?.GetValue<string>();
-                if (op == Ping)
-                {
-                    await _write.WaitAsync(_life.Token);
-                    try { await WriteFrameAsync(_stream, Pong, body ?? new JsonObject(), _life.Token); } finally { _write.Release(); }
-                }
+                // The answer goes beside the reading, never in its way: a pipe hands a write over only once the other end
+                // reads, and Discord may be writing to Mira at that moment (each waiting for the other, for good).
+                if (op == Ping) _ = PongAsync(body ?? new JsonObject());
                 else if (op == Close) { Lost((body as JsonObject)?["message"]?.GetValue<string>() ?? "closed"); return; }
                 else if (op == Frame && evt == "ERROR") Error = (body as JsonObject)?["data"]?["message"]?.GetValue<string>() ?? "error";
                 else if (op == Frame && cmd == "SET_ACTIVITY") Error = null;
             }
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or SocketException or OperationCanceledException or InvalidDataException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            if (!_life.IsCancellationRequested) Lost(ex.Message);
+        }
+    }
+
+    private async Task PongAsync(JsonNode body)
+    {
+        try
+        {
+            await _write.WaitAsync(_life.Token);
+            try { await WriteFrameAsync(_stream, Pong, body, _life.Token); } finally { _write.Release(); }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or SocketException or OperationCanceledException)
         {
             if (!_life.IsCancellationRequested) Lost(ex.Message);
         }
