@@ -625,6 +625,11 @@ internal static class PlayerTests
                 Assert(JellyfinSubtitles.Privacy([.. x!["providers"]!.AsArray().Select(p => (string)p!)]) == (string)x["text"]!, "Privacy");
             foreach (var x in fixture["kept"]!.AsArray())
                 Assert(JellyfinSubtitles.KeptText(Enum.Parse<SubtitleKept>((string)x!["kept"]!), (string)x["language"]!) == (string)x["text"]!, "Kept: " + x["kept"]);
+            // A file's format from what it holds, not from what the search said (an ASS labelled « SRT » became an unreadable .srt).
+            Assert(JellyfinSubtitles.FormatOf(Encoding.UTF8.GetBytes("[Script Info]\nScriptType: v4.00+\n\n[Events]\nDialogue: 0,0:02:16.00,0:02:18.00,Default,,0,0,0,,Bonjour"), "SRT", "fre") == "ass", "ASS labelled SRT");
+            Assert(JellyfinSubtitles.FormatOf(Encoding.UTF8.GetBytes("1\n00:00:01,000 --> 00:00:02,000\nBonjour\n"), "ass", "fre") == "srt", "SRT labelled ASS");
+            Assert(JellyfinSubtitles.FormatOf(Encoding.UTF8.GetBytes("WEBVTT\n\n00:01.000 --> 00:02.000\nHi\n"), null, "eng") == "vtt" && JellyfinSubtitles.FormatOf([1, 2, 3], "SRT", "fre") == "srt", "VTT; unknown content = what was said");
+            Assert(JellyfinSubtitles.KeptText(SubtitleKept.Unavailable, "fre").Length > 0, "Unavailable said");
             List<MediaStream> Streams(string key) => [.. fixture["arrived"]![key]!.AsArray().Select(s => new MediaStream { Type = (string)s!["Type"]!, Index = (int)s["Index"]!, IsExternal = s["IsExternal"] is { } e && (bool)e!, Path = (string?)s["Path"] })];
             Assert(JellyfinSubtitles.Arrived(Streams("before"), Streams("now"))?.Index == (int)fixture["arrived"]!["index"]! && JellyfinSubtitles.Arrived(Streams("now"), Streams("now")) is null, "New track");
             foreach (var x in fixture["guess"]!.AsArray())

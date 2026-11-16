@@ -119,7 +119,7 @@ public sealed partial class PlayerPage
             var before = await client.StreamsAsync(item.Id, sourceId, ct);
             var kept = await client.KeepRemoteSubtitleAsync(item.Id, subtitle, ct);
             var said = JellyfinSubtitles.KeptText(kept, subtitle.Language);
-            if (kept is SubtitleKept.Refused or SubtitleKept.NotWritten) { _subtitleStatus = said; return; }
+            if (kept is SubtitleKept.Refused or SubtitleKept.NotWritten or SubtitleKept.Unavailable) { _subtitleStatus = said; return; }
             _subtitleStatus = L("Jellyfin lit le nouveau fichier…", "Jellyfin is reading the new file…"); RefreshMenus();
             var arrived = await client.KeptSubtitleAsync(item.Id, sourceId, before, TimeSpan.FromSeconds(30), ct);
             if (generation != _generation) return;

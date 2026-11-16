@@ -139,6 +139,14 @@ public static class SubtitleArchive
                 var info = ReleaseRanking.Parse(Path.GetFileNameWithoutExtension(entry.Name));
                 if (info.Episode == wanted && (info.Season is null || season is null || info.Season == season) && !info.Pack) { chosen = entry; break; }
             }
+            // Names the release reading leaves without an episode (« Madoka Magica 01 [BD 1080p].ass »): the import's own
+            // reading, which takes a bare number after the title as the episode.
+            if (chosen is null)
+            {
+                var numbered = entries.Where(x => ReleaseName.Episode(Path.GetFileNameWithoutExtension(x.Name), allowAbsolute: true) is { } e
+                    && e.Episode == wanted && e.LastEpisode is null && (e.Absolute || season is null || e.Season == season)).ToList();
+                if (numbered.Count == 1) chosen = numbered[0];
+            }
             if (chosen is null && entries.Count > 1) return null;
         }
         chosen ??= entries[0];

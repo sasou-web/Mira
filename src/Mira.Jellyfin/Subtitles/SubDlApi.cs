@@ -83,6 +83,9 @@ public sealed class SubDlApi : SubtitleSource
     public static SubtitleCandidate? Candidate(JsonObject entry, string language, SubtitleQuery query)
     {
         if (Text(entry, "url") is not { Length: > 0 } url) return null;
+        // The file's address alone: a query (« ?api_key=… ») would put the key in the result's id, sent to every device
+        // that searches and written in Jellyfin's log; the file is fetched without it anyway.
+        if (url.IndexOf('?') is var cut and >= 0) url = url[..cut];
         // Old archives from Subscene come as .rar (Mira reads zip only), and SubDL often no longer has them.
         if (url.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) || url.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)) return null;
         var release = Text(entry, "release_name") ?? Text(entry, "name") ?? "";

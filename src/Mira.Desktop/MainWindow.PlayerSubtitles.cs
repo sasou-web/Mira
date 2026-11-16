@@ -118,7 +118,7 @@ public partial class MainWindow
             var before = await client.StreamsAsync(item.Id, sourceId, ct);
             var kept = await client.KeepRemoteSubtitleAsync(item.Id, subtitle, ct);
             var said = JellyfinSubtitles.KeptText(kept, subtitle.Language);
-            if (kept is SubtitleKept.Refused or SubtitleKept.NotWritten) { SubtitleSearchStatus.Text = said; return; }
+            if (kept is SubtitleKept.Refused or SubtitleKept.NotWritten or SubtitleKept.Unavailable) { SubtitleSearchStatus.Text = said; return; }
             SubtitleSearchStatus.Text = L("Jellyfin lit le nouveau fichier…", "Jellyfin is reading the new file…");
             var arrived = await client.KeptSubtitleAsync(item.Id, sourceId, before, TimeSpan.FromSeconds(30), ct);
             if (generation != _playGeneration) return;

@@ -331,6 +331,11 @@ internal static class SubtitleTests
             Assert(picked.FileName.Contains("S02E04") && Encoding.UTF8.GetString(picked.Bytes).Contains("Salut") && picked.Format == "srt", "Episode 4: " + picked.FileName);
             Assert(SubtitleArchive.Pick(zip, 2, 7) is null, "No episode 7: nothing");
             Assert(SubtitleArchive.Pick(Zip(("Dune.Part.Two.srt", Srt)), null, null)?.FileName == "Dune.Part.Two.srt", "A film's only file");
+            // An anime season's archive named by its group, the episode a bare number (Madoka, 2026-11-16: « no subtitle file
+            // for this episode in the archive », Jellyfin's 500 in Mira).
+            var anime = Zip(("[Elecman] Puella Magi Madoka Magica - 01 [BD 1080p].fr.ass", Srt), ("[Elecman] Puella Magi Madoka Magica - 02 [BD 1080p].fr.ass", Srt.Replace("Ça va", "Salut")));
+            Assert(SubtitleArchive.Pick(anime, 1, 2)?.FileName.Contains("- 02 ") == true, "A bare number: " + SubtitleArchive.Pick(anime, 1, 2)?.FileName);
+            Assert(SubtitleArchive.Pick(anime, 1, 5) is null, "Still never another episode");
             // Already there: a file beside the video named for the language, by any of its codes; not another language, not another video.
             var folder = Path.Combine(run.Root, "beside"); Directory.CreateDirectory(folder);
             var video = Path.Combine(folder, "Dune.Part.Two.2024.mkv");
@@ -409,6 +414,9 @@ internal static class SubtitleTests
             // Brazilian Portuguese and traditional Chinese under codes of their own, asked with the language.
             Assert(SubDlApi.SearchQuery(episode, "pt").StartsWith("languages=PT,BR_PT&type=tv&", StringComparison.Ordinal) && SubDlApi.SearchQuery(episode, "zh").StartsWith("languages=ZH,ZH_BG&type=tv&", StringComparison.Ordinal), "Variants: " + SubDlApi.SearchQuery(episode, "pt"));
             var brazilian = SubDlApi.Candidate(System.Text.Json.Nodes.JsonNode.Parse("""{"release_name":"Sousou.no.Frieren.S02E03.1080p.WEB-DL","language":"BR_PT","season":2,"episode":3,"url":"/subtitle/1-9.zip"}""")!.AsObject(), "pt", episode)!;
+            // SubDL's address with a key in it: the key never goes into the result's id (every device sees it).
+            var keyed = SubDlApi.Candidate(System.Text.Json.Nodes.JsonNode.Parse("""{"release_name":"Sousou.no.Frieren.S02E03.1080p.WEB-DL","season":2,"episode":3,"url":"/subtitle/1-9.zip?api_key=SECRET"}""")!.AsObject(), "fr", episode)!;
+            Assert(keyed.Id == "/subtitle/1-9.zip", "Without its key: " + keyed.Id);
             var brazilianId = SubtitleIds.Make(SubtitleIds.SubDl, brazilian.Language, brazilian.Id);
             Assert(brazilian.Language == "por" && !brazilianId.Contains('_') && SubtitleIds.Parse(brazilianId) == (SubtitleIds.SubDl, "por", "/subtitle/1-9.zip"), "Brazilian Portuguese: " + brazilian.Language + " " + brazilianId);
             var calls = new List<string>();
