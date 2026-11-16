@@ -133,6 +133,11 @@ public sealed class TorLinkImporter
     private readonly object _sync = new();
     private readonly TorLinkImportLog _log;
     private MediaLibraries? _blockedWith;
+    /// <summary>
+    /// The show each title of a franchise pack is part of (AniList, by <see cref="SearchSourceClient.FranchiseShowsAsync"/>):
+    /// arcs of one show placed as that show. Null: each title its own show.
+    /// </summary>
+    public Func<IReadOnlyList<string>, CancellationToken, Task<IReadOnlyDictionary<string, string>>>? FranchiseShows { get; set; }
     /// <summary>Raised on the worker thread after an entry changed and was saved.</summary>
     public event Action<TorLinkImportEntry>? Changed;
 
@@ -248,7 +253,8 @@ public sealed class TorLinkImporter
         var known = Entries.Where(x => x.Id != completion.Id).ToList();
         // « Classer comme… » another kind wins over the series it was sent for.
         if (entry.ForcedKind is { } forced && forced != target?.Kind) target = null;
-        var plan = await Task.Run(() => MediaPlanner.Plan(completion.Name, completion.Source, files, libraries, entry.ForcedKind, MediaPlanner.KnownShows(known), target), ct);
+        var shows = target is null ? await ShowsOfAsync(files, ct) : null;
+        var plan = await Task.Run(() => MediaPlanner.Plan(completion.Name, completion.Source, files, libraries, entry.ForcedKind, MediaPlanner.KnownShows(known), target, shows), ct);
         if (plan.Ignored is { } reason) { Update(entry with { State = TorLinkImportState.Ignored, Message = reason, UpdatedAt = DateTimeOffset.UtcNow }); return; }
         if (plan.Problem is not null || !Directory.Exists(plan.LibraryRoot))
         {
@@ -413,7 +419,8 @@ public sealed class TorLinkImporter
                 Update(gone); return (gone, []);
             }
             var known = Entries.Where(x => x.Id != id).ToList();
-            var plan = await Task.Run(() => MediaPlanner.Plan(entry.Name, entry.Source, sources, libraries, kind, MediaPlanner.KnownShows(known)), ct);
+            var shows = await ShowsOfAsync(sources, ct);
+            var plan = await Task.Run(() => MediaPlanner.Plan(entry.Name, entry.Source, sources, libraries, kind, MediaPlanner.KnownShows(known), shows: shows), ct);
             if (plan.Problem is not null || plan.Ignored is not null || !Directory.Exists(plan.LibraryRoot))
             {
                 // Ignored: the video was already in the library before Mira, so only side files would move.
@@ -564,6 +571,9 @@ public sealed class TorLinkImporter
             UpdatedAt = DateTimeOffset.UtcNow
         };
     }
+
+    private async Task<IReadOnlyDictionary<string, string>?> ShowsOfAsync(IReadOnlyList<SourceFile> files, CancellationToken ct) =>
+        FranchiseShows is { } ask && MediaPlanner.FranchiseTitles(files) is { Count: > 1 } titles ? await ask(titles, ct) : null;
 
     private void Change(string id, Func<TorLinkImportEntry, TorLinkImportEntry> change)
     {

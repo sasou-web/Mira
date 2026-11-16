@@ -260,6 +260,32 @@ public static partial class SearchSources
         return [];
     }
 
+    /// <summary>
+    /// The anime <paramref name="title"/> is part of, as AniList names it (Romaji, else English): the first one with a name that
+    /// is the title itself, no prefix (« Kabukimonogatari », a synonym of « Monogatari Series: Second Season », of which it is an
+    /// arc); null when none is. Used to put a franchise pack's arcs of one show together.
+    /// </summary>
+    public static string? ParseAniListShow(string json, string title)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object
+            || !data.TryGetProperty("Page", out var page) || page.ValueKind != JsonValueKind.Object || !page.TryGetProperty("media", out var media) || media.ValueKind != JsonValueKind.Array)
+            throw new JsonException("No media");
+        var key = ReleaseRanking.TitleKey(title);
+        if (key.Length == 0) return null;
+        foreach (var item in media.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+            var titles = item.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.Object ? t : default;
+            string?[] main = titles.ValueKind == JsonValueKind.Object ? [Text(titles, "romaji"), Text(titles, "english")] : [];
+            var others = item.TryGetProperty("synonyms", out var synonyms) && synonyms.ValueKind == JsonValueKind.Array
+                ? synonyms.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()) : [];
+            if (main.Concat(others).OfType<string>().Any(name => ReleaseRanking.TitleKey(name) == key))
+                return main.Select(RemoteDownloads.CleanName).OfType<string>().FirstOrDefault(x => x.Length > 0);
+        }
+        return null;
+    }
+
     // —— Together ——
 
     /// <summary>
@@ -391,6 +417,26 @@ public sealed class SearchSourceClient : IDisposable
         catch (Exception ex) when (Failed(ex, ct)) { return []; }
     }
     private readonly ConcurrentDictionary<string, (DateTime At, List<string> Names)> _names = new();
+
+    /// <summary>
+    /// For each title of a franchise pack, the anime AniList says it is part of (<see cref="SearchSources.ParseAniListShow"/>);
+    /// a title AniList does not know, or that did not answer in a few seconds, is left out. Only the titles go to AniList.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string>> FranchiseShowsAsync(IReadOnlyList<string> titles, CancellationToken ct)
+    {
+        var shows = new Dictionary<string, string>();
+        foreach (var title in titles.Take(40))
+        {
+            using var soon = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            soon.CancelAfter(NamesWait);
+            try
+            {
+                if (SearchSources.ParseAniListShow(await AskAsync(SearchSources.AniListRequest(title), soon.Token), title) is { } show) shows[title] = show;
+            }
+            catch (Exception ex) when (Failed(ex, ct)) { }
+        }
+        return shows;
+    }
     private static readonly TimeSpan NamesKept = TimeSpan.FromHours(6), NamesWait = TimeSpan.FromSeconds(8);
 
     private static bool Failed(Exception ex, CancellationToken ct) =>
