@@ -1111,6 +1111,28 @@ internal static class PlayerTests
             Assert(skips.Next is null && !skips.Stay && skips.Segments.Count == 0 && skips.AutoSkipped.Count == 0 && skips.Active is null, "A new title starts clean");
             return Task.CompletedTask;
         });
+        await Test("Passages : la pastille quelques secondes, puis seulement avec les commandes", () =>
+        {
+            var skips = new SkipPlanner { Next = new MediaItem { Id = "next", Type = "Episode" } };
+            skips.Segments = [new(SkipKind.Intro, 45, 135), new(SkipKind.Outro, 1290, 1380), new(SkipKind.Preview, 1380, 1410)];
+            Assert(!skips.Shows(10, controls: true, paused: false), "No passage, no pill");
+            skips.Offer(45, 1410, offering: true, autoNext: true);
+            Assert(skips.Shows(45, false, false) && skips.Shows(52.9, false, false), "Shown when the opening starts");
+            Assert(!skips.Shows(53, false, false) && !skips.Shows(120, false, false), "Gone a few seconds into the opening");
+            Assert(skips.Shows(120, controls: true, paused: false) && skips.Shows(120, controls: true, paused: true), "Back with the controls");
+            Assert(!skips.Shows(46, controls: false, paused: true), "Paused, only with the controls");
+            Assert(skips.Shows(47, false, false), "Going back to its start shows it again");
+            skips.Offer(140, 1410, offering: true, autoNext: true);
+            skips.Offer(100, 1410, offering: true, autoNext: true);
+            Assert(skips.Shows(100, false, false) && !skips.Shows(108, false, false), "Landing in the middle of a passage shows it from there");
+            skips.Offer(1300, 1410, offering: true, autoNext: true);
+            Assert(skips.Counting && skips.Shows(1309, false, false), "The countdown stays shown");
+            skips.Cancel();
+            Assert(!skips.Shows(1309, false, false) && skips.Shows(1309, controls: true, paused: false), "After « Annuler », the next episode only with the controls");
+            skips.Reset();
+            Assert(!skips.Shows(0, true, false) && double.IsNaN(skips.OfferedAt), "A new title starts clean");
+            return Task.CompletedTask;
+        });
         await Test("mpv : fin de fichier, échec, et fin sans sortie son sur Mac", () =>
         {
             Assert(MpvClient.Ending(0, 0, false) == (true, false) && MpvClient.Ending(2, 0, false) == (false, false), "End of file, or stopped");

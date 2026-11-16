@@ -34,7 +34,8 @@ public partial class MainWindow
     private double _skipLift = double.NaN;
     /// <summary>The pill already showed the countdown at the last tick: its width is the countdown's.</summary>
     private bool _skipCounted;
-    private bool SkipAvailable => _skipShown && _skips.Active is not null;
+    /// <summary>S jumps over the passage under the playhead, pill shown or not (it hides a few seconds in, SkipPlanner.Shows).</summary>
+    private bool SkipAvailable => _skips.Active is not null;
     private void ResetMarkers()
     {
         _skips.Reset(); _trickplay?.Dispose(); _trickplay = null;
@@ -153,9 +154,9 @@ public partial class MainWindow
         UpdateNextCard(card && !menu);
         if (counting && !card && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);
         else if ((!counting || card) && SkipCancel.Visibility == Visibility.Visible && SkipCancel.IsHitTestVisible) _ = Motion.HideAsync(SkipCancel, 140);
-        // The whole passage while it plays, controls shown or not (an opening lasts 1 min 30: a pill gone after 8 s was
-        // missed); paused, only with the controls.
-        SetSkipVisible(!card && !menu && _skips.Active is not null && (_controlsVisible || counting || !_session.Paused));
+        // A few seconds when its passage starts, then only with the controls (SkipPlanner.Shows): over the whole opening
+        // it was in the way.
+        SetSkipVisible(!card && !menu && _skips.Shows(_session.Position, _controlsVisible, _session.Paused));
         // Sits just above the bar's title and time while they are shown, near the bottom edge otherwise.
         var lift = _controlsVisible ? -Math.Max(0, PlayerControlsBody.ActualHeight + PlayerControlsBody.Margin.Bottom + 16 - SkipHost.Margin.Bottom) : 0;
         if (lift != _skipLift) { _skipLift = lift; Motion.Animate(SkipShift, TranslateTransform.YProperty, lift, 260, ease: Motion.EaseOut); }
