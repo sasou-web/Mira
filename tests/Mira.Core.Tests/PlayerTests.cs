@@ -1117,14 +1117,14 @@ internal static class PlayerTests
             skips.Segments = [new(SkipKind.Intro, 45, 135), new(SkipKind.Outro, 1290, 1380), new(SkipKind.Preview, 1380, 1410)];
             Assert(!skips.Shows(10, controls: true, paused: false), "No passage, no pill");
             skips.Offer(45, 1410, offering: true, autoNext: true);
-            Assert(skips.Shows(45, false, false) && skips.Shows(52.9, false, false), "Shown when the opening starts");
-            Assert(!skips.Shows(53, false, false) && !skips.Shows(120, false, false), "Gone a few seconds into the opening");
+            Assert(skips.Shows(45, false, false) && skips.Shows(48.9, false, false), "Shown when the opening starts");
+            Assert(!skips.Shows(49, false, false) && !skips.Shows(120, false, false), "Gone a few seconds into the opening");
             Assert(skips.Shows(120, controls: true, paused: false) && skips.Shows(120, controls: true, paused: true), "Back with the controls");
             Assert(!skips.Shows(46, controls: false, paused: true), "Paused, only with the controls");
             Assert(skips.Shows(47, false, false), "Going back to its start shows it again");
             skips.Offer(140, 1410, offering: true, autoNext: true);
             skips.Offer(100, 1410, offering: true, autoNext: true);
-            Assert(skips.Shows(100, false, false) && !skips.Shows(108, false, false), "Landing in the middle of a passage shows it from there");
+            Assert(skips.Shows(100, false, false) && !skips.Shows(104, false, false), "Landing in the middle of a passage shows it from there");
             skips.Offer(1300, 1410, offering: true, autoNext: true);
             Assert(skips.Counting && skips.Shows(1309, false, false), "The countdown stays shown");
             skips.Cancel();
