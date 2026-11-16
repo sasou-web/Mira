@@ -225,7 +225,7 @@ public sealed partial class PlayerPage : UserControl
         _click.Tick += (_, _) => { _click.Stop(); TogglePause(); _clickToggled = true; };
         _dockTimer.Tick += (_, _) => DockTick();
         AttachedToVisualTree += (_, _) => FollowPointer(true);
-        DetachedFromVisualTree += (_, _) => { FollowPointer(false); _dockTimer.Stop(); };
+        DetachedFromVisualTree += (_, _) => { FollowPointer(false); _dockTimer.Stop(); CloseMenus(); };
         _groupSeekSoon.Tick += (_, _) => { _groupSeekSoon.Stop(); if (Group.PlaysFor(this)) Group.Send("Seek", new JsonObject { ["PositionTicks"] = WatchGroup.Ticks(_session.Position) }); };
         _groupPlaySoon.Tick += (_, _) => { _groupPlaySoon.Stop(); if (Group.PlaysFor(this)) { MoveForGroup(_groupPlayAt); QuietPause(false); } };
         _videoHost.PointerPressed += (_, e) =>
@@ -479,10 +479,15 @@ public sealed partial class PlayerPage : UserControl
     }
 
     /// <summary>Stops playback, reporting where it stopped (or that it ended) and remembering it for Continuer à regarder.</summary>
+    /// <summary>
+    /// The player's menus closed with it: on macOS each is a window of its own, floating above every app, that would
+    /// otherwise stay alone on the desktop (« Search for subtitles » still waiting for Jellyfin when the player closed).
+    /// </summary>
+    private void CloseMenus() { _subtitleView = false; foreach (var button in new[] { _tracks, _more, _episodesButton }) button.Flyout?.Hide(); }
     public async Task StopAsync(bool completed = false)
     {
         if (_stopped) return;
-        _stopped = true; ++_generation; ForgetStream();
+        _stopped = true; ++_generation; ForgetStream(); CloseMenus();
         _tick.Stop(); _hide.Stop(); _click.Stop(); _groupSeekSoon.Stop(); _groupPlaySoon.Stop(); Cursor = Cursor.Default;
         SleepGuard.Set(false);
         var session = _shell.Session;

@@ -211,7 +211,9 @@ public sealed partial class MainWindow : Window
         // Its releases always: a key held is read once where acting again would undo it, and the release of a key it took
         // is its own too: Avalonia presses a focused button when Space is released (PlayerPage.Keys.cs).
         AddHandler(KeyUpEvent, (_, e) => Player?.HandleKeyUp(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
-        Deactivated += (_, _) => Player?.ForgetHeldKeys();
+        Deactivated += (_, _) => { Player?.ForgetHeldKeys(); OpenPopups.WhenLeft(this); };
+        // A popup is a window of its own on macOS, floating above every app: none outlives Mira being in front.
+        OpenPopups.Follow();
         KeyDown += OnKeyDown;
         InitializeCouch();
         ListenToMediaKeys();
