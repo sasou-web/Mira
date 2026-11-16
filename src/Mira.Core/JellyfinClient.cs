@@ -565,9 +565,11 @@ public sealed class JellyfinClient : IDisposable
     {
         using var response = await _http.GetAsync($"Providers/Subtitles/Subtitles/{Uri.EscapeDataString(subtitle.Id)}", ct);
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return SubtitleKept.Refused;
+        // The provider could not give this result (an archive without this episode, a file gone from the site).
+        if (response.StatusCode is HttpStatusCode.InternalServerError or HttpStatusCode.NotFound) return SubtitleKept.Unavailable;
         await CheckAsync(response);
         var data = await response.Content.ReadAsByteArrayAsync(ct);
-        var format = subtitle.Format.ToLowerInvariant() is var named && JellyfinSubtitles.Formats.Contains(named) ? named : "srt";
+        var format = JellyfinSubtitles.FormatOf(data, subtitle.Format, subtitle.Language);
         return await KeepSubtitleAsync(itemId, new SubtitleUpload(format, subtitle.Language.Length > 0 ? subtitle.Language : "und", subtitle.Forced, subtitle.HearingImpaired, data), ct);
     }
     /// <summary>

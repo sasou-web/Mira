@@ -10,7 +10,7 @@ public sealed record SubtitleUpload(string Format, string Language, bool Forced,
 /// What became of a subtitle sent to Jellyfin. KeptInJellyfinData: Jellyfin could not write beside the video (it only
 /// reads the media folders a Mira install gave it), so its library now keeps the subtitles in Jellyfin's own data.
 /// </summary>
-public enum SubtitleKept { Kept, KeptInJellyfinData, Refused, NotWritten }
+public enum SubtitleKept { Kept, KeptInJellyfinData, Refused, NotWritten, Unavailable }
 /// <summary>A subtitle Jellyfin's subtitle extension (Open Subtitles…) found for a title (Items/{id}/RemoteSearch/Subtitles).</summary>
 /// <remarks>Score and Source: Mira's own provider (« Mira ») says how well each result fits the file (0 to 100) and which site it is from.</remarks>
 public sealed record RemoteSubtitle(string Id, string Name, string Provider, string Format, string Language, int Downloads, bool HashMatch, bool Forced, bool HearingImpaired, bool MachineTranslated,
@@ -154,6 +154,7 @@ public static class JellyfinSubtitles
             SubtitleKept.Kept => L($"Sous-titres gardés sur Jellyfin{name} : tes autres appareils les proposent aussi.", $"Subtitles kept on Jellyfin{name}: your other devices offer them too."),
             SubtitleKept.KeptInJellyfinData => L($"Sous-titres gardés sur Jellyfin{name} : tes autres appareils les proposent aussi. Jellyfin n’a que le droit de lire le dossier de tes vidéos : il range ceux de cette bibliothèque dans ses propres données.", $"Subtitles kept on Jellyfin{name}: your other devices offer them too. Jellyfin may only read your videos’ folder: it keeps those of this library in its own data."),
             SubtitleKept.Refused => L("Ton compte Jellyfin n’a pas le droit de gérer les sous-titres : son administrateur peut le lui donner (Tableau de bord → Utilisateurs).", "Your Jellyfin account isn’t allowed to manage subtitles: its administrator can allow it (Dashboard → Users)."),
+            SubtitleKept.Unavailable => L("Ce résultat n’a pas pu être récupéré auprès de son site (fichier absent, ou pas celui de cet épisode) : essaie un autre résultat.", "This result couldn’t be fetched from its site (file missing, or not this episode’s): try another one."),
             _ => L("Jellyfin n’a pas pu enregistrer ces sous-titres : il n’a pas le droit d’écrire dans le dossier de ce titre.", "Jellyfin couldn’t save these subtitles: it isn’t allowed to write in this title’s folder."),
         };
     }
@@ -165,6 +166,16 @@ public static class JellyfinSubtitles
     /// <summary>A file loaded during playback, read to be sent (<see cref="Guess"/> for what it is); null when it is too big to be subtitles.</summary>
     public static async Task<SubtitleUpload?> ReadAsync(string file, (string Format, string Language, bool Forced, bool HearingImpaired) guess, CancellationToken ct = default) =>
         new FileInfo(file).Length > MaxSize ? null : new SubtitleUpload(guess.Format, guess.Language, guess.Forced, guess.HearingImpaired, await File.ReadAllBytesAsync(file, ct));
+    /// <summary>
+    /// The format of a subtitle file read from what it holds (« [Script Info] » = ASS, « WEBVTT », SRT times), the one a
+    /// search result announced only when the content says nothing: a source that labels an ASS file « SRT » (SubDL,
+    /// OpenSubtitles) gave Jellyfin a .srt it could never read, and each new try another copy of it.
+    /// </summary>
+    public static string FormatOf(byte[] data, string? announced, string? language)
+    {
+        var said = announced?.ToLowerInvariant() is { } named && Formats.Contains(named) ? named : "srt";
+        return Mira.Core.Subtitles.SubtitleText.FormatOf(Mira.Core.Subtitles.SubtitleText.Decode(data, language)) is { } read && Formats.Contains(read) ? read : said;
+    }
     /// <summary>A subtitle stream's file extension for Jellyfin's Stream.{ext} address (subrip → srt, webvtt → vtt).</summary>
     public static string Extension(string? codec) => codec?.ToLowerInvariant() switch { "subrip" or "srt" or null or "" => "srt", "webvtt" or "vtt" => "vtt", var other => other };
     /// <summary>
