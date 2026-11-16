@@ -80,7 +80,7 @@ public sealed partial class MainWindow
         InDock = true; _refreshOnReturn = true; PresenceChanged();
         RememberWindow();
         try { Profile.SaveSettings(Settings); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); }
-        Player?.Pip?.Hide();
+        Player?.Pip?.Hide(); OpenPopups.CloseAll();
         try { await StopPlaybackAsync(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); }
         // A full-screen window hidden would leave its empty Space behind: back in the desktop first, as macOS slides it.
         if (WindowState == WindowState.FullScreen) { WindowState = WindowState.Normal; await Task.Delay(900); RememberWindow(); }

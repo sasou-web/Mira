@@ -1202,8 +1202,14 @@ public static class SelfCheck
                 var pipLeft = await PipChecksAsync(window, player, engine, renderer, output, Check);
                 Key(window, Avalonia.Input.Key.Space);
                 Check(await Until(() => engine.Flag("pause"), 3), $"pause ({renderer})");
+                // A menu left open goes with the player: on macOS it is a window of its own that stayed alone over the desktop (0.9.12).
+                if (player.IsMini) { Key(window, Avalonia.Input.Key.I); await Until(() => !player.IsMini && player.Bounds.Width > 800, 3); }
+                player.ShowControlsForCheck(); player.TracksButton.Flyout!.ShowAt(player.TracksButton); if (player.CanSearchSubtitles) player.SearchSubtitles();
+                await Task.Delay(300);
+                var openBefore = OpenPopups.Count; var menuOpen = player.TracksButton.Flyout?.IsOpen == true && openBefore > 0;
                 await window.StopPlaybackAsync();
                 Check(window.Player is null, $"retour à la bibliothèque ({renderer})");
+                Check(menuOpen && player.TracksButton.Flyout?.IsOpen != true && OpenPopups.Count == 0, $"lecteur : un menu ouvert part avec le lecteur ({renderer})", $"ouvert avant : {menuOpen} (mini : {player.IsMini}, popups : {openBefore}), popups après : {OpenPopups.Count}");
                 Check(MacNowPlaying.Clock.Told is null && (!OperatingSystem.IsMacOS() || MacNowPlaying.ToldTitle() is null), $"touches média : « Now Playing » vidé à la fermeture ({renderer})", MacNowPlaying.Clock.Told?.Title ?? "");
                 if (pipLeft is not null) Check(!pipLeft.IsVisible && player.Pip is null, $"image dans l’image : partie avec la lecture ({renderer})");
             }
