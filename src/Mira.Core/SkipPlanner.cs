@@ -38,7 +38,7 @@ public sealed class SkipPlanner
     /// How long the pill shows by itself, in playback time, once its passage starts (or once the playhead lands in it);
     /// after that only with the player's controls, as Netflix and Plex do: a pill over the whole opening was in the way.
     /// </summary>
-    public const double ShownFor = 8;
+    public const double ShownFor = 4;
 
     /// <summary>A new title: nothing known yet.</summary>
     public void Reset()
