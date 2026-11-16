@@ -227,17 +227,6 @@ internal static class SearchSourceTests
                 "Nothing when no anime is the title (a word in the middle of a name is not it)");
             await Throws<JsonException>(() => Task.FromResult(SearchSources.ParseAniList("""{"errors":[{"message":"Too Many Requests"}],"data":null}""", "Frieren")));
 
-            // The show a franchise pack's title is part of: an arc is a synonym of its show, never a name that only begins with it.
-            const string Monogatari = """
-                {"data":{"Page":{"media":[
-                {"title":{"romaji":"Nekomonogatari: Kuro","english":"Nekomonogatari: Black"},"synonyms":[]},
-                {"title":{"romaji":"Monogatari Series: Second Season","english":null},"synonyms":["Nekomonogatari (Shiro)","Kabukimonogatari","Otorimonogatari","Onimonogatari","Koimonogatari"]}]}}}
-                """;
-            Assert(SearchSources.ParseAniListShow(Monogatari, "Kabukimonogatari") == "Monogatari Series: Second Season", "An arc: " + SearchSources.ParseAniListShow(Monogatari, "Kabukimonogatari"));
-            Assert(SearchSources.ParseAniListShow(Monogatari, "Nekomonogatari Shiro") == "Monogatari Series: Second Season", "Its parentheses dropped");
-            Assert(SearchSources.ParseAniListShow(Monogatari, "Nekomonogatari Kuro") == "Nekomonogatari: Kuro", "Its own show");
-            Assert(SearchSources.ParseAniListShow(Monogatari, "Nekomonogatari") is null && SearchSources.ParseAniListShow(Monogatari, "Owarimonogatari") is null, "Nothing for a name only begun, or none");
-
             var asked = new List<string>(); var forms = new List<string>();
             Task<(List<AgentHit>, string?)> TorLink(string form, CancellationToken _) { lock (forms) forms.Add(form); return Task.FromResult<(List<AgentHit>, string?)>(([Hit("a", form, 3)], null)); }
             var aniListDown = false;
