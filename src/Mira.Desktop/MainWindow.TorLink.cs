@@ -46,6 +46,9 @@ public partial class MainWindow
         TorLinkNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
         if (!_torlinkEnabled) return;
         _torlink = new TorLinkPlacement(_torlinkState, new TorLinkImporter(_profile.DirectoryPath));
+        // A franchise pack's arcs of one show (Monogatari) placed as that show: AniList is asked the titles, as for a search.
+        if (!_args.Contains("--torlink-check"))
+            _torlink.Importer.FranchiseShows = async (titles, ct) => _settings.TorLinkMoreSources ? await _searchSources.FranchiseShowsAsync(titles, ct) : new Dictionary<string, string>();
         _torlink.Importer.Changed += entry => Dispatcher.BeginInvoke(() => TorLinkEntryChanged(entry));
         _torlink.HistoryChanged += () => Dispatcher.BeginInvoke(QueueTorLinkImport);
         _torlinkDebounce.Tick += async (_, _) => { _torlinkDebounce.Stop(); await ProcessTorLinkAsync(); };

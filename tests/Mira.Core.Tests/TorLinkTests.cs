@@ -228,6 +228,46 @@ internal static class TorLinkTests
             Assert(office.Operations.All(x => x.Destination.Contains("The Office US")) && office.OtherRoots is null, "Season pack: " + string.Join(" | ", office.Operations.Select(Target)));
             return Task.CompletedTask;
         });
+        await Test("TorLink : les arcs d'une même série d'un pack de franchise rangés en une série, épisodes à la suite", () =>
+        {
+            // « Monogatari Series » (2026-11-16): « Nekomonogatari (Shiro) », « Kabukimonogatari »… placed each as its own show
+            // were all found by Jellyfin as « Monogatari Series Second Season »: six cards of it. AniList says which show each
+            // title is part of; « Nekomonogatari (Kuro) » read « Nekomonogatari » alone (parentheses dropped by Jellyfin).
+            var dir = Path.Combine(testRoot, "torlink-arcs"); var anime = Path.Combine(dir, "ANIME");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), anime);
+            SourceFile File(string path) => new(Path.Combine(dir, "downloads", path), path, 1_400_000_000);
+            const string Pack = "Monogatari Series";
+            List<SourceFile> files = [
+                File($"{Pack}/03. Nekomonogatari (Kuro)/Nekomonogatari (Kuro) 01.mkv"), File($"{Pack}/03. Nekomonogatari (Kuro)/Nekomonogatari (Kuro) 02.mkv"),
+                File($"{Pack}/05. Nekomonogatari (Shiro)/Nekomonogatari (Shiro) 01.mkv"), File($"{Pack}/05. Nekomonogatari (Shiro)/Nekomonogatari (Shiro) 02.mkv"),
+                File($"{Pack}/06. Kabukimonogatari/Kabukimonogatari 01.mkv"), File($"{Pack}/06. Kabukimonogatari/Kabukimonogatari 02.mkv"),
+                File($"{Pack}/08. Owarimonogatari/Owarimonogatari 01.mkv")];
+            var titles = MediaPlanner.FranchiseTitles(files);
+            Assert(titles is not null && titles.SequenceEqual(["Nekomonogatari Kuro", "Nekomonogatari Shiro", "Kabukimonogatari", "Owarimonogatari"]), "Titles: " + string.Join(" | ", titles ?? []));
+            var shows = new Dictionary<string, string>
+            {
+                ["Nekomonogatari Kuro"] = "Nekomonogatari: Kuro",
+                ["Nekomonogatari Shiro"] = "Monogatari Series: Second Season",
+                ["Kabukimonogatari"] = "Monogatari Series: Second Season",
+                ["Owarimonogatari"] = "Owarimonogatari",
+            };
+            var plan = MediaPlanner.Plan(Pack, null, files, libraries, shows: shows);
+            string Target(ImportOperation x) => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/');
+            var targets = string.Join(" | ", plan.Operations.Select(Target));
+            foreach (var expected in new[] {
+                "ANIME/Nekomonogatari Kuro/Season 01/Nekomonogatari Kuro - S01E02.mkv",
+                "ANIME/Monogatari Series - Second Season/Season 01/Monogatari Series - Second Season - S01E01.mkv",
+                "ANIME/Monogatari Series - Second Season/Season 01/Monogatari Series - Second Season - S01E02.mkv",
+                "ANIME/Monogatari Series - Second Season/Season 01/Monogatari Series - Second Season - S01E03.mkv",
+                "ANIME/Monogatari Series - Second Season/Season 01/Monogatari Series - Second Season - S01E04.mkv",
+                "ANIME/Owarimonogatari/Season 01/Owarimonogatari - S01E01.mkv" })
+                Assert(plan.Operations.Any(x => Target(x) == expected), $"Missing {expected}: {targets}");
+            Assert(plan.Operations.Count == 7 && plan.Title == "Monogatari Series · 3 séries", $"{plan.Title}: {targets}");
+            // Without AniList (cut, no answer), each title its own show, as before.
+            var alone = MediaPlanner.Plan(Pack, null, files, libraries);
+            Assert(alone.Operations.Any(x => Target(x) == "ANIME/Kabukimonogatari/Season 01/Kabukimonogatari - S01E02.mkv"), "Alone: " + string.Join(" | ", alone.Operations.Select(Target)));
+            return Task.CompletedTask;
+        });
         await Test("TorLink : un épisode « .5 » d'anime (récap, spécial) rangé dans les Extras de sa série, jamais en film ni à la place d'un épisode", () =>
         {
             // « Show - 07.5 » went to Films as a film « Show - 07.5 »; « Show S4 - 12.5 » too; « Show S3 - Episode 12.5 » and
