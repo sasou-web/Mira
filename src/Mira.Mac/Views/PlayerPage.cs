@@ -1245,7 +1245,7 @@ public sealed partial class PlayerPage : UserControl
         var menu = _tracks.Flyout?.IsOpen == true || _more.Flyout?.IsOpen == true || _episodesButton.Flyout?.IsOpen == true;
         UpdateNextCard(card && !menu);
         _skipCancel.IsVisible = counting && !_mini && !card && !menu;
-        _skip.IsVisible = !card && !_mini && !menu && _skips.Active is not null && (_controlsShown || counting || !_session.Paused);
+        _skip.IsVisible = !card && !_mini && !menu && _skips.Shows(_session.Position, _controlsShown, _session.Paused);
         // Just above the bar's title and time while they are shown, near the bottom edge otherwise (as on Windows).
         var lift = _controlsShown && _bottom.Bounds.Height > 0 ? Math.Max(36, _bottom.Bounds.Height - _bottom.Padding.Top + 16) : 36;
         if (lift != _skipLift) { _skipLift = lift; _skipHost.Margin = new Thickness(0, 0, 36, lift); }

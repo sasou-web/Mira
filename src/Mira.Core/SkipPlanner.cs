@@ -32,12 +32,19 @@ public sealed class SkipPlanner
     /// <summary>Openings and recaps already jumped over by themselves in this title: going back into one plays it.</summary>
     public HashSet<SkipSegment> AutoSkipped { get; } = [];
     public bool Counting => CountdownEnd is not null && Active is not null;
+    /// <summary>Where, in playback time, <see cref="Active"/> was first offered: the pill shows by itself from there.</summary>
+    public double OfferedAt { get; set; } = double.NaN;
+    /// <summary>
+    /// How long the pill shows by itself, in playback time, once its passage starts (or once the playhead lands in it);
+    /// after that only with the player's controls, as Netflix and Plex do: a pill over the whole opening was in the way.
+    /// </summary>
+    public const double ShownFor = 8;
 
     /// <summary>A new title: nothing known yet.</summary>
     public void Reset()
     {
         ServerSegments = []; Segments = []; FileChapters = []; ServerChapters = [];
-        Active = null; Next = null; Film = null; ToNext = false; CountdownEnd = null; Stay = false; AutoSkipped.Clear();
+        Active = null; OfferedAt = double.NaN; Next = null; Film = null; ToNext = false; CountdownEnd = null; Stay = false; AutoSkipped.Clear();
     }
     /// <summary>Typed server segments win; chapter titles only fill what the server left empty (see <see cref="PlaybackMarkers.Passages"/>).</summary>
     public void Rebuild(double duration) => Segments = PlaybackMarkers.Passages(ServerSegments, Chapters, duration);
@@ -61,13 +68,25 @@ public sealed class SkipPlanner
             : Film is not null ? new SkipSegment(SkipKind.Trailer, 0, Math.Max(duration, 1))
             : PlaybackMarkers.Offer(Segments, position, duration, Next is not null);
         if (active == Active) return false;
-        Active = active; CountdownEnd = null;
+        Active = active; CountdownEnd = null; OfferedAt = position;
         if (active is { } segment)
         {
             ToNext = Next is not null && PlaybackMarkers.EndsPlayback(Segments, segment, duration);
             if (ToNext && autoNext && !Stay) CountdownEnd = PlaybackMarkers.CountdownEnd(position, segment);
         }
         return true;
+    }
+    /// <summary>
+    /// Whether the pill is over the video at <paramref name="position"/>: always with the player's controls or during the
+    /// countdown; paused, only with the controls; playing, for <see cref="ShownFor"/> seconds after its passage started.
+    /// Going back to before that moment shows it again.
+    /// </summary>
+    public bool Shows(double position, bool controls, bool paused)
+    {
+        if (Active is null) return false;
+        if (controls || Counting) return true;
+        if (paused) return false;
+        return !double.IsFinite(OfferedAt) || position < OfferedAt + ShownFor;
     }
     public string Label(bool episode) => Active is { } segment ? PlaybackMarkers.Label(segment.Kind, episode, ToNext) : "";
     /// <summary>The next episode, when the countdown is over at <paramref name="position"/>; the countdown stops there.</summary>
