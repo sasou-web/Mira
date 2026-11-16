@@ -201,17 +201,26 @@ public static partial class MediaPlanner
         if (folders.Count < 2) return null;
         if (folders.Any(g => ReleaseName.SeasonOfFolder(g.Key) is not null || ReleaseName.InExtrasFolder(g.Key + "/x") || ReleaseName.InSpecialsFolder(g.Key + "/x"))) return null;
         var numbered = folders.All(g => FranchiseOrder().IsMatch(g.Key));
-        var titles = folders.Select(g => (Folder: g.Key, Title: ReleaseName.SafeName(Tidy(FranchiseOrder().Replace(g.Key, ""))))).ToList();
+        var titles = folders.Select(g => (Folder: g.Key, Title: FranchiseTitle(g.Key))).ToList();
         if (titles.Any(t => ReleaseName.Key(t.Title).Length == 0) || titles.Select(t => ReleaseName.Key(t.Title)).Distinct().Count() != titles.Count) return null;
         // A season pack names its folders after one show (« Show.S01.1080p », « Show.S02.1080p »): never a franchise.
         if (titles.Select(t => ReleaseName.Key(ReleaseName.Show(t.Folder).Title)).Distinct().Count() == 1) return null;
         var named = folders.All(g => g.Where(f => ReleaseName.IsVideo(f.RelativePath)).Any(f =>
-            ReleaseName.Key(Path.GetFileNameWithoutExtension(f.RelativePath)).StartsWith(ReleaseName.Key(ReleaseName.SafeName(Tidy(FranchiseOrder().Replace(g.Key, "")))), StringComparison.Ordinal)));
+            ReleaseName.Key(Path.GetFileNameWithoutExtension(f.RelativePath)).StartsWith(ReleaseName.Key(FranchiseTitle(g.Key)), StringComparison.Ordinal)));
         if (!numbered && !named) return null;
         return folders.Select((g, i) => (titles[i].Title, g.Select(f => f with { RelativePath = string.Join('/', Parts(f)[(skip + 1)..]) }).ToList())).ToList();
     }
 
     private static string Tidy(string name) => ReleaseName.Readable(name, out _).Trim();
+
+    // « 04. Nekomonogatari (Kuro) » → « Nekomonogatari Kuro »: Jellyfin reads a folder's name without what is in
+    // parentheses (« Nekomonogatari » alone found another show, Kuro and Shiro one folder); a year in them stays one.
+    private static string FranchiseTitle(string folder)
+    {
+        var name = Tidy(FranchiseOrder().Replace(folder, ""));
+        name = System.Text.RegularExpressions.Regex.Replace(name, @"\((?!\d{4}\))([^()]*)\)", " $1 ");
+        return ReleaseName.SafeName(System.Text.RegularExpressions.Regex.Replace(name, @"\s+", " ").Trim());
+    }
 
     /// <summary>The order a franchise pack numbers its folders by: « 01. », « 02 - », « 3) ».</summary>
     [System.Text.RegularExpressions.GeneratedRegex(@"^\s*\d{1,3}\s*[.\-_)]\s*")]

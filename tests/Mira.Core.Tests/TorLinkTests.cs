@@ -228,6 +228,31 @@ internal static class TorLinkTests
             Assert(office.Operations.All(x => x.Destination.Contains("The Office US")) && office.OtherRoots is null, "Season pack: " + string.Join(" | ", office.Operations.Select(Target)));
             return Task.CompletedTask;
         });
+        await Test("TorLink : chaque titre d'un pack de franchise est sa propre série, arcs compris, jamais regroupés en saisons", () =>
+        {
+            // « Monogatari Series » (2026-11-16, ogsas): fifteen titles, fifteen cards, Kuro and Shiro apart, the arcs of
+            // « Second Season » (Kabuki, Otori…) each alone too: the order fans watch them in is not the official one.
+            var dir = Path.Combine(testRoot, "torlink-arcs"); var anime = Path.Combine(dir, "ANIME");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), anime);
+            SourceFile File(string path) => new(Path.Combine(dir, "downloads", path), path, 1_400_000_000);
+            const string Pack = "Monogatari Series";
+            List<SourceFile> files = [
+                File($"{Pack}/04. Nekomonogatari (Kuro)/Nekomonogatari (Kuro) 01.mkv"), File($"{Pack}/04. Nekomonogatari (Kuro)/Nekomonogatari (Kuro) 02.mkv"),
+                File($"{Pack}/05. Nekomonogatari (Shiro)/Nekomonogatari (Shiro) 01.mkv"), File($"{Pack}/05. Nekomonogatari (Shiro)/Nekomonogatari (Shiro) 02.mkv"),
+                File($"{Pack}/06. Kabukimonogatari/Kabukimonogatari 01.mkv"), File($"{Pack}/06. Kabukimonogatari/Kabukimonogatari 02.mkv"),
+                File($"{Pack}/08. Otorimonogatari/Otorimonogatari 01.mkv")];
+            var plan = MediaPlanner.Plan(Pack, null, files, libraries);
+            string Target(ImportOperation x) => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/');
+            var targets = string.Join(" | ", plan.Operations.Select(Target));
+            foreach (var expected in new[] {
+                "ANIME/Nekomonogatari Kuro/Season 01/Nekomonogatari Kuro - S01E02.mkv",
+                "ANIME/Nekomonogatari Shiro/Season 01/Nekomonogatari Shiro - S01E01.mkv",
+                "ANIME/Kabukimonogatari/Season 01/Kabukimonogatari - S01E02.mkv",
+                "ANIME/Otorimonogatari/Season 01/Otorimonogatari - S01E01.mkv" })
+                Assert(plan.Operations.Any(x => Target(x) == expected), $"Missing {expected}: {targets}");
+            Assert(plan.Operations.Count == 7 && plan.Title == "Monogatari Series · 4 séries", $"{plan.Title}: {targets}");
+            return Task.CompletedTask;
+        });
         await Test("TorLink : un épisode « .5 » d'anime (récap, spécial) rangé dans les Extras de sa série, jamais en film ni à la place d'un épisode", () =>
         {
             // « Show - 07.5 » went to Films as a film « Show - 07.5 »; « Show S4 - 12.5 » too; « Show S3 - Episode 12.5 » and
