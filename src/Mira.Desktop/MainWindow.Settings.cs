@@ -124,7 +124,7 @@ public partial class MainWindow
         WatchSettingsGroups(); ShowSettingsGroups();
         // What « Soin de la bibliothèque » holds, read now: its tab is listed only once one of them shows.
         _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync();
-        DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _ = ShowPhotoAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowOfflineSettings();
+        DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _ = ShowPhotoAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowSignInStart(); ShowOfflineSettings();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState(); _ = ShowJellyfinServerAsync();
         MirrorEssentials(); ShowEssentials();
         SettingsSearchBox.Clear(); ShowSheet(SettingsOverlay); UpdateHeroClock();

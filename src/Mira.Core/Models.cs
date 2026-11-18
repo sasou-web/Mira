@@ -356,6 +356,8 @@ public sealed class PlayerSettings
     public bool NightSound { get; set; }
     /// <summary>Told once that the window's cross keeps Mira by the clock while it works (Windows, <c>MainWindow.Windows.cs</c>).</summary>
     public bool CloseKeptTold { get; set; }
+    /// <summary>« Ouvrir Mira à l’ouverture de session » (Windows, PC of Jellyfin, <see cref="SignInStart"/>): on by default.</summary>
+    public bool OpenAtSignIn { get; set; } = true;
     /// <summary>« Grouped N titles into M collections » said once, the first time sagas were grouped on their own (CollectionShelf).</summary>
     public bool CollectionsGroupedTold { get; set; }
     public bool AutoNext { get; set; } = true;

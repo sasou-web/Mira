@@ -155,6 +155,8 @@ public partial class MainWindow : Window
         // Placed in device pixels once the window exists, before it shows. Maximized afterwards: WPF applies it on showing,
         // on the screen the window is then on (set before, the window would be created maximized wherever Windows puts it).
         WindowStartupLocation = WindowStartupLocation.Manual;
+        // Started at sign-in: by the clock, the window off every screen and out of the taskbar, placed when first shown (MainWindow.SignIn.cs).
+        if (AtSignIn) { (_placementLater, ShowActivated, ShowInTaskbar, Left, Top) = (placement, false, false, -30000, -30000); return; }
         SourceInitialized += (_, _) =>
         {
             Screens.Move(new System.Windows.Interop.WindowInteropHelper(this).Handle, placement.Window);
@@ -171,7 +173,7 @@ public partial class MainWindow : Window
     /// <summary>The window as the person left it; fullscreen and the mini-player are passing states, not a size to reopen at.</summary>
     private void RememberWindow()
     {
-        if (ValidationRun || _fullscreen || _couchScreen || _miniPlayer) return;
+        if (ValidationRun || _fullscreen || _couchScreen || _miniPlayer || _placementLater is not null) return;
         var maximized = WindowState == WindowState.Maximized || WindowState == WindowState.Minimized && _lastVisibleState == WindowState.Maximized;
         var bounds = WindowState == WindowState.Normal ? new Size(ActualWidth, ActualHeight) : RestoreBounds.Size;
         // Maximized or minimized, RestoreBounds is the size it returns to.
@@ -182,6 +184,8 @@ public partial class MainWindow : Window
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // Started at sign-in: put away by the clock at once, everything below runs as usual.
+        if (AtSignIn) Hide();
         // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.
         await StartTailnetWithMiraAsync();
         if (_args.Contains("--demo")) await ShowDemoAsync();
@@ -194,7 +198,7 @@ public partial class MainWindow : Window
         if (await RunRequestedCheckAsync()) return;
 #endif
         _fallbackRefresh.Start();
-        StartKeepingAwake();
+        StartKeepingAwake(); _ = ReadRemotePlaybackAsync();
         StartGpuRecheck();
         StartJellyfinCare();
         _ = RefreshEngineAsync();

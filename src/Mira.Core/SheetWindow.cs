@@ -76,6 +76,7 @@ public static class SheetWindow
         ["notification", "notifications", "notify", "prevenir", "alert"],
         ["skip", "intro", "intros", "opening", "generique", "recap", "recaps", "passer"],
         ["back to back", "autoplay", "binge", "enchainer", "episode suivant", "next episode"],
+        ["startup", "start with windows", "autostart", "demarrage", "demarrer avec windows", "lancer avec windows", "ouverture de session"],
     ];
     /// <summary>
     /// <paramref name="word"/> at the start of a word of <paramref name="text"/>, that word going on for at most

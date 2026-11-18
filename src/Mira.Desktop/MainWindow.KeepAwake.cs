@@ -29,7 +29,13 @@ public partial class MainWindow
         var awake = false;
         try
         {
-            if (!_demo && OwnClient is { } client && await JellyfinOnThisPcAsync(client)) awake = ServerSleep.KeepAwake(await client.ViewersAsync());
+            if (!_demo && OwnClient is { } client)
+            {
+                var here = await JellyfinOnThisPcAsync(client);
+                // Mira back by itself after a restart, while this PC holds the Jellyfin (MainWindow.SignIn.cs).
+                KeepSignInStart(here);
+                if (here) awake = ServerSleep.KeepAwake(await client.ViewersAsync());
+            }
         }
         catch (Exception ex) when (IsExpected(ex)) { }
         finally { _readingPlayback = false; }

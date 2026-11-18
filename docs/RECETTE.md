@@ -10,6 +10,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Avis « Jellyfin convertit maintenant avec ta … » (carte Intel), puis une conversion qui ne saccade pas
 - [ ] Sauvegarde de Jellyfin faite toute seule (Réglages → Serveur Jellyfin : date de la dernière)
 - [ ] Mise à jour de Jellyfin au clic (quand une version sort) : service revenu, Jellyfin répond
+- [ ] Redémarrer le PC (ou après une mise à jour de Windows) puis ouvrir la session : Mira revient seul près de l’horloge, aucune fenêtre au premier plan ni dans la barre des tâches ; un téléchargement demandé depuis l’iPhone part sans ouvrir Mira ; clic sur l’icône = fenêtre à sa place habituelle (agrandie si elle l’était) ; Réglages → Serveur Jellyfin dit « Prêt »
 - [ ] Téléchargements : un magnet public par TorLink, rangé dans la bibliothèque
 - [ ] Un `.torrent` de C411 par qBittorrent, rangé (lien physique), qBittorrent continue de partager
 - [ ] Téléchargement qui atterrit sur le disque USB de 6 To monté dans `MEDIAS` (dès qu'il est là)
