@@ -106,11 +106,13 @@ struct WayPlanTests {
         let url = try #require(Bundle(for: Bundled.self).url(forResource: "server-move", withExtension: "json"))
         let x = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         for row in try #require(x["movable"] as? [[Any]]) {
-            let server = try #require(URL(string: try #require(row[0] as? String)))
+            let address = try #require(row[0] as? String)
+            let server = try #require(URL(string: address))
             #expect(WayPlan.movable(server) == (row[1] as? Bool), "\(row)")
         }
         for row in try #require(x["neighbours"] as? [[Any]]) {
-            let server = try #require(URL(string: try #require(row[0] as? String)))
+            let address = try #require(row[0] as? String)
+            let server = try #require(URL(string: address))
             let asked = WayPlan.neighbours(server, own: try #require(row[1] as? String), prefix: try #require(row[2] as? Int))
             #expect(asked.count == row[3] as? Int, "\(row)")
             #expect(asked.first?.absoluteString == row[4] as? String, "\(row)")
