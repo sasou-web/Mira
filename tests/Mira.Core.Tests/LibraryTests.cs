@@ -1617,6 +1617,10 @@ internal static class LibraryTests
             var places = PillRow.Layout([100, 36, 36, 36], 36, 7, 8, 200);
             Assert(places[0] == (0, 0) && places[1] == (107, 0) && places[2] == (150, 0) && places[3] == (0, 44), $"Wraps past the room: {string.Join(" ", places)}");
             Assert(PillRow.Layout([300, 36], 36, 7, 8, 200) is [(0, 0), (0, 44)], "A pill wider than the room alone on its line");
+            Assert(PillRow.Drawn(0, 100, 0, 100) == (0, 100) && PillRow.Drawn(0, 100, 300, 400) == (0, 100), "Over its pill or far from it: as it is");
+            Assert(PillRow.Drawn(8, 104, 0, 100) == (0, 104), $"Rebounding over its pill: the whole pill, the outward part kept ({PillRow.Drawn(8, 104, 0, 100)})");
+            var half = PillRow.Drawn(35, 135, 0, 100); var less = PillRow.Drawn(55, 155, 0, 100);
+            Assert(half.Left > 0 && half.Left < 35 && half.Right == 135 && less == (55, 155), $"Two thirds over it: grows part of the way; under half: as it is ({half}, {less})");
             var opener = new PillRow.Opener(); opener.Put(0);
             Assert(opener.At(5) == 0 && !opener.Moving(5), "Put: still");
             opener.Go(1, 10);

@@ -217,7 +217,7 @@ public partial class MainWindow
             var (name, note) = EpisodeTiles.Pill(page);
             var coming = MissingPillNote(page);
             // No background of its own: the row's white pill is the body of the one shown.
-            var pill = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(16, 8, 16, 8), Background = Brushes.Transparent, Tag = page };
+            var pill = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(16, 8, 16, 8), Background = Brushes.Transparent, BorderBrush = Brushes.Transparent, Tag = page };
             Motion.SetRadius(pill, new CornerRadius(18));
             var label = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             label.Children.Add(new TextBlock { Text = name, FontSize = 13.5, FontWeight = FontWeights.SemiBold });
@@ -227,10 +227,9 @@ public partial class MainWindow
             {
                 // One height for the cut pills and the one shown; the name and the number both centred, cut by the pill
                 // as it opens (wider than it: centred past both sides, clipped).
-                pill.Height = PillRow.Round; pill.Padding = new Thickness(0); pill.HorizontalContentAlignment = HorizontalAlignment.Center;
-                label.HorizontalAlignment = HorizontalAlignment.Center;
-                var cut = new TextBlock { Text = EpisodeTiles.Short(page, pages), FontSize = 13.5, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                pill.Content = new Grid { HorizontalAlignment = HorizontalAlignment.Center, Children = { label, cut } };
+                pill.Height = PillRow.Round; pill.Padding = new Thickness(0); pill.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+                var cut = new TextBlock { Text = EpisodeTiles.Short(page, pages), FontSize = 13.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
+                pill.Content = new SeasonRow.Face { Children = { label, cut } };
                 ToolTipService.SetPlacement(pill, PlacementMode.Bottom); ToolTipService.SetVerticalOffset(pill, 6); ToolTipService.SetInitialShowDelay(pill, 250);
             }
             else pill.Content = label;
@@ -247,7 +246,7 @@ public partial class MainWindow
             var on = ReferenceEquals(pill.Tag, shown);
             if (on) index = SeasonPills.Children.IndexOf(pill);
             AutomationProperties.SetItemStatus(pill, on ? L("affichée", "shown") : "");
-            if (pill.Tag is not EpisodePage page || pill.Content is not Grid) continue;
+            if (pill.Tag is not EpisodePage page || pill.Content is not SeasonRow.Face) continue;
             // A cut pill: its number quieter for a season watched to its end or one the library lacks, and its bubble.
             SeasonRow.SetQuiet(pill, page.Absent || EpisodeTiles.Watched(page, _episodes));
             var (name, note) = EpisodeTiles.Tip(page, _episodes);

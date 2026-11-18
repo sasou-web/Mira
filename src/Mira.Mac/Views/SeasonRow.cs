@@ -148,6 +148,7 @@ public sealed class SeasonRow : Control
         if (_chosen < 0 || _chosen >= _cells.Length || _height <= 0) return;
         var now = Now;
         var (left, right, share) = _pill.At(now);
+        if (Math.Abs(_cells[_chosen].Top - _pillTop) < .5) (left, right) = PillRow.Drawn(left, right, _cells[_chosen].Left, _cells[_chosen].Right);
         var height = _height * share;
         var area = new Rect(left, _pillTop + (_height - height) / 2, Math.Max(0, right - left), height);
         using (context.PushOpacity(Math.Clamp((now - _fadeSince) / PillRow.Fade, 0, 1)))
@@ -177,6 +178,7 @@ public sealed class SeasonRow : Control
     {
         var now = Now;
         var (left, right, _) = _pill.At(now);
+        if (_chosen >= 0 && _chosen < _cells.Length && Math.Abs(_cells[_chosen].Top - _pillTop) < .5) (left, right) = PillRow.Drawn(left, right, _cells[_chosen].Left, _cells[_chosen].Right);
         var fade = Math.Clamp((now - _fadeSince) / PillRow.Fade, 0, 1);
         for (var i = 0; i < Children.Count && i < _cells.Length; i++)
         {
@@ -206,9 +208,10 @@ public sealed class SeasonRow : Control
         public Face() => ClipToBounds = true;
         protected override Size MeasureOverride(Size available)
         {
-            double width = 0, height = 0;
-            foreach (var child in Children) { child.Measure(Size.Infinity); width = Math.Max(width, child.DesiredSize.Width); height = Math.Max(height, child.DesiredSize.Height); }
-            return new Size(width, height);
+            // No width asked (the row sizes the pill), as on Windows.
+            var height = 0d;
+            foreach (var child in Children) { child.Measure(Size.Infinity); height = Math.Max(height, child.DesiredSize.Height); }
+            return new Size(0, height);
         }
         protected override Size ArrangeOverride(Size size)
         {
