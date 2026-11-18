@@ -120,7 +120,8 @@ jobs:
       always() && needs.plan.result == 'success' && needs.linux.result == 'success'
       && (needs.windows.result == 'success' || needs.windows.result == 'skipped')
       && (needs.iphone.result == 'success' || needs.iphone.result == 'skipped')
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 installs its Chromium's libraries on Ubuntu 24.04, not on 26.04 (ubuntu-latest since 2026-11).
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
