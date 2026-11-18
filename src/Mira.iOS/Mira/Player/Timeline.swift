@@ -19,6 +19,8 @@ enum Timeline {
     /// Shorter passages are noise; a chapter longer than the second is no opening, recap or preview, whatever its title.
     static let minPassage: Double = 3
     static let maxShortPassage: Double = 360
+    /// A chapter named as the opening shorter than this is not one (an eyecatch or a title card named « Opening »).
+    static let minOpening: Double = 20
 
     /// The button over a passage, by its kind.
     static func skipLabel(_ type: String) -> String? {
@@ -134,7 +136,7 @@ enum Timeline {
         let ordered = (chapters ?? []).compactMap { c in c.startPositionTicks.flatMap { $0 >= 0 ? (c, $0) : nil } }.sorted { $0.1 < $1.1 }
         // Without the title's length, the last chapter has no end.
         let duration = totalTicks.map(seconds) ?? 0
-        var result: [ReadChapter] = []
+        var kinds: [(start: Double, end: Double, kind: String?, name: String?)] = []
         for (i, (chapter, startTicks)) in ordered.enumerated() {
             let start = seconds(startTicks)
             guard let endTicks = i + 1 < ordered.count ? ordered[i + 1].1 : totalTicks else { continue }
@@ -142,13 +144,14 @@ enum Timeline {
             guard end - start >= minPassage else { continue }
             var kind = chapterKind(chapter.name, start: start, duration: duration)
             if let k = kind, k != "Outro", end - start > maxShortPassage { kind = nil }
-            let openingFollows = ordered[(i + 1)...].contains { later in
-                chapterKind(later.0.name, start: seconds(later.1), duration: duration) == "Intro" && !isBareIntro(later.0.name)
-            }
-            let cold = isColdOpen(chapter.name) || (kind == "Intro" && isBareIntro(chapter.name) && openingFollows)
-            result.append(ReadChapter(start: start, end: end, kind: kind, cold: cold))
+            if kind == "Intro", end - start < minOpening { kind = nil }
+            kinds.append((start, end, kind, chapter.name))
         }
-        return result
+        return kinds.enumerated().map { i, c in
+            let openingFollows = kinds[(i + 1)...].contains { $0.kind == "Intro" && !isBareIntro($0.name) }
+            let cold = isColdOpen(c.name) || (c.kind == "Intro" && isBareIntro(c.name) && openingFollows)
+            return ReadChapter(start: c.start, end: c.end, kind: c.kind, cold: cold)
+        }
     }
 
     /// Jellyfin's chapters as passages, without the cold open.

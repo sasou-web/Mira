@@ -128,6 +128,18 @@
       "server": [["Intro", 0, 60]],
       "chapters": [[0, "Prologue"], [60, "Part A"]],
       "passages": [["Intro", 0, 60]]
+    },
+    {
+      "about": "An « Opening » of 12 s in the middle is the eyecatch, never the opening (Haikyu!! S01E14): no button.",
+      "duration": 1469,
+      "chapters": [[0, "Chap 1"], [472, "Opening"], [484, "Chap 2"], [1361, "Ending"]],
+      "passages": [["Outro", 1361, 1469]]
+    },
+    {
+      "about": "A short « OP » after « Intro » leaves the « Intro » the opening.",
+      "duration": 1420,
+      "chapters": [[0, "Intro"], [90, "Part A"], [600, "OP"], [610, "Part B"]],
+      "passages": [["Intro", 0, 90]]
     }
   ]
 }
