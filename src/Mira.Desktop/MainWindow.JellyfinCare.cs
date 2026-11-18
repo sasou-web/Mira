@@ -57,6 +57,7 @@ public partial class MainWindow
         {
             if (!await JellyfinOnThisPcAsync(client) || await client.IsAdministratorAsync(ct) != true) return;
             await MakePreviewsAsync(client, ct);
+            if (_settings.ScansLightFor != client.Connection.Server && await client.LightenScansAsync(ct)) { _settings.ScansLightFor = client.Connection.Server; TrySaveSettings(); }
             var now = DateTimeOffset.Now;
             if (await client.BackupsAsync(ct) is { } backups && ReferenceEquals(client, _client))
             {

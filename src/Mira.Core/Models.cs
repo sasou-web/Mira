@@ -451,6 +451,8 @@ public sealed class PlayerSettings
     public string GpuCheckedFor { get; set; } = "";
     /// <summary>The server for which Mira turned the timeline's previews on by itself, the light way: never again for it (turned off in Jellyfin, they stay off).</summary>
     public string TrickplayAutoFor { get; set; } = "";
+    /// <summary>The server whose library scans Mira made light by itself (<see cref="JellyfinClient.LightScans"/>): never again for it, a number chosen in Jellyfin later kept.</summary>
+    public string ScansLightFor { get; set; } = "";
     public int GpuFailures { get; set; }
     /// <summary>
     /// The fingerprint for which Mira last tried the card by itself (Jellyfin on the processor), and whether the person
