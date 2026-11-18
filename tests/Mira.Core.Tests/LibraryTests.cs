@@ -1608,6 +1608,23 @@ internal static class LibraryTests
             Assert(EpisodeTiles.UpNext == "À SUIVRE", "Up next");
             return Task.CompletedTask;
         });
+        await Test("Pastilles des saisons : la pastille choisie s'ouvre en douceur, le numéro puis le nom, la rangée se replie (Windows et Mac)", () =>
+        {
+            Assert(PillRow.Enter(0) == 0 && Math.Abs(PillRow.Enter(1) - 1) < 1e-12 && PillRow.Enter(.3) > .7 && PillRow.Enter(2) == PillRow.Enter(1), "Exponential ease out, held at its ends");
+            Assert(PillRow.Number(0) == 1 && PillRow.Number(.4) == 0 && PillRow.Name(.3) == 0 && PillRow.Name(1) == 1, "Number out over the first 40 %, name in from 30 %");
+            for (var open = 0d; open <= 1; open += .05) Assert(PillRow.Number(open) == 0 || PillRow.Name(open) < .15, $"Never both readable at {open}");
+            Assert(PillRow.Width(36, 100, 0) == 36 && PillRow.Width(36, 100, .5) == 68 && PillRow.Width(36, 100, 3) == 100, "From round to whole");
+            var places = PillRow.Layout([100, 36, 36, 36], 36, 7, 8, 200);
+            Assert(places[0] == (0, 0) && places[1] == (107, 0) && places[2] == (150, 0) && places[3] == (0, 44), $"Wraps past the room: {string.Join(" ", places)}");
+            Assert(PillRow.Layout([300, 36], 36, 7, 8, 200) is [(0, 0), (0, 44)], "A pill wider than the room alone on its line");
+            var opener = new PillRow.Opener(); opener.Put(0);
+            Assert(opener.At(5) == 0 && !opener.Moving(5), "Put: still");
+            opener.Go(1, 10);
+            Assert(opener.Moving(10.1) && opener.At(10.1) is > .5 and < 1 && opener.At(10 + PillRow.Opening) == 1 && !opener.Moving(10.3), "Opens in 260 ms");
+            opener.Go(0, 10.1); var from = opener.At(10.1);
+            Assert(from > .5 && opener.At(10.1 + PillRow.Opening) == 0, $"Told again mid-way: from where it stands ({from})");
+            return Task.CompletedTask;
+        });
         await Test("Épisodes manquants et à venir : tous lus, même au-delà de 5 000 épisodes virtuels", async () =>
         {
             // As Jellyfin 12.1 sorts them (by air day, those without one first): 5,050 old missing episodes of a long series

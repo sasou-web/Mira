@@ -622,7 +622,14 @@ public static class SelfCheck
                     await Task.Delay(500); ScreenColour(Path.Combine(output, "06g-missing-nothing.png"));
                     shelfPage.CloseMissingForCheck(); mock.MissingPacks = true;
                 }
+                // Back to the first season with motion: the white pill goes there as a jelly (maquette A « La gelée »), then still.
+                MacMotion.Override(reduced: false);
                 shelfPage.ShowSeasonForCheck(shelfPage.SeasonLabels.First());
+                await Task.Delay(40); var going = shelfPage.SeasonPillForCheck;
+                await Task.Delay(1200); var landed = shelfPage.SeasonPillForCheck;
+                MacMotion.Override(null);
+                Check(Math.Abs(going.At - going.Target) > 1 && Math.Abs(landed.At - landed.Target) < .5, "pastilles des saisons : la pastille blanche glisse vers la saison choisie, puis se pose",
+                    FormattableString.Invariant($"en route {going.At:0.#} → {going.Target:0.#}, posée {landed.At:0.#} → {landed.Target:0.#}"));
                 Check(shelfPage.PillsShown && shelfPage.TilesShown > 0, "épisodes en grille, saisons en pastilles", $"{shelfPage.TilesShown} tuiles");
                 shelfPage.ShowEpisodesForCheck(); await Task.Delay(900); Capture(window, output, "06e-series-grid");
             }

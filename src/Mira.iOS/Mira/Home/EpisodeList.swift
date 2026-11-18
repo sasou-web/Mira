@@ -26,6 +26,8 @@ struct EpisodeList: View {
     @State private var missing = MissingWatch()
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The white capsule of the season shown, one for the row: it glides to the next one chosen (as the jelly of Windows and Mac).
+    @Namespace private var shownPill
 
     var body: some View {
         let today = EpisodeCalendar.Day.today()
@@ -50,7 +52,12 @@ struct EpisodeList: View {
                                         .foregroundStyle(chosen ? Palette.onAccent : Palette.ink)
                                         .padding(.horizontal, 14)
                                         .padding(.vertical, 8)
-                                        .background(chosen ? Palette.accent : Palette.raised, in: .capsule)
+                                        .background {
+                                            ZStack {
+                                                Capsule().fill(Palette.raised)
+                                                if chosen { Capsule().fill(Palette.accent).matchedGeometryEffect(id: "shown", in: shownPill) }
+                                            }
+                                        }
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityAddTraits(chosen ? .isSelected : [])
@@ -59,6 +66,8 @@ struct EpisodeList: View {
                         }
                     }
                     .scrollIndicators(.hidden)
+                    // A soft spring for the capsule and the inks, a little rebound at the end (the grid keeps its fade).
+                    .animation(reduceMotion ? nil : .spring(duration: 0.4, bounce: 0.22), value: season)
                     .accessibilityIdentifier("series.seasons")
                     .onAppear { if let season { proxy.scrollTo(season, anchor: .center) } }
                     .onChange(of: season) { _, shown in

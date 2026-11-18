@@ -102,6 +102,10 @@
     <Style Selector="Button.chip"><Setter Property="Background" Value="#1C1C1C"/><Setter Property="Padding" Value="12,7"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="CornerRadius" Value="16"/></Style>
     <Style Selector="Button.chip.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
     <Style Selector="Button.chip.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0B"/></Style>
+    <!-- The season pills: no body of their own, SeasonRow draws it and the white pill of the one shown; a light wash under the pointer. -->
+    <Style Selector="Button.chip.season"><Setter Property="Background" Value="Transparent"/></Style>
+    <Style Selector="Button.chip.season:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#14FFFFFF"/></Style>
+    <Style Selector="Button.chip.season:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#24FFFFFF"/></Style>
     <Style Selector="Button.bare:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bare:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.link"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="FontSize" Value="15"/></Style>
     <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="TextBlock.TextDecorations" Value="Underline"/></Style>
