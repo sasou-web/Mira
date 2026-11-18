@@ -35,6 +35,12 @@ public sealed record TorLinkImportEntry
     public bool SeedPaused { get; init; }
     public string? Message { get; init; }
     public int Attempts { get; init; }
+    /// <summary>
+    /// When Mira tries again by itself: files not there yet (<see cref="TorLinkImportState.Waiting"/>), or a file that could
+    /// not be placed for a reason that passes (in use, disk full, access refused: <see cref="TorLinkImportState.Partial"/>,
+    /// <see cref="TorLinkImportState.Failed"/>). Null: no new attempt planned.
+    /// </summary>
+    public DateTimeOffset? RetryAt { get; init; }
     public bool Notified { get; init; }
     public string? JellyfinId { get; init; }
     /// <summary>Its episodes' numbers looked at once Jellyfin listed them (<see cref="TorLinkPlacement.RenumberAsync"/>): renamed or not, never again.</summary>
@@ -124,6 +130,24 @@ public sealed record TorLinkExpected(string Id, ImportTarget Target, DateTimeOff
 public sealed class TorLinkImporter
 {
     public const int MaxAttempts = 6;
+    /// <summary>
+    /// Time before attempt n + 1 (n from 1): a file just finished, read by an antivirus or still written by the client,
+    /// is there at the next round; a disk filled or a file held by a player needs longer. About 2 h 35 in all.
+    /// </summary>
+    public static TimeSpan RetryDelay(int attempts) => attempts switch
+    {
+        <= 1 => TimeSpan.Zero,
+        2 => TimeSpan.FromMinutes(1),
+        3 => TimeSpan.FromMinutes(5),
+        4 => TimeSpan.FromMinutes(30),
+        _ => TimeSpan.FromHours(2)
+    };
+    /// <summary>An entry Mira tries again by itself once <see cref="TorLinkImportEntry.RetryAt"/> has come (without one: at once, as before).</summary>
+    public static bool RetryDue(TorLinkImportEntry entry, DateTimeOffset now) =>
+        entry.Attempts < MaxAttempts && (entry.RetryAt is null ? entry.State is TorLinkImportState.Waiting : entry.State is TorLinkImportState.Waiting or TorLinkImportState.Partial or TorLinkImportState.Failed && entry.RetryAt <= now);
+    /// <summary>Its download's files are still wanted: waiting for them, or a new attempt planned.</summary>
+    public static bool NeedsFiles(TorLinkImportEntry entry) =>
+        entry.State is TorLinkImportState.Waiting or TorLinkImportState.Importing || entry.RetryAt is not null && entry.State is TorLinkImportState.Partial or TorLinkImportState.Failed && entry.Attempts < MaxAttempts;
     private const int MaxEntries = 500, MaxExpected = 200, MaxReplacements = 100;
     /// <summary>An old file open this many times in a row, <see cref="RetryEvery"/> apart, is given up: about an hour.</summary>
     private const int MaxBusy = 30;
@@ -215,7 +239,7 @@ public sealed class TorLinkImporter
                 // A download blocked by a missing library folder is tried again once the folders change.
                 var due = asked || (entry is null
                     ? automatic && completion.CompletedAt >= baseline || target is not null
-                    : entry.State is TorLinkImportState.Waiting && entry.Attempts < MaxAttempts || entry.State is TorLinkImportState.Blocked && !Equals(libraries, _blockedWith));
+                    : RetryDue(entry, DateTimeOffset.UtcNow) || entry.State is TorLinkImportState.Blocked && !Equals(libraries, _blockedWith));
                 if (!due) continue;
                 await ImportAsync(completion, entry, state, libraries, mode, target, ct);
                 processed++;
@@ -228,7 +252,7 @@ public sealed class TorLinkImporter
     private async Task ImportAsync(TorLinkCompletion completion, TorLinkImportEntry? previous, IDownloadSource state, MediaLibraries libraries, ImportMode mode, ImportTarget? target, CancellationToken ct)
     {
         var entry = previous ?? new TorLinkImportEntry { Id = completion.Id, Name = completion.Name, Source = completion.Source, CompletedAt = completion.CompletedAt };
-        entry = entry with { State = TorLinkImportState.Importing, Message = null, UpdatedAt = DateTimeOffset.UtcNow };
+        entry = entry with { State = TorLinkImportState.Importing, Message = null, RetryAt = null, UpdatedAt = DateTimeOffset.UtcNow };
         Update(entry);
         // Files an earlier attempt already placed stay tracked; a move took them out of TorLink's folder.
         var tracked = await Task.Run(() => entry.Files.Where(f => File.Exists(f.Destination)).ToList(), ct);
@@ -241,6 +265,7 @@ public sealed class TorLinkImporter
             {
                 State = attempts >= MaxAttempts ? TorLinkImportState.Failed : TorLinkImportState.Waiting,
                 Attempts = attempts,
+                RetryAt = attempts >= MaxAttempts ? null : DateTimeOffset.UtcNow + RetryDelay(attempts),
                 UpdatedAt = DateTimeOffset.UtcNow,
                 Message = Noted(attempts >= MaxAttempts ? L("Les fichiers terminés sont introuvables dans le dossier de TorLink.", "The finished files can’t be found in TorLink’s folder.") : L("Fichiers pas encore disponibles, nouvel essai bientôt.", "Files not available yet, trying again soon."))
             });
@@ -265,6 +290,14 @@ public sealed class TorLinkImporter
         // Only for a download leaving TorLink: a reclassified file crossing drives says nothing about TorLink's folder.
         if (result.OtherDrive) outcome = outcome with { Message = string.Join(" · ", new[] { outcome.Message, OtherDriveHint }.OfType<string>()) };
         outcome = outcome with { Message = Noted(outcome.Message) };
+        // A file in use, a disk full, a folder refused for a moment: tried again by itself, later each time.
+        if (outcome.State is TorLinkImportState.Partial or TorLinkImportState.Failed && result.Failures.Any(x => x.Transient))
+        {
+            var attempts = entry.Attempts + 1;
+            outcome = attempts >= MaxAttempts ? outcome with { Attempts = attempts }
+                : outcome with { Attempts = attempts, RetryAt = DateTimeOffset.UtcNow + RetryDelay(attempts), Message = string.Join(" · ", new[] { outcome.Message, RetryHint(RetryDelay(attempts)) }.OfType<string>()) };
+        }
+        else if (outcome.State is TorLinkImportState.Imported) outcome = outcome with { Attempts = 0 };
         // Interrupted by closing Mira: what was placed is kept, the rest follows at the next start.
         Update(result.Canceled ? outcome with { State = TorLinkImportState.Waiting, Message = L("Rangement interrompu : il reprendra à la prochaine ouverture de Mira.", "Sorting stopped: it’ll resume the next time Mira opens.") } : outcome);
         ct.ThrowIfCancellationRequested();
@@ -526,6 +559,12 @@ public sealed class TorLinkImporter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
     }
+
+    /// <summary>Said when a new attempt is planned.</summary>
+    public static string RetryHint(TimeSpan delay) => delay < TimeSpan.FromMinutes(1)
+        ? L("Nouvel essai dans quelques secondes.", "Trying again in a few seconds.")
+        : delay < TimeSpan.FromHours(1) ? L($"Nouvel essai dans {delay.TotalMinutes:0} min.", $"Trying again in {delay.TotalMinutes:0} min.")
+        : L($"Nouvel essai dans {delay.TotalHours:0} h.", $"Trying again in {delay.TotalHours:0} h.");
 
     /// <summary>Said when the download's .torrent was over <see cref="Bencode"/>'s limits: Mira did not read it.</summary>
     public static string TorrentRefusedHint => L("Son fichier .torrent est trop gros pour que Mira le lise : ses fichiers sont cherchés d’après le nom du téléchargement.",

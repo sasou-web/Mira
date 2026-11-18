@@ -114,6 +114,20 @@ public static partial class ReleaseName
     private static partial Regex SeasonMarker();
     [GeneratedRegex(@"\b(?:Season|Saison|Temporada|Staffel)\s*(?<s>\d{1,2})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonWord();
+    // A British season (« Sherlock Series 1 »), a book of a show (« Kaamelott Livre I », « Avatar Book 2 »): never a word
+    // alone (« Monogatari Series Second Season », « The Book of Boba Fett »).
+    [GeneratedRegex(@"\b(?:Series|Livre|Book)\s+(?<r>\d{1,2}|I{1,3}|IV|VI{0,3}|IX|X)(?![\w'’])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex BookSeason();
+    // A pack of a show's specials (« [Judas] Sousou no Frieren - Specials »): its season 0.
+    [GeneratedRegex(@"(?:^|\s)[-–]?\s*Specials\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex SpecialsWord();
+    // The episodes of a pack (« Fullmetal Alchemist Brotherhood 1-64 », « Naruto Shippuden Episodes 001-500 », « E01-E12 »):
+    // never a title's own digits (« 9-1-1 »), years (« 1999-2003 ») or seasons (« S01-S05 »).
+    [GeneratedRegex(@"(?<![\w-])(?:(?:Episodes?|Eps?\.?)\s*)?E?(?<a>\d{1,4})\s*[-~]\s*E?(?<b>\d{1,4})(?![\w-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex EpisodeSpanMarker();
+    // A sequel numbered as Roman numerals at a show's end (« Overlord IV », « Mob Psycho 100 III »).
+    [GeneratedRegex(@"^(?<t>.+?)\s+(?<r>II|III|IV|V|VI|VII|VIII|IX|X)$", RegexOptions.CultureInvariant)]
+    private static partial Regex RomanSequel();
     // « 2nd Season », « Second Season » (« [sam] Haikyuu!! Second Season - 01 »: Haikyuu!!'s season 2, ogsas 2026-11-18).
     [GeneratedRegex(@"\b(?:(?<s>\d{1,2})(?:st|nd|rd|th)|(?<w>second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth))\s+Season\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex OrdinalSeason();
@@ -134,7 +148,7 @@ public static partial class ReleaseName
     private static partial Regex Creditless();
     [GeneratedRegex(@"(?<![a-z0-9])(?<k>OP|ED)\s*(?<n>\d{1,2})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex OpeningEnding();
-    [GeneratedRegex(@"^(?:Season|Saison|S)\s*0*(?<n>\d{1,3})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:Season|Saison|Series|Book|Livre|S)\s*0*(?<n>\d{1,3})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonFolder();
     [GeneratedRegex(@"^(?:(?:part|partie|cour|vol(?:ume)?|chapter|chapitre|arc|ep(?:isode)?|e|s|season|saison)\s*\d{1,3}|\d{1,2}(?:st|nd|rd|th)\s+(?:season|cour|part))$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PartAlone();
@@ -193,7 +207,10 @@ public static partial class ReleaseName
             if (m.Success && m.Index < cut) cut = m.Index;
         }
         if (PackMarker(text) is { } pack && pack.Index < cut) cut = pack.Index;
-        var head = CutAtTags(text[..cut], followed: cut < text.Length);
+        foreach (var m in new[] { BookSeason().Match(text), SpecialsWord().Match(text), EpisodeSpan(text) })
+            if (m is { Success: true } && m.Index > 0 && m.Index < cut) cut = m.Index;
+        // « Hunter x Hunter (2011) - Complete »: the year before a dash is the show's.
+        var head = CutAtTags(text[..cut], followed: cut < text.Length).TrimEnd(' ', '-', '–', '—', ':');
         var year = TrailingYear().Match(head);
         if (year.Success && year.Index > 0 && Tidy(head[..year.Index]) is { Length: > 0 } title)
             return (title, int.Parse(year.Groups["y"].Value, CultureInfo.InvariantCulture));
@@ -260,7 +277,8 @@ public static partial class ReleaseName
         var text = Readable(name, out _);
         if (SeasonRange().IsMatch(text)) return null;
         var values = SeasonMarker().Matches(text).Concat(SeasonWord().Matches(text)).Concat(OrdinalSeason().Matches(text))
-            .Select(x => Number(x, "s")).Distinct().ToList();
+            .Select(x => Number(x, "s")).Concat(BookSeason().Matches(text).Where(x => x.Index > 0).Select(x => Roman(x.Groups["r"].Value))).Distinct().ToList();
+        if (values.Count == 0 && SpecialsWord().Match(text) is { Success: true, Index: > 0 }) return 0;
         return values.Count == 1 ? values[0] : null;
     }
     /// <summary>
@@ -311,6 +329,56 @@ public static partial class ReleaseName
         return words is [var word] && word.Length <= 8 && word.All(char.IsAsciiLetter) && word == word.ToUpperInvariant();
     }
     public static bool IsCompletePack(string name) => PackMarker(Readable(name, out _)) is not null;
+
+    /// <summary>The name gives the episodes of a pack as a range (« 1-64 », « Episodes 001-500 », « (01-28) »).</summary>
+    public static bool HasEpisodeSpan(string name)
+    {
+        var text = StripExtension(name.Trim());
+        return EpisodeSpan(Readable(text, out _)) is not null || Parenthesized().Matches(text).Any(m => EpisodeRange().Match(m.Groups["c"].Value.Trim()) is { Success: true } r && Span(r));
+    }
+    private static Match? EpisodeSpan(string text)
+    {
+        foreach (Match m in EpisodeSpanMarker().Matches(text))
+            if (Span(m)) return m;
+        return null;
+    }
+    // A range of episodes: the first before the last, not two years.
+    private static bool Span(Match m)
+    {
+        var a = int.Parse(m.Groups["a"].Value, CultureInfo.InvariantCulture); var b = int.Parse(m.Groups["b"].Value, CultureInfo.InvariantCulture);
+        return a < b && !(Year().IsMatch(m.Groups["a"].Value) && Year().IsMatch(m.Groups["b"].Value));
+    }
+
+    /// <summary>
+    /// The file is numbered as fansub groups number episodes, by a bare number after a dash (« Show - 05 »), not as a
+    /// broadcaster or a scene release does (« Ep1 », « E01 », « Episode 3 »): a sign of an anime.
+    /// </summary>
+    public static bool FansubNumbered(string name)
+    {
+        var text = Readable(name, out _);
+        if (SeasonEpisode().IsMatch(text) || CrossEpisode().IsMatch(text) || WordsEpisode().IsMatch(text)) return false;
+        var m = AbsoluteEpisode().Match(text);
+        return m.Success && !m.Value.Any(char.IsLetter);
+    }
+
+    /// <summary>« Overlord IV » gives (« Overlord », 4): a show's sequel numbered at its title's end; null otherwise.</summary>
+    public static (string Title, int Season)? Sequel(string title)
+    {
+        var m = RomanSequel().Match(title.Trim());
+        return m.Success && Key(m.Groups["t"].Value).Length > 0 ? (m.Groups["t"].Value.Trim(), Roman(m.Groups["r"].Value)) : null;
+    }
+    private static int Roman(string value)
+    {
+        if (int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var n)) return n;
+        int Digit(char c) => char.ToUpperInvariant(c) switch { 'I' => 1, 'V' => 5, 'X' => 10, _ => 0 };
+        var total = 0;
+        for (var i = 0; i < value.Length; i++)
+        {
+            var d = Digit(value[i]);
+            total += i + 1 < value.Length && Digit(value[i + 1]) > d ? -d : d;
+        }
+        return total;
+    }
     public static bool HasGroupPrefix(string name) { Readable(name, out var group); return group is not null; }
     /// <summary>Sample clip: "sample" in the file name or one of its folders (the torrent's own top folder is not considered).</summary>
     public static bool IsSample(string relativePath)

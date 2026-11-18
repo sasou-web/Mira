@@ -41,7 +41,7 @@ public sealed class TorLinkPlacement : IDisposable
         catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException) { }
     }
     /// <summary>The safety net for missed file events: the history changed since the last round, or a download still waits.</summary>
-    public bool PlacementDue() => HistoryStamp() != _historyStamp || Importer.Entries.Any(x => x.State == TorLinkImportState.Waiting);
+    public bool PlacementDue() => HistoryStamp() != _historyStamp || Importer.Entries.Any(x => TorLinkImporter.RetryDue(x, DateTimeOffset.UtcNow));
     private (DateTime, long) HistoryStamp()
     {
         try { var file = new FileInfo(State.HistoryFile); return file.Exists ? (file.LastWriteTimeUtc, file.Length) : default; }
