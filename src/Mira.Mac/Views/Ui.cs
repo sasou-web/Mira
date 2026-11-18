@@ -294,36 +294,65 @@ public sealed class CardGrid : Panel
 public static class Cards
 {
     /// <param name="pixels">The width the poster is fetched at: <see cref="CardGrid.Pixels"/> in a grid.</param>
-    public static Button Poster(MediaItem item, Images? images, Action<MediaItem> open, Func<MediaItem, ContextMenu?>? menu = null, int pixels = 360)
+    /// <param name="number">On a collection's page (« L'étagère »): its place in the watch order, before its title (« 03 »).</param>
+    /// <param name="line">Said under its title instead of its year and kind.</param>
+    /// <param name="upNext">The title the collection resumes at: « UP NEXT » and a play disc on its poster, as on Windows.</param>
+    public static Button Poster(MediaItem item, Images? images, Action<MediaItem> open, Func<MediaItem, ContextMenu?>? menu = null, int pixels = 360, string? number = null, string? line = null, bool upNext = false)
     {
+        // A collection's card: how far its titles are; a series on a collection's page: its episodes watched.
+        double? share = item.Shelf is { } titles ? CollectionShelf.Share(titles) : number is not null && item.Type == "Series" ? CollectionShelf.Progress(item) : null;
         var image = new Image { Stretch = Stretch.UniformToFill };
         var frame = new Grid { ClipToBounds = true };
         var placeholder = Placeholder(item, false);
         frame.Children.Add(placeholder);
         frame.Children.Add(image);
-        if (item.Resumable) frame.Children.Add(Progress(item.Progress));
+        if (share is > 0 and < 1) frame.Children.Add(Progress(share.Value));
+        else if (share is null && item.Resumable) frame.Children.Add(Progress(item.Progress));
         // Watched and begun again: the bar says where it is, not a check beside it (as on Windows).
         if (item.UserData.Played && !item.Resumable) frame.Children.Add(Watched());
-        else if (item.EpisodesToWatchBadge is { } count) frame.Children.Add(ToWatch(count));
+        else if (item.EpisodesToWatchBadge is { } count && number is null) frame.Children.Add(ToWatch(count));
+        if (upNext) { frame.Children.Add(UpNextLabel()); frame.Children.Add(PlayDisc()); }
         var ring = Ring(10); frame.Children.Add(ring);
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
         var aspect = new AspectBox(2.0 / 3) { Child = art };
+        // A collection grouped in the library: its poster on two edges of the ones behind it, a pile.
+        Control picture = aspect;
+        if (item.Shelf is not null) picture = new Grid { Children = { PileEdge(2), PileEdge(1), aspect } };
         var caption = Ui.Column(2,
             // Two lines at most, the year and kind right under them; the box keeps two lines' room, so the cards of a grid
             // stay in line without leaving a one-line title's details a line below (as on Windows, 2026-11-14).
-            new TextBlock { Text = item.DisplayTitle, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2, LineHeight = 19, MaxHeight = 38 },
-            new TextBlock { Text = Caption(item), FontSize = 12.5, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });
+            new TextBlock { Text = number is null ? item.DisplayTitle : $"{number}  {item.DisplayTitle}", FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2, LineHeight = 19, MaxHeight = 38 },
+            new TextBlock { Text = line ?? (item.Shelf is { } shelf ? CollectionShelf.CardLine(shelf.Count) : Caption(item)), FontSize = 12.5, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });
         caption.Height = 38 + 2 + 18;
         var body = new StackPanel { Spacing = 10 };
-        body.Children.Add(aspect); body.Children.Add(caption);
+        body.Children.Add(picture); body.Children.Add(caption);
         var button = new Button { Content = body, Classes = { "card" } };
         Hover(button, ring, [placeholder, image]);
         button.Click += (_, _) => open(item);
         Menu(button, item, menu);
-        Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { item.DisplayTitle, Caption(item), item.EpisodesToWatchText }.Where(x => !string.IsNullOrEmpty(x))));
+        Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { number, item.DisplayTitle, line ?? (item.Shelf is { } said ? CollectionShelf.CardLine(said.Count) : Caption(item)), upNext ? L("à suivre", "up next") : null, number is null ? item.EpisodesToWatchText : null }.Where(x => !string.IsNullOrEmpty(x))));
         if (images is not null) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(item, pixels));
         return button;
     }
+    /// <summary>An edge of the posters under a collection's own, drawn higher and narrower the further back.</summary>
+    private static Border PileEdge(int depth) => new()
+    {
+        Background = depth == 1 ? Ui.Raised2 : Ui.Raised, BorderBrush = Ui.LineStrong, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10),
+        Margin = new Thickness(7 * depth, 0, 7 * depth, 0), RenderTransform = new TranslateTransform(0, -5 * depth), IsHitTestVisible = false,
+    };
+    /// <summary>« UP NEXT » over the poster's corner, as on Windows: white, ink letters.</summary>
+    private static Control UpNextLabel() => new Border
+    {
+        Background = Ui.Brush("#F5F5F7"), CornerRadius = new CornerRadius(6), BoxShadow = BadgeShadow, Padding = new Thickness(8, 4), Margin = new Thickness(8),
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false,
+        Child = new TextBlock { Text = L("À SUIVRE", "UP NEXT"), FontSize = 11, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0B") }
+    };
+    private static Control PlayDisc() => new Border
+    {
+        Background = Ui.Brush("#F5F5F7"), CornerRadius = new CornerRadius(22), Width = 44, Height = 44, BoxShadow = BadgeShadow, IsHitTestVisible = false,
+        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        Child = new Icon("play", 18) { Foreground = Ui.Brush("#0B0B0B"), Margin = new Thickness(2, 0, 0, 0) }
+    };
     public static Button Wide(MediaItem item, Images? images, Action<MediaItem> open, double width = 300, Func<MediaItem, ContextMenu?>? menu = null)
     {
         var image = new Image { Stretch = Stretch.UniformToFill };
@@ -359,7 +388,7 @@ public static class Cards
     }
     /// <summary>What a card shows of <paramref name="item"/>: the same key, the same card (title, line, marks, picture).</summary>
     public static string Key(MediaItem item) => string.Join('|', item.Id, item.Type, item.Name, item.SeriesName, item.ProductionYear, item.ParentIndexNumber, item.IndexNumber, item.RunTimeTicks,
-        item.ExtraType, item.UserData.Played, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, item.EpisodesToWatchBadge, string.Join(',', item.ImageTags.Select(x => x.Key + ":" + x.Value)),
+        item.ExtraType, item.UserData.Played, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, item.EpisodesToWatchBadge, item.Shelf?.Count, item.UserData.PlayedPercentage, string.Join(',', item.ImageTags.Select(x => x.Key + ":" + x.Value)),
         item.SeriesPrimaryImageTag, item.SeasonThumbImageTag, string.Join(',', item.BackdropImageTags), item.ParentLogoImageTag, Spoilers.On);
     /// <summary>
     /// The cards of <paramref name="panel"/> for <paramref name="items"/>, made by <paramref name="make"/> under
