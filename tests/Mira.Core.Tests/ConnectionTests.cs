@@ -524,6 +524,9 @@ internal static class ConnectionTests
             Assert(FriendReach.AwayAddress("http://100.88.12.34:8096/", false, null) == "http://100.88.12.34:8096" && FriendReach.AwayAddress("http://192.168.1.42:8096/", false, null) is null, "Away elsewhere");
             const string status = """{"BackendState":"Running","Self":{"HostName":"MAISON-PC"},"Peer":{"k1":{"HostName":"pc","UserID":1},"k2":{"HostName":"iphone","UserID":42,"ShareeNode":true},"k3":{"HostName":"mac","UserID":42,"ShareeNode":true},"k4":{"HostName":"x","UserID":7,"ShareeNode":true}},"User":{"1":{"DisplayName":"Moi"},"42":{"DisplayName":"Sam"}}}""";
             Assert(string.Join(",", FriendReach.Sharees(status)!) == "Sam,quelqu’un", "Sharees: " + string.Join(",", FriendReach.Sharees(status)!));
+            // Tagged machines are no one's: neither by their tags nor by Tailscale's « Tagged Devices » owner.
+            const string tagged = """{"BackendState":"Running","Peer":{"k1":{"UserID":9,"ShareeNode":true},"k2":{"UserID":42,"ShareeNode":true,"Tags":["tag:server"]},"k3":{"UserID":42,"ShareeNode":true}},"User":{"9":{"LoginName":"tagged-devices","DisplayName":"Tagged Devices"},"42":{"DisplayName":"Sam"}}}""";
+            Assert(string.Join(",", FriendReach.Sharees(tagged)!) == "Sam", "Tagged: " + string.Join(",", FriendReach.Sharees(tagged)!));
             Assert(FriendReach.Sharees("""{"BackendState":"Running","Peer":{"k1":{"UserID":1}}}""")!.Count == 0 && FriendReach.Sharees(null) is null && FriendReach.Sharees("pas du JSON") is null, "No sharee");
             Assert(FriendReach.NoAnswer("http://192.168.1.42:8096/")!.Contains("192.168.1.42 est une adresse de maison") && FriendReach.NoAnswer("http://100.88.12.34:8096/")!.Contains("adresse Tailscale")
                 && FriendReach.NoAnswer("https://jellyfin.example.test/") is null, "No answer");

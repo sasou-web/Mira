@@ -87,6 +87,10 @@ public static class FriendReach
             foreach (var peer in peers.EnumerateObject().Select(x => x.Value))
             {
                 if (peer.ValueKind != JsonValueKind.Object || !peer.TryGetProperty("ShareeNode", out var sharee) || sharee.ValueKind != JsonValueKind.True) continue;
+                // A tagged machine belongs to no one: Tailscale names its owner « Tagged Devices » (seen on the Dell, 2026-11-18).
+                if (peer.TryGetProperty("Tags", out var tags) && tags.ValueKind == JsonValueKind.Array && tags.GetArrayLength() > 0) continue;
+                if (peer.TryGetProperty("UserID", out var owner) && users.ValueKind == JsonValueKind.Object && users.TryGetProperty(owner.ToString(), out var who)
+                    && who.ValueKind == JsonValueKind.Object && who.TryGetProperty("LoginName", out var login) && login.ValueKind == JsonValueKind.String && login.GetString() == "tagged-devices") continue;
                 var name = peer.TryGetProperty("UserID", out var id) && users.ValueKind == JsonValueKind.Object
                     && users.TryGetProperty(id.ToString(), out var user) && user.ValueKind == JsonValueKind.Object
                     && user.TryGetProperty("DisplayName", out var display) && display.ValueKind == JsonValueKind.String && display.GetString() is { Length: > 0 } shown

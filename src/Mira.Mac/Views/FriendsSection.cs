@@ -146,7 +146,7 @@ public sealed class FriendsSection
             {
                 track.Select(index);
                 if (guide.Elsewhere == elsewhere) return;
-                guide.Elsewhere = elsewhere; Render(guide);
+                guide.Elsewhere = elsewhere; guide.Status.Text = ""; Render(guide);
             };
             chips.Add(chip); track.Add(chip, elsewhere == guide.Elsewhere);
         }
