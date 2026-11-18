@@ -581,6 +581,29 @@ await Test("Dossiers médias : le service Jellyfin peut les lire, fichiers liés
     Assert(JellyfinServiceAccess.HasOwnRule(linked) && JellyfinServiceAccess.HasOwnRule(moved), "A placed file stays unreadable by the service");
     Assert(!JellyfinServiceAccess.HasOwnRule(elsewhere), "A folder the service was not given received the right anyway");
 });
+await Test("Métadonnées à côté des fichiers : le service Jellyfin crée ses fichiers, ne change jamais une vidéo", () =>
+{
+    var folders = MediaFolders.Under(Path.Combine(testRoot, "service-write")); folders.Create(); folders.AllowJellyfinService();
+    var film = Path.Combine(folders.Movies, "Sintel (2010)"); Directory.CreateDirectory(film);
+    var video = Path.Combine(film, "Sintel (2010).mkv"); File.WriteAllBytes(video, new byte[64]);
+    var service = new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.NetworkServiceSid, null);
+    var owner = new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.CreatorOwnerSid, null);
+    List<System.Security.AccessControl.FileSystemAccessRule> Rules(System.Security.AccessControl.FileSystemSecurity security) =>
+        security.GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier)).OfType<System.Security.AccessControl.FileSystemAccessRule>().ToList();
+    var folderRules = Rules(new DirectoryInfo(film).GetAccessControl());
+    Assert(folderRules.Any(x => x.IdentityReference == service && x.FileSystemRights.HasFlag(System.Security.AccessControl.FileSystemRights.CreateFiles)), "The service may not create its files in a film's folder");
+    // CREATOR OWNER: inherited by what is created, never a right of its own on the folder.
+    Assert(Rules(new DirectoryInfo(folders.Movies).GetAccessControl()).Any(x => x.IdentityReference == owner && x.PropagationFlags.HasFlag(System.Security.AccessControl.PropagationFlags.InheritOnly)), "No right for the owner of new files");
+    var videoRules = Rules(new FileInfo(video).GetAccessControl()).Where(x => x.IdentityReference == service).ToList();
+    Assert(videoRules.Count > 0 && videoRules.All(x => !x.FileSystemRights.HasFlag(System.Security.AccessControl.FileSystemRights.WriteData) && !x.FileSystemRights.HasFlag(System.Security.AccessControl.FileSystemRights.Delete)),
+        "The service may change or delete a video: " + string.Join(", ", videoRules.Select(x => x.FileSystemRights)));
+    // Asked again: nothing added; a folder the service does not read: left as it is.
+    var count = Rules(new DirectoryInfo(folders.Movies).GetAccessControl()).Count;
+    Assert(JellyfinServiceAccess.AllowWriting(folders.Movies) && Rules(new DirectoryInfo(folders.Movies).GetAccessControl()).Count == count, "Rules added twice");
+    var other = Path.Combine(testRoot, "service-write-other"); Directory.CreateDirectory(other);
+    Assert(JellyfinServiceAccess.AllowWriting(other) && !Rules(new DirectoryInfo(other).GetAccessControl()).Any(x => x.IdentityReference == service), "A folder the service was not given received the right anyway");
+    return Task.CompletedTask;
+});
 await Test("Nouveautés : chaque icône citée est dessinée par Mira", () =>
 {
     var missing = WhatsNew.All.SelectMany(x => x.Items).Select(x => x.Icon).Where(x => !Mira.Desktop.Views.Icon.Draws(x)).Distinct().ToArray();

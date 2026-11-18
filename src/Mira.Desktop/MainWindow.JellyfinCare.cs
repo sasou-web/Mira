@@ -44,6 +44,44 @@ public partial class MainWindow
     }
 
     /// <summary>
+    /// Each title's NFO and images beside its files (<see cref="MetadataBeside"/>), once per server: Jellyfin's service
+    /// allowed to create files in the film and series folders (never to change a video), the libraries set, then, while
+    /// nobody watches, what Jellyfin kept in its own data written there, a part at each look until nothing is left.
+    /// Turned off in Jellyfin afterwards, it stays off.
+    /// </summary>
+    private async Task KeepMetadataBesideAsync(JellyfinClient client, CancellationToken ct)
+    {
+        if (_keepingMetadata) return;
+        _keepingMetadata = true;
+        try { await KeepMetadataBesideNowAsync(client, ct); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (IsExpected(ex)) { }
+        finally { _keepingMetadata = false; }
+    }
+    private bool _keepingMetadata;
+    private async Task KeepMetadataBesideNowAsync(JellyfinClient client, CancellationToken ct)
+    {
+        var server = client.Connection.Server;
+        if (_settings.MetadataBesideDoneFor == server || await client.MetadataLibrariesAsync(ct) is not { Count: > 0 } libraries) return;
+        var folders = libraries.SelectMany(x => x.Locations).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        // A folder added since: its service may write there too.
+        await Task.Run(() => folders.ForEach(x => JellyfinServiceAccess.AllowWriting(x)), ct);
+        if (_settings.MetadataBesideFor != server)
+        {
+            if (!await client.KeepMetadataBesideAsync(ct)) return;
+            _settings.MetadataBesideFor = server; TrySaveSettings();
+        }
+        if ((await client.ViewersAsync(ct)).Count > 0) return;
+        var now = DateTimeOffset.Now;
+        // Jellyfin asks TMDb for what is missing: once a week at most, for the titles that still have no NFO.
+        var ask = !(now - _settings.MetadataBesideAskedAt < TimeSpan.FromDays(7));
+        var pass = await MetadataBeside.CatchUpAsync(client, ask, ct);
+        if (pass.Refreshed > 0) _settings.MetadataBesideAskedAt = now;
+        if (pass.Done) _settings.MetadataBesideDoneFor = server;
+        if (pass.Refreshed > 0 || pass.Done) TrySaveSettings();
+    }
+
+    /// <summary>
     /// Once a backup is due (<see cref="JellyfinBackups.Reminds"/>), Jellyfin backed up by Mira itself while nobody
     /// watches (looked at again every 6 hours otherwise), its own folder then kept to its newest archives; the reminder
     /// only when that failed. Else the notice of a newer Jellyfin, once per version; never over another notice on
@@ -58,6 +96,8 @@ public partial class MainWindow
             if (!await JellyfinOnThisPcAsync(client) || await client.IsAdministratorAsync(ct) != true) return;
             await MakePreviewsAsync(client, ct);
             if (_settings.ScansLightFor != client.Connection.Server && await client.LightenScansAsync(ct)) { _settings.ScansLightFor = client.Connection.Server; TrySaveSettings(); }
+            // Alongside the rest: the first pass may take minutes on a large library.
+            _ = KeepMetadataBesideAsync(client, ct);
             var now = DateTimeOffset.Now;
             if (await client.BackupsAsync(ct) is { } backups && ReferenceEquals(client, _client))
             {

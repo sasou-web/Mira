@@ -15,6 +15,7 @@ internal static class PortableTests
         await StreamTests.RunAsync(run);
         await PhoneTests.RunAsync(run);
         await JellyfinCareTests.RunAsync(run);
+        await MetadataBesideTests.RunAsync(run);
         await TorLinkTests.RunAsync(run);
         await RemoteDownloadTests.RunAsync(run);
         await BoardTests.RunAsync(run);
