@@ -167,6 +167,8 @@ public static class QBittorrentSettings
         // (2026-11-18), and checking them read 115 KB per seek: 13 MB/s, hours at 100 % before Mira could sort them.
         // Reserved first, each file lies in one piece; a full disk shows when it is added, not halfway.
         ["preallocate_all"] = true,
+        // No second read of a whole download once it is done: each piece is already checked as it comes (off by default, kept so).
+        ["recheck_completed_torrents"] = false,
     };
 
     /// <summary>qBittorrent's DiskIOType « Simple pread/pwrite » (5.1 and later; before, an unknown value is its default).</summary>

@@ -110,7 +110,7 @@ internal static class QBittorrentTests
             var preferences = QBittorrentSettings.Preferences("D:\\Mira", 51413);
             Assert(preferences["max_seeding_time_enabled"] is true && preferences["max_seeding_time"] is 4320 && preferences["max_ratio_enabled"] is false
                 && preferences["max_inactive_seeding_time_enabled"] is false && preferences["max_ratio_act"] is 0, "72 hours, then stopped (0), never removed");
-            Assert(preferences["enable_piece_extent_affinity"] is true && preferences["disk_io_type"] is 3 && preferences["preallocate_all"] is true, "A slow drive kept up with: pieces finished side by side, written by pwrite (« Simple pread/pwrite »)");
+            Assert(preferences["enable_piece_extent_affinity"] is true && preferences["disk_io_type"] is 3 && preferences["preallocate_all"] is true && preferences["recheck_completed_torrents"] is false, "A slow drive kept up with: pieces finished side by side, written by pwrite (« Simple pread/pwrite »)");
             return Task.CompletedTask;
         });
 
