@@ -103,6 +103,8 @@ public sealed partial class DownloadsPage : Page
     private RelayStatus? _status;
     /// <summary>The titles of Jellyfin whose poster the page shows, by id (null: Jellyfin has none, or no such title).</summary>
     private readonly Dictionary<string, MediaItem?> _posters = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Titles asked of Jellyfin that it no longer has (removed from the library): left out of « Sorted into your library ».</summary>
+    private readonly HashSet<string> _gone = new(StringComparer.OrdinalIgnoreCase);
     private bool _postersAsking;
     /// <summary>Results sent from this page (search id / result id): « Envoyé » on their button.</summary>
     private readonly HashSet<string> _sent = [];
@@ -113,7 +115,7 @@ public sealed partial class DownloadsPage : Page
     private sealed record RowData(string Key, string Shape, string Name, string[] Texts, int? Progress, Func<QueueRow> Make);
 
     /// <summary>What the PC has under way and sent from here, as shown, and the titles it placed (the self-check).</summary>
-    public int QueueCount => (_searchShown ? _queueCompact : _queue).Children.Count + (_status?.Placed.Count ?? 0);
+    public int QueueCount => (_searchShown ? _queueCompact : _queue).Children.Count + (_status is { } shown ? RemoteBoard.Present(shown.Placed, _gone).Count : 0);
     public int ResultGroups => _results.Children.Count;
     /// <summary>For the self-check: the queue still beside the results (whatever the width), how wide, how tall the results are, the « + » shown.</summary>
     public (bool Beside, double Side, double Results, bool Add) SearchLayout => (_searchView.IsVisible && Grid.GetColumn(_queueScroll) == 2 && _queueScroll.Bounds.Width > 0, _queueScroll.Bounds.Width, _resultsScroll.Bounds.Height, _add.IsVisible);
@@ -526,7 +528,7 @@ public sealed partial class DownloadsPage : Page
         DescribeAgent(now);
         var queue = RemoteBoard.Queue(status);
         var follows = RemoteBoard.Follows(status, now);
-        var placed = status.Placed;
+        var placed = RemoteBoard.Present(status.Placed, _gone);
         _summary.Text = _sideSummary.Text = RemoteBoard.Summary(queue);
         // The rows of the view shown are kept up to date; those of the other are made when it shows.
         if (_searchShown)
@@ -566,7 +568,7 @@ public sealed partial class DownloadsPage : Page
 
     private void RenderPlaced(RelayStatus status)
     {
-        var placed = status.Placed;
+        var placed = RemoteBoard.Present(status.Placed, _gone);
         _placedSection.IsVisible = placed.Count > 0;
         _placedCount.Text = placed.Count.ToString(Culture);
         // As many as one row holds; « View all » the rest.
@@ -741,7 +743,7 @@ public sealed partial class DownloadsPage : Page
         grid.ColumnDefinitions.Add(new ColumnDefinition(36, GridUnitType.Pixel));
         grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star) { MaxWidth = 290 + 18 });
         // Bar, share, size, speed, time left, peers; the size, time left and peers left out when narrow.
-        foreach (var width in narrow ? new double[] { -1, 64, 0, 120, 0, 0 } : [-1, 64, 168, 102, 102, 86])
+        foreach (var width in narrow ? new double[] { -1, 64, 0, 120, 0, 0 } : [-1, 64, 168, 128, 102, 86])
             grid.ColumnDefinitions.Add(width < 0 ? new ColumnDefinition(1, GridUnitType.Star) : new ColumnDefinition(width, GridUnitType.Pixel));
         grid.ColumnDefinitions.Add(new ColumnDefinition(90, GridUnitType.Pixel));
         grid.Children.Add(Thumb(line.PosterId, line.Episodic, 36, 54));
@@ -972,7 +974,11 @@ public sealed partial class DownloadsPage : Page
         try
         {
             var found = await session.Client.PostersAsync(asked, session.Lifetime);
-            foreach (var id in asked) _posters[id] = found.FirstOrDefault(x => string.Equals(x.Id.Replace("-", ""), id.Replace("-", ""), StringComparison.OrdinalIgnoreCase));
+            foreach (var id in asked)
+            {
+                _posters[id] = found.FirstOrDefault(x => string.Equals(x.Id.Replace("-", ""), id.Replace("-", ""), StringComparison.OrdinalIgnoreCase));
+                if (_posters[id] is null) _gone.Add(id);
+            }
         }
         catch (Exception ex) when (Errors.Expected(ex)) { foreach (var id in asked) _posters[id] = null; }
         finally { _postersAsking = false; }

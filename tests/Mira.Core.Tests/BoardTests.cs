@@ -47,6 +47,9 @@ internal static class BoardTests
                 $"En cours : {amount} | {rate} | {left} | {peers}");
             Assert(RemoteBoard.Columns(queue[3].Download!) is { Rate: "En pause", Left: "", Peers: "" }, "En pause : ni temps restant ni pairs.");
             Assert(RemoteBoard.Columns(queue[2].Download! with { Speed = 0, Peers = 0 }).Rate == "Recherche de pairs…", "Rien ne vient, aucun pair.");
+            var whole = queue[2].Download! with { Progress = 100, Speed = 0, Peers = 14 };
+            Assert(RemoteBoard.Columns(whole) is { Rate: "Vérification…", Left: "", Peers: "" } && RemoteLines.Brief(whole).EndsWith("vérification…", StringComparison.Ordinal),
+                "Tout est arrivé, rien ne vient : le téléchargeur vérifie ses morceaux (pas « en attente de données ») : " + RemoteBoard.Columns(whole).Rate);
             Assert(RemoteBoard.Waiting(queue[2], now) is null && RemoteBoard.Waiting(queue[4], now) is { Length: > 0 }, "Un téléchargement en cours a ses colonnes ; un échec, sa phrase.");
             var pick = RemoteBoard.Waiting(queue[1], now)!;
             Assert(pick.StartsWith("En attente · 1,4 Go · part dans 8\u00a0min", StringComparison.Ordinal) && pick.EndsWith("série que tu suis", StringComparison.Ordinal), "Épisode choisi : " + pick);
@@ -69,6 +72,8 @@ internal static class BoardTests
                 new("4", "Arcane · S02E07", "", null, true), new("5", "Le Col · S01E01", "", "c1", true), new("6", "arcane · S02E04", "", "e4", true)]);
             Assert(shelf.Select(x => x.Title).SequenceEqual(["Arcane · 3 épisodes", "Flow", "Arcane · S02E07", "Le Col · S01E01"]) && shelf[0].ItemId == "e6",
                 "Rangés : une affiche par série, à la place de son épisode le plus récent ; celui que Jellyfin ajoute encore à part : " + string.Join(" | ", shelf.Select(x => x.Title)));
+            var present = RemoteBoard.Present([new("1", "Flow", "", "f", true), new("2", "Monogatari Series", "", "m", true), new("3", "Nimona", "", null, true), new("4", "Le Col", "", null, false)], new HashSet<string>(["M"], StringComparer.OrdinalIgnoreCase));
+            Assert(present.Select(x => x.Title).SequenceEqual(["Flow", "Nimona", "Le Col"]), "Rangés : un titre que Jellyfin ne trouve plus quitte la liste, ceux sans titre encore restent : " + string.Join(" | ", present.Select(x => x.Title)));
             Assert(RemoteBoard.Latest([new("1", "Flow", "", null, true), new("2", "Nimona", "", null, true), new("3", "Arcane · S02E05", "", null, true), new("4", "Le Col", "", null, true)]) == "Flow, Nimona, Arcane · S02E05…", "Derniers rangés.");
             return Task.CompletedTask;
         });

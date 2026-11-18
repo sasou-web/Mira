@@ -122,6 +122,16 @@ public static class RemoteLines
         return Math.Max(0, download.Size - Math.Max(0, download.Downloaded)) / (double)download.Speed;
     }
 
+    /// <summary>
+    /// Everything came, but the downloader still checks its pieces before calling it done (qBittorrent counts the blocks
+    /// received before it hashes them: on a slow USB disk, hours at 100 % with nothing coming, 2026-11-18): placed in the
+    /// library once the check ends, not « waiting for data ».
+    /// </summary>
+    public static bool Checking(RelayDownload download) => download.Status == "downloading" && download.Progress >= 100 && download.Speed <= 0;
+
+    /// <summary>« Vérification… », what <see cref="Checking"/> says.</summary>
+    public static string CheckingText => L("Vérification…", "Checking…");
+
     /// <summary>« 1,2 Go sur 2,9 Go », or « 2,9 Go » before anything came; empty when TorLink does not know the size yet.</summary>
     public static string Amount(RelayDownload download)
     {
@@ -142,6 +152,7 @@ public static class RemoteLines
         {
             case "downloading":
                 var rate = Speed(download.Speed);
+                if (Checking(download)) return Join(progress, Amount(download), L("vérification des morceaux avant le rangement…", "checking the pieces before adding it to your library…"));
                 if (rate.Length == 0) return Join(progress, Amount(download), peers switch { 0 => L("recherche de pairs…", "looking for peers…"), 1 => L("1 pair, en attente de données", "1 peer, waiting for data"), _ => L($"{peers} pairs, en attente de données", $"{peers} peers, waiting for data") });
                 return Join(progress, Amount(download), rate, TimeLeft(download) is { } left ? L($"reste {Remaining(left)}", $"{Remaining(left)} left") : "", peers switch { 0 => "", 1 => L("1 pair", "1 peer"), _ => L($"{peers} pairs", $"{peers} peers") });
             case "queued": return Join(L("En file d’attente · ", "Queued · ") + progress, Amount(download));
@@ -164,6 +175,7 @@ public static class RemoteLines
         {
             case "downloading":
                 var rate = Speed(download.Speed);
+                if (Checking(download)) return Join(progress, L("vérification…", "checking…"));
                 if (rate.Length == 0) return Join(progress, Math.Max(0, download.Peers) == 0 ? L("recherche de pairs…", "looking for peers…") : L("en attente de données", "waiting for data"));
                 return Join(progress, rate, TimeLeft(download) is { } left ? L($"reste {Remaining(left)}", $"{Remaining(left)} left") : "");
             case "queued": return L("En file d’attente · ", "Queued · ") + progress;

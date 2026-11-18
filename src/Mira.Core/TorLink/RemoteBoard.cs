@@ -91,6 +91,7 @@ public static class RemoteBoard
         {
             case "downloading":
                 var rate = RemoteLines.Speed(download.Speed);
+                if (RemoteLines.Checking(download)) return (amount, RemoteLines.CheckingText, "", "");
                 if (rate.Length == 0) rate = peers == 0 ? L("Recherche de pairs…", "Looking for peers…") : L("En attente de données", "Waiting for data");
                 var left = RemoteLines.TimeLeft(download) is { } seconds ? L($"reste {RemoteLines.Remaining(seconds)}", $"{RemoteLines.Remaining(seconds)} left") : "";
                 return (amount, rate, left, peers switch { 0 => "", 1 => L("1 pair", "1 peer"), _ => L($"{peers} pairs", $"{peers} peers") });
@@ -186,6 +187,14 @@ public static class RemoteBoard
         }
         return shelf;
     }
+
+    /// <summary>
+    /// The titles placed that Jellyfin still has: one it no longer finds (<paramref name="gone"/>: asked, not in its answer;
+    /// removed from the library since) leaves the shelf, else its poster opened onto « Jellyfin can't find what was asked
+    /// for » (ogsas, 2026-11-18, after deleting Monogatari). One still being added, or that failed, has no title yet: kept.
+    /// </summary>
+    public static List<RelayPlaced> Present(IReadOnlyList<RelayPlaced> placed, IReadOnlySet<string> gone) =>
+        placed.Where(x => x.ItemId is not { } id || !gone.Contains(id)).ToList();
 
     /// <summary>« 4.9 TB free », « 850 GB free »: what is left on the disks of the libraries of the PC of Jellyfin.</summary>
     public static string Free(long bytes)
