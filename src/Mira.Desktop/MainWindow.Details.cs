@@ -583,7 +583,7 @@ public partial class MainWindow
         var today = EpisodeCalendar.Today();
         var last = page!.Skip + page.Take >= _episodes.Count(x => EpisodePages.Season(x) == page.Season);
         var grid = TileGrid();
-        foreach (var line in EpisodeShelf.Lines(episodes, _seriesVirtuals, page.Season, page.Skip == 0, last, today, _settings.ShowMissingEpisodes))
+        foreach (var line in EpisodeShelf.Lines(episodes, ShelfVirtuals, page.Season, page.Skip == 0, last, today, _settings.ShowMissingEpisodes))
             AddTiles(grid, line, today);
         EpisodesPanel.Children.Add(grid);
         LayoutTiles();

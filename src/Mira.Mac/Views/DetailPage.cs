@@ -53,12 +53,14 @@ public sealed partial class DetailPage : Page
     private RelayFollow? _follow;
     // This series' episodes from TheTVDB (EpisodeShelf): missing and coming ones at their place; the lines opened.
     private List<MediaItem> _virtuals = [];
+    // Those the library holds under a number from the series' start (« S02E26 » for S02E01) left out: not missing.
+    private List<MediaItem> ShelfVirtuals => AbsoluteNumbers.Unheld(_virtuals, _allEpisodes);
     private readonly HashSet<string> _shelfOpen = [];
     public override string Rail => "";
     public MediaItem Item => _item;
     public IReadOnlyList<MediaItem> Episodes => _allEpisodes;
     /// <summary>The series' episodes the library lacks (TheTVDB's, through Jellyfin), once read.</summary>
-    public IReadOnlyList<MediaItem> Missing => _virtuals;
+    public IReadOnlyList<MediaItem> Missing => ShelfVirtuals;
     /// <summary>For the self-check: the list of episodes on the page, as many rows as the season shown.</summary>
     public bool EpisodesShown => TopLevel.GetTopLevel(_episodes) is not null && _episodes.Children.Count > 0;
     /// <summary>For the self-check: the seasons as pills, the tiles of the season shown, the top of the grid brought into view.</summary>
@@ -826,7 +828,7 @@ public sealed partial class DetailPage : Page
     {
         var previous = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         var own = EpisodePages.From(_allEpisodes);
-        var pages = EpisodeShelf.Pages(own, _allEpisodes, _virtuals, EpisodeCalendar.Today(), Shell.Settings.ShowMissingEpisodes);
+        var pages = EpisodeShelf.Pages(own, _allEpisodes, ShelfVirtuals, EpisodeCalendar.Today(), Shell.Settings.ShowMissingEpisodes);
         _filling = true;
         _seasons.Items.Clear();
         foreach (var page in pages) _seasons.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
@@ -855,7 +857,7 @@ public sealed partial class DetailPage : Page
         {
             // A season the library has none of: a calm card for its aired episodes (their tiles on demand), then those coming.
             _episodeHeading.Text = L("Épisodes", "Episodes"); _seasonMark.IsVisible = false;
-            foreach (var line in EpisodeShelf.Lines([], _virtuals, page.Season, true, true, today, showMissing))
+            foreach (var line in EpisodeShelf.Lines([], ShelfVirtuals, page.Season, true, true, today, showMissing))
             {
                 if (line.Kind != ShelfKind.Missing) { AddTiles(session, grid, line, today); continue; }
                 var key = "season-" + line.First.Id;
@@ -876,7 +878,7 @@ public sealed partial class DetailPage : Page
         if (_found is null && _next is { } next && EpisodePages.NextElsewhere(pages, _allEpisodes, page, next) is { } elsewhere) { var row = NextElsewhereRow(next, elsewhere); row.Margin = new Thickness(0, 0, 0, 16); _episodes.Children.Add(row); }
         // A grid of stills (EpisodeTiles); those the library lacks at their place (TheTVDB's, EpisodeShelf), hollow.
         var last = page!.Skip + page.Take >= _allEpisodes.Count(x => EpisodePages.Season(x) == page.Season);
-        foreach (var line in EpisodeShelf.Lines(episodes, _virtuals, page.Season, page.Skip == 0, last, today, showMissing))
+        foreach (var line in EpisodeShelf.Lines(episodes, ShelfVirtuals, page.Season, page.Skip == 0, last, today, showMissing))
             AddTiles(session, grid, line, today);
         _episodes.Children.Add(grid);
         LayoutTiles();

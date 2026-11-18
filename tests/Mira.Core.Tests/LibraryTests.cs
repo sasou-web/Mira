@@ -1531,6 +1531,42 @@ internal static class LibraryTests
             Assert(EpisodeShelf.Name(Find("S4E1")) == "Épisode 1", "A coming episode without a name");
             return Task.CompletedTask;
         });
+        await Test("Épisodes numérotés depuis le début de la série : pas manquants, renommés à leur numéro de saison (tests/fixtures/absolute.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "absolute.json")));
+            static int Int(string x) => int.Parse(x, System.Globalization.CultureInfo.InvariantCulture);
+            // « S2E26-37 »: S2E26 to S2E37, each its own episode.
+            static List<MediaItem> Expand(JsonElement list, string kind) => list.EnumerateArray().SelectMany(x =>
+            {
+                var code = x.GetString()!; var season = Int(code[1..code.IndexOf('E')]); var span = code[(code.IndexOf('E') + 1)..].Split('-');
+                return Enumerable.Range(Int(span[0]), (span.Length > 1 ? Int(span[1]) : Int(span[0])) - Int(span[0]) + 1)
+                    .Select(n => new MediaItem { Id = $"{kind}-{season}-{n}", Type = "Episode", LocationType = kind == "v" ? "Virtual" : "FileSystem", ParentIndexNumber = season, IndexNumber = n });
+            }).ToList();
+            static string Codes(IEnumerable<MediaItem> items) => string.Join(",", items.OrderBy(x => x.ParentIndexNumber).ThenBy(x => x.IndexNumber).Select(x => $"S{x.ParentIndexNumber}E{x.IndexNumber}"));
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var name = row.GetProperty("name").GetString();
+                var held = Expand(row.GetProperty("held"), "h"); var virtuals = Expand(row.GetProperty("virtual"), "v");
+                var seasonal = Codes(AbsoluteNumbers.Seasonal(held, virtuals)); var unheld = Codes(AbsoluteNumbers.Unheld(virtuals, held));
+                Assert(seasonal == Codes(Expand(row.GetProperty("seasonal"), "x")), $"{name}: seasonal {seasonal}");
+                Assert(unheld == Codes(Expand(row.GetProperty("unheld"), "x")), $"{name}: unheld {unheld}");
+            }
+            foreach (var row in fixture.RootElement.GetProperty("renames").EnumerateArray())
+            {
+                var name = row.GetProperty("name").GetString();
+                var held = row.GetProperty("held").EnumerateArray().Select(x =>
+                {
+                    var code = x[0].GetString()!; var season = Int(code[1..code.IndexOf('E')]); var span = code[(code.IndexOf('E') + 1)..].Split('-');
+                    return new MediaItem { Id = code, Type = "Episode", ParentIndexNumber = season, IndexNumber = Int(span[0]), IndexNumberEnd = span.Length > 1 ? Int(span[1]) : null, Path = x[1].GetString() };
+                }).ToList();
+                var exists = row.GetProperty("exists").EnumerateArray().Select(x => x.GetString()!).ToHashSet();
+                var renames = AbsoluteNumbers.Renames(row.GetProperty("placed").EnumerateArray().Select(x => x.GetString()!), held, Expand(row.GetProperty("virtual"), "v"), exists.Contains);
+                var expected = row.GetProperty("renames").EnumerateArray().Select(x => (x[0].GetString()!, x[1].GetString()!)).ToList();
+                Assert(renames.SequenceEqual(expected), $"{name}: " + string.Join(" | ", renames));
+            }
+            return Task.CompletedTask;
+        });
         await Test("Épisodes en grille : colonnes, largeur, pastilles des saisons, cases des manquants", () =>
         {
             Assert(EpisodeTiles.Columns(1180) == 4 && EpisodeTiles.Columns(800) == 3 && EpisodeTiles.Columns(600) == 2 && EpisodeTiles.Columns(200) == 1 && EpisodeTiles.Columns(9000) == EpisodeTiles.MaxColumns, "Columns");

@@ -37,6 +37,8 @@ public sealed record TorLinkImportEntry
     public int Attempts { get; init; }
     public bool Notified { get; init; }
     public string? JellyfinId { get; init; }
+    /// <summary>Its episodes' numbers looked at once Jellyfin listed them (<see cref="TorLinkPlacement.RenumberAsync"/>): renamed or not, never again.</summary>
+    public bool NumbersChecked { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
     /// <summary>« Remplacer par une meilleure version »: the title's file this download was to replace (<see cref="TorLinkReplacement"/>).</summary>
     public string? Replaced { get; init; }
@@ -450,6 +452,13 @@ public sealed class TorLinkImporter
     public IReadOnlyList<string> MovedSeeds() { lock (_sync) return _log.Entries.Where(x => x.MovedOut && !x.SeedPaused).Select(x => x.Id).ToList(); }
     public void MarkSeedPaused(IEnumerable<string> ids) { foreach (var id in ids) Change(id, x => x with { SeedPaused = true }); }
     public void MarkAvailable(string id, string jellyfinId) => Change(id, x => x with { JellyfinId = jellyfinId });
+    public void MarkNumbersChecked(string id) => Change(id, x => x with { NumbersChecked = true });
+    /// <summary>Files renamed to their season's numbers: the entry lists them where they now are.</summary>
+    public void MarkRenumbered(string id, IReadOnlyList<(string From, string To)> renames)
+    {
+        var moved = renames.ToDictionary(x => x.From, x => x.To, StringComparer.OrdinalIgnoreCase);
+        Change(id, x => x with { NumbersChecked = true, Files = x.Files.Select(f => moved.TryGetValue(f.Destination, out var to) ? f with { Destination = to } : f).ToList() });
+    }
 
     /// <summary>
     /// Finished files of a download, only once every video and subtitle is complete on disk; never outside TorLink's folder.

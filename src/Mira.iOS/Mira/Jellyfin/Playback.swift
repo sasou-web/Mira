@@ -115,6 +115,11 @@ extension JellyfinClient {
         ], as: ItemList.self).items ?? []
     }
 
+    /// A series' episodes, their numbers only: no pictures, no progress, no files (AbsoluteNumbers).
+    func episodeNumbers(_ series: String) async throws -> [Item] {
+        try await get("Shows/\(series)/Episodes", ["userId": userId, "isMissing": "false", "enableImages": "false", "enableUserData": "false"], as: ItemList.self).items ?? []
+    }
+
     /// A season's episodes, in order, with their pictures, progress and files (for their languages). Only those in the
     /// library, as on Windows and Mac: the missing ones are said by the line above them (EpisodeCalendar).
     func episodes(_ series: String, season: String) async throws -> [Item] {

@@ -251,6 +251,9 @@ public sealed class JellyfinClient : IDisposable
     /// </summary>
     public Task<ItemsResult> OwnedAsync(string title, CancellationToken ct = default) =>
         GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Series&searchTerm={Uri.EscapeDataString(title)}&limit=50&fields=OriginalTitle,ProductionYear&enableImages=false&enableUserData=false", ct);
+    /// <summary>The episodes a series has, their numbers, files' paths and this account's progress (AbsoluteNumbers).</summary>
+    public Task<ItemsResult> EpisodePathsAsync(string seriesId, CancellationToken ct = default) =>
+        GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&isMissing=false&fields=Path&enableImages=false", ct);
     /// <summary>The episodes a series has, their numbers only.</summary>
     public Task<ItemsResult> OwnedEpisodesAsync(string seriesId, CancellationToken ct = default) =>
         GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&isMissing=false&enableImages=false&enableUserData=false", ct);

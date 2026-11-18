@@ -363,7 +363,7 @@ public partial class MainWindow
         menu.Picks = null; menu.Error = null; menu.Chosen.Clear(); menu.Pack = null;
         DrawMissingMenu(menu, popup);
         var series = menu.Series; var season = menu.Ask.Season;
-        var known = new MissingSeries(series.Name, series.OriginalTitle, series.ProductionYear, MissingDownloads.Before(_episodes.Concat(_seriesVirtuals), season), menu.Query);
+        var known = new MissingSeries(series.Name, series.OriginalTitle, series.ProductionYear, MissingDownloads.Before(AbsoluteNumbers.Seasonal(_episodes, _seriesVirtuals).Concat(ShelfVirtuals), season), menu.Query);
         try
         {
             bool anime;

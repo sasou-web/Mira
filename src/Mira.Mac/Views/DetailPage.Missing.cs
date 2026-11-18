@@ -385,7 +385,7 @@ public sealed partial class DetailPage
         menu.Picks = null; menu.Error = null; menu.Chosen.Clear(); menu.Pack = null;
         DrawMissingMenu(menu);
         var season = menu.Ask.Season;
-        var known = new MissingSeries(_item.Name, _item.OriginalTitle, _item.ProductionYear, MissingDownloads.Before(_allEpisodes.Concat(_virtuals), season), menu.Query);
+        var known = new MissingSeries(_item.Name, _item.OriginalTitle, _item.ProductionYear, MissingDownloads.Before(AbsoluteNumbers.Seasonal(_allEpisodes, _virtuals).Concat(ShelfVirtuals), season), menu.Query);
         try
         {
             bool anime;

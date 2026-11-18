@@ -16,7 +16,11 @@ struct EpisodeList: View {
     @State private var marking = false
     /// This series' episodes from TheTVDB (through Jellyfin), « à leur place » (EpisodeShelf): the seasons the library
     /// has none of among the seasons, the episodes it lacks between those it has; the thin lines opened.
-    @State private var virtuals: [Item] = []
+    @State private var tvdb: [Item] = []
+    /// The library's episodes of every season, their numbers only: those numbered from the series' start
+    /// (« S02E26 » for S02E01, AbsoluteNumbers) leave TheTVDB's virtual ones out.
+    @State private var held: [Item] = []
+    private var virtuals: [Item] { AbsoluteNumbers.unheld(tvdb, held: held) }
     @State private var shelfOpen: Set<String> = []
     /// « Télécharger les manquants » (MissingViews): an administrator's buttons, and how what was asked is going.
     @State private var missing = MissingWatch()
@@ -112,7 +116,7 @@ struct EpisodeList: View {
             Task {
                 VirtualEpisodes.forget()
                 await loadSeasons()
-                virtuals = await EpisodeShelf.virtuals(of: series, app: app)
+                await loadVirtuals()
             }
         }
         // Waiting for Jellyfin to list what was placed: the seasons and episodes read again (a held one hides its hollow tile).
@@ -122,7 +126,7 @@ struct EpisodeList: View {
         }
         .task(id: series.id) { await loadSeasons() }
         .task(id: series.id) {
-            virtuals = await EpisodeShelf.virtuals(of: series, app: app)
+            await loadVirtuals()
             // A series the library holds no season of: its first season known to TheTVDB.
             if season == nil, seasons.isEmpty { season = self.chips(today: .today(), showMissing: app.preferences.showMissingEpisodes).first?.id }
         }
@@ -225,11 +229,19 @@ struct EpisodeList: View {
     /// The episodes of the seasons before `season`, the library's and TheTVDB's (MissingDownloads.before).
     private func episodesBefore(_ season: Int) async -> Int {
         guard season > 1, let client = app.client else { return 0 }
+        if !held.isEmpty { return MissingDownloads.before(AbsoluteNumbers.seasonal(held, virtuals: tvdb) + virtuals, season: season) }
         var all = virtuals
         for held in seasons where (held.indexNumber ?? 0) >= 1 && (held.indexNumber ?? 0) < season {
             if let found = try? await client.episodes(series.id, season: held.id) { all += found }
         }
         return MissingDownloads.before(all, season: season)
+    }
+
+    /// TheTVDB's episodes of this series, and the library's numbers when there are some (one light request).
+    private func loadVirtuals() async {
+        let found = await EpisodeShelf.virtuals(of: series, app: app)
+        if !found.isEmpty, let client = app.client, let numbers = try? await client.episodeNumbers(series.id) { held = numbers }
+        tvdb = found
     }
 
     private func loadEpisodes() async {
