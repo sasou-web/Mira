@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Mira.Core;
@@ -49,7 +50,7 @@ public sealed partial class DetailPage : Page
     /// <summary>The height of the page on screen: the picture's own follows it.</summary>
     private double _viewport;
     /// <summary>« Marquer la saison comme vue », beside the season list when the series has another season.</summary>
-    private readonly Button _seasonMark = new() { Classes = { "chip", "quiet" }, IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
+    private readonly Button _seasonMark = new() { Classes = { "counter" }, IsVisible = false, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
     private bool _marking;
     private List<MediaItem> _allEpisodes = [];
     private MediaItem? _next;
@@ -1106,16 +1107,28 @@ public sealed partial class DetailPage : Page
         button.Click += (_, _) => _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, elsewhere)) ?? _seasons.SelectedItem;
         return button;
     }
-    /// <summary>« Marquer la saison comme vue », or « non vue » once all its episodes are: only beside another season.</summary>
+    /// <summary>
+    /// The season's counter over its episodes, « 2 of 6 watched » beside a ring (maquette B, ogsas 2026-11-18), as on
+    /// Windows: a click marks the whole season watched, or unwatched once all are, as its tooltip and its name say. On
+    /// every season, one alone too; never on a season the library lacks.
+    /// </summary>
     private void ShowSeasonMark(EpisodePage? page)
     {
-        _seasonMark.IsVisible = page is not null && EpisodePages.MarksSeasons(_allEpisodes);
-        if (page is null || !_seasonMark.IsVisible) return;
-        var played = EpisodePages.SeasonMark(_allEpisodes, page.Season).Played;
-        var label = played ? L("Marquer la saison comme non vue", "Mark season as unwatched") : L("Marquer la saison comme vue", "Mark season as watched");
-        _seasonMark.Content = Ui.Row(8, new Icon(played ? "refresh" : "check", 16), new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        Avalonia.Automation.AutomationProperties.SetName(_seasonMark, label);
-        _seasonMark.Tag = (page.Season, !played); _seasonMark.IsEnabled = !_marking;
+        var (seen, total) = page is null || page.Absent ? (0, 0) : EpisodePages.SeasonCount(_allEpisodes, page.Season);
+        _seasonMark.IsVisible = total > 0;
+        if (total == 0) return;
+        var played = seen >= total;
+        var action = played ? L("Marquer la saison comme non vue", "Mark season as unwatched") : L("Marquer la saison comme vue", "Mark season as watched");
+        var words = EpisodeTiles.Counter(seen, total);
+        var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        // The number lit while the season is under way, as on the maquette: « 2 of 6 watched ».
+        var lead = words.IndexOf(' ');
+        if (!played && lead > 0) { text.Inlines = [new Run(words[..lead]) { FontWeight = FontWeight.Bold }, new Run(words[lead..])]; }
+        else text.Text = words;
+        _seasonMark.Content = Ui.Row(9, new SeasonRing(seen, total), text);
+        ToolTip.SetTip(_seasonMark, action);
+        Avalonia.Automation.AutomationProperties.SetName(_seasonMark, action); Avalonia.Automation.AutomationProperties.SetHelpText(_seasonMark, words);
+        _seasonMark.Tag = (page!.Season, !played); _seasonMark.IsEnabled = !_marking;
     }
     /// <summary>A whole season watched or not: Jellyfin is told (the season in one call, else each episode), then the page follows it.</summary>
     private async Task MarkSeasonAsync()

@@ -44,13 +44,10 @@ public static class EpisodePages
         return position < 0 ? null : pages.FirstOrDefault(x => x.Season == Season(episode) && position >= x.Skip && position < x.Skip + x.Take);
     }
 
-    /// <summary>A season of its own to mark only beside another: with one, the series' own button does it.</summary>
-    public static bool MarksSeasons(IReadOnlyList<MediaItem> episodes) => episodes.Select(Season).Distinct().Count() > 1;
-
     /// <summary>
     /// What « Marquer la saison comme vue » marks: the season as Jellyfin holds it (one call, every episode with it),
     /// else each episode (episodes without a season of Jellyfin's, or split between two). Played: all its episodes are
-    /// watched, and the button offers « non vue ». As seasons.js of Mira web (tests/fixtures/seasons.json).
+    /// watched, and the counter offers « non vue ». As seasons.js of Mira web (tests/fixtures/seasons.json).
     /// </summary>
     public static (List<string> Ids, bool Played) SeasonMark(IReadOnlyList<MediaItem> episodes, int season)
     {
@@ -58,6 +55,17 @@ public static class EpisodePages
         var held = list.Select(x => x.SeasonId).Distinct().ToList();
         List<string> ids = held is [{ Length: > 0 } one] ? [one] : list.Select(x => x.Id).ToList();
         return (ids, list.Count > 0 && list.All(x => x.UserData.Played));
+    }
+
+    /// <summary>
+    /// The counter over a season's episodes, which is also its « Mark season as watched » (maquette B, ogsas 2026-11-18):
+    /// how many of the whole season are watched (every slice of a long one), of how many. Shown on every season, one
+    /// alone too: the count says where you are even when the series' own button marks the same.
+    /// </summary>
+    public static (int Seen, int Total) SeasonCount(IReadOnlyList<MediaItem> episodes, int season)
+    {
+        var list = episodes.Where(x => Season(x) == season).ToList();
+        return (list.Count(x => x.UserData.Played), list.Count);
     }
 
     /// <summary>The page holding the episode Lecture plays when another season is shown (« À suivre », above its episodes); else null.</summary>

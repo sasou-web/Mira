@@ -642,15 +642,26 @@ public partial class MainWindow
         return button;
     }
     /// <summary>
-    /// « Marquer la saison comme vue », or « non vue » once all its episodes are, beside the season list: only when the
-    /// series has another season (with one, « Marquer la série comme vue » does it).
+    /// The season's counter over its episodes, « 2 of 6 watched » beside a ring (maquette B, ogsas 2026-11-18): a click
+    /// marks the whole season watched, or unwatched once all its episodes are, as its tooltip and its name say. On every
+    /// season, one alone too; never on a season the library lacks. Its place never moves: a season changed redraws it.
     /// </summary>
     private void ShowSeasonMark(EpisodePage? page)
     {
-        if (page is null || !EpisodePages.MarksSeasons(_episodes)) { SeasonMarkButton.Visibility = Visibility.Collapsed; return; }
-        var played = EpisodePages.SeasonMark(_episodes, page.Season).Played;
-        SeasonMarkButton.Content = ActionLabel(played ? "refresh" : "check", played ? L("Marquer la saison comme non vue", "Mark season as unwatched") : L("Marquer la saison comme vue", "Mark season as watched"));
-        SeasonMarkButton.Tag = (page.Season, !played); SeasonMarkButton.Visibility = Visibility.Visible;
+        var (seen, total) = page is null || page.Absent ? (0, 0) : EpisodePages.SeasonCount(_episodes, page.Season);
+        if (total == 0) { SeasonMarkButton.Visibility = Visibility.Collapsed; return; }
+        var played = seen >= total;
+        var action = played ? L("Marquer la saison comme non vue", "Mark season as unwatched") : L("Marquer la saison comme vue", "Mark season as watched");
+        var words = EpisodeTiles.Counter(seen, total);
+        var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(9, 0, 0, 0) };
+        // The number lit while the season is under way, as on the maquette: « 2 of 6 watched ».
+        var lead = words.IndexOf(' ');
+        if (!played && lead > 0) { text.Inlines.Add(new System.Windows.Documents.Run(words[..lead]) { FontWeight = FontWeights.Bold }); text.Inlines.Add(new System.Windows.Documents.Run(words[lead..])); }
+        else text.Text = words;
+        var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(new SeasonRing(seen, total)); row.Children.Add(text);
+        SeasonMarkButton.Content = row; SeasonMarkButton.ToolTip = action;
+        AutomationProperties.SetName(SeasonMarkButton, action); AutomationProperties.SetHelpText(SeasonMarkButton, words);
+        SeasonMarkButton.Tag = (page!.Season, !played); SeasonMarkButton.Visibility = Visibility.Visible;
     }
     /// <summary>A whole season watched or not: Jellyfin is told (the season in one call, else each episode), then the page follows it.</summary>
     private async void SeasonMark_Click(object sender, RoutedEventArgs e)

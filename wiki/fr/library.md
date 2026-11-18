@@ -32,7 +32,7 @@ Quand un titre a une bande-annonce, un bouton **Bande-annonce** apparaît sur sa
 Avec **Réglages → Lecture → Bande-annonce avant le film** (Windows et Mac, coupé par défaut), un film lancé depuis le début passe d’abord sa bande-annonce gardée sur ton serveur, comme au cinéma ; **Passer la bande-annonce** va droit au film. Jamais une bande-annonce du web, jamais en reprise, jamais dans un groupe.
 ## Marquer comme vu
 
-Un titre compte comme vu quand il se termine, quand tu t’arrêtes après 90 %, ou quand tu passes à l’épisode suivant depuis le générique. Tu peux aussi le marquer à la main, depuis sa fiche ou son menu (clic droit ou appui long). Avec plusieurs saisons, **Marquer la saison comme vue** les marque tous d’un coup.
+Un titre compte comme vu quand il se termine, quand tu t’arrêtes après 90 %, ou quand tu passes à l’épisode suivant depuis le générique. Tu peux aussi le marquer à la main, depuis sa fiche ou son menu (clic droit ou appui long). Au-dessus des épisodes d’une saison, son compteur (« 2 vus sur 6 ») dit où tu en es ; un clic dessus marque toute la saison comme vue d’un coup, ou non vue une fois toute vue.
 
 ## Spoilers
 

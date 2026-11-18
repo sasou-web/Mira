@@ -109,6 +109,11 @@
     <Style Selector="Button.bare:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bare:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.link"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="FontSize" Value="15"/></Style>
     <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="TextBlock.TextDecorations" Value="Underline"/></Style>
+    <!-- A season's counter over its episodes, which also marks it (maquette B, 2026-11-18): no card, grey at rest, white under the pointer and the keyboard. -->
+    <Style Selector="Button.counter"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="FontSize" Value="15"/><Setter Property="Foreground" Value="#A2A2A6"/></Style>
+    <Style Selector="Button.counter /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Foreground" Value="#A2A2A6"/></Style>
+    <Style Selector="Button.counter:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.counter:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.counter:focus-visible /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="#F4F4F5"/></Style>
+    <Style Selector="Button.counter:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.card"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="CornerRadius" Value="10"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style>
     <Style Selector="Button.card:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.card:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/></Style>

@@ -64,6 +64,15 @@ public static class EpisodeTiles
         return (page.Label, where);
     }
 
+    /// <summary>
+    /// The words of a season's counter, beside its ring: « 2 vus sur 6 », « 2 of 6 watched »; « Les 6 vus », « All 6
+    /// watched » once all are; « Vu », « Watched » for a season of one episode. The iPhone's SeasonCounter says the same.
+    /// </summary>
+    public static string Counter(int seen, int total) =>
+        total > 0 && seen >= total
+            ? total == 1 ? L("Vu", "Watched") : L($"Les {total.ToString(Culture)} vus", $"All {total.ToString(Culture)} watched")
+            : L($"{Count(seen, "vu", "vus", "", "")} sur {total.ToString(Culture)}", $"{seen.ToString(Culture)} of {total.ToString(Culture)} watched");
+
     /// <summary>A pill's name and its lighter note: « Saison 2 », « Saison 1 » + « absente », « Saison 1 » + « 1–100 ».</summary>
     public static (string Name, string? Note) Pill(EpisodePage page)
     {
