@@ -28,6 +28,11 @@
 //   Every release its own banner (ogsas, 2026-11-14): the thing shown never cuts more than half of what the release
 //   before cut from the same screen (its entry is kept for this: never prune the latest one), never Home twice in a row,
 //   never the same film twice in a row. The newest version of WhatsNew.json must have its entry (plan.test.mjs, ci.yml).
+//   What the thing shows must look finished (ogsas, 2026-11-18, after the first try of 0.9.13): every title whole, never
+//   cut by « … » (pick a shorter one: a saga named « Mad Max Collection », not « Spider-Man: Spider-Verse Collection »);
+//   its space filled (four titles or more in a row, never a half-empty page); the account's real photo, never its bare
+//   initial (tools/gallery/setup.mjs gives it one); the rail lit on the page the thing belongs to. Look at the drawn
+//   banner before taking it, and change the capture (tools/banner/media.sh, the gallery) rather than the crop when it fails.
 //
 // film (0.9.7 to 0.9.12): the release's film at the top right, melting into black as Mira shows a title; the version,
 // its date and its sentence on the left (en.summary cut at its first comma: the start in bold); below, a band of real

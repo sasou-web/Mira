@@ -23,6 +23,12 @@ series() { # <name> <season> <episodes> <minutes>
   for e in $(seq 1 "$3"); do video "$ROOT/Séries/$1/Season $(printf %02d "$2")/$short S$(printf %02d "$2")E$(printf %02d "$e").mkv" "$4"; done
 }
 film "Your Name. (2016)" 106
+# A saga of five, whole on a collection's page (a release banner's rule, 2026-11-18): TMDb's « Mad Max Collection ».
+film "Mad Max (1979)" 88
+film "Mad Max 2 (1981)" 96
+film "Mad Max Beyond Thunderdome (1985)" 107
+film "Mad Max Fury Road (2015)" 120
+film "Furiosa A Mad Max Saga (2024)" 148
 film "Spider-Man Into the Spider-Verse (2018)" 117
 film "Spider-Man Across the Spider-Verse (2023)" 140
 film "Princess Mononoke (1997)" 134

@@ -13,8 +13,8 @@
       { "category": "Discord", "text": "Statut Discord allumé par défaut, sans lien personnalisé ; tout se coupe dans Réglages → Discord.", "en": { "category": "Discord", "text": "Discord status on by default, no custom link; turn it off in Settings → Discord." } }
     ],
     "items": [
-      { "icon": "film", "title": "Une franchise, une carte", "text": "Une saga (Spider-Verse, Blade Runner) devient une seule carte dans Films et Séries. Sa page range les titres dans l’ordre où les regarder.",
-        "en": { "title": "One card per franchise", "text": "A saga (Spider-Verse, Blade Runner) becomes one card in Movies and Shows. Its page lists the titles in the order to watch them." } },
+      { "icon": "film", "title": "Une franchise, une carte", "text": "Une saga (Mad Max, Blade Runner) devient une seule carte dans Films et Séries. Sa page range les titres dans l’ordre où les regarder.",
+        "en": { "title": "One card per franchise", "text": "A saga (Mad Max, Blade Runner) becomes one card in Movies and Shows. Its page lists the titles in the order to watch them." } },
       { "icon": "series", "title": "Les grandes séries bien rangées", "text": "Noms de TheTVDB, épisodes numérotés depuis le début reconnus, packs de franchise rangés titre par titre, toutes les saisons d’un coup d’œil.",
         "en": { "title": "Big series sorted right", "text": "Names from TheTVDB, episodes numbered from the start understood, franchise packs sorted title by title, every season in sight." } },
       { "icon": "users", "title": "Inviter un ami", "text": "Mira te dit quelle adresse lui donner : celle de la maison s’il est chez toi, une autre s’il est ailleurs.",

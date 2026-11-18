@@ -90,10 +90,11 @@ public partial class MainWindow
         await shot("windows-missing");
         DetailOverlay.Visibility = Visibility.Collapsed;
 
-        // « L'étagère » (0.9.13): a saga of TMDb Jellyfin made of the library's films (tools/gallery/setup.mjs), its page.
+        // « L'étagère » (0.9.13): the page of the saga with the most titles Jellyfin made of the library's films (Mad Max's
+        // five, tools/banner/media.sh), from Movies, which the rail then shows as the page left.
+        ResetFilters(); _catalog.View = "Movie"; await NavigateLibraryAsync();
         IReadOnlyList<CollectionShelf.Shelf> shelves = _client is { } client ? (await GroupingAsync(client)).Shelves : [];
-        var shelf = shelves.FirstOrDefault(x => x.Box.Name.Contains("Spider", StringComparison.OrdinalIgnoreCase)) ?? shelves.FirstOrDefault()
-            ?? throw new InvalidOperationException("No saga grouped: did Jellyfin gather the library's films into sagas?");
+        var shelf = shelves.FirstOrDefault() ?? throw new InvalidOperationException("No saga grouped: did Jellyfin gather the library's films into sagas?");
         await ShowShelfAsync(CollectionShelf.Card(shelf)); await Task.Delay(1500);
         await shot("windows-shelf");
         ShelfOverlay.Visibility = Visibility.Collapsed;

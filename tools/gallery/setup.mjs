@@ -104,6 +104,21 @@ for (const [name, trace] of traces) {
 if (series) await call('POST', `UserItems/${series.Id}/UserData?userId=${userId}`, { token, body: { IsFavorite: true } });
 console.log(`Library: ${items.length} titles and episodes`);
 
+// The account's photo, never the bare initial (a release banner's rule, 2026-11-18): a square from the middle of a
+// poster of the library (Totoro's), sent in base64 as Mira for Windows does (JellyfinClient.SetPhotoAsync).
+const portrait = items.find((x) => x.Type === 'Movie' && /Totoro/i.test(x.Name ?? '') && x.ImageTags?.Primary) ?? items.find((x) => x.Type === 'Movie' && x.ImageTags?.Primary);
+if (portrait) {
+  try {
+    const picture = await fetch(`${base}/Items/${portrait.Id}/Images/Primary?fillWidth=400&fillHeight=400&quality=90`, { headers: { Authorization: authorization(token) } });
+    if (!picture.ok) throw new Error(`poster: ${picture.status}`);
+    const sent = await fetch(`${base}/Users/${userId}/Images/Primary`, {
+      method: 'POST', headers: { Authorization: authorization(token), 'Content-Type': 'image/jpeg' }, body: Buffer.from(await picture.arrayBuffer()).toString('base64'),
+    });
+    if (!sent.ok) throw new Error(`photo: ${sent.status} ${(await sent.text()).slice(0, 200)}`);
+    console.log(`Photo of ${user}: « ${portrait.Name} »`);
+  } catch (error) { console.log(`::warning::No photo for ${user}: ${error.message}`); }
+}
+
 if (repository) {
   const repositories = await call('GET', 'Repositories', { token });
   if (!repositories.some((r) => r.Url === repository)) await call('POST', 'Repositories', { token, body: [...repositories, { Name: 'Mira', Url: repository, Enabled: true }] });
