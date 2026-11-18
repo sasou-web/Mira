@@ -143,6 +143,8 @@ public partial class MainWindow
         var elsewhere = ReferenceEquals(sender, help ? HelpFriendElsewhere : FriendElsewhere);
         if (guide.Elsewhere == elsewhere && guide.Steps.Children.Count > 0) return;
         guide.Elsewhere = elsewhere;
+        // « Copied. » spoke of the other choice's address.
+        (help ? HelpFriendStatus : FriendStatus).Text = "";
         RenderFriendGuide(guide);
     }
     private void RenderFriendGuide() { if (_friendGuide is { } guide) RenderFriendGuide(guide); }
