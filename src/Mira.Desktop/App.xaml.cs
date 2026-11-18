@@ -65,6 +65,10 @@ public partial class App : Application
         ShellValidation = dataArg >= 0 || args.Any(x => x is "--demo" or "--visual-check" or "--player-check" or "--windows-check" or "--qa-window");
         ShellAppId = ShellValidation ? WindowsIdentity.AppId + ".Validation." + key : WindowsIdentity.AppId;
         WindowsIdentity.SetProcessIdentity(ShellAppId);
+        // Started by Windows at sign-in (SignInStart): never a window or a message box. An update or another Mira of this
+        // profile at that moment: this start just ends.
+        var atSignIn = args.Contains(SignInStart.Flag);
+        if (atSignIn && UpdateLock.Busy(directory, installed)) { Shutdown(); return; }
         // A second round only after a Mira of this profile that was closing has ended: this launch then opens as usual.
         for (var attempt = 0; ; attempt++)
         {
@@ -75,6 +79,7 @@ public partial class App : Application
             if (UpdateApplier.RecoverAtStartup(directory, args, instance)) { Shutdown(); return; }
             _instance = new Mutex(true, instance, out var created);
             if (created) break;
+            if (atSignIn) { _instance.Dispose(); _instance = null; Shutdown(); return; }
             var answer = InstanceActivation.ShowExisting(key, link);
             // Its window comes forward, or shows by itself once it has started.
             if (answer is ActivationAnswer.Shown or ActivationAnswer.Starting) { _instance.Dispose(); _instance = null; Shutdown(); return; }
@@ -133,7 +138,7 @@ public partial class App : Application
         {
             if (CheckFailed(ex)) { Shutdown(1); return; }
             ErrorLog.Append(AppFiles.ProfileDirectory, ex);
-            if (!ShellValidation) MessageBox.Show(ex is IOException or UnauthorizedAccessException
+            if (!ShellValidation && !atSignIn) MessageBox.Show(ex is IOException or UnauthorizedAccessException
                 ? L($"Mira ne peut pas écrire dans son dossier de données :\n{AppFiles.ProfileDirectory}\n\nVérifie qu’il reste de la place sur le disque et que ce dossier n’est pas en lecture seule, ou place Mira dans un dossier à toi (Documents, par exemple), puis relance-le.",
                     $"Mira can’t write to its data folder:\n{AppFiles.ProfileDirectory}\n\nCheck that the drive has free space and that this folder isn’t read-only, or put Mira in a folder of your own (Documents, for example), then open it again.")
                 : L("Mira n’a pas pu démarrer. Relance-le dans un instant.", "Mira couldn’t start. Open it again in a moment."), "Mira", MessageBoxButton.OK, MessageBoxImage.Error);

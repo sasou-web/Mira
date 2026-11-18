@@ -228,6 +228,43 @@ jobs:
           $sizes = Join-Path $output 'sizes.txt'
           if (Test-Path -LiteralPath $sizes) { Get-Content -LiteralPath $sizes }
           if ($run.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'Interface captures failed.' }
+      # Started at sign-in on the PC of Jellyfin (SignInStart, MainWindow.SignIn.cs), offline demo: no window shown, on
+      # screen or in the taskbar, while the whole start runs; a second launch (its icon, the Start menu) shows the window
+      # on a screen, in the taskbar. The demo's own profile: the runner's Run key is never written.
+      - name: Start at sign-in (offline demo)
+        shell: pwsh
+        run: |
+          Add-Type -Namespace Mira -Name Win -MemberDefinition @'
+          [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+          [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+          [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hWnd, uint command);
+          public struct RECT { public int Left, Top, Right, Bottom; }
+          '@
+          $exe = [IO.Path]::GetFullPath('src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe')
+          $profile = Join-Path $PWD '.artifacts/sign-in-profile'
+          $run = Start-Process -FilePath $exe -ArgumentList @('--demo', '--data', "`"$profile`"", '--at-sign-in') -PassThru
+          try {
+            Start-Sleep -Seconds 20
+            $run.Refresh()
+            if ($run.HasExited) { throw "Mira ended after a start at sign-in (exit $($run.ExitCode))." }
+            if ($run.MainWindowHandle -ne [IntPtr]::Zero) { throw 'A start at sign-in showed a window.' }
+            Write-Output 'PASS: started at sign-in, no window shown after 20 s'
+            $again = Start-Process -FilePath $exe -ArgumentList @('--demo', '--data', "`"$profile`"") -PassThru
+            if (-not $again.WaitForExit(30000)) { $again.Kill(); throw 'The second launch did not end.' }
+            $handle = [IntPtr]::Zero
+            for ($i = 0; $i -lt 40 -and $handle -eq [IntPtr]::Zero; $i++) { Start-Sleep -Milliseconds 250; $run.Refresh(); $handle = $run.MainWindowHandle }
+            if ($handle -eq [IntPtr]::Zero -or -not [Mira.Win]::IsWindowVisible($handle)) { throw 'The second launch did not show the window.' }
+            $rect = New-Object Mira.Win+RECT; [void][Mira.Win]::GetWindowRect($handle, [ref]$rect)
+            if ($rect.Left -lt -10000 -or $rect.Top -lt -10000) { throw "The window shows off every screen: $($rect.Left), $($rect.Top)." }
+            # WPF keeps a window out of the taskbar by giving it a hidden owner (ShowInTaskbar): none once shown (GW_OWNER).
+            if ([Mira.Win]::GetWindow($handle, 4) -ne [IntPtr]::Zero) { throw 'The window shown is still out of the taskbar.' }
+            Write-Output "PASS: shown by a second launch at $($rect.Left), $($rect.Top), $($rect.Right - $rect.Left) x $($rect.Bottom - $rect.Top)"
+          }
+          finally {
+            if (-not $run.HasExited) { $run.Kill(); $run.WaitForExit(10000) | Out-Null }
+            $log = Join-Path $profile 'errors.log'
+            if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log }
+          }
       # On request only (Run workflow → ui_audit): the interface audit of the nightly task on the Dell
       # (src/Mira.Desktop/Checks/MainWindow.UiAudit.cs), here on the offline demo, in English then French. Its report in
       # the log; the captures where a defect is outlined join the interface's as audit-<language>-* (for the previews).

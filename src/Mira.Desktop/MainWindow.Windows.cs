@@ -28,7 +28,8 @@ public partial class MainWindow
     internal void RestoreFromWindows()
     {
         if (_closing) return;
-        Show(); if (WindowState == WindowState.Minimized) WindowState = _lastVisibleState;
+        var maximize = PlaceAfterSignIn();
+        Show(); if (WindowState == WindowState.Minimized || maximize) WindowState = _lastVisibleState;
         Activate(); if (_playing) ShowPlayerControls();
     }
     /// <summary>The cross of the window (its button, Alt+F4, the taskbar's « Close window »), not « Quit Mira » nor a restart.</summary>
