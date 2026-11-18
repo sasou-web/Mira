@@ -1565,6 +1565,17 @@ internal static class LibraryTests
                 var expected = row.GetProperty("renames").EnumerateArray().Select(x => (x[0].GetString()!, x[1].GetString()!)).ToList();
                 Assert(renames.SequenceEqual(expected), $"{name}: " + string.Join(" | ", renames));
             }
+            // What Jellyfin wrote beside under the old names: the picture follows (dropped when the new one is there), the NFO goes.
+            const string dir = @"C:\Media\Anime\Show\Season 04\";
+            var beside = AbsoluteNumbers.Beside([(dir + "Show - S04E60.mkv", dir + "Show - S04E01.mkv"), (dir + "Show - S04E60.fr.srt", dir + "Show - S04E01.fr.srt"), (dir + "Show - S04E61.mkv", dir + "Show - S04E02.mkv")],
+                new HashSet<string> { dir + "Show - S04E60.nfo", dir + "Show - S04E60-thumb.jpg", dir + "Show - S04E61-thumb.jpg", dir + "Show - S04E02-thumb.jpg" }.Contains);
+            Assert(beside.Moves.SequenceEqual([(dir + "Show - S04E60-thumb.jpg", dir + "Show - S04E01-thumb.jpg")]), "Beside moves: " + string.Join(" | ", beside.Moves));
+            Assert(beside.Deletes.SequenceEqual([dir + "Show - S04E60.nfo", dir + "Show - S04E61-thumb.jpg"]), "Beside deletes: " + string.Join(" | ", beside.Deletes));
+            // The series holding a file now: the deepest folder, either separator, never a mere name prefix.
+            (string, string)[] folders = [("a", @"M:\ANIME\Shingeki no Kyojin"), ("b", @"M:\ANIME\Shingeki no Kyojin (2013)"), ("c", "/media/anime")];
+            Assert(AbsoluteNumbers.SeriesOf(@"M:\ANIME\Shingeki no Kyojin\Season 02\Shingeki no Kyojin - S02E26.mkv", folders) == "a", "SeriesOf a");
+            Assert(AbsoluteNumbers.SeriesOf(@"M:/ANIME/Shingeki no Kyojin (2013)/Season 02/x.mkv", folders) == "b", "SeriesOf b");
+            Assert(AbsoluteNumbers.SeriesOf(@"M:\ANIME\Other\x.mkv", folders) is null, "SeriesOf none");
             return Task.CompletedTask;
         });
         await Test("Épisodes en grille : colonnes, largeur, pastilles des saisons, cases des manquants", () =>

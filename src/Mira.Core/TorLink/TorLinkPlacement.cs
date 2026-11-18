@@ -161,12 +161,24 @@ public sealed class TorLinkPlacement : IDisposable
         try
         {
             var virtuals = await client.VirtualEpisodesAsync(token);
+            List<(string Id, string Folder)>? folders = null;
             foreach (var entry in due)
             {
                 _numbersTried[entry.Id] = now;
-                var known = virtuals.Where(x => string.Equals(x.SeriesId, entry.JellyfinId, StringComparison.OrdinalIgnoreCase)).ToList();
+                var seriesId = entry.JellyfinId!;
+                var known = virtuals.Where(x => string.Equals(x.SeriesId, seriesId, StringComparison.OrdinalIgnoreCase)).ToList();
+                // The id kept at the placing may name a series Jellyfin made again since: the series is the one holding the files now.
+                if (known.Count == 0 && entry.Files.FirstOrDefault(f => f.Role == "video") is { } video)
+                {
+                    folders ??= (await client.SeriesFoldersAsync(token)).Items.Where(x => x.Path is { Length: > 0 }).Select(x => (x.Id, x.Path!)).ToList();
+                    if (AbsoluteNumbers.SeriesOf(video.Destination, folders) is { } current && !string.Equals(current, seriesId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        seriesId = current; Importer.MarkAvailable(entry.Id, seriesId);
+                        known = virtuals.Where(x => string.Equals(x.SeriesId, seriesId, StringComparison.OrdinalIgnoreCase)).ToList();
+                    }
+                }
                 if (known.Count == 0) { if (now - entry.CompletedAt > TimeSpan.FromDays(1)) Importer.MarkNumbersChecked(entry.Id); continue; }
-                var held = (await client.EpisodePathsAsync(entry.JellyfinId!, token)).Items;
+                var held = (await client.EpisodePathsAsync(seriesId, token)).Items;
                 var placed = entry.Files.Where(f => !f.Found).Select(f => f.Destination).ToList();
                 var renames = await Task.Run(() => AbsoluteNumbers.Renames(placed, held, known, File.Exists), token);
                 var moving = renames.Select(x => x.From).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -177,11 +189,29 @@ public sealed class TorLinkPlacement : IDisposable
                 }
                 if (!await Task.Run(() => Rename(renames), token)) continue;
                 Importer.MarkRenumbered(entry.Id, renames);
+                // Then what Jellyfin wrote beside them under the old names: never in the way of the episodes' own renames.
+                var (moves, deletes) = await Task.Run(() => AbsoluteNumbers.Beside(renames, File.Exists), token);
+                await Task.Run(() => Tidy(moves, deletes), token);
                 await client.ReportMediaChangedAsync(renames.Select(x => x.To), renames.Select(x => x.From), token);
             }
         }
         catch (Exception ex) when (ExpectedErrors.Are(ex)) { }
         finally { _numbering = false; }
+    }
+
+    /// <summary>Jellyfin's pictures and NFO files beside renamed episodes: each on its own, one in use left as it is.</summary>
+    private static void Tidy(IEnumerable<(string From, string To)> moves, IEnumerable<string> deletes)
+    {
+        foreach (var (from, to) in moves)
+        {
+            try { File.Move(from, to); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+        foreach (var file in deletes)
+        {
+            try { File.Delete(file); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
     }
 
     /// <summary>All the renames, or none: those done put back when one fails (a file in use).</summary>
