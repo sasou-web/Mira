@@ -1170,12 +1170,12 @@
       },
       "comment": "An episode's number: É5 in French"
     },
-    "Each series’ TheTVDB id, for its list of episodes. No name or picture from TheTVDB is kept.": {
+    "Each series’ TheTVDB id, for its episodes in each order and the names and summaries of series, seasons and episodes. No picture from TheTVDB is kept.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "L’identifiant TheTVDB de chaque série, pour sa liste d’épisodes. Ni nom, ni image de TheTVDB ne sont gardés."
+            "value": "L’identifiant TheTVDB de chaque série, pour ses épisodes dans chaque ordre et les noms et résumés des séries, saisons et épisodes. Aucune image de TheTVDB n’est gardée."
           }
         }
       }

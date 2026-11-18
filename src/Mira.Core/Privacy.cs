@@ -136,7 +136,7 @@ public static class Privacy
         list.Add(new("tvdb", L("Épisodes manquants (TheTVDB)", "Missing episodes (TheTVDB)"),
             L("TheTVDB, par son extension officielle de Jellyfin.", "TheTVDB, through its official Jellyfin extension."),
             L("Seulement si tu l’as installée, à chaque analyse de la bibliothèque.", "Only if you installed it, at each library scan."),
-            L("L’identifiant TheTVDB de chaque série, pour sa liste d’épisodes. Ni nom, ni image de TheTVDB ne sont gardés.", "Each series’ TheTVDB id, for its list of episodes. No name or picture from TheTVDB is kept."),
+            L("L’identifiant TheTVDB de chaque série, pour ses épisodes dans chaque ordre et les noms et résumés des séries, saisons et épisodes. Aucune image de TheTVDB n’est gardée.", "Each series’ TheTVDB id, for its episodes in each order and the names and summaries of series, seasons and episodes. No picture from TheTVDB is kept."),
             windows ? L("La désinstaller, dans Soin de la bibliothèque.", "Uninstall it, in Library care.") : L("La désinstaller depuis Mira pour Windows ou le tableau de bord de Jellyfin.", "Uninstall it from Mira for Windows or Jellyfin’s dashboard."),
             windows ? PrivacyControl.Maintenance : PrivacyControl.None, true, ["TheTVDB"]));
         list.Add(new("torrent-search", L("Recherche de téléchargements", "Download searches"),

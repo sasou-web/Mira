@@ -1584,7 +1584,7 @@ internal static class LibraryTests
             Assert(EpisodeCalendar.Read(episodes.Where(x => x.SeriesId == "anime"), today).Coming.Count == 2, "The anime's coming episodes");
             Assert(EpisodeCalendar.Airing(episodes.Where(x => x.SeriesId == "deux"), new DateTimeOffset(2026, 11, 11, 12, 0, 0, TimeSpan.Zero)).Count == 4, "What « Suivre une série » sends of its air days");
         });
-        await Test("TheTVDB : installée depuis le dépôt de Jellyfin, ses noms et images coupés, seuls les épisodes manquants gardés", async () =>
+        await Test("TheTVDB : installée depuis le dépôt de Jellyfin, première source des noms des séries, ses images et les films coupés, épisodes manquants gardés", async () =>
         {
             // As Jellyfin 12.1 lists them: a server with Series in its settings, no Person; a series library listing its fetchers, one not.
             var configuration = System.Text.Json.Nodes.JsonNode.Parse("""
@@ -1632,11 +1632,14 @@ internal static class LibraryTests
             foreach (var type in TvdbExtension.ItemTypes)
             {
                 var entry = options.First(x => (string?)x!["ItemType"] == type)!;
-                Assert(Names(entry["DisabledMetadataFetchers"]).Contains("TheTVDB") && Names(entry["DisabledImageFetchers"]).Contains("TheTVDB") && !Names(entry["DisabledMetadataFetchers"]).Contains("Missing Episode Fetcher"), $"{type}: {entry.ToJsonString()}");
+                var named = TvdbExtension.SeriesTypes.Contains(type);
+                Assert(Names(entry["DisabledMetadataFetchers"]).Contains("TheTVDB") != named && (!named || Names(entry["MetadataFetcherOrder"])[0] == "TheTVDB")
+                    && Names(entry["DisabledImageFetchers"]).Contains("TheTVDB") && !Names(entry["DisabledMetadataFetchers"]).Contains("Missing Episode Fetcher"), $"{type}: {entry.ToJsonString()}");
             }
             Assert(configuration["ServerName"]!.GetValue<string>() == "x" && Names(options.First(x => (string?)x!["ItemType"] == "MusicVideo")!["DisabledMetadataFetchers"]).SequenceEqual(["The Open Movie Database"]), "Other settings kept");
             var series = folders[0]!["LibraryOptions"]!["TypeOptions"]!.AsArray();
-            Assert(Names(series[0]!["MetadataFetchers"]).SequenceEqual(["TheMovieDb", "Missing Episode Fetcher"]) && Names(series[1]!["MetadataFetchers"]).SequenceEqual(["TheMovieDb"]), "Series library: " + series.ToJsonString());
+            Assert(Names(series[0]!["MetadataFetchers"]).SequenceEqual(["TheTVDB", "TheMovieDb", "Missing Episode Fetcher"]) && Names(series[0]!["MetadataFetcherOrder"])[0] == "TheTVDB"
+                && Names(series[1]!["MetadataFetchers"]).SequenceEqual(["TheTVDB", "TheMovieDb"]), "Series library: " + series.ToJsonString());
             Assert(folders[1]!["LibraryOptions"]!["TypeOptions"]!.AsArray().Count == 0 && Names(folders[2]!["LibraryOptions"]!["TypeOptions"]![0]!["MetadataFetchers"]).SequenceEqual(["TheMovieDb"]), "Other libraries untouched");
             // Again: nothing more to install, nothing to send.
             calls.Clear();
@@ -1645,6 +1648,36 @@ internal static class LibraryTests
             Assert(await client.TvdbStateAsync() == TvdbExtension.State.Active, "Active");
             Assert(TvdbExtension.Read(System.Text.Json.Nodes.JsonNode.Parse("""[{"Id":"a677c0da-fac5-4cde-941a-7134223f14c8","Status":"Disabled"}]""")!.AsArray()) == TvdbExtension.State.Off, "Disabled in Jellyfin");
             Assert(TvdbExtension.Privacy.Contains("TheTVDB", StringComparison.Ordinal), "Privacy");
+        });
+        await Test("TheTVDB : saisons nommées par l’extension chargée, un réglage déjà fait ou absent gardé", () =>
+        {
+            var settings = System.Text.Json.Nodes.JsonNode.Parse("""{"ImportSeasonName":false,"SubscriberPIN":""}""")!.AsObject();
+            Assert(TvdbExtension.NameSeasons(settings) && (bool?)settings["ImportSeasonName"] == true && !TvdbExtension.NameSeasons(settings)
+                && !TvdbExtension.NameSeasons(new System.Text.Json.Nodes.JsonObject()), settings.ToJsonString());
+            var library = System.Text.Json.Nodes.JsonNode.Parse("""{"TypeOptions":[{"Type":"Episode","MetadataFetchers":["AniList","TheMovieDb","TheTVDB"],"MetadataFetcherOrder":["AniList","TheTVDB","TheMovieDb"]}]}""")!.AsObject();
+            Assert(TvdbExtension.ForSeriesLibrary(library) && !TvdbExtension.ForSeriesLibrary(library)
+                && library["TypeOptions"]![0]!["MetadataFetcherOrder"]!.AsArray().Select(x => (string)x!).SequenceEqual(["TheTVDB", "AniList", "TheMovieDb"]), "Moved first once: " + library.ToJsonString());
+            return Task.CompletedTask;
+        });
+        await Test("Ordre TheTVDB : l’intégrale Monogatari dans l’ordre des romans, la diffusion gardée quand elle colle, rien de flou", () =>
+        {
+            static List<(int, int)> Seasons(params int[] counts) => counts.SelectMany((n, i) => Enumerable.Range(1, n).Select(e => (i + 1, e))).ToList();
+            // matheousse's v3 (14 folders) against TheTVDB 102261 as the server PC's plugin read it on 2026-11-18.
+            var files = Seasons(15, 3, 11, 4, 5, 4, 5, 4, 4, 6, 4, 12, 20, 6);
+            var orders = new Dictionary<string, IReadOnlyCollection<(int Season, int Episode)>>
+            {
+                [""] = Seasons(15, 11, 26, 13, 7, 12, 5),
+                ["dvd"] = Seasons(15, 11, 4, 6, 5, 4, 5, 4, 3, 4, 6),
+                ["absolute"] = Seasons(83),
+                ["alternate"] = [.. Seasons(16, 4, 11, 4, 6, 5, 5, 5, 4, 6, 4, 12, 21, 6, 1, 4, 5, 6), (0, 1), (0, 2)],
+            };
+            Assert(TvdbOrder.Best(files, orders) == "alternate", "Book Order");
+            Assert(TvdbOrder.Best(Seasons(15, 11), orders) is null, "Fits the aired order: kept");
+            Assert(TvdbOrder.Best(Seasons(83), orders) == "absolute" && TvdbOrder.Best([.. Seasons(83), (0, 3)], orders) == "absolute", "Numbered 1 to 83, a special aside");
+            Assert(TvdbOrder.Best(Seasons(15, 11, 30), orders) is null, "In no order well enough: nothing");
+            Assert(TvdbOrder.Best(files, new Dictionary<string, IReadOnlyCollection<(int Season, int Episode)>> { ["alternate"] = orders["alternate"] }) is null && TvdbOrder.Best([], orders) is null, "Aired order unknown, or no file: nothing");
+            Assert(TvdbOrder.SeasonType("") == "official" && TvdbOrder.SeasonType("alternate") == "alternate", "TheTVDB's names");
+            return Task.CompletedTask;
         });
         await Test("Nouveaux épisodes : séries suivies, marque, lignes et « Et 2 autres séries », comme Mira web (tests/fixtures/new-episodes.json)", () =>
         {

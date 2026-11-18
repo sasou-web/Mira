@@ -98,6 +98,9 @@ public partial class MainWindow
             if (_settings.ScansLightFor != client.Connection.Server && await client.LightenScansAsync(ct)) { _settings.ScansLightFor = client.Connection.Server; TrySaveSettings(); }
             // Alongside the rest: the first pass may take minutes on a large library.
             _ = KeepMetadataBesideAsync(client, ct);
+            // Servers where « Épisodes manquants et sorties » was turned on before 0.9.13 had TheTVDB's names cut off.
+            if (_settings.TvdbTitlesFor != client.Connection.Server && await client.TvdbStateAsync(ct) == TvdbExtension.State.Active && await client.UseTvdbForSeriesAsync(ct))
+            { _settings.TvdbTitlesFor = client.Connection.Server; TrySaveSettings(); }
             var now = DateTimeOffset.Now;
             if (await client.BackupsAsync(ct) is { } backups && ReferenceEquals(client, _client))
             {

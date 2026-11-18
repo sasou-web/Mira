@@ -40,6 +40,8 @@ In **Settings → Playback**, **Hide spoilers** (off by default) blurs the pictu
 
 ## Missing and coming episodes
 
+With TheTVDB's plugin on, series and anime also take their names, season names and episode titles from TheTVDB (films and pictures keep TMDb's), and each series is shown in the TheTVDB episode order its files follow: aired, DVD, absolute (1 to 500) or alternate (a pack numbered after the novels, for instance). An order you chose yourself in Jellyfin is kept.
+
 With TheTVDB's plugin on your Jellyfin (**Settings → Library care → Missing episodes and air dates** in Mira for Windows turns it on, for an administrator), a series' page shows what your library doesn't have, each where it belongs. Episodes that aired and aren't in your library are one hollow tile between those you have ("E3–4", "Not in your library", "Aired Oct 25 – Nov 1"); **Show all** opens it into one tile each. The next episode to come out is a hollow tile at its place, with its day. A season you have none of is in the season list ("Season 1 · not in library"), shown as a card that tells how many episodes it has and when they aired. Nothing to play, nothing urgent: **Settings → Playback → Show missing episodes** off keeps only the coming ones.
 
 ## Play on another device
