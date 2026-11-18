@@ -46,7 +46,7 @@ public sealed partial class MainWindow
         if (_closing || Session is not { } session || InParty || _episodesLooking || !Settings.EpisodeNotices) return;
         _episodesLooking = true;
         var client = session.Client;
-        var account = client.Connection.Server + " " + client.Connection.UserId;
+        var account = client.Connection.Account + " " + client.Connection.UserId;
         try
         {
             // Read down to the mark: what came since, however much.

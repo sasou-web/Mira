@@ -1,0 +1,28 @@
+{
+  "about": "Jellyfin found again once the box gives its PC another address: ServerMove.cs (tests/Mira.Core.Tests, Mira for Windows and Mac) and WayPlan.neighbours (src/Mira.iOS) judge them alike. movable: [the server's address, whether it may move (an IPv4 address of the home network, never this device, Tailscale nor a name)]; neighbours: [server, this device's address, its prefix length, how many addresses are asked, the first, the last] (none on another network, a /24 at most around this device).",
+  "movable": [
+    ["http://192.168.1.42:8096/", true],
+    ["http://10.0.0.5:8096/", true],
+    ["https://172.20.3.4:8920/", true],
+    ["http://192.168.1.42:8096/jellyfin/", true],
+    ["http://172.32.0.1:8096/", false],
+    ["http://127.0.0.1:8096/", false],
+    ["http://100.88.12.34:8096/", false],
+    ["http://169.254.3.4:8096/", false],
+    ["http://maison-pc:8096/", false],
+    ["https://jellyfin.example.test/", false],
+    ["http://[fd00::1]:8096/", false],
+    ["http://8.8.8.8:8096/", false]
+  ],
+  "neighbours": [
+    ["http://192.168.1.42:8096/", "192.168.1.10", 24, 252, "http://192.168.1.1:8096/", "http://192.168.1.254:8096/"],
+    ["http://192.168.1.42:8096/jellyfin/", "192.168.1.10", 24, 252, "http://192.168.1.1:8096/jellyfin/", "http://192.168.1.254:8096/jellyfin/"],
+    ["http://192.168.1.42:8096/", "192.168.0.10", 24, 0, null, null],
+    ["http://10.0.5.42:8096/", "10.0.5.7", 16, 252, "http://10.0.5.1:8096/", "http://10.0.5.254:8096/"],
+    ["http://10.0.6.42:8096/", "10.0.5.7", 16, 0, null, null],
+    ["http://192.168.1.42:8096/", "192.168.1.33", 27, 28, "http://192.168.1.34:8096/", "http://192.168.1.62:8096/"],
+    ["http://192.168.1.42:8096/", "192.168.1.10", 32, 0, null, null],
+    ["http://100.88.12.34:8096/", "100.88.12.1", 24, 0, null, null],
+    ["http://maison-pc:8096/", "192.168.1.10", 24, 0, null, null]
+  ]
+}

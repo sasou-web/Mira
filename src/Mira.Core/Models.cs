@@ -243,8 +243,16 @@ public sealed record LibrarySection(string Id, string Name, string? CollectionTy
 /// <summary>A server library with its folders, as returned by Library/VirtualFolders (ItemId: what a policy names).</summary>
 public sealed record VirtualFolder(string Name, string? CollectionType, string[] Locations, string? ItemId = null);
 public sealed record AuthUser(string Id, string Name);
-public sealed record AuthenticationResult(string AccessToken, AuthUser User);
-public sealed record Connection(string Server, string UserId, string UserName, string Token, string DeviceId);
+public sealed record AuthenticationResult(string AccessToken, AuthUser User, string? ServerId = null);
+public sealed record Connection(string Server, string UserId, string UserName, string Token, string DeviceId)
+{
+    /// <summary>The server's own id (System/Info/Public), the same at every address: how it is found again once the box gives its PC another one (<see cref="ServerMove"/>).</summary>
+    public string? ServerId { get; init; }
+    /// <summary>The address signed in at, when Jellyfin has since moved to <see cref="Server"/>: what names this account's data on this computer.</summary>
+    public string? Origin { get; init; }
+    /// <summary>The address that names this account's cache, artwork and copies: the one signed in at, wherever Jellyfin went since.</summary>
+    [JsonIgnore] public string Account => Origin ?? Server;
+}
 public sealed record MediaStream
 {
     public int Index { get; init; }

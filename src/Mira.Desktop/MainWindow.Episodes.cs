@@ -30,7 +30,7 @@ public partial class MainWindow
     {
         if (_demo || _closing || _client is not { } client || _episodesLooking || !_settings.EpisodeNotices) return;
         _episodesLooking = true;
-        var account = client.Connection.Server + " " + client.Connection.UserId;
+        var account = client.Connection.Account + " " + client.Connection.UserId;
         try
         {
             // Read down to the mark: what came since, however much.

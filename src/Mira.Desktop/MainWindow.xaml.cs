@@ -348,6 +348,7 @@ public partial class MainWindow : Window
             await RefreshAsync();
             // Signed out, or another account, while the first page loaded: this one stops here (_client may be null).
             if (!ReferenceEquals(_client, client)) return;
+            if (_offlineSince is null) _ = LearnServerIdAsync(client);
             var libraries = await client.LibrariesAsync();
             if (!ReferenceEquals(_client, client)) return;
             LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
@@ -577,7 +578,8 @@ public partial class MainWindow : Window
                 _offlineSince = DateTimeOffset.Now;
                 // Said once as Jellyfin stops answering, not at each try (every 45 s): « Hors connexion » then stays in
                 // the title bar until it answers again.
-                if (!wasOffline) _ = SayUnansweredAsync(client, ex, Friendly(ex) + L(" Les informations déjà chargées restent disponibles.", " What’s already loaded stays available."));
+                // The box may have given Jellyfin's PC another address: looked for there before saying anything.
+                _ = UnansweredAsync(client, ex, wasOffline);
                 SyncChanged();
                 _catalog.Loading = false; RenderLibrary();
             }

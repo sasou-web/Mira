@@ -230,6 +230,84 @@ internal static class ConnectionTests
             var here = await ServerSearch.FindAsync([], new Handler(request => Task.FromResult(request.RequestUri!.IsLoopback ? Info("pc", "MAISON-PC") : throw new HttpRequestException("refusé"))), home);
             Assert(here.Select(x => x.Address).SequenceEqual(["http://127.0.0.1:8096/", "http://192.168.1.20:8096/"]) && here[0].Where == ServerSearch.Place.ThisComputer, "This PC: " + string.Join(" ; ", here));
         });
+        await Test("Serveur qui change d’adresse : cas communs avec l’iPhone (tests/fixtures/server-move.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "server-move.json")));
+            foreach (var row in fixture.RootElement.GetProperty("movable").EnumerateArray())
+            {
+                var connection = new Connection(row[0].GetString()!, "u", "Alex", "t", "d") { ServerId = "0d07f480c3c54c588da1d5ba7c7a1662" };
+                Assert(ServerMove.Movable(connection) == row[1].GetBoolean(), "Movable: " + row);
+            }
+            Assert(!ServerMove.Movable(new Connection("http://192.168.1.42:8096/", "u", "Alex", "t", "d")), "Movable without its id");
+            Assert(!ServerMove.Movable(new Connection("http://192.168.1.42:8096/Mira/guest/", "u", "Alex", "t", "d") { ServerId = "a" }), "A party's guest movable");
+            foreach (var row in fixture.RootElement.GetProperty("neighbours").EnumerateArray())
+            {
+                var asked = ServerMove.Neighbours(row[0].GetString()!, IPAddress.Parse(row[1].GetString()!), row[2].GetInt32());
+                Assert(asked.Count == row[3].GetInt32() && asked.FirstOrDefault() == row[4].GetString() && asked.LastOrDefault() == row[5].GetString() && asked.Distinct().Count() == asked.Count,
+                    $"Neighbours of {row}: {asked.Count}, {asked.FirstOrDefault()} … {asked.LastOrDefault()}");
+            }
+            return Task.CompletedTask;
+        });
+        await Test("Serveur qui change d’adresse : le même id ailleurs chez toi, le compte et ses données gardés", () =>
+        {
+            const string id = "0d07f480c3c54c588da1d5ba7c7a1662";
+            var connection = new Connection("http://192.168.1.42:8096/", "u1", "Alex", "t", "d") { ServerId = id };
+            ServerSearch.Found At(string address, string server, ServerSearch.Place where) => new(address, "MAISON-PC", server, where);
+            // Its id, written with dashes or in capitals, at another address; never another server, nor through Tailscale.
+            Assert(ServerMove.Found(connection, [At("http://192.168.1.20:8096/", "nas", ServerSearch.Place.Home), At("http://100.88.12.34:8096/", id, ServerSearch.Place.Tailnet),
+                At("http://192.168.1.57:8096/", "0D07F480-C3C5-4C58-8DA1-D5BA7C7A1662", ServerSearch.Place.Home)]) == "http://192.168.1.57:8096/", "Found at home");
+            Assert(ServerMove.Found(connection, [At("http://192.168.1.57:8096/", id, ServerSearch.Place.Home), At("http://127.0.0.1:8096/", id, ServerSearch.Place.ThisComputer)]) == "http://127.0.0.1:8096/", "This PC first");
+            Assert(ServerMove.Found(connection, [At("http://192.168.1.42:8096/", id, ServerSearch.Place.Home), At("http://100.88.12.34:8096/", id, ServerSearch.Place.Tailnet)]) is null, "Same address or Tailscale taken");
+            Assert(ServerMove.Found(connection with { Server = "https://192.168.1.42:8920/" }, [At("http://192.168.1.57:8096/", id, ServerSearch.Place.Home)]) is null
+                && ServerMove.Found(connection with { Server = "https://192.168.1.42:8920/" }, [At("https://192.168.1.57:8920/", id, ServerSearch.Place.Home)]) == "https://192.168.1.57:8920/", "https:// for https:// only");
+
+            // Moved: the address signed in at still names its cache, artwork and copies, however often it moves.
+            var moved = ServerMove.Moved(connection, "http://192.168.1.57:8096");
+            var again = ServerMove.Moved(moved, "http://192.168.1.60:8096/");
+            Assert(moved.Server == "http://192.168.1.57:8096/" && moved.Origin == "http://192.168.1.42:8096/" && again.Origin == moved.Origin && again.ServerId == id, "Moved: " + again);
+            Assert(AccountData.LibraryProfile(again) == AccountData.LibraryProfile(connection) && AccountData.ImageFolder("p", again) == AccountData.ImageFolder("p", connection)
+                && OfflineCopies.AccountFolder("c", again) == OfflineCopies.AccountFolder("c", connection), "Account data renamed by the move");
+            // Kept with the session, and read from a session written before (neither then).
+            var saved = JsonSerializer.Deserialize<Connection>(JsonSerializer.Serialize(again, Json.Options), Json.Options)!;
+            var old = JsonSerializer.Deserialize<Connection>("""{"Server":"http://192.168.1.42:8096/","UserId":"u1","UserName":"Alex","Token":"t","DeviceId":"d"}""", Json.Options)!;
+            Assert(saved == again && !JsonSerializer.Serialize(again, Json.Options).Contains("Account") && old.ServerId is null && old.Origin is null && old.Account == old.Server, "Session file: " + saved);
+            var was = Lang.Code; Lang.Use(Lang.English);
+            try { Assert(ServerMove.Said(connection.Server, moved.Server) == "Your router gave Jellyfin’s PC another address (192.168.1.42 → 192.168.1.57): Mira found it again on its own.", ServerMove.Said(connection.Server, moved.Server)); }
+            finally { Lang.Use(was); }
+            return Task.CompletedTask;
+        });
+        await Test("Serveur qui change d’adresse : retrouvé par Jellyfin sur le réseau, sinon adresse par adresse, jamais un autre", async () =>
+        {
+            const string id = "0d07f480c3c54c588da1d5ba7c7a1662";
+            var connection = new Connection("http://192.168.1.42:8096/", "u1", "Alex", "t", "d") { ServerId = id };
+            HttpResponseMessage Info(string server) => JsonResponse(new { ServerName = "MAISON-PC", Version = "12.1.0", ProductName = "Jellyfin Server", Id = server });
+            var asked = new System.Collections.Concurrent.ConcurrentBag<string>();
+            Handler Answers(Dictionary<string, string> servers) => new(request =>
+            {
+                asked.Add(request.RequestUri!.Host);
+                // No token leaves while it is looked for.
+                Assert(request.Headers.Authorization is null && !request.Headers.Contains("Authorization"), "Token sent to " + request.RequestUri);
+                return servers.TryGetValue(request.RequestUri.Host, out var server) ? Task.FromResult(Info(server)) : throw new HttpRequestException("refusé");
+            });
+            var own = new List<(IPAddress, int)> { (IPAddress.Parse("192.168.1.10"), 24) };
+            // Jellyfin's discovery answers from its new address.
+            var found = await ServerMove.FindAsync(connection, Answers(new() { ["192.168.1.57"] = id }),
+                _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([new("http://192.168.1.57:8096/", "MAISON-PC", id, ServerSearch.Place.Home)]), own);
+            Assert(found is { Server: "http://192.168.1.57:8096/", Origin: "http://192.168.1.42:8096/", Token: "t" }, "By discovery: " + found);
+            // Silent to discovery (in a container): each address of the network, the other Jellyfin of the house left alone.
+            asked.Clear();
+            var clock = Stopwatch.StartNew();
+            found = await ServerMove.FindAsync(connection, Answers(new() { ["192.168.1.20"] = "nas", ["192.168.1.57"] = id }),
+                _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([new("http://192.168.1.20:8096/", "Salon", "nas", ServerSearch.Place.Home)]), own);
+            Assert(found?.Server == "http://192.168.1.57:8096/" && clock.Elapsed < ServerSearch.Wait + ServerMove.Wait + TimeSpan.FromSeconds(3), $"Address by address: {found} in {clock.Elapsed}");
+            Assert(!asked.Contains("192.168.1.10") && !asked.Contains("192.168.1.42") && asked.All(x => x.StartsWith("192.168.1.", StringComparison.Ordinal) || x == "127.0.0.1"), "Asked: " + string.Join(", ", asked.Order()));
+            // Nowhere, another home's network, or nothing to look for: null.
+            Assert(await ServerMove.FindAsync(connection, Answers(new() { ["192.168.1.20"] = "nas" }), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), own) is null, "Another server taken");
+            Assert(await ServerMove.FindAsync(connection, Answers(new() { ["192.168.0.57"] = id }), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), [(IPAddress.Parse("192.168.0.10"), 24)]) is null, "Another network asked");
+            asked.Clear();
+            Assert(await ServerMove.FindAsync(connection with { ServerId = null }, Answers(new() { ["192.168.1.57"] = id }), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), own) is null && asked.IsEmpty, "Looked for without its id");
+        });
         await Test("Certificat HTTPS refusé : pas de repli en http:// pour un nom d’Internet, et la raison est dite", async () =>
         {
             HttpResponseMessage Info() => JsonResponse(new { ServerName = "Salon", Version = "10.10.3", ProductName = "Jellyfin Server", Id = "server-1" });

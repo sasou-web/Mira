@@ -57,7 +57,7 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         var result = await response.Content.ReadFromJsonAsync<AuthenticationResult>(Json.Options, ct)
             ?? throw new IOException(L("Réponse de connexion vide.", "Empty sign-in answer."));
-        Connection = Connection with { Token = result.AccessToken, UserId = result.User.Id, UserName = result.User.Name };
+        Connection = Connection with { Token = result.AccessToken, UserId = result.User.Id, UserName = result.User.Name, ServerId = result.ServerId is { Length: > 0 } id ? id : Connection.ServerId };
         SetAuthorization();
         return Connection;
     }
@@ -1114,6 +1114,18 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>
     /// Jellyfin's version (« 12.1.0 »), from its public information (camelCase while it starts); null when it does not say.
     /// </summary>
+    /// <summary>
+    /// The server's own id (<see cref="Connection.ServerId"/>), for a session signed in before Mira kept it: read once
+    /// from its public information, then kept in <see cref="Connection"/>. Null when it does not say.
+    /// </summary>
+    public async Task<string?> LearnServerIdAsync(CancellationToken ct = default)
+    {
+        if (Connection.ServerId is { Length: > 0 } known) return known;
+        var info = await GetAsync<JsonElement>("System/Info/Public", ct);
+        if (info.ValueKind != JsonValueKind.Object || !(info.TryGetProperty("Id", out var id) || info.TryGetProperty("id", out id)) || id.ValueKind != JsonValueKind.String || id.GetString() is not { Length: > 0 } text) return null;
+        Connection = Connection with { ServerId = text };
+        return text;
+    }
     public async Task<string?> ServerVersionAsync(CancellationToken ct = default)
     {
         var info = await GetAsync<JsonElement>("System/Info/Public", ct);

@@ -10,12 +10,12 @@ namespace Mira.Core;
 public static class AccountData
 {
     /// <summary>The name of an account's library cache (see <see cref="LibraryStore"/>).</summary>
-    public static string LibraryProfile(Connection connection) => connection.Server + "|" + connection.UserId;
+    public static string LibraryProfile(Connection connection) => connection.Account + "|" + connection.UserId;
     /// <summary>The folder of an account's artwork, under the profile's "images" (every account's, trimmed together).</summary>
     public static string ImageFolder(string directory, Connection connection)
     {
         // As its client knows it: JellyfinClient normalizes the server.
-        var account = JellyfinClient.NormalizeServer(connection.Server) + connection.UserId;
+        var account = JellyfinClient.NormalizeServer(connection.Account) + connection.UserId;
         return Path.Combine(directory, "images", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(account)))[..16]);
     }
     /// <summary>
