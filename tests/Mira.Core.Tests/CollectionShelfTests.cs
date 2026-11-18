@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Mira.Core;
 using static TestSupport;
@@ -90,6 +91,59 @@ internal static class CollectionShelfTests
                 Assert(CollectionShelf.TitleLine(titles[0]) == "2009  ·  15 episodes", CollectionShelf.TitleLine(titles[0]));
             }
             finally { Lang.Use(was); }
+            return Task.CompletedTask;
+        });
+        await Test("Collections groupées : cas communs avec l'iPhone (tests/fixtures/shelf.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "shelf.json")));
+            var x = fixture.RootElement;
+            var all = x.GetProperty("titles").EnumerateArray().Select(t => t.Deserialize<MediaItem>(Json.Options)!).ToDictionary(t => t.Id);
+            List<string>? Ids(JsonElement e) => e.ValueKind == JsonValueKind.Array ? e.EnumerateArray().Select(i => i.GetString()!).ToList() : null;
+            string Join(IEnumerable<MediaItem> items) => string.Join(",", items.Select(i => i.Id));
+            foreach (var row in x.GetProperty("grouped").EnumerateArray())
+            {
+                var box = new MediaItem { Id = "b", Type = "BoxSet", ProviderIds = row[0].ValueKind == JsonValueKind.Object ? row[0].Deserialize<Dictionary<string, string>>() : null };
+                var choice = row[1].ValueKind == JsonValueKind.Null ? null : new CollectionShelf.Choice(row[1].GetBoolean());
+                Assert(CollectionShelf.Grouped(box, choice) == row[2].GetBoolean(), $"Regroupée : {row}");
+            }
+            foreach (var row in x.GetProperty("read").EnumerateArray())
+            {
+                var written = CollectionShelf.Write(CollectionShelf.Read(JsonValue.Create(row[0].GetString())));
+                Assert(written == row[1].GetString(), $"{row[0]} → {written}");
+            }
+            var titles = Ids(x.GetProperty("release"))!.Select(id => all[id]).ToList();
+            var shuffled = titles.AsEnumerable().Reverse().ToList();
+            Assert(Join(CollectionShelf.ByRelease(shuffled)) == string.Join(",", Ids(x.GetProperty("release"))!), "Date de sortie : " + Join(CollectionShelf.ByRelease(shuffled)));
+            foreach (var row in x.GetProperty("order").EnumerateArray())
+                Assert(Join(CollectionShelf.InOrder(shuffled, Ids(row[0]))) == string.Join(",", Ids(row[1])!), $"Ordre {row[0]} : " + Join(CollectionShelf.InOrder(shuffled, Ids(row[0]))));
+            foreach (var row in x.GetProperty("move").EnumerateArray())
+            {
+                var moved = CollectionShelf.Move(titles, row[0].GetInt32(), row[1].GetInt32());
+                Assert(string.Join(",", moved) == string.Join(",", Ids(row[2])!), $"Déplacé {row[0]} {row[1]} : " + string.Join(",", moved));
+            }
+            foreach (var row in x.GetProperty("upNext").EnumerateArray())
+            {
+                var at = CollectionShelf.UpNext(CollectionShelf.InOrder(titles, Ids(row[0])));
+                Assert(at == (row[1].ValueKind == JsonValueKind.Null ? null : row[1].GetInt32()), $"À suivre {row[0]} : {at}");
+            }
+            Assert(Math.Abs(CollectionShelf.Share(titles) - x.GetProperty("share").GetDouble()) < 1e-6, "Barre : " + CollectionShelf.Share(titles));
+            var was = Lang.Code;
+            try
+            {
+                Lang.Use(Lang.French); var french = CollectionShelf.Facts(titles);
+                Lang.Use(Lang.English); var english = CollectionShelf.Facts(titles);
+                Assert(french == x.GetProperty("facts")[0].GetString() && english == x.GetProperty("facts")[1].GetString(), french + " | " + english);
+            }
+            finally { Lang.Use(was); }
+            var shelves = x.GetProperty("shelves").EnumerateObject().Select(s => new CollectionShelf.Shelf(new MediaItem { Id = s.Name, Name = s.Name, Type = "BoxSet" }, Ids(s.Value)!.Select(id => all[id]).ToList()));
+            var index = new CollectionShelf.Index(shelves);
+            foreach (var row in x.GetProperty("collapse").EnumerateArray())
+            {
+                var placed = Ids(row[2])!.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var shown = CollectionShelf.Collapse(Ids(row[1])!.Select(id => all[id]), index, row[0].GetString()!, placed);
+                Assert(Join(shown) == string.Join(",", Ids(row[3])!), $"Page {row[1]} : " + Join(shown));
+            }
             return Task.CompletedTask;
         });
         if (Environment.GetEnvironmentVariable("MIRA_SHELF_JELLYFIN") is { Length: > 0 } real)

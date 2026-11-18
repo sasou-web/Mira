@@ -29,7 +29,15 @@ final class Together {
     /// The groups open on Jellyfin, read with Home and a title's page while this iPhone is in none.
     private(set) var open: [SyncGroup] = []
     /// A line said over the app for a few seconds: someone came or went, the group ended.
-    var notice: String?
+    var notice: String? { didSet { if notice != oldValue { undo = nil } } }
+    /// « Undo » beside the notice said last (a collection grouped in the library), gone with it.
+    var undo: (@MainActor () -> Void)?
+
+    /// A notice with « Undo », as Windows and Mac say it.
+    func say(_ text: String, undo: @escaping @MainActor () -> Void) {
+        notice = text
+        self.undo = undo
+    }
     /// Someone came or went: the player's pill says it a few seconds.
     private(set) var member: (text: String, at: Date)?
 

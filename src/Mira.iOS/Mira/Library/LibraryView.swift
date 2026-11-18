@@ -21,6 +21,12 @@ struct LibraryView: View {
     /// On screen: a change of progress or of a mark is read again at once; otherwise once the grid shows again.
     @State private var shown = false
     @State private var stale = false
+    /// « L'étagère » (CollectionShelf): the collections grouped for this account, the titles Jellyfin sent (where the
+    /// next page starts: a collection's card stands for several), those a card took the place of, the cards shown.
+    @State private var grouping = CollectionShelf.Index.none
+    @State private var fetched = 0
+    @State private var absorbed = 0
+    @State private var placed = Set<String>()
     @Namespace private var zoom
 
     init(kind: Kind, genre: String? = nil) {
@@ -53,7 +59,7 @@ struct LibraryView: View {
                 }
                 filters
                 if let total, total > 0 {
-                    Text(countText(total)).font(MiraFont.footnote).foregroundStyle(Palette.muted).padding(.horizontal, 16)
+                    Text(verbatim: countText(total)).font(MiraFont.footnote).foregroundStyle(Palette.muted).padding(.horizontal, 16)
                 }
                 grid
             }
@@ -98,6 +104,8 @@ struct LibraryView: View {
         }
         .task { await loadOptions() }
         .onChange(of: app.playback) {
+            // The collections' cards say how far their titles are: read again.
+            ShelfGrouping.shared.forget()
             if shown { Task { await refresh() } } else { stale = true }
         }
         .onAppear {
@@ -107,6 +115,9 @@ struct LibraryView: View {
         .onDisappear { shown = false }
         .navigationDestination(for: TitleRoute.self) { route in
             TitleView(route: route).navigationTransition(.zoom(sourceID: route.source, in: zoom))
+        }
+        .navigationDestination(for: ShelfRoute.self) { route in
+            ShelfView(route: route).navigationTransition(.zoom(sourceID: route.source, in: zoom))
         }
     }
 
@@ -229,12 +240,23 @@ struct LibraryView: View {
         if let client = app.client, !items.isEmpty {
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(layout.width), spacing: 12, alignment: .top), count: layout.count), alignment: .leading, spacing: 18) {
                 ForEach(items) { item in
-                    NavigationLink(value: TitleRoute(item: item, source: "grid-\(item.id)")) {
-                        PosterCard(item: item, client: client, width: layout.width)
-                            .matchedTransitionSource(id: "grid-\(item.id)", in: zoom)
+                    Group {
+                        if item.shelf != nil {
+                            NavigationLink(value: ShelfRoute(box: item, source: "grid-\(item.id)")) {
+                                ShelfCard(item: item, client: client, width: layout.width)
+                                    .matchedTransitionSource(id: "grid-\(item.id)", in: zoom)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu { shelfMenu(item, client) }
+                        } else {
+                            NavigationLink(value: TitleRoute(item: item, source: "grid-\(item.id)")) {
+                                PosterCard(item: item, client: client, width: layout.width)
+                                    .matchedTransitionSource(id: "grid-\(item.id)", in: zoom)
+                            }
+                            .buttonStyle(.plain)
+                            .titleMenu(item)
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .titleMenu(item)
                     .onAppear { if item.id == items.last?.id { Task { await more() } } }
                 }
             }
@@ -267,14 +289,83 @@ struct LibraryView: View {
 
     // MARK: Loading
 
+    /// Movies and Shows as a whole (no person's titles): where a grouped collection is one card.
+    private var groups: Bool { query.search == nil && query.person == nil }
+
+    /// A page received: a grouped collection's titles taken in by its card (CollectionShelf.collapse).
+    private func receive(_ page: [Item], more: Bool) -> [Item] {
+        if !more { fetched = 0; absorbed = 0; placed = [] }
+        fetched += page.count
+        guard groups, !grouping.shelves.isEmpty else { return page }
+        var cards = placed
+        let shown = CollectionShelf.collapse(page, grouping, query.types, placed: &cards)
+        placed = cards
+        absorbed += page.count - shown.count(where: { $0.shelf == nil })
+        return shown
+    }
+
+    /// The collections grouped for this account, asked beside the page; none for a person's titles.
+    private func askGrouping(_ client: JellyfinClient) -> Task<(index: CollectionShelf.Index, automatic: [CollectionShelf.Shelf]), Never>? {
+        groups ? Task { await ShelfGrouping.shared.index(client) } : nil
+    }
+
+    /// The collections grouped; the first time sagas are grouped on their own, said once with « Undo ».
+    private func apply(_ asked: Task<(index: CollectionShelf.Index, automatic: [CollectionShelf.Shelf]), Never>?, _ client: JellyfinClient) async {
+        guard let asked else { grouping = .none; return }
+        let (index, automatic) = await asked.value
+        grouping = index
+        let told = "mira.collectionsGroupedTold"
+        guard !automatic.isEmpty, !UserDefaults.standard.bool(forKey: told) else { return }
+        UserDefaults.standard.set(true, forKey: told)
+        let boxes = automatic.map(\.box)
+        app.together.say(CollectionShelf.automaticNotice(automatic.reduce(0) { $0 + $1.titles.count }, automatic.count)) {
+            Task {
+                for box in boxes { _ = try? await client.setShelfChoice(box.id) { var x = $0; x.grouped = false; return x } }
+                ShelfGrouping.shared.forget()
+                app.playbackChanged()
+            }
+        }
+    }
+
+    /// « Group in the library » or « Stop grouping » in a collection's card menu, with « Undo ».
+    @ViewBuilder private func shelfMenu(_ box: Item, _ client: JellyfinClient) -> some View {
+        Button {
+            Task { await setGrouped(box, false, client, undoable: true) }
+        } label: {
+            Label(CollectionShelf.words("Ne plus regrouper dans la bibliothèque", "Stop grouping in the library"), systemImage: "rectangle.stack.badge.minus")
+        }
+        let favorite = box.userData?.isFavorite == true
+        Button {
+            Task { await app.set(box, favorite: !favorite) }
+        } label: {
+            Label(favorite ? CollectionShelf.words("Retirer des favoris", "Remove from favorites") : CollectionShelf.words("Ajouter aux favoris", "Add to favorites"), systemImage: favorite ? "heart.slash" : "heart")
+        }
+    }
+
+    private func setGrouped(_ box: Item, _ grouped: Bool, _ client: JellyfinClient, undoable: Bool) async {
+        do {
+            let all = try await client.setShelfChoice(box.id) { var x = $0; x.grouped = grouped; return x }
+            ShelfGrouping.shared.took(client, all)
+        } catch {
+            app.together.notice = Messages.text(error)
+            return
+        }
+        let titles = box.shelf?.count ?? box.childCount ?? 0
+        let said = grouped ? CollectionShelf.groupedNotice(titles, box.name ?? "") : CollectionShelf.ungroupedNotice(box.name ?? "")
+        if undoable { app.together.say(said) { Task { await setGrouped(box, !grouped, client, undoable: false) } } } else { app.together.notice = said }
+        app.playbackChanged()
+    }
+
     private func reload() async {
         guard let client = app.client else { return }
         loading = true
         defer { loading = false }
         do {
+            let asked = askGrouping(client)
             let page = try await client.browse(query, start: 0)
-            items = page.items ?? []
-            total = page.totalRecordCount ?? items.count
+            await apply(asked, client)
+            items = receive(page.items ?? [], more: false)
+            total = page.totalRecordCount ?? fetched
             failure = nil
         } catch JellyfinError.unauthorized {
             app.sessionEnded()
@@ -288,19 +379,27 @@ struct LibraryView: View {
     private func refresh() async {
         guard let client = app.client, !loading, !items.isEmpty else { return await reload() }
         let asked = query
-        guard let page = try? await client.browse(asked, start: 0, limit: max(60, items.count)), asked == query else { return }
-        items = page.items ?? []
-        total = page.totalRecordCount ?? items.count
+        let asking = askGrouping(client)
+        guard let page = try? await client.browse(asked, start: 0, limit: max(60, fetched)), asked == query else { return }
+        await apply(asking, client)
+        items = receive(page.items ?? [], more: false)
+        total = page.totalRecordCount ?? fetched
     }
 
     private func more() async {
-        guard let client = app.client, !loading, let total, items.count < total else { return }
+        guard let client = app.client, !loading, let total, fetched > 0, fetched < total else { return }
         loading = true
         defer { loading = false }
         let asked = query
-        guard let page = try? await client.browse(asked, start: items.count), asked == query else { return }
-        let known = Set(items.map(\.id))
-        items += (page.items ?? []).filter { !known.contains($0.id) }
+        // A page whose titles all went into cards already shown adds none: the next one is asked, a few at most.
+        for _ in 0..<5 {
+            guard let page = try? await client.browse(asked, start: fetched), asked == query else { return }
+            if (page.items ?? []).isEmpty { self.total = fetched; return }
+            let known = Set(items.map(\.id))
+            let added = receive(page.items ?? [], more: true).filter { !known.contains($0.id) }
+            items += added
+            if !added.isEmpty || fetched >= total { return }
+        }
     }
 
     private func loadOptions() async {
@@ -355,6 +454,8 @@ struct LibraryView: View {
     }
 
     private func countText(_ count: Int) -> String {
-        kind == .movies ? String(localized: "\(count) movies") : String(localized: "\(count) shows")
+        let cards = items.count(where: { $0.shelf != nil })
+        if cards > 0 { return CollectionShelf.gridCount(max(0, count - absorbed), cards, movies: kind == .movies) }
+        return kind == .movies ? String(localized: "\(count) movies") : String(localized: "\(count) shows")
     }
 }

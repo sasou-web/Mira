@@ -57,6 +57,13 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var locationType: String?
     /// A collection's folder in Jellyfin's data (fields=Path): its name is taken (TitleCollections.nameProblem).
     var path: String?
+    /// What identified a title or a saga elsewhere (fields=ProviderIds): a collection with them is a saga of TMDb,
+    /// grouped in the library on its own (CollectionShelf.automatic).
+    var providerIds: [String: String]?
+    /// Episodes of a series (fields=RecursiveItemCount), said on a collection's page.
+    var recursiveItemCount: Int?
+    /// A collection grouped in the library (« L'étagère »): its titles, on its card in place of theirs; nil otherwise.
+    var shelf: [Item]?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }
