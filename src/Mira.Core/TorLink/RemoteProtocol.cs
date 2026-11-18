@@ -63,9 +63,10 @@ public sealed record WorkSearch(string Id, string Query, string Category);
 /// info hash's magnet link, for the name and the hash. <paramref name="Pasted"/>: a magnet link someone pasted (not a
 /// search result): qBittorrent takes it when it is ready (a private tracker's, often). <paramref name="Files"/>: of a pasted link
 /// read before (<see cref="WorkLook"/>), the files to download, by their index in qBittorrent; null: all of them.
+/// <paramref name="Kind"/>: of a search result, what the searches that found it say it is (<see cref="RemoteDownloads.KindOf"/>).
 /// </summary>
 public sealed record WorkRequest(string Id, string Magnet, string Name, FollowPlace? Place = null, string? Replace = null, string? Torrent = null, bool Pasted = false,
-    List<int>? Files = null);
+    List<int>? Files = null, string? Kind = null);
 /// <summary>
 /// « Coller un lien magnet »: a pasted link whose files the agent reads (its qBittorrent joins the people who share it until
 /// it has the list, then stops), for the window that proposes what to download of it.

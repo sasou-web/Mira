@@ -51,6 +51,18 @@ public static partial class RemoteDownloads
         return administrator == true && extension == true || before;
     }
     public static bool IsCategory(string? category) => category is not null && Categories.Contains(category);
+
+    /// <summary>
+    /// What a result is by the searches that found it (one per category, « all » runs each): "anime" when found among anime,
+    /// "movies" when only among films, "tv" among shows and not films; null when it cannot say. Carried to the PC of
+    /// Jellyfin with the download (<see cref="WorkRequest.Kind"/>), for the planner's choice of library (MediaPlanner.HintOf).
+    /// </summary>
+    public static string? KindOf(IEnumerable<string> categories)
+    {
+        var found = categories.Where(IsCategory).ToHashSet();
+        return found.Contains("anime") ? "anime" : found.SetEquals(["movies"]) ? "movies" : found.SetEquals(["tv"]) ? "tv" : null;
+    }
+
     /// <summary>What Mira web or Mira for Windows or Mac may ask for: one category, or <see cref="All"/>.</summary>
     public static bool IsSearchCategory(string? category) => category == All || IsCategory(category);
     /// <summary>The searches of TorLink a search asks for.</summary>

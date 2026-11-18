@@ -425,6 +425,40 @@ internal static class TorLinkTests
             Assert(films.Kind == MediaKind.Movie && films.Operations.Count == 2, "Numbered films: " + films.Kind + " " + Targets(films));
             return Task.CompletedTask;
         });
+        await Test("TorLink : ce que la recherche a dit (films, séries, animes) décide de la bibliothèque, jamais contre une série déjà là", () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-hint");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), Path.Combine(dir, "ANIME"));
+            Directory.CreateDirectory(Path.Combine(dir, "SERIES/Dan Da Dan/Season 01"));
+            SourceFile File(string path) => new(Path.Combine(dir, "downloads", path), path, 900_000_000);
+            string Targets(ImportPlan plan) => string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/')));
+            ImportPlan Plan(string name, MediaKind? hint, params string[] files) => MediaPlanner.Plan(name, null, files.Select(File).ToList(), libraries, hint: hint);
+            // Which searches found it: among anime wins, only among films, only among shows; otherwise nothing said.
+            Assert(RemoteDownloads.KindOf(["tv", "anime"]) == "anime" && RemoteDownloads.KindOf(["movies"]) == "movies" && RemoteDownloads.KindOf(["tv"]) == "tv"
+                && RemoteDownloads.KindOf(["movies", "tv"]) is null && RemoteDownloads.KindOf([]) is null && RemoteDownloads.KindOf(["games"]) is null, "KindOf");
+            Assert(MediaPlanner.HintOf("anime") == MediaKind.Anime && MediaPlanner.HintOf("tv") == MediaKind.Series && MediaPlanner.HintOf("movies") == MediaKind.Movie && MediaPlanner.HintOf("all") is null, "HintOf");
+            // A web release of an anime, named as a series: a series before, an anime when found among anime.
+            const string Frieren = "Frieren.Beyond.Journeys.End.S01E05.1080p.WEB.H264-VARYG.mkv";
+            Assert(Plan(Frieren, null, Frieren).Kind == MediaKind.Series, "No hint: a series");
+            var anime = Plan(Frieren, MediaKind.Anime, Frieren);
+            Assert(anime.Kind == MediaKind.Anime && Targets(anime).StartsWith("ANIME/Frieren Beyond Journeys End/Season 01/"), "Anime hint: " + Targets(anime));
+            // A show already in a library keeps its episodes, whatever the search said.
+            const string Dandadan = "Dan.Da.Dan.S01E07.1080p.WEB.H264-VARYG.mkv";
+            Assert(Targets(Plan(Dandadan, MediaKind.Anime, Dandadan)).StartsWith("SERIES/Dan Da Dan/Season 01/"), "Existing show wins");
+            // Found only among shows: a series, even numbered as a fansub would be.
+            var show = Plan("Some Documentary - 03.mkv", MediaKind.Series, "Some Documentary - 03.mkv");
+            Assert(show.Kind == MediaKind.Series, "Series hint: " + show.Kind + " " + Targets(show));
+            // An anime film found among anime stays a film.
+            foreach (var name in new[] { "Jujutsu Kaisen 0 2021 1080p BluRay x264.mkv", "Suzume.2022.1080p.BluRay.x264.mkv", "Evangelion 3.0+1.0 Thrice Upon a Time 2021 1080p.mkv", "Perfect Blue 1997 1080p BluRay.mkv" })
+                Assert(Plan(name, MediaKind.Anime, name).Kind == MediaKind.Movie, "Anime film: " + name + " " + Targets(Plan(name, MediaKind.Anime, name)));
+            // Found only among films: a numbered film stays a film; a season and an episode still say a series.
+            var film = Plan("Rocky 2 1979 1080p BluRay x264.mkv", MediaKind.Movie, "Rocky 2 1979 1080p BluRay x264.mkv");
+            Assert(film.Kind == MediaKind.Movie && Targets(film).StartsWith("FILMS/"), "Movie hint: " + film.Kind + " " + Targets(film));
+            Assert(Plan("The.Bear.S03E02.1080p.WEB.mkv", MediaKind.Movie, "The.Bear.S03E02.1080p.WEB.mkv").Kind == MediaKind.Series, "Movie hint, SxxEyy");
+            // « Classer comme… » and a series followed win over it.
+            Assert(MediaPlanner.Plan(Frieren, null, [File(Frieren)], libraries, MediaKind.Series, hint: MediaKind.Anime).Kind == MediaKind.Series, "Forced wins");
+            return Task.CompletedTask;
+        });
         await Test("TorLink : jamais une deuxième version d’un épisode ou d’un film déjà dans la bibliothèque, ses sous-titres non plus", async () =>
         {
             var dir = Path.Combine(testRoot, "torlink-owned");

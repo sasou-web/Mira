@@ -75,20 +75,27 @@ public static partial class MediaPlanner
     private static readonly HashSet<string> TvSources = new(StringComparer.OrdinalIgnoreCase) { "eztv", "solid", "tpb-tv", "x1337-tv" };
     private static readonly HashSet<string> AnimeSources = new(StringComparer.OrdinalIgnoreCase) { "nyaa", "subsplease", "animetosho" };
 
+    /// <summary>The library <see cref="RemoteDownloads.KindOf"/> names ("movies", "tv", "anime"); null for anything else.</summary>
+    public static MediaKind? HintOf(string? kind) => kind switch { "movies" => MediaKind.Movie, "tv" => MediaKind.Series, "anime" => MediaKind.Anime, _ => null };
+
     /// <summary>
     /// <paramref name="known"/>: the shows placed before (<see cref="KnownShows"/>), so that an episode named otherwise
     /// (the romaji title of a fansub group, an English one elsewhere) joins the show it belongs to. <paramref name="target"/>:
-    /// an episode of a series followed, placed in that series' folder under its number there.
+    /// an episode of a series followed, placed in that series' folder under its number there. <paramref name="hint"/>: what
+    /// the search that found it said it is (<see cref="RemoteDownloads.KindOf"/>): it decides where the release's name alone
+    /// cannot, never against a show already in a library.
     /// </summary>
-    public static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced = null, IReadOnlyList<KnownShow>? known = null, ImportTarget? target = null)
+    public static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced = null, IReadOnlyList<KnownShow>? known = null, ImportTarget? target = null,
+        MediaKind? hint = null)
     {
+        if (forced is not null || target is not null) hint = null;
         // A franchise in one pack (« 01. Bakemonogatari », « 02. Nisemonogatari », a film's folder among them): each folder
         // is a title of its own, as Jellyfin and its metadata know it, never one film whose episodes would be extras.
-        if (target is null && forced is not MediaKind.Movie && Franchise(files) is { } titles) return PlanFranchise(torrentName, source, files, titles, libraries, forced, known);
-        return Plan(torrentName, source, files, libraries, forced, known, target, franchise: false);
+        if (target is null && forced is not MediaKind.Movie && Franchise(files) is { } titles) return PlanFranchise(torrentName, source, files, titles, libraries, forced, known, hint);
+        return Plan(torrentName, source, files, libraries, forced, known, target, franchise: false, hint);
     }
 
-    private static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced, IReadOnlyList<KnownShow>? known, ImportTarget? target, bool franchise)
+    private static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced, IReadOnlyList<KnownShow>? known, ImportTarget? target, bool franchise, MediaKind? hint = null)
     {
         if (target is not null) forced = target.Kind;
         if (string.Equals(source, "fitgirl", StringComparison.OrdinalIgnoreCase))
@@ -116,7 +123,8 @@ public static partial class MediaPlanner
             PackSeason = target?.Season ?? (franchise ? 1 : ReleaseName.Season(torrentName)),
             Show = franchise ? torrentName : ReleaseName.Show(torrentName).Title,
             Target = target,
-            Franchise = franchise
+            Franchise = franchise,
+            Hint = hint
         };
         var mains = videos.Where(v => !IsBonus(v)).ToList();
         // The one episode of a series followed: its number is the one chosen, not what the file says. A season asked from a
@@ -128,7 +136,7 @@ public static partial class MediaPlanner
         var everyPart = ReleaseName.IsCompletePack(torrentName);
         var collection = forced is null && target is null && context.PackSeason is null && everyPart && mains.Count > 1 && Films(mains);
         // A pack of every episode ("Complete Series") numbers them "Show - 01" as often as an anime does.
-        context.AbsoluteAllowed = context.AnimeSource || context.Grouped || context.PackSeason is not null || forced is MediaKind.Anime or MediaKind.Series || everyPart && !collection
+        context.AbsoluteAllowed = context.AnimeSource || context.Grouped || context.PackSeason is not null || forced is MediaKind.Anime or MediaKind.Series || hint is MediaKind.Anime or MediaKind.Series || everyPart && !collection
             // « Fullmetal Alchemist Brotherhood 1-64 », or files numbered one after the other (« Show - 01 », « Show - 02 »): episodes, never
             // one film in several versions. A pack of films with their years stays films.
             || forced is null && (ReleaseName.HasEpisodeSpan(torrentName) && !(mains.Count > 1 && Films(mains)) || Sequence(mains));
@@ -141,6 +149,8 @@ public static partial class MediaPlanner
         {
             MediaKind.Movie => false,
             MediaKind.Series or MediaKind.Anime => true,
+            // Found only among films: films (« Harry Potter 1-8 », « Rocky 2 »), unless its files say a season and an episode.
+            _ when hint is MediaKind.Movie && context.PackSeason is null && !mains.Any(v => ReleaseName.Episode(Path.GetFileName(v.RelativePath), allowAbsolute: false) is not null) => false,
             _ => !collection && (numbered || (mains.Count > 1 && (context.PackSeason is not null || everyPart)))
         });
         return episodic ? PlanShow(context, videos, subtitles, forced) : PlanMovies(context, videos, subtitles);
@@ -158,6 +168,8 @@ public static partial class MediaPlanner
         public string Show = "";
         public IReadOnlyList<KnownShow> Known = [];
         public ImportTarget? Target;
+        /// <summary>What the search that found it said it is (films, shows, anime): after a show already there and the source, before any guess.</summary>
+        public MediaKind? Hint;
         public SourceFile? Main;
         public bool Franchise, Compact;
     }
@@ -246,14 +258,15 @@ public static partial class MediaPlanner
     private static partial System.Text.RegularExpressions.Regex FranchiseOrder();
 
     /// <summary>Each title of a franchise pack placed as its own download would be, all in one plan.</summary>
-    private static ImportPlan PlanFranchise(string torrentName, string? source, IReadOnlyList<SourceFile> all, List<(string Title, List<SourceFile> Files)> titles, MediaLibraries libraries, MediaKind? forced, IReadOnlyList<KnownShow>? known)
+    private static ImportPlan PlanFranchise(string torrentName, string? source, IReadOnlyList<SourceFile> all, List<(string Title, List<SourceFile> Files)> titles, MediaLibraries libraries, MediaKind? forced, IReadOnlyList<KnownShow>? known,
+        MediaKind? hint)
     {
         var plans = new List<ImportPlan>(); ImportPlan? skipped = null;
         // Each operation names its file as the torrent does (qBittorrent's list, the import journal), not as its folder does.
         var original = all.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().RelativePath, StringComparer.OrdinalIgnoreCase);
         foreach (var (title, files) in titles)
         {
-            var plan = Plan(title, source, files, libraries, forced, known, null, franchise: true);
+            var plan = Plan(title, source, files, libraries, forced, known, null, franchise: true, hint);
             if (plan.Problem is not null) return plan;
             if (plan.Ignored is not null) skipped ??= plan;
             else
@@ -477,6 +490,8 @@ public static partial class MediaPlanner
             : seriesFolder is not null ? MediaKind.Series
             : context.AnimeSource ? MediaKind.Anime
             : context.TvSource ? MediaKind.Series
+            // Found among anime (« Frieren S01E05 » of a web release), or among shows and not films nor anime.
+            : context.Hint is MediaKind.Anime or MediaKind.Series ? context.Hint.Value
             // Numbered as fansub groups number (« Show - 05 »), never as a broadcaster does (« Planet Earth II Ep1 »).
             : context.Grouped || numbered.Any(x => x.Absolute) && (videos.Any(v => !IsBonus(v) && ReleaseName.FansubNumbered(Path.GetFileName(v.RelativePath))) || single && ReleaseName.FansubNumbered(context.TorrentName)) ? MediaKind.Anime
             // A franchise's episodes numbered without any season (« Bakemonogatari 01 »), as fansubs number them: an anime.

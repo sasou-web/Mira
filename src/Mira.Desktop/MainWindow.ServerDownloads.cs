@@ -44,6 +44,8 @@ public partial class MainWindow
     private bool _localResume;
     /// <summary>The magnets of the last search on this PC, by search id / result id: never shown.</summary>
     private readonly Dictionary<string, string> _localMagnets = [];
+    /// <summary>Of each result of a search on this PC, what its searches say it is (<see cref="RemoteDownloads.KindOf"/>), as the relay keeps it.</summary>
+    private readonly Dictionary<string, string> _localKinds = [];
     private int _localSearches, _serverQueued;
 
     private void InitializeServerDownloads()
@@ -99,7 +101,7 @@ public partial class MainWindow
     {
         ++_serverVersion; ++_serverSearchVersion;
         _serverFilled = _serverReady = _serverSearching = false; _serverAgent = null; _serverClient = null;
-        _serverSent.Clear(); _serverRows.Clear(); _localMagnets.Clear(); _localProblem = null; _serverQueued = 0; _serverStatus = null; _serverPosters.Clear(); _serverGone.Clear();
+        _serverSent.Clear(); _serverRows.Clear(); _localMagnets.Clear(); _localKinds.Clear(); _localProblem = null; _serverQueued = 0; _serverStatus = null; _serverPosters.Clear(); _serverGone.Clear();
         _serverPlacedAll = _serverFollowsOpen = _serverPlacedOpen = false;
         ServerQueue.Children.Clear(); ServerFollows.Children.Clear(); ServerPlaced.Children.Clear(); ServerPlacedList.Children.Clear(); ServerResults.Children.Clear();
         ServerQueueCompact.Children.Clear(); ServerFollowsCompact.Children.Clear(); ServerPlacedCompact.Children.Clear();
@@ -215,9 +217,11 @@ public partial class MainWindow
     }
 
     /// <summary>A magnet into this PC's TorLink, without a window: null once TorLink has it (new or already there), otherwise why not.</summary>
-    private async Task<string?> DownloadHereAsync(string magnet)
+    private async Task<string?> DownloadHereAsync(string magnet, MediaKind? hint = null)
     {
         if (await StartLocalTorLinkAsync() is { } refused) return refused;
+        // A search result: found among anime, only among films or among shows, the library it goes to once finished.
+        if (hint is { } kind && RemoteDownloads.InfoHash(magnet) is { } hash) _torlink?.Importer.Hint(hash, kind);
         if (_torlinkHeadless.Client is not { } serve) return L("TorLink n’a pas répondu.", "TorLink didn’t answer.");
         var ct = _torlinkLifetime.Token;
         try
@@ -391,8 +395,12 @@ public partial class MainWindow
                 if (failed is not null) { End(failed); return; }
                 var local = $"here-{++_localSearches}";
                 // The magnets stay here, as the relay keeps them: the buttons only name a result.
-                _localMagnets.Clear();
-                foreach (var (_, hit) in found) _localMagnets[local + "/" + hit.Id] = hit.Magnet;
+                _localMagnets.Clear(); _localKinds.Clear();
+                foreach (var (_, hit) in found)
+                {
+                    _localMagnets[local + "/" + hit.Id] = hit.Magnet;
+                    if (RemoteDownloads.KindOf(parts.Where(p => p.Item2.Any(x => x.Id == hit.Id)).Select(p => p.kind)) is { } kind) _localKinds[local + "/" + hit.Id] = kind;
+                }
                 ShowServerHits(local, query, [.. found.Select(x => new RelayHit(x.Hit.Id, x.Hit.Name, x.Hit.Size, x.Hit.Seeders, x.Hit.Leechers, x.Hit.Source, x.Hit.Added, x.Category))]);
                 return;
             }
@@ -609,7 +617,7 @@ public partial class MainWindow
             else if (!_localMagnets.TryGetValue(searchId + "/" + hit.Id, out var magnet)) { button.IsEnabled = true; SetNotice(L("Ce résultat n’est plus là : relance la recherche.", "This result is gone: search again.")); return; }
             else if (replace is not null && (RemoteDownloads.InfoHash(magnet) is not { } hash ? L("Ce n’est pas un lien magnet.", "That’s not a magnet link.") : await ExpectReplacementAsync(hash, replace, _torlinkLifetime.Token)) is { } refusal)
             { button.IsEnabled = true; SetNotice(refusal); return; }
-            else if (await DownloadHereAsync(magnet) is { } refused) { button.IsEnabled = true; SetNotice(refused); return; }
+            else if (await DownloadHereAsync(magnet, replace is null ? MediaPlanner.HintOf(_localKinds.GetValueOrDefault(searchId + "/" + hit.Id)) : null) is { } refused) { button.IsEnabled = true; SetNotice(refused); return; }
             _serverSent.Add(searchId + "/" + hit.Id); ShowSendState(button, sent: true, best);
             if (replace is not null) _upgradeSent = true;
             await SentToServerAsync(replace is not null);

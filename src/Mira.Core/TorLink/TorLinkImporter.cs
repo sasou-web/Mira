@@ -59,6 +59,8 @@ public sealed class TorLinkImportLog
     public List<TorLinkExpected> Expected { get; set; } = [];
     /// <summary>Downloads that take a title's place once finished (« Remplacer par une meilleure version »): never imported as new titles.</summary>
     public List<TorLinkReplacement> Replacements { get; set; } = [];
+    /// <summary>Search results downloaded: what their search said they are (films, shows, anime), for the library they go to.</summary>
+    public List<TorLinkKindHint> Hints { get; set; } = [];
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ReplacementState>))]
@@ -122,6 +124,7 @@ public interface IDownloadSource
 }
 
 public sealed record TorLinkExpected(string Id, ImportTarget Target, DateTimeOffset At);
+public sealed record TorLinkKindHint(string Id, MediaKind Kind, DateTimeOffset At);
 
 /// <summary>
 /// Places finished TorLink downloads in the Jellyfin libraries and remembers each decision (data/torlink-imports.json).
@@ -185,6 +188,23 @@ public sealed class TorLinkImporter
         Save();
     }
     public ImportTarget? Expected(string id) { lock (_sync) return _log.Expected.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase))?.Target; }
+
+    /// <summary>
+    /// A search result sent to download: what its search said it is (<see cref="RemoteDownloads.KindOf"/>), which
+    /// <see cref="MediaPlanner.Plan"/> follows where the name alone cannot say (an anime of a web release among the anime).
+    /// </summary>
+    public void Hint(string id, MediaKind kind)
+    {
+        lock (_sync)
+        {
+            var now = DateTimeOffset.UtcNow;
+            _log.Hints.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) || now - x.At > ExpectedFor);
+            _log.Hints.Insert(0, new(id.ToLowerInvariant(), kind, now));
+            if (_log.Hints.Count > MaxExpected) _log.Hints.RemoveRange(MaxExpected, _log.Hints.Count - MaxExpected);
+        }
+        Save();
+    }
+    public MediaKind? HintFor(string id) { lock (_sync) return _log.Hints.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase))?.Kind; }
 
     /// <summary>« Remplacer par une meilleure version »: this download takes <paramref name="replacement"/>'s title's place once finished, never imported as a new title.</summary>
     public void ExpectReplacement(TorLinkReplacement replacement)
@@ -275,7 +295,7 @@ public sealed class TorLinkImporter
         var known = Entries.Where(x => x.Id != completion.Id).ToList();
         // « Classer comme… » another kind wins over the series it was sent for.
         if (entry.ForcedKind is { } forced && forced != target?.Kind) target = null;
-        var plan = await Task.Run(() => MediaPlanner.Plan(completion.Name, completion.Source, files, libraries, entry.ForcedKind, MediaPlanner.KnownShows(known), target), ct);
+        var plan = await Task.Run(() => MediaPlanner.Plan(completion.Name, completion.Source, files, libraries, entry.ForcedKind, MediaPlanner.KnownShows(known), target, HintFor(completion.Id)), ct);
         if (plan.Ignored is { } reason) { Update(entry with { State = TorLinkImportState.Ignored, Message = reason, UpdatedAt = DateTimeOffset.UtcNow }); return; }
         if (plan.Problem is not null || !Directory.Exists(plan.LibraryRoot))
         {
@@ -656,6 +676,7 @@ public sealed class TorLinkImporter
                             Files = (x.Files ?? []).Where(f => f is { Destination: not null, RelativePath: not null }).ToList()
                         }).ToList();
                     log.Expected = (log.Expected ?? []).Where(x => x is { Id: not null, Target: { Root: not null, Folder: not null } } && TorLinkState.IsInfoHash(x.Id)).ToList();
+                    log.Hints = (log.Hints ?? []).Where(x => x is { Id: not null } && TorLinkState.IsInfoHash(x.Id) && Enum.IsDefined(x.Kind)).ToList();
                     log.Replacements = (log.Replacements ?? []).Where(x => x is { Id: not null, ItemId: not null, OldPath: not null } && TorLinkState.IsInfoHash(x.Id)).ToList();
                     return log;
                 }

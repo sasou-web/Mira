@@ -146,11 +146,14 @@ public sealed partial class TorLinkRelay
                 (magnet, name, size) = ($"magnet:?xt=urn:btih:{file.InfoHash}&dn={Uri.EscapeDataString(file.Name)}", file.Name, file.Size);
             }
             var pasted = searchId is null && hitId is null;
+            string? kind = null;
             if (searchId is not null || hitId is not null)
             {
                 if (_searches.FirstOrDefault(x => x.Id == searchId) is not { } search || Units(search).SelectMany(x => x.Results).FirstOrDefault(x => x.Id == hitId) is not { } hit)
                     return (null, "Ce résultat n’est plus là : cherche de nouveau.");
                 (magnet, name, size) = (hit.Magnet, hit.Name, hit.Size);
+                // Found among anime, only among films, or among shows: the library it goes to, once finished.
+                kind = RemoteDownloads.KindOf(Units(search).Where(x => x.Results.Any(r => r.Id == hitId)).Select(x => x.Category));
             }
             if (RemoteDownloads.InfoHash(magnet) is not { } hash) return (null, "Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).");
             if (_requests.FirstOrDefault(x => x.InfoHash == hash && x.State is "waiting" or "claimed" && x.FollowId is null) is { } same)
@@ -160,7 +163,7 @@ public sealed partial class TorLinkRelay
                 return (null, "Une meilleure version de ce titre est déjà demandée.");
             if (_requests.Count(x => x.State is "waiting" or "claimed" && x.FollowId is null) >= MaxWaiting) return (null, "Trop de demandes attendent déjà le PC serveur.");
             var ask = new Ask(NewId(), magnet!.Trim(), RemoteDownloads.CleanName(name) ?? RemoteDownloads.DisplayName(magnet) ?? hash, Math.Max(0, size ?? 0), hash, now)
-            { Replace = replace?.ToLowerInvariant(), Torrent = torrent, Pasted = pasted, Missing = Clean(missing), Files = files?.Order().ToList() };
+            { Replace = replace?.ToLowerInvariant(), Torrent = torrent, Pasted = pasted, Missing = Clean(missing), Files = files?.Order().ToList(), Kind = kind };
             _requests.Add(ask);
             if (ask.Missing is not null) Watch(ask);
             return (ask.Id, null);
@@ -306,7 +309,7 @@ public sealed partial class TorLinkRelay
             var follows = report.Follows is not null && report.Accepting ? DueFollows(device, now) : null;
             var hurry = now - _watched < Watched || _searches.SelectMany(Units).Any(x => x.State == "waiting") || _looks.Any(x => x.State == "waiting") || (report.Accepting || report.QBittorrent) && (_requests.Any(x => x.State == "waiting" && !(x.NotBefore > now)) || _controls.Any(x => x.State == "waiting"));
             return new(searches.Select(x => new WorkSearch(x.Id, x.Query, x.Category)).ToList(),
-                requests.Select(x => new WorkRequest(x.Id, x.Magnet, x.Name, PlaceOf(x), x.Replace, x.Torrent, x.Pasted, x.Files)).ToList(),
+                requests.Select(x => new WorkRequest(x.Id, x.Magnet, x.Name, PlaceOf(x), x.Replace, x.Torrent, x.Pasted, x.Files, x.Kind)).ToList(),
                 controls.Select(x => new WorkControl(x.Id, x.Target, x.Action)).ToList(), hurry ? Hurry : Idle, null, follows,
                 looks.Count > 0 ? looks.Select(x => new WorkLook(x.Id, x.Magnet)).ToList() : null);
         }
@@ -397,6 +400,8 @@ public sealed partial class TorLinkRelay
         public MissingPlace? Missing { get; init; }
         /// <summary>Of a pasted link read before, the files chosen (their index in qBittorrent); null: all of them.</summary>
         public List<int>? Files { get; init; }
+        /// <summary>Of a search result, what its searches say it is (<see cref="RemoteDownloads.KindOf"/>).</summary>
+        public string? Kind { get; init; }
     }
     private sealed class Order(string id, string target, string action, DateTimeOffset created)
     {
