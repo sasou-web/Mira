@@ -267,10 +267,20 @@ struct NoticeToast: View {
                         .font(MiraFont.headline)
                         .foregroundStyle(Palette.ink)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    if let undo = app.together.undo {
+                        Button {
+                            app.together.notice = nil
+                            undo()
+                        } label: {
+                            Text(verbatim: CollectionShelf.words("Annuler", "Undo")).font(MiraFont.headline).padding(.horizontal, 4)
+                        }
+                        .buttonStyle(.glass)
+                        .accessibilityIdentifier("notice.undo")
+                    }
                 }
                 .padding(12)
                 .frame(minHeight: 64)
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .contain)
                 .glassEffect(.regular, in: .rect(cornerRadius: 20))
                 .padding(.horizontal, 16)
                 .padding(.top, 6)
@@ -279,7 +289,8 @@ struct NoticeToast: View {
                 .onTapGesture { app.together.notice = nil }
                 .task(id: notice) {
                     AccessibilityNotification.Announcement(notice).post()
-                    try? await Task.sleep(for: .seconds(4))
+                    // With « Undo », long enough to reach it.
+                    try? await Task.sleep(for: .seconds(app.together.undo == nil ? 4 : 7))
                     if app.together.notice == notice { app.together.notice = nil }
                 }
             }

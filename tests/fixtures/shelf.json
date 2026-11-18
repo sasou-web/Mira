@@ -1,0 +1,59 @@
+{
+  "about": "« L'étagère »: a Jellyfin collection grouped in the library, as CollectionShelf.cs (tests/Mira.Core.Tests) and Shelf.swift (src/Mira.iOS) judge it; both must agree. titles: Jellyfin's items; grouped: [ProviderIds of the collection, this account's choice (true, false or null), grouped]; read: [the preference's text, as written again]; release: the titles by release date; order: [watch order kept (null: none), titles in the watch order]; move: [index in the release order, step, ids after]; upNext: [watch order kept, index of the title « Resume » plays, or null]; share: how far the whole collection is, 0 to 1; facts: [French, English]; collapse: [types of the page, page, collections already given a card, cards and titles shown], shelves being the collections grouped.",
+  "titles": [
+    {"Id": "bake", "Name": "Bakemonogatari", "Type": "Series", "ProductionYear": 2009, "PremiereDate": "2009-07-03T00:00:00.0000000Z", "RecursiveItemCount": 15, "UserData": {"Played": false, "PlayedPercentage": 40}},
+    {"Id": "nise", "Name": "Nisemonogatari", "Type": "Series", "ProductionYear": 2012, "PremiereDate": "2012-01-07T00:00:00.0000000Z", "RecursiveItemCount": 11, "UserData": {"Played": false}},
+    {"Id": "kizu1", "Name": "Kizumonogatari I", "Type": "Movie", "ProductionYear": 2016, "PremiereDate": "2016-01-08T00:00:00.0000000Z", "RunTimeTicks": 38400000000, "UserData": {"Played": true}},
+    {"Id": "kizu2", "Name": "Kizumonogatari II", "Type": "Movie", "ProductionYear": 2016, "PremiereDate": "2016-08-19T00:00:00.0000000Z", "RunTimeTicks": 41400000000, "UserData": {"Played": false, "PlaybackPositionTicks": 20700000000}},
+    {"Id": "kizu3", "Name": "Kizumonogatari III", "Type": "Movie", "ProductionYear": 2017, "PremiereDate": "2017-01-06T00:00:00.0000000Z", "RunTimeTicks": 49800000000, "UserData": {"Played": false}},
+    {"Id": "solo", "Name": "Solo", "Type": "Movie", "ProductionYear": 2001, "UserData": {"Played": false}},
+    {"Id": "pair", "Name": "Pair", "Type": "Series", "ProductionYear": 2002, "UserData": {"Played": false}},
+    {"Id": "lone", "Name": "Lone", "Type": "Movie", "ProductionYear": 2003, "UserData": {"Played": false}},
+    {"Id": "x1", "Name": "Other 1", "Type": "Movie", "ProductionYear": 2020, "UserData": {"Played": false}},
+    {"Id": "x2", "Name": "Other 2", "Type": "Movie", "ProductionYear": 2021, "UserData": {"Played": false}},
+    {"Id": "x3", "Name": "Other 3", "Type": "Series", "ProductionYear": 2022, "UserData": {"Played": false}}
+  ],
+  "grouped": [
+    [{"Tmdb": "1"}, null, true],
+    [null, null, false],
+    [{}, null, false],
+    [{"Tmdb": ""}, null, false],
+    [{"Tmdb": "1"}, false, false],
+    [null, true, true]
+  ],
+  "read": [
+    ["{\"b1\":{\"grouped\":false,\"order\":[\"kizu1\",\"kizu2\"]},\"b2\":{},\"b3\":{\"order\":[]},\"b4\":{\"grouped\":\"yes\"}}", "{\"b1\":{\"grouped\":false,\"order\":[\"kizu1\",\"kizu2\"]}}"],
+    ["{\"b2\":{\"order\":[\"x\",\"X\",\"\",\"y\"]},\"a\":{\"grouped\":true}}", "{\"a\":{\"grouped\":true},\"b2\":{\"order\":[\"x\",\"y\"]}}"],
+    ["not json", "{}"],
+    ["[1,2]", "{}"]
+  ],
+  "release": ["bake", "nise", "kizu1", "kizu2", "kizu3"],
+  "order": [
+    [null, ["bake", "nise", "kizu1", "kizu2", "kizu3"]],
+    [["kizu1", "kizu2", "kizu3", "bake", "nise"], ["kizu1", "kizu2", "kizu3", "bake", "nise"]],
+    [["kizu3", "bake"], ["kizu3", "bake", "nise", "kizu1", "kizu2"]],
+    [["gone", "kizu2"], ["kizu2", "bake", "nise", "kizu1", "kizu3"]]
+  ],
+  "move": [
+    [0, 1, ["nise", "bake", "kizu1", "kizu2", "kizu3"]],
+    [2, -1, ["bake", "kizu1", "nise", "kizu2", "kizu3"]],
+    [4, 1, ["bake", "nise", "kizu1", "kizu2", "kizu3"]],
+    [0, -1, ["bake", "nise", "kizu1", "kizu2", "kizu3"]]
+  ],
+  "upNext": [
+    [null, 0],
+    [["kizu1", "kizu2", "kizu3", "bake", "nise"], 1]
+  ],
+  "share": 0.38,
+  "facts": ["2009 – 2017  ·  2 séries  ·  3 films  ·  26 épisodes", "2009 – 2017  ·  2 shows  ·  3 movies  ·  26 episodes"],
+  "shelves": {"mono": ["bake", "nise", "kizu1", "kizu2", "kizu3"], "kizu": ["kizu1", "kizu2"], "duo": ["solo", "pair"], "one": ["lone"]},
+  "collapse": [
+    ["Movie", ["x1", "kizu3", "kizu1", "x2", "kizu2"], [], ["x1", "mono", "x2"]],
+    ["Series", ["nise", "x3", "bake"], [], ["mono", "x3"]],
+    ["Movie", ["kizu2"], [], ["mono"]],
+    ["Movie", ["x2", "kizu3"], ["mono"], ["x2"]],
+    ["Movie", ["solo"], [], ["solo"]],
+    ["Movie,Series", ["solo", "pair", "x1"], [], ["duo", "x1"]],
+    ["Movie", ["lone"], [], ["lone"]]
+  ]
+}

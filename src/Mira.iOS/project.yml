@@ -158,6 +158,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/missing.json
         buildPhase: resources
+      - path: ../../tests/fixtures/shelf.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:
