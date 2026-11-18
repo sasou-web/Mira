@@ -70,6 +70,12 @@ public sealed class BrowsePage : Page
     private MediaItem? _pickUpItem;
     private readonly DispatcherTimer _typing = new() { Interval = TimeSpan.FromMilliseconds(320) };
     private readonly List<MediaItem> _items = [];
+    /// <summary>
+    /// The list as the library shows it (Catalog.Receive): a grouped collection's titles as its one card (« L'étagère »,
+    /// CollectionShelf), on Films, Séries and Bibliothèque only, never a search or a person's, studio's or collection's titles.
+    /// <see cref="Catalog.Fetched"/> counts the titles Jellyfin sent, for the next page.
+    /// </summary>
+    private readonly Catalog _shelving = new();
     private int _total, _version;
     private bool _loading, _filling, _favoritesOnly;
     private CancellationTokenSource? _request;
@@ -102,6 +108,7 @@ public sealed class BrowsePage : Page
     public BrowsePage(MainWindow shell, BrowseKind kind, PersonInfo? person = null, bool? director = false, MediaItem? saga = null, StudioInfo? studio = null, string? genre = null) : base(shell)
     {
         _kind = kind; _person = person; _director = director; _saga = saga; _studio = studio; _openGenre = genre;
+        _shelving.View = person is not null || saga is not null || studio is not null ? "titles" : kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", BrowseKind.All => "library", _ => "search" };
         var title = person is not null ? Catalog.PersonText(person.Name, director) : saga is not null ? saga.Name : studio is not null ? studio.Name
             : kind switch { BrowseKind.Movies => L("Films", "Movies"), BrowseKind.Series => L("Séries", "Shows"), BrowseKind.Search => L("Rechercher", "Search"), _ => L("Bibliothèque", "Library") };
         // As on Windows: the page's title and a line under it, the tools (« Filtrer », « Trier par », Favoris,
@@ -482,14 +489,16 @@ public sealed class BrowsePage : Page
         try
         {
             // A refresh keeps every page already loaded, so the grid does not shrink back under the reader.
-            var limit = keep ? Math.Max(JellyfinClient.PageSize, _items.Count) : JellyfinClient.PageSize;
+            var limit = keep ? Math.Max(JellyfinClient.PageSize, _shelving.Fetched) : JellyfinClient.PageSize;
+            var grouped = _shelving.Groups(search);
+            var grouping = grouped ? Shell.GroupingAsync(session) : null;
             var others = _kind == BrowseKind.Search && search.Length >= 2;
             var people = others ? session.Client.PersonsAsync(search, ct) : null;
             var studios = others ? session.Client.StudiosAsync(search, ct) : null;
             var episodes = others ? session.Client.SearchOthersAsync("Episode", search, ct) : null;
             var sagas = others ? session.Client.SearchOthersAsync("BoxSet", search, ct) : null;
             var started = DateTimeOffset.UtcNow;
-            var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, 0, _favoritesOnly, ct, Query, limit);
+            var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, 0, _favoritesOnly, ct, Query, limit, everyTitle: grouped);
             Shell.Reached(started);
             // Kept for when Jellyfin does not answer, as on Windows: the list as it last came, whatever its filters.
             var kept = KeptKey(search);
@@ -503,10 +512,12 @@ public sealed class BrowsePage : Page
             var found = await Bonus(people); var foundStudios = await Bonus(studios); var foundEpisodes = await Bonus(episodes); var foundSagas = await Bonus(sagas);
             if (version != _version) return;
             ShowPeople(found); ShowStudios(foundStudios); ShowFound(foundEpisodes, foundSagas);
-            _items.Clear(); _items.AddRange(result.Items); _total = result.TotalRecordCount;
+            if (grouping is not null) { _shelving.Grouping = await grouping; if (version != _version) return; }
+            _shelving.Receive(result, false, search);
+            _items.Clear(); _items.AddRange(_shelving.Items); _total = result.TotalRecordCount;
             var offset = _scroll.Offset;
             // A refresh that brings the same titles (a page come back to) keeps their cards as they are.
-            Cards.Update(_grid, result.Items, GridKind, item => Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
+            Cards.Update(_grid, _items, GridKind, item => Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
             if (keep) _scroll.Offset = offset; else _scroll.Offset = default;
             Count();
             if (_items.Count == 0 && _found.Count + _foundStudios.Count + _foundEpisodes.Count + _foundSagas.Count == 0)
@@ -534,26 +545,30 @@ public sealed class BrowsePage : Page
         if (KeptKey(_search.Text?.Trim() ?? "") is not { } key) return;
         var kept = await Task.Run(() => Errors.TryCache(() => { var list = session.Store.Load<ItemsResult>(key); if (list is not null) session.Store.ApplyLocalProgress(list.Items); return list; }));
         if (version != _version || kept is null || kept.Items.Count == 0) return;
-        _items.Clear(); _items.AddRange(kept.Items); _total = kept.TotalRecordCount;
-        Cards.Update(_grid, kept.Items, GridKind, item => Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
+        _shelving.Receive(kept, false, _search.Text?.Trim() ?? "");
+        _items.Clear(); _items.AddRange(_shelving.Items); _total = kept.TotalRecordCount;
+        Cards.Update(_grid, _items, GridKind, item => Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
         _scroll.Offset = default;
         Count(); _empty.Hide();
     }
     private async Task MoreAsync()
     {
-        if (_loading || _items.Count >= _total || Shell.Session is not { } session) return;
+        if (_loading || !_shelving.HasMore || Shell.Session is not { } session) return;
         _loading = true; var version = _version;
         // A row of the cards' shapes under the last one while the next page comes, as on Windows.
         _grid.Skeleton(1);
         try
         {
             var search = _search.Text?.Trim() ?? "";
-            var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, _items.Count, _favoritesOnly, _request?.Token ?? default, Query);
+            var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, _shelving.Fetched, _favoritesOnly, _request?.Token ?? default, Query, everyTitle: _shelving.Groups(search));
             await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)));
             if (version != _version) return;
-            foreach (var item in result.Items.Where(x => _items.All(old => old.Id != x.Id)))
+            // A page whose titles all went into cards already shown adds none, and is not the end.
+            _shelving.Receive(result, true, search);
+            foreach (var item in _shelving.Items.Where(x => _items.All(old => old.Id != x.Id)).ToList())
             { _items.Add(item); _grid.Children.Add(Cards.Keyed(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels), GridKind, item)); }
-            _total = result.Items.Count == 0 ? _items.Count : result.TotalRecordCount;
+            _total = result.Items.Count == 0 ? _shelving.Fetched : result.TotalRecordCount;
+            if (result.Items.Count == 0) _shelving.TotalCount = _shelving.Fetched;
             Count();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { }
@@ -563,7 +578,7 @@ public sealed class BrowsePage : Page
     private static string GridKind => "grid" + CardGrid.Pixels;
     /// <summary>The cards' shapes shown while titles come: for the self-check.</summary>
     public int SkeletonCards => _grid.SkeletonCards;
-    private void Count() => _count.Text = _filtersCount.Text = _total == 0 ? "" : Lang.Count(_total, "titre", "titres", "title", "titles");
+    private void Count() => _count.Text = _filtersCount.Text = _total == 0 ? "" : _items.Any(x => x.Shelf is not null) ? _shelving.CountLine : Lang.Count(_total, "titre", "titres", "title", "titles");
     /// <summary>The people found, drawn again only when they change (their photos do not flash at each refresh).</summary>
     private void ShowPeople(List<MediaItem> people)
     {

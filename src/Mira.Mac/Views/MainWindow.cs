@@ -861,8 +861,8 @@ public sealed partial class MainWindow : Window
     }
     public void Open(MediaItem item)
     {
-        // A saga plays nothing by itself: its titles, in the order they came out.
-        if (item.Type == "BoxSet") { _ = NavigateAsync(new BrowsePage(this, BrowseKind.All, saga: item)); return; }
+        // A collection plays nothing by itself: its page (« L'étagère »), its titles in their watch order.
+        if (item.Type == "BoxSet") { _ = NavigateAsync(new ShelfPage(this, item)); return; }
         // An episode opens its series' page, at its season.
         if (item.Type == "Episode" && item.SeriesId is not null) { _ = NavigateAsync(new DetailPage(this, new MediaItem { Id = item.SeriesId, Name = item.SeriesName ?? item.Name, Type = "Series" }, item)); return; }
         _ = NavigateAsync(new DetailPage(this, item));
@@ -1037,6 +1037,8 @@ public sealed partial class MainWindow : Window
             await session.Client.SetPlayedAsync(item.Id, played);
             await Task.Run(() => session.Store.ForgetProgress(item.Id));
             item.UserData.Played = played; item.UserData.PlaybackPositionTicks = 0;
+            // The collections' cards say how far their titles are: read again.
+            ForgetGrouping();
             await RefreshPagesAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
@@ -1068,6 +1070,7 @@ public sealed partial class MainWindow : Window
         {
             Add(L("Voir la collection", "View collection"), "info", () => Open(item));
             Favorite();
+            AddShelfToggle(menu, item);
             if (CollectionRights.Manage)
             {
                 menu.Items.Add(new Separator());
@@ -1089,6 +1092,7 @@ public sealed partial class MainWindow : Window
         {
             Add(L("Ajouter à une collection…", "Add to collection…"), "library", () => _ = CollectAsync(item));
             if (Current is BrowsePage { Saga: { } shown }) Add(L("Retirer de la collection", "Remove from collection"), "minus", () => _ = PutInCollectionAsync(item, shown, false));
+            else if (Current is ShelfPage { Box: var box }) Add(L("Retirer de la collection", "Remove from collection"), "minus", () => _ = PutInCollectionAsync(item, box, false));
         }
         if (OfflineMenuItem(item) is { } offline) { menu.Items.Add(new Separator()); menu.Items.Add(offline); }
         return menu;
@@ -1175,6 +1179,7 @@ public sealed partial class MainWindow : Window
         await sheet.ShowAsync(this);
         if (sheet.Said is { } said) Notice(said);
         if (sheet.NewName is { } name && Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id) { Back(); Open(new MediaItem { Id = collection.Id, Name = name, Type = "BoxSet" }); }
+        else if (sheet.NewName is { } renamed && Current is ShelfPage shelf && shelf.Box.Id == collection.Id) { shelf.Renamed(renamed); ForgetGrouping(); }
         else if (sheet.Changed) await RefreshPagesAsync();
     }
     /// <summary>« Supprimer la collection… », asked first: its list goes, never its titles.</summary>
@@ -1186,7 +1191,7 @@ public sealed partial class MainWindow : Window
         try
         {
             await session.Client.DeleteCollectionAsync(collection.Id);
-            if (Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id) { Back(); return; }
+            if (Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id || Current is ShelfPage shelf && shelf.Box.Id == collection.Id) { ForgetGrouping(); Back(); return; }
             await RefreshPagesAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
