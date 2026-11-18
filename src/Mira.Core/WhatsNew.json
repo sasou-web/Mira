@@ -1,5 +1,33 @@
 [
   {
+    "version": "0.9.13", "date": "2026-11-18",
+    "summary": "Une franchise en une carte, les grandes séries bien rangées, un PC de Jellyfin plus autonome.",
+    "en": { "summary": "A franchise in one card, big series sorted right and a Jellyfin PC that looks after itself." },
+    "changes": [
+      { "category": "Bibliothèque", "text": "Une saga de TMDb (ou une collection choisie) en une carte dans Films et Séries, avec sa page et son ordre de visionnage.", "en": { "category": "Library", "text": "A TMDb saga (or a collection you pick) as one card in Movies and Shows, with its own page and watch order." } },
+      { "category": "Séries", "text": "Séries et animes nommés d’après TheTVDB, épisodes numérotés depuis le début (S02E26) reconnus, packs de franchise rangés.", "en": { "category": "Shows", "text": "Shows and anime named after TheTVDB, episodes numbered from the start (S02E26) understood, franchise packs sorted." } },
+      { "category": "Séries", "text": "Toutes les saisons en pastilles numérotées au-delà de dix ; la molette fait défiler une liste ouverte (Windows, Mac).", "en": { "category": "Shows", "text": "Every season as a numbered pill past ten; the wheel scrolls an open drop-down list (Windows, Mac)." } },
+      { "category": "Lecteur", "text": "« Skip intro » plus jamais sur un interlude, la pastille de saut se montre quelques secondes puis avec les commandes.", "en": { "category": "Player", "text": "“Skip intro” never on an interlude; the skip pill shows a few seconds, then only with the controls." } },
+      { "category": "Amis", "text": "Inviter un ami : Mira dit quelle adresse lui donner, chez toi ou d’ailleurs.", "en": { "category": "Friends", "text": "Invite a friend: Mira tells you which address to give, at home or somewhere else." } },
+      { "category": "PC de Jellyfin", "text": "Mira revient seul après un redémarrage, les métadonnées sont gardées à côté des fichiers, 2 analyses à la fois.", "en": { "category": "Jellyfin PC", "text": "Mira comes back by itself after a restart, metadata kept beside your files, 2 library scans at a time." } },
+      { "category": "Réseau", "text": "Jellyfin retrouvé par son identifiant quand la box donne une autre adresse à son PC.", "en": { "category": "Network", "text": "Jellyfin found again by its id when the router gives its PC another address." } },
+      { "category": "Téléchargements", "text": "Coller un lien magnet montre ce qu’il contient ; « Vérification… » à 100 % ; qBittorrent réserve la place, tient un disque USB.", "en": { "category": "Downloads", "text": "A pasted magnet link shows what it holds; “Checking…” at 100%; qBittorrent reserves room and keeps up with a USB drive." } },
+      { "category": "Sous-titres", "text": "Taille et couleur appliquées pendant le film ; sous-titres trouvés gardés dans leur vrai format.", "en": { "category": "Subtitles", "text": "Size and colour applied while the film plays; found subtitles saved in their real format." } },
+      { "category": "Discord", "text": "Statut Discord allumé par défaut, sans lien personnalisé ; tout se coupe dans Réglages → Discord.", "en": { "category": "Discord", "text": "Discord status on by default, no custom link; turn it off in Settings → Discord." } },
+      { "category": "Mac", "text": "Plus de menu oublié par-dessus les autres apps ; pastille « Ensemble » à sa place, comme sous Windows.", "en": { "category": "Mac", "text": "No menu left over other apps; the “Together” pill in its place, as on Windows." } }
+    ],
+    "items": [
+      { "icon": "film", "title": "Une franchise, une carte", "text": "Une saga (Spider-Verse, Blade Runner) devient une seule carte dans Films et Séries. Sa page range les titres dans l’ordre où les regarder.",
+        "en": { "title": "One card per franchise", "text": "A saga (Spider-Verse, Blade Runner) becomes one card in Movies and Shows. Its page lists the titles in the order to watch them." } },
+      { "icon": "series", "title": "Les grandes séries bien rangées", "text": "Noms de TheTVDB, épisodes numérotés depuis le début reconnus, packs de franchise rangés titre par titre, toutes les saisons d’un coup d’œil.",
+        "en": { "title": "Big series sorted right", "text": "Names from TheTVDB, episodes numbered from the start understood, franchise packs sorted title by title, every season in sight." } },
+      { "icon": "users", "title": "Inviter un ami", "text": "Mira te dit quelle adresse lui donner : celle de la maison s’il est chez toi, une autre s’il est ailleurs.",
+        "en": { "title": "Invite a friend", "text": "Mira tells you which address to give: the home one if your friend is at your place, another one if not." } },
+      { "icon": "server", "title": "Un PC de Jellyfin qui se débrouille", "text": "Mira revient seul après un redémarrage, retrouve Jellyfin quand son adresse change et garde les métadonnées à côté des fichiers.",
+        "en": { "title": "A Jellyfin PC that looks after itself", "text": "Mira comes back by itself after a restart, finds Jellyfin again when its address changes and keeps metadata beside your files." } }
+    ]
+  },
+  {
     "version": "0.9.12", "date": "2026-11-15",
     "summary": "Ce que tu regardes sur Discord si tu veux, la bonne place libre, un partage qui s’arrête.",
     "en": { "summary": "What you watch on Discord if you want, the right free space and sharing that stops." },

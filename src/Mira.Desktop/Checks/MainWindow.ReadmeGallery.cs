@@ -72,7 +72,7 @@ public partial class MainWindow
     }
     /// <summary>
     /// The screens only a release's banner shows (tools/banner/plan.mjs): the films' filters open, a series' missing
-    /// episodes at their place (Invincible's, from tools/web/fake-tvdb), the mini-player out against the right edge over
+    /// episodes at their place (Invincible's, from tools/web/fake-tvdb), a saga's page (windows-shelf), the mini-player out against the right edge over
     /// Home, its controls shown, playing a film whose video gallery.yml made of its backdrop (libmpv as Mira installs it),
     /// then the player whole (windows-player). Settings too: The essentials, Privacy and Discord.
     /// </summary>
@@ -89,6 +89,14 @@ public partial class MainWindow
         DetailScroll.UpdateLayout(); SmoothScroll.Jump(DetailScroll, Math.Max(0, EpisodesHead.TranslatePoint(new Point(0, 0), DetailScroll).Y + DetailScroll.VerticalOffset - 90));
         await shot("windows-missing");
         DetailOverlay.Visibility = Visibility.Collapsed;
+
+        // « L'étagère » (0.9.13): a saga of TMDb Jellyfin made of the library's films (tools/gallery/setup.mjs), its page.
+        IReadOnlyList<CollectionShelf.Shelf> shelves = _client is { } client ? (await GroupingAsync(client)).Shelves : [];
+        var shelf = shelves.FirstOrDefault(x => x.Box.Name.Contains("Spider", StringComparison.OrdinalIgnoreCase)) ?? shelves.FirstOrDefault()
+            ?? throw new InvalidOperationException("No saga grouped: did Jellyfin gather the library's films into sagas?");
+        await ShowShelfAsync(CollectionShelf.Card(shelf)); await Task.Delay(1500);
+        await shot("windows-shelf");
+        ShelfOverlay.Visibility = Visibility.Collapsed;
 
         await DownloadsShotAsync(shot);
 
