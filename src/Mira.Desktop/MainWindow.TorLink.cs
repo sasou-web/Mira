@@ -160,6 +160,8 @@ public partial class MainWindow
         await torlink.FindIndexedAsync(client, _torlinkLifetime.Token);
         // A pack numbered from the series' start: its episodes renamed to their season's numbers.
         await torlink.RenumberAsync(client, _torlinkLifetime.Token);
+        // Bonus videos a few at a time: Jellyfin analyses every new extra of a title together.
+        await torlink.ExtrasAsync(client, _torlinkLifetime.Token);
     }
 
     private void TorLinkEntryChanged(TorLinkImportEntry entry)

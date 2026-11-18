@@ -550,6 +550,46 @@ internal static class TorLinkTests
             Assert(reopened.Entries.Count == 3 && reopened.Baseline == importer.Baseline && reopened.Find(Id('b'))!.Files.Count == 1, "The import log was not kept");
             Assert(!File.ReadAllText(Path.Combine(profile, "torlink-imports.json")).Contains("magnet:"), "Mira stored a magnet link");
         });
+        await Test("TorLink : les bonus d'un titre rangés 4 par 4, le lot suivant quand Jellyfin a lu le précédent", async () =>
+        {
+            // ogsas, 2026-11-18: 48 textless credits placed at once, then 47 ffprobe of Jellyfin together (BaseItem.RefreshExtras).
+            var dir = Path.Combine(testRoot, "torlink-extras"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+            var downloads = Path.Combine(dir, "downloads"); var films = Path.Combine(dir, "FILMS");
+            var release = Path.Combine(downloads, "Big.Film.2005.1080p");
+            foreach (var folder in new[] { state.ConfigDirectory, state.DataDirectory, films, Path.Combine(release, "Extras") }) Directory.CreateDirectory(folder);
+            File.WriteAllText(state.ConfigFile, JsonSerializer.Serialize(new { downloadDir = downloads }));
+            File.WriteAllBytes(Path.Combine(release, "Big.Film.2005.1080p.mkv"), new byte[100]);
+            for (var i = 1; i <= 6; i++) File.WriteAllBytes(Path.Combine(release, "Extras", $"Making of {i}.mkv"), new byte[10]);
+            using var torlink = new TorLinkPlacement(state, new TorLinkImporter(Path.Combine(dir, "profile")));
+            var importer = torlink.Importer; var id = new string('e', 40);
+            File.WriteAllText(state.HistoryFile, JsonSerializer.Serialize(new[] { new { id, name = "Big.Film.2005.1080p", source = "yts", sizeBytes = 160, dir = downloads, completedAt = importer.Baseline.AddSeconds(5).ToUnixTimeMilliseconds() } }));
+            await importer.ProcessAsync(state, new MediaLibraries(films, null, null), ImportMode.Share, automatic: true);
+            var title = Path.Combine(films, "Big Film (2005)"); var extras = Path.Combine(title, "Extras");
+            string[] Placed() => Directory.Exists(extras) ? Directory.GetFiles(extras).Select(x => Path.GetFileName(x)).OrderBy(x => x).ToArray() : [];
+            Assert(importer.Find(id) is { State: TorLinkImportState.Imported, Extras: { Operations.Count: 2, Mode: ImportMode.Share } } entry && entry.Message!.Contains("2 bonus de plus")
+                && File.Exists(Path.Combine(title, "Big Film (2005).mkv")) && Placed().Length == 4, "First batch: " + importer.Find(id)?.Message + " · " + string.Join(", ", Placed()));
+            // Jellyfin has read 3 of the 4: the next batch waits; all 4, it goes; then nothing left.
+            var listed = Placed().Take(3).Select(x => Path.Combine(extras, x)).ToList(); var asked = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.AbsolutePath; asked.Add(path);
+                if (path == "/Items") return Task.FromResult(JsonResponse(new { Items = new[] { new { Id = "film", Type = "Movie", Path = Path.Combine(title, "Big Film (2005).mkv") } } }));
+                if (path == "/Items/film/SpecialFeatures") return Task.FromResult(JsonResponse(listed.Select(x => new { Id = x, Type = "Video", Path = x }).ToList()));
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            await torlink.ExtrasAsync(client, CancellationToken.None);
+            Assert(Placed().Length == 4 && asked.Contains("/Items/film/SpecialFeatures") && importer.Find(id)!.Extras!.Operations.Count == 2, "Waits for Jellyfin: " + string.Join(", ", asked));
+            listed = Placed().Select(x => Path.Combine(extras, x)).ToList();
+            await torlink.ExtrasAsync(client, CancellationToken.None);
+            Assert(Placed().Length == 6 && importer.Find(id) is { Extras: null, Message: null, Notified: false } done && done.Files.Count(f => f.Role == "extra") == 6, "Second batch: " + string.Join(", ", Placed()));
+            await torlink.ExtrasAsync(client, CancellationToken.None);
+            // Rules: one title at a time, Jellyfin's list compared by path, the next batch anyway after the patience.
+            ImportOperation Op(string owner, int n) => new($"/dl/{n}.mkv", $"/lib/{owner}/Extras/{n}.mkv", "extra", $"{n}.mkv");
+            Assert(ExtrasBatches.Next([Op("A", 1), Op("B", 2), Op("A", 3), Op("A", 4), Op("A", 5), Op("A", 6)]).Select(x => x.RelativePath).SequenceEqual(["1.mkv", "3.mkv", "4.mkv", "5.mkv"]), "A title at a time");
+            Assert(ExtrasBatches.Settled(["/lib/A/Extras/1.mkv"], ["/LIB/A/Extras/1.mkv", null]) && !ExtrasBatches.Settled(["/lib/A/Extras/1.mkv", "/lib/A/Extras/2.mkv"], ["/lib/A/Extras/1.mkv"]), "Listed by path");
+            var held = new HeldExtras([Op("A", 1)], ImportMode.Move, DateTimeOffset.UtcNow.AddMinutes(-11));
+            Assert(ExtrasBatches.Due(held, DateTimeOffset.UtcNow, settled: false) && !ExtrasBatches.Due(held with { At = DateTimeOffset.UtcNow }, DateTimeOffset.UtcNow, settled: false), "Patience");
+        });
         await Test("TorLink : rangement automatique, dossiers choisis puis trouvés, tour redemandé et messages", async () =>
         {
             var dir = Path.Combine(testRoot, "torlink-placement"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

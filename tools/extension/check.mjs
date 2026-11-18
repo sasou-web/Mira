@@ -245,6 +245,17 @@ await part('identifier', async () => {
     elsewhere.status === 400 && local.status === 400 && other.status === 403, `autre site ${elsewhere.status}, ce serveur ${local.status}, autre compte ${other.status}`);
 });
 
+// « Actualiser les métadonnées » of the apps: through the extension, which never reads all of a title's extras again at
+// once (TitleRefresh); for an administrator. Queued: the answer comes at once.
+await part('actualiser', async () => {
+  const series = (await items('includeItemTypes=Series&searchTerm=Courte Web'))[0];
+  const [asked, unknown, other] = [await call('POST', `Mira/refresh/${series?.Id}?images=false`, { token: host }),
+    await call('POST', 'Mira/refresh/00000000000000000000000000000001', { token: host }),
+    friend ? await call('POST', `Mira/refresh/${series?.Id}`, { token: friend, device: 'check-friend' }) : { status: 0 }];
+  check('actualiser : un titre relu par l’extension, pour un administrateur seulement', !!series && asked.status === 204 && unknown.status === 404 && other.status === 403,
+    `demande ${asked.status}, inconnu ${unknown.status}, autre compte ${other.status}`);
+});
+
 // /Mira and a party's page, since Mira web is gone: where to get Mira, never the web app; their files served by the
 // revision; the manifest Mira for Windows 0.9.3 and before looks for (without it, it installs the extension again).
 await part('pages', async () => {

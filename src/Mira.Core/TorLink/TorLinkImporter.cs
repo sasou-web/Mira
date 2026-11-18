@@ -48,6 +48,8 @@ public sealed record TorLinkImportEntry
     public DateTimeOffset UpdatedAt { get; init; }
     /// <summary>« Remplacer par une meilleure version »: the title's file this download was to replace (<see cref="TorLinkReplacement"/>).</summary>
     public string? Replaced { get; init; }
+    /// <summary>Bonus videos still to place, a few at a time (<see cref="ExtrasBatches"/>); null when none.</summary>
+    public HeldExtras? Extras { get; init; }
 }
 
 public sealed class TorLinkImportLog
@@ -303,10 +305,11 @@ public sealed class TorLinkImporter
             Update(entry with { State = TorLinkImportState.Blocked, Kind = plan.Kind, Message = plan.Problem ?? L($"Dossier de bibliothèque introuvable : {plan.LibraryRoot}", $"Library folder not found: {plan.LibraryRoot}"), UpdatedAt = DateTimeOffset.UtcNow });
             return;
         }
-        var result = await MediaImporter.ExecuteAsync(plan, mode, ct);
+        // A few extras at once: Jellyfin analyses every new extra of a title together (ExtrasBatches).
+        var result = await MediaImporter.ExecuteAsync(plan, mode, ct, ExtrasBatches.Size);
         // The download's folders in TorLink's, once emptied by the move, go too; TorLink's own folder stays.
         if (result.Moved) MediaImporter.PruneEmptyFolders(result.Placed.Select(x => Path.GetDirectoryName(x.Source)), [completion.Directory]);
-        var outcome = Outcome(entry, plan, result, tracked);
+        var outcome = Outcome(entry, plan, result, tracked, mode);
         // Only for a download leaving TorLink: a reclassified file crossing drives says nothing about TorLink's folder.
         if (result.OtherDrive) outcome = outcome with { Message = string.Join(" · ", new[] { outcome.Message, OtherDriveHint }.OfType<string>()) };
         outcome = outcome with { Message = Noted(outcome.Message) };
@@ -456,6 +459,12 @@ public sealed class TorLinkImporter
         try
         {
             if (Find(id) is not { } entry || entry.Files.Count == 0 || entry.Kind == kind || entry.Replaced is not null) return (Find(id), []);
+            // Its extras still arriving a few at a time are placed for the kind chosen first: the move waits for the last.
+            if (entry.Extras is not null)
+            {
+                var later = entry with { Message = L("Ses bonus arrivent encore quelques-uns à la fois : choisis à nouveau « Classer » dans quelques minutes.", "Its extras are still arriving a few at a time: choose “Sort” again in a few minutes."), UpdatedAt = DateTimeOffset.UtcNow };
+                Update(later); return (later, []);
+            }
             // Only the links and copies Mira placed move; a file that was already in the library stays where it is.
             var sources = entry.Files.Where(f => !f.Found && File.Exists(f.Destination)).Select(f => new SourceFile(f.Destination, f.RelativePath, new FileInfo(f.Destination).Length)).ToList();
             if (sources.Count == 0)
@@ -477,7 +486,7 @@ public sealed class TorLinkImporter
                 Update(blocked); return (blocked, []);
             }
             // Only Mira's own copies or links move here; TorLink's download is not touched.
-            var result = await MediaImporter.ExecuteAsync(plan, ImportMode.Move, ct);
+            var result = await MediaImporter.ExecuteAsync(plan, ImportMode.Move, ct, ExtrasBatches.Size);
             var moved = result.Placed.Select(x => x.Source).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var stayed = entry.Files.Where(f => !moved.Contains(f.Destination)).ToList();
             MediaImporter.PruneEmptyFolders(entry.Files.Select(f => Path.GetDirectoryName(f.Destination)), [libraries.Movies, libraries.Series, libraries.Anime, entry.LibraryRoot]);
@@ -493,7 +502,7 @@ public sealed class TorLinkImporter
                     Notified = false,
                     UpdatedAt = DateTimeOffset.UtcNow
                 }
-                : Outcome(entry, plan, result, stayed) with { Method = entry.Method, MovedOut = entry.MovedOut, ForcedKind = kind };
+                : Outcome(entry, plan, result, stayed, ImportMode.Move) with { Method = entry.Method, MovedOut = entry.MovedOut, ForcedKind = kind };
             Update(updated);
             return (updated, entry.Folders.Where(x => !Directory.Exists(x) || !updated.Folders.Contains(x, StringComparer.OrdinalIgnoreCase)).ToList());
         }
@@ -593,17 +602,18 @@ public sealed class TorLinkImporter
     public static string OtherDriveHint => L("TorLink télécharge sur un autre disque que la bibliothèque : chaque fichier a été copié puis supprimé. Pour un déplacement instantané, choisis dans TorLink (touche o) un dossier sur le disque de la bibliothèque.",
         "TorLink downloads to another drive than the library: each file was copied, then deleted. For an instant move, choose in TorLink (o key) a folder on the library’s drive.");
 
-    private static TorLinkImportEntry Outcome(TorLinkImportEntry entry, ImportPlan plan, ImportResult result, IReadOnlyList<TorLinkImportedFile> kept)
+    private static TorLinkImportEntry Outcome(TorLinkImportEntry entry, ImportPlan plan, ImportResult result, IReadOnlyList<TorLinkImportedFile> kept, ImportMode mode)
     {
         var placed = result.Placed.Concat(result.AlreadyThere).ToList();
-        var total = plan.Operations.Count;
+        var held = result.Held ?? [];
+        var total = plan.Operations.Count - held.Count;
         var state = placed.Count == total ? TorLinkImportState.Imported
             : placed.Count > 0 ? TorLinkImportState.Partial
             : result.Conflicts.Count > 0 ? TorLinkImportState.Conflict : TorLinkImportState.Failed;
         var problems = result.Conflicts.Count + result.Failures.Count;
         var message = state switch
         {
-            TorLinkImportState.Imported => plan.Notes.Count > 0 ? string.Join(" · ", plan.Notes) : null,
+            TorLinkImportState.Imported => plan.Notes.Concat(held.Count > 0 ? [HeldNote(held.Count)] : []) is var notes && notes.Any() ? string.Join(" · ", notes) : null,
             TorLinkImportState.Partial => L($"{placed.Count} fichier{(placed.Count > 1 ? "s" : "")} placé{(placed.Count > 1 ? "s" : "")}, {problems} non placé{(problems > 1 ? "s" : "")} : ",
                 $"{placed.Count} {(placed.Count == 1 ? "file" : "files")} in place, {problems} not: ") + (result.Conflicts.FirstOrDefault()?.Reason ?? result.Failures.FirstOrDefault()?.Reason),
             TorLinkImportState.Conflict => L("Déjà dans la bibliothèque avec un fichier différent : rien n’a été remplacé.", "Already in the library with a different file: nothing was replaced."),
@@ -629,8 +639,54 @@ public sealed class TorLinkImporter
             MovedOut = entry.MovedOut || result.Moved,
             Notified = false,
             JellyfinId = null,
+            Extras = held.Count > 0 ? new HeldExtras(held, mode, DateTimeOffset.UtcNow) : null,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    private static string HeldNote(int count) => Count(count, $"bonus de plus arrive {ExtrasBatches.Size} par {ExtrasBatches.Size}", $"bonus de plus arrivent {ExtrasBatches.Size} par {ExtrasBatches.Size}",
+        $"more extra on its way, {ExtrasBatches.Size} at a time", $"more extras on their way, {ExtrasBatches.Size} at a time");
+
+    /// <summary>
+    /// The next few extras held back (<see cref="ExtrasBatches.Next"/>) placed now, as the import placed the others, and
+    /// Jellyfin told again about the title's folders. Null when the download has none waiting.
+    /// </summary>
+    public async Task<TorLinkImportEntry?> PlaceHeldAsync(string id, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            if (Find(id) is not { Extras: { } held } entry) return null;
+            var batch = ExtrasBatches.Next(held.Operations);
+            // Within the library and the title folders the import chose: never anywhere else.
+            var plan = new ImportPlan(entry.Kind ?? MediaKind.Movie, entry.Title, entry.LibraryRoot, entry.Folders, batch, [], OtherRoots: entry.Folders);
+            var result = await MediaImporter.ExecuteAsync(plan, held.Mode, ct);
+            var done = result.Placed.Concat(result.AlreadyThere).Concat(result.Conflicts.Select(x => x.Operation)).Concat(result.Failures.Select(x => x.Operation)).ToHashSet();
+            var left = held.Operations.Where(x => !done.Contains(x)).ToList();
+            // A file moved from elsewhere in the library (« Classer comme… ») is tracked where it now is.
+            var moved = result.Placed.Select(x => x.Source).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var files = entry.Files.Where(f => !moved.Contains(f.Destination))
+                .Concat(result.Placed.Select(x => new TorLinkImportedFile(x.RelativePath, x.Destination, x.Role)))
+                .Concat(result.AlreadyThere.Select(x => new TorLinkImportedFile(x.RelativePath, x.Destination, x.Role, Found: !MediaImporter.IsSameFile(x.Source, x.Destination))))
+                .DistinctBy(x => x.Destination, StringComparer.OrdinalIgnoreCase).ToList();
+            var problems = result.Conflicts.Count + result.Failures.Count;
+            var note = left.Count > 0 ? HeldNote(left.Count) : problems > 0
+                ? Count(problems, "bonus non placé", "bonus non placés", "extra not in place", "extras not in place") + " : " + (result.Conflicts.FirstOrDefault()?.Reason ?? result.Failures.FirstOrDefault()?.Reason)
+                : null;
+            var updated = entry with
+            {
+                Files = files,
+                Extras = left.Count > 0 && !result.Canceled ? held with { Operations = left, At = DateTimeOffset.UtcNow } : left.Count > 0 ? held : null,
+                MovedOut = entry.MovedOut || result.Moved,
+                Message = note,
+                // Jellyfin is told about the title's folders again (NotifyAsync): it looks now rather than in a minute.
+                Notified = result.Placed.Count == 0 && entry.Notified,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            Update(updated);
+            return updated;
+        }
+        finally { _gate.Release(); }
     }
 
     private void Change(string id, Func<TorLinkImportEntry, TorLinkImportEntry> change)
