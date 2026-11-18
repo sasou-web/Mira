@@ -24,6 +24,13 @@ public sealed class ImageCache
     private readonly JellyfinClient _client;
     private readonly string _directory;
     private readonly SemaphoreSlim _downloads = new(6);
+    /// <summary>
+    /// A title page's backdrop and logo have their own lane: they never wait behind the posters and stills a page asks for
+    /// at the same time (they came last on the Dell, 2026-11-18).
+    /// </summary>
+    private readonly SemaphoreSlim _pageDownloads = new(2);
+    /// <summary>Backdrops already put on disk by <see cref="WarmPageAsync"/>, asked once per run.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _warmed = new();
     private ImageMemory<BitmapSource>? _memory;
     /// <summary>Made on first use, once the init-only budget is known.</summary>
     private ImageMemory<BitmapSource> Memory => LazyInitializer.EnsureInitialized(ref _memory, () => new(MemoryLimit, MemoryTarget, Size));
@@ -59,19 +66,44 @@ public sealed class ImageCache
         return Load(image, targetWidth ?? (backdrop ? BackdropPixels : Pixels(PosterWidth)));
     }
     /// <summary>A title page's backdrop: an episode opened on purpose shows everything, its own still too (see Artwork.Backdrop).</summary>
-    public Task<BitmapSource?> PageBackdropAsync(MediaItem item) => Load(Artwork.Backdrop(item, ownPage: true), BackdropPixels);
+    public Task<BitmapSource?> PageBackdropAsync(MediaItem item) => Load(Artwork.Backdrop(item, ownPage: true), BackdropPixels, first: true);
+    /// <summary>
+    /// A card hovered a moment: its page's backdrop downloaded to the disk (not decoded: ~15 MB each in memory, the posters
+    /// would leave for it) and its logo decoded, so that the page opens on them instead of waiting for Jellyfin.
+    /// </summary>
+    public async Task WarmPageAsync(MediaItem item)
+    {
+        var image = Artwork.Backdrop(item, ownPage: true);
+        var width = BackdropPixels;
+        var logo = item.ImageTags.ContainsKey("Logo") ? LogoAsync(item) : Task.FromResult<BitmapSource?>(null);
+        if (image.ItemId.Length > 0)
+        {
+            var key = $"{image.ItemId}-{image.Type}-{image.Tag}-{width}";
+            if (_warmed.TryAdd(key, 0)) await Task.Run(() => KeepAsync(key, image, width));
+        }
+        await logo;
+    }
+    private async Task KeepAsync(string key, ImageRef image, int width)
+    {
+        var path = PathOf(key);
+        if (File.Exists(path)) return;
+        await _pageDownloads.WaitAsync();
+        try { if (!File.Exists(path)) await KeepOnDiskAsync(path, await _client.ImageAsync(image.ItemId, image.Type, width)); }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or UnauthorizedAccessException) { _warmed.TryRemove(key, out _); }
+        finally { _pageDownloads.Release(); }
+    }
     /// <summary>A wide card: for an episode, art of its season or of the episode itself before the series' (see Artwork.Landscape).</summary>
     public Task<BitmapSource?> LandscapeAsync(MediaItem item, int width) => Load(Artwork.Landscape(item), width);
     // No picture (Artwork.None): nothing asked, Jellyfin would answer with the item's own picture whatever the tag.
-    private Task<BitmapSource?> Load(ImageRef image, int width) => image.ItemId.Length == 0 ? Task.FromResult<BitmapSource?>(null)
-        : Cached($"{image.ItemId}-{image.Type}-{image.Tag}-{width}", image.ItemId, image.Type, width);
+    private Task<BitmapSource?> Load(ImageRef image, int width, bool first = false) => image.ItemId.Length == 0 ? Task.FromResult<BitmapSource?>(null)
+        : Cached($"{image.ItemId}-{image.Type}-{image.Tag}-{width}", image.ItemId, image.Type, width, first);
     public Task<BitmapSource?> LogoAsync(MediaItem item)
     {
         var id = item.ImageTags.ContainsKey("Logo") ? item.Id : item.ParentLogoItemId ?? item.SeriesId;
         if (id is null) return Task.FromResult<BitmapSource?>(null);
         var tag = item.ImageTags.GetValueOrDefault("Logo") ?? item.ParentLogoImageTag ?? "";
         var width = Pixels(LogoWidth);
-        return Cached($"{id}-Logo-{tag}-{width}", id, "Logo", width);
+        return Cached($"{id}-Logo-{tag}-{width}", id, "Logo", width, first: true);
     }
     /// <param name="shown">The width it is shown at: <see cref="EpisodeWidth"/> in a list, <see cref="EpisodeTileWidth"/> in a series' grid.</param>
     public Task<BitmapSource?> EpisodeAsync(MediaItem item, double shown = EpisodeWidth)
@@ -85,15 +117,16 @@ public sealed class ImageCache
     /// the window's thread from the start: its file checks, opened and read, each held that thread a little while a page
     /// opened or scrolled (more with an antivirus that reads each file opened).
     /// </summary>
-    private Task<BitmapSource?> Cached(string key, string id, string type, int width) => Memory.Get(key, () => Task.Run(() => FetchAsync(key, id, type, width)));
+    private Task<BitmapSource?> Cached(string key, string id, string type, int width, bool first = false) => Memory.Get(key, () => Task.Run(() => FetchAsync(key, id, type, width, first)));
+    private string PathOf(string key) => Path.Combine(_directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) + ".img");
     private static long Size(BitmapSource bitmap) => (long)bitmap.PixelWidth * bitmap.PixelHeight * Math.Max(1, (bitmap.Format.BitsPerPixel + 7) / 8);
-    private async Task<BitmapSource?> FetchAsync(string key, string id, string type, int width)
+    private async Task<BitmapSource?> FetchAsync(string key, string id, string type, int width, bool first)
     {
-        await _downloads.WaitAsync();
+        var lane = first ? _pageDownloads : _downloads;
+        await lane.WaitAsync();
         try
         {
-            var filename = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) + ".img";
-            var path = Path.Combine(_directory, filename);
+            var path = PathOf(key);
             byte[]? bytes = null;
             // The file may have just been trimmed away: then it is downloaded again.
             if (File.Exists(path)) try { bytes = await File.ReadAllBytesAsync(path); } catch (IOException) { }
@@ -116,7 +149,7 @@ public sealed class ImageCache
             catch (Exception ex) when (ex is NotSupportedException or FileFormatException or InvalidOperationException) { TryDelete(path); throw new IOException("Image illisible.", ex); }
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or NotSupportedException or TaskCanceledException or UnauthorizedAccessException) { return null; }
-        finally { _downloads.Release(); }
+        finally { lane.Release(); }
     }
     /// <summary>Written beside, then moved: an interrupted write can never leave a truncated image behind. At best: false when it could not be kept.</summary>
     internal static async Task<bool> KeepOnDiskAsync(string path, byte[] bytes)

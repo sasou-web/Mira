@@ -68,7 +68,11 @@ public partial class MainWindow
         _extras = []; ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null; DetailLogo.Source = null; DetailLogo.Visibility = Visibility.Collapsed; DetailTitle.Visibility = Visibility.Visible;
-        SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
+        WaitForDetailLogo(item);
+        // Never black while the backdrop comes: the banner's own picture, else Jellyfin's BlurHash of the backdrop, which
+        // the backdrop then fades over (2026-11-18: the page opened black, its picture 0.5 s later).
+        var heroArt = _hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null;
+        SetDetailBackdrop(heroArt ?? DetailBlur(item) ?? previewArt, animate: false);
         if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), true), animate: false);
         RenderDetailText(item); EpisodesPanel.Children.Clear(); _seriesVirtuals = []; _shelfOpen.Clear(); _episodesRead = false;
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
@@ -124,12 +128,38 @@ public partial class MainWindow
     private async Task LoadDetailLogoAsync(MediaItem item, int version)
     {
         if (_images is not { } cache || !item.ImageTags.ContainsKey("Logo") || DetailLogo.Source is not null) return;
-        var logo = await cache.LogoAsync(item);
-        if (version != _detailVersion || logo is null || DetailLogo.Source is not null) return;
+        var request = cache.LogoAsync(item);
+        // Already decoded (the card was hovered, or the page seen before): there at once, no fade.
+        var ready = request.IsCompleted;
+        var logo = await request;
+        if (version != _detailVersion || DetailLogo.Source is not null) return;
+        if (logo is null) { ShowDetailTitle(item.Id); return; }
         DetailLogo.Source = logo; AutomationProperties.SetName(DetailLogo, item.DisplayTitle);
         DetailLogo.Visibility = Visibility.Visible; DetailTitle.Visibility = Visibility.Collapsed;
-        Motion.Fade(DetailLogo, 1, 320, 0, Motion.Soft);
+        Motion.Fade(DetailLogo, 1, ready ? 0 : 320, ready ? null : 0, Motion.Soft);
     }
+    /// <summary>How long a title with a logo keeps its place empty before its name shows instead.</summary>
+    private const int DetailLogoWait = 700;
+    /// <summary>
+    /// A title with a logo keeps its name hidden while the logo comes, its place kept (the text sits on the bottom of the
+    /// picture: nothing under it moves); never its name first, then the logo over it (2026-11-18, ogsas's video). The name
+    /// after <see cref="DetailLogoWait"/> without the logo, or at once when Jellyfin has none.
+    /// </summary>
+    private void WaitForDetailLogo(MediaItem item)
+    {
+        var waits = _images is not null && item.ImageTags.ContainsKey("Logo");
+        DetailTitle.BeginAnimation(OpacityProperty, null); DetailTitle.Opacity = waits ? 0 : 1;
+        if (waits) _ = ShowDetailTitleLaterAsync(item.Id);
+    }
+    private async Task ShowDetailTitleLaterAsync(string id) { await Task.Delay(DetailLogoWait); ShowDetailTitle(id); }
+    private void ShowDetailTitle(string id)
+    {
+        if (_detail?.Id != id || DetailLogo.Source is not null || DetailTitle.Opacity >= 1) return;
+        Motion.Fade(DetailTitle, 1, 200);
+    }
+    /// <summary>Jellyfin's BlurHash of the page's backdrop, drawn at once: null without one.</summary>
+    private static ImageSource? DetailBlur(MediaItem item) =>
+        BlurHash.Of(item, Artwork.Backdrop(item, ownPage: true)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;
     /// <summary>
     /// The picture as tall as the window for a film, most of it for a series (its episodes lead below the picture); never
     /// shorter than what sits on it (a summary opened, a narrow window).
@@ -162,9 +192,12 @@ public partial class MainWindow
     private async Task LoadDetailBackdropAsync(MediaItem item, int version)
     {
         if (_images is not { } cache) return;
-        var bitmap = await cache.PageBackdropAsync(item);
+        var request = cache.PageBackdropAsync(item);
+        // Already decoded (seen a moment ago): the page opens on it, without a fade from its blur.
+        var ready = request.IsCompleted;
+        var bitmap = await request;
         if (version != _detailVersion || bitmap is null) return;
-        SetDetailBackdrop(bitmap, animate: true);
+        SetDetailBackdrop(bitmap, animate: !ready);
     }
     private async Task LoadDetailMetadataAsync(MediaItem item, int version)
     {
