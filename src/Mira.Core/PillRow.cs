@@ -49,6 +49,21 @@ public static class PillRow
         return places;
     }
 
+    /// <summary>
+    /// The white pill as drawn over the pill shown (<paramref name="cellLeft"/>-<paramref name="cellRight"/>, as it stands
+    /// now): once it covers more than half of it, it grows to cover it all, smoothly, so the jelly's rebound inward never
+    /// leaves a piece of the name dark on black (Dell, 2026-11-18: « Season 2 » cut at the pill's edge). Its rebound
+    /// outward stays.
+    /// </summary>
+    public static (double Left, double Right) Drawn(double left, double right, double cellLeft, double cellRight)
+    {
+        var width = cellRight - cellLeft;
+        if (width <= 0) return (left, right);
+        var cover = (Math.Min(right, cellRight) - Math.Max(left, cellLeft)) / width;
+        var t = Math.Clamp((cover - .5) / .4, 0, 1); t = t * t * (3 - 2 * t);
+        return (left + (Math.Min(left, cellLeft) - left) * t, right + (Math.Max(right, cellRight) - right) * t);
+    }
+
     /// <summary>One pill opening or closing: from where it was when told, eased towards 0 or 1; told again mid-way, from where it stands.</summary>
     public sealed class Opener
     {

@@ -15,8 +15,10 @@ namespace Mira.Desktop.Views;
 /// edge goes under it. Another line: the white pill fades in there. Without motion (<see cref="Motion.Reduced"/>), at once.
 /// </summary>
 /// <remarks>
-/// The pills are buttons whose content is their label or, compact, a grid of their whole name and their number (both
-/// centred, cut by the pill as it opens). Their background stays transparent: the white pill is their only body.
+/// The pills are buttons whose content is their label or, compact, a <see cref="Face"/> of their whole name and their
+/// number (both centred, cut by the pill as it opens: asking no width, so that a button never wants more than its cell,
+/// which WPF would have put at its left and cut, Dell 2026-11-18). Their background and edge stay transparent: the row
+/// draws their rings, then the white pill over them, so that no grey arc shows on it on the way.
 /// </remarks>
 public sealed class SeasonRow : Panel
 {
@@ -81,8 +83,8 @@ public sealed class SeasonRow : Panel
     /// <summary>Each pill's width, round and whole: a compact pill's from its number and its name, else its own.</summary>
     private (double Round, double Whole) Widths(UIElement child)
     {
-        if (!_compact || child is not Button { Content: Grid { Children: [FrameworkElement whole, FrameworkElement cut] } grid }) return (child.DesiredSize.Width, child.DesiredSize.Width);
-        var chrome = Math.Max(0, child.DesiredSize.Width - grid.DesiredSize.Width);
+        if (!_compact || child is not Button { Content: Face { Children: [FrameworkElement whole, FrameworkElement cut] } face }) return (child.DesiredSize.Width, child.DesiredSize.Width);
+        var chrome = Math.Max(0, child.DesiredSize.Width - face.DesiredSize.Width);
         return (Math.Max(PillRow.Round, cut.DesiredSize.Width + chrome + 16), whole.DesiredSize.Width + chrome + 32);
     }
     private List<double> Widths(Func<int, double> open)
@@ -168,9 +170,14 @@ public sealed class SeasonRow : Panel
     {
         var now = Now;
         var (left, right, share) = _pill.At(now);
+        if (_chosen >= 0 && _chosen < _cells.Length && Math.Abs(_cells[_chosen].Top - _pillTop) < .5) (left, right) = PillRow.Drawn(left, right, _cells[_chosen].Left, _cells[_chosen].Right);
         var fade = Math.Clamp((now - _fadeSince) / PillRow.Fade, 0, 1);
+        var line = Ink("Line");
         using (var dc = _drawing.Open())
         {
+            // Each pill's ring, under the white pill.
+            var ring = new Pen(new SolidColorBrush(line), 1);
+            foreach (var cell in _cells) { var edge = cell; edge.Inflate(-.5, -.5); dc.DrawGeometry(null, ring, Squircle.Geometry(edge, edge.Height / 2)); }
             if (_chosen >= 0 && _chosen < _cells.Length && _height > 0)
             {
                 var height = _height * share;
@@ -180,15 +187,14 @@ public sealed class SeasonRow : Panel
                 if (fade < 1) dc.Pop();
             }
         }
-        var lit = Ink("OnAccent"); var line = Ink("Line"); var bare = Color.FromArgb(0, line.R, line.G, line.B);
+        var lit = Ink("OnAccent");
         for (var i = 0; i < InternalChildren.Count && i < _cells.Length; i++)
         {
             if (InternalChildren[i] is not Button pill) continue;
             var cell = _cells[i];
             var cover = _chosen < 0 ? 0 : Math.Abs(cell.Top - _pillTop) < .5 ? SegmentedSwitch.Lit(left, right, cell.Left, cell.Right) * fade : 0;
             Tint(pill, Control.ForegroundProperty, Mix(Ink(GetQuiet(pill) ? "Muted" : "TextSecondary"), lit, cover));
-            Tint(pill, Control.BorderBrushProperty, Mix(line, bare, cover));
-            if (pill.Content is Grid { Children: [UIElement whole, UIElement cut] } && i < _open.Count)
+            if (pill.Content is Face { Children: [UIElement whole, UIElement cut] } && i < _open.Count)
             {
                 var open = _open[i].At(now);
                 whole.Opacity = PillRow.Name(open); cut.Opacity = PillRow.Number(open);
@@ -201,6 +207,26 @@ public sealed class SeasonRow : Panel
         if (pill.ReadLocalValue(property) is SolidColorBrush { IsFrozen: false } brush) { if (brush.Color != color) brush.Color = color; }
         else pill.SetValue(property, new SolidColorBrush(color));
     }
+    /// <summary>
+    /// A compact pill's face: its whole name and its number, each at its own width and centred, cut to the pill. It asks
+    /// for no width (the row sizes the pill), only its height.
+    /// </summary>
+    public sealed class Face : Panel
+    {
+        public Face() => ClipToBounds = true;
+        protected override Size MeasureOverride(Size available)
+        {
+            var height = 0d;
+            foreach (UIElement child in InternalChildren) { child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); height = Math.Max(height, child.DesiredSize.Height); }
+            return new Size(0, height);
+        }
+        protected override Size ArrangeOverride(Size size)
+        {
+            foreach (UIElement child in InternalChildren) child.Arrange(new Rect((size.Width - child.DesiredSize.Width) / 2, (size.Height - child.DesiredSize.Height) / 2, child.DesiredSize.Width, child.DesiredSize.Height));
+            return size;
+        }
+    }
+
     private static Color Ink(string key) => Palette.Get(key) is SolidColorBrush solid ? solid.Color : Colors.Gray;
     private static Color Mix(Color from, Color to, double share) => Color.FromArgb(
         (byte)Math.Round(from.A + (to.A - from.A) * share), (byte)Math.Round(from.R + (to.R - from.R) * share),
