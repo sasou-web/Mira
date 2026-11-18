@@ -65,7 +65,7 @@ public partial class MainWindow
         _detailSize = null; _episodeSizes = null; _episodeMeta.Clear();
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
         StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = Visibility.Collapsed;
-        _extras = []; ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
+        _extras = []; _extrasOpen.Clear(); ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null; DetailLogo.Source = null; DetailLogo.Visibility = Visibility.Collapsed; DetailTitle.Visibility = Visibility.Visible;
         WaitForDetailLogo(item);
@@ -222,7 +222,7 @@ public partial class MainWindow
         }
         catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion) SetError(Friendly(ex)); }
     }
-    /// <summary>The « Bonus » row: making-of, deleted scenes, textless credits, played from their card. Optional, as the similar titles.</summary>
+    /// <summary>A film's « Bonus » row (making-of, deleted scenes), played from their card; a series' bonus behind its pill « Extras ». Optional, as the similar titles.</summary>
     private async Task LoadExtrasAsync(MediaItem item, int version)
     {
         var extras = new List<MediaItem>();
@@ -234,6 +234,13 @@ public partial class MainWindow
         }
         _extras = extras;
         ExtrasCards.Children.Clear();
+        // A series' bonus: the pill « Extras » after its seasons (MainWindow.SeriesExtras.cs), no row under its facts.
+        if (item.Type == "Series")
+        {
+            ExtrasSection.Visibility = Visibility.Collapsed; SimilarSection.Margin = new Thickness(0, 36, 0, 0);
+            if (_episodesRead && extras.Count > 0) { FillSeasons(); RenderEpisodes(); }
+            return;
+        }
         foreach (var extra in extras)
         {
             var card = new MediaCard(extra, true, 0, _settings, _demo);
@@ -241,10 +248,9 @@ public partial class MainWindow
             card.HoverEntered += x => x.SetHover(true); card.FocusEntered += x => x.SetHover(true); card.HoverLeft += x => x.SetHover(false);
             ExtrasCards.Children.Add(card); _ = card.LoadImageAsync(_images, true);
         }
-        // Under a series' episodes, as the similar titles are when there is no bonus.
-        ExtrasSection.Margin = new Thickness(0, _detail?.Type == "Series" ? 36 : 0, 0, 36);
+        ExtrasSection.Margin = new Thickness(0, 0, 0, 36);
         ExtrasSection.Visibility = extras.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" && extras.Count == 0 ? 36 : 0, 0, 0);
+        SimilarSection.Margin = new Thickness(0);
     }
     private List<MediaItem> _extras = [];
     /// <summary>« Du même studio · Studio Ghibli »: its studio's other titles, those of its saga's row left out when drawn.</summary>
@@ -366,7 +372,7 @@ public partial class MainWindow
         StudioTitle.Text = _studioTitles is { } studio ? L($"Du même studio · {studio.Studio.Name}", $"More from {studio.Studio.Name}") : "";
         StudioSection.Visibility = StudioCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         Fill(SimilarCards, _similar);
-        SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" && _extras.Count == 0 ? 36 : 0, 0, 0);
+        SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" ? 36 : 0, 0, 0);
         SimilarSection.Visibility = SimilarCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         _similarColumns = columns;
         void Fill(WrapPanel cards, List<MediaItem> items)
@@ -610,6 +616,7 @@ public partial class MainWindow
     private void RenderEpisodes()
     {
         EpisodesPanel.Children.Clear(); _episodeCopyLabels.Clear(); _tiles.Clear(); _episodeMeta.Clear(); _missingViews.RemoveAll(x => !x.Pill);
+        if (ExtrasShown) { UpdateSeasonPills(ExtrasPage); RenderExtras(); return; }
         var page = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         UpdateSeasonPills(page);
         if (page is { Absent: true }) { RenderAbsentSeason(page); return; }

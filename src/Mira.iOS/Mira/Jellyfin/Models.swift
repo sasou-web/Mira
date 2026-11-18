@@ -49,6 +49,10 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var premiereDate: String?
     var endDate: String?
     var productionLocations: [String]?
+    /// A bonus video's kind (« Featurette »…, « Unknown » in an Extras folder): SeriesExtras sorts them by it.
+    var extraType: String?
+    /// How many bonus videos a film or series has (Items/{id} only): none, and its page asks for none (SeriesExtras).
+    var specialFeatureCount: Int?
     /// How many trailers its folder holds (Items/{id} only): « Trailer » plays the first one in Mira (Trailers).
     var localTrailerCount: Int?
     /// Its trailers on the web (Items/{id} only, YouTube from TMDb): opened in Safari, never in Mira.

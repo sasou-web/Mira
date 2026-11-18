@@ -177,7 +177,8 @@ public sealed class SeasonRow : Panel
         {
             // Each pill's ring, under the white pill.
             var ring = new Pen(new SolidColorBrush(line), 1);
-            foreach (var cell in _cells) { var edge = cell; edge.Inflate(-.5, -.5); dc.DrawGeometry(null, ring, Squircle.Geometry(edge, edge.Height / 2)); }
+            // Only the buttons: a thin line between the seasons and « Extras » (SeriesExtras) has no ring.
+            for (var i = 0; i < _cells.Length && i < InternalChildren.Count; i++) { if (InternalChildren[i] is not Button) continue; var edge = _cells[i]; edge.Inflate(-.5, -.5); dc.DrawGeometry(null, ring, Squircle.Geometry(edge, edge.Height / 2)); }
             if (_chosen >= 0 && _chosen < _cells.Length && _height > 0)
             {
                 var height = _height * share;

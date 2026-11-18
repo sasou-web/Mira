@@ -138,6 +138,15 @@ final class MiraUITests: XCTestCase {
         settle()
         capture("06-series")
         XCTAssertTrue(third.exists, "The series page lists no episodes")
+        // « La pastille »: the chip « Extras » after the seasons shows the bonus videos by kind in place of the episodes.
+        let extrasChip = app.buttons["series.chip.extras"]
+        for _ in 0..<4 where !(extrasChip.exists && extrasChip.isHittable) { app.swipeDown() }
+        XCTAssertTrue(extrasChip.waitForExistence(timeout: 5), "No chip « Extras » after the seasons")
+        extrasChip.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["series.extras"].waitForExistence(timeout: 5), "« Extras » does not show the bonus videos")
+        XCTAssertFalse(app.buttons["episode.play.1"].exists, "The episodes stay under « Extras »")
+        settle()
+        capture("06b-series-extras")
         app.navigationBars.buttons.firstMatch.tap()
 
         // Scrolling down Home folded Mira's tab bar to its Home tab; back at the top, it shows every tab again.

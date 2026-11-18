@@ -144,7 +144,8 @@ public sealed class SeasonRow : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        foreach (var cell in _cells) context.DrawRectangle(Body, null, new RoundedRect(cell, cell.Height / 2));
+        // Only the buttons: a thin line between the seasons and « Extras » (SeriesExtras) has no body.
+        for (var i = 0; i < _cells.Length && i < Children.Count; i++) { if (Children[i] is Button) context.DrawRectangle(Body, null, new RoundedRect(_cells[i], _cells[i].Height / 2)); }
         if (_chosen < 0 || _chosen >= _cells.Length || _height <= 0) return;
         var now = Now;
         var (left, right, share) = _pill.At(now);

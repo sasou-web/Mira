@@ -63,6 +63,8 @@ public partial class MainWindow
     }
     private void EpisodesPanel_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        // The bonus show a row of each kind: another count of columns draws them again.
+        if (e.WidthChanged && ExtrasShown && EpisodeTiles.Columns(e.NewSize.Width) != _extrasColumns) { RenderEpisodes(); return; }
         if (e.WidthChanged && _tiles.Count > 0 && EpisodeTiles.Width(e.NewSize.Width) != _tileWidth) LayoutTiles();
     }
     private T Tile<T>(T tile, FrameworkElement picture) where T : FrameworkElement
@@ -106,31 +108,7 @@ public partial class MainWindow
             });
         }
         // The poster's light ring, under the pointer or the keyboard, the one to watch included: no frame of its own, so the two never look alike.
-        var ring = new Border { BorderBrush = HoverRing, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false, Opacity = 0 };
-        picture.Children.Add(ring);
-        var lifted = false;
-        void Lift(bool up)
-        {
-            if (up == lifted) return;
-            lifted = up;
-            if (!isNext) play.Visibility = up ? Visibility.Visible : Visibility.Hidden;
-            var scale = up && !Motion.Reduced ? MediaCard.HoverZoom : 1; var opacity = up ? 1d : 0d;
-            if (Motion.Reduced)
-            {
-                zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null); zoom.BeginAnimation(ScaleTransform.ScaleYProperty, null); zoom.ScaleX = zoom.ScaleY = scale;
-                ring.BeginAnimation(OpacityProperty, null); ring.Opacity = opacity;
-                return;
-            }
-            var time = TimeSpan.FromMilliseconds(160);
-            zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale, time) { EasingFunction = Motion.Soft });
-            zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale, time) { EasingFunction = Motion.Soft });
-            ring.BeginAnimation(OpacityProperty, new DoubleAnimation(opacity, time) { EasingFunction = Motion.Soft });
-        }
-        // The pointer's own doing, as on the posters: tiles going by under a still pointer while the page scrolls stay quiet.
-        button.MouseEnter += (_, _) => { if (!PageScrolling) Lift(true); };
-        button.MouseMove += (_, _) => { if (!lifted && !PageScrolling) Lift(true); };
-        button.MouseLeave += (_, _) => { if (!button.IsKeyboardFocused) Lift(false); };
-        button.GotKeyboardFocus += (_, _) => Lift(true); button.LostKeyboardFocus += (_, _) => { if (!button.IsMouseOver) Lift(false); };
+        Hover(button, picture, zoom, play, isNext);
         root.Children.Add(picture);
         var title = new TextBlock { FontSize = 14.5, FontWeight = FontWeights.Bold, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 11, 0, 0) };
         if (EpisodeTiles.Number(episode) is { Length: > 0 } number) title.Inlines.Add(new Run(number + "  ") { FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Muted") });
@@ -157,6 +135,36 @@ public partial class MainWindow
             _ = Dispatcher.BeginInvoke(() => button.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
         }
         return Tile(button, picture);
+    }
+
+    /// <summary>A tile under the pointer or the keyboard: its picture zooms gently, the poster's ring lights, its play button shows (always on the one to watch).</summary>
+    private void Hover(Button button, Grid picture, ScaleTransform zoom, Border play, bool always)
+    {
+        var ring = new Border { BorderBrush = HoverRing, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(10), IsHitTestVisible = false, Opacity = 0 };
+        picture.Children.Add(ring);
+        var lifted = false;
+        void Lift(bool up)
+        {
+            if (up == lifted) return;
+            lifted = up;
+            if (!always) play.Visibility = up ? Visibility.Visible : Visibility.Hidden;
+            var scale = up && !Motion.Reduced ? MediaCard.HoverZoom : 1; var opacity = up ? 1d : 0d;
+            if (Motion.Reduced)
+            {
+                zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null); zoom.BeginAnimation(ScaleTransform.ScaleYProperty, null); zoom.ScaleX = zoom.ScaleY = scale;
+                ring.BeginAnimation(OpacityProperty, null); ring.Opacity = opacity;
+                return;
+            }
+            var time = TimeSpan.FromMilliseconds(160);
+            zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale, time) { EasingFunction = Motion.Soft });
+            zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale, time) { EasingFunction = Motion.Soft });
+            ring.BeginAnimation(OpacityProperty, new DoubleAnimation(opacity, time) { EasingFunction = Motion.Soft });
+        }
+        // The pointer's own doing, as on the posters: tiles going by under a still pointer while the page scrolls stay quiet.
+        button.MouseEnter += (_, _) => { if (!PageScrolling) Lift(true); };
+        button.MouseMove += (_, _) => { if (!lifted && !PageScrolling) Lift(true); };
+        button.MouseLeave += (_, _) => { if (!button.IsKeyboardFocused) Lift(false); };
+        button.GotKeyboardFocus += (_, _) => Lift(true); button.LostKeyboardFocus += (_, _) => { if (!button.IsMouseOver) Lift(false); };
     }
 
     // An episode the library lacks: no picture to play, its name and its day (the next to come out, or one of an opened run).
@@ -206,7 +214,7 @@ public partial class MainWindow
     /// to its number, a bubble under it giving its name and where you are; the row wraps when even that is too long. The
     /// row (<see cref="SeasonRow"/>) draws the white pill under the one shown and sends it as a jelly to the next.
     /// </summary>
-    private void FillSeasonPills(IReadOnlyList<EpisodePage> pages)
+    private void FillSeasonPills(IReadOnlyList<EpisodePage> pages, bool extras = false)
     {
         SeasonPills.Children.Clear(); _missingViews.RemoveAll(x => x.Pill);
         SeasonPills.Visibility = pages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -237,8 +245,10 @@ public partial class MainWindow
             pill.Click += (_, _) => SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? SeasonSelector.SelectedItem;
             SeasonPills.Children.Add(pill);
         }
+        // « Extras » after the last season (SeriesExtras), also after a single one.
+        if (extras && pages.Count > 0) AddExtrasPill();
     }
-    private void UpdateSeasonPills(EpisodePage? shown)
+    private void UpdateSeasonPills(object? shown)
     {
         var index = -1;
         foreach (var pill in SeasonPills.Children.OfType<Button>())

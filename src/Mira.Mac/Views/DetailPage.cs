@@ -105,7 +105,12 @@ public sealed partial class DetailPage : Page
         SizeChanged += (_, e) => { _viewport = e.NewSize.Height; SizeHero(); };
         _top.SizeChanged += (_, e) => { if (e.HeightChanged) SizeHero(); };
         _seasons.SelectionChanged += (_, _) => { if (!_filling) { RenderEpisodes(); ShowOffline(); } };
-        _episodes.SizeChanged += (_, e) => { if (e.WidthChanged && _tiles.Count > 0 && EpisodeTiles.Width(e.NewSize.Width) != _tileWidth) LayoutTiles(); };
+        _episodes.SizeChanged += (_, e) =>
+        {
+            // The bonus show a row of each kind: another count of columns draws them again.
+            if (e.WidthChanged && ExtrasShown && EpisodeTiles.Columns(e.NewSize.Width) != _extrasColumns) { RenderEpisodes(); return; }
+            if (e.WidthChanged && _tiles.Count > 0 && EpisodeTiles.Width(e.NewSize.Width) != _tileWidth) LayoutTiles();
+        };
         // « Garder sur ce Mac »: the button and the episodes follow the copies as they come.
         void OfflineUpdated() { ShowOffline(); if (_item.Type == "Series" && _allEpisodes.Count > 0) RenderEpisodes(); }
         void OfflineProgressed() => ShowOffline();
@@ -879,20 +884,23 @@ public sealed partial class DetailPage : Page
     /// </summary>
     private void FillSeasons()
     {
-        var previous = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
+        var previous = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage; var extras = ExtrasShown;
         var own = EpisodePages.From(_allEpisodes);
         var pages = EpisodeShelf.Pages(own, _allEpisodes, ShelfVirtuals, EpisodeCalendar.Today(), Shell.Settings.ShowMissingEpisodes);
         _filling = true;
         _seasons.Items.Clear();
         foreach (var page in pages) _seasons.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
+        if (_seriesExtras.Count > 0) _seasons.Items.Add(new ComboBoxItem { Content = SeriesExtras.Name, Tag = ExtrasPage });
         // Two pages or more: pills under the heading, cut to their numbers past ten (EpisodeTiles, as on Windows); one:
         // none. The list itself is never shown: it only holds the choice.
         _seasons.IsVisible = false;
-        FillPills(EpisodeTiles.Pills(pages) ? pages : []);
+        // With bonus videos (SeriesExtras), pills for a single season too, « Extras » after it.
+        FillPills(SeriesExtras.Pills(pages, _seriesExtras.Count) ? pages : [], _seriesExtras.Count > 0);
         var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip && x.Absent == previous.Absent))
             ?? EpisodePages.Holding(own, _allEpisodes, _allEpisodes.FirstOrDefault(x => x.Id == _found?.Id))
             ?? EpisodePages.Holding(own, _allEpisodes, SeriesTarget);
-        _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault();
+        var shown = extras && _seriesExtras.Count > 0 ? ExtrasPage : resume;
+        _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, shown)) ?? _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault();
         _filling = false;
     }
     /// <summary>The episodes drawn again; while an episode's menu shows, once it closes (<see cref="Menus.WhenClosed"/>).</summary>
@@ -902,6 +910,7 @@ public sealed partial class DetailPage : Page
         _episodes.Children.Clear(); _tiles.Clear(); _tileGrid = null; _episodeMeta.Clear();
         _missingViews.RemoveAll(x => !x.Pill);
         if (Shell.Session is not { } session) return;
+        if (ExtrasShown) { UpdatePills(ExtrasPage); DrawExtras(session); return; }
         var page = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         UpdatePills(page);
         var today = EpisodeCalendar.Today(); var showMissing = Shell.Settings.ShowMissingEpisodes;
@@ -1045,7 +1054,7 @@ public sealed partial class DetailPage : Page
     /// <see cref="EpisodeTiles.MaxPills"/> pages (« Les numéros », as on Windows) each pill but the one shown is cut to its
     /// number, a bubble giving its name and where you are; the row wraps when even that is too long.
     /// </summary>
-    private void FillPills(IReadOnlyList<EpisodePage> pages)
+    private void FillPills(IReadOnlyList<EpisodePage> pages, bool extras = false)
     {
         _pills.Children.Clear(); _pills.IsVisible = pages.Count > 0;
         _missingViews.RemoveAll(x => x.Pill);
@@ -1071,8 +1080,10 @@ public sealed partial class DetailPage : Page
             pill.Click += (_, _) => _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? _seasons.SelectedItem;
             _pills.Children.Add(pill);
         }
+        // « Extras » after the last season (SeriesExtras), also after a single one.
+        if (extras && pages.Count > 0) AddExtrasPill(compact);
     }
-    private void UpdatePills(EpisodePage? shown)
+    private void UpdatePills(object? shown)
     {
         var index = -1;
         foreach (var pill in _pills.Children.OfType<Button>())
@@ -1214,7 +1225,7 @@ public sealed partial class DetailPage : Page
             try { saga = await session.SagaAsync(_item.Id); }
             catch (Exception ex) when (Errors.Expected(ex)) { }
         }
-        // Bonus videos (making-of, deleted scenes, textless credits): played from their card, they have no page.
+        // Bonus videos (making-of, deleted scenes, textless credits): played from their card (a film's row, a series' pill), they have no page.
         var extras = new List<MediaItem>();
         if (_item.SpecialFeatureCount is > 0)
         {
@@ -1228,6 +1239,8 @@ public sealed partial class DetailPage : Page
         var similar = new List<MediaItem>();
         try { similar = (await session.SimilarAsync(_item.Id)).Items.Where(x => x.Id != _item.Id && saga?.Items.Any(s => s.Id == x.Id) != true).ToList(); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
+        // A series' bonus: the pill « Extras » after its seasons (DetailPage.SeriesExtras.cs), no row of cards.
+        if (_item.Type == "Series") { if (extras.Count > 0 || _seriesExtras.Count > 0) ShowSeriesExtras(extras); extras = []; }
         if (saga is null && studio is null && extras.Count == 0 && similar.Count == 0) return;
         try { await Task.Run(() => { if (saga is not null) session.Store.ApplyLocalProgress(saga.Items); if (studio is { } found) session.Store.ApplyLocalProgress(found.Items); session.Store.ApplyLocalProgress(similar); }); }
         catch (Exception ex) when (Errors.Expected(ex)) { }

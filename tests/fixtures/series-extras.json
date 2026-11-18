@@ -1,0 +1,53 @@
+{
+  "about": "« La pastille »: a series' bonus videos on its page, as SeriesExtras.cs (tests/Mira.Core.Tests) and Extras.swift (src/Mira.iOS) read them; both must agree. read: [Jellyfin's name, ExtraType, the series, kind (null: neither opening nor ending), number, title it belongs to, copy]; title: [name, ExtraType, series, tile title]; meta: [name, series, RunTimeTicks, French line, English line]; extras: Jellyfin's items of a series « Monogatari Series »; groups: [key, French name, English name, ids in order]; heading: [French, English]; pills: [season pages, extras, pills shown].",
+  "read": [
+    ["Bakemonogatari - NCOP01", "Unknown", "Monogatari Series", "opening", 1, "Bakemonogatari", null],
+    ["Monogatari Series - NCOP03.2", "Unknown", "Monogatari Series", "opening", 3, null, 2],
+    ["Monogatari Series - NCED.4", null, "Monogatari Series", "ending", null, null, 4],
+    ["Monogatari Series - NCED", null, "Monogatari Series", "ending", null, null, null],
+    ["[matheousse] Nisemonogatari - NCOP01 - futakotome [BD 1080p Opus] [078104B1]", "Unknown", "Monogatari Series", "opening", 1, "Nisemonogatari", null],
+    ["Show - Creditless Ending 2 [BD]", "Unknown", "Show", "ending", 2, null, null],
+    ["Textless Opening", "Unknown", "Show", "opening", null, null, null],
+    ["Ed's Interview", "Unknown", "Show", null, null, null, null],
+    ["Monogatari Series - 7.5", "Unknown", "Monogatari Series", null, null, null, null],
+    ["Opening Night", "Featurette", "Show", null, null, null, null],
+    ["Behind the scenes", "BehindTheScenes", "Show", null, null, null, null]
+  ],
+  "title": [
+    ["Bakemonogatari - NCOP01", "Unknown", "Monogatari Series", "Opening 1"],
+    ["Monogatari Series - NCOP03.2", "Unknown", "Monogatari Series", "Opening 3 · 2"],
+    ["Monogatari Series - NCED", "Unknown", "Monogatari Series", "Ending"],
+    ["Monogatari Series - NCED.4", "Unknown", "Monogatari Series", "Ending · 4"],
+    ["Making of the opening", "Featurette", "Show", "Making of the opening"]
+  ],
+  "meta": [
+    ["Bakemonogatari - NCOP01", "Monogatari Series", 900000000, "Bakemonogatari · 1 min 30", "Bakemonogatari · 1 min 30"],
+    ["Monogatari Series - NCOP03.2", "Monogatari Series", 905000000, "1 min 31", "1 min 31"],
+    ["Monogatari Series - NCED", "Monogatari Series", 450000000, "45 s", "45 s"],
+    ["Monogatari Series - 7.5", "Monogatari Series", 14400000000, "24 min", "24 min"],
+    ["Recap", "Monogatari Series", 39000000000, "1 h 05", "1 hr 5 min"],
+    ["Recap", "Monogatari Series", null, "", ""]
+  ],
+  "extras": [
+    {"Id": "nise-op1", "Name": "Nisemonogatari - NCOP01", "Type": "Video", "ExtraType": "Unknown", "RunTimeTicks": 900000000},
+    {"Id": "half", "Name": "Monogatari Series - 7.5", "Type": "Video", "ExtraType": "Unknown", "RunTimeTicks": 14400000000},
+    {"Id": "bake-ed1", "Name": "Bakemonogatari - NCED01", "Type": "Video", "ExtraType": "Unknown", "RunTimeTicks": 900000000},
+    {"Id": "bake-op2", "Name": "Bakemonogatari - NCOP02", "Type": "Video", "ExtraType": "Unknown", "RunTimeTicks": 900000000},
+    {"Id": "making", "Name": "Making of", "Type": "Video", "ExtraType": "Featurette", "RunTimeTicks": 6000000000},
+    {"Id": "bake-op1", "Name": "Bakemonogatari - NCOP01", "Type": "Video", "ExtraType": "Unknown", "RunTimeTicks": 900000000},
+    {"Id": "trailer", "Name": "Trailer", "Type": "Video", "ExtraType": "Trailer", "RunTimeTicks": 1200000000},
+    {"Id": "op3b", "Name": "Monogatari Series - NCOP03.2", "Type": "Video", "ExtraType": "Unknown", "RunTimeTicks": 900000000},
+    {"Id": "op3", "Name": "Monogatari Series - NCOP03", "Type": "Video", "ExtraType": "Unknown", "RunTimeTicks": 900000000},
+    {"Id": "clip", "Name": "Clip", "Type": "Video", "ExtraType": "Sample"}
+  ],
+  "groups": [
+    ["opening", "Openings", "Openings", ["op3", "op3b", "bake-op1", "bake-op2", "nise-op1"]],
+    ["ending", "Endings", "Endings", ["bake-ed1"]],
+    ["Featurette", "Making-of", "Featurettes", ["making"]],
+    ["Clip", "Extraits", "Clips", ["clip"]],
+    ["Trailer", "Bandes-annonces", "Trailers", ["trailer"]],
+    ["other", "Autres", "Other", ["half"]]
+  ],
+  "heading": ["Bonus  ·  10  ·  45 min", "Extras  ·  10  ·  45 min"],
+  "pills": [[0, 0, false], [1, 0, false], [1, 3, true], [2, 0, true], [0, 3, false], [14, 48, true]]
+}

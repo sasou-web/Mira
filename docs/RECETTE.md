@@ -22,6 +22,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 
 ## Ton PC 🖥
 - [ ] Mise à jour de Mira proposée et faite (à la prochaine version)
+- [ ] Bonus d’une série (« La pastille ») : sur Monogatari Series, pastille « Extras » après la saison 14 ; un clic montre Openings et Endings, une ligne chacun, « Tout afficher » les déplie ; une vignette lance le générique ; un film garde sa rangée « Bonus » (Mac et iPhone pareil)
 - [ ] Lecteur : image « Cinéma » sans saccade sur un film 4K ; Informations dit « Cinéma »
 - [ ] Un film HDR10 avec le HDR de Windows allumé, puis éteint : couleurs justes les deux fois ; ⋮ → Informations, ligne « Couleurs » : « envoyé en HDR à l’écran » puis « converti en SDR »
 - [ ] Un film Dolby Vision (profil 5 ou 8) : pas de vert ni de violet ; « Couleurs » dit « Dolby Vision profil 5 » ou « 8 »
