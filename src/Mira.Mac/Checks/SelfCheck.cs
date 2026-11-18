@@ -793,8 +793,8 @@ public static class SelfCheck
                 await Task.Delay(700); Capture(window, output, "07c2-settings-friend-home");
                 // Aide → « Inviter un ami »: the same guide at any time, for « ton ami » (ogsas, 2026-11-18).
                 withFriend.ShowHelp("friend");
-                var help = await Until(() => withFriend.Friend.HelpSteps == 4, 5);
-                Check(help && withFriend.HelpTopic == "friend", "aide : inviter un ami", $"{withFriend.Friend.HelpSteps} étapes");
+                var helpGuide = await Until(() => withFriend.Friend.HelpSteps == 4, 5);
+                Check(helpGuide && withFriend.HelpTopic == "friend", "aide : inviter un ami", $"{withFriend.Friend.HelpSteps} étapes");
                 await Task.Delay(500); Capture(window, output, "07c3-help-friend");
                 withFriend.ShowSettingsSide();
             }
