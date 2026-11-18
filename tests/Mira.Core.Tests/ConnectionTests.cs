@@ -527,6 +527,8 @@ internal static class ConnectionTests
             Assert(FriendReach.Sharees("""{"BackendState":"Running","Peer":{"k1":{"UserID":1}}}""")!.Count == 0 && FriendReach.Sharees(null) is null && FriendReach.Sharees("pas du JSON") is null, "No sharee");
             Assert(FriendReach.NoAnswer("http://192.168.1.42:8096/")!.Contains("192.168.1.42 est une adresse de maison") && FriendReach.NoAnswer("http://100.88.12.34:8096/")!.Contains("adresse Tailscale")
                 && FriendReach.NoAnswer("https://jellyfin.example.test/") is null, "No answer");
+            // Aide's guide speaks of « ton ami », at the start of a sentence too.
+            Assert(FriendReach.Capital(FriendReach.AFriend) == "Ton ami" && FriendReach.Capital("Sam") == "Sam" && FriendReach.Capital("") == "", "Capital");
             return Task.CompletedTask;
         });
         await Test("Ajouter un ami : son compte ne voit que les bibliothèques choisies, ne télécharge rien, retiré si ses droits ne passent pas", async () =>
