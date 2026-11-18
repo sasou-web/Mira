@@ -228,6 +228,30 @@ internal static class TorLinkTests
             Assert(office.Operations.All(x => x.Destination.Contains("The Office US")) && office.OtherRoots is null, "Season pack: " + string.Join(" | ", office.Operations.Select(Target)));
             return Task.CompletedTask;
         });
+        await Test("TorLink : un pack qui numérote une seule série d'un dossier à l'autre (ordre des romans de Monogatari) rangé en une série à saisons", () =>
+        {
+            // matheousse's « Monogatari Series Intégrale v3 » (2026-11-18): one folder per title, but episodes numbered as
+            // TheTVDB's « Book Order » of one show (S01 Bakemonogatari, S03 Nisemonogatari…), for Jellyfin's alternate order.
+            // Placed as a franchise, each title became a show of its own with a lone « Season 03 ».
+            var dir = Path.Combine(testRoot, "torlink-book-order");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), Path.Combine(dir, "ANIME"));
+            SourceFile F(string path) => new(Path.Combine(dir, "downloads", path), path, 1_400_000_000);
+            const string Root = "[matheousse] Monogatari Series Intégrale VOSTFR v3 (BD 1080p Opus)";
+            string Target(ImportOperation x) => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/');
+            foreach (var files in new List<SourceFile>[] {
+                [F($"{Root}/01. Bakemonogatari/[matheousse] Monogatari Series - S01E01 (BD 1080p).mkv"), F($"{Root}/01. Bakemonogatari/[matheousse] Monogatari Series - S01E02 (BD 1080p).mkv"),
+                 F($"{Root}/03. Nisemonogatari/[matheousse] Monogatari Series - S03E01 (BD 1080p).mkv"), F($"{Root}/03. Nisemonogatari/[matheousse] Monogatari Series - S03E02 (BD 1080p).mkv")],
+                [F($"{Root}/Bakemonogatari/Bakemonogatari - S01E01.mkv"), F($"{Root}/Bakemonogatari/Bakemonogatari - S01E02.mkv"),
+                 F($"{Root}/Nisemonogatari/Nisemonogatari - S03E01.mkv"), F($"{Root}/Nisemonogatari/Nisemonogatari - S03E02.mkv")] })
+            {
+                var plan = MediaPlanner.Plan(Root + " (Bakemonogatari, Nisemonogatari)", null, files, libraries);
+                var targets = string.Join(" | ", plan.Operations.Select(Target));
+                foreach (var expected in new[] { "ANIME/Monogatari Series/Season 01/Monogatari Series - S01E02.mkv", "ANIME/Monogatari Series/Season 03/Monogatari Series - S03E01.mkv" })
+                    Assert(plan.Operations.Any(x => Target(x) == expected), $"Missing {expected}: {targets}");
+                Assert(plan.Operations.Count == 4 && plan.OtherRoots is null, targets);
+            }
+            return Task.CompletedTask;
+        });
         await Test("TorLink : chaque titre d'un pack de franchise est sa propre série, arcs compris, jamais regroupés en saisons", () =>
         {
             // « Monogatari Series » (2026-11-16, ogsas): fifteen titles, fifteen cards, Kuro and Shiro apart, the arcs of
