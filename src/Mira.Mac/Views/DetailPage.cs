@@ -830,10 +830,10 @@ public sealed partial class DetailPage : Page
         _filling = true;
         _seasons.Items.Clear();
         foreach (var page in pages) _seasons.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
-        // Two to ten pages: pills under the heading; more (slices of a long anime): the list; one: neither.
-        var pills = EpisodeTiles.Pills(pages);
-        _seasons.IsVisible = EpisodeTiles.SeasonList(pages);
-        FillPills(pills ? pages : []);
+        // Two pages or more: pills under the heading, cut to their numbers past ten (EpisodeTiles, as on Windows); one:
+        // none. The list itself is never shown: it only holds the choice.
+        _seasons.IsVisible = false;
+        FillPills(EpisodeTiles.Pills(pages) ? pages : []);
         var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip && x.Absent == previous.Absent))
             ?? EpisodePages.Holding(own, _allEpisodes, _allEpisodes.FirstOrDefault(x => x.Id == _found?.Id))
             ?? EpisodePages.Holding(own, _allEpisodes, SeriesTarget);
@@ -985,11 +985,16 @@ public sealed partial class DetailPage : Page
         if (MissingSeasonPart(season, run) is { } get) { Grid.SetColumn(get, 2); grid.Children.Add(get); }
         return new Border { Child = grid, BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(22), Margin = new Thickness(0, 0, 0, EpisodeTiles.RowGap) };
     }
-    /// <summary>The seasons as pills under the heading; a click shows that one (the hidden list stays the source).</summary>
+    /// <summary>
+    /// The seasons as pills under the heading; a click shows that one (the hidden list stays the source). Past
+    /// <see cref="EpisodeTiles.MaxPills"/> pages (« Les numéros », as on Windows) each pill but the one shown is cut to its
+    /// number, a bubble giving its name and where you are; the row wraps when even that is too long.
+    /// </summary>
     private void FillPills(IReadOnlyList<EpisodePage> pages)
     {
         _pills.Children.Clear(); _pills.IsVisible = pages.Count > 0;
         _missingViews.RemoveAll(x => x.Pill);
+        var compact = EpisodeTiles.Compact(pages);
         foreach (var page in pages)
         {
             var (name, note) = EpisodeTiles.Pill(page);
@@ -997,6 +1002,14 @@ public sealed partial class DetailPage : Page
             if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeight.SemiBold, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center });
             if (MissingPillNote(page) is { } coming) label.Children.Add(coming);
             var pill = new Button { Content = label, Classes = { "chip" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Margin = new Thickness(0, 0, 8, 8), Tag = page };
+            if (compact)
+            {
+                // One height for the cut pills and the one shown, so that nothing moves when another is picked.
+                pill.Height = 36; pill.MinWidth = 36; pill.Margin = new Thickness(0, 0, 7, 8); pill.VerticalContentAlignment = VerticalAlignment.Center; pill.HorizontalContentAlignment = HorizontalAlignment.Center;
+                var cut = new TextBlock { Text = EpisodeTiles.Short(page, pages), FontSize = 13.5, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                pill.Content = new Panel { Children = { label, cut } };
+                ToolTip.SetPlacement(pill, PlacementMode.Bottom); ToolTip.SetVerticalOffset(pill, 6); ToolTip.SetShowDelay(pill, 250);
+            }
             Avalonia.Automation.AutomationProperties.SetName(pill, page.Label);
             pill.Click += (_, _) => _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? _seasons.SelectedItem;
             _pills.Children.Add(pill);
@@ -1004,7 +1017,22 @@ public sealed partial class DetailPage : Page
     }
     private void UpdatePills(EpisodePage? shown)
     {
-        foreach (var pill in _pills.Children.OfType<Button>()) pill.Classes.Set("on", ReferenceEquals(pill.Tag, shown));
+        foreach (var pill in _pills.Children.OfType<Button>())
+        {
+            var on = ReferenceEquals(pill.Tag, shown);
+            pill.Classes.Set("on", on);
+            if (pill.Tag is not EpisodePage page || pill.Content is not Panel { Children: [StackPanel whole, TextBlock cut] }) continue;
+            // A cut pill: the whole name once shown; else its number, quieter for a season watched to its end or one the
+            // library lacks, and its bubble.
+            whole.IsVisible = on; cut.IsVisible = !on;
+            pill.Padding = on ? new Thickness(16, 0) : new Thickness(8, 0);
+            cut.Foreground = page.Absent || EpisodeTiles.Watched(page, _allEpisodes) ? Ui.Muted : Ui.TextSecondary;
+            var (name, note) = EpisodeTiles.Tip(page, _allEpisodes);
+            var tip = Ui.Row(8, new TextBlock { Text = name });
+            if (note.Length > 0) tip.Children.Add(new TextBlock { Text = note, Foreground = Ui.Muted });
+            ToolTip.SetTip(pill, on ? null : tip);
+            Avalonia.Automation.AutomationProperties.SetHelpText(pill, note);
+        }
     }
     private void Toggle(string key)
     {
