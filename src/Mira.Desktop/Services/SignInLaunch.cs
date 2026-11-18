@@ -43,5 +43,19 @@ internal static class SignInLaunch
         catch (Exception ex) when (Failed(ex)) { return false; }
     }
 
+    /// <summary>
+    /// The command line Windows relaunches Mira with after a restart it made (Windows Update, <c>shutdown /g</c>):
+    /// <see cref="SignInStart.Flag"/> while Mira is the one Windows starts at sign-in, so that it comes back by the clock;
+    /// never after a crash, a hang or an update of Mira itself (its installer reopens it).
+    /// </summary>
+    public static void RestartByTheClock(bool on)
+    {
+        try { _ = on ? RegisterApplicationRestart(SignInStart.Flag, RestartNoCrash | RestartNoHang | RestartNoPatch) : UnregisterApplicationRestart(); }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException) { }
+    }
+    private const int RestartNoCrash = 1, RestartNoHang = 2, RestartNoPatch = 4;
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)] private static extern int RegisterApplicationRestart(string commandLine, int flags);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern int UnregisterApplicationRestart();
+
     private static bool Failed(Exception ex) => ex is UnauthorizedAccessException or SecurityException or IOException;
 }

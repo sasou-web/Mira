@@ -28,6 +28,9 @@ public partial class MainWindow
         var written = current == SignInStart.Command(executable);
         var changed = _signInWritten != written;
         _signInWritten = written;
+        // Windows relaunching Mira after a restart (Windows Update, shutdown /g) does so by the clock too (Dell, 2026-11-18:
+        // it came back with its window, the Run key's start then ending as the second Mira).
+        if (changed) SignInLaunch.RestartByTheClock(written);
         if (changed && SettingsOverlay.Visibility == Visibility.Visible) ShowSignInStart();
     }
 
