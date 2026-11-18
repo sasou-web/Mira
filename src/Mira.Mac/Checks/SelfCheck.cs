@@ -788,8 +788,8 @@ public static class SelfCheck
                 // The guide (maquette B): somewhere else first, then at your home, by the jelly switch.
                 withFriend.Friend.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07c-settings-friend");
                 withFriend.Friend.WhereForCheck(elsewhere: false);
-                var home = await Until(() => withFriend.Friend.Where == "home", 5);
-                Check(made && home, "réglages : guide de l’ami, chez toi ou ailleurs", withFriend.Friend.Where ?? "pas de guide");
+                var atHome = await Until(() => withFriend.Friend.Where == "home", 5);
+                Check(made && atHome, "réglages : guide de l’ami, chez toi ou ailleurs", withFriend.Friend.Where ?? "pas de guide");
                 await Task.Delay(700); Capture(window, output, "07c2-settings-friend-home");
             }
             else if (mock is not null) Check(false, "réglages : ajouter un ami", "section absente");
