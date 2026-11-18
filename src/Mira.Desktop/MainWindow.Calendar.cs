@@ -53,12 +53,9 @@ public partial class MainWindow
         var own = EpisodePages.From(_episodes);
         var pages = EpisodeShelf.Pages(own, _episodes, _seriesVirtuals, EpisodeCalendar.Today(), _settings.ShowMissingEpisodes);
         foreach (var page in pages) SeasonSelector.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
-        // Two to ten pages: pills under the heading (EpisodeTiles); more (slices of a long anime): the list; one: neither.
-        var pills = EpisodeTiles.Pills(pages);
-        SeasonSelector.Visibility = EpisodeTiles.SeasonList(pages) ? Visibility.Visible : Visibility.Collapsed;
-        FillSeasonPills(pills ? pages : []);
-        // « Saison 1 · 1001–1100 » and « Season 1 · not in library » need more room than « Saison 1 ».
-        SeasonSelector.Width = pages.Any(x => x.Absent) ? 250 : pages.GroupBy(x => x.Season).Any(x => x.Count() > 1) ? 230 : 180;
+        // Two pages or more: pills under the heading, cut to their numbers past ten (EpisodeTiles); one: none. The list
+        // itself is never shown: it only holds the choice.
+        FillSeasonPills(EpisodeTiles.Pills(pages) ? pages : []);
         var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip && x.Absent == previous.Absent))
             ?? EpisodePages.Holding(own, _episodes, _episodes.FirstOrDefault(x => x.Id == _detailEpisode?.Id))
             ?? EpisodePages.Holding(own, _episodes, _detailNext ?? EpisodePages.Start(_episodes));

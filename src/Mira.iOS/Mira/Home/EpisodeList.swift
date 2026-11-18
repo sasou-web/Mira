@@ -29,29 +29,39 @@ struct EpisodeList: View {
         let chips = self.chips(today: today, showMissing: showMissing)
         VStack(alignment: .leading, spacing: 14) {
             if chips.count > 1 {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) {
-                        ForEach(chips) { entry in
-                            let chosen = entry.id == season
-                            let coming = entry.season.flatMap { missing.progress(season: $0, episodes: nil) }.map { MissingDownloads.pill($0) } ?? ""
-                            Button {
-                                picked = true
-                                season = entry.id
-                            } label: {
-                                Text(verbatim: coming.isEmpty ? entry.name : "\(entry.name)  ·  \(coming)")
-                                    .font(MiraFont.callout)
-                                    .foregroundStyle(chosen ? Palette.onAccent : Palette.ink)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(chosen ? Palette.accent : Palette.raised, in: .capsule)
+                // The chips slide sideways under a finger (no list that opens, as the numbered pills of Windows and Mac);
+                // with many seasons (Monogatari Series: 14), the one shown is brought into sight.
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(chips) { entry in
+                                let chosen = entry.id == season
+                                let coming = entry.season.flatMap { missing.progress(season: $0, episodes: nil) }.map { MissingDownloads.pill($0) } ?? ""
+                                Button {
+                                    picked = true
+                                    season = entry.id
+                                } label: {
+                                    Text(verbatim: coming.isEmpty ? entry.name : "\(entry.name)  ·  \(coming)")
+                                        .font(MiraFont.callout)
+                                        .foregroundStyle(chosen ? Palette.onAccent : Palette.ink)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(chosen ? Palette.accent : Palette.raised, in: .capsule)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityAddTraits(chosen ? .isSelected : [])
+                                .id(entry.id)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(chosen ? .isSelected : [])
                         }
                     }
+                    .scrollIndicators(.hidden)
+                    .accessibilityIdentifier("series.seasons")
+                    .onAppear { if let season { proxy.scrollTo(season, anchor: .center) } }
+                    .onChange(of: season) { _, shown in
+                        guard let shown else { return }
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(shown, anchor: .center) }
+                    }
                 }
-                .scrollIndicators(.hidden)
-                .accessibilityIdentifier("series.seasons")
             } else if let only = chips.first?.name {
                 Text(verbatim: only).font(MiraFont.section).foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
             }

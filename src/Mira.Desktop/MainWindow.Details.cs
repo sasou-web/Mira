@@ -73,7 +73,7 @@ public partial class MainWindow
         RenderDetailText(item); EpisodesPanel.Children.Clear(); _seriesVirtuals = []; _shelfOpen.Clear(); _episodesRead = false;
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
         // The previous series' seasons go with it (its pills stayed under a film's buttons); this one's come with its episodes (FillSeasons).
-        _tiles.Clear(); FillSeasonPills([]); SeasonSelector.Visibility = Visibility.Collapsed;
+        _tiles.Clear(); FillSeasonPills([]);
         EpisodesHead.Visibility = EpisodeHeading.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
         // The facts and the cast after a series' episodes, a little apart from them.
         EpisodesPanel.Margin = new Thickness(0, 0, 0, item.Type == "Series" ? 30 : 0);
@@ -91,7 +91,7 @@ public partial class MainWindow
         }
         else if (_demo)
         {
-            if (item.Type == "Series") { EpisodesPanel.Children.Clear(); EpisodesPanel.Children.Add(new TextBlock { Text = L("Les épisodes de ta bibliothèque apparaîtront ici après connexion à Jellyfin.", "The episodes of your library will show here once you’re connected to Jellyfin."), Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap }); SeasonSelector.Visibility = Visibility.Collapsed; }
+            if (item.Type == "Series") { EpisodesPanel.Children.Clear(); EpisodesPanel.Children.Add(new TextBlock { Text = L("Les épisodes de ta bibliothèque apparaîtront ici après connexion à Jellyfin.", "The episodes of your library will show here once you’re connected to Jellyfin."), Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap }); }
             _similar = (_demoItems ?? DemoLibrary.Items()).Where(x => x.Id != item.Id && x.Genres.Intersect(item.Genres).Any()).ToList(); RenderSimilar();
         }
         await Task.WhenAll(tasks);

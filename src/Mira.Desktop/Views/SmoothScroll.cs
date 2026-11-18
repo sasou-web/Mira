@@ -29,6 +29,11 @@ public static class SmoothScroll
     private static void Wheel(object sender, MouseWheelEventArgs e)
     {
         if (e.Handled || sender is not ScrollViewer outer) return;
+        // An open list (a ComboBox's, in a popup of its own): over it, its own scroller takes the wheel; anywhere else the box
+        // holds the mouse while it is open, and the page stays still, so the list never drifts from its box (ogsas,
+        // 2026-11-18: the season list, scrolled with the page, ended up far from its button).
+        if (!ReferenceEquals(Root(e.OriginalSource as DependencyObject), Root(outer))) return;
+        if (Mouse.Captured is ComboBox { IsDropDownOpen: true }) { e.Handled = true; return; }
         var horizontal = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         var target = outer;
         // The innermost list under the pointer that can still move that way: a list of the settings or of a sheet inside
@@ -47,6 +52,12 @@ public static class SmoothScroll
         e.Handled = true;
     }
     private static bool CanMove(ScrollViewer viewer, int delta) => viewer.ScrollableHeight > 0 && (delta > 0 ? viewer.VerticalOffset > .5 : viewer.VerticalOffset < viewer.ScrollableHeight - .5);
+    /// <summary>The top of the visual tree holding <paramref name="node"/>: the window, or the root of a popup.</summary>
+    private static DependencyObject? Root(DependencyObject? node)
+    {
+        while (node is not null && (node is not Visual || VisualTreeHelper.GetParent(node) is not null)) { var up = Parent(node); if (up is null) break; node = up; }
+        return node;
+    }
     private static DependencyObject? Parent(DependencyObject node) => node is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
     public static void By(ScrollViewer viewer, double pixels, bool horizontal = false) => Drivers.GetValue(viewer, v => new Driver(v)).Add(pixels, horizontal);
     public static void Cancel(ScrollViewer viewer) { if (Drivers.TryGetValue(viewer, out var driver)) driver.Stop(); }

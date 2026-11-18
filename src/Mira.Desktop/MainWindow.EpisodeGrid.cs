@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -199,22 +200,37 @@ public partial class MainWindow
         return Tile(button, picture);
     }
 
-    /// <summary>The seasons as pills under the heading; a click shows that one (the hidden list stays the source).</summary>
+    /// <summary>
+    /// The seasons as pills under the heading; a click shows that one (the hidden list stays the source). Past
+    /// <see cref="EpisodeTiles.MaxPills"/> pages (« Les numéros », EpisodeTiles.Compact) each pill but the one shown is cut
+    /// to its number, a bubble under it giving its name and where you are; the row wraps when even that is too long.
+    /// </summary>
     private void FillSeasonPills(IReadOnlyList<EpisodePage> pages)
     {
         SeasonPills.Children.Clear(); _missingViews.RemoveAll(x => x.Pill);
         SeasonPills.Visibility = pages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var compact = EpisodeTiles.Compact(pages);
         foreach (var page in pages)
         {
             var (name, note) = EpisodeTiles.Pill(page);
             var coming = MissingPillNote(page);
             var pill = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(0, 0, 8, 8), BorderBrush = Palette.Get("Line"), Tag = page };
             Motion.SetRadius(pill, new CornerRadius(18));
-            var label = new StackPanel { Orientation = Orientation.Horizontal };
+            var label = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             label.Children.Add(new TextBlock { Text = name, FontSize = 13.5, FontWeight = FontWeights.SemiBold });
             if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.62 });
             if (coming is not null) label.Children.Add(coming);
-            pill.Content = label; AutomationProperties.SetName(pill, page.Label);
+            if (compact)
+            {
+                // One height for the cut pills and the one shown, so that nothing moves when another is picked.
+                pill.Height = 36; pill.MinWidth = 36; pill.Margin = new Thickness(0, 0, 7, 8);
+                var cut = new TextBlock { Text = EpisodeTiles.Short(page, pages), FontSize = 13.5, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                var both = new Grid(); both.Children.Add(label); both.Children.Add(cut);
+                pill.Content = both;
+                ToolTipService.SetPlacement(pill, PlacementMode.Bottom); ToolTipService.SetVerticalOffset(pill, 6); ToolTipService.SetInitialShowDelay(pill, 250);
+            }
+            else pill.Content = label;
+            AutomationProperties.SetName(pill, page.Label);
             pill.Click += (_, _) => SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? SeasonSelector.SelectedItem;
             SeasonPills.Children.Add(pill);
         }
@@ -224,9 +240,25 @@ public partial class MainWindow
         foreach (var pill in SeasonPills.Children.OfType<Button>())
         {
             var on = ReferenceEquals(pill.Tag, shown);
-            pill.Background = on ? Palette.Get("Text") : Brushes.Transparent; pill.Foreground = Palette.Get(on ? "OnAccent" : "TextSecondary");
+            pill.Background = on ? Palette.Get("Text") : Brushes.Transparent;
             pill.BorderBrush = on ? Palette.Get("Text") : Palette.Get("Line");
             AutomationProperties.SetItemStatus(pill, on ? L("affichée", "shown") : "");
+            if (pill.Tag is not EpisodePage page || pill.Content is not Grid { Children: [StackPanel whole, TextBlock cut] })
+            {
+                pill.Foreground = Palette.Get(on ? "OnAccent" : "TextSecondary");
+                continue;
+            }
+            // A cut pill: the whole name once shown; else its number, quieter for a season watched to its end or one the
+            // library lacks, and its bubble.
+            whole.Visibility = on ? Visibility.Visible : Visibility.Collapsed; cut.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+            pill.Padding = on ? new Thickness(16, 0, 16, 0) : new Thickness(8, 0, 8, 0);
+            pill.Foreground = Palette.Get(on ? "OnAccent" : page.Absent || EpisodeTiles.Watched(page, _episodes) ? "Muted" : "TextSecondary");
+            var (name, note) = EpisodeTiles.Tip(page, _episodes);
+            var tip = new StackPanel { Orientation = Orientation.Horizontal };
+            tip.Children.Add(new TextBlock { Text = name });
+            if (note.Length > 0) tip.Children.Add(new TextBlock { Text = note, Margin = new Thickness(8, 0, 0, 0), Foreground = Palette.Get("Muted") });
+            pill.ToolTip = on ? null : tip;
+            AutomationProperties.SetHelpText(pill, note);
         }
     }
 }

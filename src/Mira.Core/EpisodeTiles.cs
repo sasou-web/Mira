@@ -13,7 +13,11 @@ public static class EpisodeTiles
     /// <summary>A tile is never narrower: past it, one column less.</summary>
     public const double MinWidth = 250;
     public const int MaxColumns = 6;
-    /// <summary>More pages than this (a long anime cut in slices): the season list instead of pills.</summary>
+    /// <summary>
+    /// More pages than this (Monogatari Series: 13 seasons and its specials): « Les numéros » (ogsas, 2026-11-18, mock-up C of
+    /// /mnt/project-files/selecteur-saisons/), each pill cut to its number, the one shown keeping its whole name, so that
+    /// every season stays in sight and a click shows it: no list that opens, nothing that scrolls.
+    /// </summary>
     public const int MaxPills = 10;
 
     /// <summary>How many tiles a row holds in <paramref name="width"/>.</summary>
@@ -22,14 +26,43 @@ public static class EpisodeTiles
     /// <summary>The width of a tile in <paramref name="width"/>, whole pixels so the rows line up.</summary>
     public static double Width(double width) { var columns = Columns(width); return Math.Max(1, Math.Floor((width - Gap * (columns - 1)) / columns)); }
 
-    /// <summary>Pills for the seasons: two pages at least, <see cref="MaxPills"/> at most.</summary>
-    public static bool Pills(IReadOnlyList<EpisodePage> pages) => pages.Count is >= 2 and <= MaxPills;
+    /// <summary>
+    /// Pills for the seasons from two pages. A single page (a one-season anime) has none: « Épisodes · 24 » says it all
+    /// (ogsas, 0.9.7: a list holding only « Saison 1 »).
+    /// </summary>
+    public static bool Pills(IReadOnlyList<EpisodePage> pages) => pages.Count >= 2;
+
+    /// <summary>Past <see cref="MaxPills"/> pages, the pills not shown are cut to <see cref="Short"/>.</summary>
+    public static bool Compact(IReadOnlyList<EpisodePage> pages) => pages.Count > MaxPills;
 
     /// <summary>
-    /// The season list: only past <see cref="MaxPills"/> pages. A single page (a one-season anime) has neither list nor
-    /// pills: « Épisodes · 24 » says it all (ogsas, 0.9.7: a list holding only « Saison 1 »).
+    /// A cut pill: « 12 », « SP » for the specials; a slice of a long season its episodes, « 101–200 », with its season
+    /// before them when several seasons are cut (« 2 · 101–200 »).
     /// </summary>
-    public static bool SeasonList(IReadOnlyList<EpisodePage> pages) => pages.Count > MaxPills;
+    public static string Short(EpisodePage page, IReadOnlyList<EpisodePage> pages)
+    {
+        var number = page.Season == 0 ? "SP" : page.Season.ToString(Culture);
+        if (page.Absent || pages.Count(x => x.Season == page.Season && !x.Absent) < 2 || Pill(page).Note is not { } range) return number;
+        return pages.Where(x => !x.Absent).GroupBy(x => x.Season).Count(x => x.Count() > 1) > 1 ? $"{number} · {range}" : range;
+    }
+
+    /// <summary>Every episode of the page watched: its cut pill is quieter.</summary>
+    public static bool Watched(EpisodePage page, IReadOnlyList<MediaItem> episodes) =>
+        !page.Absent && EpisodePages.Episodes(episodes, page) is { Count: > 0 } shown && shown.All(x => x.UserData.Played);
+
+    /// <summary>
+    /// The bubble over a cut pill: its whole name, then where you are, « 6 épisodes », « 2 vus sur 6 », « 1 vu sur 6 », « Vue »; for a season
+    /// the library lacks, « absente » or « à venir ».
+    /// </summary>
+    public static (string Name, string Note) Tip(EpisodePage page, IReadOnlyList<MediaItem> episodes)
+    {
+        if (page.Absent) { var (name, note) = Pill(page); return (name, note ?? ""); }
+        var shown = EpisodePages.Episodes(episodes, page); var seen = shown.Count(x => x.UserData.Played);
+        var where = seen == 0 ? Count(shown.Count, "épisode", "épisodes", "episode", "episodes")
+            : seen == shown.Count ? (page.Season == 0 ? L("Vus", "Watched") : L("Vue", "Watched"))
+            : L($"{Count(seen, "vu", "vus", "", "")} sur {shown.Count.ToString(Culture)}", $"{seen.ToString(Culture)} of {shown.Count.ToString(Culture)} watched");
+        return (page.Label, where);
+    }
 
     /// <summary>A pill's name and its lighter note: « Saison 2 », « Saison 1 » + « absente », « Saison 1 » + « 1–100 ».</summary>
     public static (string Name, string? Note) Pill(EpisodePage page)
