@@ -10,7 +10,7 @@ public partial class MainWindow
 {
     private readonly PageMemory _pages = new();
     /// <summary>The library under nothing else: no title page, Réglages, Téléchargements or Guide over it.</summary>
-    private bool LibraryOnScreen => !new UIElement[] { DetailOverlay, SettingsOverlay, TorLinkOverlay, GuideOverlay }.Any(x => x.Visibility == Visibility.Visible && x.IsHitTestVisible);
+    private bool LibraryOnScreen => !new UIElement[] { ShelfOverlay, DetailOverlay, SettingsOverlay, TorLinkOverlay, GuideOverlay }.Any(x => x.Visibility == Visibility.Visible && x.IsHitTestVisible);
     /// <summary>
     /// A page of the rail (<paramref name="view"/>, one library for « library » with <paramref name="parentId"/>): the one
     /// on screen kept first, then the chosen one as it was left. Its button clicked again while it shows (or its Ctrl+1 to

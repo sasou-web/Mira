@@ -30,7 +30,7 @@ public partial class MainWindow
 
     /// <summary>The grid has more titles on Jellyfin than on screen, and nothing else is being asked for it.</summary>
     private bool GridHasMore => !_demo && _catalog.View != "offline" && !_catalog.Loading && PosterCards.Visibility == Visibility.Visible
-        && _catalog.Items.Count > 0 && _catalog.Items.Count < _catalog.TotalCount;
+        && _catalog.Items.Count > 0 && _catalog.HasMore;
 
     /// <summary>What sits under the grid: placeholders while the next page comes, the retry after a failure, else nothing.</summary>
     private void UpdateGridMore()
@@ -61,13 +61,14 @@ public partial class MainWindow
 
     private async Task LoadMoreAsync()
     {
-        var before = _catalog.Items.Count;
+        // Titles Jellyfin sent, not cards shown: a page whose titles all went into a collection's card is not the end.
+        var before = _catalog.Fetched;
         _loadingMore = true; _moreFailed = false; UpdateGridMore();
         var failed = await RefreshAsync(more: true);
         // Another list was asked for meanwhile: it set its own state.
         if (!_loadingMore) return;
         _loadingMore = false; _moreFailed = failed;
-        if (!failed && _catalog.Items.Count == before) _moreExhausted = true;
+        if (!failed && _catalog.Fetched == before) _moreExhausted = true;
         UpdateGridMore();
     }
 

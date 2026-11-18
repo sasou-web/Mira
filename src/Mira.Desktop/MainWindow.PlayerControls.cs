@@ -467,8 +467,9 @@ public partial class MainWindow
     private void LeavePagesForPlayer()
     {
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is not null) _returnToDetail = _detail;
+        if (ShelfOverlay.Visibility == Visibility.Visible && _shelfBox is not null) _returnToShelf = true;
         _returnToSettings = SettingsOverlay.Visibility == Visibility.Visible;
-        DetailOverlay.Visibility = SettingsOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
+        DetailOverlay.Visibility = ShelfOverlay.Visibility = SettingsOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
     }
     private async void StopPlayer_Click(object sender, RoutedEventArgs e)
     { await LeavePlayerAsync(); if (!_demo) await RefreshAsync(quiet: true); else RenderDemo(); FrameProbe.Mark("refreshed"); }

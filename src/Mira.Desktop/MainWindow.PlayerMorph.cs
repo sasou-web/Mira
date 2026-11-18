@@ -147,6 +147,7 @@ public partial class MainWindow
             _videoHost?.PutAway();
             await StopPlaybackAsync(); FrameProbe.Mark("stopped");
             // The page is there at once, under the sheet: no fade of its own.
+            if (_returnToShelf && _shelfBox is not null) { ShelfOverlay.BeginAnimation(OpacityProperty, null); ShelfOverlay.Opacity = 1; ShelfOverlay.IsHitTestVisible = true; ShelfOverlay.Visibility = Visibility.Visible; }
             if (_returnToDetail is { } page && _detail?.Id == page.Id) { DetailOverlay.BeginAnimation(OpacityProperty, null); DetailOverlay.Opacity = 1; DetailOverlay.Visibility = Visibility.Visible; }
             using (FrameProbe.Time("ReturnToLibrary")) ReturnToLibrary(reveal: false);
             using (FrameProbe.Time("layout")) UpdateLayout();

@@ -192,7 +192,7 @@ public partial class MainWindow
         // sends searches and downloads to that PC instead, as Mira web does (MainWindow.ServerDownloads.cs).
         var elsewhere = await JellyfinElsewhereAsync();
         if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); }
-        ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay);
+        ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); ++_shelfVersion; _returnToShelf = false; _ = Motion.HideAsync(ShelfOverlay);
         if (TorLinkOverlay.Visibility != Visibility.Visible || !TorLinkOverlay.IsHitTestVisible) Motion.Reveal(TorLinkOverlay, 260, 10);
         TorLinkBadge.Visibility = Visibility.Collapsed;
         UpdateNavigation(); UpdateHeroClock();

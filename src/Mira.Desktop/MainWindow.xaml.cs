@@ -316,7 +316,7 @@ public partial class MainWindow : Window
         _store = store;
         var damaged = _store.DamagedCopy is not null;
         _catalog.Clear(); _pages.Clear(); _episodes = []; _detail = null; _detailTrail.Clear(); _hero = null; _returnToDetail = null; _seasonThumbs.Clear();
-        LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
+        LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = ShelfOverlay.Visibility = Visibility.Collapsed; _shelfBox = null; _returnToShelf = false; _grouping = null;
         // Never leave the previous account's posters on screen while this one loads.
         _catalog.Loading = true; RenderLibrary(); ForgetKeptCards();
         _images = new ImageCache(_client, _profile.DirectoryPath); FitArtwork(_images); _sync = sync;
@@ -488,9 +488,13 @@ public partial class MainWindow : Window
         try
         {
             // A background refresh keeps every page already loaded instead of shrinking the grid back to one page.
-            var limit = quiet && !more ? Math.Max(JellyfinClient.PageSize, _catalog.Items.Count) : JellyfinClient.PageSize;
+            var limit = quiet && !more ? Math.Max(JellyfinClient.PageSize, _catalog.Fetched) : JellyfinClient.PageSize;
+            // Movies, Shows and Your library: a grouped collection as one card (CollectionShelf), by Mira's rules alone,
+            // never the server's own « Group movies into collections ».
+            var grouped = !home && _catalog.Groups(search);
+            var grouping = grouped ? GroupingAsync(client) : null;
             // « Ajoutés récemment »: every film, even in a collection, on a server that groups them (Films and Séries follow it).
-            var browse = client.BrowseAsync(_catalog.Types, _catalog.Parent, search, more ? _catalog.Items.Count : 0, !home && _catalog.Favorites, ct, filters, limit, everyTitle: home);
+            var browse = client.BrowseAsync(_catalog.Types, _catalog.Parent, search, more ? _catalog.Fetched : 0, !home && _catalog.Favorites, ct, filters, limit, everyTitle: home || grouped);
             var people = !more && _catalog.SearchesPeople(search) ? client.PersonsAsync(search, ct) : null;
             var studios = !more && _catalog.SearchesPeople(search) ? client.StudiosAsync(search, ct) : null;
             var episodes = !more && _catalog.SearchesPeople(search) ? client.SearchOthersAsync("Episode", search, ct) : null;
@@ -522,7 +526,8 @@ public partial class MainWindow : Window
                 else if (!more && search.Length == 0) store.Save(key, result);
             }), CancellationToken.None);
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return false;
-            _catalog.Receive(result, more);
+            if (grouping is not null) { _catalog.Grouping = await grouping; if (version != _viewVersion) return false; }
+            _catalog.Receive(result, more, search);
             if (!more) (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = (found, foundStudios, foundEpisodes, foundSagas);
             if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? []).Concat(playedLately)); }
             _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; _refreshErrorSaid = null; RenderLibrary(grow: more);
@@ -550,7 +555,7 @@ public partial class MainWindow : Window
             {
                 var cached = more ? null : await Task.Run(() => TryCache(() => { var page = store.Load<ItemsResult>(home ? "home" : key); if (page is not null) TryCache(() => store.ApplyLocalProgress(page.Items)); return page; }));
                 if (version != _viewVersion) return false;
-                if (cached is not null) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; }
+                if (cached is not null) _catalog.Receive(cached, false, home ? "" : search);
                 // Jellyfin answered, with an error (a 500 for one row, a page it could not read): said, but never « Hors
                 // connexion » nor « ne répond pas », as on Mac (MainWindow.Unanswered.cs). Said once, not at each try.
                 if (!Unanswered(ex))

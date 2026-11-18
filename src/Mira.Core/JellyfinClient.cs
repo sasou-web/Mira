@@ -311,6 +311,58 @@ public sealed class JellyfinClient : IDisposable
         }
         return all;
     }
+    // « L'étagère »: collections grouped in the library (CollectionShelf).
+    private const string ShelfFields = "&fields=ProviderIds,ChildCount,RecursiveItemCount,PremiereDate,Overview,Genres,DateCreated&enableImages=true&enableUserData=true";
+    /// <summary>
+    /// A collection's films and series, each once, those of a collection inside it taken in its place
+    /// (<see cref="CollectionShelf.Flatten"/>), with this account's progress; in no particular order.
+    /// </summary>
+    public async Task<List<MediaItem>> CollectionTitlesAsync(string collectionId, CancellationToken ct = default)
+    {
+        var children = new Dictionary<string, IReadOnlyList<MediaItem>>(StringComparer.OrdinalIgnoreCase);
+        var waiting = new Queue<(string Id, int Depth)>([(collectionId, 0)]);
+        while (waiting.Count > 0)
+        {
+            var (id, depth) = waiting.Dequeue();
+            if (children.ContainsKey(id) || depth > 3) continue;
+            var items = (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&parentId={Uri.EscapeDataString(id)}{ShelfFields}", ct)).Items;
+            children[id] = items;
+            foreach (var inner in items.Where(x => x.Type == "BoxSet")) waiting.Enqueue((inner.Id, depth + 1));
+        }
+        return CollectionShelf.Flatten(collectionId, id => children.GetValueOrDefault(id));
+    }
+    /// <summary>
+    /// The collections grouped in this account's library, with their titles: each collection's titles asked once, a few
+    /// at a time. A collection made by hand is asked only when this account grouped it (<see cref="CollectionShelf.Grouped"/>).
+    /// </summary>
+    public async Task<CollectionShelf.Index> ShelvesAsync(IReadOnlyDictionary<string, CollectionShelf.Choice> choices, CancellationToken ct = default)
+    {
+        var boxes = (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=BoxSet&sortBy=SortName&fields=ProviderIds,ChildCount&enableImages=true&enableUserData=true", ct)).Items
+            .Where(x => x.Type == "BoxSet" && x.ChildCount is not 0 && CollectionShelf.Grouped(x, choices.GetValueOrDefault(x.Id))).ToList();
+        using var gate = new SemaphoreSlim(6);
+        var shelves = await Task.WhenAll(boxes.Select(async box =>
+        {
+            await gate.WaitAsync(ct);
+            try { return new CollectionShelf.Shelf(box, await CollectionTitlesAsync(box.Id, ct)); }
+            finally { gate.Release(); }
+        }));
+        return new CollectionShelf.Index(shelves);
+    }
+    /// <summary>This account's choices for its collections (<see cref="CollectionShelf.Preference"/>), kept beside « mira.choices ».</summary>
+    public async Task<Dictionary<string, CollectionShelf.Choice>> ShelfChoicesAsync(CancellationToken ct = default) =>
+        CollectionShelf.Read((await ChoicesAsync(ct))["CustomPrefs"]?[CollectionShelf.Preference]);
+    /// <summary>One collection's choice changed, the others and Mira's other preferences read just before and sent back whole.</summary>
+    public async Task<Dictionary<string, CollectionShelf.Choice>> SetShelfChoiceAsync(string collectionId, Func<CollectionShelf.Choice, CollectionShelf.Choice> change, CancellationToken ct = default)
+    {
+        var preferences = await ChoicesAsync(ct);
+        var choices = CollectionShelf.Read(preferences["CustomPrefs"]?[CollectionShelf.Preference]);
+        var changed = change(choices.GetValueOrDefault(collectionId) ?? new());
+        if (changed.Empty) choices.Remove(collectionId); else choices[collectionId] = changed;
+        if (preferences["CustomPrefs"] is not JsonObject custom) preferences["CustomPrefs"] = custom = [];
+        custom[CollectionShelf.Preference] = CollectionShelf.Write(choices);
+        await SaveChoicesAsync(preferences, ct);
+        return choices;
+    }
     /// <summary>The ids of the collections holding a title; null when Jellyfin cannot say (404: older than 12.1).</summary>
     public async Task<HashSet<string>?> CollectionsOfAsync(string id, CancellationToken ct = default)
     {

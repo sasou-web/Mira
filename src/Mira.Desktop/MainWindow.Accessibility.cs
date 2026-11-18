@@ -56,7 +56,7 @@ public partial class MainWindow
         _zoom = zoom; UsePictureScale();
         var scale = zoom == 1 ? Transform.Identity : new ScaleTransform(zoom, zoom);
         if (scale.CanFreeze) scale.Freeze();
-        foreach (var page in new FrameworkElement[] { LibraryShell, NavigationRail, TorLinkOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, WhatsNewOverlay, InviteOverlay, IdentifyOverlay, CollectionOverlay, ConfirmOverlay, Notice })
+        foreach (var page in new FrameworkElement[] { LibraryShell, NavigationRail, TorLinkOverlay, ShelfOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, WhatsNewOverlay, InviteOverlay, IdentifyOverlay, CollectionOverlay, ConfirmOverlay, Notice })
             page.LayoutTransform = scale;
         // Artwork shown larger is decoded larger, so that it stays sharp.
         if (_images is { } cache) FitArtwork(cache);

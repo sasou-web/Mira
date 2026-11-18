@@ -67,7 +67,7 @@ public partial class MainWindow
         _hoverRefreshPending = true;
         Dispatcher.BeginInvoke(() => { _hoverRefreshPending = false; HoverCardUnderPointer(); }, DispatcherPriority.Render);
     }
-    private bool CanHover() => !((_playing && !_miniPlayer) || SettingsOverlay.IsVisible || DetailOverlay.IsVisible || LoginOverlay.IsVisible);
+    private bool CanHover() => !((_playing && !_miniPlayer) || SettingsOverlay.IsVisible || DetailOverlay.IsVisible || ShelfOverlay.IsVisible || LoginOverlay.IsVisible);
     private void CardHoverEntered(MediaCard card) { if (CanHover() && !PageScrolling) SetHoverCard(card); }
     /// <summary>While the page scrolls, the card under the pointer only keeps a light it already had.</summary>
     private void TrackHoverPointer(Point point)

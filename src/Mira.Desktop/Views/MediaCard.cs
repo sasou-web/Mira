@@ -68,7 +68,14 @@ public sealed class MediaCard : Button
     /// <summary>Counts the times the card was put away: an image that arrives for an earlier time is not kept.</summary>
     private int _shelved;
     private readonly Border? _progress;
-    public MediaCard(MediaItem item, bool wide, int index, PlayerSettings settings, bool demo)
+    /// <summary>The share of its bar when it is not a title's position (a collection, a series in a collection's titles).</summary>
+    private readonly double? _share;
+    /// <summary>The two slices of a collection's pile, behind its poster.</summary>
+    private readonly Border[] _pile = [];
+    /// <param name="number">« 01 », its place in a collection's watch order (<see cref="CollectionShelf"/>), before its name.</param>
+    /// <param name="line">The line under its name, in place of its year and kind.</param>
+    /// <param name="upNext">« UP NEXT » and a play disc: the title a collection's « Resume » takes up.</param>
+    public MediaCard(MediaItem item, bool wide, int index, PlayerSettings settings, bool demo, string? number = null, string? line = null, bool upNext = false)
     {
         Item = item; _wide = wide; RenderKey = Key(item, settings);
         Style = (Style)Application.Current.FindResource("Quiet"); Template = Plain;
@@ -135,25 +142,57 @@ public sealed class MediaCard : Button
         // Focus from a mouse click must not leave a highlight behind once the pointer moves on.
         GotKeyboardFocus += (_, _) => { if (InputManager.Current.MostRecentInputDevice is KeyboardDevice && Accessible.GetFocusRingShown(this)) FocusEntered?.Invoke(this); };
         LostKeyboardFocus += (_, _) => { if (!IsMouseOver) HoverLeft?.Invoke(this); };
+        // « UP NEXT » in a collection's titles: its label and a white play disc, as the episode to watch next of a series.
+        if (upNext)
+        {
+            _visual.Children.Add(new Border
+            {
+                Background = Palette.Get("Text"), CornerRadius = new CornerRadius(6), Padding = new Thickness(7, 3, 7, 3), Effect = BadgeShadow,
+                HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(9),
+                Child = new TextBlock { Text = L("À SUIVRE", "UP NEXT"), FontSize = 10.5, FontWeight = FontWeights.ExtraBold, Foreground = Palette.Get("OnAccent") }
+            });
+            _visual.Children.Add(new Border
+            {
+                Width = 44, Height = 44, CornerRadius = new CornerRadius(22), Background = Palette.Get("Text"), Effect = BadgeShadow, IsHitTestVisible = false,
+                Child = new Icon { Kind = "play", Width = 18, Height = 18, Foreground = Palette.Get("OnAccent"), Margin = new Thickness(2, 0, 0, 0) }
+            });
+        }
+        // A collection's card, and a series in a collection's titles: how far it is, from its titles or episodes.
+        var share = item.Shelf is { } shelf ? CollectionShelf.Share(shelf.ToList()) : number is not null && item.Type == "Series" && !item.UserData.Played ? CollectionShelf.Progress(item) : 0;
+        if (share is > 0 and < 1) _share = share;
         // Always, since « Progression sur les affiches » left the settings (2026-11-14).
-        if (item.Resumable)
+        if (item.Resumable || _share is not null)
         {
             _visual.Children.Add(new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)) });
             _progress = new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Accent") }; _visual.Children.Add(_progress);
         }
         _artwork = new Decorator { Child = _visual, CacheMode = RenderCache.Picture };
-        root.Children.Add(_artwork);
+        if (item.Shelf is not null)
+        {
+            // A pile: two slices of posters behind the first, a little narrower each, showing above it (maquette A).
+            _pile = [Slice(2), Slice(1)];
+            var stack = new Grid();
+            foreach (var slice in _pile) stack.Children.Add(slice);
+            stack.Children.Add(_artwork); root.Children.Add(stack);
+            static Border Slice(int depth) => new()
+            {
+                Background = Palette.Get(depth == 1 ? "Raised2" : "Raised"), BorderBrush = Palette.Get("Line"), BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(PosterRadius), VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false,
+                RenderTransform = new TranslateTransform(0, -5 * depth), Opacity = depth == 1 ? .9 : .7,
+            };
+        }
+        else root.Children.Add(_artwork);
         Loaded += (_, _) => Live.Add(this); Unloaded += (_, _) => Live.Remove(this);
         // The year and kind sit right under the title, one line or two: a box of the two lines' height keeps every card
         // of a row as tall, and a one-line title no longer leaves its details a line below (2026-11-14).
         var words = new StackPanel { Height = (wide ? 23 : 42) + 7 + 17, Margin = new Thickness(0, 12, 0, 0) };
         root.Children.Add(words);
-        words.Children.Add(TruncationTip.Attach(new TextBlock { Text = item.DisplayTitle, FontSize = 15, FontWeight = FontWeights.ExtraBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 21, MaxHeight = wide ? 23 : 42, Margin = new Thickness(0, 0, 3, 0), Foreground = Brushes.White }));
+        words.Children.Add(TruncationTip.Attach(new TextBlock { Text = number is null ? item.DisplayTitle : number + "  " + item.DisplayTitle, FontSize = 15, FontWeight = FontWeights.ExtraBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 21, MaxHeight = wide ? 23 : 42, Margin = new Thickness(0, 0, 3, 0), Foreground = Brushes.White }));
         // Resume cards say how much is left, which is what matters when picking something to finish.
         var remaining = wide && item.Resumable ? MediaQuality.Left(item) : null;
-        var meta = wide && item.Type == "Episode"
+        var meta = line ?? (item.Shelf is { } titles ? CollectionShelf.CardLine(titles.Count) : null) ?? (wide && item.Type == "Episode"
             ? string.Join("  ·  ", new[] { $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00}", remaining, item.Name }.Where(x => !string.IsNullOrEmpty(x)))
-            : remaining ?? string.Join("   ·   ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.Type == "Series" ? L("Série", "Series") : item.Type == "BoxSet" ? L("Collection", "Collection") : item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)));
+            : remaining ?? string.Join("   ·   ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.Type == "Series" ? L("Série", "Series") : item.Type == "BoxSet" ? L("Collection", "Collection") : item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x))));
         words.Children.Add(new TextBlock { Text = meta, Foreground = Palette.Get("Muted"), FontSize = 12, FontWeight = FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 7, 0, 0) });
         Content = root; Resize(wide ? 290 : 185);
     }
@@ -178,7 +217,8 @@ public sealed class MediaCard : Button
         if (Math.Abs(Width - width) < .01 && _visual.Clip is not null) return;
         Width = width; _visual.Width = width; _visual.Height = _wide ? width * 9 / 16 : width * 1.48;
         _visual.Clip = Squircle.Geometry(new Rect(0, 0, width, _visual.Height), PosterRadius);
-        if (_progress is not null) _progress.Width = Math.Max(2, width * Item.Progress);
+        if (_progress is not null) _progress.Width = Math.Max(2, width * (_share ?? Item.Progress));
+        for (var i = 0; i < _pile.Length; i++) { var inset = 7 * (_pile.Length - i); _pile[i].Margin = new Thickness(inset, 0, inset, 0); _pile[i].Height = _visual.Height; }
     }
     /// <summary>Its artwork was asked for (posters of the grid wait until they come near the visible part of the page).</summary>
     public bool ImageRequested { get; private set; }
@@ -252,5 +292,5 @@ public sealed class MediaCard : Button
     /// by its hash, not its text: the key of every title is made at each page the grid adds (a summary of 2 KB each made
     /// a thousand-title library throw away megabytes as it scrolled).
     /// </summary>
-    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview?.GetHashCode(StringComparison.Ordinal), item.ProductionYear, item.Subtitle, item.UserData.Played, item.EpisodesToWatch, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress, settings.HideSpoilers);
+    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview?.GetHashCode(StringComparison.Ordinal), item.ProductionYear, item.Subtitle, item.UserData.Played, item.EpisodesToWatch, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress, settings.HideSpoilers, item.Shelf?.Count, item.UserData.PlayedPercentage);
 }

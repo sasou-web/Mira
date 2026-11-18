@@ -28,8 +28,8 @@ public partial class MainWindow
     {
         // Pictures while they come and go (Motion.Page). The library's background, the window's under it until now, makes
         // its picture opaque: its text keeps ClearType in it. Réglages and Aide keep their window alone as one (RiseSheet).
-        foreach (var page in new FrameworkElement[] { LibraryScroll, DetailOverlay, TorLinkOverlay, LoginOverlay, PartyOverlay }) Motion.SetPage(page, true);
-        _libraryCovers = [TorLinkOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, PartyOverlay, StartupVeil];
+        foreach (var page in new FrameworkElement[] { LibraryScroll, ShelfOverlay, DetailOverlay, TorLinkOverlay, LoginOverlay, PartyOverlay }) Motion.SetPage(page, true);
+        _libraryCovers = [TorLinkOverlay, ShelfOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, PartyOverlay, StartupVeil];
         var opacity = DependencyPropertyDescriptor.FromProperty(OpacityProperty, typeof(UIElement));
         foreach (var cover in _libraryCovers) { cover.IsVisibleChanged += (_, _) => UpdateLibraryCover(); opacity.AddValueChanged(cover, (_, _) => UpdateLibraryCover()); }
         // Not while a page comes in: a poster's picture made or let go draws the page's again.

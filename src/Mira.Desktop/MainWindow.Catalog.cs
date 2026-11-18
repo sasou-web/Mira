@@ -65,15 +65,6 @@ public partial class MainWindow
         _filterBusy = true; GenreFilter.SelectedItem = GenreItem(group.Value, group.Label); _filterBusy = false;
         await NavigateLibraryAsync();
     }
-    /// <summary>A collection (a saga, or one made by hand) found by a search or on Home: the library with its titles in the order they came out, the search kept to come back to.</summary>
-    private async Task ShowSagaAsync(MediaItem saga, string search)
-    {
-        var view = _catalog.View;
-        KeepPage(); ResetFilters();
-        (_catalog.Saga, _personSearch, _personReturnView, _catalog.View) = ((saga.Id, saga.Name), search, view, "library");
-        ShowPersonFilter();
-        await NavigateLibraryAsync();
-    }
     /// <summary>Back from a person's titles: the page they were chosen from, or the search, over the view it was opened from.</summary>
     private async Task BackFromPersonAsync()
     {
@@ -288,16 +279,17 @@ public partial class MainWindow
     private async Task NavigateLibraryAsync(PageMemory.State? recalled = null)
     {
         if (SettingsOverlay.Visibility == Visibility.Visible) AutoSaveSettings();
-        ClosePreview(); ++_detailVersion; _returnToDetail = null;
-        var closing = Task.WhenAll(Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay), Motion.HideAsync(TorLinkOverlay), Motion.HideAsync(GuideOverlay));
-        DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = GuideOverlay.IsHitTestVisible = false;
+        ClosePreview(); ++_detailVersion; _returnToDetail = null; ++_shelfVersion; _returnToShelf = false;
+        var closing = Task.WhenAll(Motion.HideAsync(ShelfOverlay), Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay), Motion.HideAsync(TorLinkOverlay), Motion.HideAsync(GuideOverlay));
+        ShelfOverlay.IsHitTestVisible = DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = GuideOverlay.IsHitTestVisible = false;
         _catalog.Loading = true; var navigation = ++_navigationVersion;
         var key = _catalog.Key(SearchBox.Text.Trim(), CurrentQuery()); var page = _catalog.View == "home" ? "home" : key;
         // Read off the UI thread: a page of hundreds of titles takes tens of milliseconds to decode.
         var cached = recalled is null && _store is { } store && !_catalog.AwaitsSearch(SearchBox.Text.Trim()) ? await Task.Run(() => TryCache(() => store.Load<ItemsResult>(page))) : null;
         // Another page was chosen meanwhile: it shows instead.
         if (navigation != _navigationVersion) { await closing; return; }
-        _catalog.Items = recalled?.Items ?? cached?.Items ?? []; _catalog.TotalCount = recalled?.TotalCount ?? cached?.TotalRecordCount ?? 0;
+        if (recalled is null && cached is not null) _catalog.Receive(cached, false, SearchBox.Text.Trim());
+        else { _catalog.Items = recalled?.Items ?? []; _catalog.TotalCount = recalled?.TotalCount ?? 0; }
         if (recalled is not null || cached is not null || _demo) _catalog.Loading = false;
         RenderLibrary();
         if (recalled is not null) ScrollBack(recalled.Offset); else SmoothScroll.Jump(LibraryScroll);
@@ -373,7 +365,7 @@ public partial class MainWindow
         var found = _catalog.FoundBeside(search) && !_catalog.Loading && _catalog.Items.Count == 0;
         GridHeader.Visibility = PosterCards.Visibility = grid && !found && !_catalog.AwaitsSearch(search) ? Visibility.Visible : Visibility.Collapsed;
         GridTitle.Text = _catalog.GridTitle(search);
-        ItemCount.Text = Catalog.CountText(_catalog.TotalCount);
+        ItemCount.Text = _catalog.CountLine;
         if (home)
         {
             var previousCandidates = string.Join('|', _heroCandidates.Select(x => x.Id));
@@ -513,7 +505,7 @@ public partial class MainWindow
         card.Click += async (_, _) =>
         {
             ClosePreview();
-            if (item.Type == "BoxSet") await ShowSagaAsync(item, SearchBox.Text.Trim());
+            if (item.Type == "BoxSet") await ShowShelfAsync(item);
             else if (found && item.Type == "Episode") await ShowDetailsAsync(await PageItemAsync(item), item);
             else if (wide || _catalog.View == "offline") await PlayAsync(item, chosen: true);
             else await ShowDetailsAsync(item);
@@ -560,7 +552,8 @@ public partial class MainWindow
             // A collection (a saga or one made by hand) plays nothing by itself: its titles do, from their page.
             if (item.Type == "BoxSet")
             {
-                menu.Items.Add(MenuAction(L("Voir la collection", "View collection"), "info", async () => await ShowSagaAsync(item, SearchBox.Text.Trim())));
+                menu.Items.Add(MenuAction(L("Voir la collection", "View collection"), "info", async () => await ShowShelfAsync(item)));
+                AddShelfToggle(menu, item);
                 menu.Items.Add(MenuAction(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
                 AddCollectionActions(menu, item);
                 return;
@@ -687,7 +680,7 @@ public partial class MainWindow
             if (_client is not null) await _client.SetPlayedAsync(item.Id, played);
             else if (!_demo) return false;
             if (_store is { } store) await Task.Run(() => store.ForgetProgress(item.Id));
-            _catalog.MarkPlayed(item, played, _episodes, _similar);
+            _catalog.MarkPlayed(item, played, _episodes, _similar); ForgetGrouping();
             _metadata?.Clear();
             RenderAfterUserDataChange();
             if (!_demo) await RefreshAsync(quiet: true);
@@ -701,6 +694,7 @@ public partial class MainWindow
         if (_demo) { _catalog.Resume = (_demoItems ?? []).Where(x => x.Progress > 0).ToList(); }
         RenderLibrary();
         // Lecture's new words (« Revoir ») and the buttons' glyphs; nothing moves (_detailSettled).
+        if (ShelfOverlay.Visibility == Visibility.Visible) _ = RefreshShelfAsync();
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0 || _saga is not null) RenderSimilar(); }
     }
     private void ResumePrevious_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, -624, true);

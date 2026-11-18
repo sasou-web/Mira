@@ -188,7 +188,7 @@ public partial class MainWindow
             {
                 var id = await client.CreateCollectionAsync(name, [item.Id], _connectionLifetime.Token);
                 SetNotice(L($"Collection « {name} » créée avec « {item.DisplayTitle} ».", $"Collection “{name}” created with “{item.DisplayTitle}”."),
-                    L("Voir", "View"), () => _ = ShowSagaAsync(new MediaItem { Id = id, Name = name, Type = "BoxSet" }, ""), sticky: false);
+                    L("Voir", "View"), () => _ = ShowShelfAsync(new MediaItem { Id = id, Name = name, Type = "BoxSet" }), sticky: false);
             }
             await CloseCollectionsAsync();
             _ = RefreshAsync(quiet: true);
