@@ -88,6 +88,7 @@ public sealed partial class MainWindow
         if (Session is not { } session) return;
         _offlineSince = null;
         if (session.Sync.PendingCount > 0) session.Sync.Wake();
+        if (session.Connection.ServerId is null) _ = LearnServerIdAsync(session);
         SyncChanged();
     }
     /// <summary>
@@ -101,14 +102,17 @@ public sealed partial class MainWindow
         _unanswered = true;
         var wasOffline = SyncStatus.Offline(session.Sync.LastSynced, _offlineSince);
         _offlineSince = DateTimeOffset.Now;
-        if (!wasOffline && !InParty)
-        {
-            // Through « Tailscale intégré »: why, with what helps (its PC off, the node signed out).
-            if (Tailnet.Says(session.Connection.Server, error) is { } said) { _unansweredSaid = said.Text; Notice(said.Text, said.Action, said.Act, sticky: said.Action is not null); }
-            else Notice(_unansweredSaid = Errors.Friendly(error) + L(" Les informations déjà chargées restent disponibles.", " What’s already loaded stays available."), tone: NoticeTone.Error);
-        }
+        // The box may have given Jellyfin's PC another address: looked for there before anything is said (MainWindow.ServerMove.cs).
+        _ = UnansweredAsync(session, error, wasOffline);
         SyncChanged();
         return true;
+    }
+    private async Task UnansweredAsync(Session session, Exception error, bool wasOffline)
+    {
+        if (await FindMovedServerAsync(session) || wasOffline || InParty || !ReferenceEquals(session, Session)) return;
+        // Through « Tailscale intégré »: why, with what helps (its PC off, the node signed out).
+        if (Tailnet.Says(session.Connection.Server, error) is { } said) { _unansweredSaid = said.Text; Notice(said.Text, said.Action, said.Act, sticky: said.Action is not null); }
+        else Notice(_unansweredSaid = Errors.Friendly(error) + L(" Les informations déjà chargées restent disponibles.", " What’s already loaded stays available."), tone: NoticeTone.Error);
     }
 
     /// <summary>The reports' line: offline first, neither a delivered report nor the retry loop replaces it before Jellyfin answers.</summary>

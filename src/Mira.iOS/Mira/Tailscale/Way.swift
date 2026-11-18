@@ -7,7 +7,7 @@ import Synchronization
 /// leaves (`map`). Chosen again when the network changes, Mira comes back, Built-in Tailscale connects, or a request
 /// finds the way cut; a way is taken only once the server there answered with its id, before any token goes.
 actor Way {
-    static let shared = Way(followsApp: true)
+    static let shared = Way(followsApp: true, own: OwnAddress.current)
 
     /// What no way reaching Jellyfin comes from, read by Messages on any thread.
     static let hint = Mutex<WayPlan.Hint?>(nil)
@@ -27,7 +27,14 @@ actor Way {
         /// None found, for a reason that may last a moment only (WayPlan.Hint.sure): looked for again after this, then
         /// twice as long each time, a minute at most.
         var retry = 2.0
+        /// At home and nothing answers: the home network is asked address by address at most this often (the box may
+        /// have given Jellyfin's PC another address).
+        var neighbours = 120.0
     }
+
+    /// This device's IPv4 address on Wi-Fi or a cable and its prefix length (nil: none); the home network is never asked
+    /// address by address without it.
+    typealias Own = @Sendable () -> (address: String, prefix: Int)?
 
     /// Jellyfin's public information at a base (System/Info/Public), within a time; nil when nothing answers.
     typealias Ask = @Sendable (_ base: URL, _ timeout: TimeInterval) async -> PublicInfo?
@@ -38,6 +45,9 @@ actor Way {
     private let timing: Timing
     /// Where the addresses learned are kept (UserDefaults; a suite of their own in the tests).
     private let suite: String?
+    private let own: Own?
+    /// When the home network was last asked address by address.
+    private var neighboursAsked = Date.distantPast
 
     private var server: URL?
     private var serverId: String?
@@ -67,11 +77,12 @@ actor Way {
         return URLSession(configuration: configuration)
     }()
 
-    init(followsApp: Bool = false, ask: @escaping Ask = Way.askJellyfin, timing: Timing = Timing(), suite: String? = nil) {
+    init(followsApp: Bool = false, ask: @escaping Ask = Way.askJellyfin, timing: Timing = Timing(), suite: String? = nil, own: Own? = nil) {
         self.followsApp = followsApp
         self.ask = ask
         self.timing = timing
         self.suite = suite
+        self.own = own
     }
 
     /// `readTailnet` gives Built-in Tailscale's state as it is now (its devices online); `onChange` hears of each way
@@ -112,6 +123,7 @@ actor Way {
         later?.cancel()
         later = nil
         retries = 0
+        neighboursAsked = .distantPast
         publish(nil, hint: nil)
         if server != nil, id != nil { resolve() }
     }
@@ -120,6 +132,7 @@ actor Way {
         adopt()
         guard network != self.network else { return }
         self.network = network
+        neighboursAsked = .distantPast
         // A home way on another network, or none taken: chosen again. Any other way works on as it is while the next
         // one is looked for (the home network may be back).
         again(keep: route.map { $0.kind != .home || network == .local } ?? false)
@@ -274,6 +287,14 @@ actor Way {
                 let routes = WayPlan.candidates(server: server, known: known, network: network, tailnet: tailnet, only: only).filter { $0.kind == .builtIn }
                 found = await probe(routes, id: serverId)
             }
+        }
+        // At home and nothing answers: the box may have given Jellyfin's PC another address. Each address of the Wi-Fi's
+        // network is asked for this server's id (its public information, no token), as Mira for Windows and Mac do.
+        if found == nil, !Task.isCancelled, generation == mine, network == .local, let own,
+           Date().timeIntervalSince(neighboursAsked) >= timing.neighbours, let here = own() {
+            neighboursAsked = Date()
+            let routes = WayPlan.neighbourRoutes(server: server, known: known, own: here.address, prefix: here.prefix).filter { only?.contains($0.kind) ?? true }
+            if !routes.isEmpty, generation == mine { found = await probe(routes, id: serverId) }
         }
         guard generation == mine, self.server == server else { return nil }
         resolving = nil

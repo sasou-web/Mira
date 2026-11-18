@@ -100,6 +100,30 @@ struct WayPlanTests {
         #expect(slash?.absoluteString == Home.pcBase)
     }
 
+    @Test("La box donne une autre adresse au PC : cas communs avec Windows et Mac (tests/fixtures/server-move.json)")
+    func moved() throws {
+        final class Bundled {}
+        let url = try #require(Bundle(for: Bundled.self).url(forResource: "server-move", withExtension: "json"))
+        let x = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        for row in try #require(x["movable"] as? [[Any]]) {
+            let server = try #require(URL(string: try #require(row[0] as? String)))
+            #expect(WayPlan.movable(server) == (row[1] as? Bool), "\(row)")
+        }
+        for row in try #require(x["neighbours"] as? [[Any]]) {
+            let server = try #require(URL(string: try #require(row[0] as? String)))
+            let asked = WayPlan.neighbours(server, own: try #require(row[1] as? String), prefix: try #require(row[2] as? Int))
+            #expect(asked.count == row[3] as? Int, "\(row)")
+            #expect(asked.first?.absoluteString == row[4] as? String, "\(row)")
+            #expect(asked.last?.absoluteString == row[5] as? String, "\(row)")
+            #expect(Set(asked).count == asked.count, "\(row)")
+        }
+        // The server's other addresses known are neither asked again nor twice.
+        let routes = WayPlan.neighbourRoutes(server: Home.server, known: [URL(string: "http://192.168.1.57:8096")!, URL(string: "http://100.88.12.34:8096")!],
+                                             own: "192.168.1.10", prefix: 24)
+        #expect(routes.count == 251 && routes.allSatisfy { $0.kind == .home && $0.base == $0.address })
+        #expect(!routes.contains { WayPlan.same($0.address, URL(string: "http://192.168.1.57:8096")!) || WayPlan.same($0.address, Home.server) })
+    }
+
     @Test("Une adresse du serveur sur un autre chemin : même chemin, même requête ; celles des autres jamais")
     func map() {
         let base = URL(string: Home.pcBase)!
@@ -283,6 +307,11 @@ private final class Answers: Sendable {
     }
 }
 
+/// How often the way read this device's address (it asks the home network address by address only then).
+private final class Reads: Sendable {
+    let count = Mutex(0)
+}
+
 /// What Built-in Tailscale tells the way, changed by the test.
 private final class TailnetState: Sendable {
     private let states: Mutex<[WayPlan.Tailnet]>
@@ -385,6 +414,42 @@ struct WayTests {
         let started = Date()
         #expect(await way.map(item).absoluteString.hasPrefix(Home.pcBase))
         #expect(Date().timeIntervalSince(started) < 2)
+    }
+
+    @Test("La box a donné une autre adresse au PC : cherché sur le Wi-Fi, pris et gardé ; jamais loin de la maison")
+    func movedServer() async {
+        defer { clean() }
+        let moved = PublicInfo(id: Home.info.id, serverName: "MAISON-PC", version: "12.1.0", productName: "Jellyfin Server", localAddress: "http://192.168.1.57:8096")
+        let answers = Answers([
+            "http://192.168.1.57:8096": (0.05, moved),
+            // Another Jellyfin of the house: never taken.
+            "http://192.168.1.20:8096": (0, PublicInfo(id: "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", productName: "Jellyfin Server")),
+        ])
+        let reads = Reads()
+        let own: Way.Own = { reads.count.withLock { $0 += 1 }; return ("192.168.1.10", 24) }
+        var quick = timing
+        quick.neighbours = 0
+        let way = Way(ask: answers.ask, timing: quick, suite: suite, own: own)
+        await way.use(Home.server, id: Home.id)
+        #expect(await way.map(item).absoluteString == "http://192.168.1.57:8096/Items/1?fields=Overview")
+        #expect(await way.current()?.kind == .home)
+        #expect(await way.addresses().map(\.absoluteString) == ["http://192.168.1.57:8096"])
+        #expect(!answers.bases.contains("http://192.168.1.10:8096"))
+        // The next time, the new address is tried with the old one, without asking the network again.
+        let again = Way(ask: answers.ask, timing: quick, suite: suite, own: own)
+        await again.use(Home.server, id: Home.id)
+        let before = reads.count.withLock { $0 }
+        #expect(await again.map(item).absoluteString.hasPrefix("http://192.168.1.57:8096"))
+        #expect(reads.count.withLock { $0 } == before)
+
+        // Away from home (cellular), the network there is never asked address by address.
+        let away = Way(ask: Answers().ask, timing: quick, suite: suite + ".away", own: own)
+        await away.network(.cellular)
+        await away.use(Home.server, id: Home.id)
+        let then = reads.count.withLock { $0 }
+        #expect(await away.map(item) == item)
+        #expect(reads.count.withLock { $0 } == then)
+        UserDefaults.standard.removePersistentDomain(forName: suite + ".away")
     }
 
     @Test("Rien ne répond : pourquoi, dans l'ordre de ce qui manque")

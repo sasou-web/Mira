@@ -63,7 +63,7 @@ public static class OfflineCopies
 
     /// <summary>The folder of an account's copies under <paramref name="root"/>, named like its artwork's (no server name on the disk).</summary>
     public static string AccountFolder(string root, Connection connection) =>
-        Path.Combine(root, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JellyfinClient.NormalizeServer(connection.Server) + connection.UserId)))[..16]);
+        Path.Combine(root, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JellyfinClient.NormalizeServer(connection.Account) + connection.UserId)))[..16]);
     /// <summary>
     /// A new copy of <paramref name="item"/>, not fetched yet: its manifest is written at once, so that a closed Mira resumes
     /// it. A title in several files (« cd1 », « cd2 ») keeps its other <paramref name="parts"/> with it, each in a folder of

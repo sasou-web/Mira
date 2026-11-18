@@ -163,6 +163,54 @@ enum WayPlan {
         return routes
     }
 
+    /// An address of a home network that the box may give again to another device: an IPv4 address of 10.0.0.0/8,
+    /// 172.16.0.0/12 or 192.168.0.0/16, never this device, Tailscale nor a name (as ServerMove.Movable of Mira for
+    /// Windows and Mac, tests/fixtures/server-move.json).
+    static func movable(_ server: URL) -> Bool { homeIPv4(server) != nil }
+
+    private static func homeIPv4(_ server: URL) -> UInt32? {
+        guard let host = bareHost(server), let ip = ServerAddress.IPv4(host) else { return nil }
+        let (a, b) = (ip.bytes[0], ip.bytes[1])
+        guard a == 10 || (a == 172 && (16...31).contains(b)) || (a == 192 && b == 168) else { return nil }
+        return ip.bytes.reduce(0) { $0 << 8 | UInt32($1) }
+    }
+
+    /// The addresses to ask on the home network this device shares with `server` (`own`, `prefix` bits), once the box
+    /// gave Jellyfin's PC another address: each one of it, at the server's scheme, port and path, the server's address
+    /// and this device left out. None on another network (another home's Wi-Fi) or for an address that is not of a home
+    /// network; a network wider than /24 is asked on the /24 around this device only. As ServerMove.Neighbours of Mira
+    /// for Windows and Mac (tests/fixtures/server-move.json).
+    static func neighbours(_ server: URL, own: String, prefix: Int) -> [URL] {
+        guard let old = homeIPv4(server), let ip = ServerAddress.IPv4(own), (1...30).contains(prefix),
+              let components = URLComponents(url: server, resolvingAgainstBaseURL: false) else { return [] }
+        let here = ip.bytes.reduce(0) { $0 << 8 | UInt32($1) }
+        let mask = UInt32.max << UInt32(32 - max(prefix, 24))
+        let start = here & mask
+        guard old & mask == start else { return [] }
+        let last = start | ~mask
+        var list: [URL] = []
+        for number in (start + 1)..<last where number != here && number != old {
+            var copy = components
+            copy.host = "\(number >> 24).\(number >> 16 & 255).\(number >> 8 & 255).\(number & 255)"
+            if let url = copy.url { list.append(url) }
+        }
+        return list
+    }
+
+    /// The ways to the home network's other addresses (`neighbours`) of the server and of its addresses known, those
+    /// already tried left out.
+    static func neighbourRoutes(server: URL, known: [URL], own: String, prefix: Int) -> [Route] {
+        let addresses = [server] + known
+        var routes: [Route] = []
+        for address in addresses where movable(address) {
+            for url in neighbours(address, own: own, prefix: prefix)
+            where !addresses.contains(where: { same($0, url) }) && !routes.contains(where: { same($0.address, url) }) {
+                routes.append(Route(kind: .home, base: url, address: url))
+            }
+        }
+        return routes
+    }
+
     /// The devices that may run Jellyfin: online, not a phone, a tablet nor a TV, 16 at most.
     static func peers(_ peers: [Peer]) -> [Peer] {
         Array(peers.filter { $0.online && !["ios", "ipados", "android", "tvos"].contains(($0.os ?? "").lowercased()) }.prefix(16))

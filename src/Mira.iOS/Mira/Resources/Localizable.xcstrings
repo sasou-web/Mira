@@ -3551,12 +3551,12 @@
         }
       }
     },
-    "The address you signed in to, at home or through Tailscale.": {
+    "The address you signed in to, at home or through Tailscale. On Wi-Fi, when it no longer answers: each address of that network, asked whether it is your server (your router may have given it another one).": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "L’adresse où tu t’es connecté, chez toi ou par Tailscale."
+            "value": "L’adresse où tu t’es connecté, chez toi ou par Tailscale. En Wi-Fi, quand elle ne répond plus : chaque adresse de ce réseau, à qui Mira demande si c’est ton serveur (ta box a pu lui en donner une autre)."
           }
         }
       }
