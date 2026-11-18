@@ -328,6 +328,7 @@ public static class Cards
         body.Children.Add(picture); body.Children.Add(caption);
         var button = new Button { Content = body, Classes = { "card" } };
         Hover(button, ring, [placeholder, image]);
+        if (images is not null && item.Type is "Movie" or "Series") WarmOnRest(button, () => images.WarmPageAsync(item));
         button.Click += (_, _) => open(item);
         Menu(button, item, menu);
         Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { number, item.DisplayTitle, line ?? (item.Shelf is { } said ? CollectionShelf.CardLine(said.Count) : Caption(item)), upNext ? L("à suivre", "up next") : null, number is null ? item.EpisodesToWatchText : null }.Where(x => !string.IsNullOrEmpty(x))));
@@ -518,6 +519,18 @@ public static class Cards
     /// scrolls the cards by under a still pointer (<see cref="Ui.Scrolling"/>), none zooms on its way; the one under it
     /// does once the pointer moves. <paramref name="lift"/>: told too (an episode's play button).
     /// </summary>
+    /// <summary>
+    /// The pointer resting 180 ms on a card (not passing over it): its page's backdrop and logo fetched before the click,
+    /// as on Windows, so that the page opens on them.
+    /// </summary>
+    private static void WarmOnRest(Button button, Func<Task> warm)
+    {
+        var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+        var warmed = false;
+        timer.Tick += (_, _) => { timer.Stop(); if (warmed) return; warmed = true; _ = warm(); };
+        button.PointerEntered += (_, _) => { if (!warmed && !Ui.Scrolling) timer.Start(); };
+        button.PointerExited += (_, _) => timer.Stop();
+    }
     public static void Hover(Button button, Control? ring, Control[] pictures, Action<bool>? lift = null)
     {
         foreach (var picture in pictures)

@@ -27,7 +27,7 @@ public partial class MainWindow
     {
         LibraryShell.PreviewMouseMove += (_, e) => TrackHoverPointer(e.GetPosition(LibraryShell));
         LibraryShell.MouseLeave += (_, _) => { if (_hoverCard is { } card && !(_keyboardNavigation && card.IsKeyboardFocusWithin)) SetHoverCard(null); };
-        _hoverWarm.Tick += (_, _) => { _hoverWarm.Stop(); if (_hoverCard is { } card) _ = WarmItemAsync(card.Item); };
+        _hoverWarm.Tick += (_, _) => { _hoverWarm.Stop(); if (_hoverCard is { } card) _ = WarmItemAsync(card.Item, opensPage: !card.Wide && card.Item.Type is "Movie" or "Series"); };
         _scrollRest.Tick += (_, _) =>
         {
             if (Environment.TickCount64 - _scrolledAt < ScrollRestMs) return;
@@ -104,9 +104,23 @@ public partial class MainWindow
         TrackHoverPointer(Mouse.GetPosition(LibraryShell));
     }
     private void ClosePreview() { _hoverWarm.Stop(); SetHoverCard(null); }
-    private async Task WarmItemAsync(MediaItem item)
+    /// <summary>
+    /// A card hovered a moment: what its page waits for, fetched before the click (its details, a series' episodes, its
+    /// backdrop on the disk, its logo), so that the page opens whole. Its pictures only for a card that opens its page (a
+    /// wide card plays).
+    /// </summary>
+    private async Task WarmItemAsync(MediaItem item, bool opensPage)
     {
-        try { if (_metadata is { } metadata) await metadata.ItemAsync(item.SeriesId ?? item.Id); }
+        var images = opensPage ? _images?.WarmPageAsync(item) ?? Task.CompletedTask : Task.CompletedTask;
+        try
+        {
+            if (_metadata is { } metadata)
+            {
+                await metadata.ItemAsync(item.SeriesId ?? item.Id);
+                if (opensPage && item.Type == "Series") await metadata.EpisodesAsync(item.Id);
+            }
+        }
         catch (Exception ex) when (IsExpected(ex)) { }
+        await images;
     }
 }

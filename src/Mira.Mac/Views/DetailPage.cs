@@ -20,6 +20,16 @@ public sealed partial class DetailPage : Page
 {
     private MediaItem _item;
     private readonly Image _backdrop = new() { Stretch = Stretch.UniformToFill, Opacity = 0 };
+    /// <summary>Jellyfin's BlurHash of the backdrop, under it from the first frame: never black while it comes (2026-11-18).</summary>
+    private readonly Image _blur = new() { Stretch = Stretch.UniformToFill };
+    /// <summary>The backdrop and the logo asked (once a page, again after « Identifier… »).</summary>
+    private bool _artStarted;
+    /// <summary>
+    /// A title with a logo keeps its name hidden while the logo comes, its place kept (the text sits on the bottom of the
+    /// picture: nothing under it moves); its name after <see cref="LogoWait"/> ms without it, as on Windows.
+    /// </summary>
+    private bool _logoPending;
+    private const int LogoWait = 700;
     private readonly Grid _header = new() { ClipToBounds = true, Height = 600 };
     /// <summary>What sits on the picture, at its bottom left: kind, logo or name, catchphrase, facts, summary, buttons.</summary>
     private readonly StackPanel _top = new() { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(56 + MainWindow.RailWidth, 0, 56, 56) };
@@ -77,6 +87,7 @@ public sealed partial class DetailPage : Page
         _item = item; _found = atEpisode;
         _backdrop.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(380) }];
         _header.Children.Add(new Border { Background = Ui.Brush("#0F0F0F") });
+        _header.Children.Add(_blur);
         _header.Children.Add(_backdrop);
         // Shaded from the left and the bottom, where the text and the buttons sit, as on Windows.
         _header.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F0000000", 0), ("#C4000000", 0.3), ("#40000000", 0.62), ("#00000000", 0.86)) });
@@ -121,7 +132,12 @@ public sealed partial class DetailPage : Page
 
     public override async Task LoadAsync()
     {
+        // The card's item already names its pictures (a bare series opened from an episode does not: then after its details).
+        var named = _item.ImageTags.Count > 0 || _item.BackdropImageTags.Length > 0;
+        if (BlurHash.Of(_item, Artwork.Backdrop(_item, ownPage: true)) is { } hash) _blur.Source = Cards.Blur(hash, 16 / 9d);
+        _logoPending = named && Shell.Session is not null && _item.ImageTags.ContainsKey("Logo");
         RenderTop();
+        if (named && Shell.Session is { } session) _ = LoadArtAsync(session);
         await RefreshAsync();
     }
     public override async Task RefreshAsync()
@@ -133,7 +149,9 @@ public sealed partial class DetailPage : Page
         Shell.Reached(started);
         await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress([full])));
         _item = full;
-        if (_backdrop.Source is null) _ = LoadArtAsync(session);
+        if (!_artStarted) _ = LoadArtAsync(session);
+        // Its details name a logo the card did not.
+        else if (_logo is null && !_logoPending && _item.ImageTags.ContainsKey("Logo")) _ = LoadLogoAsync(session);
         if (_item.Type == "Series")
         {
             var episodes = await session.EpisodesAsync(_item.Id);
@@ -264,14 +282,38 @@ public sealed partial class DetailPage : Page
         // Only a detail of the page: without it, the rest is complete.
         catch (Exception ex) when (Errors.Expected(ex)) { }
     }
+    /// <summary>The backdrop and the logo at the same time, each in place as it comes (they waited for each other before).</summary>
     private async Task LoadArtAsync(Session session)
     {
-        var art = await session.Images.BackdropAsync(_item, 1920, ownPage: true);
-        if (art is not null) { _backdrop.Source = art; _backdrop.Opacity = 1; }
-        if (await session.Images.LogoAsync(_item) is not { } logo) return;
+        _artStarted = true;
+        if (_logoPending) _ = ShowTitleLaterAsync();
+        await Task.WhenAll(LoadBackdropAsync(session), LoadLogoAsync(session));
+    }
+    private async Task LoadBackdropAsync(Session session)
+    {
+        var request = session.Images.BackdropAsync(_item, Images.PageBackdropWidth, ownPage: true);
+        // Already decoded (seen a moment ago): the page opens on it, without a fade from its blur.
+        var ready = request.IsCompleted;
+        if (await request is not { } art) return;
+        var fade = _backdrop.Transitions;
+        if (ready) _backdrop.Transitions = null;
+        _backdrop.Source = art; _backdrop.Opacity = 1;
+        if (ready) _backdrop.Transitions = fade;
+    }
+    private async Task LoadLogoAsync(Session session)
+    {
+        var logo = await session.Images.LogoAsync(_item);
+        _logoPending = false;
+        if (logo is null) { _title.Opacity = 1; return; }
         _logo = logo;
         var index = _top.Children.IndexOf(_title);
         if (index >= 0) _top.Children[index] = Title();
+    }
+    private async Task ShowTitleLaterAsync()
+    {
+        await Task.Delay(LogoWait);
+        if (!_logoPending) return;
+        _logoPending = false; _title.Opacity = 1;
     }
     /// <summary>Its name in large type, the page's heading; its logo instead once Jellyfin gave one.</summary>
     private TextBlock _title = new();
@@ -285,7 +327,8 @@ public sealed partial class DetailPage : Page
             return image;
         }
         // Its own line height: a tighter one (Windows' 70) cuts the letters that go below the line (« g », « p »).
-        _title = new TextBlock { Text = _item.DisplayTitle, FontSize = 68, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, -10, 0, -12) };
+        _title = new TextBlock { Text = _item.DisplayTitle, FontSize = 68, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, -10, 0, -12), Opacity = _logoPending ? 0 : 1 };
+        _title.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) }];
         Avalonia.Automation.AutomationProperties.SetHeadingLevel(_title, 1);
         return _title;
     }
@@ -665,7 +708,7 @@ public sealed partial class DetailPage : Page
             var sheet = new IdentifySheet(session, _item);
             await sheet.ShowAsync(Shell);
             if (sheet.Said is { } said) Shell.Notice(said);
-            if (sheet.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; _logo = null; await RefreshAsync(); }
+            if (sheet.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; _blur.Source = null; _logo = null; _artStarted = false; await RefreshAsync(); }
         }
         async Task RefreshMetadataAsync()
         {
