@@ -33,9 +33,9 @@ public sealed class TvdbOrders : IHostedService, IDisposable
 
     private readonly ILibraryManager _library;
     private readonly ISessionManager _sessions;
-    private readonly IProviderManager _providers;
     private readonly IFileSystem _fileSystem;
     private readonly IServiceProvider _services;
+    private readonly TitleRefresh _refresh;
     private readonly ILogger<TvdbOrders> _logger;
     private readonly CancellationTokenSource _stop = new();
     private readonly object _gate = new();
@@ -50,9 +50,9 @@ public sealed class TvdbOrders : IHostedService, IDisposable
     /// </summary>
     public sealed record Decision(int Files, string Order, bool Theirs = false);
 
-    public TvdbOrders(ILibraryManager library, ISessionManager sessions, IProviderManager providers, IFileSystem fileSystem, IServiceProvider services, ILogger<TvdbOrders> logger)
+    public TvdbOrders(ILibraryManager library, ISessionManager sessions, IFileSystem fileSystem, IServiceProvider services, TitleRefresh refresh, ILogger<TvdbOrders> logger)
     {
-        _library = library; _sessions = sessions; _providers = providers; _fileSystem = fileSystem; _services = services; _logger = logger;
+        _library = library; _sessions = sessions; _fileSystem = fileSystem; _services = services; _refresh = refresh; _logger = logger;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -145,7 +145,8 @@ public sealed class TvdbOrders : IHostedService, IDisposable
         if (chosen == current) return true;
         series.DisplayOrder = chosen;
         await series.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, ct).ConfigureAwait(false);
-        _providers.QueueRefresh(series.Id, new MetadataRefreshOptions(new DirectoryService(_fileSystem))
+        // Without reading its extras again all at once (TitleRefresh): a franchise's textless credits, for one.
+        _refresh.Queue(series, new MetadataRefreshOptions(new DirectoryService(_fileSystem))
         {
             MetadataRefreshMode = MetadataRefreshMode.FullRefresh, ImageRefreshMode = MetadataRefreshMode.Default, ReplaceAllMetadata = true, ReplaceAllImages = false,
         }, RefreshPriority.Normal);

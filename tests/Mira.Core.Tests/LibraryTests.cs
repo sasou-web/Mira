@@ -2274,10 +2274,11 @@ internal static class LibraryTests
                 && Mira.Jellyfin.IdentifyImages.Smaller(new Uri("https://artworks.thetvdb.com/t/p/original/a.jpg")).AbsoluteUri == "https://artworks.thetvdb.com/t/p/original/a.jpg", "TMDb's original poster asked smaller");
 
             // Jellyfin's RemoteSearch, then the proposal sent back as it came; a refresh that fills what is missing.
-            var sent = new List<string>();
+            var sent = new List<string>(); var extension = true;
             using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
             {
                 sent.Add($"{request.Method} {request.RequestUri!.PathAndQuery} {(request.Content is null ? "" : await request.Content.ReadAsStringAsync())}");
+                if (!extension && request.RequestUri.AbsolutePath.StartsWith("/Mira/", StringComparison.Ordinal)) return new HttpResponseMessage(HttpStatusCode.NotFound);
                 if (request.RequestUri.AbsolutePath.EndsWith("/Series", StringComparison.Ordinal))
                     return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""[{"Name":"Frieren","ProductionYear":2023,"ProviderIds":{"Tvdb":"424536"},"SearchProviderName":"TheTVDB","Extra":1},{"Name":""}]""") };
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
@@ -2286,8 +2287,15 @@ internal static class LibraryTests
             var matches = await client.FindMatchesAsync(show, TitleIdentity.Search("Frieren", "2023"));
             Assert(matches.Count == 1 && matches[0].Year == 2023 && sent[0] == """POST /Items/RemoteSearch/Series {"SearchInfo":{"Name":"Frieren","ProviderIds":{},"Year":2023},"ItemId":"s9","IncludeDisabledProviders":true}""", "Search: " + sent[0]);
             Assert(await client.ApplyMatchAsync("s9", matches[0]) && sent[1] == """POST /Items/RemoteSearch/Apply/s9?replaceAllImages=true {"Name":"Frieren","ProductionYear":2023,"ProviderIds":{"Tvdb":"424536"},"SearchProviderName":"TheTVDB","Extra":1}""", "Apply: " + sent[1]);
+            // Through the extension, which never reads all of a title's extras again at once; Jellyfin's own without it.
             await client.RefreshMetadataAsync("s9");
-            Assert(sent[2] == "POST /Items/s9/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=FullRefresh&replaceAllMetadata=false&replaceAllImages=false ", "Refresh: " + sent[2]);
+            Assert(sent.Count == 3 && sent[2] == "POST /Mira/refresh/s9?images=true ", "Refresh: " + sent[2]);
+            extension = false;
+            await client.RefreshMetadataAsync("s9");
+            await client.FillMissingMetadataAsync("s9");
+            Assert(sent.Skip(3).SequenceEqual(["POST /Mira/refresh/s9?images=true ", "POST /Items/s9/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=FullRefresh&replaceAllMetadata=false&replaceAllImages=false ",
+                "POST /Mira/refresh/s9?images=false ", "POST /Items/s9/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=Default&replaceAllMetadata=false&replaceAllImages=false "]), "Refresh without the extension: " + string.Join(" | ", sent.Skip(3)));
+            extension = true;
             Assert(await client.MatchImageAsync("https://image.tmdb.org/x.jpg") is null, "No poster without an image answer");
         });
         await Test("Titres à corriger : une bibliothèque de 20 000 titres jugée en un instant, chaque doublon avec le premier de la liste", () =>

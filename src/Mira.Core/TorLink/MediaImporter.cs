@@ -20,8 +20,9 @@ public sealed record ImportFailure(ImportOperation Operation, string Reason, boo
 /// <summary>
 /// Canceled: the pass stopped early (Mira closing); what is listed was done and stays done. Copied: a copy stayed
 /// beside its source, which was in use and could not be removed. OtherDrive: files crossed from another drive.
+/// Held: extras past the batch asked for, left where they are for later (<see cref="ExtrasBatches"/>).
 /// </summary>
-public sealed record ImportResult(IReadOnlyList<ImportOperation> Placed, IReadOnlyList<ImportOperation> AlreadyThere, IReadOnlyList<ImportFailure> Conflicts, IReadOnlyList<ImportFailure> Failures, bool Linked, bool Copied, bool Moved, bool Canceled = false, bool OtherDrive = false)
+public sealed record ImportResult(IReadOnlyList<ImportOperation> Placed, IReadOnlyList<ImportOperation> AlreadyThere, IReadOnlyList<ImportFailure> Conflicts, IReadOnlyList<ImportFailure> Failures, bool Linked, bool Copied, bool Moved, bool Canceled = false, bool OtherDrive = false, IReadOnlyList<ImportOperation>? Held = null)
 {
     public string? Method => Copied ? L("copie", "copy") : Moved ? (OtherDrive ? L("déplacement depuis un autre disque", "move from another drive") : L("déplacement", "move")) : Linked ? L("lien physique", "hard link") : null;
 }
@@ -32,9 +33,13 @@ public static class MediaImporter
     /// <summary>Copies are written under this suffix, then renamed: Jellyfin never sees half a video.</summary>
     public const string PartialSuffix = ".mira-part";
 
-    public static async Task<ImportResult> ExecuteAsync(ImportPlan plan, ImportMode mode, CancellationToken ct = default)
+    /// <summary>
+    /// Places the plan's files; <paramref name="extras"/>: how many bonus videos not yet in the library it places at
+    /// most, the others are held (<see cref="ImportResult.Held"/>).
+    /// </summary>
+    public static async Task<ImportResult> ExecuteAsync(ImportPlan plan, ImportMode mode, CancellationToken ct = default, int extras = int.MaxValue)
     {
-        var placed = new List<ImportOperation>(); var already = new List<ImportOperation>();
+        var placed = new List<ImportOperation>(); var already = new List<ImportOperation>(); var held = new List<ImportOperation>();
         var conflicts = new List<ImportFailure>(); var failures = new List<ImportFailure>();
         bool linked = false, copied = false, moved = false, canceled = false, otherDrive = false;
         if (plan.LibraryRoot is null) return new(placed, already, conflicts, failures, linked, copied, moved);
@@ -60,6 +65,7 @@ public static class MediaImporter
                     else conflicts.Add(new(operation, L("Un autre fichier porte déjà ce nom.", "Another file already has this name.")));
                     continue;
                 }
+                if (operation.Role == "extra" && extras-- <= 0) { held.Add(operation); continue; }
                 try
                 {
                     Directory.CreateDirectory(target.DirectoryName!);
@@ -82,7 +88,7 @@ public static class MediaImporter
         }
         // Closing Mira: the files already placed are reported, so that they stay tracked.
         catch (OperationCanceledException) { canceled = true; }
-        return new(placed, already, conflicts, failures, linked, copied, moved, canceled, otherDrive);
+        return new(placed, already, conflicts, failures, linked, copied, moved, canceled, otherDrive, held);
     }
 
     /// <summary>

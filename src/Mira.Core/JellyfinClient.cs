@@ -574,9 +574,18 @@ public sealed class JellyfinClient : IDisposable
         catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return false; }
     }
     /// <summary>« Actualiser les métadonnées »: Jellyfin reads the title again from its sources, filling what is missing (queued, it answers at once).</summary>
-    public async Task RefreshMetadataAsync(string itemId, CancellationToken ct = default)
+    public Task RefreshMetadataAsync(string itemId, CancellationToken ct = default) => FullRefreshAsync(itemId, images: true, ct);
+    /// <summary>
+    /// Jellyfin's FullRefresh of a title, through Mira's extension first: there a title with many extras is not read
+    /// again with all its extras at once (Jellyfin analyses each in its own task, without limit: 47 ffprobe together on
+    /// the Dell, 2026-11-18). An older extension, or none: Jellyfin's own.
+    /// </summary>
+    private async Task FullRefreshAsync(string itemId, bool images, CancellationToken ct)
     {
-        using var response = await _http.PostAsync($"Items/{Uri.EscapeDataString(itemId)}/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=FullRefresh&replaceAllMetadata=false&replaceAllImages=false", null, ct);
+        using (var mira = await _http.PostAsync($"Mira/refresh/{Uri.EscapeDataString(itemId)}?images={(images ? "true" : "false")}", null, ct))
+            if (mira.IsSuccessStatusCode) return;
+        var mode = images ? "FullRefresh" : "Default";
+        using var response = await _http.PostAsync($"Items/{Uri.EscapeDataString(itemId)}/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode={mode}&replaceAllMetadata=false&replaceAllImages=false", null, ct);
         await CheckAsync(response);
     }
     /// <summary>A proposal's poster, through Mira's extension (<see cref="TitleIdentity.ImagePath"/>); null without it (an older extension, none).</summary>
@@ -1030,11 +1039,7 @@ public sealed class JellyfinClient : IDisposable
     /// episodes): what is known is kept, corrections by hand included, only what is missing is fetched, then the title
     /// is saved (its NFO, with SaveLocalMetadata). Queued: Jellyfin answers at once.
     /// </summary>
-    public async Task FillMissingMetadataAsync(string itemId, CancellationToken ct = default)
-    {
-        using var response = await _http.PostAsync($"Items/{Uri.EscapeDataString(itemId)}/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=Default&replaceAllMetadata=false&replaceAllImages=false", null, ct);
-        await CheckAsync(response);
-    }
+    public Task FillMissingMetadataAsync(string itemId, CancellationToken ct = default) => FullRefreshAsync(itemId, images: false, ct);
     /// <summary>The libraries of these kinds with their options, as Jellyfin's dashboard reads them; null when refused (not an administrator).</summary>
     private async Task<List<(string Id, JsonObject? Options)>?> LibraryOptionsAsync(string[] kinds, CancellationToken ct)
     {

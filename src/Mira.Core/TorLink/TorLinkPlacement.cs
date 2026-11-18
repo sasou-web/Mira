@@ -10,7 +10,7 @@ public sealed class TorLinkPlacement : IDisposable
     private readonly HashSet<string> _requested = [], _announced = [];
     private FileSystemWatcher? _watcher;
     private (DateTime Stamp, long Length) _historyStamp;
-    private bool _busy, _again, _checking, _numbering;
+    private bool _busy, _again, _checking, _numbering, _extras;
     private readonly Dictionary<string, DateTimeOffset> _numbersTried = new(StringComparer.OrdinalIgnoreCase);
     public TorLinkPlacement(TorLinkState state, TorLinkImporter importer) { State = state; Importer = importer; }
     public TorLinkState State { get; }
@@ -138,6 +138,41 @@ public sealed class TorLinkPlacement : IDisposable
         }
         catch (Exception ex) when (ExpectedErrors.Are(ex)) { }
         finally { _checking = false; }
+    }
+
+    /// <summary>
+    /// The next few extras of a download whose bonus videos arrive a few at a time (<see cref="ExtrasBatches"/>), once
+    /// Jellyfin lists every extra Mira placed in that title's folder, or <see cref="ExtrasBatches.Patience"/> after the
+    /// last batch. One batch of one download at a time, whatever the number of downloads waiting.
+    /// </summary>
+    public async Task ExtrasAsync(JellyfinClient client, CancellationToken token)
+    {
+        if (_extras) return;
+        if (Importer.Entries.FirstOrDefault(x => x is { Extras.Operations.Count: > 0, State: TorLinkImportState.Imported or TorLinkImportState.Partial }) is not { Extras: { } held } entry) return;
+        _extras = true;
+        try
+        {
+            var batch = ExtrasBatches.Next(held.Operations);
+            var folder = ExtrasBatches.OwnerFolder(batch[0].Destination);
+            var placed = entry.Files.Where(f => f.Role == "extra" && !f.Found && ExtrasBatches.Under(f.Destination, folder)).Select(f => f.Destination).ToList();
+            var settled = placed.Count == 0 || await ListedAsync(client, entry, folder, placed, token);
+            if (!ExtrasBatches.Due(held, DateTimeOffset.UtcNow, settled)) return;
+            await Task.Run(() => Importer.PlaceHeldAsync(entry.Id, token), token);
+        }
+        catch (Exception ex) when (ExpectedErrors.Are(ex)) { }
+        finally { _extras = false; }
+    }
+
+    /// <summary>Jellyfin lists every one of <paramref name="placed"/> among the extras of the title in <paramref name="folder"/>.</summary>
+    private static async Task<bool> ListedAsync(JellyfinClient client, TorLinkImportEntry entry, string folder, IReadOnlyList<string> placed, CancellationToken token)
+    {
+        if (entry.Files.FirstOrDefault(f => f.Role == "video" && ExtrasBatches.Under(f.Destination, folder)) is not { } video) return false;
+        // The film, or the series of the episode: the id found once the title appeared, otherwise looked for by the video's path.
+        var first = entry.Files.FirstOrDefault(f => f.Role == "video");
+        var owner = entry.JellyfinId is { } id && first is not null && ExtrasBatches.Under(first.Destination, folder) ? id
+            : (await client.FindIndexedAsync([video.Destination], token)).GetValueOrDefault(video.Destination);
+        if (owner is null) return false;
+        return ExtrasBatches.Settled(placed, (await client.ExtrasAsync(owner, token)).Select(x => x.Path));
     }
 
     /// <summary>
