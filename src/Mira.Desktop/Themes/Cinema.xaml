@@ -48,6 +48,9 @@
   <SolidColorBrush x:Key="SuccessSurface" Color="#1F86C6A2" po:Freeze="True"/>
   <SolidColorBrush x:Key="SuccessLine" Color="#5986C6A2" po:Freeze="True"/>
   <SolidColorBrush x:Key="Danger" Color="#F3AD99" po:Freeze="True"/>
+  <!-- A button that sends something away (« Mettre à la Corbeille »): the failed state's ink on a wash of it, never a red block. -->
+  <SolidColorBrush x:Key="DangerSurface" Color="#1FF3AD99" po:Freeze="True"/>
+  <SolidColorBrush x:Key="DangerLine" Color="#59F3AD99" po:Freeze="True"/>
   <!-- The window's close button, Windows' own red. -->
   <SolidColorBrush x:Key="CloseHover" Color="#C42B1C" po:Freeze="True"/>
   <SolidColorBrush x:Key="ClosePressed" Color="#B0271A" po:Freeze="True"/>
@@ -95,6 +98,7 @@
   <Style x:Key="QuietButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="Transparent"/></Style>
   <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource PrimaryButton}"/>
   <Style x:Key="Quiet" TargetType="Button" BasedOn="{StaticResource QuietButton}"/>
+  <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="{StaticResource DangerSurface}"/><Setter Property="BorderBrush" Value="{StaticResource DangerLine}"/><Setter Property="Foreground" Value="{StaticResource Danger}"/></Style>
   <!-- The window's close button turns red under the pointer, as Windows' own does. -->
   <Style x:Key="CaptionClose" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="v:Motion.Interactive" Value="False"/><Setter Property="v:Motion.Radius" Value="0"/>
     <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{StaticResource CloseHover}"/><Setter Property="Foreground" Value="White"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{StaticResource ClosePressed}"/><Setter Property="Foreground" Value="White"/></Trigger></Style.Triggers>

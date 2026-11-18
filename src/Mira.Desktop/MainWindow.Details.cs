@@ -64,7 +64,7 @@ public partial class MainWindow
         ClosePreview(); _detail = item; _detailSettled = null; DetailOverview.Text = ""; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
         _detailSize = null; _episodeSizes = null; _episodeMeta.Clear();
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
-        StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = Visibility.Collapsed;
+        StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = SeasonMoreButton.Visibility = Visibility.Collapsed;
         _extras = []; _extrasOpen.Clear(); ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null; DetailLogo.Source = null; DetailLogo.Visibility = Visibility.Collapsed; DetailTitle.Visibility = Visibility.Visible;
@@ -623,7 +623,7 @@ public partial class MainWindow
         var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
         // The whole season's count, also on a slice of a long one, and the room it takes once known.
         EpisodeHeading.Text = EpisodeTiles.Heading(_episodes, page, _episodeSizes);
-        ShowSeasonMark(page);
+        ShowSeasonMark(page); ShowSeasonMore(page);
         if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Palette.Get("Muted") }); return; }
         // The episode Lecture plays is in another season than the one shown (a long anime opened on its first): a click brings it.
         if (_detailEpisode is null && _detailNext is { } next && EpisodePages.NextElsewhere(SeasonPages(), _episodes, page, next) is { } elsewhere)
@@ -713,6 +713,7 @@ public partial class MainWindow
             menu.Items.Add(line); menu.Items.Add(upgrade);
             menu.Opened += (_, _) => line.Visibility = upgrade.Visibility = Administers ? Visibility.Visible : Visibility.Collapsed;
         }
+        AddEpisodeFileActions(menu, episode);
         return menu;
     }
     private async Task LoadEpisodeImageAsync(Image image, MediaItem item, double width = ImageCache.EpisodeWidth)

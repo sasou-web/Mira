@@ -2200,7 +2200,8 @@ internal static class LibraryTests
             Assert(Removed(show with { Path = series }, libraries) is null && Removed(show with { Path = root }, libraries) is null, "Never a library folder or above");
             Assert(Removed(Film(Touch("Ailleurs", "x.mkv")), libraries) is null && Removed(Film(alien), [Path.Combine(root, "Fil")]) is null, "Outside the libraries (a name that only starts like one)");
             Assert(Removed(Film(Path.Combine(films, "Gone.mkv")), libraries) is null && Removed(show with { Path = Path.Combine(series, "Gone") }, libraries) is null, "No longer there");
-            Assert(TitleFiles.Location(Film("Films/x.mkv")) is null && TitleFiles.Location(Film(null)) is null && TitleFiles.Location(new MediaItem { Type = "Episode", Path = alien }) is null, "Complete paths of films and series only");
+            Assert(TitleFiles.Location(Film("Films/x.mkv")) is null && TitleFiles.Location(Film(null)) is null && TitleFiles.Location(new MediaItem { Type = "Season", Path = alien }) is null
+                && TitleFiles.Location(new MediaItem { Type = "Episode", Path = alien }) == alien, "Complete paths of films, series and episodes only");
             // A film in several files (« cd1 », « cd2 »: one title for Jellyfin, which gives the first): all of it, or Jellyfin lists
             // what is left as the film again (checked on 12.1).
             var cd1 = Touch("Films", "Pile (2019)", "Pile (2019) - cd1.mkv"); var cd2 = Touch("Films", "Pile (2019)", "Pile (2019) - cd2.mkv");
@@ -2219,6 +2220,51 @@ internal static class LibraryTests
             var catalog = new Catalog { Items = [new() { Id = "s" }, new() { Id = "m" }], TotalCount = 2, Resume = [new() { Id = "e", SeriesId = "s" }], NextUp = [new() { Id = "e2", SeriesId = "s" }], Shelves = new() { ["new"] = [new() { Id = "s" }, new() { Id = "m" }] } };
             catalog.Forget("s");
             Assert(catalog.Items.Single().Id == "m" && catalog.TotalCount == 1 && catalog.Resume.Count == 0 && catalog.NextUp.Count == 0 && catalog.Shelves["new"].Single().Id == "m", "Forgotten everywhere, its episodes with it");
+            return Task.CompletedTask;
+        });
+        await Test("Corbeille : un épisode et ses fichiers du même nom, une saison et son dossier, un film et ses sous-titres, jamais le dossier d’une série pour moins qu’elle (tests/fixtures/recycle.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "recycle.json")));
+            var index = 0;
+            foreach (var test in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var root = Path.Combine(testRoot, "recycle", (index++).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                string Full(string relative) => Path.Combine([root, .. relative.Split('/')]);
+                foreach (var file in test.GetProperty("files").EnumerateArray().Select(x => Full(x.GetString()!)))
+                { Directory.CreateDirectory(Path.GetDirectoryName(file)!); File.WriteAllText(file, "x"); }
+                string? Optional(string name) => test.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? Full(value.GetString()!) : null;
+                var libraries = new[] { Full("Films"), Full("Séries") };
+                var series = Optional("series");
+                IReadOnlyList<string>? found;
+                if (test.TryGetProperty("item", out var item))
+                {
+                    var title = new MediaItem
+                    {
+                        Id = "t", Name = "t", Type = item.GetProperty("Type").GetString()!, Path = Full(item.GetProperty("Path").GetString()!),
+                        ParentIndexNumber = item.TryGetProperty("ParentIndexNumber", out var number) ? number.GetInt32() : null
+                    };
+                    var others = test.TryGetProperty("others", out var list) ? list.EnumerateArray().Select(x => Full(x.GetString()!)).ToList() : null;
+                    found = TitleFiles.ToRemove(title, libraries, others, series);
+                }
+                else
+                {
+                    var episodes = test.GetProperty("episodes").EnumerateArray().Select(x => Full(x.GetString()!)).ToList();
+                    found = TitleFiles.SeasonToRemove(test.GetProperty("season").GetInt32(), episodes, libraries, series!, Optional("seasonFolder"));
+                }
+                var goes = test.GetProperty("goes");
+                var expected = goes.ValueKind == JsonValueKind.Null ? null : goes.EnumerateArray().Select(x => Full(x.GetString()!)).ToList();
+                // The first is what the card names (the folder, the video); the rest in any order.
+                Assert(expected is null ? found is null
+                    : found is not null && found.Count == expected.Count && found[0] == expected[0] && found.Order(StringComparer.Ordinal).SequenceEqual(expected.Order(StringComparer.Ordinal)),
+                    $"{test.GetProperty("name").GetString()}: {(found is null ? "null" : string.Join(" | ", found.Select(x => Path.GetRelativePath(root, x))))}");
+            }
+            // What the card counts: videos, subtitles with their languages, the rest by kind.
+            var described = Path.Combine(testRoot, "recycle", "0", "Séries", "Show", "Season 01");
+            var contents = TitleFiles.Describe([Path.Combine(described, "Show S01E01.mkv"), Path.Combine(described, "Show S01E01.en.srt"), Path.Combine(described, "Show S01E01.fr.forced.ass"), Path.Combine(described, "Show S01E01.nfo"), Path.Combine(described, "Show S01E01-thumb.jpg")]);
+            Assert(contents is { Videos: 1, Subtitles: 2, Others: 2, Size: 5, Folders: 0 } && contents.Languages.SequenceEqual(["Anglais", "Français"]) && contents.OtherKinds.SequenceEqual([".nfo", "-thumb.jpg"]),
+                $"Counted: {contents.Videos} video, {contents.Subtitles} subtitles ({string.Join(", ", contents.Languages)}), {string.Join(", ", contents.OtherKinds)}");
+            Assert(TitleFiles.SubtitleLanguage("Film.srt") is null && TitleFiles.SubtitleLanguage("Film.eng.sdh.srt") == "Anglais" && TitleFiles.SubtitleLanguage("Film.x.srt") is null, "A subtitle's language from its name, its flags aside");
             return Task.CompletedTask;
         });
         await Test("Titres à corriger et « Identifier… » : non reconnus, doublons, recherche par nom ou lien, comme Mira web (tests/fixtures/identify.json)", async () =>

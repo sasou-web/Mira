@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Input;
 using Mira.Core;
 
 namespace Mira.Desktop;
@@ -253,13 +254,47 @@ public partial class MainWindow
             await ShowDetailsAsync(bin);
             await Until("the page's « … » for the Recycle Bin", () => FilesButton.Visibility == Visibility.Visible && _titleMore is { Files: true }, 15);
             step = "Mettre à la Corbeille";
-            await AskToRecycleAsync(bin);
-            Require(NoticeAction.Visibility == Visibility.Visible && _noticeAction is not null && NoticeText.Text.Contains("Chapitres Web (2024)", StringComparison.Ordinal),
-                "« Mettre à la Corbeille… » names the film's folder and asks once more");
-            NoticeAction_Click(this, new());
+            var asking = AskToRecycleAsync(bin);
+            await Until("the card of « Mettre à la Corbeille… »", () => _confirm is not null && ConfirmDetails.Visibility == Visibility.Visible, 30);
+            Require(ConfirmPath.Text.Contains("Chapitres Web (2024)", StringComparison.Ordinal) && ConfirmRows.Children.Count >= 3 && Keyboard.FocusedElement == ConfirmNo,
+                "« Mettre à la Corbeille… » names the film's folder, what is in it, and « Annuler » has the focus");
+            await CaptureAsync(output, "server-recycle");
+            Answer(true); await asking;
             await Until("the film's folder in the Recycle Bin", () => !File.Exists(binFile) && !Directory.Exists(Path.GetDirectoryName(binFile)), 60);
             await UntilServer("Jellyfin forgets the film", async () => (await client.BrowseAsync("Movie", limit: 200)).Items.Any(x => x.Id == bin.Id) ? null : client, 120);
             Require(true, "the film's folder goes to the Recycle Bin and Jellyfin takes it out of the library");
+
+            // An episode, with a subtitle of its own beside it, from its right-click menu; then a whole season from « … »
+            // at the end of the Episodes line: its folder goes. The other season stays.
+            step = "Mettre un épisode et une saison à la Corbeille";
+            MediaItem? twoTimes = null;
+            foreach (var show in (await client.BrowseAsync("Series", limit: 200)).Items)
+                if (await client.ItemAsync(show.Id) is { Path: { } showPath } full && showPath.Replace('/', '\\').EndsWith("\\Deux Temps", StringComparison.OrdinalIgnoreCase)) { twoTimes = full; break; }
+            if (twoTimes is null) throw new InvalidOperationException("The series « Deux Temps » is not in the library.");
+            await ShowDetailsAsync(twoTimes);
+            await Until("the series' episodes and its files", () => _episodesRead && _titleMore is { Files: true, Admin: true } && _episodes.Count >= 3, 30);
+            var second = _episodes.First(x => EpisodePages.Season(x) == 1 && x.IndexNumber == 2);
+            var secondFile = (await client.ItemAsync(second.Id)).Path!;
+            var firstFile = Path.Combine(Path.GetDirectoryName(secondFile)!, "Deux Temps S01E01.webm");
+            var subtitle = Path.ChangeExtension(secondFile, ".en.srt");
+            File.WriteAllText(subtitle, "1\n00:00:01,000 --> 00:00:02,000\nCheck\n");
+            asking = AskToRecycleAsync(second);
+            await Until("the card for the episode", () => _confirm is not null && ConfirmDetails.Visibility == Visibility.Visible, 30);
+            Require(ConfirmTitle.Text.Contains("S01 E02", StringComparison.Ordinal) && ConfirmRows.Children.Count >= 3, $"« Mettre à la Corbeille… » of an episode lists its video and its subtitle ({ConfirmTitle.Text})");
+            await CaptureAsync(output, "server-recycle-episode");
+            Answer(true); await asking;
+            await Until("the episode and its subtitle in the Recycle Bin", () => !File.Exists(secondFile) && !File.Exists(subtitle), 60);
+            Require(File.Exists(firstFile) && !_episodes.Any(x => x.Id == second.Id), "the episode and its subtitle go, the other episode of its season stays, and the page lets it go at once");
+            var seasonTwo = _episodes.First(x => EpisodePages.Season(x) == 2);
+            var seasonTwoFolder = Path.GetDirectoryName((await client.ItemAsync(seasonTwo.Id)).Path!)!;
+            asking = AskToRecycleSeasonAsync(twoTimes, 2);
+            await Until("the card for the season", () => _confirm is not null && ConfirmDetails.Visibility == Visibility.Visible, 30);
+            Require(ConfirmPath.Text.StartsWith(seasonTwoFolder, StringComparison.OrdinalIgnoreCase), $"« Mettre la saison 2 à la Corbeille… » names its folder ({ConfirmPath.Text})");
+            Answer(true); await asking;
+            await Until("the season's folder in the Recycle Bin", () => !Directory.Exists(seasonTwoFolder), 60);
+            Require(File.Exists(firstFile) && !_episodes.Any(x => EpisodePages.Season(x) == 2), "the season's folder goes, the other season stays");
+            await UntilServer("Jellyfin forgets the episode and the season", async () => (await client.EpisodePathsAsync(twoTimes.Id)).Items.Any(x => x.Id == second.Id || x.Id == seasonTwo.Id) ? null : client, 120);
+            Require(true, "an episode and a season go to the Recycle Bin and Jellyfin takes them out of the library");
 
             // « Ta party » of another Jellyfin, joined as its guest (MainWindow.Party.cs): its host a second device of the
             // account, its party this Jellyfin's (the extension put in by server-check.ps1 -Extension). Last: Mira's own
