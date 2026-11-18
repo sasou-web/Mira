@@ -636,7 +636,7 @@ internal static class LibraryTests
             Assert(EpisodePages.From(Enumerable.Range(1, 100).Select(i => Episode(1, i)).ToList()).Single().Label == "Saison 1", "100 episodes stay one page");
             return Task.CompletedTask;
         });
-        await Test("Série : une saison marquée vue d’un coup, « À suivre » dans une autre saison, comme Mira web (tests/fixtures/seasons.json)", () =>
+        await Test("Série : une saison marquée vue d’un coup, « À suivre » dans une autre saison, comme l’iPhone (tests/fixtures/seasons.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
             using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "seasons.json")));
@@ -648,14 +648,13 @@ internal static class LibraryTests
                     Id = x[0].GetString()!, SeasonId = x[1].GetString(), ParentIndexNumber = x[2].ValueKind == JsonValueKind.Null ? null : x[2].GetInt32(), Type = "Episode",
                     UserData = new() { Played = x[3].GetBoolean() }
                 }).ToList();
-                Assert(EpisodePages.MarksSeasons(episodes) == row[2].GetBoolean(), $"{name}: marks");
-                foreach (var season in row[3].EnumerateArray())
+                foreach (var season in row[2].EnumerateArray())
                 {
                     var (ids, played) = EpisodePages.SeasonMark(episodes, season[0].GetInt32());
                     Assert(ids.SequenceEqual(season[1].EnumerateArray().Select(x => x.GetString())) && played == season[2].GetBoolean(), $"{name}: season {season[0]}: {string.Join(",", ids)} {played}");
                 }
                 var pages = EpisodePages.From(episodes);
-                foreach (var next in row[4].EnumerateArray())
+                foreach (var next in row[3].EnumerateArray())
                 {
                     var shown = pages.First(x => x.Season == next[0].GetInt32());
                     var found = EpisodePages.NextElsewhere(pages, episodes, shown, episodes.FirstOrDefault(x => x.Id == next[1].GetString()));
@@ -1598,6 +1597,11 @@ internal static class LibraryTests
             var (one, two, three) = (new EpisodePage(1, 0, 2, "Saison 1"), new EpisodePage(2, 0, 2, "Saison 2"), new EpisodePage(3, 0, 1, "Saison 3"));
             Assert(EpisodeTiles.Watched(one, watched) && !EpisodeTiles.Watched(two, watched) && !EpisodeTiles.Watched(sliced[3], watched), "A season watched to its end");
             Assert(EpisodeTiles.Tip(one, watched) == ("Saison 1", "Vue") && EpisodeTiles.Tip(two, watched) == ("Saison 2", "1 vu sur 2") && EpisodeTiles.Tip(three, watched) == ("Saison 3", "1 épisode") && EpisodeTiles.Tip(sliced[3], watched) == ("Saison 3", "absente"), "The bubble: name and where you are");
+            Assert(EpisodePages.SeasonCount(watched, 2) == (1, 2) && EpisodePages.SeasonCount(watched, 4) == (0, 0), "A season's counter counts its episodes");
+            Assert(EpisodeTiles.Counter(2, 6) == "2 vus sur 6" && EpisodeTiles.Counter(0, 6) == "0 vu sur 6" && EpisodeTiles.Counter(1, 6) == "1 vu sur 6" && EpisodeTiles.Counter(6, 6) == "Les 6 vus" && EpisodeTiles.Counter(1, 1) == "Vu", "The counter in French");
+            var french = Lang.Culture;
+            try { Lang.Use("en", System.Globalization.CultureInfo.GetCultureInfo("en-US")); Assert(EpisodeTiles.Counter(2, 6) == "2 of 6 watched" && EpisodeTiles.Counter(6, 6) == "All 6 watched" && EpisodeTiles.Counter(1, 1) == "Watched", "The counter in English"); }
+            finally { Lang.Use("fr", french); }
             Assert(EpisodeTiles.Pill(Page("Saison 2")) == ("Saison 2", null) && EpisodeTiles.Pill(Page("Saison 1 · absente")) == ("Saison 1", "absente"), "A pill and its note");
             Assert(EpisodeTiles.Number(new MediaItem { IndexNumber = 3 }) == "03" && EpisodeTiles.Number(new MediaItem { IndexNumber = 121 }) == "121" && EpisodeTiles.Number(new MediaItem()) == "", "Numbers");
             var today = new DateOnly(2026, 11, 12);

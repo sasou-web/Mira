@@ -85,24 +85,20 @@ struct EpisodeList: View {
                     .foregroundStyle(Palette.muted)
                     .accessibilityIdentifier("series.seasonSize")
             }
-            // « Mark the season as watched »: only beside another season (with one, the series' own button does it).
-            if seasons.count > 1, !episodes.isEmpty, absentSeason == nil {
+            // The season's counter, « 2 of 6 watched » beside a ring (maquette B, ogsas 2026-11-18), as on Windows and Mac:
+            // a tap marks the whole season watched, or unwatched once all are. On every season, one alone too.
+            if !episodes.isEmpty, absentSeason == nil {
                 let mark = SeasonMark.of(episodes)
+                let seen = episodes.count(where: { $0.userData?.played == true })
                 Button {
                     Task { await markSeason(mark) }
                 } label: {
-                    Group {
-                        if mark.played {
-                            Label("Mark the season as unwatched", systemImage: "arrow.uturn.backward.circle")
-                        } else {
-                            Label("Mark the season as watched", systemImage: "checkmark.circle")
-                        }
-                    }
-                    .font(MiraFont.callout)
-                    .foregroundStyle(Palette.ink)
+                    SeasonCounter(seen: seen, total: episodes.count)
                 }
                 .buttonStyle(.plain)
                 .disabled(marking)
+                .accessibilityLabel(mark.played ? Text("Mark the season as unwatched") : Text("Mark the season as watched"))
+                .accessibilityValue(Text(verbatim: SeasonCounter.words(seen: seen, total: episodes.count)))
                 .accessibilityIdentifier("series.markSeason")
             }
             KeepSeasonButton(episodes: episodes)
@@ -420,6 +416,55 @@ struct EpisodeTile: View {
         let day = EpisodeCalendar.airDay(episode).map { EpisodeShelf.shortDay($0, today: .today()) }
         let parts = [length, day, StorageSize.text(StorageSize.of(episode.mediaSources))].compactMap(\.self)
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// A season's counter (maquette B, ogsas 2026-11-18): a faint ring, the part watched drawn over it in white from the
+/// top, clockwise, the ring and its tick once all are; then « 2 of 6 watched », « All 6 watched », « Watched » for a
+/// season of one, as EpisodeTiles.Counter of Core. Grey, as the line above it.
+struct SeasonCounter: View {
+    let seen: Int
+    let total: Int
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                if seen >= total {
+                    Circle().stroke(Palette.muted, lineWidth: 2)
+                    Tick().stroke(Palette.muted, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                } else {
+                    Circle().stroke(Palette.muted.opacity(0.35), lineWidth: 2)
+                    Circle()
+                        .trim(from: 0, to: Double(seen) / Double(max(total, 1)))
+                        .stroke(Palette.ink, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+            }
+            .frame(width: 17, height: 17)
+            .padding(1)
+            .accessibilityHidden(true)
+            Text(verbatim: Self.words(seen: seen, total: total))
+        }
+        .font(MiraFont.callout)
+        .foregroundStyle(Palette.muted)
+        .contentShape(Rectangle())
+    }
+
+    static func words(seen: Int, total: Int) -> String {
+        if total > 0, seen >= total { return total == 1 ? String(localized: "Watched") : String(localized: "All \(total) watched") }
+        return String(localized: "\(seen) of \(total) watched")
+    }
+
+    /// The tick of the « Watched » glyph (IconPaths' Tick), on the ring's 18-point square.
+    private struct Tick: Shape {
+        func path(in rect: CGRect) -> Path {
+            let scale = rect.width / 18
+            var path = Path()
+            path.move(to: CGPoint(x: 4.8 * scale, y: 9.4 * scale))
+            path.addLine(to: CGPoint(x: 7.6 * scale, y: 12.2 * scale))
+            path.addLine(to: CGPoint(x: 13.2 * scale, y: 6 * scale))
+            return path
+        }
     }
 }
 

@@ -14,7 +14,7 @@ struct SeasonMarkTests {
         let fixture = try #require(try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url)).object)
         guard case let .array(cases)? = fixture["cases"] else { Issue.record("cases"); return }
         for entry in cases {
-            guard case let .array(x) = entry, x.count >= 4, case let .array(rows) = x[1], case let .array(marks) = x[3] else { continue }
+            guard case let .array(x) = entry, x.count >= 3, case let .array(rows) = x[1], case let .array(marks) = x[2] else { continue }
             let episodes: [(item: Item, season: Int)] = rows.compactMap { row in
                 guard case let .array(e) = row, let id = e[0].string else { return nil }
                 var item = Item(id: id)

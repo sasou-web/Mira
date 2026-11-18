@@ -121,6 +121,13 @@
   <Style x:Key="PlayerTimeLink" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="v:Motion.Interactive" Value="False"/><Setter Property="ToolTipService.IsEnabled" Value="False"/><Setter Property="Padding" Value="0"/><Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="Transparent"><ContentPresenter/></Border></ControlTemplate></Setter.Value></Setter>
   </Style>
+  <!-- A season's counter over its episodes, which also marks it (maquette B, 2026-11-18): a ring and words without a card, grey at rest, white under the pointer and the keyboard, at once; the focus ring of every button. -->
+  <Style x:Key="SeasonCounter" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="v:Motion.Interactive" Value="False"/><Setter Property="Padding" Value="0"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="FontSize" Value="15"/><Setter Property="FontWeight" Value="Normal"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="Transparent" Padding="{TemplateBinding Padding}"><ContentPresenter VerticalAlignment="Center"/></Border><ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource Text}"/></Trigger>
+      <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Foreground" Value="{StaticResource Text}"/></Trigger>
+    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
   <!-- A menu's button stays lit while its menu is open (Tag "open"), a 2 px mark under its glyph (maquette A, 2026-11-14). -->
   <Style x:Key="PlayerBarButton" TargetType="Button" BasedOn="{StaticResource PlayerButton}"><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="v:Motion.Radius" Value="20"/>
     <Style.Triggers><Trigger Property="Tag" Value="open"><Setter Property="Opacity" Value="1"/></Trigger></Style.Triggers>

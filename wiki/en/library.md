@@ -32,7 +32,7 @@ With **Settings → Playback → Trailer before the film** (Windows and Mac, off
 
 ## Marking watched
 
-A title counts as watched when it ends, when you stop past 90 %, or when you go to the next episode from the credits. You can also mark it by hand, from its page or its menu (right-click, or long press). With several seasons, **Mark season as watched** marks them all at once.
+A title counts as watched when it ends, when you stop past 90 %, or when you go to the next episode from the credits. You can also mark it by hand, from its page or its menu (right-click, or long press). Over a season's episodes, its counter (“2 of 6 watched”) says where you are; click it to mark the whole season watched at once, or unwatched once it all is.
 
 ## Spoilers
 

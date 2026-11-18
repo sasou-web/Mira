@@ -263,6 +263,38 @@
         }
       }
     },
+    "%lld of %lld watched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@seen@ sur %2$lld"
+          },
+          "substitutions": {
+            "seen": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg vu"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg vus"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld people": {
       "localizations": {
         "en": {
@@ -599,6 +631,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toutes"
+          }
+        }
+      }
+    },
+    "All %lld watched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les %lld vus"
           }
         }
       }
