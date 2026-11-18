@@ -14,7 +14,8 @@ namespace Mira.Core;
 /// </summary>
 public enum ImportMode { KeepSeeding, Move, Share }
 
-public sealed record ImportFailure(ImportOperation Operation, string Reason);
+/// <summary><paramref name="Transient"/>: a reason that passes (file in use, disk full, access refused): worth a new attempt later.</summary>
+public sealed record ImportFailure(ImportOperation Operation, string Reason, bool Transient = false);
 
 /// <summary>
 /// Canceled: the pass stopped early (Mira closing); what is listed was done and stays done. Copied: a copy stayed
@@ -76,7 +77,7 @@ public static class MediaImporter
                     }
                     placed.Add(operation);
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failures.Add(new(operation, Reason(ex))); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failures.Add(new(operation, Reason(ex), Transient: true)); }
             }
         }
         // Closing Mira: the files already placed are reported, so that they stay tracked.

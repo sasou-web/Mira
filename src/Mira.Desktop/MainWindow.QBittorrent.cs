@@ -99,8 +99,8 @@ public partial class MainWindow
         var ct = _torlinkLifetime.Token;
         try
         {
-            // Settled ones are never looked at again; a download waiting for its files is, with its files.
-            var settled = torlink.Importer.Entries.Where(x => x.State is not (TorLinkImportState.Waiting or TorLinkImportState.Importing)).Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Settled ones are never looked at again; a download waiting for its files, or tried again later, is, with its files.
+            var settled = torlink.Importer.Entries.Where(x => !TorLinkImporter.NeedsFiles(x)).Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var history = await QBittorrentHistory.ReadAsync(torrents, client.FilesAsync, settled, ct);
             var fresh = history.ReadHistory()!.Select(x => x.Id).Where(x => torlink.Importer.Find(x) is null).ToList();
             if (await torlink.Importer.ProcessAsync(history, torlink.Libraries, ImportMode.Share, automatic: false, fresh, ct) == 0) return;

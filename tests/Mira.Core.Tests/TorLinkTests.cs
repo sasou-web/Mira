@@ -373,6 +373,109 @@ internal static class TorLinkTests
                 && One("[Group] Kingdom Hearts 2.5 HD ReMIX [1080p].mkv").Kind == MediaKind.Movie && One("[Group] Evangelion 2.22 You Can (Not) Advance (2009) [1080p].mkv").Kind == MediaKind.Movie, "Titles with « 2.5 »");
             return Task.CompletedTask;
         });
+        await Test("TorLink : rangement solide : packs « 1-64 », séries et animes, « Series 1 », « Livre I », « 101 », « Specials », « Overlord IV », « Saison N »", () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-sturdy");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), Path.Combine(dir, "ANIME"));
+            foreach (var folder in new[] { "SERIES/Breaking Bad/Saison 1", "ANIME/Overlord/Season 03", "ANIME/Mob Psycho 100/Season 02", "SERIES/Show Name 2019/Season 01" })
+                Directory.CreateDirectory(Path.Combine(dir, folder));
+            SourceFile File(string path, long size) => new(Path.Combine(dir, "downloads", path), path, size);
+            string Targets(ImportPlan plan) => string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/')));
+            ImportPlan Pack(string name, string? source, params string[] files) => MediaPlanner.Plan(name, source, files.Select(x => File(x, 900_000_000)).ToList(), libraries);
+            // A pack without group nor « Complete », its episodes given as « 1-64 »: one film « … 1-64 Dual Audio » in versions before.
+            var fma = Pack("Fullmetal Alchemist Brotherhood 1-64 Dual Audio", null, "FMAB/Fullmetal Alchemist Brotherhood - 01.mkv", "FMAB/Fullmetal Alchemist Brotherhood - 02.mkv");
+            Assert(fma.Kind == MediaKind.Anime && Targets(fma) == "ANIME/Fullmetal Alchemist Brotherhood/Season 01/Fullmetal Alchemist Brotherhood - S01E01.mkv | ANIME/Fullmetal Alchemist Brotherhood/Season 01/Fullmetal Alchemist Brotherhood - S01E02.mkv", "1-64: " + Targets(fma));
+            var naruto = Pack("Naruto Shippuden Episodes 001-500", null, "Naruto Shippuden/Naruto Shippuden - 001.mkv", "Naruto Shippuden/Naruto Shippuden - 002.mkv");
+            Assert(naruto.Kind == MediaKind.Anime && Targets(naruto).StartsWith("ANIME/Naruto Shippuden/Season 01/Naruto Shippuden - S01E01.mkv"), "Episodes 001-500: " + Targets(naruto));
+            // Files numbered one after the other, no range in the name: still episodes.
+            var sequence = Pack("Some Show BD 1080p", null, "Some Show/Some Show - 01.mkv", "Some Show/Some Show - 02.mkv", "Some Show/Some Show - 03.mkv");
+            Assert(sequence.Kind == MediaKind.Anime && sequence.Operations.Count == 3 && Targets(sequence).Contains("Some Show/Season 01/Some Show - S01E03.mkv"), "Sequence: " + Targets(sequence));
+            // Numbered as a broadcaster does: a series, never an anime.
+            var earth = Pack("Planet Earth II 2016 Complete", null, "Planet Earth II/Planet.Earth.II.Ep1.Islands.mkv", "Planet Earth II/Planet.Earth.II.Ep2.Mountains.mkv");
+            Assert(earth.Kind == MediaKind.Series && Targets(earth).StartsWith("SERIES/Planet Earth II (2016)/Season 01/Planet Earth II (2016) - S01E01.mkv"), "Ep1: " + earth.Kind + " " + Targets(earth));
+            // British seasons, books.
+            var sherlock = Pack("Sherlock Series 1", null, "Sherlock Series 1/Sherlock - 1x01 - A Study in Pink.mkv", "Sherlock Series 1/Sherlock - 1x02 - The Blind Banker.mkv");
+            Assert(sherlock.Kind == MediaKind.Series && Targets(sherlock).StartsWith("SERIES/Sherlock/Season 01/Sherlock - S01E01.mkv"), "Series 1: " + Targets(sherlock));
+            var kaamelott = Pack("Kaamelott Livre II Integrale FRENCH DVDRip", null, "Kaamelott Livre II/Kaamelott - Livre II - 01 - Le Code de Chevalerie.avi", "Kaamelott Livre II/Kaamelott - Livre II - 02 - Le Sort Perdu.avi");
+            Assert(kaamelott.Kind == MediaKind.Series && Targets(kaamelott).StartsWith("SERIES/Kaamelott/Season 02/Kaamelott - S02E01.avi"), "Livre II: " + kaamelott.Kind + " " + Targets(kaamelott));
+            Assert(ReleaseName.Show("Monogatari Series Second Season").Title == "Monogatari Series Second Season" && ReleaseName.Show("The Book of Boba Fett S01E01").Title == "The Book of Boba Fett"
+                && ReleaseName.Season("Avatar The Last Airbender Book 2") == 2, "Words of titles read as seasons");
+            // « monk.101 » in « Monk.S01 »: episode 1; a pack running from 001 to 101 keeps its numbers.
+            var monk = Pack("Monk.S01.DVDRip.XviD", null, "Monk.S01.DVDRip.XviD/monk.101.dvdrip.xvid.avi", "Monk.S01.DVDRip.XviD/monk.102.dvdrip.xvid.avi");
+            Assert(Targets(monk) == "SERIES/Monk/Season 01/Monk - S01E01.avi | SERIES/Monk/Season 01/Monk - S01E02.avi", "101: " + Targets(monk));
+            var long_ = Pack("[Group] Long Show S01 (001-101)", "nyaa", "[Group] Long Show S01/[Group] Long Show - 001.mkv", "[Group] Long Show S01/[Group] Long Show - 101.mkv");
+            Assert(Targets(long_).Contains("Long Show - S01E101.mkv") && Targets(long_).Contains("Long Show - S01E01.mkv"), "001 and 101: " + Targets(long_));
+            // A pack of specials: the show's season 0.
+            var specials = Pack("[Judas] Sousou no Frieren - Specials", "nyaa", "[Judas] Sousou no Frieren - Specials/[Judas] Sousou no Frieren - 01.mkv");
+            Assert(Targets(specials) == "ANIME/Sousou no Frieren/Season 00/Sousou no Frieren - S00E01.mkv", "Specials: " + Targets(specials));
+            // « Overlord IV » beside « Overlord »: its season 4. Without « Overlord », a show of its own as before.
+            var overlord = Pack("[Erai-raws] Overlord IV - 03 [1080p][Multiple Subtitle].mkv", "nyaa", "[Erai-raws] Overlord IV - 03 [1080p][Multiple Subtitle].mkv");
+            var mob = Pack("[SubsPlease] Mob Psycho 100 III - 07 (1080p).mkv", "nyaa", "[SubsPlease] Mob Psycho 100 III - 07 (1080p).mkv");
+            var lupin = Pack("[Group] Lupin III - 05 [1080p].mkv", "nyaa", "[Group] Lupin III - 05 [1080p].mkv");
+            Assert(Targets(overlord) == "ANIME/Overlord/Season 04/Overlord - S04E03.mkv" && Targets(mob) == "ANIME/Mob Psycho 100/Season 03/Mob Psycho 100 - S03E07.mkv"
+                && Targets(lupin) == "ANIME/Lupin III/Season 01/Lupin III - S01E05.mkv", $"Sequels: {Targets(overlord)} {Targets(mob)} {Targets(lupin)}");
+            // A new season named as the others; the year before a dash; an old « Show Name 2019 » folder kept.
+            var bad = Pack("Breaking.Bad.S02E04.FRENCH.1080p.WEB.x264-FRATERNiTY.mkv", null, "Breaking.Bad.S02E04.FRENCH.1080p.WEB.x264-FRATERNiTY.mkv");
+            var hunter = Pack("Hunter x Hunter (2011) - Complete [BD 1080p]", "nyaa", "Hunter x Hunter (2011)/Hunter x Hunter (2011) - 001.mkv", "Hunter x Hunter (2011)/Hunter x Hunter (2011) - 148.mkv");
+            var named = Pack("Show Name (2019) - S01E02 - Title.mkv", null, "Show Name (2019) - S01E02 - Title.mkv");
+            Assert(Targets(bad) == "SERIES/Breaking Bad/Saison 2/Breaking Bad - S02E04.mkv" && Targets(hunter).StartsWith("ANIME/Hunter x Hunter (2011)/Season 01/")
+                && Targets(named) == "SERIES/Show Name 2019/Season 01/Show Name 2019 - S01E02.mkv", $"Folders: {Targets(bad)} {Targets(hunter)} {Targets(named)}");
+            // Films with their years, numbered: still films.
+            var films = MediaPlanner.Plan("Harry Potter 1-8 1080p", null, [File("HP/Harry Potter - 01 - Philosopher's Stone (2001).mkv", 9_000_000_000), File("HP/Harry Potter - 02 - Chamber of Secrets (2002).mkv", 9_000_000_000)], libraries);
+            Assert(films.Kind == MediaKind.Movie && films.Operations.Count == 2, "Numbered films: " + films.Kind + " " + Targets(films));
+            return Task.CompletedTask;
+        });
+        await Test("TorLink : jamais une deuxième version d’un épisode ou d’un film déjà dans la bibliothèque, ses sous-titres non plus", async () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-owned");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), Path.Combine(dir, "ANIME"));
+            void Make(string relative, int size) { var path = Path.Combine(dir, relative); Directory.CreateDirectory(Path.GetDirectoryName(path)!); System.IO.File.WriteAllBytes(path, new byte[size]); }
+            SourceFile Download(string relative, int size) { Make(Path.Combine("downloads", relative), size); return new(Path.Combine(dir, "downloads", relative), relative, size); }
+            string Targets(ImportPlan plan) => string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/')));
+            // The library has episode 1 as an .mp4 named otherwise, and a double episode 3-4.
+            Make("SERIES/The Bear/Season 03/The.Bear.S03E01.720p.mp4", 10);
+            Make("SERIES/The Bear/Season 03/The Bear - S03E03-E04.mkv", 10);
+            const string Pack = "The.Bear.S03.1080p.WEB.h264-ETHEL";
+            var files = new[] { $"{Pack}/the.bear.s03e01.mkv", $"{Pack}/the.bear.s03e02.mkv", $"{Pack}/the.bear.s03e03.mkv", $"{Pack}/the.bear.s03e01.en.srt", $"{Pack}/the.bear.s03e02.en.srt" }.Select(x => Download(x, 20)).ToList();
+            var plan = MediaPlanner.Plan(Pack, null, files, libraries);
+            Assert(Targets(plan) == "SERIES/The Bear/Season 03/The Bear - S03E02.mkv | SERIES/The Bear/Season 03/The Bear - S03E02.en.srt"
+                && plan.Notes.Contains("2 épisodes déjà dans la bibliothèque laissés dans TorLink"), "Episodes held: " + Targets(plan) + " / " + string.Join(", ", plan.Notes));
+            // Placed, then planned again (a new attempt): its own file is no other version.
+            var result = await MediaImporter.ExecuteAsync(plan, ImportMode.Share);
+            var again = MediaPlanner.Plan(Pack, null, files, libraries);
+            Assert(result.Placed.Count == 2 && Targets(again) == Targets(plan), "A new attempt took Mira's own file for another version: " + Targets(again));
+            // Everything there: nothing placed, said why, final.
+            var owned = MediaPlanner.Plan("The.Bear.S03E01.1080p.WEB.h264-ETHEL.mkv", null, [Download("The.Bear.S03E01.1080p.WEB.h264-ETHEL.mkv", 30)], libraries);
+            Assert(owned.Ignored?.Contains("deuxième version") == true && owned.Operations.Count == 0, "Episode held: " + owned.Ignored);
+            // A film whose folder holds its feature under another name; a trailer or a small clip is no feature.
+            Make("FILMS/Dune (2021)/Dune.2021.720p.mkv", 60_000_000);
+            var dune = MediaPlanner.Plan("Dune.2021.2160p.REMUX.mkv", null, [Download("Dune.2021.2160p.REMUX.mkv", 100)], libraries);
+            Make("FILMS/Sintel (2010)/Sintel (2010)-trailer.mkv", 60_000_000);
+            var sintel = MediaPlanner.Plan("Sintel.2010.1080p.mkv", null, [Download("Sintel.2010.1080p.mkv", 100)], libraries);
+            Assert(dune.Ignored is not null && sintel.Ignored is null && Targets(sintel) == "FILMS/Sintel (2010)/Sintel (2010).mkv", $"Film held: {dune.Ignored} / {Targets(sintel)}");
+        });
+        await Test("TorLink : un fichier qui n’a pas pu être placé (pris, disque plein) est réessayé seul, de plus en plus tard", async () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-retry"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+            var downloads = Path.Combine(dir, "downloads"); var films = Path.Combine(dir, "FILMS");
+            foreach (var folder in new[] { state.ConfigDirectory, state.DataDirectory, downloads, films }) Directory.CreateDirectory(folder);
+            var importer = new TorLinkImporter(Path.Combine(dir, "profile"));
+            var id = new string('f', 40); var at = importer.Baseline.AddSeconds(5).ToUnixTimeMilliseconds();
+            System.IO.File.WriteAllText(state.HistoryFile, JsonSerializer.Serialize(new[] { new { id, name = "Busy.Film.2005.mkv", source = "yts", sizeBytes = 10, dir = downloads, completedAt = at } }));
+            System.IO.File.WriteAllBytes(Path.Combine(downloads, "Busy.Film.2005.mkv"), new byte[10]);
+            // Something in the way of the file (a folder under its name): the move fails as a file in use would.
+            var blocker = Path.Combine(films, "Busy Film (2005)", "Busy Film (2005).mkv"); Directory.CreateDirectory(blocker);
+            var libraries = new MediaLibraries(films, null, null);
+            await importer.ProcessAsync(state, libraries, ImportMode.Move, automatic: true);
+            var failed = importer.Find(id);
+            Assert(failed is { State: TorLinkImportState.Failed, Attempts: 1, RetryAt: not null } && TorLinkImporter.RetryDue(failed, DateTimeOffset.UtcNow) && TorLinkImporter.NeedsFiles(failed), "Not tried again: " + failed?.State + " " + failed?.Message);
+            Directory.Delete(blocker);
+            await importer.ProcessAsync(state, libraries, ImportMode.Move, automatic: true);
+            Assert(importer.Find(id) is { State: TorLinkImportState.Imported, Attempts: 0, RetryAt: null } && System.IO.File.Exists(blocker), "The new attempt did not place it: " + importer.Find(id)?.Message);
+            Assert(TorLinkImporter.RetryDelay(1) == TimeSpan.Zero && TorLinkImporter.RetryDelay(2) < TorLinkImporter.RetryDelay(3) && TorLinkImporter.RetryDelay(5) == TimeSpan.FromHours(2)
+                && !TorLinkImporter.RetryDue(failed! with { RetryAt = DateTimeOffset.UtcNow.AddMinutes(5) }, DateTimeOffset.UtcNow) && !TorLinkImporter.RetryDue(failed! with { Attempts = TorLinkImporter.MaxAttempts }, DateTimeOffset.UtcNow)
+                && !TorLinkImporter.RetryDue(failed! with { RetryAt = null }, DateTimeOffset.UtcNow), "Retry schedule");
+        });
         await Test("TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé", async () =>
         {
             var dir = Path.Combine(testRoot, "torlink-ledger"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

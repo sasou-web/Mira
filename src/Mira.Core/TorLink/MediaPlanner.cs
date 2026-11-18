@@ -73,7 +73,7 @@ public sealed record KnownShow(string Key, string Root, string Folder, int? Seas
 public static partial class MediaPlanner
 {
     private static readonly HashSet<string> TvSources = new(StringComparer.OrdinalIgnoreCase) { "eztv", "solid", "tpb-tv", "x1337-tv" };
-    private static readonly HashSet<string> AnimeSources = new(StringComparer.OrdinalIgnoreCase) { "nyaa", "subsplease" };
+    private static readonly HashSet<string> AnimeSources = new(StringComparer.OrdinalIgnoreCase) { "nyaa", "subsplease", "animetosho" };
 
     /// <summary>
     /// <paramref name="known"/>: the shows placed before (<see cref="KnownShows"/>), so that an episode named otherwise
@@ -128,7 +128,13 @@ public static partial class MediaPlanner
         var everyPart = ReleaseName.IsCompletePack(torrentName);
         var collection = forced is null && target is null && context.PackSeason is null && everyPart && mains.Count > 1 && Films(mains);
         // A pack of every episode ("Complete Series") numbers them "Show - 01" as often as an anime does.
-        context.AbsoluteAllowed = context.AnimeSource || context.Grouped || context.PackSeason is not null || forced is MediaKind.Anime or MediaKind.Series || everyPart && !collection;
+        context.AbsoluteAllowed = context.AnimeSource || context.Grouped || context.PackSeason is not null || forced is MediaKind.Anime or MediaKind.Series || everyPart && !collection
+            // « Fullmetal Alchemist Brotherhood 1-64 », or files numbered one after the other (« Show - 01 », « Show - 02 »): episodes, never
+            // one film in several versions. A pack of films with their years stays films.
+            || forced is null && (ReleaseName.HasEpisodeSpan(torrentName) && !(mains.Count > 1 && Films(mains)) || Sequence(mains));
+        // « monk.101 », « monk.102 » in « Monk.S01 »: season 1's episodes 1 and 2, as old season packs number them.
+        context.Compact = mains.Count > 1 && mains.Select(v => EpisodeOf(v, context, single)).ToList() is var compact
+            && compact.All(x => x is { Episode: >= 100, LastEpisode: null } n && n.Episode / 100 == n.Season && n.Episode % 100 >= 1) && compact.Select(x => x!.Episode).Distinct().Count() == compact.Count;
         var numbered = mains.Any(v => EpisodeOf(v, context, single) is not null || HalfOf(v, context, single) is not null);
         // In a franchise, only numbered files are episodes: « Kizumonogatari I », « II », « III » are its films.
         var episodic = target is not null || (franchise ? numbered : forced switch
@@ -153,7 +159,7 @@ public static partial class MediaPlanner
         public IReadOnlyList<KnownShow> Known = [];
         public ImportTarget? Target;
         public SourceFile? Main;
-        public bool Franchise;
+        public bool Franchise, Compact;
     }
 
     /// <summary>
@@ -242,17 +248,18 @@ public static partial class MediaPlanner
     /// <summary>Each title of a franchise pack placed as its own download would be, all in one plan.</summary>
     private static ImportPlan PlanFranchise(string torrentName, string? source, IReadOnlyList<SourceFile> all, List<(string Title, List<SourceFile> Files)> titles, MediaLibraries libraries, MediaKind? forced, IReadOnlyList<KnownShow>? known)
     {
-        var plans = new List<ImportPlan>();
+        var plans = new List<ImportPlan>(); ImportPlan? skipped = null;
         // Each operation names its file as the torrent does (qBittorrent's list, the import journal), not as its folder does.
         var original = all.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().RelativePath, StringComparer.OrdinalIgnoreCase);
         foreach (var (title, files) in titles)
         {
             var plan = Plan(title, source, files, libraries, forced, known, null, franchise: true);
             if (plan.Problem is not null) return plan;
-            if (plan.Ignored is null)
+            if (plan.Ignored is not null) skipped ??= plan;
+            else
                 plans.Add(plan with { Operations = plan.Operations.Select(o => original.TryGetValue(o.Source, out var path) ? o with { RelativePath = path } : o).ToList() });
         }
-        if (plans.Count == 0) return Ignore(L("Aucune vidéo dans ce téléchargement.", "No video in this download."));
+        if (plans.Count == 0) return skipped ?? Ignore(L("Aucune vidéo dans ce téléchargement.", "No video in this download."));
         var main = plans.GroupBy(p => p.Kind).OrderByDescending(g => g.Sum(p => p.Operations.Count(o => o.Role == "video"))).First();
         var ordered = main.Concat(plans.Except(main)).ToList();
         var shows = plans.Count(p => p.Kind != MediaKind.Movie);
@@ -284,7 +291,27 @@ public static partial class MediaPlanner
             ?? (ReleaseName.SeasonOfFolder(folder) is { } folderSeason && FolderPart().Match(ReleaseName.Readable(name, out _)) is { Success: true } part
                 ? new EpisodeNumber(folderSeason, int.Parse(part.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)) : null);
         if (episode is not { Absolute: true }) return episode;
-        return season is { } value ? episode with { Season = value, Absolute = false } : episode;
+        if (season is not { } value) return episode;
+        return context.Compact && episode.Episode / 100 == value ? new EpisodeNumber(value, episode.Episode % 100) : episode with { Season = value, Absolute = false };
+    }
+
+    /// <summary>
+    /// Videos numbered one after the other as a show's episodes (« Show - 01 », « Show - 02 », the same name around their
+    /// numbers), not a pack of films told apart by their years.
+    /// </summary>
+    private static bool Sequence(List<SourceFile> mains)
+    {
+        if (mains.Count < 2 || Films(mains)) return false;
+        var numbers = new List<int>(); string? shape = null;
+        foreach (var video in mains)
+        {
+            var name = Path.GetFileName(video.RelativePath);
+            if (ReleaseName.Episode(name, allowAbsolute: true) is not { Absolute: true } number) return false;
+            var key = ReleaseName.Key(ReleaseName.Show(name).Title);
+            if (shape is not null && key != shape) return false;
+            shape = key; numbers.Add(number.Episode);
+        }
+        return numbers.Distinct().Count() == numbers.Count;
     }
 
     // « Show - 07.5 », « Show S3 - Episode 12.5 »: an episode between two (a recap, a special), numbered as none of the
@@ -375,6 +402,14 @@ public static partial class MediaPlanner
             targets.Add((folder, list));
         }
 
+        // Never a second version of a film: a folder that already holds its feature in another file keeps it alone.
+        var owned = targets.Where(t => HeldFeature(Path.Combine(root, t.Folder), t.Files.Where(f => f.Role == "video").Select(f => Path.Combine(root, t.Folder, f.Name.Length == 0 ? t.Folder : f.Name) + Path.GetExtension(f.File.RelativePath).ToLowerInvariant()))).ToList();
+        if (owned.Count > 0)
+        {
+            if (owned.Count == targets.Count) return Ignore(AlreadyOwned, MediaKind.Movie);
+            targets = targets.Except(owned).ToList();
+            context.Notes.Add(Count(owned.Count, "film déjà dans la bibliothèque laissé dans TorLink", "films déjà dans la bibliothèque laissés dans TorLink", "film already in the library left in TorLink", "films already in the library left in TorLink"));
+        }
         var operations = new List<ImportOperation>();
         foreach (var (folder, list) in targets)
         {
@@ -409,8 +444,10 @@ public static partial class MediaPlanner
         if (title.Length == 0) (title, year) = ReleaseName.Show(Path.GetFileName(reference.RelativePath));
         if (title.Length == 0) title = ReleaseName.SafeName(Path.GetFileNameWithoutExtension(context.TorrentName));
         var single = videos.Count == 1;
-        var animeFolder = FindFolder(context.Libraries.Anime, title, year, loose: true);
-        var seriesFolder = string.Equals(context.Libraries.Series, context.Libraries.Anime, StringComparison.OrdinalIgnoreCase) ? null : FindFolder(context.Libraries.Series, title, year, loose: true);
+        // « Show (2019) - S01E01 » was once placed in « Show 2019 »: that folder still is the show's.
+        string? Find(string? folder) => FindFolder(folder, title, year, loose: true) ?? (year is { } y ? FindFolder(folder, $"{title} {y}", null) : null);
+        var animeFolder = Find(context.Libraries.Anime);
+        var seriesFolder = string.Equals(context.Libraries.Series, context.Libraries.Anime, StringComparison.OrdinalIgnoreCase) ? null : Find(context.Libraries.Series);
         // No folder under this name: a show placed before under it, or one of the other names this release gives.
         var alias = animeFolder is null && seriesFolder is null ? KnownAs(context, title) : null;
         if (alias is not null)
@@ -421,6 +458,17 @@ public static partial class MediaPlanner
             }
             else alias = null;
         }
+        // « Overlord IV », « Mob Psycho 100 III » beside a show « Overlord » already there: its season 4, in its folder.
+        if (animeFolder is null && seriesFolder is null && alias is null && context.Target is null && !context.Franchise && ReleaseName.Sequel(title) is { } sequel)
+        {
+            var sequelAnime = FindFolder(context.Libraries.Anime, sequel.Title, year);
+            var sequelSeries = string.Equals(context.Libraries.Series, context.Libraries.Anime, StringComparison.OrdinalIgnoreCase) ? null : FindFolder(context.Libraries.Series, sequel.Title, year);
+            if (sequelAnime is not null || sequelSeries is not null)
+            {
+                (animeFolder, seriesFolder, title) = (sequelAnime, sequelSeries, sequel.Title);
+                context.PackSeason ??= sequel.Season;
+            }
+        }
         // Numbered without a season ("[Erai-raws] Show - 05"): the season of the episodes placed under this name.
         if (alias?.Season is { } aliasSeason) context.PackSeason ??= aliasSeason;
         var numbered = videos.Where(v => !IsBonus(v)).Select(v => EpisodeOf(v, context, single)).OfType<EpisodeNumber>().ToList();
@@ -429,17 +477,18 @@ public static partial class MediaPlanner
             : seriesFolder is not null ? MediaKind.Series
             : context.AnimeSource ? MediaKind.Anime
             : context.TvSource ? MediaKind.Series
-            : context.Grouped || numbered.Any(x => x.Absolute) ? MediaKind.Anime
+            // Numbered as fansub groups number (« Show - 05 »), never as a broadcaster does (« Planet Earth II Ep1 »).
+            : context.Grouped || numbered.Any(x => x.Absolute) && (videos.Any(v => !IsBonus(v) && ReleaseName.FansubNumbered(Path.GetFileName(v.RelativePath))) || single && ReleaseName.FansubNumbered(context.TorrentName)) ? MediaKind.Anime
             // A franchise's episodes numbered without any season (« Bakemonogatari 01 »), as fansubs number them: an anime.
             : context.Franchise && numbered.Count > 0 && videos.All(v => ReleaseName.Episode(Path.GetFileName(v.RelativePath), allowAbsolute: false) is null) ? MediaKind.Anime
             : MediaKind.Series);
         var root = context.Target?.Root ?? context.Libraries.RootFor(kind);
         if (root is null) return Blocked(kind, kind == MediaKind.Anime ? L("Choisis le dossier Animes de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Anime folder in Settings → Downloads.")
             : L("Choisis le dossier Séries de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Shows folder in Settings → Downloads."));
-        var show = context.Target?.Folder ?? FindFolder(root, title, year, loose: true) ?? (alias is not null && SameFolder(alias.Root, root) ? alias.Folder : null) ?? ReleaseName.SafeName(year is null ? title : $"{title} ({year})");
+        var show = context.Target?.Folder ?? Find(root) ?? (alias is not null && SameFolder(alias.Root, root) ? alias.Folder : null) ?? ReleaseName.SafeName(year is null ? title : $"{title} ({year})");
         var showPath = Path.Combine(root, show);
         var seasons = ExistingFolders(showPath);
-        string SeasonFolder(int season) => seasons.FirstOrDefault(x => ReleaseName.SeasonOfFolder(x) == season) ?? (season == 0 ? "Season 00" : $"Season {season:00}");
+        string SeasonFolder(int season) => seasons.FirstOrDefault(x => ReleaseName.SeasonOfFolder(x) == season) ?? (season == 0 ? "Season 00" : SeasonName(seasons, season));
 
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var operations = new List<ImportOperation>();
@@ -465,6 +514,21 @@ public static partial class MediaPlanner
             bonus.Add((video, ReleaseName.CreditlessLabel(name, bare: true)));
         }
         if (duplicates > 0) context.Notes.Add(Count(duplicates, "doublon d’épisode laissé dans TorLink", "doublons d’épisodes laissés dans TorLink", "duplicate episode left in TorLink", "duplicate episodes left in TorLink"));
+        // Never a second version of an episode: one the show already has in another file (another name, another container,
+        // a double episode) stays in TorLink. A file under the very name Mira gives is its own, from an earlier attempt.
+        var held = HeldEpisodes(showPath);
+        var owned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (label, (file, number)) in episodes)
+        {
+            var natural = Path.Combine(showPath, SeasonFolder(number.Season), $"{show} - {label}") + Path.GetExtension(file.RelativePath).ToLowerInvariant();
+            if (Enumerable.Range(number.Episode, (number.LastEpisode ?? number.Episode) - number.Episode + 1).Any(e => held.TryGetValue((number.Season, e), out var paths) && paths.Any(x => !SamePath(x, natural)))) owned.Add(label);
+        }
+        foreach (var label in owned) episodes.Remove(label);
+        if (owned.Count > 0)
+        {
+            context.Notes.Add(Count(owned.Count, "épisode déjà dans la bibliothèque laissé dans TorLink", "épisodes déjà dans la bibliothèque laissés dans TorLink", "episode already in the library left in TorLink", "episodes already in the library left in TorLink"));
+            if (episodes.Count == 0 && halves.Count == 0) return Ignore(AlreadyOwned, kind);
+        }
         var episodeStems = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (label, (file, number)) in episodes.OrderBy(x => x.Value.Number.Season).ThenBy(x => x.Value.Number.Episode))
         {
@@ -496,10 +560,12 @@ public static partial class MediaPlanner
         foreach (var subtitle in subtitles)
         {
             var number = FolderEpisode(subtitle) ?? EpisodeOf(subtitle, context, single: false);
+            // The subtitles of an episode left out go with it, never onto another one.
+            if (number is not null && owned.Contains(number.Label)) continue;
             var half = number is null ? HalfOf(subtitle, context, single: false) : null;
             var stem = number is not null && episodeStems.TryGetValue(number.Label, out var match) ? match
                 : half is not null && halfStems.TryGetValue(half.Label, out var halfMatch) ? halfMatch
-                : episodeStems.Count == 1 ? episodeStems.Values.Single()
+                : episodeStems.Count == 1 && owned.Count == 0 ? episodeStems.Values.Single()
                 : episodeStems.Count == 0 && halfStems.Count == 1 ? halfStems.Values.Single() : null;
             if (stem is null) { unmatched++; continue; }
             operations.Add(Operation(subtitle, Unique(stem + ReleaseName.SubtitleTags(subtitle.RelativePath), Path.GetExtension(subtitle.RelativePath), used), "subtitle"));
@@ -509,6 +575,22 @@ public static partial class MediaPlanner
         var display = episodes.Count == 1 ? $"{cleanTitle} · {episodes.Keys.Single()}" : episodes.Count > 1 ? $"{cleanTitle} · " + Count(episodes.Count, "épisode", "épisodes", "episode", "episodes")
             : halves.Count == 1 ? $"{cleanTitle} · {halves.Keys.Single()}" : cleanTitle;
         return new(kind, display, root, [showPath], operations, context.Notes);
+    }
+
+    /// <summary>
+    /// A new season's folder named as the show's others are (« Saison 1 » gives « Saison 2 »), « Season 02 » otherwise:
+    /// a show's seasons side by side, as the person named them.
+    /// </summary>
+    private static string SeasonName(IEnumerable<string> existing, int season)
+    {
+        foreach (var folder in existing)
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(folder.Trim(), @"^(?<p>Season|Saison|Series|S)(?<s>\s*)(?<n>\d{1,3})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            if (!m.Success || ReleaseName.SeasonOfFolder(folder) is not > 0) continue;
+            var digits = m.Groups["n"].Value.StartsWith('0') ? m.Groups["n"].Length : 1;
+            return m.Groups["p"].Value + m.Groups["s"].Value + season.ToString(new string('0', digits), System.Globalization.CultureInfo.InvariantCulture);
+        }
+        return $"Season {season:00}";
     }
 
     /// <summary>
@@ -567,6 +649,53 @@ public static partial class MediaPlanner
     }
 
     private static ImportOperation Operation(SourceFile file, string destination, string role) => new(file.Path, destination, role, file.RelativePath);
-    private static ImportPlan Ignore(string reason) => new(MediaKind.Movie, "", null, [], [], [], Ignored: reason);
+    private static ImportPlan Ignore(string reason, MediaKind kind = MediaKind.Movie) => new(kind, "", null, [], [], [], Ignored: reason);
+
+    private static string AlreadyOwned => L("Déjà dans ta bibliothèque : Mira n’ajoute jamais une deuxième version d’un titre, le téléchargement reste dans TorLink. Pour changer de fichier : « Chercher une meilleure version ».",
+        "Already in your library: Mira never adds a second version of a title, the download stays in TorLink. To change its file: “Find a better version”.");
+
+    private static bool SamePath(string a, string b) => string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    /// <summary>
+    /// The episodes a show's folder holds, by season and number (each of a double episode), with their files: videos at its
+    /// top and in its season folders, numbered « S01E05 » or « 1x05 » (never a number alone, which says no season).
+    /// </summary>
+    private static Dictionary<(int Season, int Episode), List<string>> HeldEpisodes(string showPath)
+    {
+        var held = new Dictionary<(int, int), List<string>>();
+        try
+        {
+            if (!Directory.Exists(showPath)) return held;
+            var folders = Directory.EnumerateDirectories(showPath).Where(x => ReleaseName.SeasonOfFolder(Path.GetFileName(x)) is not null || ReleaseName.InSpecialsFolder(Path.GetFileName(x) + "/x")).Prepend(showPath);
+            foreach (var file in folders.SelectMany(x => Directory.EnumerateFiles(x)).Where(x => ReleaseName.IsVideo(x) && !ReleaseName.IsSample(Path.GetFileName(x))))
+            {
+                if (ReleaseName.Episode(Path.GetFileName(file), allowAbsolute: false) is not { Absolute: false } number) continue;
+                var season = ReleaseName.InSpecialsFolder(Path.GetFileName(Path.GetDirectoryName(file)) + "/x") ? 0 : number.Season;
+                for (var e = number.Episode; e <= (number.LastEpisode ?? number.Episode); e++)
+                {
+                    if (!held.TryGetValue((season, e), out var paths)) held[(season, e)] = paths = [];
+                    paths.Add(file);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        return held;
+    }
+
+    /// <summary>
+    /// A film's folder already holds a feature in another file than <paramref name="ours"/> (the names Mira gives this
+    /// download's videos): a video at its top, not a sample nor a trailer, at least a tenth as large as a feature (50 MB).
+    /// </summary>
+    private static bool HeldFeature(string folder, IEnumerable<string> ours)
+    {
+        try
+        {
+            if (!Directory.Exists(folder)) return false;
+            var mine = ours.ToList();
+            return Directory.EnumerateFiles(folder).Any(x => ReleaseName.IsVideo(x) && !mine.Any(o => SamePath(o, x)) && !ReleaseName.IsSample(Path.GetFileName(x))
+                && !Path.GetFileNameWithoutExtension(x).EndsWith("trailer", StringComparison.OrdinalIgnoreCase) && new FileInfo(x).Length >= 50_000_000);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
     private static ImportPlan Blocked(MediaKind kind, string problem) => new(kind, "", null, [], [], [], Problem: problem);
 }
