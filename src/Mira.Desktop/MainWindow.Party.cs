@@ -172,7 +172,7 @@ public partial class MainWindow
         _speed.Forget();
         _connectionLifetime = new(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         // Nothing of the library under the party: a page left open would ask the guest's Jellyfin for what it never gives.
-        LoginOverlay.Visibility = DetailOverlay.Visibility = GuideOverlay.Visibility = TorLinkOverlay.Visibility = Visibility.Collapsed;
+        LoginOverlay.Visibility = ShelfOverlay.Visibility = DetailOverlay.Visibility = GuideOverlay.Visibility = TorLinkOverlay.Visibility = Visibility.Collapsed;
         if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); SettingsOverlay.Visibility = Visibility.Collapsed; }
         ServerLabel.Text = guest.Connection.UserName + " · " + L("invité", "guest"); AvatarLetter.Text = guest.Connection.UserName[..1].ToUpperInvariant(); SetPhoto(null);
         _ = ListenSafelyAsync(client, _connectionLifetime.Token);

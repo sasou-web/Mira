@@ -23,6 +23,7 @@ internal static class PortableTests
         await SeriesFollowingTests.RunAsync(run);
         await MissingDownloadTests.RunAsync(run);
         await MagnetLinkTests.RunAsync(run);
+        await CollectionShelfTests.RunAsync(run);
         await UpgradeTests.RunAsync(run);
         await SubtitleTests.RunAsync(run);
         await GuestTests.RunAsync(run);

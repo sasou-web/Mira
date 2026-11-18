@@ -72,7 +72,7 @@ public partial class MainWindow
         await Motion.HideDrawnAsync(overlay, 140, () =>
         {
             UncoverLibrary(overlay);
-            foreach (var page in new UIElement[] { DetailOverlay, TorLinkOverlay, PartyOverlay }) if (page.Clip is not null) page.Clip = null;
+            foreach (var page in new UIElement[] { ShelfOverlay, DetailOverlay, TorLinkOverlay, PartyOverlay }) if (page.Clip is not null) page.Clip = null;
         });
         if (overlay.Visibility != Visibility.Visible) window.ClearValue(UIElement.CacheModeProperty);
     }
@@ -227,7 +227,7 @@ public partial class MainWindow
         var covered = (SettingsOverlay.IsVisible && SettingsOverlay != _leavingCover && SettingsOverlay.Opacity >= .995 && SettingsBackdrop.Source is not null)
             || (GuideOverlay.IsVisible && GuideOverlay != _leavingCover && GuideOverlay.Opacity >= .995 && GuideBackdrop.Source is not null);
         var clip = covered ? Geometry.Empty : null;
-        foreach (var page in new UIElement[] { DetailOverlay, TorLinkOverlay, PartyOverlay })
+        foreach (var page in new UIElement[] { ShelfOverlay, DetailOverlay, TorLinkOverlay, PartyOverlay })
             if (!ReferenceEquals(page.Clip, clip)) page.Clip = clip;
     }
 

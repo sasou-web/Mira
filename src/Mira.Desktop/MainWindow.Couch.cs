@@ -139,7 +139,7 @@ public partial class MainWindow
         foreach (var over in new FrameworkElement[] { ConfirmOverlay, CollectionOverlay, IdentifyOverlay, InviteOverlay, WhatsNewOverlay, PartyOverlay, WelcomeOverlay, LoginOverlay })
             if (over.Visibility == Visibility.Visible && over.IsHitTestVisible) return [over];
         var scope = new List<FrameworkElement>();
-        if (new FrameworkElement[] { GuideOverlay, SettingsOverlay, DetailOverlay, TorLinkOverlay }.FirstOrDefault(x => x.Visibility == Visibility.Visible && x.IsHitTestVisible) is { } page) scope.Add(page);
+        if (new FrameworkElement[] { GuideOverlay, SettingsOverlay, DetailOverlay, ShelfOverlay, TorLinkOverlay }.FirstOrDefault(x => x.Visibility == Visibility.Visible && x.IsHitTestVisible) is { } page) scope.Add(page);
         else if (LibraryShell.IsVisible) scope.Add(LibraryShell);
         if (NavigationRail.IsVisible) scope.Add(NavigationRail);
         return scope;

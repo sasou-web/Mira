@@ -29,9 +29,37 @@ public sealed class Catalog
     /// <summary>The episodes and the sagas whose name matches the search, shown under its titles, as in Mira web.</summary>
     public List<MediaItem> Episodes { get; set; } = [];
     public List<MediaItem> Sagas { get; set; } = [];
-    public List<MediaItem> Items { get; set; } = [];
+    /// <summary>The list shown: Jellyfin's titles, those of a grouped collection given as its card (<see cref="CollectionShelf"/>).</summary>
+    public List<MediaItem> Items
+    {
+        get => _items;
+        set { _items = value; Fetched = value.Count; Absorbed = 0; }
+    }
+    private List<MediaItem> _items = [];
     /// <summary>How many titles the list has on Jellyfin, beyond the pages loaded.</summary>
     public int TotalCount { get; set; }
+    /// <summary>How many titles Jellyfin sent for this list: where its next page starts (a collection's card stands for several).</summary>
+    public int Fetched { get; private set; }
+    /// <summary>Titles sent that a collection's card took the place of.</summary>
+    public int Absorbed { get; private set; }
+    /// <summary>The collections grouped in this account's library, once Jellyfin said (none until then: titles show one by one).</summary>
+    public CollectionShelf.Index Grouping { get; set; } = CollectionShelf.Index.None;
+    /// <summary>
+    /// Movies, Shows and Your library, without a search, a person's, a studio's or a collection's titles: where a grouped
+    /// collection shows as one card. Home and the search show the titles themselves.
+    /// </summary>
+    public bool Groups(string search) => View is "Movie" or "Series" or "library" && search.Length == 0 && Person is null && Studio is null && Saga is null;
+    /// <summary>Jellyfin may have more of this list than it sent.</summary>
+    public bool HasMore => Fetched > 0 && Fetched < TotalCount;
+    /// <summary>« 25 titles · 1 collection »: the titles a card stands for are not counted again.</summary>
+    public string CountLine
+    {
+        get
+        {
+            var cards = Items.Count(x => x.Shelf is not null);
+            return cards == 0 ? CountText(TotalCount) : CollectionShelf.GridCount(Math.Max(0, TotalCount - Absorbed), cards);
+        }
+    }
     public List<MediaItem> Resume { get; set; } = [];
     public List<MediaItem> NextUp { get; set; } = [];
     /// <summary>What was played on this PC, newest first, kept in the library cache.</summary>
@@ -97,12 +125,23 @@ public sealed class Catalog
     /// <summary>A new account or none: nothing of the previous one stays.</summary>
     public void Clear()
     {
-        Items = []; Resume = []; NextUp = []; RecentPlayback = []; HiddenResume = []; People = []; Studios = []; Episodes = []; Sagas = []; TotalCount = 0;
+        Items = []; Resume = []; NextUp = []; RecentPlayback = []; HiddenResume = []; People = []; Studios = []; Episodes = []; Sagas = []; TotalCount = 0; Grouping = CollectionShelf.Index.None;
     }
     /// <summary>A page from Jellyfin: the first replaces the list, the next ones (loaded as the grid scrolls) add what is new.</summary>
-    public void Receive(ItemsResult result, bool more)
+    /// <param name="search">The list's search: a collection's titles are grouped only where <see cref="Groups"/> says.</param>
+    public void Receive(ItemsResult result, bool more, string search = "")
     {
-        if (more) Items.AddRange(result.Items.Where(x => Items.All(old => old.Id != x.Id))); else Items = result.Items;
+        var (fetched, absorbed) = more ? (Fetched, Absorbed) : (0, 0);
+        var page = result.Items;
+        if (Groups(search) && Grouping.Shelves.Count > 0)
+        {
+            var placed = (more ? Items : []).Where(x => x.Shelf is not null).Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var shown = CollectionShelf.Collapse(page, Grouping, Types, placed);
+            absorbed += page.Count - shown.Count(x => x.Shelf is null);
+            page = shown;
+        }
+        if (more) _items.AddRange(page.Where(x => _items.All(old => old.Id != x.Id))); else _items = page;
+        (Fetched, Absorbed) = (fetched + result.Items.Count, absorbed);
         TotalCount = result.TotalRecordCount;
     }
     /// <summary>« Continuer à regarder »: Jellyfin's resume and next-up rows with what this PC played, without what was taken out.</summary>

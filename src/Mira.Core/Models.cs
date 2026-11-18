@@ -56,6 +56,14 @@ public sealed record MediaItem
     /// <summary>The thumbnail of the episode's season, filled in by Mira (Jellyfin does not send it with the episode).</summary>
     public string? SeasonThumbImageTag { get; set; }
     public int? ChildCount { get; init; }
+    /// <summary>A series' episodes (Jellyfin's count of its videos, checked on 12.1), asked for with Fields=RecursiveItemCount.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RecursiveItemCount { get; init; }
+    /// <summary>
+    /// The titles of a collection grouped in the library (<see cref="CollectionShelf"/>), on its card only: its count, its
+    /// progress and, without a picture of its own, the first one's poster.
+    /// </summary>
+    [JsonIgnore] public IReadOnlyList<MediaItem>? Shelf { get; init; }
     public string? OfficialRating { get; init; }
     /// <summary>Its file (a film) or folder (a series) as Jellyfin sees it, returned by the single-item request (<see cref="TitleFiles"/>).</summary>
     public string? Path { get; init; }
@@ -348,6 +356,8 @@ public sealed class PlayerSettings
     public bool NightSound { get; set; }
     /// <summary>Told once that the window's cross keeps Mira by the clock while it works (Windows, <c>MainWindow.Windows.cs</c>).</summary>
     public bool CloseKeptTold { get; set; }
+    /// <summary>« Grouped N titles into M collections » said once, the first time sagas were grouped on their own (CollectionShelf).</summary>
+    public bool CollectionsGroupedTold { get; set; }
     public bool AutoNext { get; set; } = true;
     /// <summary>The player's time shows what is left (« −26:30 / 40:12 ») instead of what is played: a click on the time (<see cref="PlayerTime"/>).</summary>
     public bool TimeLeft { get; set; }

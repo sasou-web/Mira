@@ -33,6 +33,8 @@ public static class Artwork
     /// <summary>A poster: an episode shows its series' poster, anything else its own.</summary>
     public static ImageRef Poster(MediaItem item) => item.Type == "Episode" && item.SeriesId is not null
         ? new(item.SeriesId, "Primary", item.SeriesPrimaryImageTag ?? "")
+        // A collection without a poster of its own (one made by hand): its first title's.
+        : Tag(item.ImageTags, "Primary") is null && item.Shelf is [var first, ..] ? Poster(first)
         : new(item.Id, "Primary", Tag(item.ImageTags, "Primary") ?? "");
     /// <summary>
     /// A large background (the home banner, « À suivre » on top of Séries, a title page): the item's backdrop, else its

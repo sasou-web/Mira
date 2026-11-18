@@ -55,6 +55,7 @@ public partial class MainWindow
         // Opening a stream can take a moment: say so right away instead of looking frozen.
         if (!_playing) Mouse.OverrideCursor = Cursors.AppStarting;
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is not null) _returnToDetail = _detail;
+        if (ShelfOverlay.Visibility == Visibility.Visible && _shelfBox is not null) _returnToShelf = true;
         try
         {
             // Without an engine nothing can play: say so before any request, with the one click that fixes it.
@@ -128,7 +129,7 @@ public partial class MainWindow
             PlayingSubtitle.Content = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : film is not null ? Trailers.Playing : _parts is { } parts ? parts.Subtitle(item.Id) : PlayerText.Subtitle(item);
             ShowPlayingLinks(shown);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
-            AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
+            AutoSaveSettings(); DetailOverlay.Visibility = ShelfOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
             HidePlayerError();
             // Another title chosen in the library while one plays in « Image dans l’image »: it opens in the player.
             if (!keepMini) EndPip(show: false);
@@ -359,7 +360,7 @@ public partial class MainWindow
         PlayerErrorHeading.Text = heading; PlayerErrorIcon.Kind = icon;
         if (_fullscreen) ToggleFullscreen();
         ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); ClosePreview();
-        DetailOverlay.Visibility = SettingsOverlay.Visibility = Visibility.Collapsed;
+        DetailOverlay.Visibility = ShelfOverlay.Visibility = SettingsOverlay.Visibility = Visibility.Collapsed;
         LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Collapsed;
         // The window's own buttons stay reachable: the player's are in its overlay, closed with the playback.
         PlayerShell.Visibility = TitleBar.Visibility = Visibility.Visible;
@@ -514,6 +515,15 @@ public partial class MainWindow
     private void RestoreDetailPage(bool refresh = true, bool at = false)
     {
         var settings = _returnToSettings; _returnToSettings = false;
+        // A title played: the collections' cards read their progress again at the next refresh.
+        ForgetGrouping();
+        // The collection's page first, under the title's page when both were open.
+        if (_returnToShelf && _shelfBox is not null)
+        {
+            if (ShelfOverlay.Visibility != Visibility.Visible) Show(ShelfOverlay, at || settings || _returnToDetail is not null);
+            if (refresh) _ = RefreshShelfAsync();
+        }
+        _returnToShelf = false;
         if (_returnToDetail is { } page && _detail?.Id == page.Id)
         {
             // Under Réglages, the page is there at once: the window's picture is taken of it.
@@ -646,6 +656,7 @@ public partial class MainWindow
         }
         if (SettingsOverlay.Visibility == Visibility.Visible) { _ = CloseSettingsAnimatedAsync(); return true; }
         if (DetailOverlay.Visibility == Visibility.Visible && (!_playing || _miniPlayer)) { _ = BackFromDetailsAsync(); return true; }
+        if (ShelfOverlay.Visibility == Visibility.Visible && ShelfOverlay.IsHitTestVisible && (!_playing || _miniPlayer)) { _ = CloseShelfAsync(); return true; }
         if (TorLinkOverlay.Visibility == Visibility.Visible && TorLinkOverlay.IsHitTestVisible && (!_playing || _miniPlayer)) { _ = CloseTorLinkAsync(); return true; }
         if (_filtersOpen && CatalogFilters.IsVisible && (!_playing || _miniPlayer)) { CloseFilters(focusToggle: true); return true; }
         if (_playing && !_miniPlayer) { BackFromPlayer_Click(this, new()); return true; }
