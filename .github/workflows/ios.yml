@@ -123,9 +123,14 @@ jobs:
       # pictures made here as Jellyfin makes them; without it, Sintel plays the 10 s clip as every other title does.
       # The pictures by ffmpeg, imageio-ffmpeg's static build from PyPI pinned by its hash, as web.yml takes it:
       # AVFoundation cannot decode a video on this runner.
+      # Kept between runs: download.blender.org was out on 2026-11-18 and Sintel's 10 s clip failed testPlayer on main.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tools/ios/media/film.mp4
+          key: sintel-trailer-720p-v1
       - name: Film for the player's captures
         run: |
-          if curl -fsSL --retry 3 --max-time 180 -o tools/ios/media/film.mp4 https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4; then
+          if [ -s tools/ios/media/film.mp4 ] || curl -fsSL --retry 3 --max-time 180 -o tools/ios/media/film.mp4 https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4; then
             shasum -a 256 tools/ios/media/film.mp4
             echo 'imageio-ffmpeg==0.6.0 --hash=sha256:b1ae3173414b5fc5f538a726c4e48ea97edc0d2cdc11f103afee655c463fa742' > "$RUNNER_TEMP/ffmpeg.txt"
             # In a throwaway venv: the runner's Python may refuse packages outside one (PEP 668).
