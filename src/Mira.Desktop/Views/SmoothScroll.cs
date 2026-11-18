@@ -33,7 +33,8 @@ public static class SmoothScroll
         // holds the mouse while it is open, and the page stays still, so the list never drifts from its box (ogsas,
         // 2026-11-18: the season list, scrolled with the page, ended up far from its button).
         if (!ReferenceEquals(Root(e.OriginalSource as DependencyObject), Root(outer))) return;
-        if (Mouse.Captured is ComboBox { IsDropDownOpen: true }) { e.Handled = true; return; }
+        // The list itself scrolls smoothly too: only a scroller of the box's own window (the page) stays still.
+        if (Mouse.Captured is ComboBox { IsDropDownOpen: true } box && ReferenceEquals(Root(outer), Root(box))) { e.Handled = true; return; }
         var horizontal = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         var target = outer;
         // The innermost list under the pointer that can still move that way: a list of the settings or of a sheet inside
