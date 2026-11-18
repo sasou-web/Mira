@@ -29,6 +29,11 @@ public static class PlaybackMarkers
     public const double MinimumLength = 3;
     /// <summary>A chapter longer than this is not an opening, recap or preview, whatever its title.</summary>
     public const double MaximumShortPassage = 360;
+    /// <summary>
+    /// A chapter named as the opening shorter than this is not one: an opening lasts a minute and a half, and some releases
+    /// name the eyecatch or the title card « Opening » (Haikyu!! S01E14: 12 s of title in the middle of the episode).
+    /// </summary>
+    public const double MinimumOpening = 20;
     private const RegexOptions Options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
     private static readonly Regex Recap = new(@"\b(recap|recapitulatif|previously|precedemment|resume de l.episode precedent)\b", Options);
     private static readonly Regex Preview = new(@"\b(preview|next episode|prochain episode|apercu|bande annonce|yokoku)\b", Options);
@@ -62,7 +67,7 @@ public static class PlaybackMarkers
     private static List<(double Start, double End, SkipKind? Kind, bool Cold)> Read(IReadOnlyList<ChapterMark> chapters, double duration)
     {
         var ordered = chapters.Where(c => double.IsFinite(c.Start) && c.Start >= 0).OrderBy(c => c.Start).ToList();
-        var result = new List<(double Start, double End, SkipKind? Kind, bool Cold)>();
+        var kinds = new List<(double Start, double End, SkipKind? Kind, string? Title)>();
         for (var i = 0; i < ordered.Count; i++)
         {
             var start = ordered[i].Start;
@@ -70,11 +75,11 @@ public static class PlaybackMarkers
             if (!double.IsFinite(end) || end - start < MinimumLength) continue;
             var kind = Classify(ordered[i].Title, start, duration);
             if (kind is not (null or SkipKind.Outro) && end - start > MaximumShortPassage) kind = null;
-            var cold = IsColdOpen(ordered[i].Title)
-                || kind is SkipKind.Intro && IsBareIntro(ordered[i].Title) && ordered.Skip(i + 1).Any(c => Classify(c.Title, c.Start, duration) is SkipKind.Intro && !IsBareIntro(c.Title));
-            result.Add((start, end, kind, cold));
+            if (kind is SkipKind.Intro && end - start < MinimumOpening) kind = null;
+            kinds.Add((start, end, kind, ordered[i].Title));
         }
-        return result;
+        return kinds.Select((c, i) => (c.Start, c.End, c.Kind, IsColdOpen(c.Title)
+            || c.Kind is SkipKind.Intro && IsBareIntro(c.Title) && kinds.Skip(i + 1).Any(l => l.Kind is SkipKind.Intro && !IsBareIntro(l.Title)))).ToList();
     }
     public static SkipKind? Classify(string? title, double start = 0, double duration = 0)
     {
