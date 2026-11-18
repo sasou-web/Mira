@@ -276,7 +276,7 @@ extension JellyfinClient {
 
     /// One collection's choice changed, the others and Mira's other preferences read just before and sent back whole.
     @discardableResult
-    func setShelfChoice(_ collectionId: String, _ change: (CollectionShelf.Choice) -> CollectionShelf.Choice) async throws -> [String: CollectionShelf.Choice] {
+    func setShelfChoice(_ collectionId: String, _ change: @Sendable (CollectionShelf.Choice) -> CollectionShelf.Choice) async throws -> [String: CollectionShelf.Choice] {
         var preferences = try await choices().object ?? [:]
         var custom = preferences["CustomPrefs"]?.object ?? [:]
         var all = CollectionShelf.read(custom[CollectionShelf.preference])
