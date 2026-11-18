@@ -919,6 +919,41 @@ public sealed class JellyfinClient : IDisposable
         Set("ProcessThreads", 1);
         return changed;
     }
+    /// <summary>
+    /// Jellyfin's library scans made light for the PC it runs on (<see cref="LightScans"/>), in System/Configuration,
+    /// its other settings kept. False when refused (not an administrator); true when nothing was left to change.
+    /// </summary>
+    public async Task<bool> LightenScansAsync(CancellationToken ct = default)
+    {
+        using var read = await _http.GetAsync("System/Configuration", ct);
+        if (read.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(read);
+        if (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) is not JsonObject configuration || !LightScans(configuration)) return true;
+        using var content = new StringContent(configuration.ToJsonString(), Encoding.UTF8, "application/json");
+        using var saved = await _http.PostAsync("System/Configuration", content, ct);
+        if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(saved);
+        return true;
+    }
+    /// <summary>
+    /// How many folders a scan reads and how many titles it analyses at once (<c>LibraryScanFanoutConcurrency</c>,
+    /// <c>LibraryMetadataRefreshConcurrency</c>), set to <see cref="ScanConcurrency"/> when Jellyfin leaves them to
+    /// itself (0 = one per processor core): a big pack placed at once otherwise starts one ffprobe per core on its
+    /// extras, each holding its 1 GB probe (49 of them, 6.9 GB of memory, on a 16-core PC). A number someone chose is
+    /// kept. Left as they are when Jellyfin has neither (before 10.9). Whether anything changed.
+    /// </summary>
+    public static bool LightScans(JsonObject configuration)
+    {
+        var changed = false;
+        foreach (var name in (string[])["LibraryScanFanoutConcurrency", "LibraryMetadataRefreshConcurrency"])
+        {
+            if (configuration[name] is not JsonValue value || !value.TryGetValue<int>(out var count) || count > 0) continue;
+            configuration[name] = ScanConcurrency; changed = true;
+        }
+        return changed;
+    }
+    /// <summary>Titles Jellyfin analyses at once on its own PC once Mira made its scans light.</summary>
+    public const int ScanConcurrency = 2;
     private static bool? Trickplay(JsonObject? options) =>
         options?["EnableTrickplayImageExtraction"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
     /// <summary>The libraries of these kinds with their options, as Jellyfin's dashboard reads them; null when refused (not an administrator).</summary>

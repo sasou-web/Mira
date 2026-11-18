@@ -1302,6 +1302,26 @@ internal static class LibraryTests
             folders[0]!["LibraryOptions"]!["EnableTrickplayImageExtraction"] = false; state = "Idle";
             Assert(await client.EnableTrickplayAsync(now: false) && posted.Count == 2 && started.Count == 1, "Not started now");
         });
+        await Test("Analyses de Jellyfin sur son PC : 2 à la fois au lieu d’une par cœur, un nombre choisi gardé, le reste de la configuration intact", async () =>
+        {
+            var configuration = System.Text.Json.Nodes.JsonNode.Parse("""{"ServerName":"vm","LibraryScanFanoutConcurrency":0,"LibraryMetadataRefreshConcurrency":0,"ParallelImageEncodingLimit":0}""")!.AsObject();
+            var saves = 0; var refused = false;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                if (request.RequestUri!.PathAndQuery != "/System/Configuration") return new HttpResponseMessage(HttpStatusCode.NotFound);
+                if (refused) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+                if (request.Method == HttpMethod.Post) { configuration = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync())!.AsObject(); saves++; return new HttpResponseMessage(HttpStatusCode.NoContent); }
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(configuration.ToJsonString(), Encoding.UTF8, "application/json") };
+            }));
+            Assert(await client.LightenScansAsync() && saves == 1 && (int?)configuration["LibraryScanFanoutConcurrency"] == 2 && (int?)configuration["LibraryMetadataRefreshConcurrency"] == 2
+                && (int?)configuration["ParallelImageEncodingLimit"] == 0 && (string?)configuration["ServerName"] == "vm", "Auto made 2: " + configuration.ToJsonString());
+            Assert(await client.LightenScansAsync() && saves == 1, "Nothing left: not sent again");
+            var chosen = System.Text.Json.Nodes.JsonNode.Parse("""{"LibraryScanFanoutConcurrency":8,"LibraryMetadataRefreshConcurrency":-1}""")!.AsObject();
+            Assert(JellyfinClient.LightScans(chosen) && (int?)chosen["LibraryScanFanoutConcurrency"] == 8 && (int?)chosen["LibraryMetadataRefreshConcurrency"] == 2
+                && !JellyfinClient.LightScans(new System.Text.Json.Nodes.JsonObject()), "A chosen number kept; before 10.9, nothing");
+            refused = true;
+            Assert(!await client.LightenScansAsync(), "Not an administrator: false, tried again later");
+        });
         await Test("Nouveaux épisodes : séries suivies seulement, une notice par série, marque = date de Jellyfin", async () =>
         {
             // As Jellyfin 12.1 answers (cut down): Courte Web is started (a third watched), Courte HLS never, Courte Anime
