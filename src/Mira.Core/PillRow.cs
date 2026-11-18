@@ -1,0 +1,66 @@
+namespace Mira.Core;
+
+/// <summary>
+/// The season pills of a series' page (« Les numéros », <see cref="EpisodeTiles.Compact"/>) going from one season to
+/// another, Windows and Mac (maquette A « La gelée », ogsas 2026-11-18, /mnt/project-files/animation-saisons/): one white
+/// pill under the row sent as a jelly (<see cref="JellyPill"/>, as Réglages | Aide) to where the chosen season will stand,
+/// while each pill opens from its round number to its whole name, or back, and its neighbours follow. The row wraps; a
+/// pill going to another line fades in there instead of crossing the page.
+/// </summary>
+public static class PillRow
+{
+    /// <summary>How long a pill takes to open or close, in seconds.</summary>
+    public const double Opening = .26;
+    /// <summary>A round pill: as tall as wide.</summary>
+    public const double Round = 36;
+    /// <summary>The white pill fading in on another line, in seconds.</summary>
+    public const double Fade = .18;
+
+    /// <summary>The ease of an opening: exponential, out, of exponent 5 (<c>Motion.Enter</c> of Windows), 0 to 1.</summary>
+    public static double Enter(double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        return (1 - Math.Exp(-5 * t)) / (1 - Math.Exp(-5));
+    }
+
+    /// <summary>The number alone, from 1 to 0 over the first 40 % of an opening.</summary>
+    public static double Number(double open) => 1 - Math.Clamp(open / .4, 0, 1);
+    /// <summary>The whole name, from 0 to 1 between 30 % and the end of an opening: never both readable together.</summary>
+    public static double Name(double open) => Math.Clamp((open - .3) / .7, 0, 1);
+
+    /// <summary>A pill's width at <paramref name="open"/> (0 round, 1 whole).</summary>
+    public static double Width(double round, double whole, double open) => round + (whole - round) * Math.Clamp(open, 0, 1);
+
+    /// <summary>
+    /// Each pill's place in a row of <paramref name="room"/> that wraps: left to right, <paramref name="gap"/> between two,
+    /// a new line (<paramref name="height"/> and <paramref name="lineGap"/> below) when the next would pass the edge. A
+    /// pill wider than the room alone on its line.
+    /// </summary>
+    public static (double X, double Y)[] Layout(IReadOnlyList<double> widths, double height, double gap, double lineGap, double room)
+    {
+        var places = new (double, double)[widths.Count];
+        double x = 0, y = 0;
+        for (var i = 0; i < widths.Count; i++)
+        {
+            if (x > 0 && x + widths[i] > room + .01) { x = 0; y += height + lineGap; }
+            places[i] = (x, y);
+            x += widths[i] + gap;
+        }
+        return places;
+    }
+
+    /// <summary>One pill opening or closing: from where it was when told, eased towards 0 or 1; told again mid-way, from where it stands.</summary>
+    public sealed class Opener
+    {
+        private double _from, _to, _since;
+        public double Target => _to;
+        public void Put(double open) { _from = _to = open; _since = 0; }
+        public void Go(double open, double now)
+        {
+            if (open == _to) return;
+            _from = At(now); _to = open; _since = now;
+        }
+        public double At(double now) => _from == _to ? _to : _from + (_to - _from) * Enter((now - _since) / Opening);
+        public bool Moving(double now) => _from != _to && now - _since < Opening;
+    }
+}

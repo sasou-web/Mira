@@ -27,7 +27,7 @@ public sealed partial class DetailPage : Page
     private readonly ComboBox _seasons = new() { MinWidth = 200 };
     private readonly StackPanel _episodes = new() { Spacing = 0 };
     /// <summary>The seasons as pills (EpisodeTiles): two to ten pages; more, the list.</summary>
-    private readonly WrapPanel _pills = new() { IsVisible = false, Margin = new Thickness(0, 2, 0, 8) };
+    private readonly SeasonRow _pills = new() { IsVisible = false, Margin = new Thickness(0, 2, 0, 16) };
     /// <summary>The tiles of the season shown (stills, hollow ones for those the library lacks), sized again with the page.</summary>
     private readonly List<(Control Tile, Control Picture)> _tiles = [];
     private WrapPanel? _tileGrid;
@@ -65,6 +65,8 @@ public sealed partial class DetailPage : Page
     public bool EpisodesShown => TopLevel.GetTopLevel(_episodes) is not null && _episodes.Children.Count > 0;
     /// <summary>For the self-check: the seasons as pills, the tiles of the season shown, the top of the grid brought into view.</summary>
     public bool PillsShown => _pills.IsVisible && _pills.Children.Count > 1;
+    /// <summary>For the self-check: where the white pill of the seasons goes, and where it stands now.</summary>
+    public (double Target, double At) SeasonPillForCheck => (_pills.PillTarget, _pills.PillAt);
     public int TilesShown => _tiles.Count;
     /// <summary>The episodes' heading scrolled into view, with <paramref name="below"/> points under it (a gallery shows the grid too).</summary>
     public void ShowEpisodesForCheck(double below = 0) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _episodeHeading.BringIntoView(new Rect(0, 0, _episodeHeading.Bounds.Width, _episodeHeading.Bounds.Height + below)), Avalonia.Threading.DispatcherPriority.Background);
@@ -997,19 +999,21 @@ public sealed partial class DetailPage : Page
         _pills.Children.Clear(); _pills.IsVisible = pages.Count > 0;
         _missingViews.RemoveAll(x => x.Pill);
         var compact = EpisodeTiles.Compact(pages);
+        _pills.Compact = compact;
         foreach (var page in pages)
         {
             var (name, note) = EpisodeTiles.Pill(page);
             var label = Ui.Row(7, new TextBlock { Text = name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
             if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeight.SemiBold, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center });
             if (MissingPillNote(page) is { } coming) label.Children.Add(coming);
-            var pill = new Button { Content = label, Classes = { "chip" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Margin = new Thickness(0, 0, 8, 8), Tag = page };
+            // « chip season »: no body of its own, the row draws it and the white pill of the one shown (SeasonRow).
+            var pill = new Button { Content = label, Classes = { "chip", "season" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Tag = page };
             if (compact)
             {
-                // One height for the cut pills and the one shown, so that nothing moves when another is picked.
-                pill.Height = 36; pill.MinWidth = 36; pill.Margin = new Thickness(0, 0, 7, 8); pill.VerticalContentAlignment = VerticalAlignment.Center; pill.HorizontalContentAlignment = HorizontalAlignment.Center;
+                // One height for the cut pills and the one shown; the name and the number both centred, cut as it opens.
+                pill.Height = PillRow.Round; pill.Padding = new Thickness(0); pill.VerticalContentAlignment = VerticalAlignment.Center; pill.HorizontalContentAlignment = HorizontalAlignment.Center;
                 var cut = new TextBlock { Text = EpisodeTiles.Short(page, pages), FontSize = 13.5, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                pill.Content = new Panel { Children = { label, cut } };
+                pill.Content = new SeasonRow.Face { Children = { label, cut } };
                 ToolTip.SetPlacement(pill, PlacementMode.Bottom); ToolTip.SetVerticalOffset(pill, 6); ToolTip.SetShowDelay(pill, 250);
             }
             Avalonia.Automation.AutomationProperties.SetName(pill, page.Label);
@@ -1019,22 +1023,22 @@ public sealed partial class DetailPage : Page
     }
     private void UpdatePills(EpisodePage? shown)
     {
+        var index = -1;
         foreach (var pill in _pills.Children.OfType<Button>())
         {
             var on = ReferenceEquals(pill.Tag, shown);
-            pill.Classes.Set("on", on);
-            if (pill.Tag is not EpisodePage page || pill.Content is not Panel { Children: [StackPanel whole, TextBlock cut] }) continue;
-            // A cut pill: the whole name once shown; else its number, quieter for a season watched to its end or one the
-            // library lacks, and its bubble.
-            whole.IsVisible = on; cut.IsVisible = !on;
-            pill.Padding = on ? new Thickness(16, 0) : new Thickness(8, 0);
-            cut.Foreground = page.Absent || EpisodeTiles.Watched(page, _allEpisodes) ? Ui.Muted : Ui.TextSecondary;
+            if (on) index = _pills.Children.IndexOf(pill);
+            if (pill.Tag is not EpisodePage page || pill.Content is not SeasonRow.Face) continue;
+            // A cut pill: its number quieter for a season watched to its end or one the library lacks, and its bubble.
+            _pills.SetQuiet(pill, page.Absent || EpisodeTiles.Watched(page, _allEpisodes));
             var (name, note) = EpisodeTiles.Tip(page, _allEpisodes);
             var tip = Ui.Row(8, new TextBlock { Text = name });
             if (note.Length > 0) tip.Children.Add(new TextBlock { Text = note, Foreground = Ui.Muted });
             ToolTip.SetTip(pill, on ? null : tip);
             Avalonia.Automation.AutomationProperties.SetHelpText(pill, note);
         }
+        // The row's white pill goes there as a jelly (at once the first time, and without motion).
+        _pills.Show(index, animate: true);
     }
     private void Toggle(string key)
     {
