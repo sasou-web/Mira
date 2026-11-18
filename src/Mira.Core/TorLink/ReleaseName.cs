@@ -114,7 +114,8 @@ public static partial class ReleaseName
     private static partial Regex SeasonMarker();
     [GeneratedRegex(@"\b(?:Season|Saison|Temporada|Staffel)\s*(?<s>\d{1,2})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonWord();
-    [GeneratedRegex(@"\b(?<s>\d{1,2})(?:st|nd|rd|th)\s+Season\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // « 2nd Season », « Second Season » (« [sam] Haikyuu!! Second Season - 01 »: Haikyuu!!'s season 2, ogsas 2026-11-18).
+    [GeneratedRegex(@"\b(?:(?<s>\d{1,2})(?:st|nd|rd|th)|(?<w>second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth))\s+Season\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex OrdinalSeason();
     [GeneratedRegex(@"\b(?:Seasons?|Saisons?|S)\s*\d{1,2}\s*[-~]\s*S?\d{1,2}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonRange();
@@ -358,6 +359,11 @@ public static partial class ReleaseName
         return (language is null ? "" : "." + language) + (forced ? ".forced" : "") + (sdh ? ".sdh" : "");
     }
 
+    /// <summary><see cref="Key"/> with a vowel written twice in a row written once: « Haikyuu » and « Haikyu » alike.</summary>
+    public static string LooseKey(string title) => DoubledVowel().Replace(Key(title), "$1");
+    [GeneratedRegex("([aeiou])\\1+")]
+    private static partial Regex DoubledVowel();
+
     /// <summary>Matching key for titles and folders: "JoJo's Bizarre Adventure (2012)" and "JoJos.Bizarre.Adventure" meet.</summary>
     public static string Key(string title)
     {
@@ -466,6 +472,9 @@ public static partial class ReleaseName
         return title.Length > 0 && title == title.ToLowerInvariant() && title.Any(char.IsLetter)
             ? CultureInfo.InvariantCulture.TextInfo.ToTitleCase(title) : title;
     }
-    private static int Number(Match m, string group) => int.Parse(m.Groups[group].Value, CultureInfo.InvariantCulture);
+    private static int Number(Match m, string group) => group == "s" && !m.Groups["s"].Success && m.Groups["w"].Success
+        ? Array.IndexOf(OrdinalWords, m.Groups["w"].Value.ToLowerInvariant()) + 2
+        : int.Parse(m.Groups[group].Value, CultureInfo.InvariantCulture);
+    private static readonly string[] OrdinalWords = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
     private static int? OptionalNumber(Match m, string group) => m.Groups[group].Success && m.Groups[group].Length > 0 ? Number(m, group) : null;
 }

@@ -194,6 +194,32 @@ internal static class TorLinkTests
                 + " | Show Name/Season 01/Show Name - S01E01.fr.srt | Show Name/Season 01/Show Name - S01E02.en.srt", "Subtitles in a folder per episode");
             return Task.CompletedTask;
         });
+        await Test("TorLink : « Second Season - 01 » rangé en saison 2 (Haikyuu!!), ses bonus dans Extras", () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-second-season"); var anime = Path.Combine(dir, "ANIME");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), anime);
+            SourceFile File(string path, long size = 2_100_000_000) => new(Path.Combine(dir, "downloads", path), path, size);
+            const string Pack = "[sam] Haikyuu!! Second Season [BD 1080p FLAC]";
+            List<SourceFile> files = [.. Enumerable.Range(1, 25).Select(n => File($"{Pack}/[sam] Haikyuu!! Second Season - {n:00} [BD 1080p FLAC] [0B27365{n % 10}].mkv")),
+                File($"{Pack}/Extras/[sam] Haikyuu!! Second Season - NCOP1 [BD 1080p FLAC] [11111111].mkv", 200_000_000),
+                File($"{Pack}/Extras/[sam] Haikyuu!! Second Season - NCED1 [BD 1080p FLAC] [22222222].mkv", 200_000_000)];
+            var plan = MediaPlanner.Plan(Pack, null, files, libraries);
+            string Target(ImportOperation x) => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/');
+            var targets = string.Join(" | ", plan.Operations.Select(Target));
+            Assert(plan.Kind == MediaKind.Anime && plan.Operations.Count == 27, targets);
+            foreach (var expected in new[] { "ANIME/Haikyuu!!/Season 02/Haikyuu!! - S02E01.mkv", "ANIME/Haikyuu!!/Season 02/Haikyuu!! - S02E25.mkv", "ANIME/Haikyuu!!/Extras/Haikyuu!! - NCOP01.mkv", "ANIME/Haikyuu!!/Extras/Haikyuu!! - NCED01.mkv" })
+                Assert(plan.Operations.Any(x => Target(x) == expected), $"Missing {expected}: {targets}");
+            // Seasons 1, 3 and 4 already in « SERIES/Haikyu!! » (one u): season 2 joins them.
+            Directory.CreateDirectory(Path.Combine(dir, "SERIES", "Haikyu!!", "Season 01"));
+            var joined = MediaPlanner.Plan(Pack, null, files, libraries);
+            Assert(joined.Operations.Any(x => Target(x) == "SERIES/Haikyu!!/Season 02/Haikyu!! - S02E01.mkv"), "Joined: " + string.Join(" | ", joined.Operations.Take(3).Select(Target)));
+            Assert(MediaPlanner.FindFolder(Path.Combine(dir, "SERIES"), "Haikyuu!!", null) is null && MediaPlanner.FindFolder(Path.Combine(dir, "SERIES"), "Haikyuu!!", null, loose: true) == "Haikyu!!", "Loose only when asked");
+            const string Third = "Haikyu S03 MULTi 1080p WEB x264 AAC -Tsundere-Raws (CR)";
+            var third = MediaPlanner.Plan(Third, null, [File($"{Third}/Haikyu S03E01 MULTi 1080p WEB x264 AAC -Tsundere-Raws (CR).mkv", 1_500_000_000)], libraries);
+            Assert(third.Operations.Any(x => Target(x) == "SERIES/Haikyu!!/Season 03/Haikyu!! - S03E01.mkv"), "Third: " + string.Join(" | ", third.Operations.Select(Target)));
+            Assert(ReleaseName.Season("Show Third Season") == 3 && ReleaseName.Season("Show 2nd Season") == 2 && ReleaseName.Show("Haikyuu!! Second Season - 01").Title == "Haikyuu!!", "Ordinal seasons");
+            return Task.CompletedTask;
+        });
         await Test("TorLink : un pack de franchise (un dossier par série, des films parmi elles) rangé titre par titre, jamais en un film", () =>
         {
             // « Monogatari Series » (2026-11-15): one film « Monogatari Series » in Films, its three Kizumonogatari films as
