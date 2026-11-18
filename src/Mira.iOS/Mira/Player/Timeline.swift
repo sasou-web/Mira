@@ -19,7 +19,7 @@ enum Timeline {
     /// Shorter passages are noise; a chapter longer than the second is no opening, recap or preview, whatever its title.
     static let minPassage: Double = 3
     static let maxShortPassage: Double = 360
-    /// A chapter named as the opening shorter than this is not one (an eyecatch or a title card named « Opening »).
+    /// A chapter named as the opening shorter than this, past the first quarter of the title, is not one (an eyecatch named « Opening »).
     static let minOpening: Double = 20
 
     /// The button over a passage, by its kind.
@@ -144,7 +144,7 @@ enum Timeline {
             guard end - start >= minPassage else { continue }
             var kind = chapterKind(chapter.name, start: start, duration: duration)
             if let k = kind, k != "Outro", end - start > maxShortPassage { kind = nil }
-            if kind == "Intro", end - start < minOpening { kind = nil }
+            if kind == "Intro", end - start < minOpening, duration > 0, start > duration / 4 { kind = nil }
             kinds.append((start, end, kind, chapter.name))
         }
         return kinds.enumerated().map { i, c in

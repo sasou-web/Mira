@@ -136,10 +136,16 @@
       "passages": [["Outro", 1361, 1469]]
     },
     {
-      "about": "A short « OP » after « Intro » leaves the « Intro » the opening.",
+      "about": "A short « OP » in the middle after « Intro » leaves the « Intro » the opening.",
       "duration": 1420,
       "chapters": [[0, "Intro"], [90, "Part A"], [600, "OP"], [610, "Part B"]],
       "passages": [["Intro", 0, 90]]
+    },
+    {
+      "about": "A short « Opening » at the start stays the opening.",
+      "duration": 1420,
+      "chapters": [[0, "Opening"], [10, "Part A"]],
+      "passages": [["Intro", 0, 10]]
     }
   ]
 }

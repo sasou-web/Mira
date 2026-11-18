@@ -30,8 +30,9 @@ public static class PlaybackMarkers
     /// <summary>A chapter longer than this is not an opening, recap or preview, whatever its title.</summary>
     public const double MaximumShortPassage = 360;
     /// <summary>
-    /// A chapter named as the opening shorter than this is not one: an opening lasts a minute and a half, and some releases
-    /// name the eyecatch or the title card « Opening » (Haikyu!! S01E14: 12 s of title in the middle of the episode).
+    /// A chapter named as the opening shorter than this, past the first quarter of the title, is not one: an opening lasts
+    /// a minute and a half and comes early, and some releases name the eyecatch « Opening » (Haikyu!! S01E14: 12 s of title
+    /// at 7:52 of 24:29).
     /// </summary>
     public const double MinimumOpening = 20;
     private const RegexOptions Options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
@@ -75,7 +76,7 @@ public static class PlaybackMarkers
             if (!double.IsFinite(end) || end - start < MinimumLength) continue;
             var kind = Classify(ordered[i].Title, start, duration);
             if (kind is not (null or SkipKind.Outro) && end - start > MaximumShortPassage) kind = null;
-            if (kind is SkipKind.Intro && end - start < MinimumOpening) kind = null;
+            if (kind is SkipKind.Intro && end - start < MinimumOpening && duration > 0 && start > duration / 4) kind = null;
             kinds.Add((start, end, kind, ordered[i].Title));
         }
         return kinds.Select((c, i) => (c.Start, c.End, c.Kind, IsColdOpen(c.Title)
