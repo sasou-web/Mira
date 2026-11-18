@@ -1,0 +1,99 @@
+{
+  "about": "Episodes numbered from the series' start in their season (AbsoluteNumbers of Core, the iPhone's AbsoluteNumbers). « S2E26-37 » = S2E26 to S2E37. held: the library's episodes; virtual: TheTVDB's through Jellyfin; seasonal: the held ones under their season's number; unheld: the virtual ones still missing or to come.",
+  "cases": [
+    {
+      "name": "Shingeki no Kyojin: four seasons numbered 1 to 89",
+      "held": ["S1E1-25", "S2E26-37", "S3E38-59", "S4E60-89"],
+      "virtual": ["S2E1-12", "S3E1-22", "S4E1-30"],
+      "seasonal": ["S1E1-25", "S2E1-12", "S3E1-22", "S4E1-30"],
+      "unheld": []
+    },
+    {
+      "name": "The start of a season numbered from the series' start, the next season absent",
+      "held": ["S1E1-25", "S2E26-30"],
+      "virtual": ["S2E1-12", "S3E1-22"],
+      "seasonal": ["S1E1-25", "S2E1-5"],
+      "unheld": ["S2E6-12", "S3E1-22"]
+    },
+    {
+      "name": "The first season absent, the second numbered from the start",
+      "held": ["S2E13-24"],
+      "virtual": ["S1E1-12", "S2E1-12"],
+      "seasonal": ["S2E1-12"],
+      "unheld": ["S1E1-12"]
+    },
+    {
+      "name": "Numbered by season, a few missing: nothing changes",
+      "held": ["S1E1-12", "S2E1-4", "S2E8"],
+      "virtual": ["S2E5-7", "S2E9-12"],
+      "seasonal": ["S1E1-12", "S2E1-4", "S2E8"],
+      "unheld": ["S2E5-7", "S2E9-12"]
+    },
+    {
+      "name": "Past TheTVDB's season but not past the seasons before: numbered by season, nothing changes",
+      "held": ["S1E1-12", "S2E11-13"],
+      "virtual": ["S2E1-10"],
+      "seasonal": ["S1E1-12", "S2E11-13"],
+      "unheld": ["S2E1-10"]
+    },
+    {
+      "name": "A long anime in one season: nothing changes",
+      "held": ["S1E1-500"],
+      "virtual": ["S1E501-503"],
+      "seasonal": ["S1E1-500"],
+      "unheld": ["S1E501-503"]
+    },
+    {
+      "name": "Some of a season numbered by season, others from the start: nothing changes",
+      "held": ["S1E1-25", "S2E1", "S2E27"],
+      "virtual": ["S2E2-12"],
+      "seasonal": ["S1E1-25", "S2E1", "S2E27"],
+      "unheld": ["S2E2-12"]
+    },
+    {
+      "name": "Without TheTVDB: nothing changes",
+      "held": ["S1E1-25", "S2E26-37"],
+      "virtual": [],
+      "seasonal": ["S1E1-25", "S2E26-37"],
+      "unheld": []
+    }
+  ],
+  "renames": [
+    {
+      "name": "The files Mira placed, the episode's subtitles with it; the first season's left where they are",
+      "held": [["S1E25", "/media/Anime/Shingeki no Kyojin/Season 01/Shingeki no Kyojin - S01E25.mkv"], ["S2E26", "/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E26.mkv"], ["S2E27", "/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E27.mkv"]],
+      "virtual": ["S1E1-24", "S2E1-12"],
+      "placed": ["/media/Anime/Shingeki no Kyojin/Season 01/Shingeki no Kyojin - S01E25.mkv", "/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E26.mkv", "/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E26.fr.srt", "/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E27.mkv"],
+      "exists": [],
+      "renames": [
+        ["/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E26.mkv", "/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E01.mkv"],
+        ["/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E26.fr.srt", "/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E01.fr.srt"],
+        ["/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E27.mkv", "/media/Anime/Shingeki no Kyojin/Season 02/Shingeki no Kyojin - S02E02.mkv"]
+      ]
+    },
+    {
+      "name": "Windows paths, two episodes in one file",
+      "held": [["S1E12", "C:\\Media\\Anime\\Show\\Season 01\\Show - S01E12.mkv"], ["S2E13-14", "C:\\Media\\Anime\\Show\\Season 02\\Show - S02E13-E14.mkv"]],
+      "virtual": ["S1E1-11", "S2E1-2"],
+      "placed": ["C:\\Media\\Anime\\Show\\Season 02\\Show - S02E13-E14.mkv"],
+      "exists": [],
+      "renames": [["C:\\Media\\Anime\\Show\\Season 02\\Show - S02E13-E14.mkv", "C:\\Media\\Anime\\Show\\Season 02\\Show - S02E01-E02.mkv"]]
+    },
+    {
+      "name": "A new name taken by a file of the library: nothing renamed",
+      "held": [["S1E12", "/media/Show/Season 01/Show - S01E12.mkv"], ["S2E13", "/media/Show/Season 02/Show - S02E13.mkv"], ["S2E14", "/media/Show/Season 02/Show - S02E14.mkv"]],
+      "virtual": ["S1E1-11", "S2E1-2"],
+      "placed": ["/media/Show/Season 02/Show - S02E13.mkv", "/media/Show/Season 02/Show - S02E14.mkv"],
+      "exists": ["/media/Show/Season 02/Show - S02E02.mkv"],
+      "renames": []
+    },
+    {
+      "name": "A file of the user's own, not placed by Mira: left as it is",
+      "held": [["S1E12", "/media/Show/Season 01/Show - S01E12.mkv"], ["S2E13", "/media/Show/Season 02/[Group] Show - 13 [1080p].mkv"]],
+      "virtual": ["S1E1-11", "S2E1"],
+      "placed": ["/media/Show/Season 02/[Group] Show - 13 [1080p].mkv"],
+      "exists": [],
+      "renames": []
+    }
+  ]
+}

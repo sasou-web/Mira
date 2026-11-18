@@ -10,7 +10,8 @@ public sealed class TorLinkPlacement : IDisposable
     private readonly HashSet<string> _requested = [], _announced = [];
     private FileSystemWatcher? _watcher;
     private (DateTime Stamp, long Length) _historyStamp;
-    private bool _busy, _again, _checking;
+    private bool _busy, _again, _checking, _numbering;
+    private readonly Dictionary<string, DateTimeOffset> _numbersTried = new(StringComparer.OrdinalIgnoreCase);
     public TorLinkPlacement(TorLinkState state, TorLinkImporter importer) { State = state; Importer = importer; }
     public TorLinkState State { get; }
     public TorLinkImporter Importer { get; }
@@ -137,6 +138,70 @@ public sealed class TorLinkPlacement : IDisposable
         }
         catch (Exception ex) when (ExpectedErrors.Are(ex)) { }
         finally { _checking = false; }
+    }
+
+    /// <summary>
+    /// Episodes placed under a number from the series' start (« Season 02/Show - S02E26 », a pack numbered 1 to 89 across
+    /// four seasons) renamed to their season's number (« S02E01 », <see cref="AbsoluteNumbers"/>) once Jellyfin lists
+    /// them and TheTVDB's extension knows the seasons: Jellyfin then finds their names and pictures, and the missing
+    /// episodes are only those missing (ogsas, 2026-11-18). Only the files Mira placed, named as Mira names them, of a
+    /// download of the last two weeks (the one placed before this version too); never an episode watched or started (Jellyfin's ids follow the file's path),
+    /// never onto a file already there. Once per download, tried again ten minutes later when TheTVDB knows nothing yet
+    /// (a day at most) or a file is in use.
+    /// </summary>
+    public async Task RenumberAsync(JellyfinClient client, CancellationToken token)
+    {
+        if (_numbering) return;
+        var now = DateTimeOffset.UtcNow;
+        var due = Importer.Entries.Where(x => !x.NumbersChecked && x.JellyfinId is not null && x.Kind is MediaKind.Series or MediaKind.Anime
+            && x.State is TorLinkImportState.Imported or TorLinkImportState.Partial && now - x.CompletedAt < TimeSpan.FromDays(14)
+            && (!_numbersTried.TryGetValue(x.Id, out var at) || now - at > TimeSpan.FromMinutes(10))).Take(5).ToList();
+        if (due.Count == 0) return;
+        _numbering = true;
+        try
+        {
+            var virtuals = await client.VirtualEpisodesAsync(token);
+            foreach (var entry in due)
+            {
+                _numbersTried[entry.Id] = now;
+                var known = virtuals.Where(x => string.Equals(x.SeriesId, entry.JellyfinId, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (known.Count == 0) { if (now - entry.CompletedAt > TimeSpan.FromDays(1)) Importer.MarkNumbersChecked(entry.Id); continue; }
+                var held = (await client.EpisodePathsAsync(entry.JellyfinId!, token)).Items;
+                var placed = entry.Files.Where(f => !f.Found).Select(f => f.Destination).ToList();
+                var renames = await Task.Run(() => AbsoluteNumbers.Renames(placed, held, known, File.Exists), token);
+                var moving = renames.Select(x => x.From).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (renames.Count == 0 || held.Any(x => x.Path is { } path && moving.Contains(path) && (x.UserData.Played || x.UserData.PlaybackPositionTicks > 0)))
+                {
+                    Importer.MarkNumbersChecked(entry.Id);
+                    continue;
+                }
+                if (!await Task.Run(() => Rename(renames), token)) continue;
+                Importer.MarkRenumbered(entry.Id, renames);
+                await client.ReportMediaChangedAsync(renames.Select(x => x.To), renames.Select(x => x.From), token);
+            }
+        }
+        catch (Exception ex) when (ExpectedErrors.Are(ex)) { }
+        finally { _numbering = false; }
+    }
+
+    /// <summary>All the renames, or none: those done put back when one fails (a file in use).</summary>
+    private static bool Rename(IReadOnlyList<(string From, string To)> renames)
+    {
+        var done = new List<(string From, string To)>();
+        try
+        {
+            foreach (var (from, to) in renames) { File.Move(from, to); done.Add((from, to)); }
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            foreach (var (from, to) in Enumerable.Reverse(done))
+            {
+                try { File.Move(to, from); }
+                catch (Exception back) when (back is IOException or UnauthorizedAccessException) { }
+            }
+            return false;
+        }
     }
 
     /// <summary>Moves a placed title to the library of <paramref name="kind"/>, and tells Jellyfin (when given) about both.</summary>

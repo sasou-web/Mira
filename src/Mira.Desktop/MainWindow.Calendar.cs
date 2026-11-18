@@ -16,6 +16,8 @@ public partial class MainWindow
     // This series' virtual episodes; the thin lines and absent seasons opened, by their first episode.
     private List<MediaItem> _seriesVirtuals = [];
     private readonly HashSet<string> _shelfOpen = [];
+    // Those the library holds under a number from the series' start (« S02E26 » for S02E01) left out: not missing.
+    private List<MediaItem> ShelfVirtuals => AbsoluteNumbers.Unheld(_seriesVirtuals, _episodes);
     private bool _episodesRead, _tvdbBusy;
     // The virtual episodes of every series, kept a minute for this connection (one request for the whole library).
     private (JellyfinClient Client, DateTime At, List<MediaItem> Episodes)? _virtualEpisodes;
@@ -51,7 +53,7 @@ public partial class MainWindow
         var previous = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         _seasonBusy = true; SeasonSelector.Items.Clear();
         var own = EpisodePages.From(_episodes);
-        var pages = EpisodeShelf.Pages(own, _episodes, _seriesVirtuals, EpisodeCalendar.Today(), _settings.ShowMissingEpisodes);
+        var pages = EpisodeShelf.Pages(own, _episodes, ShelfVirtuals, EpisodeCalendar.Today(), _settings.ShowMissingEpisodes);
         foreach (var page in pages) SeasonSelector.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
         // Two pages or more: pills under the heading, cut to their numbers past ten (EpisodeTiles); one: none. The list
         // itself is never shown: it only holds the choice.
@@ -69,7 +71,7 @@ public partial class MainWindow
         EpisodeHeading.Text = L("Épisodes", "Episodes"); SeasonMarkButton.Visibility = Visibility.Collapsed;
         var today = EpisodeCalendar.Today();
         var grid = TileGrid();
-        foreach (var line in EpisodeShelf.Lines([], _seriesVirtuals, page.Season, true, true, today, _settings.ShowMissingEpisodes))
+        foreach (var line in EpisodeShelf.Lines([], ShelfVirtuals, page.Season, true, true, today, _settings.ShowMissingEpisodes))
         {
             if (line.Kind != ShelfKind.Missing) { AddTiles(grid, line, today); continue; }
             var key = "season-" + line.First.Id;

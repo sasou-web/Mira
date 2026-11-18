@@ -156,7 +156,10 @@ public partial class MainWindow
 
     private async Task CheckTorLinkAvailabilityAsync()
     {
-        if (_client is { } client && !_demo && _torlink is { } torlink) await torlink.FindIndexedAsync(client, _torlinkLifetime.Token);
+        if (_client is not { } client || _demo || _torlink is not { } torlink) return;
+        await torlink.FindIndexedAsync(client, _torlinkLifetime.Token);
+        // A pack numbered from the series' start: its episodes renamed to their season's numbers.
+        await torlink.RenumberAsync(client, _torlinkLifetime.Token);
     }
 
     private void TorLinkEntryChanged(TorLinkImportEntry entry)
