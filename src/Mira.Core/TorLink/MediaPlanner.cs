@@ -200,6 +200,16 @@ public static partial class MediaPlanner
         var folders = groups.Where(g => g.Any(f => ReleaseName.IsVideo(f.RelativePath))).ToList();
         if (folders.Count < 2) return null;
         if (folders.Any(g => ReleaseName.SeasonOfFolder(g.Key) is not null || ReleaseName.InExtrasFolder(g.Key + "/x") || ReleaseName.InSpecialsFolder(g.Key + "/x"))) return null;
+        // One show numbered on through the pack's folders (« 01. Bakemonogatari/… S01E01 », « 03. Nisemonogatari/… S03E01 »:
+        // a release that follows a show's order, such as TheTVDB's « Book Order » of Monogatari): each folder its own
+        // seasons, none shared, every episode with its season. Never a franchise: one show, as its files number it.
+        var seasons = folders.Select(g => g.Where(f => ReleaseName.IsVideo(f.RelativePath) && !IsBonus(f))
+            .Select(f => ReleaseName.Episode(Path.GetFileNameWithoutExtension(f.RelativePath), allowAbsolute: false)?.Season).ToList()).ToList();
+        if (seasons.All(x => x.Count > 0 && x.All(n => n is not null)))
+        {
+            var sets = seasons.Select(x => x.OfType<int>().ToHashSet()).ToList();
+            if (sets.SelectMany(x => x).Count() == sets.SelectMany(x => x).Distinct().Count() && sets.SelectMany(x => x).Distinct().Count() > 1) return null;
+        }
         var numbered = folders.All(g => FranchiseOrder().IsMatch(g.Key));
         var titles = folders.Select(g => (Folder: g.Key, Title: FranchiseTitle(g.Key))).ToList();
         if (titles.Any(t => ReleaseName.Key(t.Title).Length == 0) || titles.Select(t => ReleaseName.Key(t.Title)).Distinct().Count() != titles.Count) return null;
