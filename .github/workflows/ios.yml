@@ -120,31 +120,43 @@ jobs:
           xcrun simctl bootstatus "$udid"
           xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
       # The film of the player's captures, Sintel's trailer (© Blender Foundation, CC BY 3.0), and its trickplay
-      # pictures made here as Jellyfin makes them; without it, Sintel plays the 10 s clip as every other title does.
+      # pictures made here as Jellyfin makes them.
       # The pictures by ffmpeg, imageio-ffmpeg's static build from PyPI pinned by its hash, as web.yml takes it:
       # AVFoundation cannot decode a video on this runner.
-      # Kept between runs: download.blender.org was out on 2026-11-18 and Sintel's 10 s clip failed testPlayer on main.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Kept between runs (download.blender.org was out on 2026-11-18); when neither the cache nor the site has it, a
+      # film of the same length made by ffmpeg, never the 10 s clip: testPlayer needs a film that is still playing.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: trailer
         with:
           path: tools/ios/media/film.mp4
           key: sintel-trailer-720p-v1
       - name: Film for the player's captures
+        id: film
         run: |
-          if [ -s tools/ios/media/film.mp4 ] || curl -fsSL --retry 3 --max-time 180 -o tools/ios/media/film.mp4 https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4; then
-            shasum -a 256 tools/ios/media/film.mp4
-            echo 'imageio-ffmpeg==0.6.0 --hash=sha256:b1ae3173414b5fc5f538a726c4e48ea97edc0d2cdc11f103afee655c463fa742' > "$RUNNER_TEMP/ffmpeg.txt"
-            # In a throwaway venv: the runner's Python may refuse packages outside one (PEP 668).
-            if python3 -m venv "$RUNNER_TEMP/venv" \
-              && "$RUNNER_TEMP/venv/bin/pip" install --disable-pip-version-check --quiet --no-deps --only-binary ':all:' --require-hashes \
-                --target "$RUNNER_TEMP/ffmpeg" -r "$RUNNER_TEMP/ffmpeg.txt"; then
-              ffmpeg=$(ls "$RUNNER_TEMP"/ffmpeg/imageio_ffmpeg/binaries/ffmpeg-macos-*); chmod +x "$ffmpeg"
-              FFMPEG="$ffmpeg" sh tools/ios/trickplay.sh tools/ios/media/film.mp4 tools/ios/media/trickplay \
-                || { rm -rf tools/ios/media/trickplay; echo "::warning::No trickplay pictures for the player's captures."; }
-            fi
+          echo 'imageio-ffmpeg==0.6.0 --hash=sha256:b1ae3173414b5fc5f538a726c4e48ea97edc0d2cdc11f103afee655c463fa742' > "$RUNNER_TEMP/ffmpeg.txt"
+          # In a throwaway venv: the runner's Python may refuse packages outside one (PEP 668).
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --disable-pip-version-check --quiet --no-deps --only-binary ':all:' --require-hashes \
+            --target "$RUNNER_TEMP/ffmpeg" -r "$RUNNER_TEMP/ffmpeg.txt"
+          ffmpeg=$(ls "$RUNNER_TEMP"/ffmpeg/imageio_ffmpeg/binaries/ffmpeg-macos-*); chmod +x "$ffmpeg"
+          film=tools/ios/media/film.mp4
+          if [ -s "$film" ]; then echo "Sintel's trailer from the cache."
+          elif curl -fsSL --retry 3 --max-time 180 -o "$film" https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4; then
+            echo "downloaded=true" >> "$GITHUB_OUTPUT"
           else
-            rm -f tools/ios/media/film.mp4
-            echo "::warning::No film for the player's captures: Sintel plays the test clip."
+            rm -f "$film"
+            echo "::warning::Sintel's trailer could not be fetched: the player's captures show a test pattern of the same length."
+            "$ffmpeg" -loglevel error -f lavfi -i testsrc2=size=1280x544:rate=24 -f lavfi -i sine=frequency=440:sample_rate=48000 \
+              -t 52 -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart "$film"
           fi
+          shasum -a 256 "$film"
+          FFMPEG="$ffmpeg" sh tools/ios/trickplay.sh "$film" tools/ios/media/trickplay \
+            || { rm -rf tools/ios/media/trickplay; echo "::warning::No trickplay pictures for the player's captures."; }
+      - if: steps.film.outputs.downloaded == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tools/ios/media/film.mp4
+          key: sintel-trailer-720p-v1
       - name: Tests on the simulator
         # In a release, the tests pull requests passed are run again for the record: a failure (a missed tap on a slow
         # simulator, 0.9.0 and 0.9.2) is a warning tools/release.ps1 shows, and the .ipa is still built and attached.
