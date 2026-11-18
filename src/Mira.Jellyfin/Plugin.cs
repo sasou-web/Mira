@@ -29,6 +29,7 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         _subtitlesFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles.json");
         _journalFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles-journal.json");
         _queueFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles-queue.json");
+        TvdbOrders.File = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.tvdb-orders.json");
     }
 
     private static string? _subtitlesFile, _journalFile, _queueFile;

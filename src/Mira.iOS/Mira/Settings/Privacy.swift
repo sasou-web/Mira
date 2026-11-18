@@ -58,7 +58,7 @@ struct PrivacyView: View {
                 PrivacyRow(title: "Missing episodes (TheTVDB)",
                            to: "TheTVDB, through its official Jellyfin extension.",
                            when: "Only if you installed it, at each library scan.",
-                           sends: "Each series’ TheTVDB id, for its list of episodes. No name or picture from TheTVDB is kept.",
+                           sends: "Each series’ TheTVDB id, for its episodes in each order and the names and summaries of series, seasons and episodes. No picture from TheTVDB is kept.",
                            stop: "Uninstall it from Mira for Windows or Jellyfin’s dashboard.")
                 PrivacyRow(title: "Download searches",
                            to: "TorLink’s sites (The Pirate Bay through apibay.org, YTS, Nyaa, SubsPlease, EZTV, 1337x…), plus Knaben, AnimeTosho, Torrents-CSV and AniList (an anime’s other names) unless they’re turned off.",

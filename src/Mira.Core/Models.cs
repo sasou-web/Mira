@@ -463,6 +463,8 @@ public sealed class PlayerSettings
     public string MetadataBesideFor { get; set; } = "";
     public string MetadataBesideDoneFor { get; set; } = "";
     public DateTimeOffset? MetadataBesideAskedAt { get; set; }
+    /// <summary>The server where Mira made TheTVDB the first source of the series' names (<see cref="JellyfinClient.UseTvdbForSeriesAsync"/>), once its plugin was loaded: never again for it.</summary>
+    public string TvdbTitlesFor { get; set; } = "";
     public int GpuFailures { get; set; }
     /// <summary>
     /// The fingerprint for which Mira last tried the card by itself (Jellyfin on the processor), and whether the person

@@ -36,6 +36,8 @@
     <Compile Include="../Mira.Core/Subtitles/SubtitleSync.cs" Link="Core/SubtitleSync.cs" />
     <Compile Include="../Mira.Core/TorLink/ReleaseName.cs" Link="Core/ReleaseName.cs" />
     <Compile Include="../Mira.Core/TorLink/ReleaseRanking.cs" Link="Core/ReleaseRanking.cs" />
+    <!-- The episode order of each series (TvdbOrders): the rule shared with its tests. -->
+    <Compile Include="../Mira.Core/TvdbOrder.cs" Link="Core/TvdbOrder.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Pages/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />

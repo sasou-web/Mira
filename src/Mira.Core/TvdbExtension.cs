@@ -4,10 +4,12 @@ using static Mira.Core.Lang;
 namespace Mira.Core;
 
 /// <summary>
-/// Jellyfin's official TheTVDB plugin, used by Mira for one thing only: its « Missing Episode Fetcher », which adds the
-/// episodes a series has on TheTVDB but not in the library as virtual ones, with their air date. Mira turns its
-/// metadata and image fetchers off: TheTVDB never becomes a source of names, summaries or pictures. Only the Jellyfin
-/// server talks to TheTVDB; the episode lists of each series it knows the TheTVDB id of, at each library scan.
+/// Jellyfin's official TheTVDB plugin: its « Missing Episode Fetcher », which adds the episodes a series has on TheTVDB
+/// but not in the library as virtual ones, with their air date, and, since 2026-11-18 (ogsas), the first source of the
+/// names and summaries of series, seasons and episodes, TMDb after it: release names number episodes as TheTVDB does
+/// (Sonarr's numbering), TMDb often cuts a series in other seasons. Films, people and collections keep TMDb; pictures
+/// stay TMDb's everywhere. The extension then picks the episode order that fits the files (<see cref="TvdbOrder"/>).
+/// Only the Jellyfin server talks to TheTVDB: about each series it knows the TheTVDB id of.
 /// </summary>
 public static class TvdbExtension
 {
@@ -38,11 +40,15 @@ public static class TvdbExtension
         .Select(x => x["Url"] is JsonValue url && url.TryGetValue<string>(out var text) ? text : null)
         .FirstOrDefault(x => Uri.TryCreate(x, UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.Host == "repo.jellyfin.org");
 
+    /// <summary>The item types TheTVDB names: everything else (<see cref="ItemTypes"/>) keeps TMDb's.</summary>
+    public static readonly string[] SeriesTypes = ["Series", "Season", "Episode"];
+
     /// <summary>
-    /// Jellyfin's server settings with the plugin's metadata and image fetchers (« TheTVDB ») turned off for every item
-    /// type it serves, the « Missing Episode Fetcher » left on. True when anything changed.
+    /// Jellyfin's server settings with TheTVDB first among the metadata fetchers of series, seasons and episodes, off for
+    /// the other item types it serves, its pictures off everywhere, the « Missing Episode Fetcher » left on. True when
+    /// anything changed.
     /// </summary>
-    public static bool KeepToMissingEpisodes(JsonObject configuration)
+    public static bool ForSeries(JsonObject configuration)
     {
         if (configuration["MetadataOptions"] is not JsonArray options) configuration["MetadataOptions"] = options = [];
         var changed = false;
@@ -54,7 +60,8 @@ public static class TvdbExtension
                 options.Add(entry = new JsonObject { ["ItemType"] = type, ["DisabledMetadataSavers"] = new JsonArray(), ["LocalMetadataReaderOrder"] = new JsonArray(), ["DisabledMetadataFetchers"] = new JsonArray(), ["MetadataFetcherOrder"] = new JsonArray(), ["DisabledImageFetchers"] = new JsonArray(), ["ImageFetcherOrder"] = new JsonArray() });
                 changed = true;
             }
-            changed |= Add(entry, "DisabledMetadataFetchers", PluginName);
+            if (SeriesTypes.Contains(type)) changed |= Remove(entry, "DisabledMetadataFetchers", PluginName) | First(entry, "MetadataFetcherOrder", PluginName);
+            else changed |= Add(entry, "DisabledMetadataFetchers", PluginName);
             changed |= Add(entry, "DisabledImageFetchers", PluginName);
             changed |= Remove(entry, "DisabledMetadataFetchers", MissingEpisodes);
         }
@@ -62,30 +69,56 @@ public static class TvdbExtension
     }
 
     /// <summary>
-    /// A series library's options with the « Missing Episode Fetcher » listed for series and seasons when the library
-    /// lists its fetchers itself (TypeOptions): Jellyfin then runs only the ones listed. A library without them follows
-    /// the server settings (<see cref="KeepToMissingEpisodes"/>). True when anything changed.
+    /// A series library's options as <see cref="ForSeries"/> says, when the library lists its fetchers itself
+    /// (TypeOptions): Jellyfin then runs only the ones listed, in their order. TheTVDB listed first for series, seasons
+    /// and episodes, the « Missing Episode Fetcher » for series and seasons. A library without them follows the server
+    /// settings. True when anything changed.
     /// </summary>
-    public static bool ListMissingEpisodes(JsonObject libraryOptions)
+    public static bool ForSeriesLibrary(JsonObject libraryOptions)
     {
         if (libraryOptions["TypeOptions"] is not JsonArray types) return false;
         var changed = false;
         foreach (var entry in types.OfType<JsonObject>())
-            if (entry["Type"] is JsonValue value && value.TryGetValue<string>(out var type) && type is "Series" or "Season")
-                changed |= Add(entry, "MetadataFetchers", MissingEpisodes);
+        {
+            if (entry["Type"] is not JsonValue value || !value.TryGetValue<string>(out var type) || !SeriesTypes.Contains(type)) continue;
+            changed |= Add(entry, "MetadataFetchers", PluginName) | First(entry, "MetadataFetchers", PluginName) | First(entry, "MetadataFetcherOrder", PluginName);
+            if (type is "Series" or "Season") changed |= Add(entry, "MetadataFetchers", MissingEpisodes);
+        }
         return changed;
+    }
+
+    /// <summary>
+    /// The plugin's own settings with the seasons named after TheTVDB (« ImportSeasonName »: « Nisemonogatari » rather
+    /// than « Season 3 »). Left as they are when the plugin has no such setting. True when anything changed.
+    /// </summary>
+    public static bool NameSeasons(JsonObject pluginConfiguration)
+    {
+        if (pluginConfiguration["ImportSeasonName"] is not JsonValue value || !value.TryGetValue<bool>(out var on) || on) return false;
+        pluginConfiguration["ImportSeasonName"] = true;
+        return true;
     }
 
     /// <summary>What goes to TheTVDB, said before turning it on and beside the setting.</summary>
     public static string Privacy => L(
-        "Ton serveur Jellyfin (pas Mira, pas ton téléphone) demande à TheTVDB la liste des épisodes de chaque série qu’il connaît, par son identifiant TheTVDB, à chaque analyse de la bibliothèque (toutes les 12 h) : TheTVDB voit l’adresse IP du serveur et les séries demandées. Mira coupe ses noms, résumés et images : tes fiches restent celles de TMDb.",
-        "Your Jellyfin server (not Mira, not your phone) asks TheTVDB for the episode list of each series it knows, by its TheTVDB id, at each library scan (every 12 h): TheTVDB sees the server’s IP address and the series asked for. Mira turns off its names, summaries and pictures: your titles keep TMDb’s.");
+        "Ton serveur Jellyfin (pas Mira, pas ton téléphone) demande à TheTVDB la liste des épisodes de chaque série qu’il connaît, par son identifiant TheTVDB, à chaque analyse de la bibliothèque (toutes les 12 h), et les noms et résumés des séries, saisons et épisodes : TheTVDB voit l’adresse IP du serveur et les séries demandées. Les films et les images restent ceux de TMDb.",
+        "Your Jellyfin server (not Mira, not your phone) asks TheTVDB for the episode list of each series it knows, by its TheTVDB id, at each library scan (every 12 h), and for the names and summaries of series, seasons and episodes: TheTVDB sees the server’s IP address and the series asked for. Films and pictures keep TMDb’s.");
 
     private static bool Add(JsonObject entry, string list, string name)
     {
         if (entry[list] is not JsonArray names) entry[list] = names = [];
         if (names.Any(x => x is JsonValue value && value.TryGetValue<string>(out var text) && string.Equals(text, name, StringComparison.OrdinalIgnoreCase))) return false;
         names.Add(name);
+        return true;
+    }
+
+    /// <summary><paramref name="name"/> moved to the head of <paramref name="list"/> when it is in it but not first (put there when the list exists and lacks it).</summary>
+    private static bool First(JsonObject entry, string list, string name)
+    {
+        if (entry[list] is not JsonArray names) entry[list] = names = [];
+        var found = names.Where(x => x is JsonValue value && value.TryGetValue<string>(out var text) && string.Equals(text, name, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (found.Count == 1 && ReferenceEquals(names[0], found[0])) return false;
+        foreach (var item in found) names.Remove(item);
+        names.Insert(0, name);
         return true;
     }
 

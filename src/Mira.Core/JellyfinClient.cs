@@ -1721,9 +1721,8 @@ public sealed class JellyfinClient : IDisposable
     public async Task<TvdbExtension.State?> TvdbStateAsync(CancellationToken ct = default) =>
         await PluginsAsync(ct) is { } plugins ? TvdbExtension.Read(plugins) : null;
     /// <summary>
-    /// TheTVDB's plugin installed from Jellyfin's own repository (added if missing, the others kept), its metadata and
-    /// image fetchers turned off and its « Missing Episode Fetcher » on (<see cref="TvdbExtension.KeepToMissingEpisodes"/>,
-    /// <see cref="TvdbExtension.ListMissingEpisodes"/>). Jellyfin loads it at its next restart. False when refused (only
+    /// TheTVDB's plugin installed from Jellyfin's own repository (added if missing, the others kept), first source of
+    /// the series' names, its pictures off and its « Missing Episode Fetcher » on (<see cref="UseTvdbForSeriesAsync"/>). Jellyfin loads it at its next restart. False when refused (only
     /// an administrator may) or when the repository doesn't offer it.
     /// </summary>
     public async Task<bool> InstallTvdbAsync(CancellationToken ct = default)
@@ -1738,21 +1737,25 @@ public sealed class JellyfinClient : IDisposable
             if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
             await CheckAsync(saved);
         }
-        if (!await KeepTvdbToMissingEpisodesAsync(ct)) return false;
+        if (!await UseTvdbForSeriesAsync(ct)) return false;
         if (await PluginsAsync(ct) is { } plugins && TvdbExtension.Read(plugins) is TvdbExtension.State.Active or TvdbExtension.State.Restart) return true;
         using var installed = await _http.PostAsync($"Packages/Installed/{Uri.EscapeDataString(TvdbExtension.PluginName)}?assemblyGuid={TvdbExtension.PluginId}&repositoryUrl={Uri.EscapeDataString(repository)}", null, ct);
         if (installed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return false;
         await CheckAsync(installed);
         return true;
     }
-    /// <summary>The server settings and the series libraries changed as <see cref="InstallTvdbAsync"/> says, sent back whole. False when refused.</summary>
-    private async Task<bool> KeepTvdbToMissingEpisodesAsync(CancellationToken ct)
+    /// <summary>
+    /// TheTVDB first source of the names of series, seasons and episodes, in the server settings and each series library
+    /// (<see cref="TvdbExtension.ForSeries"/>, <see cref="TvdbExtension.ForSeriesLibrary"/>), and its seasons named
+    /// (<see cref="TvdbExtension.NameSeasons"/>) once the plugin is loaded; each sent back whole. False when refused.
+    /// </summary>
+    public async Task<bool> UseTvdbForSeriesAsync(CancellationToken ct = default)
     {
         using (var read = await _http.GetAsync("System/Configuration", ct))
         {
             if (read.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
             await CheckAsync(read);
-            if (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) is JsonObject configuration && TvdbExtension.KeepToMissingEpisodes(configuration))
+            if (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) is JsonObject configuration && TvdbExtension.ForSeries(configuration))
             {
                 using var content = new StringContent(configuration.ToJsonString(), Encoding.UTF8, "application/json");
                 using var saved = await _http.PostAsync("System/Configuration", content, ct);
@@ -1765,10 +1768,22 @@ public sealed class JellyfinClient : IDisposable
         {
             if (options is null) continue;
             var changed = (JsonObject)options.DeepClone();
-            if (!TvdbExtension.ListMissingEpisodes(changed)) continue;
+            if (!TvdbExtension.ForSeriesLibrary(changed)) continue;
             using var response = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = id, ["LibraryOptions"] = changed }, ct);
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
             await CheckAsync(response);
+        }
+        // Before Jellyfin loads the plugin (installed, waiting for its restart), it has no settings to read yet.
+        var plugin = $"Plugins/{TvdbExtension.PluginId:N}/Configuration";
+        using var own = await _http.GetAsync(plugin, ct);
+        if (own.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        if (!own.IsSuccessStatusCode) return true;
+        if (JsonNode.Parse(await own.Content.ReadAsStringAsync(ct)) is JsonObject settings && TvdbExtension.NameSeasons(settings))
+        {
+            using var content = new StringContent(settings.ToJsonString(), Encoding.UTF8, "application/json");
+            using var saved = await _http.PostAsync(plugin, content, ct);
+            if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(saved);
         }
         return true;
     }

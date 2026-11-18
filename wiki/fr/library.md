@@ -40,6 +40,8 @@ Dans **Réglages → Lecture**, **Cacher les spoilers** (coupé par défaut) flo
 
 ## Épisodes manquants et à venir
 
+Avec l’extension TheTVDB, les séries et les animes prennent aussi leurs noms, noms de saisons et titres d’épisodes chez TheTVDB (les films et les images restent ceux de TMDb), et chaque série est montrée dans l’ordre d’épisodes de TheTVDB que suivent ses fichiers : diffusion, DVD, absolu (de 1 à 500) ou alternatif (un pack numéroté d’après les romans, par exemple). Un ordre que tu as choisi toi-même dans Jellyfin est gardé.
+
 Avec l’extension TheTVDB sur ton Jellyfin (**Réglages → Soin de la bibliothèque → Épisodes manquants et sorties** de Mira pour Windows l’active, pour un administrateur), la page d’une série montre ce que ta bibliothèque n’a pas, chacun à sa place. Les épisodes sortis qui n’y sont pas forment une case vide entre ceux que tu as (« É3–4 », « Pas dans ta bibliothèque », « Sortis du 25 oct. au 1 nov. ») ; **Voir les 2** l’ouvre en une case par épisode. Le prochain épisode à sortir est une case vide à sa place, avec son jour. Une saison dont tu n’as aucun épisode est dans la liste des saisons (« Saison 1 · absente »), montrée par une carte qui dit combien d’épisodes elle compte et quand ils sont sortis. Rien à lancer, rien d’urgent : **Réglages → Lecture → Montrer les épisodes manquants** coupé ne garde que ceux à venir.
 
 ## Lire sur un autre appareil
