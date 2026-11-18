@@ -161,7 +161,7 @@ targets:
       - path: ../../tests/fixtures/shelf.json
         buildPhase: resources
       - path: ../../tests/fixtures/absolute.json
-          buildPhase: resources
+        buildPhase: resources
       - path: ../../tests/fixtures/server-move.json
         buildPhase: resources
     dependencies:
