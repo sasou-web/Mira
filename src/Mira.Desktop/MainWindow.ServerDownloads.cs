@@ -99,7 +99,7 @@ public partial class MainWindow
     {
         ++_serverVersion; ++_serverSearchVersion;
         _serverFilled = _serverReady = _serverSearching = false; _serverAgent = null; _serverClient = null;
-        _serverSent.Clear(); _serverRows.Clear(); _localMagnets.Clear(); _localProblem = null; _serverQueued = 0; _serverStatus = null; _serverPosters.Clear();
+        _serverSent.Clear(); _serverRows.Clear(); _localMagnets.Clear(); _localProblem = null; _serverQueued = 0; _serverStatus = null; _serverPosters.Clear(); _serverGone.Clear();
         _serverPlacedAll = _serverFollowsOpen = _serverPlacedOpen = false;
         ServerQueue.Children.Clear(); ServerFollows.Children.Clear(); ServerPlaced.Children.Clear(); ServerPlacedList.Children.Clear(); ServerResults.Children.Clear();
         ServerQueueCompact.Children.Clear(); ServerFollowsCompact.Children.Clear(); ServerPlacedCompact.Children.Clear();

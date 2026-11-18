@@ -34,6 +34,8 @@ public partial class MainWindow
     private RelayStatus? _serverStatus;
     /// <summary>The titles of Jellyfin whose poster the page shows, by id (null: Jellyfin has none, or no such title).</summary>
     private readonly Dictionary<string, MediaItem?> _serverPosters = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Titles asked of Jellyfin that it no longer has (removed from the library): left out of « Sorted into your library ».</summary>
+    private readonly HashSet<string> _serverGone = new(StringComparer.OrdinalIgnoreCase);
     private bool _serverPostersAsking;
     /// <summary>What is left on the disks of this PC's libraries, read at most once a minute.</summary>
     private (DateTime At, long? Bytes) _mediaFree = (DateTime.MinValue, null);
@@ -234,7 +236,7 @@ public partial class MainWindow
     }
 
     /// <summary>The titles placed: the relay's, or on the PC of Jellyfin this PC's own placement journal.</summary>
-    private List<RelayPlaced> PlacedOf(RelayStatus status) => _serverLocal ? _torlink is { } torlink ? TorLinkRemote.Placed(torlink.Importer.Entries) : [] : status.Placed;
+    private List<RelayPlaced> PlacedOf(RelayStatus status) => RemoteBoard.Present(_serverLocal ? _torlink is { } torlink ? TorLinkRemote.Placed(torlink.Importer.Entries) : [] : status.Placed, _serverGone);
 
     private void RenderServerPlaced(RelayStatus status)
     {
@@ -427,7 +429,7 @@ public partial class MainWindow
         Column(new GridLength(36)); Column(new GridLength(1, GridUnitType.Star)); grid.ColumnDefinitions[1].MaxWidth = 290 + 18;
         var narrow = _serverNarrow;
         // Bar, share, size, speed, time left, peers; the size, time left and peers left out when narrow.
-        foreach (var width in narrow ? new double[] { -1, 64, 0, 120, 0, 0 } : [-1, 64, 168, 102, 102, 86]) Column(width < 0 ? new GridLength(1, GridUnitType.Star) : new GridLength(width));
+        foreach (var width in narrow ? new double[] { -1, 64, 0, 120, 0, 0 } : [-1, 64, 168, 128, 102, 86]) Column(width < 0 ? new GridLength(1, GridUnitType.Star) : new GridLength(width));
         Column(new GridLength(90));
         grid.Children.Add(Thumb(line.PosterId, line.Episodic, 36, 54));
         var text = new StackPanel { Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -665,7 +667,11 @@ public partial class MainWindow
         {
             var found = await client.PostersAsync(asked, _connectionLifetime.Token);
             if (!ReferenceEquals(client, _client)) return;
-            foreach (var id in asked) _serverPosters[id] = found.FirstOrDefault(x => string.Equals(x.Id.Replace("-", ""), id.Replace("-", ""), StringComparison.OrdinalIgnoreCase));
+            foreach (var id in asked)
+            {
+                _serverPosters[id] = found.FirstOrDefault(x => string.Equals(x.Id.Replace("-", ""), id.Replace("-", ""), StringComparison.OrdinalIgnoreCase));
+                if (_serverPosters[id] is null) _serverGone.Add(id);
+            }
         }
         catch (Exception ex) when (IsExpected(ex)) { foreach (var id in asked) _serverPosters[id] = null; }
         finally { _serverPostersAsking = false; }
