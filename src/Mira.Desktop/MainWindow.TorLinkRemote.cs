@@ -244,6 +244,8 @@ public partial class MainWindow
                 _remoteRequestOutcomes.Add(new(request.Id, "failed", refusal));
                 continue;
             }
+            // A search result: found among anime, only among films or among shows, the library it goes to once finished.
+            if (request.Place is null && request.Replace is null && MediaPlanner.HintOf(request.Kind) is { } hinted) _torlink?.Importer.Hint(hash, hinted);
             try
             {
                 var (outcome, error) = await serve.AddAsync(request.Magnet, ct);
