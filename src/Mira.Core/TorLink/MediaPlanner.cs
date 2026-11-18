@@ -232,6 +232,9 @@ public static partial class MediaPlanner
         return ReleaseName.SafeName(System.Text.RegularExpressions.Regex.Replace(name, @"\s+", " ").Trim());
     }
 
+    [System.Text.RegularExpressions.GeneratedRegex(@"(?<![a-z0-9])(?:part|partie)\s*(\d{1,2})(?![0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
+    private static partial System.Text.RegularExpressions.Regex FolderPart();
+
     /// <summary>The order a franchise pack numbers its folders by: « 01. », « 02 - », « 3) ».</summary>
     [System.Text.RegularExpressions.GeneratedRegex(@"^\s*\d{1,3}\s*[.\-_)]\s*")]
     private static partial System.Text.RegularExpressions.Regex FranchiseOrder();
@@ -276,7 +279,10 @@ public static partial class MediaPlanner
         // The season known, a number alone is the episode's: "Show - 05", or the number the file starts with ("05 - Title").
         var episode = ReleaseName.Episode(name, context.AbsoluteAllowed || season is not null)
             ?? (season is not null ? ReleaseName.LeadingEpisode(name, context.Show) : null)
-            ?? (single ? ReleaseName.Episode(context.TorrentName, context.AbsoluteAllowed) : null);
+            ?? (single ? ReleaseName.Episode(context.TorrentName, context.AbsoluteAllowed) : null)
+            // « Saison 02 (Kizumonogatari)/Kizumonogatari Part 1 »: the films of a show's season, numbered by their part.
+            ?? (ReleaseName.SeasonOfFolder(folder) is { } folderSeason && FolderPart().Match(ReleaseName.Readable(name, out _)) is { Success: true } part
+                ? new EpisodeNumber(folderSeason, int.Parse(part.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)) : null);
         if (episode is not { Absolute: true }) return episode;
         return season is { } value ? episode with { Season = value, Absolute = false } : episode;
     }
@@ -470,7 +476,10 @@ public static partial class MediaPlanner
         foreach (var (file, label) in bonus)
         {
             if (label is null) unnumbered++;
-            var stem = label is null ? ReleaseName.SafeName(Path.GetFileNameWithoutExtension(file.RelativePath)) : $"{show} - {label}";
+            // « Bakemonogatari - NCOP01 » in a pack of the whole show: named after its own title, as forty « NCOP01 » would clash.
+            var own = label is null ? null : ReleaseName.SafeName(System.Text.RegularExpressions.Regex.Split(ReleaseName.Show(Path.GetFileNameWithoutExtension(file.RelativePath)).Title, @"[\s\-]*\b(?:NC\s*(?:OP|ED)|Creditless|Clean|Textless)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)[0].Trim());
+            var named = own is { Length: > 0 } && ReleaseName.Key(own) != ReleaseName.Key(show) ? own : show;
+            var stem = label is null ? ReleaseName.SafeName(Path.GetFileNameWithoutExtension(file.RelativePath)) : $"{named} - {label}";
             operations.Add(Operation(file, Unique(Path.Combine(showPath, "Extras", stem), Path.GetExtension(file.RelativePath), used), "extra"));
         }
         if (unnumbered > 0) context.Notes.Add(Count(unnumbered, "vidéo sans numéro placée dans Extras", "vidéos sans numéro placées dans Extras", "unnumbered video put in Extras", "unnumbered videos put in Extras"));

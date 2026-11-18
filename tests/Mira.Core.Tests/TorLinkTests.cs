@@ -252,6 +252,40 @@ internal static class TorLinkTests
             }
             return Task.CompletedTask;
         });
+        await Test("TorLink : une intégrale rangée en « Saison NN (Titre) » : films d'une saison numérotés par leur partie, génériques sous leur titre", () =>
+        {
+            // matheousse's « Monogatari Series Intégrale v3 » (2026-11-18): TheTVDB's Book Order as « Saison 02 (Kizumonogatari) »,
+            // files « Title - NN »; the three films of season 2 went to Extras, and forty « NCOP01 » were all the show's.
+            var dir = Path.Combine(testRoot, "torlink-saisons"); var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), Path.Combine(dir, "ANIME"));
+            SourceFile F(string path) => new(Path.Combine(dir, "downloads", path), path, 1_400_000_000);
+            const string T = "[matheousse] Monogatari Series Intégrale VOSTFR v3 (BD 1080p Opus) (Bakemonogatari, Kizumonogatari, Nisemonogatari, Nekomonogatari Black, Monogatari Second Season, Hanamonogatari, Tsukimonogatari, Koyomimonogatari, Owarimonogatari, Zoku Owarimonogatari)";
+            const string R = "Monogatari (BD 1080p)";
+            List<SourceFile> files = [
+                F($"{R}/Extras/[matheousse] Bakemonogatari - NCOP01 - staple stable [BD 1080p Opus] [078104B0].mkv"),
+                F($"{R}/Extras/[matheousse] Nisemonogatari - NCOP01 - futakotome [BD 1080p Opus] [078104B1].mkv"),
+                F($"{R}/Saison 01 (Bakemonogatari)/[matheousse] Bakemonogatari - 01 MULTi [BD 1080p Opus] [9C9FBA56].mkv"),
+                F($"{R}/Saison 01 (Bakemonogatari)/[matheousse] Bakemonogatari - 15 MULTi [BD 1080p Opus] [9C9FBA57].mkv"),
+                F($"{R}/Saison 02 (Kizumonogatari)/[matheousse] Kizumonogatari Part 1 VOSTFR [BD 1080p 1920x816 Opus 5.1] [A1FD3553].mkv"),
+                F($"{R}/Saison 02 (Kizumonogatari)/[matheousse] Kizumonogatari Part 3 VOSTFR [BD 1080p 1920x816 Opus 5.1] [A1FD3555].mkv"),
+                F($"{R}/Saison 03 (Nisemonogatari)/[matheousse] Nisemonogatari - 01 MULTi [BD 1080p Opus] [DF46A98C].mkv"),
+                F($"{R}/Saison 05 (Nekomonogatari White)/[matheousse] Nekomonogatari White - 01 VOSTFR [BD 1080p Opus] [AB91212B].mkv"),
+                F($"{R}/Saison 13 (Owarimonogatari)/[matheousse] Owarimonogatari - 20 VOSTFR [BD 1080p Opus] [B4DFE968].mkv"),
+                F($"{R}/Saison 14 (Zoku Owarimonogatari)/[matheousse] Zoku Owarimonogatari - 06 VOSTFR [BD 1080p Opus 5.1] [E6ED595F].mkv"),
+                F($"{R}/Monogatari Intégrale Subs + fonts.7z")];
+            var plan = MediaPlanner.Plan(T, null, files, libraries);
+            string Target(ImportOperation x) => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/');
+            var targets = string.Join(" | ", plan.Operations.Select(Target));
+            foreach (var expected in new[] {
+                "ANIME/Monogatari Series/Season 01/Monogatari Series - S01E15.mkv",
+                "ANIME/Monogatari Series/Season 02/Monogatari Series - S02E01.mkv",
+                "ANIME/Monogatari Series/Season 02/Monogatari Series - S02E03.mkv",
+                "ANIME/Monogatari Series/Season 13/Monogatari Series - S13E20.mkv",
+                "ANIME/Monogatari Series/Extras/Bakemonogatari - NCOP01.mkv",
+                "ANIME/Monogatari Series/Extras/Nisemonogatari - NCOP01.mkv" })
+                Assert(plan.Operations.Any(x => Target(x) == expected), $"Missing {expected}: {targets}");
+            Assert(plan.Operations.Count == 10, targets);
+            return Task.CompletedTask;
+        });
         await Test("TorLink : chaque titre d'un pack de franchise est sa propre série, arcs compris, jamais regroupés en saisons", () =>
         {
             // « Monogatari Series » (2026-11-16, ogsas): fifteen titles, fifteen cards, Kuro and Shiro apart, the arcs of
