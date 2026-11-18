@@ -93,6 +93,7 @@ public static class QBittorrentSettings
         // The same as the Web API sets (Preferences), here so that a qBittorrent Mira starts reads them at once.
         ("BitTorrent", @"Session\DiskIOType", SimplePreadPwrite.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         ("BitTorrent", @"Session\PieceExtentAffinity", "true"),
+        ("BitTorrent", @"Session\Preallocation", "true"),
     ];
 
     /// <summary>
@@ -161,6 +162,11 @@ public static class QBittorrentSettings
         // only, what qBittorrent advises on Windows. The disk I/O type is read at qBittorrent's next start.
         ["enable_piece_extent_affinity"] = true,
         ["disk_io_type"] = SimplePreadPwrite,
+        // Each file's room taken when it is added, not as its pieces come: written in the order peers send them into sparse
+        // files, three 50-100 GB packs at once came out in 5 000 to 11 000 fragments an episode on the Dell's USB disk
+        // (2026-11-18), and checking them read 115 KB per seek: 13 MB/s, hours at 100 % before Mira could sort them.
+        // Reserved first, each file lies in one piece; a full disk shows when it is added, not halfway.
+        ["preallocate_all"] = true,
     };
 
     /// <summary>qBittorrent's DiskIOType « Simple pread/pwrite » (5.1 and later; before, an unknown value is its default).</summary>
