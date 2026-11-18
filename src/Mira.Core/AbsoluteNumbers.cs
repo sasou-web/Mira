@@ -100,6 +100,42 @@ public static partial class AbsoluteNumbers
         return renames;
     }
 
+    /// <summary>
+    /// What Jellyfin wrote beside a renamed episode under its old name, when it saves pictures and NFO files with the media
+    /// (« Show - S04E60.nfo », « Show - S04E60-thumb.jpg »): the picture follows the episode (dropped when its new name is
+    /// taken: Jellyfin wrote one already), the NFO goes, its numbers being the old ones (Jellyfin writes a new one). Without
+    /// it they stay behind (ogsas, 2026-11-18: 104 of them in Shingeki no Kyojin's seasons 3 and 4).
+    /// </summary>
+    public static (List<(string From, string To)> Moves, List<string> Deletes) Beside(IReadOnlyList<(string From, string To)> renames, Func<string, bool> exists)
+    {
+        var moving = renames.Select(x => x.From).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var moves = new List<(string From, string To)>(); var deletes = new List<string>();
+        foreach (var (from, to) in renames)
+        {
+            if (!ReleaseName.VideoExtensions.Contains(Path.GetExtension(from))) continue;
+            var oldStem = from[..^Path.GetExtension(from).Length]; var newStem = to[..^Path.GetExtension(to).Length];
+            var nfo = oldStem + ".nfo";
+            if (!moving.Contains(nfo) && exists(nfo)) deletes.Add(nfo);
+            var thumb = oldStem + "-thumb.jpg";
+            if (moving.Contains(thumb) || !exists(thumb)) continue;
+            if (exists(newStem + "-thumb.jpg")) deletes.Add(thumb); else moves.Add((thumb, newStem + "-thumb.jpg"));
+        }
+        return (moves, deletes);
+    }
+
+    /// <summary>
+    /// The series of <paramref name="series"/> (id, folder) whose folder holds <paramref name="file"/>, the deepest one:
+    /// the series a placed episode belongs to now, when the id kept at its placing names no series any more (Jellyfin made
+    /// the series again after its folder was renamed or identified otherwise: Shingeki no Kyojin's season 2, 2026-11-18).
+    /// </summary>
+    public static string? SeriesOf(string file, IEnumerable<(string Id, string Folder)> series)
+    {
+        static string Norm(string path) => path.Replace('\\', '/').TrimEnd('/');
+        var target = Norm(file);
+        return series.Where(x => x.Folder.Length > 0 && target.StartsWith(Norm(x.Folder) + "/", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.Folder.Length).Select(x => x.Id).FirstOrDefault();
+    }
+
     // « S02E26 », « S02E26-E27 », « S02E26-27 », a word of its own.
     [GeneratedRegex(@"(?<![A-Za-z0-9])S(\d{1,2})E(\d{1,4})(?:-E?(\d{1,4}))?(?![A-Za-z0-9])", RegexOptions.IgnoreCase)]
     private static partial Regex Code();

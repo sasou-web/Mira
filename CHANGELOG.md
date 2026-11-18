@@ -1,6 +1,7 @@
 # Historique
 
 ## Non publié
+- **Numéros de saison remis aussi quand la série a changé dans Jellyfin, et fiches de Jellyfin suivies (Windows)** : sur le PC de Jellyfin, la saison 2 de Shingeki no Kyojin restait en « S02E26 » (« E1–12 · Not in your library ») parce que la série qu’elle désignait au rangement n’existait plus dans Jellyfin ; Mira retrouve maintenant la série par le dossier des fichiers. Au renommage, la vignette écrite par Jellyfin à côté de l’épisode suit son nouveau nom et l’ancienne fiche .nfo part (Jellyfin en écrit une neuve) : plus de fichiers orphelins. Jamais essayé sur un vrai PC.
 
 - **« Inviter un ami » toujours dans l’Aide (Windows, Mac)** : le guide qui dit quelle adresse donner à un ami (« Chez toi | Ailleurs », partage Tailscale, adresse à copier) ne s’ouvrait qu’après « Créer son compte ». Il a maintenant son sujet dans l’Aide, à tout moment, aussi pour un ami qui a déjà son compte : les mêmes étapes pour « ton ami », avec « Créer son compte » et « Autoriser un appareil » qui ouvrent Réglages → Amis et invités (pour un administrateur). Contrôlé par le self-check du Mac ; à voir sur le Dell.
 
