@@ -409,8 +409,8 @@ public static partial class MediaPlanner
         if (title.Length == 0) (title, year) = ReleaseName.Show(Path.GetFileName(reference.RelativePath));
         if (title.Length == 0) title = ReleaseName.SafeName(Path.GetFileNameWithoutExtension(context.TorrentName));
         var single = videos.Count == 1;
-        var animeFolder = FindFolder(context.Libraries.Anime, title, year);
-        var seriesFolder = string.Equals(context.Libraries.Series, context.Libraries.Anime, StringComparison.OrdinalIgnoreCase) ? null : FindFolder(context.Libraries.Series, title, year);
+        var animeFolder = FindFolder(context.Libraries.Anime, title, year, loose: true);
+        var seriesFolder = string.Equals(context.Libraries.Series, context.Libraries.Anime, StringComparison.OrdinalIgnoreCase) ? null : FindFolder(context.Libraries.Series, title, year, loose: true);
         // No folder under this name: a show placed before under it, or one of the other names this release gives.
         var alias = animeFolder is null && seriesFolder is null ? KnownAs(context, title) : null;
         if (alias is not null)
@@ -436,7 +436,7 @@ public static partial class MediaPlanner
         var root = context.Target?.Root ?? context.Libraries.RootFor(kind);
         if (root is null) return Blocked(kind, kind == MediaKind.Anime ? L("Choisis le dossier Animes de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Anime folder in Settings → Downloads.")
             : L("Choisis le dossier Séries de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Shows folder in Settings → Downloads."));
-        var show = context.Target?.Folder ?? FindFolder(root, title, year) ?? (alias is not null && SameFolder(alias.Root, root) ? alias.Folder : null) ?? ReleaseName.SafeName(year is null ? title : $"{title} ({year})");
+        var show = context.Target?.Folder ?? FindFolder(root, title, year, loose: true) ?? (alias is not null && SameFolder(alias.Root, root) ? alias.Folder : null) ?? ReleaseName.SafeName(year is null ? title : $"{title} ({year})");
         var showPath = Path.Combine(root, show);
         var seasons = ExistingFolders(showPath);
         string SeasonFolder(int season) => seasons.FirstOrDefault(x => ReleaseName.SeasonOfFolder(x) == season) ?? (season == 0 ? "Season 00" : $"Season {season:00}");
@@ -529,12 +529,21 @@ public static partial class MediaPlanner
     private static bool SameFolder(string? a, string? b) =>
         a is not null && b is not null && string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(a)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(b)), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
-    /// <summary>An existing folder of the library for this title (any punctuation or case), preferring the same year.</summary>
-    public static string? FindFolder(string? root, string title, int? year)
+    /// <summary>
+    /// An existing folder of the library for this title (any punctuation or case), preferring the same year.
+    /// <paramref name="loose"/> (a show): else the only folder named alike but for a long vowel written twice or once
+    /// (« Haikyuu!! » and « Haikyu!! », ogsas 2026-11-18: season 2 apart from seasons 1, 3 and 4).
+    /// </summary>
+    public static string? FindFolder(string? root, string title, int? year, bool loose = false)
     {
         var key = ReleaseName.Key(title);
         if (root is null || key.Length == 0) return null;
         var candidates = ExistingFolders(root).Where(x => ReleaseName.Key(x) == key).ToList();
+        if (candidates.Count == 0 && loose)
+        {
+            var near = ExistingFolders(root).Where(x => ReleaseName.LooseKey(x) == ReleaseName.LooseKey(title)).ToList();
+            return near.Count == 1 && (year is null || ReleaseName.FolderYearOf(near[0]) is null || ReleaseName.FolderYearOf(near[0]) == year) ? near[0] : null;
+        }
         if (candidates.Count == 0) return null;
         if (year is not null) return candidates.FirstOrDefault(x => ReleaseName.FolderYearOf(x) == year) ?? candidates.FirstOrDefault(x => ReleaseName.FolderYearOf(x) is null);
         return candidates.Count == 1 ? candidates[0] : null;
