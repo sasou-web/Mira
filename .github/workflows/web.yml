@@ -64,7 +64,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Scripts parse
-        run: for f in src/Mira.Jellyfin/Pages/*.js tools/web/*.mjs tools/extension/*.mjs; do node --experimental-default-type=module --check "$f"; done
+        run: for f in src/Mira.Jellyfin/Pages/*.js tools/web/*.mjs tools/extension/*.mjs; do node --check "$f"; done
       - name: Package the plugin and a local repository
         run: |
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
