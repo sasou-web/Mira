@@ -2,14 +2,19 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Mira.Core;
+using Mira.Core.TorLink;
+using Mira.Desktop.Services;
+using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
 // « Ajouter un ami » (Réglages → Jellyfin, for an administrator): an account of their own on this Jellyfin, which sees
 // only the libraries chosen and downloads nothing (Friends, JellyfinClient.CreateFriendAsync). Their phone then signs
-// in by a code that « Autoriser un appareil » approves for that account, or with the password shown here once.
+// in by a code allowed right in the guide shown once it is made (where they watch from, the address to send: FriendReach),
+// or with the password shown there once.
 public partial class MainWindow
 {
     private List<VirtualFolder> _friendFolders = [];
@@ -35,7 +40,8 @@ public partial class MainWindow
     }
     private void ShowFriendForm()
     {
-        FriendDone.Visibility = Visibility.Collapsed; FriendForm.Visibility = Visibility.Visible; FriendPasswordBox.Clear();
+        FriendDone.Visibility = Visibility.Collapsed; FriendForm.Visibility = Visibility.Visible; FriendSteps.Children.Clear(); FriendStatus.Text = "";
+        _friendGuide = null; _friendCodeBox = null; _friendShareWatch?.Stop();
         FriendLibraries.Children.Clear();
         foreach (var folder in Friends.Choices(_friendFolders))
         {
@@ -73,59 +79,245 @@ public partial class MainWindow
             _friendMade = (client, friend, password);
             FriendNameBox.Clear(); FriendStatus.Text = "";
             var shared = Friends.Choices(_friendFolders).Where(x => chosen.Contains(x.ItemId!)).Select(x => x.Name).ToList();
-            ShowFriendDone(client, friend, password, codes, shared);
-            // Its phone is approved for its account below: the list of accounts now has it, chosen.
-            if (codes) await ShowApproveDeviceAsync(friend.Id);
+            ShowFriendDone(client, friend, codes, shared);
+            // « Allow a device » below lists it too, for a phone later.
+            if (codes) await ShowApproveDeviceAsync();
         }
         // Only Mira's own cancellation (another account, closing): HttpClient's 12 s limit is one too, and must be said.
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { FriendStatus.Text = Friendly(ex); }
         finally { _friendBusy = false; FriendCreateButton.IsEnabled = true; }
     }
-    private void ShowFriendDone(JellyfinClient client, AuthUser friend, string password, bool codes, IReadOnlyList<string> shared)
+    /// <summary>The friend's guide, as it stands: Quick Connect on the server, the libraries named, the away choice, who shares this PC.</summary>
+    private sealed class FriendGuide
+    {
+        public required string Name { get; init; }
+        public required IReadOnlyList<string> Shared { get; init; }
+        public required bool Codes { get; init; }
+        public string? Home { get; init; }
+        public string? Away { get; init; }
+        /// <summary>Jellyfin runs on this PC: the guide speaks of « this PC », and Mira reads its Tailscale shares.</summary>
+        public bool Here { get; init; }
+        public bool Elsewhere { get; set; } = true;
+        public IReadOnlyList<string>? Sharees { get; set; }
+        public bool LetIn { get; set; }
+        public bool WatchesShares => Elsewhere && Here && Away is not null;
+    }
+    private FriendGuide? _friendGuide;
+    private DispatcherTimer? _friendShareWatch;
+    private TextBox? _friendCodeBox;
+    private bool _friendShareReading;
+
+    private void ShowFriendDone(JellyfinClient client, AuthUser friend, bool codes, IReadOnlyList<string> shared)
     {
         FriendForm.Visibility = Visibility.Collapsed; FriendDone.Visibility = Visibility.Visible;
-        FriendDoneTitle.Text = L($"Compte de {friend.Name} créé, avec {Friends.Joined(shared)}.", $"{friend.Name}’s account is ready, with {Friends.Joined(shared)}.");
-        var address = ReachableServer(client);
-        FriendDoneText.Text = codes
-            ? L($"Dans Mira (Windows, Mac ou iPhone), {friend.Name} se connecte à {address} avec un code et te donne les 6 chiffres : « Autoriser son téléphone » les saisit pour son compte. Aucun mot de passe à lui envoyer.",
-                $"In Mira (Windows, Mac or iPhone), {friend.Name} signs in to {address} with a code and gives you the 6 digits: “Allow their phone” enters them for their account. No password to send them.")
-            : L($"{friend.Name} se connecte à {address} dans Mira (Windows, Mac ou iPhone) avec son prénom et ce mot de passe. Envoie-le-lui : Mira ne le garde pas.",
-                $"{friend.Name} signs in to {address} in Mira (Windows, Mac or iPhone) with their name and this password. Send it to them: Mira doesn’t keep it.");
-        FriendPasswordBox.Text = password;
-        FriendPasswordPanel.Visibility = codes ? Visibility.Collapsed : Visibility.Visible;
-        FriendPasswordButton.Visibility = codes ? Visibility.Visible : Visibility.Collapsed;
-        FriendApproveButton.Visibility = codes ? Visibility.Visible : Visibility.Collapsed;
-        _ = Dispatcher.BeginInvoke(() => { if (codes) FriendApproveButton.Focus(); else FriendPasswordBox.Focus(); }, DispatcherPriority.Input);
+        var server = client.Connection.Server;
+        var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
+        _friendGuide = new FriendGuide
+        {
+            Name = friend.Name, Shared = shared, Codes = codes, Here = here,
+            Home = FriendReach.HomeAddress(server, here, here ? LocalNetwork.ThisPc() : null),
+            Away = FriendReach.AwayAddress(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null),
+        };
+        FriendWhereTitle.Text = FriendReach.Question(friend.Name);
+        // Somewhere else first: the case a home address cannot serve (ogsas's friend, 2026-11-18).
+        FriendElsewhere.IsChecked = true;
+        FriendWhere.Selected = 1;
+        RenderFriendGuide();
+        _ = ShowFriendPartyAsync(client);
+        _ = Dispatcher.BeginInvoke(() => FriendElsewhere.Focus(), DispatcherPriority.Input);
     }
-    /// <summary>« Autoriser son téléphone »: the row below, on the friend's account, ready for the 6 digits.</summary>
-    private void FriendApprove_Click(object sender, RoutedEventArgs e)
+    private void FriendWhere_Checked(object sender, RoutedEventArgs e)
     {
-        if (_friendMade is not { } made || ApproveDeviceRow.Visibility != Visibility.Visible) return;
-        SelectApproveAccount(made.User.Id);
-        ApproveDeviceRow.BringIntoView();
-        ApproveDeviceStatus.Text = L($"Saisis les 6 chiffres que {made.User.Name} voit sur son téléphone.", $"Enter the 6 digits {made.User.Name} sees on their phone.");
-        ApproveCodeBox.Focus();
+        if (_friendGuide is not { } guide) return;
+        var elsewhere = ReferenceEquals(sender, FriendElsewhere);
+        if (guide.Elsewhere == elsewhere && FriendSteps.Children.Count > 0) return;
+        guide.Elsewhere = elsewhere;
+        RenderFriendGuide();
     }
-    private void FriendPassword_Click(object sender, RoutedEventArgs e)
+    /// <summary>The steps of the choice made, the first one left to do marked; « Mira checks by itself » while it waits for the share.</summary>
+    private void RenderFriendGuide()
     {
-        if (_friendMade is not { } made) return;
-        FriendPasswordPanel.Visibility = Visibility.Visible; FriendPasswordButton.Visibility = Visibility.Collapsed;
-        FriendStatus.Text = L($"Sans code, {made.User.Name} se connecte avec son prénom et ce mot de passe, sur son téléphone ou dans Mira pour Windows ou Mac. Mira ne le garde pas.", $"Without a code, {made.User.Name} signs in with their name and this password, on their phone or in Mira for Windows or Mac. Mira doesn’t keep it.");
-        FriendPasswordBox.Focus(); FriendPasswordBox.SelectAll();
+        if (_friendGuide is not { } guide || _friendMade is not { } made) return;
+        var code = _friendCodeBox?.Text ?? "";
+        FriendSteps.Children.Clear();
+        var steps = new List<(string Title, string Text, FrameworkElement? Action, FrameworkElement? Note, bool Done)>
+        {
+            (FriendReach.Created, FriendReach.CreatedLine(guide.Name, guide.Shared), null, null, true),
+        };
+        if (guide.Elsewhere)
+        {
+            var shared = guide.Sharees is { Count: > 0 };
+            FrameworkElement? note = !guide.WatchesShares || guide.Sharees is null ? null
+                : FriendNote(shared ? "check" : "clock", shared ? FriendReach.SharedWith(guide.Sharees!) : FriendReach.NotShared, shared ? "Success" : "Warning");
+            var open = FriendButton(FriendReach.OpenTailscale, "external", (_, _) => OpenWebPage(TailscaleNode.Machines), primary: !shared);
+            var text = guide.Here && guide.Away is null ? FriendReach.NotOnTailnet : guide.Here ? FriendReach.ShareLine(guide.Name) : FriendReach.ShareElsewhere(guide.Name);
+            steps.Add((FriendReach.Share(guide.Name), text, open, note, shared));
+            steps.Add((FriendReach.SendAway(guide.Name), guide.Away is null ? FriendReach.AwayUnknown : FriendReach.AwayLine(guide.Name),
+                guide.Away is { } away ? FriendCopyField(away, L("Copier l’adresse", "Copy the address")) : null, null, false));
+        }
+        else steps.Add((FriendReach.GiveHome(guide.Name), guide.Home is null ? FriendReach.HomeUnknown : FriendReach.HomeLine,
+            guide.Home is { } home ? FriendCopyField(home, L("Copier l’adresse", "Copy the address")) : null, null, false));
+        _friendCodeBox = null;
+        steps.Add((FriendReach.LetIn, guide.Codes ? FriendReach.LetInCode(guide.Name) : FriendReach.LetInPassword(guide.Name),
+            guide.LetIn ? null : guide.Codes ? FriendCodeField(code) : FriendCopyField(made.Password, L("Copier son mot de passe", "Copy their password")), null, guide.LetIn));
+        var now = steps.FindIndex(x => !x.Done);
+        for (var i = 0; i < steps.Count; i++)
+        {
+            if (i > 0) FriendSteps.Children.Add(new Border { Height = 1, Background = Palette.Get("Line") });
+            FriendSteps.Children.Add(FriendStep(i + 1, steps[i].Done, i == now, steps[i].Title, steps[i].Text, steps[i].Action, steps[i].Note));
+        }
+        WatchFriendShare();
     }
-    private void FriendPasswordCopy_Click(object sender, RoutedEventArgs e)
+    private FrameworkElement FriendStep(int number, bool done, bool current, string title, string text, FrameworkElement? action, FrameworkElement? note)
     {
-        try { Clipboard.SetText(FriendPasswordBox.Text); FriendStatus.Text = L("Mot de passe copié.", "Password copied."); }
+        var grid = new Grid { Margin = new Thickness(0, 12, 0, 12) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var lit = current && !done;
+        var badge = new Border
+        {
+            Width = 26, Height = 26, CornerRadius = new CornerRadius(13), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 14, 0),
+            Background = done ? Palette.Get("Text") : lit ? Brushes.Transparent : Palette.Get("Raised2"),
+            BorderBrush = lit ? Palette.Get("Text") : Brushes.Transparent, BorderThickness = new Thickness(lit ? 2 : 0),
+            Child = done ? new Icon { Kind = "check", Width = 14, Height = 14, Foreground = Palette.Get("OnAccent") }
+                : new TextBlock { Text = number.ToString(Lang.Culture), FontSize = 12, FontWeight = FontWeights.Bold, Foreground = Palette.Get(lit ? "Text" : "Muted"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+        };
+        AutomationProperties.SetName(badge, done ? L($"Étape {number}, faite", $"Step {number}, done") : L($"Étape {number}", $"Step {number}"));
+        grid.Children.Add(badge);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
+        words.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Foreground = Palette.Get(done || lit ? "Text" : "TextBody") });
+        words.Children.Add(new TextBlock { Text = text, Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0, 4, 0, 0) });
+        if (note is not null) words.Children.Add(note);
+        Grid.SetColumn(words, 1); grid.Children.Add(words);
+        if (action is not null) { action.Margin = new Thickness(16, 0, 0, 0); action.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(action, 2); grid.Children.Add(action); }
+        return grid;
+    }
+    private static StackPanel FriendNote(string icon, string text, string ink)
+    {
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        line.Children.Add(new Icon { Kind = icon, Width = 14, Height = 14, Foreground = Palette.Get(ink), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
+        line.Children.Add(new TextBlock { Text = text, FontSize = 12.5, Foreground = Palette.Get(ink), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+        AutomationProperties.SetLiveSetting(line, AutomationLiveSetting.Polite);
+        return line;
+    }
+    private Button FriendButton(string text, string icon, RoutedEventHandler click, bool primary)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(new Icon { Kind = icon, Width = 15, Height = 15, Margin = new Thickness(0, 0, 7, 0) });
+        content.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center });
+        var button = new Button { Content = content };
+        if (!primary) button.Style = (Style)FindResource("Quiet");
+        AutomationProperties.SetName(button, text);
+        button.Click += click;
+        return button;
+    }
+    /// <summary>An address or a password to send, and « Copy » beside it.</summary>
+    private DockPanel FriendCopyField(string value, string copyName)
+    {
+        var line = new DockPanel();
+        var copy = FriendButton(L("Copier", "Copy"), "link", (_, _) => CopyFriendText(value), primary: false);
+        AutomationProperties.SetName(copy, copyName);
+        copy.Margin = new Thickness(8, 0, 0, 0);
+        DockPanel.SetDock(copy, Dock.Right); line.Children.Add(copy);
+        var box = new TextBox { Text = value, IsReadOnly = true, Width = 230, FontWeight = FontWeights.SemiBold, VerticalContentAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(box, copyName);
+        line.Children.Add(box);
+        return line;
+    }
+    /// <summary>The 6 digits the friend reads out, allowed for their account right here.</summary>
+    private DockPanel FriendCodeField(string code)
+    {
+        var line = new DockPanel();
+        var allow = new Button { Content = L("Autoriser", "Allow"), Margin = new Thickness(8, 0, 0, 0) };
+        allow.Click += FriendAllow_Click;
+        DockPanel.SetDock(allow, Dock.Right); line.Children.Add(allow);
+        var box = new TextBox { Text = code, Width = 120, MaxLength = 7, FontSize = 15, FontWeight = FontWeights.SemiBold, VerticalContentAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(box, L("Les 6 chiffres de son appareil", "The 6 digits of their device"));
+        box.KeyDown += (s, e) => { if (e.Key == Key.Enter) { e.Handled = true; FriendAllow_Click(s, e); } };
+        line.Children.Add(box);
+        _friendCodeBox = box;
+        return line;
+    }
+    private async void FriendAllow_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client is not { } client || _friendMade is not { } made || _friendGuide is not { } guide || _friendCodeBox is not { IsEnabled: true } box) return;
+        if (JellyfinClient.QuickConnectCode(box.Text) is not { } code) { FriendStatus.Text = L("Le code a 6 chiffres.", "The code has 6 digits."); box.Focus(); box.SelectAll(); return; }
+        box.IsEnabled = false; FriendStatus.Text = L("Autorisation…", "Allowing…");
+        try
+        {
+            var approval = await client.ApproveCodeAsync(code, made.User.Id);
+            FriendStatus.Text = approval switch
+            {
+                CodeApproval.Approved => L($"Appareil autorisé : il se connecte au compte de {guide.Name}.", $"Device allowed: it’s signing in to {guide.Name}’s account."),
+                CodeApproval.Unknown => L("Code inconnu ou expiré. Vérifie-le, ou demandes-en un nouveau sur l’appareil.", "Unknown or expired code. Check it, or ask for a new one on the device."),
+                _ => L("Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).", "Quick Connect is off on this server: turn it on in Jellyfin’s Dashboard (General)."),
+            };
+            box.IsEnabled = true;
+            if (approval == CodeApproval.Approved) { guide.LetIn = true; RenderFriendGuide(); }
+            else { box.Focus(); box.SelectAll(); }
+        }
+        catch (Exception ex) when (IsExpected(ex)) { box.IsEnabled = true; FriendStatus.Text = Friendly(ex); }
+    }
+    private void CopyFriendText(string text)
+    {
+        try { Clipboard.SetText(text); FriendStatus.Text = L("Copié.", "Copied."); }
         catch (System.Runtime.InteropServices.ExternalException) { FriendStatus.Text = L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again."); }
     }
+    /// <summary>
+    /// « Mira checks by itself »: while the away steps show for a Jellyfin on this PC, who this PC is shared with on
+    /// Tailscale, read every 10 s from its command line (FriendReach.Sharees), until the guide or the settings go.
+    /// </summary>
+    private void WatchFriendShare()
+    {
+        if (_friendGuide is not { WatchesShares: true } guide) { _friendShareWatch?.Stop(); return; }
+        if (_friendShareWatch is null)
+        {
+            _friendShareWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+            _friendShareWatch.Tick += (_, _) =>
+            {
+                if (FriendDone.Visibility != Visibility.Visible || SettingsOverlay.Visibility != Visibility.Visible) { _friendShareWatch.Stop(); return; }
+                _ = ReadFriendSharesAsync();
+            };
+        }
+        if (!_friendShareWatch.IsEnabled) _friendShareWatch.Start();
+        if (guide.Sharees is null) _ = ReadFriendSharesAsync();
+    }
+    private async Task ReadFriendSharesAsync()
+    {
+        if (_friendShareReading || _friendGuide is not { } guide) return;
+        _friendShareReading = true;
+        try
+        {
+            var sharees = await Task.Run(() => FriendReach.Sharees(TailscaleCli.Status()));
+            if (!ReferenceEquals(guide, _friendGuide) || sharees is null || guide.Sharees is { } before && before.SequenceEqual(sharees)) return;
+            guide.Sharees = sharees;
+            if (guide.WatchesShares) RenderFriendGuide();
+        }
+        finally { _friendShareReading = false; }
+    }
+    /// <summary>« Only for tonight? »: this account's party link, when its Jellyfin makes one.</summary>
+    private async Task ShowFriendPartyAsync(JellyfinClient client)
+    {
+        FriendPartyLine.Visibility = Visibility.Collapsed;
+        PartyLink? party = null;
+        try { party = await client.PartyAsync(ct: _connectionLifetime.Token); }
+        catch (Exception ex) when (ex is RelayRefusedException || IsExpected(ex)) { }
+        if (party is null || !ReferenceEquals(client, _client) || FriendDone.Visibility != Visibility.Visible) return;
+        FriendPartyText.Text = FriendReach.Party;
+        FriendPartyButton.Content = FriendReach.CopyParty;
+        FriendPartyButton.Tag = party.Link;
+        FriendPartyLine.Visibility = Visibility.Visible;
+    }
+    private void FriendPartyCopy_Click(object sender, RoutedEventArgs e)
+    { if (FriendPartyButton.Tag is string link) CopyFriendText(link); }
     private void FriendAgain_Click(object sender, RoutedEventArgs e)
     {
         _friendMade = null; FriendStatus.Text = "";
         ShowFriendForm();
         FriendNameBox.Focus();
     }
-    private void FriendTailscale_Click(object sender, RoutedEventArgs e) => OpenWebPage("https://login.tailscale.com/admin/machines");
     /// <summary>« Ajouter un ami » of the invitation: the row in Réglages → Jellyfin, its name to type.</summary>
     private async void InviteAddFriend_Click(object sender, RoutedEventArgs e)
     {

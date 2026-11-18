@@ -130,7 +130,7 @@ struct LoginView: View {
             await use(try await JellyfinClient.discover(address))
         } catch is CancellationError {
         } catch {
-            message = Messages.text(error)
+            message = Messages.noAnswer(error, typed: address) ?? Messages.text(error)
         }
     }
 

@@ -434,6 +434,23 @@ internal static class ConnectionTests
             asked.Clear();
             using (var client = Server(true, HttpStatusCode.OK)) Assert(await client.ApproveCodeAsync("458128", "ami 2") == CodeApproval.Approved && asked[^1] == "POST /jellyfin/QuickConnect/Authorize?code=458128&userId=ami%202", string.Join(" | ", asked));
         });
+        await Test("Inviter un ami : adresse de la maison ou de Tailscale, partage lu dans tailscale status, réponse absente expliquée", () =>
+        {
+            Assert(FriendReach.Of("http://192.168.1.42:8096/") == FriendReach.Kind.Home && FriendReach.Of("10.0.0.5") == FriendReach.Kind.Home && FriendReach.Of("172.20.1.1:8096") == FriendReach.Kind.Home
+                && FriendReach.Of("nas.local") == FriendReach.Kind.Home && FriendReach.Of("http://100.88.12.34:8096") == FriendReach.Kind.Tailnet && FriendReach.Of("maison-pc.tail1234.ts.net") == FriendReach.Kind.Tailnet
+                && FriendReach.Of("100.128.0.1") == FriendReach.Kind.Other && FriendReach.Of("172.32.0.1") == FriendReach.Kind.Other && FriendReach.Of("jellyfin.example.test") == FriendReach.Kind.Other && FriendReach.Of("") == FriendReach.Kind.Other, "Kinds");
+            // Jellyfin on this PC, reached at 127.0.0.1: this PC's addresses, same port; another server, its own address if it says where it is.
+            Assert(FriendReach.HomeAddress("http://127.0.0.1:8096/", true, "192.168.1.42") == "http://192.168.1.42:8096", "Home here");
+            Assert(FriendReach.AwayAddress("http://127.0.0.1:8096/", true, "100.88.12.34") == "http://100.88.12.34:8096" && FriendReach.AwayAddress("http://127.0.0.1:8096/", true, null) is null, "Away here");
+            Assert(FriendReach.HomeAddress("http://192.168.1.42:8096/jf/", false, null) == "http://192.168.1.42:8096/jf" && FriendReach.HomeAddress("http://100.88.12.34:8096/", false, null) is null, "Home elsewhere");
+            Assert(FriendReach.AwayAddress("http://100.88.12.34:8096/", false, null) == "http://100.88.12.34:8096" && FriendReach.AwayAddress("http://192.168.1.42:8096/", false, null) is null, "Away elsewhere");
+            const string status = """{"BackendState":"Running","Self":{"HostName":"MAISON-PC"},"Peer":{"k1":{"HostName":"pc","UserID":1},"k2":{"HostName":"iphone","UserID":42,"ShareeNode":true},"k3":{"HostName":"mac","UserID":42,"ShareeNode":true},"k4":{"HostName":"x","UserID":7,"ShareeNode":true}},"User":{"1":{"DisplayName":"Moi"},"42":{"DisplayName":"Sam"}}}""";
+            Assert(string.Join(",", FriendReach.Sharees(status)!) == "Sam,quelqu’un", "Sharees: " + string.Join(",", FriendReach.Sharees(status)!));
+            Assert(FriendReach.Sharees("""{"BackendState":"Running","Peer":{"k1":{"UserID":1}}}""")!.Count == 0 && FriendReach.Sharees(null) is null && FriendReach.Sharees("pas du JSON") is null, "No sharee");
+            Assert(FriendReach.NoAnswer("http://192.168.1.42:8096/")!.Contains("192.168.1.42 est une adresse de maison") && FriendReach.NoAnswer("http://100.88.12.34:8096/")!.Contains("adresse Tailscale")
+                && FriendReach.NoAnswer("https://jellyfin.example.test/") is null, "No answer");
+            return Task.CompletedTask;
+        });
         await Test("Ajouter un ami : son compte ne voit que les bibliothèques choisies, ne télécharge rien, retiré si ses droits ne passent pas", async () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
