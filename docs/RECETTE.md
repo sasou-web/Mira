@@ -19,6 +19,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Épisodes à venir (TheTVDB) activés : sur une série, une ligne fine « É3–4 · pas dans ta bibliothèque » entre les épisodes, ou le prochain en ligne vide au bout de sa saison ; une saison absente dans la liste des saisons
 - [ ] Métadonnées à côté des fichiers : quelques heures après l’ouverture de Mira, un `movie.nfo` et un `folder.jpg` dans le dossier d’un film, un `tvshow.nfo` dans celui d’une série ; un titre corrigé par « Identifier… » garde sa correction dans son NFO
 - [ ] « Chercher une meilleure version » : l'ancien fichier part à la Corbeille, le titre garde sa progression
+- [ ] Corbeille sur le PC de Jellyfin : un épisode (clic droit) avec ses sous-titres, une saison (« … » de la ligne Épisodes), sur un fichier de test ; la fenêtre dit ce qui part ; tout revient depuis la Corbeille de Windows ; sur le WD monté dans un dossier
 
 ## Ton PC 🖥
 - [ ] Mise à jour de Mira proposée et faite (à la prochaine version)

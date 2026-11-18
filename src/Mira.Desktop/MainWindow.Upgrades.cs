@@ -50,7 +50,7 @@ public partial class MainWindow
             var path = TitleUpgrade.FileOf(item)!;
             if (!File.Exists(path)) return L("Le fichier de ce titre est introuvable sur ce PC.", "This title’s file can’t be found on this PC.");
             // A removable or network drive has no Recycle Bin: the old file would be lost for good.
-            if (Path.GetPathRoot(path) is not { Length: > 0 } root || new DriveInfo(root).DriveType != DriveType.Fixed)
+            if (!RecycleBin.Available(path))
                 return L("Ce titre est sur un disque sans Corbeille (amovible ou réseau) : Mira ne remplace pas son fichier.", "This title is on a drive without a Recycle Bin (removable or network): Mira doesn’t replace its file.");
             _ffprobe ??= FfProbe.Program(await client.EncoderPathAsync(ct));
             if (_ffprobe is null) return L("L’ffprobe de Jellyfin est introuvable sur ce PC : Mira ne pourrait pas vérifier la nouvelle version.", "Jellyfin’s ffprobe can’t be found on this PC: Mira couldn’t check the new version.");

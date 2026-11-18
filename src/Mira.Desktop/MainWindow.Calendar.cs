@@ -71,7 +71,7 @@ public partial class MainWindow
     /// <summary>A season the library has none of: a calm card for its aired episodes (their tiles on demand), then those coming.</summary>
     private void RenderAbsentSeason(EpisodePage page)
     {
-        EpisodeHeading.Text = L("Épisodes", "Episodes"); SeasonMarkButton.Visibility = Visibility.Collapsed;
+        EpisodeHeading.Text = L("Épisodes", "Episodes"); SeasonMarkButton.Visibility = SeasonMoreButton.Visibility = Visibility.Collapsed;
         var today = EpisodeCalendar.Today();
         var grid = TileGrid();
         foreach (var line in EpisodeShelf.Lines([], ShelfVirtuals, page.Season, true, true, today, _settings.ShowMissingEpisodes))
