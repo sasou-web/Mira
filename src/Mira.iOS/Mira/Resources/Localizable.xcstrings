@@ -7442,6 +7442,26 @@
           }
         }
       }
+    },
+    "No answer. %@ is a home address: it only answers on the network it lives on. At that home, check that Jellyfin is running; if this server is at a friend’s home, ask them for its Tailscale address (it starts with 100.) and to share their PC with you.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas de réponse. %@ est une adresse de maison : elle ne répond que sur le réseau où elle se trouve. Chez elle, vérifie que Jellyfin est lancé ; si ce serveur est chez un ami, demande-lui son adresse Tailscale (elle commence par 100.) et de partager son PC avec toi."
+          }
+        }
+      }
+    },
+    "No answer. This is a Tailscale address: it only answers once you’re on its Tailscale network. Accept the share link your friend sent you, turn on Built-in Tailscale below (or the Tailscale app), and check that their PC is on.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas de réponse. C’est une adresse Tailscale : elle ne répond qu’une fois sur son réseau Tailscale. Accepte le lien de partage que ton ami t’a envoyé, active Tailscale intégré ci-dessous (ou l’app Tailscale), et vérifie que son PC est allumé."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

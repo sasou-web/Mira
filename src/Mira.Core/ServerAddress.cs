@@ -106,6 +106,8 @@ public static partial class ServerAddress
             failures.Any(x => x.Failure == ProbeFailure.NotJellyfin) ? L("Cette adresse répond, mais ce n’est pas un serveur Jellyfin. Vérifie le port (8096 par défaut).", "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).")
             : failures.Any(x => x.Failure == ProbeFailure.Certificate) ? L($"Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://{new Uri(candidates[0]).Host}:8096 ; sinon, il lui faut un certificat valide.",
                 $"This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://{new Uri(candidates[0]).Host}:8096; otherwise, it needs a valid certificate.")
+            // A home or Tailscale address that stays silent: most often a friend's, typed away from that home (FriendReach).
+            : failures.All(x => x.Failure == ProbeFailure.Timeout) && FriendReach.NoAnswer(candidates[0]) is { } silent ? silent
             : failures.All(x => x.Failure == ProbeFailure.Timeout) ? L("Le serveur ne répond pas. Vérifie l’adresse et que Jellyfin est bien lancé.", "The server isn’t answering. Check the address and that Jellyfin is running.")
             : L("Aucun serveur Jellyfin trouvé à cette adresse. Vérifie qu’il est lancé et que l’adresse est correcte.", "No Jellyfin server found at this address. Check that it’s running and that the address is right."));
     }

@@ -785,7 +785,12 @@ public static class SelfCheck
                 var policy = mock.FriendPolicy ?? "";
                 Check(made && policy.Contains("\"EnableAllFolders\":false") && policy.Contains("view-movies") && !policy.Contains("view-series") && policy.Contains("\"EnableContentDownloading\":false"),
                     "réglages : ajouter un ami", policy);
+                // The guide (maquette B): somewhere else first, then at your home, by the jelly switch.
                 withFriend.Friend.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07c-settings-friend");
+                withFriend.Friend.WhereForCheck(elsewhere: false);
+                var home = await Until(() => withFriend.Friend.Where == "home", 5);
+                Check(made && home, "réglages : guide de l’ami, chez toi ou ailleurs", withFriend.Friend.Where ?? "pas de guide");
+                await Task.Delay(700); Capture(window, output, "07c2-settings-friend-home");
             }
             else if (mock is not null) Check(false, "réglages : ajouter un ami", "section absente");
             // « Sortie audio », as on Windows: the devices mpv lists, and « Tester » made and played here.

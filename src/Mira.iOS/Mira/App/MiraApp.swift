@@ -202,6 +202,21 @@ enum Messages {
     }
 
     /// Why no way reaches Jellyfin, from what Mira knows of the network and of Built-in Tailscale (Way).
+    /// The login screen, when the address typed stays silent and Mira knows nothing better: what kind of address it is
+    /// and what to do (FriendReach.NoAnswer of Mira for Windows and Mac), the case of a friend given the address of someone
+    /// else's home (ogsas, 2026-11-18). Nil for any other error or address.
+    static func noAnswer(_ error: Error, typed: String) -> String? {
+        guard let error = error as? JellyfinError, error == .timeout || error == .unreachable, Way.hint.withLock({ $0 }) == nil else { return nil }
+        let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: text.contains("://") ? text : "http://" + text), var host = url.host(percentEncoded: false)?.lowercased() else { return nil }
+        host = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]."))
+        if WayPlan.isTailnet(url) {
+            return String(localized: "No answer. This is a Tailscale address: it only answers once you’re on its Tailscale network. Accept the share link your friend sent you, turn on Built-in Tailscale below (or the Tailscale app), and check that their PC is on.")
+        }
+        let home = ServerAddress.IPv4(host).map { $0.isPrivate && $0.bytes[0] != 127 } ?? host.hasSuffix(".local")
+        guard home else { return nil }
+        return String(localized: "No answer. \(host) is a home address: it only answers on the network it lives on. At that home, check that Jellyfin is running; if this server is at a friend’s home, ask them for its Tailscale address (it starts with 100.) and to share their PC with you.")
+    }
     static func text(_ hint: WayPlan.Hint) -> String {
         switch hint {
         case .noNetwork:
