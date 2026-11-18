@@ -37,10 +37,11 @@ public sealed partial class SettingsPage
     ];
     /// <summary>The sections only the server's owner has something in, listed under « Ton serveur ».</summary>
     private static readonly string[] ServerTools = ["sharing", "care", "jellyfin"];
-    /// <summary>Aide's topics: the shortcuts, shown in the window; the others open what they name.</summary>
+    /// <summary>Aide's topics: the shortcuts and « Inviter un ami », shown in the window; the others open what they name.</summary>
     private static IReadOnlyList<(string Key, string Title, string Icon, bool Outside)> HelpTopics =>
     [
         ("keys", L("Raccourcis clavier", "Keyboard shortcuts"), "keyboard", false),
+        ("friend", FriendReach.HelpTitle, "users", false),
         ("whatsnew", L("Nouveautés de Mira", "What’s new in Mira"), "sparkle", false),
         ("online", L("Guide en ligne", "Online guide"), "globe", true),
         ("report", L("Exporter un rapport…", "Export a report…"), "warning", false),
@@ -71,7 +72,7 @@ public sealed partial class SettingsPage
 
     /// <summary>The section shown: « home », « playback », « audio », « library », « general », « server », « privacy », « updates », « report », « sharing », « care » or « jellyfin ».</summary>
     public string CurrentTab { get; private set; } = _lastTab;
-    /// <summary>Aide's topic shown (« keys »), or null on Réglages.</summary>
+    /// <summary>Aide's topic shown (« keys », « friend »), or null on Réglages.</summary>
     public string? HelpTopic { get; private set; }
     /// <summary>What the search holds (for the self-check).</summary>
     public string Search => _search.Text ?? "";
@@ -101,7 +102,7 @@ public sealed partial class SettingsPage
         {
             if (key == "whatsnew") _helpList.Children.Add(moreLabel);
             var button = NavButton(title, icon, outside);
-            button.Click += (_, _) => { if (!Again(key == "keys" && HelpTopic == "keys")) OpenTopic(key); };
+            button.Click += (_, _) => { if (!Again(key is "keys" or "friend" && HelpTopic == key)) OpenTopic(key); };
             _helpButtons[key] = button; _helpList.Children.Add(button);
         }
         // « Amis & invités », « Soin de la bibliothèque » and « Serveur Jellyfin » hold only what an administrator sees:
@@ -325,12 +326,30 @@ public sealed partial class SettingsPage
     }
 
     // —— Aide ——
-    /// <summary>Aide on <paramref name="key"/>: the shortcuts in the window; the others open what they name, the window staying.</summary>
+    /// <summary>Aide on <paramref name="key"/>: the shortcuts or « Inviter un ami » in the window; the others open what they name, the window staying.</summary>
     public void ShowHelp(string key)
     {
         if (HelpTopic is null) { EndSearch(); _search.Text = ""; _searched = ""; Side(true); }
-        if (key != "keys") { HelpTopic ??= "keys"; ShowKeys(); OpenTopic(key); return; }
-        ShowKeys();
+        if (key is not ("keys" or "friend")) { HelpTopic ??= "keys"; ShowKeys(); OpenTopic(key); return; }
+        OpenTopic(key);
+    }
+    /// <summary>
+    /// « Inviter un ami » (ogsas, 2026-11-18: « toujours à portée de main »): the guide of Amis et invités for « ton ami »,
+    /// made again each time; its buttons turn the window over to Réglages → Amis et invités.
+    /// </summary>
+    private void ShowFriendHelp()
+    {
+        HelpTopic = "friend";
+        Light(_helpButtons, "friend");
+        _tabTitle.Text = FriendReach.HelpTitle;
+        _tabAbout.Text = FriendReach.HelpAbout;
+        _tabBody.Content = Friend.HelpGuide(device =>
+        {
+            Show("sharing");
+            var target = device ? _devices : Friend.Section;
+            if (target is { IsVisible: true }) Dispatcher.UIThread.Post(() => { target.BringIntoView(); FirstFocusable(target)?.Focus(NavigationMethod.Directional); }, DispatcherPriority.Loaded);
+        });
+        _tabScroll.Offset = default;
     }
     private void ShowKeys()
     {
@@ -346,6 +365,7 @@ public sealed partial class SettingsPage
         switch (key)
         {
             case "keys": ShowKeys(); break;
+            case "friend": ShowFriendHelp(); break;
             case "whatsnew": Shell.ShowWhatsNew(WhatsNew.Recent(Updates.Current)); break;
             case "online": Updates.Open(MainWindow.Guide); break;
             case "report": _ = Shell.ExportReportAsync(); break;
@@ -500,6 +520,8 @@ public sealed partial class SettingsPage
     /// <summary>Aide's search: the shortcuts that say what is typed, their groups with them.</summary>
     private void SearchKeys(string query)
     {
+        // Nothing typed on « Inviter un ami »: it stays (the search only looks through the shortcuts).
+        if (query.Length == 0 && HelpTopic == "friend") return;
         var groups = new Dictionary<Control, int>();
         foreach (var (line, words, group) in _keyLines)
         {

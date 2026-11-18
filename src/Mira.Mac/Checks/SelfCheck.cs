@@ -791,6 +791,12 @@ public static class SelfCheck
                 var atHome = await Until(() => withFriend.Friend.Where == "home", 5);
                 Check(made && atHome, "réglages : guide de l’ami, chez toi ou ailleurs", withFriend.Friend.Where ?? "pas de guide");
                 await Task.Delay(700); Capture(window, output, "07c2-settings-friend-home");
+                // Aide → « Inviter un ami »: the same guide at any time, for « ton ami » (ogsas, 2026-11-18).
+                withFriend.ShowHelp("friend");
+                var help = await Until(() => withFriend.Friend.HelpSteps == 4, 5);
+                Check(help && withFriend.HelpTopic == "friend", "aide : inviter un ami", $"{withFriend.Friend.HelpSteps} étapes");
+                await Task.Delay(500); Capture(window, output, "07c3-help-friend");
+                withFriend.ShowSettingsSide();
             }
             else if (mock is not null) Check(false, "réglages : ajouter un ami", "section absente");
             // « Sortie audio », as on Windows: the devices mpv lists, and « Tester » made and played here.

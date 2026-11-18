@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **« Inviter un ami » toujours dans l’Aide (Windows, Mac)** : le guide qui dit quelle adresse donner à un ami (« Chez toi | Ailleurs », partage Tailscale, adresse à copier) ne s’ouvrait qu’après « Créer son compte ». Il a maintenant son sujet dans l’Aide, à tout moment, aussi pour un ami qui a déjà son compte : les mêmes étapes pour « ton ami », avec « Créer son compte » et « Autoriser un appareil » qui ouvrent Réglages → Amis et invités (pour un administrateur). Contrôlé par le self-check du Mac ; à voir sur le Dell.
+
 ## 0.9.13 — 2026-11-18
 
 - **Toutes les saisons d’un coup d’œil (Windows, Mac)** : au-delà de dix saisons (Monogatari Series), la liste déroulante des saisons était coupée et partait avec la page quand on tournait la molette dedans. Les saisons restent maintenant des pastilles, réduites à leur numéro (« SP » pour les spéciaux), la saison affichée gardant son nom entier (maquette C « Les numéros » choisie par ogsas) ; au survol, une bulle donne son nom et où tu en es (« 2 vus sur 6 »), une saison vue jusqu’au bout est plus discrète. Dans toute liste déroulante ouverte (filtres, Réglages), la molette ne fait plus défiler la page derrière. Sur iPhone, la saison affichée est amenée au milieu de ses puces. Contrôlé par les tests de Core ; à voir sur le Dell.

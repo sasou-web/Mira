@@ -186,6 +186,7 @@ public partial class MainWindow
     private (string Tag, FrameworkElement Page, string Icon, string Title, string About)[] GuideTopics =>
     [
         ("phone", GuidePhone, "phone", L("Mira sur ton iPhone", "Mira on your iPhone"), L("L’app Mira pour iPhone trouve ton Jellyfin chez toi et ailleurs.", "Mira’s iPhone app finds your Jellyfin at home and away.")),
+        ("friend", GuideFriend, "users", FriendReach.HelpTitle, FriendReach.HelpAbout),
         ("videos", GuideVideos, "folder", L("Ajouter tes vidéos", "Add your videos"), L("Range tes fichiers dans ces dossiers : ils apparaissent dans Mira en quelques minutes, avec leurs affiches.", "Put your files in these folders: they show up in Mira within a few minutes, with their posters.")),
         ("jellyfin", GuideJellyfin, "tv", L("Jellyfin, TV et console", "Jellyfin, TV and consoles"), L("Gérer ton serveur sur sa page web, et le regarder sur une TV ou une console.", "Manage your server on its web page, and watch it on a TV or a console.")),
         ("keys", GuideKeys, "keyboard", L("Raccourcis clavier", "Keyboard shortcuts"), L("Tout Mira au clavier, sans la souris.", "All of Mira from the keyboard, without the mouse.")),
@@ -211,6 +212,7 @@ public partial class MainWindow
         GuideTitle.Text = shown.Title ?? L("Bien démarrer", "Getting started");
         GuideDescription.Text = shown.About ?? _guideIntro;
         LightSheetNav(GuideNavigation, tag);
+        if (tag == "friend") ShowHelpFriend();
         GuideScroll.ScrollToTop(); SmoothScroll.Jump(GuideScroll);
         if (animate) Motion.Reveal(shown.Page ?? GuideStart, 230, 7);
     }
@@ -219,7 +221,7 @@ public partial class MainWindow
     {
         if (_guideNavDrawn) return; _guideNavDrawn = true;
         foreach (var button in GuideNavigation.Children.OfType<Button>())
-            DrawSheetNav(button, button.Tag?.ToString() switch { "phone" => "phone", "videos" => "folder", "jellyfin" => "tv", "keys" => "keyboard", "downloads" => "download", "whatsnew" => "sparkle", "online" => "globe", "report" => "warning", _ => "home" },
+            DrawSheetNav(button, button.Tag?.ToString() switch { "phone" => "phone", "friend" => "users", "videos" => "folder", "jellyfin" => "tv", "keys" => "keyboard", "downloads" => "download", "whatsnew" => "sparkle", "online" => "globe", "report" => "warning", _ => "home" },
                 outside: button.Tag?.ToString() == "online");
     }
     /// <summary>« Bien démarrer »: each subject a row, its icon, its name and what it is about.</summary>

@@ -19,7 +19,7 @@ public partial class MainWindow
 {
     private List<VirtualFolder> _friendFolders = [];
     private bool _friendBusy;
-    private Task _friendShowing = Task.CompletedTask;
+    private Task _friendShowing = Task.CompletedTask, _approveShowing = Task.CompletedTask;
     /// <summary>The friend just added, with their password: in memory only, until another is added or the account changes.</summary>
     private (JellyfinClient Client, AuthUser User, string Password)? _friendMade;
 
@@ -41,7 +41,7 @@ public partial class MainWindow
     private void ShowFriendForm()
     {
         FriendDone.Visibility = Visibility.Collapsed; FriendForm.Visibility = Visibility.Visible; FriendSteps.Children.Clear(); FriendStatus.Text = "";
-        _friendGuide = null; _friendCodeBox = null; _friendShareWatch?.Stop();
+        _friendGuide?.Watch?.Stop(); _friendGuide = null; _friendCodeBox = null;
         FriendLibraries.Children.Clear();
         foreach (var folder in Friends.Choices(_friendFolders))
         {
@@ -88,12 +88,20 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { FriendStatus.Text = Friendly(ex); }
         finally { _friendBusy = false; FriendCreateButton.IsEnabled = true; }
     }
-    /// <summary>The friend's guide, as it stands: Quick Connect on the server, the libraries named, the away choice, who shares this PC.</summary>
+    /// <summary>
+    /// The friend's guide, as it stands: Quick Connect on the server, the libraries named, the away choice, who shares this
+    /// PC. Réglages shows it for the account just made; Aide (<see cref="Help"/>) at any time, for « ton ami ».
+    /// </summary>
     private sealed class FriendGuide
     {
         public required string Name { get; init; }
-        public required IReadOnlyList<string> Shared { get; init; }
-        public required bool Codes { get; init; }
+        public required StackPanel Steps { get; init; }
+        public IReadOnlyList<string> Shared { get; init; } = [];
+        public bool Codes { get; init; }
+        /// <summary>Aide's guide: no account made here, so its creation and « Allow a device » are where Réglages has them.</summary>
+        public bool Help { get; init; }
+        /// <summary>Aide's guide: this account may make one (Réglages → Amis et invités).</summary>
+        public bool Admin { get; set; }
         public string? Home { get; init; }
         public string? Away { get; init; }
         /// <summary>Jellyfin runs on this PC: the guide speaks of « this PC », and Mira reads its Tailscale shares.</summary>
@@ -102,20 +110,21 @@ public partial class MainWindow
         public IReadOnlyList<string>? Sharees { get; set; }
         public bool LetIn { get; set; }
         public bool WatchesShares => Elsewhere && Here && Away is not null;
+        public DispatcherTimer? Watch { get; set; }
+        public bool Reading { get; set; }
     }
-    private FriendGuide? _friendGuide;
-    private DispatcherTimer? _friendShareWatch;
+    private FriendGuide? _friendGuide, _helpFriendGuide;
     private TextBox? _friendCodeBox;
-    private bool _friendShareReading;
 
     private void ShowFriendDone(JellyfinClient client, AuthUser friend, bool codes, IReadOnlyList<string> shared)
     {
         FriendForm.Visibility = Visibility.Collapsed; FriendDone.Visibility = Visibility.Visible;
         var server = client.Connection.Server;
         var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
+        _friendGuide?.Watch?.Stop();
         _friendGuide = new FriendGuide
         {
-            Name = friend.Name, Shared = shared, Codes = codes, Here = here,
+            Name = friend.Name, Steps = FriendSteps, Shared = shared, Codes = codes, Here = here,
             Home = FriendReach.HomeAddress(server, here, here ? LocalNetwork.ThisPc() : null),
             Away = FriendReach.AwayAddress(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null),
         };
@@ -129,21 +138,29 @@ public partial class MainWindow
     }
     private void FriendWhere_Checked(object sender, RoutedEventArgs e)
     {
-        if (_friendGuide is not { } guide) return;
-        var elsewhere = ReferenceEquals(sender, FriendElsewhere);
-        if (guide.Elsewhere == elsewhere && FriendSteps.Children.Count > 0) return;
+        var help = ReferenceEquals(sender, HelpFriendAtHome) || ReferenceEquals(sender, HelpFriendElsewhere);
+        if ((help ? _helpFriendGuide : _friendGuide) is not { } guide) return;
+        var elsewhere = ReferenceEquals(sender, help ? HelpFriendElsewhere : FriendElsewhere);
+        if (guide.Elsewhere == elsewhere && guide.Steps.Children.Count > 0) return;
         guide.Elsewhere = elsewhere;
-        RenderFriendGuide();
+        RenderFriendGuide(guide);
     }
-    /// <summary>The steps of the choice made, the first one left to do marked; « Mira checks by itself » while it waits for the share.</summary>
-    private void RenderFriendGuide()
+    private void RenderFriendGuide() { if (_friendGuide is { } guide) RenderFriendGuide(guide); }
+    /// <summary>
+    /// The steps of the choice made, the first one left to do marked; « Mira checks by itself » while it waits for the
+    /// share. Aide's guide marks none: its account and its device are done in Réglages, which its buttons open.
+    /// </summary>
+    private void RenderFriendGuide(FriendGuide guide)
     {
-        if (_friendGuide is not { } guide || _friendMade is not { } made) return;
-        var code = _friendCodeBox?.Text ?? "";
-        FriendSteps.Children.Clear();
+        var made = _friendMade;
+        if (!guide.Help && made is null) return;
+        var code = guide.Help ? "" : _friendCodeBox?.Text ?? "";
+        guide.Steps.Children.Clear();
         var steps = new List<(string Title, string Text, FrameworkElement? Action, FrameworkElement? Note, bool Done)>
         {
-            (FriendReach.Created, FriendReach.CreatedLine(guide.Name, guide.Shared), null, null, true),
+            guide.Help
+                ? (FriendReach.Account, FriendReach.AccountLine(guide.Admin), guide.Admin ? FriendButton(FriendReach.CreateAccount, "plus", (_, _) => _ = OpenFriendSettingsAsync(device: false), primary: false) : null, null, false)
+                : (FriendReach.Created, FriendReach.CreatedLine(guide.Name, guide.Shared), null, null, true),
         };
         if (guide.Elsewhere)
         {
@@ -158,16 +175,21 @@ public partial class MainWindow
         }
         else steps.Add((FriendReach.GiveHome(guide.Name), guide.Home is null ? FriendReach.HomeUnknown : FriendReach.HomeLine,
             guide.Home is { } home ? FriendCopyField(home, L("Copier l’adresse", "Copy the address")) : null, null, false));
-        _friendCodeBox = null;
-        steps.Add((FriendReach.LetIn, guide.Codes ? FriendReach.LetInCode(guide.Name) : FriendReach.LetInPassword(guide.Name),
-            guide.LetIn ? null : guide.Codes ? FriendCodeField(code) : FriendCopyField(made.Password, L("Copier son mot de passe", "Copy their password")), null, guide.LetIn));
-        var now = steps.FindIndex(x => !x.Done);
+        if (guide.Help)
+            steps.Add((FriendReach.LetIn, FriendReach.LetInHelp, guide.Admin ? FriendButton(FriendReach.AllowDevice, "phone", (_, _) => _ = OpenFriendSettingsAsync(device: true), primary: false) : null, null, false));
+        else
+        {
+            _friendCodeBox = null;
+            steps.Add((FriendReach.LetIn, guide.Codes ? FriendReach.LetInCode(guide.Name) : FriendReach.LetInPassword(guide.Name),
+                guide.LetIn ? null : guide.Codes ? FriendCodeField(code) : FriendCopyField(made!.Value.Password, L("Copier son mot de passe", "Copy their password")), null, guide.LetIn));
+        }
+        var now = guide.Help ? -1 : steps.FindIndex(x => !x.Done);
         for (var i = 0; i < steps.Count; i++)
         {
-            if (i > 0) FriendSteps.Children.Add(new Border { Height = 1, Background = Palette.Get("Line") });
-            FriendSteps.Children.Add(FriendStep(i + 1, steps[i].Done, i == now, steps[i].Title, steps[i].Text, steps[i].Action, steps[i].Note));
+            if (i > 0) guide.Steps.Children.Add(new Border { Height = 1, Background = Palette.Get("Line") });
+            guide.Steps.Children.Add(FriendStep(i + 1, steps[i].Done, i == now, steps[i].Title, steps[i].Text, steps[i].Action, steps[i].Note));
         }
-        WatchFriendShare();
+        WatchFriendShare(guide);
     }
     private FrameworkElement FriendStep(int number, bool done, bool current, string title, string text, FrameworkElement? action, FrameworkElement? note)
     {
@@ -262,40 +284,98 @@ public partial class MainWindow
     }
     private void CopyFriendText(string text)
     {
-        try { Clipboard.SetText(text); FriendStatus.Text = L("Copié.", "Copied."); }
-        catch (System.Runtime.InteropServices.ExternalException) { FriendStatus.Text = L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again."); }
+        // Said under the guide it was copied from: Réglages' or Aide's.
+        var status = GuideFriend.IsVisible ? HelpFriendStatus : FriendStatus;
+        try { Clipboard.SetText(text); status.Text = L("Copié.", "Copied."); }
+        catch (System.Runtime.InteropServices.ExternalException) { status.Text = L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again."); }
     }
+    private bool Current(FriendGuide guide) => ReferenceEquals(guide, _friendGuide) || ReferenceEquals(guide, _helpFriendGuide);
     /// <summary>
     /// « Mira checks by itself »: while the away steps show for a Jellyfin on this PC, who this PC is shared with on
-    /// Tailscale, read every 10 s from its command line (FriendReach.Sharees), until the guide or the settings go.
+    /// Tailscale, read every 10 s from its command line (FriendReach.Sharees), until the guide or its window goes.
     /// </summary>
-    private void WatchFriendShare()
+    private void WatchFriendShare(FriendGuide guide)
     {
-        if (_friendGuide is not { WatchesShares: true } guide) { _friendShareWatch?.Stop(); return; }
-        if (_friendShareWatch is null)
+        if (!guide.WatchesShares || !Current(guide)) { guide.Watch?.Stop(); return; }
+        if (guide.Watch is null)
         {
-            _friendShareWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            _friendShareWatch.Tick += (_, _) =>
+            var watch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+            watch.Tick += (_, _) =>
             {
-                if (FriendDone.Visibility != Visibility.Visible || SettingsOverlay.Visibility != Visibility.Visible) { _friendShareWatch.Stop(); return; }
-                _ = ReadFriendSharesAsync();
+                if (!Current(guide) || !guide.Steps.IsVisible) { watch.Stop(); return; }
+                _ = ReadFriendSharesAsync(guide);
             };
+            guide.Watch = watch;
         }
-        if (!_friendShareWatch.IsEnabled) _friendShareWatch.Start();
-        if (guide.Sharees is null) _ = ReadFriendSharesAsync();
+        if (!guide.Watch.IsEnabled) guide.Watch.Start();
+        if (guide.Sharees is null) _ = ReadFriendSharesAsync(guide);
     }
-    private async Task ReadFriendSharesAsync()
+    private async Task ReadFriendSharesAsync(FriendGuide guide)
     {
-        if (_friendShareReading || _friendGuide is not { } guide) return;
-        _friendShareReading = true;
+        if (guide.Reading) return;
+        guide.Reading = true;
         try
         {
             var sharees = await Task.Run(() => FriendReach.Sharees(TailscaleCli.Status()));
-            if (!ReferenceEquals(guide, _friendGuide) || sharees is null || guide.Sharees is { } before && before.SequenceEqual(sharees)) return;
+            if (!Current(guide) || sharees is null || guide.Sharees is { } before && before.SequenceEqual(sharees)) return;
             guide.Sharees = sharees;
-            if (guide.WatchesShares) RenderFriendGuide();
+            if (guide.WatchesShares) RenderFriendGuide(guide);
         }
-        finally { _friendShareReading = false; }
+        finally { guide.Reading = false; }
+    }
+    /// <summary>
+    /// Aide → « Inviter un ami » (ogsas, 2026-11-18: « toujours à portée de main »): the same guide, for a friend whose
+    /// account is made or to make, drawn again each time the subject opens (the account or the server may have changed).
+    /// </summary>
+    private void ShowHelpFriend()
+    {
+        _helpFriendGuide?.Watch?.Stop();
+        HelpFriendStatus.Text = "";
+        var server = _demo ? null : _client?.Connection.Server;
+        var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
+        var guide = new FriendGuide
+        {
+            Name = FriendReach.AFriend, Steps = HelpFriendSteps, Help = true, Here = here,
+            Home = server is null ? null : FriendReach.HomeAddress(server, here, here ? LocalNetwork.ThisPc() : null),
+            Away = server is null ? null : FriendReach.AwayAddress(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null),
+        };
+        _helpFriendGuide = guide;
+        HelpFriendTitle.Text = FriendReach.Capital(FriendReach.Question(FriendReach.AFriend));
+        HelpFriendElsewhere.IsChecked = true;
+        HelpFriendWhere.Selected = 1;
+        RenderFriendGuide(guide);
+        if (!_demo && _client is { } client) _ = HelpFriendAdminAsync(client, guide);
+    }
+    /// <summary>« Créer son compte » and « Autoriser un appareil » for an administrator, who has them in Réglages.</summary>
+    private async Task HelpFriendAdminAsync(JellyfinClient client, FriendGuide guide)
+    {
+        bool? admin = null;
+        try { admin = await client.IsAdministratorAsync(); }
+        catch (Exception ex) when (IsExpected(ex)) { }
+        if (admin != true || !ReferenceEquals(guide, _helpFriendGuide) || !ReferenceEquals(client, _client)) return;
+        guide.Admin = true;
+        RenderFriendGuide(guide);
+    }
+    /// <summary>From Aide's guide: Réglages → Amis et invités, on « Ajouter un ami » or « Autoriser un appareil ».</summary>
+    private async Task OpenFriendSettingsAsync(bool device)
+    {
+        Settings_Click(this, new());
+        SelectSettingsTab("sharing");
+        await _friendShowing;
+        if (SettingsOverlay.Visibility != Visibility.Visible) return;
+        if (device)
+        {
+            await _approveShowing;
+            if (SettingsOverlay.Visibility != Visibility.Visible || ApproveDeviceRow.Visibility != Visibility.Visible) return;
+            ApproveDeviceRow.BringIntoView();
+            _ = Dispatcher.BeginInvoke(() => ApproveCodeBox.Focus(), DispatcherPriority.Input);
+        }
+        else
+        {
+            if (FriendRow.Visibility != Visibility.Visible) return;
+            FriendRow.BringIntoView();
+            if (FriendForm.Visibility == Visibility.Visible) _ = Dispatcher.BeginInvoke(() => FriendNameBox.Focus(), DispatcherPriority.Input);
+        }
     }
     /// <summary>« Only for tonight? »: this account's party link, when its Jellyfin makes one.</summary>
     private async Task ShowFriendPartyAsync(JellyfinClient client)

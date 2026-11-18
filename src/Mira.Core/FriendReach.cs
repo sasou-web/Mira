@@ -112,9 +112,9 @@ public static class FriendReach
         "Mira doesn’t know your home address from here: give the one Jellyfin’s page shows on the PC it runs on.");
     public static string Share(string name) => L($"Partage ce PC avec {name} sur Tailscale", $"Share this PC with {name} on Tailscale");
     public static string ShareLine(string name) => L($"La maison de {name} n’est pas sur ton réseau : Tailscale relie les deux, en privé. Mira ouvre la page des machines : à côté de ce PC, « … » → Share…, puis envoie à {name} le lien obtenu. Il l’accepte avec un compte Tailscale gratuit.",
-        $"{name}’s home isn’t on your network: Tailscale links the two, privately. Mira opens the machines page: next to this PC, “…” → Share…, then send {name} the link it gives. They accept with a free Tailscale account.");
+        $"{Capital(name)}’s home isn’t on your network: Tailscale links the two, privately. Mira opens the machines page: next to this PC, “…” → Share…, then send {name} the link it gives. They accept with a free Tailscale account.");
     public static string ShareElsewhere(string name) => L($"La maison de {name} n’est pas sur ton réseau : Tailscale relie les deux, en privé. Sur la page des machines, à côté du PC de Jellyfin, « … » → Share…, puis envoie à {name} le lien obtenu.",
-        $"{name}’s home isn’t on your network: Tailscale links the two, privately. On the machines page, next to Jellyfin’s PC, “…” → Share…, then send {name} the link it gives.");
+        $"{Capital(name)}’s home isn’t on your network: Tailscale links the two, privately. On the machines page, next to Jellyfin’s PC, “…” → Share…, then send {name} the link it gives.");
     public static string NotOnTailnet => L("Le PC de Jellyfin n’est pas encore sur Tailscale : installe Tailscale dessus et connecte-le, puis partage-le d’ici.",
         "Jellyfin’s PC isn’t on Tailscale yet: install Tailscale on it and sign in, then share it from here.");
     public static string OpenTailscale => L("Ouvrir Tailscale", "Open Tailscale");
@@ -132,6 +132,24 @@ public static class FriendReach
         $"{name} signs in with their name and this password. Send it to them: Mira doesn’t keep it.");
     public static string Party => L("Juste pour ce soir ? Ton lien de party ne demande ni compte ni Tailscale : qui l’ouvre rejoint ton groupe en invité.",
         "Only for tonight? Your party link needs no account and no Tailscale: whoever opens it joins your group as a guest.");
+    // Aide → « Inviter un ami »: the same guide at any time, for « ton ami », whose account may already exist (ogsas, 2026-11-18).
+    /// <summary>The friend of Aide's guide, who has no name there.</summary>
+    public static string AFriend => L("ton ami", "your friend");
+    public static string HelpTitle => L("Inviter un ami", "Invite a friend");
+    public static string HelpAbout => L("Son compte, puis la bonne adresse à lui envoyer : chez toi, ou ailleurs par Tailscale. Aussi pour un ami qui a déjà son compte.",
+        "Their account, then the right address to send them: at your home, or somewhere else through Tailscale. Also for a friend who already has an account.");
+    public static string Account => L("Son compte", "Their account");
+    public static string AccountLine(bool admin) => admin
+        ? L("Un compte à lui sur ton Jellyfin, qui ne voit que les bibliothèques choisies. Il en a déjà un ? Passe à l’étape suivante.",
+            "An account of their own on your Jellyfin, which only sees the libraries you choose. Already has one? Go on to the next step.")
+        : L("Un compte à lui sur ce Jellyfin : seul son administrateur peut le créer. Il en a déjà un ? Passe à l’étape suivante.",
+            "An account of their own on this Jellyfin: only its administrator can make it. Already has one? Go on to the next step.");
+    public static string CreateAccount => L("Créer son compte", "Create their account");
+    public static string LetInHelp => L("Ton ami choisit « Se connecter avec un code » et te donne les 6 chiffres : tape-les dans Autoriser un appareil, avec son compte. Ou il se connecte avec son prénom et son mot de passe.",
+        "Your friend chooses “Sign in with a code” and tells you the 6 digits: type them in Allow a device, with their account. Or they sign in with their name and password.");
+    public static string AllowDevice => L("Autoriser un appareil", "Allow a device");
+    /// <summary>A name at the start of a sentence: « your friend » as « Your friend » (a first name is left as typed).</summary>
+    public static string Capital(string name) => name.Length == 0 ? name : char.ToUpper(name[0], Lang.Culture) + name[1..];
     public static string CopyParty => L("Copier ton lien de party", "Copy your party link");
 
     /// <summary>

@@ -130,6 +130,7 @@ public sealed partial class SettingsPage : Page
         var devices = Section(L("Autoriser un appareil", "Allow a device"), ApproveDevice());
         devices.IsVisible = false;
         Tab("sharing").Children.Add(devices);
+        _devices = devices;
         if (shell.Session is { } session) _ = ShowWhenEnabledAsync(session.Client, devices);
         // « Titres à corriger »: what Jellyfin did not recognize, for an administrator, as on Windows.
         Fix = new FixTitlesSection(shell, Section);
@@ -154,6 +155,8 @@ public sealed partial class SettingsPage : Page
     public TailnetSection Tailnet { get; }
     public FixTitlesSection Fix { get; }
     public FriendsSection Friend { get; }
+    /// <summary>« Autoriser un appareil », which Aide's « Inviter un ami » opens.</summary>
+    private readonly Control _devices;
     public ViewersSection Viewing { get; }
     public ExtensionSection Extension { get; }
     private void Save() { Shell.Profile.SaveSettings(Shell.Settings); Shell.ChoicesChanged(); }
