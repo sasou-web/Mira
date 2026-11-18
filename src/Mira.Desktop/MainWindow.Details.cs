@@ -79,6 +79,8 @@ public partial class MainWindow
         // The previous series' seasons go with it (its pills stayed under a film's buttons); this one's come with its episodes (FillSeasons).
         _tiles.Clear(); FillSeasonPills([]);
         EpisodesHead.Visibility = EpisodeHeading.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
+        // Not the previous series' count and size while this one's episodes come (seen on the Dell, 2026-11-18).
+        EpisodeHeading.Text = L("Épisodes", "Episodes");
         // The facts and the cast after a series' episodes, a little apart from them.
         EpisodesPanel.Margin = new Thickness(0, 0, 0, item.Type == "Series" ? 30 : 0);
         if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
@@ -195,6 +197,13 @@ public partial class MainWindow
         var request = cache.PageBackdropAsync(item);
         // Already decoded (seen a moment ago): the page opens on it, without a fade from its blur.
         var ready = request.IsCompleted;
+        // To download: a small one first (640 px, quick), over the blur, until the whole one sharpens it.
+        if (!ready && !await cache.PageBackdropKeptAsync(item))
+        {
+            var preview = cache.PageBackdropPreviewAsync(item);
+            await Task.WhenAny(request, preview);
+            if (!request.IsCompleted && await preview is { } small && version == _detailVersion && !request.IsCompleted) SetDetailBackdrop(small, animate: true);
+        }
         var bitmap = await request;
         if (version != _detailVersion || bitmap is null) return;
         SetDetailBackdrop(bitmap, animate: !ready);

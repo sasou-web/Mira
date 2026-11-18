@@ -16,7 +16,7 @@ public sealed class Images
     private readonly string _directory;
     private readonly SemaphoreSlim _downloads = new(6);
     /// <summary>A title page's backdrop and logo have their own lane, never behind the posters and stills asked with them (as on Windows).</summary>
-    private readonly SemaphoreSlim _pageDownloads = new(2);
+    private readonly SemaphoreSlim _pageDownloads = new(3);
     /// <summary>Backdrops already put on disk by <see cref="WarmPageAsync"/>, asked once per run.</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _warmed = new();
     /// <summary>128 MB of decoded bitmaps kept for reuse, as on Windows; bitmaps on screen keep their own reference.</summary>
@@ -53,6 +53,16 @@ public sealed class Images
     }
     /// <summary>The width a title page asks its backdrop at (DetailPage).</summary>
     public const int PageBackdropWidth = 1920;
+    /// <summary>A title page's backdrop, small (640 px): shown while the whole one downloads, as on Windows.</summary>
+    public Task<Bitmap?> PageBackdropPreviewAsync(MediaItem item) => Get(Artwork.Backdrop(item, ownPage: true), 640, first: true);
+    /// <summary>Whether the whole backdrop of a title page is on the disk already (seen before, or warmed on hover): then no preview.</summary>
+    public Task<bool> PageBackdropKeptAsync(MediaItem item)
+    {
+        var image = Artwork.Backdrop(item, ownPage: true);
+        if (image.ItemId.Length == 0) return Task.FromResult(true);
+        var file = PathOf(Key(image, PageBackdropWidth));
+        return Task.Run(() => File.Exists(file));
+    }
     private async Task KeepAsync(string key, ImageRef image, int width)
     {
         var file = PathOf(key);

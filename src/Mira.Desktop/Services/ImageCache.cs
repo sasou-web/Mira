@@ -28,7 +28,7 @@ public sealed class ImageCache
     /// A title page's backdrop and logo have their own lane: they never wait behind the posters and stills a page asks for
     /// at the same time (they came last on the Dell, 2026-11-18).
     /// </summary>
-    private readonly SemaphoreSlim _pageDownloads = new(2);
+    private readonly SemaphoreSlim _pageDownloads = new(3);
     /// <summary>Backdrops already put on disk by <see cref="WarmPageAsync"/>, asked once per run.</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _warmed = new();
     private ImageMemory<BitmapSource>? _memory;
@@ -67,6 +67,18 @@ public sealed class ImageCache
     }
     /// <summary>A title page's backdrop: an episode opened on purpose shows everything, its own still too (see Artwork.Backdrop).</summary>
     public Task<BitmapSource?> PageBackdropAsync(MediaItem item) => Load(Artwork.Backdrop(item, ownPage: true), BackdropPixels, first: true);
+    /// <summary>The width of a title page's first, quick backdrop, while the whole one comes (a tenth of its bytes).</summary>
+    public const int BackdropPreviewPixels = 640;
+    /// <summary>A title page's backdrop, small: shown while the whole one downloads (2026-11-18, the Dell: 0.4 to 1 s for it).</summary>
+    public Task<BitmapSource?> PageBackdropPreviewAsync(MediaItem item) => Load(Artwork.Backdrop(item, ownPage: true), BackdropPreviewPixels, first: true);
+    /// <summary>Whether the whole backdrop of a title page is on the disk already (seen before, or warmed on hover): then no preview.</summary>
+    public Task<bool> PageBackdropKeptAsync(MediaItem item)
+    {
+        var image = Artwork.Backdrop(item, ownPage: true);
+        if (image.ItemId.Length == 0) return Task.FromResult(true);
+        var path = PathOf($"{image.ItemId}-{image.Type}-{image.Tag}-{BackdropPixels}");
+        return Task.Run(() => File.Exists(path));
+    }
     /// <summary>
     /// A card hovered a moment: its page's backdrop downloaded to the disk (not decoded: ~15 MB each in memory, the posters
     /// would leave for it) and its logo decoded, so that the page opens on them instead of waiting for Jellyfin.

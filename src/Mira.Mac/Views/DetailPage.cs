@@ -295,6 +295,13 @@ public sealed partial class DetailPage : Page
         var request = session.Images.BackdropAsync(_item, Images.PageBackdropWidth, ownPage: true);
         // Already decoded (seen a moment ago): the page opens on it, without a fade from its blur.
         var ready = request.IsCompleted;
+        // To download: a small one first (640 px, quick), over the blur, until the whole one sharpens it.
+        if (!ready && !await session.Images.PageBackdropKeptAsync(_item))
+        {
+            var preview = session.Images.PageBackdropPreviewAsync(_item);
+            await Task.WhenAny(request, preview);
+            if (!request.IsCompleted && await preview is { } small && !request.IsCompleted) { _backdrop.Source = small; _backdrop.Opacity = 1; }
+        }
         if (await request is not { } art) return;
         var fade = _backdrop.Transitions;
         if (ready) _backdrop.Transitions = null;
