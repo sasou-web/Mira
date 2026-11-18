@@ -113,7 +113,14 @@ const series = {
     + 'What they find in the wreckage changes the way they see the &laquo;&nbsp;space race&nbsp;&raquo; and the story they were told about it.<br>\n<br>\n'
     + 'They must decide what to tell the world, and how much of it, before somebody else does.<br>\n<br>\n(Source: <i>VODO</i>)<br>',
   ImageTags: art(SERIES, 'Primary', 'Thumb'), BackdropImageTags: [`b-${SERIES}`], UserData: { Played: false, IsFavorite: true, UnplayedItemCount: 4 },
+  SpecialFeatureCount: 3,
 };
+// Its bonus videos, as Jellyfin 12 lists those of an Extras folder (« Unknown ») and a featurette: the chip « Extras » (SeriesExtras).
+const seriesExtras = [
+  { Id: 'x1'.padEnd(32, '0'), Name: 'Pioneer One - NCOP01', Type: 'Video', ExtraType: 'Unknown', RunTimeTicks: 900000000, UserData: { Played: false } },
+  { Id: 'x2'.padEnd(32, '0'), Name: 'Pioneer One - NCED01', Type: 'Video', ExtraType: 'Unknown', RunTimeTicks: 905000000, UserData: { Played: false } },
+  { Id: 'x3'.padEnd(32, '0'), Name: 'Behind the capsule', Type: 'Video', ExtraType: 'Featurette', RunTimeTicks: minutes(12), UserData: { Played: false } },
+];
 function episode(number, name, extra = {}) {
   const id = `e${number}`.padEnd(32, '0');
   return {
@@ -384,6 +391,7 @@ const server = http.createServer(async (req, res) => {
   // An account that shows missing episodes (Jellyfin's « Display missing episodes within seasons »): as Jellyfin 12.1,
   // its episodes and seasons come with the virtual ones (and a season of missing episodes only) unless isMissing=false.
   const missingToo = q.get('isMissing') !== 'false';
+  if (path === `/Items/${SERIES}/SpecialFeatures`) return send(res, 200, seriesExtras);
   if (path === `/Shows/${SERIES}/Seasons`) {
     return send(res, 200, list([{ Id: SEASON, Name: 'Season 1', Type: 'Season', IndexNumber: 1, SeriesId: SERIES },
       ...(missingToo ? [{ Id: MISSING_SEASON, Name: 'Season 2', Type: 'Season', IndexNumber: 2, SeriesId: SERIES, LocationType: 'Virtual' }] : [])]));

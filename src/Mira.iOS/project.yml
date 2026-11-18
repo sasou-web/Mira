@@ -160,6 +160,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/shelf.json
         buildPhase: resources
+      - path: ../../tests/fixtures/series-extras.json
+        buildPhase: resources
       - path: ../../tests/fixtures/absolute.json
         buildPhase: resources
       - path: ../../tests/fixtures/server-move.json

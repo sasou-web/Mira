@@ -50,18 +50,21 @@ public partial class MainWindow
     /// </summary>
     private void FillSeasons()
     {
-        var previous = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
+        var previous = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage; var extras = ExtrasShown;
         _seasonBusy = true; SeasonSelector.Items.Clear();
         var own = EpisodePages.From(_episodes);
         var pages = EpisodeShelf.Pages(own, _episodes, ShelfVirtuals, EpisodeCalendar.Today(), _settings.ShowMissingEpisodes);
         foreach (var page in pages) SeasonSelector.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
+        if (SeriesExtrasPill) SeasonSelector.Items.Add(new ComboBoxItem { Content = SeriesExtras.Name, Tag = ExtrasPage });
         // Two pages or more: pills under the heading, cut to their numbers past ten (EpisodeTiles); one: none. The list
         // itself is never shown: it only holds the choice.
-        FillSeasonPills(EpisodeTiles.Pills(pages) ? pages : []);
+        // With bonus videos (SeriesExtras), pills for a single season too, « Extras » after it.
+        FillSeasonPills(SeriesExtras.Pills(pages, SeriesExtrasPill ? _extras.Count : 0) ? pages : [], SeriesExtrasPill);
         var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip && x.Absent == previous.Absent))
             ?? EpisodePages.Holding(own, _episodes, _episodes.FirstOrDefault(x => x.Id == _detailEpisode?.Id))
             ?? EpisodePages.Holding(own, _episodes, _detailNext ?? EpisodePages.Start(_episodes));
-        SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
+        var shown = extras && SeriesExtrasPill ? ExtrasPage : resume;
+        SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, shown)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
         _seasonBusy = false;
     }
 

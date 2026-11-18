@@ -22,6 +22,8 @@ struct EpisodeList: View {
     @State private var held: [Item] = []
     private var virtuals: [Item] { AbsoluteNumbers.unheld(tvdb, held: held) }
     @State private var shelfOpen: Set<String> = []
+    /// Its bonus videos (« La pastille », SeriesExtras): the chip « Extras » after its seasons shows them.
+    @State private var extras: [Item] = []
     /// « Télécharger les manquants » (MissingViews): an administrator's buttons, and how what was asked is going.
     @State private var missing = MissingWatch()
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -42,6 +44,10 @@ struct EpisodeList: View {
                         HStack(spacing: 8) {
                             ForEach(chips) { entry in
                                 let chosen = entry.id == season
+                                if entry.id == Self.extrasId {
+                                    // A thin line between the seasons and « Extras », as on Windows and the Mac.
+                                    Rectangle().fill(Palette.line).frame(width: 1, height: 22).padding(.horizontal, 4)
+                                }
                                 let coming = entry.season.flatMap { missing.progress(season: $0, episodes: nil) }.map { MissingDownloads.pill($0) } ?? ""
                                 Button {
                                     picked = true
@@ -61,6 +67,7 @@ struct EpisodeList: View {
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityAddTraits(chosen ? .isSelected : [])
+                                .accessibilityIdentifier(entry.id == Self.extrasId ? "series.chip.extras" : "series.chip")
                                 .id(entry.id)
                             }
                         }
@@ -105,7 +112,10 @@ struct EpisodeList: View {
             if failed && episodes.isEmpty {
                 Text(verbatim: Messages.text(JellyfinError.unreachable)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
             }
-            if let absent = absentSeason {
+            if season == Self.extrasId {
+                ExtrasPage(series: series, extras: extras, columns: typeSize.isAccessibilitySize ? 1 : 2)
+                    .transition(.opacity)
+            } else if let absent = absentSeason {
                 // A season the library has none of: a calm card for its aired episodes, then those coming, as tiles.
                 let lines = EpisodeShelf.lines([], virtuals: virtuals, season: absent, today: today, showMissing: showMissing)
                 VStack(alignment: .leading, spacing: 16) {
@@ -140,6 +150,7 @@ struct EpisodeList: View {
             MissingSheet(series: series, asked: asked, before: { await episodesBefore(asked.ask.season) }, watch: missing)
         }
         .task(id: series.id) { await loadSeasons() }
+        .task(id: series.id) { await loadExtras() }
         .task(id: series.id) {
             await loadVirtuals()
             // A series the library holds no season of: its first season known to TheTVDB.
@@ -164,11 +175,14 @@ struct EpisodeList: View {
     private func chips(today: EpisodeCalendar.Day, showMissing: Bool) -> [Chip] {
         let held = Set(seasons.compactMap(\.indexNumber))
         let absent = EpisodeShelf.absentSeasons(held: held, virtuals: virtuals, today: today, showMissing: showMissing)
-        return seasons.map { Chip(id: $0.id, name: $0.name ?? "", season: $0.indexNumber) }
+        let all = seasons.map { Chip(id: $0.id, name: $0.name ?? "", season: $0.indexNumber) }
             + absent.map { Chip(id: Self.absentPrefix + "\($0)", name: EpisodeShelf.seasonLabel($0, virtuals: virtuals, today: today), season: $0) }
+        // « Extras » after the last season, also after a single one (SeriesExtras).
+        return SeriesExtras.pills(seasons: all.count, extras: extras.count) && !extras.isEmpty ? all + [Chip(id: Self.extrasId, name: SeriesExtras.name())] : all
     }
 
     private static let absentPrefix = "absent-"
+    private static let extrasId = "extras"
 
     /// The season shown, when it is one the library has none of.
     private var absentSeason: Int? {
@@ -233,12 +247,18 @@ struct EpisodeList: View {
         guard let client = app.client else { return }
         do {
             seasons = try await client.seasons(series.id)
-            if absentSeason == nil, season == nil || !seasons.contains(where: { $0.id == season }) {
+            if absentSeason == nil, season != Self.extrasId, season == nil || !seasons.contains(where: { $0.id == season }) {
                 season = seasons.first { $0.id == next?.seasonId }?.id ?? seasons.first?.id
             } else {
                 await loadEpisodes()
             }
         } catch JellyfinError.unauthorized { app.sessionEnded() } catch { failed = true }
+    }
+
+    /// The series' bonus videos, when Jellyfin counts some (or did not say).
+    private func loadExtras() async {
+        guard let client = app.client, series.specialFeatureCount != 0 else { return }
+        if let found = try? await client.extras(series.id) { extras = found }
     }
 
     /// The episodes of the seasons before `season`, the library's and TheTVDB's (MissingDownloads.before).
@@ -262,7 +282,7 @@ struct EpisodeList: View {
     private func loadEpisodes() async {
         guard let client = app.client, let season else { return }
         // A season the library has none of: nothing to ask Jellyfin.
-        if absentSeason != nil { episodes = []; failed = false; return }
+        if absentSeason != nil || season == Self.extrasId { episodes = []; failed = false; return }
         do {
             episodes = try await client.episodes(series.id, season: season)
             failed = false

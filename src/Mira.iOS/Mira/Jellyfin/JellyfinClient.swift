@@ -228,6 +228,11 @@ struct JellyfinClient: Sendable {
     }
 
     /// A film's or a series' trailers kept beside it, played as any video: served by Jellyfin alone.
+    /// A film's or series' bonus videos: making-of, textless openings and endings of its Extras folder (SeriesExtras).
+    func extras(_ id: String) async throws -> [Item] {
+        try await get("Items/\(id)/SpecialFeatures", ["userId": userId], as: [Item].self)
+    }
+
     func localTrailers(_ id: String) async throws -> [Item] {
         try await get("Items/\(id)/LocalTrailers", ["userId": userId], as: [Item].self)
     }
