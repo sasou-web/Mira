@@ -398,7 +398,7 @@ internal static class TorLinkTests
             Assert(sherlock.Kind == MediaKind.Series && Targets(sherlock).StartsWith("SERIES/Sherlock/Season 01/Sherlock - S01E01.mkv"), "Series 1: " + Targets(sherlock));
             var kaamelott = Pack("Kaamelott Livre II Integrale FRENCH DVDRip", null, "Kaamelott Livre II/Kaamelott - Livre II - 01 - Le Code de Chevalerie.avi", "Kaamelott Livre II/Kaamelott - Livre II - 02 - Le Sort Perdu.avi");
             Assert(kaamelott.Kind == MediaKind.Series && Targets(kaamelott).StartsWith("SERIES/Kaamelott/Season 02/Kaamelott - S02E01.avi"), "Livre II: " + kaamelott.Kind + " " + Targets(kaamelott));
-            Assert(ReleaseName.Show("Monogatari Series Second Season").Title == "Monogatari Series Second Season" && ReleaseName.Show("The Book of Boba Fett S01E01").Title == "The Book of Boba Fett"
+            Assert(ReleaseName.Show("Monogatari Series").Title == "Monogatari Series" && ReleaseName.Season("Monogatari Series") is null && ReleaseName.Show("The Book of Boba Fett S01E01").Title == "The Book of Boba Fett"
                 && ReleaseName.Season("Avatar The Last Airbender Book 2") == 2, "Words of titles read as seasons");
             // « monk.101 » in « Monk.S01 »: episode 1; a pack running from 001 to 101 keeps its numbers.
             var monk = Pack("Monk.S01.DVDRip.XviD", null, "Monk.S01.DVDRip.XviD/monk.101.dvdrip.xvid.avi", "Monk.S01.DVDRip.XviD/monk.102.dvdrip.xvid.avi");
