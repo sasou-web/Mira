@@ -256,8 +256,10 @@ public partial class MainWindow
             step = "Mettre à la Corbeille";
             var asking = AskToRecycleAsync(bin);
             await Until("the card of « Mettre à la Corbeille… »", () => _confirm is not null && ConfirmDetails.Visibility == Visibility.Visible, 30);
-            Require(ConfirmPath.Text.Contains("Chapitres Web (2024)", StringComparison.Ordinal) && ConfirmRows.Children.Count >= 3 && Keyboard.FocusedElement == ConfirmNo,
-                "« Mettre à la Corbeille… » names the film's folder, what is in it, and « Annuler » has the focus");
+            Require(ConfirmPath.Text.Contains("Chapitres Web (2024)", StringComparison.Ordinal) && ConfirmRows.Children.Count >= 3,
+                $"« Mettre à la Corbeille… » names the film's folder and what is in it ({ConfirmPath.Text}, {ConfirmRows.Children.Count} lines)");
+            // Given once the card is shown (at the Input priority): the window's own focus, active or not on the runner.
+            await Until("« Annuler » focused on the card", () => FocusManager.GetFocusedElement(this) == ConfirmNo, 10);
             await CaptureAsync(output, "server-recycle");
             Answer(true); await asking;
             await Until("the film's folder in the Recycle Bin", () => !File.Exists(binFile) && !Directory.Exists(Path.GetDirectoryName(binFile)), 60);
