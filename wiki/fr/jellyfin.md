@@ -22,7 +22,7 @@ Mira remplit ensuite l’assistant de premier démarrage de Jellyfin : ton compt
 > [!TIP]
 > Si l’installateur de Jellyfin affiche « Could not start the Jellyfin Server service », choisis **Ignorer**. Le service démarre en général juste après, et Mira continue dès que Jellyfin répond.
 
-Le service de Jellyfin tourne sous le compte **Network Service** de Windows, qui ne lit pas tes dossiers personnels. Mira lui donne le droit de lire, sans modifier, Films, Séries et Animes, et rien d’autre du dossier choisi.
+Le service de Jellyfin tourne sous le compte **Network Service** de Windows, qui ne lit pas tes dossiers personnels. Mira lui donne le droit de lire Films, Séries et Animes, et rien d’autre du dossier choisi. Il peut aussi y créer ses propres fichiers (le NFO et les images de chaque titre, pour qu’un Jellyfin réinstallé retrouve tout) et ne changer que ceux-là, jamais une vidéo.
 
 ## Nommer tes vidéos
 

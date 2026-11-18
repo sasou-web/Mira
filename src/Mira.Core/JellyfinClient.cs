@@ -956,6 +956,79 @@ public sealed class JellyfinClient : IDisposable
     public const int ScanConcurrency = 2;
     private static bool? Trickplay(JsonObject? options) =>
         options?["EnableTrickplayImageExtraction"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
+    /// <summary>
+    /// The film and series libraries with their folders, and whether each keeps its metadata beside the files
+    /// (<see cref="MetadataBeside.Keeps"/>); null when refused (not an administrator).
+    /// </summary>
+    public async Task<List<(string Id, string[] Locations, bool? Keeps)>?> MetadataLibrariesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Library/VirtualFolders", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        var folders = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+        return folders.OfType<JsonObject>().Where(x => x["CollectionType"] is JsonValue type && type.TryGetValue<string>(out var kind) && MetadataBeside.Kinds.Contains(kind) && x["ItemId"] is JsonValue)
+            .Select(x => ((string)x["ItemId"]!, (x["Locations"] as JsonArray ?? []).OfType<JsonValue>().Select(l => l.TryGetValue<string>(out var path) ? path : "").Where(p => p.Length > 0).ToArray(),
+                MetadataBeside.Keeps(x["LibraryOptions"] as JsonObject))).ToList();
+    }
+    /// <summary>
+    /// Every film and series library keeps its metadata beside the files (<see cref="MetadataBeside.Kept"/>), their other
+    /// options sent back as Jellyfin gave them. False when refused (only an administrator may).
+    /// </summary>
+    public async Task<bool> KeepMetadataBesideAsync(CancellationToken ct = default)
+    {
+        if (await LibraryOptionsAsync(MetadataBeside.Kinds, ct) is not { } libraries) return false;
+        foreach (var (id, options) in libraries)
+        {
+            if (options is null || MetadataBeside.Kept(options) is not { } changed) continue;
+            using var response = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = id, ["LibraryOptions"] = changed }, ct);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(response);
+        }
+        return true;
+    }
+    /// <summary>The films, series, seasons and episodes of one library with their file or folder, <paramref name="limit"/> from <paramref name="start"/>.</summary>
+    public Task<ItemsResult> LibraryFilesAsync(string libraryId, int start, int limit, CancellationToken ct = default) => GetAsync<ItemsResult>(
+        $"Items?parentId={Uri.EscapeDataString(libraryId)}&recursive=true&includeItemTypes=Movie,Series,Season,Episode&fields=Path&enableImages=false&enableUserData=false" +
+        $"&sortBy=SortName&startIndex={start}&limit={limit}", ct);
+    /// <summary>A title's images as Jellyfin keeps them: type, index (several backdrops) and the file it reads.</summary>
+    public async Task<List<ItemImage>> ItemImagesAsync(string itemId, CancellationToken ct = default) =>
+        await GetAsync<List<ItemImage>>($"Items/{Uri.EscapeDataString(itemId)}/Images", ct);
+    /// <summary>
+    /// One of a title's images given again to Jellyfin, as it is: saved again where its library says (beside the files,
+    /// with SaveLocalMetadata), the old file deleted by Jellyfin. A backdrop is added after the others: the old one is
+    /// for the caller to remove (<see cref="RemoveImageAsync"/>). False when Jellyfin no longer has it.
+    /// </summary>
+    public async Task<bool> SaveImageAgainAsync(string itemId, ItemImage image, CancellationToken ct = default)
+    {
+        var path = $"Items/{Uri.EscapeDataString(itemId)}/Images/{Uri.EscapeDataString(image.ImageType)}";
+        using var read = await _http.GetAsync(path + $"/{image.ImageIndex ?? 0}", ct);
+        if (read.StatusCode == HttpStatusCode.NotFound) return false;
+        await CheckAsync(read);
+        var type = read.Content.Headers.ContentType?.MediaType is { } media && media.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? media : "image/jpeg";
+        // Jellyfin reads an image sent to it as base64.
+        using var content = new StringContent(Convert.ToBase64String(await read.Content.ReadAsByteArrayAsync(ct)), Encoding.ASCII);
+        content.Headers.ContentType = new(type);
+        using var saved = await _http.PostAsync(image.ImageType == "Backdrop" ? path : path + "/0", content, ct);
+        await CheckAsync(saved);
+        return true;
+    }
+    /// <summary>Removes one of a title's images (Jellyfin deletes its file).</summary>
+    public async Task RemoveImageAsync(string itemId, string type, int index, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync($"Items/{Uri.EscapeDataString(itemId)}/Images/{Uri.EscapeDataString(type)}/{index}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return;
+        await CheckAsync(response);
+    }
+    /// <summary>
+    /// « Rechercher les métadonnées manquantes », as Jellyfin's dashboard asks it (a series with its seasons and
+    /// episodes): what is known is kept, corrections by hand included, only what is missing is fetched, then the title
+    /// is saved (its NFO, with SaveLocalMetadata). Queued: Jellyfin answers at once.
+    /// </summary>
+    public async Task FillMissingMetadataAsync(string itemId, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync($"Items/{Uri.EscapeDataString(itemId)}/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=Default&replaceAllMetadata=false&replaceAllImages=false", null, ct);
+        await CheckAsync(response);
+    }
     /// <summary>The libraries of these kinds with their options, as Jellyfin's dashboard reads them; null when refused (not an administrator).</summary>
     private async Task<List<(string Id, JsonObject? Options)>?> LibraryOptionsAsync(string[] kinds, CancellationToken ct)
     {

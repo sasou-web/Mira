@@ -71,7 +71,7 @@ public sealed record MediaFolders(string Root, string Movies, string Series, str
     /// (Windows lets every account go through a folder to one it may read). The person who created them owns them and
     /// may grant this without administrator rights, and take it back (docs/INSTALLATION.md gives the command).
     /// </summary>
-    public void AllowJellyfinService() { foreach (var folder in new[] { Movies, Series, Anime }) JellyfinServiceAccess.Grant(folder); }
+    public void AllowJellyfinService() { foreach (var folder in new[] { Movies, Series, Anime }) { JellyfinServiceAccess.Grant(folder); JellyfinServiceAccess.AllowWriting(folder); } }
 }
 
 /// <summary>Read access for the account Jellyfin's Windows service runs as (Network Service).</summary>
@@ -110,6 +110,36 @@ public static class JellyfinServiceAccess
         var security = info.GetAccessControl();
         security.AddAccessRule(new FileSystemAccessRule(service, FileSystemRights.ReadAndExecute, AccessControlType.Allow));
         info.SetAccessControl(security);
+    }
+    /// <summary>
+    /// Lets the service also write in a folder it reads (<see cref="MetadataBeside"/>: its NFO files and images beside
+    /// the videos), only what it creates: new files and folders in each folder (folders only, never a file), then every
+    /// right on what it created (CREATOR OWNER, inherit only: the owner of each new file, the service for its own, the
+    /// person for theirs). A video already there stays the service's to read only, never to change or delete. Nothing
+    /// done for a folder the service has no rule to read (Jellyfin then runs under another account), already allowed,
+    /// or not the person's to change. Whether the service may write there now.
+    /// </summary>
+    public static bool AllowWriting(string folder)
+    {
+        if (!OperatingSystem.IsWindows()) return true;
+        try { return AllowFolder(folder); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or System.ComponentModel.Win32Exception) { return false; }
+    }
+    [SupportedOSPlatform("windows")]
+    private static bool AllowFolder(string folder)
+    {
+        const FileSystemRights Creates = FileSystemRights.CreateFiles | FileSystemRights.CreateDirectories;
+        var info = new DirectoryInfo(folder);
+        if (!info.Exists) return false;
+        var security = info.GetAccessControl();
+        var rules = security.GetAccessRules(true, true, typeof(SecurityIdentifier)).OfType<FileSystemAccessRule>().Where(x => x.IdentityReference == Service && x.AccessControlType == AccessControlType.Allow).ToList();
+        if (!rules.Any(x => x.FileSystemRights.HasFlag(FileSystemRights.ReadData))) return true;
+        if (rules.Any(x => (x.FileSystemRights & Creates) == Creates && x.InheritanceFlags.HasFlag(InheritanceFlags.ContainerInherit))) return true;
+        security.AddAccessRule(new FileSystemAccessRule(Service, Creates, InheritanceFlags.ContainerInherit, PropagationFlags.None, AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null), FileSystemRights.Modify,
+            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.InheritOnly, AccessControlType.Allow));
+        info.SetAccessControl(security);
+        return true;
     }
     /// <summary>True when <paramref name="path"/> carries a rule of its own (not inherited) letting the service read it.</summary>
     public static bool HasOwnRule(string path) => OperatingSystem.IsWindows() && OwnRule(path);
@@ -236,9 +266,10 @@ public static partial class JellyfinSetup
             // The path goes in the body: the query form splits paths on commas. Films are gathered into sagas (the saga
             // row of a film page). The timeline's previews (trickplay) stay off here: Jellyfin's own way of making them
             // decodes every frame each night; Mira turns them on once signed in, the light way (EnableTrickplayAsync).
-            // Subtitles added from Mira go to Jellyfin's own data: its service only reads the media folders.
+            // Subtitles added from Mira go to Jellyfin's own data. Its NFO files and images go beside the videos
+            // (MetadataBeside): a Jellyfin installed again reads them back.
             await Send(http, HttpMethod.Post, $"Library/VirtualFolders?name={Uri.EscapeDataString(name)}&collectionType={type}&refreshLibrary=false",
-                new { LibraryOptions = new { PathInfos = new[] { new { Path = path } }, PreferredMetadataLanguage = Code, MetadataCountryCode = L("FR", "US"), EnableRealtimeMonitor = true, AutomaticallyAddToCollection = type == "movies", EnableTrickplayImageExtraction = false, SaveSubtitlesWithMedia = false } },
+                new { LibraryOptions = new { PathInfos = new[] { new { Path = path } }, PreferredMetadataLanguage = Code, MetadataCountryCode = L("FR", "US"), EnableRealtimeMonitor = true, AutomaticallyAddToCollection = type == "movies", EnableTrickplayImageExtraction = false, SaveSubtitlesWithMedia = false, SaveLocalMetadata = true } },
                 L("la bibliothèque ", "the library ") + name, ct).ConfigureAwait(false);
         }
         // Devices on the local network still connect; access from the Internet stays off until chosen in Jellyfin.

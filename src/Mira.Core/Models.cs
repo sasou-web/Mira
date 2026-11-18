@@ -455,6 +455,14 @@ public sealed class PlayerSettings
     public string TrickplayAutoFor { get; set; } = "";
     /// <summary>The server whose library scans Mira made light by itself (<see cref="JellyfinClient.LightScans"/>): never again for it, a number chosen in Jellyfin later kept.</summary>
     public string ScansLightFor { get; set; } = "";
+    /// <summary>
+    /// The server whose film and series libraries Mira set to keep their metadata beside the files (<see cref="MetadataBeside"/>):
+    /// never again for it (turned off in Jellyfin, it stays off); the one whose earlier metadata is all written there;
+    /// when Mira last asked Jellyfin for the titles still without an NFO (at most once a week). Empty before 0.9.13.
+    /// </summary>
+    public string MetadataBesideFor { get; set; } = "";
+    public string MetadataBesideDoneFor { get; set; } = "";
+    public DateTimeOffset? MetadataBesideAskedAt { get; set; }
     public int GpuFailures { get; set; }
     /// <summary>
     /// The fingerprint for which Mira last tried the card by itself (Jellyfin on the processor), and whether the person

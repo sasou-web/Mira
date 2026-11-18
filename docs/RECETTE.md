@@ -17,6 +17,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Suivre une série : l'épisode suivant arrive tout seul (laisser tourner une semaine)
 - [ ] Sous-titres automatiques activés : un film sans sous-titres en reçoit, bien calés
 - [ ] Épisodes à venir (TheTVDB) activés : sur une série, une ligne fine « É3–4 · pas dans ta bibliothèque » entre les épisodes, ou le prochain en ligne vide au bout de sa saison ; une saison absente dans la liste des saisons
+- [ ] Métadonnées à côté des fichiers : quelques heures après l’ouverture de Mira, un `movie.nfo` et un `folder.jpg` dans le dossier d’un film, un `tvshow.nfo` dans celui d’une série ; un titre corrigé par « Identifier… » garde sa correction dans son NFO
 - [ ] « Chercher une meilleure version » : l'ancien fichier part à la Corbeille, le titre garde sa progression
 
 ## Ton PC 🖥
