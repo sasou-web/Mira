@@ -101,7 +101,8 @@ public sealed class TvdbOrders : IHostedService, IDisposable
             // After a start of Jellyfin, every series once: one that didn't change since it was weighed costs nothing.
             if (_everything)
             {
-                foreach (var series in _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Series], Recursive = true })) _dirty.Add(series.Id);
+                // GetItemsResult, not GetItemList: its return type changed in 12.x (MissingMethodException), see Bindings in web.yml.
+                foreach (var series in _library.GetItemsResult(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Series], Recursive = true }).Items) _dirty.Add(series.Id);
                 _everything = false;
             }
             next = _dirty.Take(PerTick).ToList();
@@ -121,7 +122,7 @@ public sealed class TvdbOrders : IHostedService, IDisposable
         var decisions = Decisions();
         decisions.TryGetValue(key, out var before);
         var current = series.DisplayOrder ?? "";
-        var files = _library.GetItemList(new InternalItemsQuery { AncestorIds = [series.Id], IncludeItemTypes = [BaseItemKind.Episode], IsVirtualItem = false, Recursive = true })
+        var files = _library.GetItemsResult(new InternalItemsQuery { AncestorIds = [series.Id], IncludeItemTypes = [BaseItemKind.Episode], IsVirtualItem = false, Recursive = true }).Items
             .OfType<Episode>().Where(x => x.ParentIndexNumber is >= 1 && x.IndexNumber is >= 1)
             .SelectMany(x => Enumerable.Range(x.IndexNumber!.Value, Math.Max(1, (x.IndexNumberEnd ?? x.IndexNumber!.Value) - x.IndexNumber!.Value + 1)).Select(e => (x.ParentIndexNumber!.Value, e)))
             .Distinct().ToList();

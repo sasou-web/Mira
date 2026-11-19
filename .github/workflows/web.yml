@@ -69,6 +69,19 @@ jobs:
         run: |
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
           tools/web/package.sh "$version" http://127.0.0.1:8765
+      # Every method of the plugin (and of the stand-in for TheTVDB's) compiled against this Jellyfin's own assemblies:
+      # a member it removed or changed would throw MissingMethodException only once the method runs, maybe hours after
+      # start and only with TheTVDB's plugin (TvdbOrders on Jellyfin 12.4, 2026-11-19), never in the checks below.
+      - name: Bindings against Jellyfin ${{ matrix.jellyfin }}
+        run: |
+          dotnet build tools/extension/bindings -c Release -o .artifacts/bindings -nologo -v q
+          dotnet build tools/web/fake-tvdb/FakeTvdb.csproj -c Release -o .artifacts/fake-tvdb -nologo -v q
+          docker pull -q "$JELLYFIN_IMAGE"
+          server=$(docker create "$JELLYFIN_IMAGE")
+          docker cp "$server:/jellyfin" .artifacts/jellyfin-server
+          docker rm "$server" >/dev/null
+          unzip -q -o dist/web/mira-jellyfin-*.zip -d .artifacts/plugin
+          dotnet .artifacts/bindings/mira-bindings.dll .artifacts/jellyfin-server .artifacts/plugin/Mira.Jellyfin.dll .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll
       # ffmpeg: imageio-ffmpeg's static build from PyPI, pinned by its hash, as tools/player-check.ps1 takes it on
       # Windows. Not apt: the runner has no ffmpeg, and the Ubuntu mirror sometimes sends its 92 MB at 76 kB/s (20 min).
       - name: ffmpeg
@@ -87,8 +100,8 @@ jobs:
         run: |
           (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
           mkdir -p .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0 .artifacts/jf-cache
-          # A stand-in for TheTVDB's plugin (out of reach): the missing episodes and air dates of the test series.
-          dotnet build tools/web/fake-tvdb/FakeTvdb.csproj -c Release -o .artifacts/fake-tvdb
+          # A stand-in for TheTVDB's plugin (out of reach): the missing episodes and air dates of the test series
+          # (built by the step above).
           cp .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0/
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
           node tools/web/setup.mjs http://127.0.0.1:8096 /media mira mira-check http://127.0.0.1:8765/jellyfin-manifest.json
