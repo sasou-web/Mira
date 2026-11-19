@@ -81,11 +81,21 @@ public sealed class TitleRefresh : IHostedService, IDisposable
     private async Task RefreshAsync(BaseItem item, MetadataRefreshOptions options, CancellationToken ct)
     {
         _logger.LogInformation("Mira: {Title} read again without its {Extras} extras at once", item.Name, Extras(item));
-        await _providers.RefreshSingleItem(item, options, ct).ConfigureAwait(false);
-        // A series: its seasons and episodes, then itself again, one after the other. Not ValidateChildren: for a series
-        // it begins with the series' own RefreshMetadata, extras and all (Folder.RefreshAllMetadataForContainer).
-        if (item is IMetadataContainer container) await container.RefreshAllMetadata(options, new Progress<double>(), ct).ConfigureAwait(false);
-        else if (item is Folder folder) await folder.ValidateChildren(new Progress<double>(), options, true, false, ct).ConfigureAwait(false);
+        // Started and ended as Jellyfin's own refresh of a folder does (Folder.ValidateChildrenInternal): TheTVDB's plugin
+        // adds and removes a series' episodes « not in your library » when it hears the refresh ended.
+        if (item is Folder) _providers.OnRefreshStart(item);
+        try
+        {
+            await _providers.RefreshSingleItem(item, options, ct).ConfigureAwait(false);
+            // A series: its seasons and episodes, then itself again, one after the other. Not ValidateChildren: for a series
+            // it begins with the series' own RefreshMetadata, extras and all (Folder.RefreshAllMetadataForContainer).
+            if (item is IMetadataContainer container) await container.RefreshAllMetadata(options, new Progress<double>(), ct).ConfigureAwait(false);
+            else if (item is Folder folder) await folder.ValidateChildren(new Progress<double>(), options, true, false, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (item is Folder) _providers.OnRefreshComplete(item);
+        }
     }
 
     public void Dispose() => _stop.Dispose();
