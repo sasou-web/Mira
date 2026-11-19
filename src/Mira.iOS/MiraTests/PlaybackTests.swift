@@ -196,10 +196,9 @@ struct PlaybackTests {
         #expect(TrackNames.same(file.subtitles[0], in: next)?.index == 8)
         #expect(TrackNames.same(nil, in: next) == nil)
         // The next episode names its tracks « ja » and « fra »: the same languages still (audit I2).
-        let other = [MediaStream(index: 1, type: "Audio", language: "fra"), MediaStream(index: 2, type: "Audio", language: "ja"),
-                     MediaStream(index: 9, type: "Subtitle", language: "fr")]
-        #expect(TrackNames.same(file.audio[0], in: other)?.index == 2)
-        #expect(TrackNames.same(file.subtitles[0], in: other)?.index == 9)
+        let audio = [MediaStream(index: 1, type: "Audio", language: "fra"), MediaStream(index: 2, type: "Audio", language: "ja")]
+        #expect(TrackNames.same(file.audio[0], in: audio)?.index == 2)
+        #expect(TrackNames.same(file.subtitles[0], in: [MediaStream(index: 9, type: "Subtitle", language: "fr")])?.index == 9)
     }
 
     @Test("Le profil d'appareil : MP4 tel quel, HLS fMP4 H.264 d'abord, sous-titres texte dans le flux")
