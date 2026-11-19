@@ -1137,6 +1137,27 @@ public sealed class JellyfinClient : IDisposable
         Connection = Connection with { ServerId = text };
         return text;
     }
+    /// <summary>
+    /// This account's proof key (<see cref="Connection.ServerProof"/>, <see cref="ServerProof"/>), given by Mira's
+    /// extension to its session, then kept in <see cref="Connection"/>: without it, Jellyfin found at another address is
+    /// never taken (ServerMove). Null when the extension does not give one (not installed, older than 0.9.15).
+    /// </summary>
+    public async Task<string?> LearnServerProofAsync(CancellationToken ct = default)
+    {
+        if (Connection.ServerProof is { Length: > 0 } known) return known;
+        using var response = await _http.GetAsync("Mira/proof/key", ct);
+        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > 4096) return null;
+        string? key;
+        try
+        {
+            var answer = await response.Content.ReadFromJsonAsync<JsonElement>(Json.Options, ct);
+            key = answer.ValueKind == JsonValueKind.Object && answer.TryGetProperty("key", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+            if (key is null || Convert.FromBase64String(key).Length != 32) return null;
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException) { return null; }
+        Connection = Connection with { ServerProof = key };
+        return key;
+    }
     public async Task<string?> ServerVersionAsync(CancellationToken ct = default)
     {
         var info = await GetAsync<JsonElement>("System/Info/Public", ct);

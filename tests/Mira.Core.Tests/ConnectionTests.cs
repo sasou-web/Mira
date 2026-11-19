@@ -15,6 +15,10 @@ using static TestSupport;
 /// <summary>Connecting to a server: typed address, discovery, certificate, password over http, session and Mac profile. Free of WPF: also run outside Windows.</summary>
 internal static class ConnectionTests
 {
+    /// <summary>The extension's secret, an account's id and its key (tests/fixtures/server-proof.json).</summary>
+    private static readonly byte[] ProofSecret = [.. Enumerable.Range(0, 32).Select(x => (byte)x)];
+    private const string ProofUser = "5f0c8e0e2b6f4c7a9d1e3b2a4c6d8e0f";
+    private static readonly string ProofKey = Convert.ToBase64String(ServerProof.Key(ProofSecret, ProofUser));
     public static async Task RunAsync(TestRun run)
     {
         var Test = run.Test;
@@ -243,17 +247,40 @@ internal static class ConnectionTests
             using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "server-move.json")));
             foreach (var row in fixture.RootElement.GetProperty("movable").EnumerateArray())
             {
-                var connection = new Connection(row[0].GetString()!, "u", "Alex", "t", "d") { ServerId = "0d07f480c3c54c588da1d5ba7c7a1662" };
+                var connection = new Connection(row[0].GetString()!, ProofUser, "Alex", "t", "d") { ServerId = "0d07f480c3c54c588da1d5ba7c7a1662", ServerProof = ProofKey };
                 Assert(ServerMove.Movable(connection) == row[1].GetBoolean(), "Movable: " + row);
             }
-            Assert(!ServerMove.Movable(new Connection("http://192.168.1.42:8096/", "u", "Alex", "t", "d")), "Movable without its id");
-            Assert(!ServerMove.Movable(new Connection("http://192.168.1.42:8096/Mira/guest/", "u", "Alex", "t", "d") { ServerId = "a" }), "A party's guest movable");
+            Assert(!ServerMove.Movable(new Connection("http://192.168.1.42:8096/", ProofUser, "Alex", "t", "d") { ServerProof = ProofKey }), "Movable without its id");
+            // Without the extension's key, nothing proves a server found elsewhere is this one: never moved.
+            Assert(!ServerMove.Movable(new Connection("http://192.168.1.42:8096/", ProofUser, "Alex", "t", "d") { ServerId = "a" }), "Movable without its proof key");
+            Assert(!ServerMove.Movable(new Connection("http://192.168.1.42:8096/Mira/guest/", ProofUser, "Alex", "t", "d") { ServerId = "a", ServerProof = ProofKey }), "A party's guest movable");
             foreach (var row in fixture.RootElement.GetProperty("neighbours").EnumerateArray())
             {
                 var asked = ServerMove.Neighbours(row[0].GetString()!, IPAddress.Parse(row[1].GetString()!), row[2].GetInt32());
                 Assert(asked.Count == row[3].GetInt32() && asked.FirstOrDefault() == row[4].GetString() && asked.LastOrDefault() == row[5].GetString() && asked.Distinct().Count() == asked.Count,
                     $"Neighbours of {row}: {asked.Count}, {asked.FirstOrDefault()} … {asked.LastOrDefault()}");
             }
+            return Task.CompletedTask;
+        });
+        await Test("Serveur qui change d’adresse : la preuve de l’extension, cas communs avec l’iPhone (tests/fixtures/server-proof.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "server-proof.json")));
+            var root = fixture.RootElement;
+            var key = ServerProof.Key(Convert.FromBase64String(root.GetProperty("secret").GetString()!), root.GetProperty("user").GetString()!);
+            Assert(Convert.ToBase64String(key) == root.GetProperty("key").GetString(), "Key: " + Convert.ToBase64String(key));
+            foreach (var row in root.GetProperty("proofs").EnumerateArray())
+            {
+                var (nonce, host, proof) = (row[0].GetString()!, row[1].GetString()!, row[2].GetString()!);
+                Assert(ServerProof.Prove(key, nonce, host) == proof && ServerProof.Holds(Convert.ToBase64String(key), nonce, host, proof), "Proof: " + row);
+                Assert(!ServerProof.Holds(Convert.ToBase64String(key), nonce, "192.168.1.58:8096", proof) && !ServerProof.Holds(Convert.ToBase64String(key), nonce + "x", host, proof)
+                    && !ServerProof.Holds(Convert.ToBase64String(new byte[32]), nonce, host, proof) && !ServerProof.Holds(null, nonce, host, proof) && !ServerProof.Holds(Convert.ToBase64String(key), nonce, host, "pas du base64"), "Another host, nonce or key: " + row);
+            }
+            var nonces = Enumerable.Range(0, 20).Select(_ => ServerProof.NewNonce()).ToList();
+            Assert(nonces.Distinct().Count() == 20 && nonces.All(ServerProof.IsNonce) && !ServerProof.IsNonce("court") && !ServerProof.IsNonce(new string('a', 40) + "&x=1"), "Nonces: " + nonces[0]);
+            Assert(ServerProof.PlainId(root.GetProperty("user").GetString()) == "5f0c8e0e2b6f4c7a9d1e3b2a4c6d8e0f" && ServerProof.PlainId("u1") is null, "User ids");
+            // Waiting less and less often when nothing is found (a network that is not the home's).
+            Assert(ServerMove.After(0) == ServerMove.Every && ServerMove.After(1) == ServerMove.Every && ServerMove.After(2) == TimeSpan.FromMinutes(4) && ServerMove.After(5) == TimeSpan.FromMinutes(30) && ServerMove.After(50) == TimeSpan.FromMinutes(30), "After");
             return Task.CompletedTask;
         });
         await Test("Serveur qui change d’adresse : le même id ailleurs chez toi, le compte et ses données gardés", () =>
@@ -287,15 +314,24 @@ internal static class ConnectionTests
         await Test("Serveur qui change d’adresse : retrouvé par Jellyfin sur le réseau, sinon adresse par adresse, jamais un autre", async () =>
         {
             const string id = "0d07f480c3c54c588da1d5ba7c7a1662";
-            var connection = new Connection("http://192.168.1.42:8096/", "u1", "Alex", "t", "d") { ServerId = id };
+            var connection = new Connection("http://192.168.1.42:8096/", ProofUser, "Alex", "t", "d") { ServerId = id, ServerProof = ProofKey };
             HttpResponseMessage Info(string server) => JsonResponse(new { ServerName = "MAISON-PC", Version = "12.1.0", ProductName = "Jellyfin Server", Id = server });
             var asked = new System.Collections.Concurrent.ConcurrentBag<string>();
-            Handler Answers(Dictionary<string, string> servers) => new(request =>
+            // The real server signs with the extension's secret; an impostor answers with the id it read, and a proof of its own.
+            Handler Answers(Dictionary<string, string> servers, string? impostor = null, string? relayedTo = null) => new(request =>
             {
-                asked.Add(request.RequestUri!.Host);
+                var uri = request.RequestUri!;
+                asked.Add(uri.Host);
                 // No token leaves while it is looked for.
-                Assert(request.Headers.Authorization is null && !request.Headers.Contains("Authorization"), "Token sent to " + request.RequestUri);
-                return servers.TryGetValue(request.RequestUri.Host, out var server) ? Task.FromResult(Info(server)) : throw new HttpRequestException("refusé");
+                Assert(request.Headers.Authorization is null && !request.Headers.Contains("Authorization"), "Token sent to " + uri);
+                if (uri.AbsolutePath == "/Mira/proof")
+                {
+                    var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                    if (uri.Host == impostor) return Task.FromResult(JsonResponse(new { proof = Convert.ToBase64String(new byte[32]) }));
+                    var key = ServerProof.Key(ProofSecret, query["user"]!);
+                    return Task.FromResult(JsonResponse(new { proof = ServerProof.Prove(key, query["nonce"]!, relayedTo ?? uri.Authority) }));
+                }
+                return servers.TryGetValue(uri.Host, out var server) ? Task.FromResult(Info(server)) : throw new HttpRequestException("refusé");
             });
             var own = new List<(IPAddress, int)> { (IPAddress.Parse("192.168.1.10"), 24) };
             // Jellyfin's discovery answers from its new address.
@@ -314,6 +350,13 @@ internal static class ConnectionTests
             Assert(await ServerMove.FindAsync(connection, Answers(new() { ["192.168.0.57"] = id }), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), [(IPAddress.Parse("192.168.0.10"), 24)]) is null, "Another network asked");
             asked.Clear();
             Assert(await ServerMove.FindAsync(connection with { ServerId = null }, Answers(new() { ["192.168.1.57"] = id }), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), own) is null && asked.IsEmpty, "Looked for without its id");
+            // A device that answers with the server's public id, at a hotel on 192.168.1.x too: no proof, no token.
+            Assert(await ServerMove.FindAsync(connection, Answers(new() { ["192.168.1.57"] = id }, impostor: "192.168.1.57"),
+                _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([new("http://192.168.1.57:8096/", "MAISON-PC", id, ServerSearch.Place.Home)]), own) is null, "An impostor with the public id taken");
+            // One that passes the question on to the real server by another way: signed for another address, refused.
+            Assert(await ServerMove.FindAsync(connection, Answers(new() { ["192.168.1.57"] = id }, relayedTo: "jellyfin.example.test"), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), own) is null, "A relayed proof taken");
+            asked.Clear();
+            Assert(await ServerMove.FindAsync(connection with { ServerProof = null }, Answers(new() { ["192.168.1.57"] = id }), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), own) is null && asked.IsEmpty, "Looked for without its proof key");
         });
         await Test("Certificat HTTPS refusé : pas de repli en http:// pour un nom d’Internet, et la raison est dite", async () =>
         {

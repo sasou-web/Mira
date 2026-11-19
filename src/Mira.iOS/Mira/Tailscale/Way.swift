@@ -15,7 +15,14 @@ actor Way {
     static let taken = Mutex<WayPlan.Kind?>(nil)
     /// The server chosen by the app, taken by the way before anything else it does: a request sent before the way heard
     /// of the server already goes its way.
-    private static let chosen = Mutex<(server: URL, id: String)?>(nil)
+    private static let chosen = Mutex<(server: URL, id: String, proof: Proof?)?>(nil)
+
+    /// The account's id and its proof key from Mira's extension (ServerProof): what Jellyfin found at another address of
+    /// the home network must sign with before any token goes there. Without it, the network is never asked.
+    struct Proof: Sendable, Equatable {
+        var user: String
+        var key: String
+    }
 
     /// How long the way waits, in seconds: for a better way once one further down answered, before looking again after
     /// a way was found cut or none at all, and for Built-in Tailscale to connect.
@@ -38,10 +45,13 @@ actor Way {
 
     /// Jellyfin's public information at a base (System/Info/Public), within a time; nil when nothing answers.
     typealias Ask = @Sendable (_ base: URL, _ timeout: TimeInterval) async -> PublicInfo?
+    /// Whether Jellyfin at a base signs a new nonce with the account's proof key (ServerProof).
+    typealias Prove = @Sendable (_ base: URL, _ proof: Proof) async -> Bool
 
     /// The app's own way follows the server it chose (`select`) and says what it finds to Messages.
     private let followsApp: Bool
     private let ask: Ask
+    private let prove: Prove
     private let timing: Timing
     /// Where the addresses learned are kept (UserDefaults; a suite of their own in the tests).
     private let suite: String?
@@ -51,6 +61,7 @@ actor Way {
 
     private var server: URL?
     private var serverId: String?
+    private var proof: Proof?
     private var known: [URL] = []
     private var route: WayPlan.Route?
     private var resolving: Task<WayPlan.Route?, Never>?
@@ -77,9 +88,10 @@ actor Way {
         return URLSession(configuration: configuration)
     }()
 
-    init(followsApp: Bool = false, ask: @escaping Ask = Way.askJellyfin, timing: Timing = Timing(), suite: String? = nil, own: Own? = nil) {
+    init(followsApp: Bool = false, ask: @escaping Ask = Way.askJellyfin, prove: @escaping Prove = Way.proveJellyfin, timing: Timing = Timing(), suite: String? = nil, own: Own? = nil) {
         self.followsApp = followsApp
         self.ask = ask
+        self.prove = prove
         self.timing = timing
         self.suite = suite
         self.own = own
@@ -96,8 +108,8 @@ actor Way {
 
     /// The server signed in to, or about to be (nil: signed out): its other addresses known from before, and a way
     /// chosen at once. Taken at once by the next request, whatever the order the tasks run in.
-    static func select(_ server: URL?, id: String?) {
-        let value: (server: URL, id: String)? = if let server, let id { (server, id) } else { nil }
+    static func select(_ server: URL?, id: String?, proof: Proof? = nil) {
+        let value: (server: URL, id: String, proof: Proof?)? = if let server, let id { (server, id, proof) } else { nil }
         chosen.withLock { $0 = value }
         Task { await shared.adopt() }
     }
@@ -106,14 +118,20 @@ actor Way {
     private func adopt() {
         guard followsApp else { return }
         let chosen = Self.chosen.withLock { $0 }
-        guard chosen?.server != server || chosen?.id != serverId else { return }
-        use(chosen?.server, id: chosen?.id)
+        guard chosen?.server != server || chosen?.id != serverId else {
+            // The proof key learned for the same server: kept, the way taken stays.
+            if chosen?.proof != proof { proof = chosen?.proof }
+            return
+        }
+        use(chosen?.server, id: chosen?.id, proof: chosen?.proof)
     }
 
-    /// The server to find a way to (nil: none), its other addresses known from before.
-    func use(_ server: URL?, id: String?) {
+    /// The server to find a way to (nil: none), its other addresses known from before; `proof`: the account's, without
+    /// which Jellyfin is never looked for at another address of the home network.
+    func use(_ server: URL?, id: String?, proof: Proof? = nil) {
         self.server = server
         serverId = id
+        self.proof = proof
         known = id.map(knownAddresses) ?? []
         generation += 1
         resolving?.cancel()
@@ -289,12 +307,15 @@ actor Way {
             }
         }
         // At home and nothing answers: the box may have given Jellyfin's PC another address. Each address of the Wi-Fi's
-        // network is asked for this server's id (its public information, no token), as Mira for Windows and Mac do.
-        if found == nil, !Task.isCancelled, generation == mine, network == .local, let own,
+        // network is asked for this server's id (its public information, no token), as Mira for Windows and Mac do, then
+        // the one that answered with it for its proof (ServerProof): the id is public, and a device of a hotel's or a
+        // friend's network answering with it would otherwise get the token. Without the account's key, never asked.
+        if found == nil, !Task.isCancelled, generation == mine, network == .local, let own, let proof,
            Date().timeIntervalSince(neighboursAsked) >= timing.neighbours, let here = own() {
             neighboursAsked = Date()
             let routes = WayPlan.neighbourRoutes(server: server, known: known, own: here.address, prefix: here.prefix).filter { only?.contains($0.kind) ?? true }
             if !routes.isEmpty, generation == mine { found = await probe(routes, id: serverId) }
+            if let neighbour = found, !(await prove(neighbour.route.base, proof)) { found = nil }
         }
         guard generation == mine, self.server == server else { return nil }
         resolving = nil
@@ -387,6 +408,20 @@ actor Way {
         guard let (data, response) = try? await Way.session.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200, data.count < 1_000_000,
               let info = try? JSON.decoder.decode(PublicInfo.self, from: data), info.id?.isEmpty == false else { return nil }
         return info
+    }
+
+    /// Jellyfin's proof at a base (GET Mira/proof, no token), checked against the account's key. Never throws.
+    static let proveJellyfin: Prove = { base, proof in
+        guard let user = ServerProof.plainId(proof.user) else { return false }
+        let nonce = ServerProof.newNonce()
+        var parts = URLComponents(url: base.appending(path: "Mira/proof"), resolvingAgainstBaseURL: false)
+        parts?.queryItems = [URLQueryItem(name: "user", value: user), URLQueryItem(name: "nonce", value: nonce)]
+        guard let url = parts?.url else { return false }
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 3)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let (data, response) = try? await Way.session.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200, data.count < 4096,
+              let answer = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let signed = answer["proof"] as? String else { return false }
+        return ServerProof.holds(key: proof.key, nonce: nonce, host: ServerProof.host(of: base), proof: signed)
     }
 
     private static func plain(_ id: String) -> String { id.lowercased().filter { $0 != "-" } }

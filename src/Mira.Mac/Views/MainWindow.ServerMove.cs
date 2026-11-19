@@ -11,6 +11,8 @@ public sealed partial class MainWindow
 {
     private DateTimeOffset _moveSearched = DateTimeOffset.MinValue;
     private bool _moveSearching;
+    /// <summary>Searches in a row that found nothing (<see cref="ServerMove.After"/>); none once Jellyfin answers.</summary>
+    private int _moveFruitless;
     /// <summary>The session whose server id was asked (once each).</summary>
     private Session? _idAsked;
 
@@ -21,11 +23,12 @@ public sealed partial class MainWindow
     private async Task<bool> FindMovedServerAsync(Session session)
     {
         if (InParty || Player is not null || IsCheckRun || _handler is not null || _moveSearching || !ServerMove.Movable(session.Connection)
-            || DateTimeOffset.UtcNow - _moveSearched < ServerMove.Every) return false;
+            || DateTimeOffset.UtcNow - _moveSearched < ServerMove.After(_moveFruitless)) return false;
         _moveSearching = true; _moveSearched = DateTimeOffset.UtcNow;
         try
         {
             var moved = await ServerMove.FindAsync(session.Connection, ct: session.Lifetime);
+            if (moved is null) _moveFruitless++;
             if (moved is null || !ReferenceEquals(session, Session) || Player is not null || InParty) return false;
             var before = session.Connection.Server;
             await Task.Run(() => Profile.SaveConnection(moved));
@@ -38,7 +41,10 @@ public sealed partial class MainWindow
         finally { _moveSearching = false; }
     }
 
-    /// <summary>The server's id, read once it answers and kept with the session (signed in before Mira kept it).</summary>
+    /// <summary>
+    /// The server's id and this account's proof key (<see cref="ServerProof"/>), read once it answers and kept with the
+    /// session (signed in before Mira kept them, or before the extension gave a key).
+    /// </summary>
     private async Task LearnServerIdAsync(Session session)
     {
         if (ReferenceEquals(_idAsked, session) || InParty || _handler is not null || ServerMove.HomeAddress(session.Connection.Server) is null) return;
@@ -46,12 +52,14 @@ public sealed partial class MainWindow
         try
         {
             if (await session.Client.LearnServerIdAsync(session.Lifetime) is not { } id || !ReferenceEquals(session, Session)) return;
+            var key = await session.Client.LearnServerProofAsync(session.Lifetime);
+            if (!ReferenceEquals(session, Session)) return;
             var connection = session.Connection;
             // Only over the same session: another account signed in meanwhile keeps its own.
             await Task.Run(() =>
             {
                 if (Profile.LoadConnection() is { } saved && saved.Server == connection.Server && saved.UserId == connection.UserId && saved.Token == connection.Token)
-                    Profile.SaveConnection(saved with { ServerId = id });
+                    Profile.SaveConnection(saved with { ServerId = id, ServerProof = key ?? saved.ServerProof });
             });
         }
         catch (Exception ex) when (Errors.Expected(ex) || ex is OperationCanceledException) { }

@@ -86,9 +86,9 @@ public sealed partial class MainWindow
     {
         _lastRefresh = started; _unanswered = false;
         if (Session is not { } session) return;
-        _offlineSince = null;
+        _offlineSince = null; _moveFruitless = 0;
         if (session.Sync.PendingCount > 0) session.Sync.Wake();
-        if (session.Connection.ServerId is null) _ = LearnServerIdAsync(session);
+        if (session.Connection.ServerId is null || session.Connection.ServerProof is null) _ = LearnServerIdAsync(session);
         SyncChanged();
     }
     /// <summary>
