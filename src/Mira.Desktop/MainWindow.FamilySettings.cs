@@ -14,8 +14,8 @@ namespace Mira.Desktop;
 /// <summary>
 /// Réglages → Foyer, for the administrator of a Jellyfin with Mira's extension (/Mira/home): the home's password, the
 /// home link (away from home: its QR code, when it ends), which accounts are profiles of the home and their PINs, the
-/// devices in the home, and the one-time setup of Tailscale (the policy's two lines, the OAuth client, the verdict on
-/// the policy as the extension reads it). Drawn from what the extension says each time the section opens.
+/// devices in the home, and the one-time setup of Tailscale (the tag, the OAuth client, the verdict on the policy as the
+/// extension reads it, and its fix in one click). Drawn from what the extension says each time the section opens.
 /// </summary>
 public partial class MainWindow
 {
@@ -285,41 +285,37 @@ public partial class MainWindow
         {
             var ok = state.Policy == "ok";
             body.Children.Add(FamilyNote(HomeText.Policy(state.Policy), problem: !ok, margin: new Thickness(0, 12, 0, 0)));
+            if (state.Broad) body.Children.Add(FamilyNote(HomeText.Broad, problem: true));
             foreach (var rule in state.Open)
                 body.Children.Add(FamilyNote(L($"Règle {rule.Number} de « {rule.Section} » : {string.Join(", ", rule.Sources)} va plus loin que Jellyfin.", $"Rule {rule.Number} of “{rule.Section}”: {string.Join(", ", rule.Sources)} goes further than Jellyfin."), problem: true));
             if (state.Server is { } server) body.Children.Add(FamilyNote(L($"Jellyfin joint à {server}:{state.Port}.", $"Jellyfin reached at {server}:{state.Port}.")));
             if (state.Devices.Count > 0) body.Children.Add(FamilyNote(Count(state.Devices.Count, "appareil du foyer sur ton réseau", "appareils du foyer sur ton réseau", "home device on your network", "home devices on your network")));
             var buttons = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
-            buttons.Children.Add(FamilyButton(L("Vérifier à nouveau", "Check again"), () => _ = ShowFamilySettingsAsync()));
+            if (!ok && state.Fix is { Count: > 0 } fix)
+            {
+                // What Mira will write, said before the one click that writes it.
+                body.Children.Add(FamilyNote(HomeText.FixAbout, margin: new Thickness(0, 12, 30, 0)));
+                foreach (var change in fix) body.Children.Add(FamilyNote("•  " + HomeText.Change(change), margin: new Thickness(12, 4, 30, 0)));
+                buttons.Children.Add(FamilyButton(HomeText.FixButton, () => _ = FixAsync(), primary: true));
+            }
+            buttons.Children.Add(FamilyButton(L("Vérifier à nouveau", "Check again"), () => _ = ShowFamilySettingsAsync(), quiet: !ok && state.Fix is { Count: > 0 }));
             if (!ok) buttons.Children.Add(FamilyButton(TailnetText.OpenPolicy, () => OpenWebPage(TailscaleNode.Policy), quiet: true));
             buttons.Children.Add(FamilyButton(L("Déconnecter…", "Disconnect…"), () => _ = DisconnectAsync(), quiet: true));
             body.Children.Add(buttons); body.Children.Add(status);
             return FamilyRow(body);
         }
         var setup = state.Setup;
-        body.Children.Add(FamilyStep(1, L("Ajoute ces lignes à la politique de ton réseau (dans « tagOwners » et « grants »).", "Add these lines to your network’s policy (in “tagOwners” and “grants”).")));
-        if (setup is not null)
-        {
-            var lines = setup.TagOwners + "\n\n" + setup.Grant;
-            var code = new TextBox { Text = lines, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 12, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, Margin = new Thickness(30, 6, 0, 8) };
-            AutomationProperties.SetName(code, L("Lignes de la politique", "Policy lines"));
-            body.Children.Add(code);
-            var copy = new WrapPanel { Margin = new Thickness(30, 0, 0, 0) };
-            copy.Children.Add(FamilyButton(L("Copier", "Copy"), () =>
-            {
-                try { Clipboard.SetText(lines); FamilySay(status, L("Copié.", "Copied."), false); }
-                catch (System.Runtime.InteropServices.ExternalException) { FamilySay(status, L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again."), true); }
-            }));
-            copy.Children.Add(FamilyButton(TailnetText.OpenPolicy, () => OpenWebPage(TailscaleNode.Policy), quiet: true));
-            body.Children.Add(copy);
-        }
-        var scopes = setup is null ? "auth_keys, devices:core, policy_file:read" : string.Join(", ", setup.Scopes);
         var tag = setup?.Tag ?? "tag:mira-home";
-        body.Children.Add(FamilyStep(2, L($"Crée un client OAuth avec les droits {scopes}, et le tag {tag}.", $"Create an OAuth client with the scopes {scopes}, and the tag {tag}.")));
+        var scopes = string.Join(", ", setup?.Scopes is { Count: > 0 } given ? given : ["auth_keys", "devices:core", "policy_file"]);
+        body.Children.Add(FamilyStep(1, HomeText.StepTag));
+        var tags = FamilyButton(HomeText.OpenTags, () => OpenWebPage(HomeText.TagsPage), quiet: true);
+        tags.Margin = new Thickness(30, 6, 0, 0); tags.HorizontalAlignment = HorizontalAlignment.Left;
+        body.Children.Add(tags);
+        body.Children.Add(FamilyStep(2, HomeText.StepClient(scopes, tag)));
         var trust = FamilyButton(L("Ouvrir les identifiants de Tailscale", "Open Tailscale’s credentials"), () => OpenWebPage(TailscaleCredentials), quiet: true);
         trust.Margin = new Thickness(30, 6, 0, 0); trust.HorizontalAlignment = HorizontalAlignment.Left;
         body.Children.Add(trust);
-        body.Children.Add(FamilyStep(3, L("Colle son identifiant et son secret : Mira les garde sur le serveur, jamais sur ce PC.", "Paste its ID and secret: Mira keeps them on the server, never on this PC.")));
+        body.Children.Add(FamilyStep(3, HomeText.StepPaste));
         var id = new TextBox { Width = 260, Margin = new Thickness(0, 0, 10, 8) };
         AutomationProperties.SetName(id, L("Identifiant du client", "Client ID"));
         var secret = new PasswordBox { Width = 260, Margin = new Thickness(0, 0, 10, 8) };
@@ -344,6 +340,12 @@ public partial class MainWindow
             if (id.Text.Trim().Length == 0 || secret.Password.Length == 0) { FamilySay(status, L("Colle l’identifiant et le secret.", "Paste the ID and the secret."), true); return; }
             FamilySay(status, L("Connexion à Tailscale…", "Connecting to Tailscale…"), false);
             try { await client.HomeConnectTailnetAsync(id.Text.Trim(), secret.Password, _connectionLifetime.Token); secret.Clear(); await ShowFamilySettingsAsync(); }
+            catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
+        }
+        async Task FixAsync()
+        {
+            FamilySay(status, HomeText.Fixing, false);
+            try { await client.HomeFixPolicyAsync(_connectionLifetime.Token); await ShowFamilySettingsAsync(); }
             catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
         }
         async Task DisconnectAsync()

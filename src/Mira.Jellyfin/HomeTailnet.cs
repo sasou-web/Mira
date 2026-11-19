@@ -12,7 +12,7 @@ namespace Mira.Jellyfin;
 /// <summary>
 /// « Le foyer » away from home: the family's devices reach this Jellyfin through Tailscale, without the Tailscale app,
 /// a Tailscale account, nor the Tailscale console. The administrator connects the home once to their tailnet with an
-/// OAuth client of theirs (scopes auth_keys, devices:core, policy_file:read, tag <see cref="Tag"/>); then each « home
+/// OAuth client of theirs (<see cref="Scopes"/>, tag <see cref="Tag"/>); then each « home
 /// link » carries a key of its own, single-use, that ends after <see cref="LinkLife"/>, tagged <see cref="Tag"/>,
 /// which Mira's built-in Tailscale on the family's device logs in with. The tailnet's policy must let a device of that
 /// tag reach this PC's Jellyfin and nothing else: <see cref="CheckPolicy"/> reads it before every link, and refuses
@@ -25,6 +25,11 @@ public sealed class HomeTailnet
 {
     /// <summary>The tag of the family's devices on the tailnet: their keys carry it, the policy limits it to Jellyfin.</summary>
     public const string Tag = "tag:mira-home";
+    /// <summary>
+    /// The OAuth client's scopes: keys of the tag, the tag's devices (listed, deleted), and the policy, which Mira reads
+    /// before every link and puts right itself when the administrator asks (<see cref="HomePolicyFix"/>).
+    /// </summary>
+    public static readonly string[] Scopes = ["auth_keys", "devices:core", "policy_file"];
     /// <summary>How long a home link's key can be used (once).</summary>
     public static readonly TimeSpan LinkLife = TimeSpan.FromHours(48);
     /// <summary>A node of the tag that never joined the home (the link's key used, no password typed) goes after this long.</summary>

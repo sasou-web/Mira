@@ -28,6 +28,9 @@ public sealed class FamilySection
     private Func<Task>? _makeLink;
     /// <summary>« Send the home link » pressed, as a click does (the self-check).</summary>
     public Task MakeLinkForCheck() => _makeLink?.Invoke() ?? Task.CompletedTask;
+    private Func<Task>? _fixPolicy;
+    /// <summary>« Fix my policy », as its button does, for the self-check.</summary>
+    public Task FixPolicyForCheck() => _fixPolicy?.Invoke() ?? Task.CompletedTask;
     /// <summary>A home link shown, with its QR code.</summary>
     public bool LinkShown => _link is not null;
 
@@ -294,36 +297,38 @@ public sealed class FamilySection
         {
             var ok = state.Policy == "ok";
             var lines = new List<Control> { Note(HomeText.Policy(state.Policy), problem: !ok, top: 12) };
+            if (state.Broad) lines.Add(Note(HomeText.Broad, problem: true));
             foreach (var rule in state.Open)
                 lines.Add(Note(L($"Règle {rule.Number} de « {rule.Section} » : {string.Join(", ", rule.Sources)} va plus loin que Jellyfin.", $"Rule {rule.Number} of “{rule.Section}”: {string.Join(", ", rule.Sources)} goes further than Jellyfin."), problem: true));
             if (state.Server is { } server) lines.Add(Note(L($"Jellyfin joint à {server}:{state.Port}.", $"Jellyfin reached at {server}:{state.Port}.")));
             if (state.Devices.Count > 0) lines.Add(Note(Count(state.Devices.Count, "appareil du foyer sur ton réseau", "appareils du foyer sur ton réseau", "home device on your network", "home devices on your network")));
             var buttons = new WrapPanel { Margin = new Thickness(0, 14, 0, 0), ItemSpacing = 10, LineSpacing = 8 };
-            buttons.Children.Add(Button(L("Vérifier à nouveau", "Check again"), () => _ = LoadAsync()));
+            var fixable = !ok && state.Fix is { Count: > 0 };
+            if (fixable)
+            {
+                // What Mira will write, said before the one click that writes it.
+                lines.Add(Note(HomeText.FixAbout, top: 12));
+                foreach (var change in state.Fix!) { var line = Note("•  " + HomeText.Change(change), top: 4); line.Margin = new Thickness(12, 4, 30, 0); lines.Add(line); }
+                buttons.Children.Add(Button(HomeText.FixButton, () => _ = FixAsync(), "primary"));
+                _fixPolicy = FixAsync;
+            }
+            buttons.Children.Add(Button(L("Vérifier à nouveau", "Check again"), () => _ = LoadAsync(), fixable ? "quiet" : ""));
             if (!ok) buttons.Children.Add(Button(TailnetText.OpenPolicy, () => Updates.Open(new Uri(TailscaleNode.Policy)), "quiet"));
             buttons.Children.Add(Button(L("Déconnecter…", "Disconnect…"), () => _ = DisconnectAsync(), "quiet"));
             lines.Add(buttons); lines.Add(status);
             return Card(title, about, [.. lines]);
         }
-        var steps = new List<Control> { Step(1, L("Ajoute ces lignes à la politique de ton réseau (dans « tagOwners » et « grants »).", "Add these lines to your network’s policy (in “tagOwners” and “grants”).")) };
-        if (state.Setup is { } setup)
-        {
-            var policy = setup.TagOwners + "\n\n" + setup.Grant;
-            var code = new TextBox { Text = policy, IsReadOnly = true, FontFamily = new FontFamily("Menlo, monospace"), FontSize = 12, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, Margin = new Thickness(32, 8, 0, 8) };
-            Avalonia.Automation.AutomationProperties.SetName(code, L("Lignes de la politique", "Policy lines"));
-            steps.Add(code);
-            var copy = new WrapPanel { Margin = new Thickness(32, 0, 0, 0), ItemSpacing = 10, LineSpacing = 8 };
-            copy.Children.Add(Button(L("Copier", "Copy"), () => _ = CopyAsync(policy)));
-            copy.Children.Add(Button(TailnetText.OpenPolicy, () => Updates.Open(new Uri(TailscaleNode.Policy)), "quiet"));
-            steps.Add(copy);
-        }
-        var scopes = state.Setup is null ? "auth_keys, devices:core, policy_file:read" : string.Join(", ", state.Setup.Scopes);
         var tag = state.Setup?.Tag ?? "tag:mira-home";
-        steps.Add(Step(2, L($"Crée un client OAuth avec les droits {scopes}, et le tag {tag}.", $"Create an OAuth client with the scopes {scopes}, and the tag {tag}.")));
+        var scopes = string.Join(", ", state.Setup?.Scopes is { Count: > 0 } given ? given : ["auth_keys", "devices:core", "policy_file"]);
+        var steps = new List<Control> { Step(1, HomeText.StepTag) };
+        var tags = Button(HomeText.OpenTags, () => Updates.Open(new Uri(HomeText.TagsPage)), "quiet");
+        tags.Margin = new Thickness(32, 6, 0, 0); tags.HorizontalAlignment = HorizontalAlignment.Left;
+        steps.Add(tags);
+        steps.Add(Step(2, HomeText.StepClient(scopes, tag)));
         var trust = Button(L("Ouvrir les identifiants de Tailscale", "Open Tailscale’s credentials"), () => Updates.Open(new Uri(Credentials)), "quiet");
         trust.Margin = new Thickness(32, 6, 0, 0); trust.HorizontalAlignment = HorizontalAlignment.Left;
         steps.Add(trust);
-        steps.Add(Step(3, L("Colle son identifiant et son secret : Mira les garde sur le serveur, jamais sur ce Mac.", "Paste its ID and secret: Mira keeps them on the server, never on this Mac.")));
+        steps.Add(Step(3, HomeText.StepPaste));
         var id = new TextBox { Width = 260 };
         Avalonia.Automation.AutomationProperties.SetName(id, L("Identifiant du client", "Client ID"));
         var secret = new TextBox { Width = 260, PasswordChar = '•' };
@@ -335,11 +340,11 @@ public sealed class FamilySection
         return Card(title, about, [.. steps]);
 
         static Control Labeled(string label, Control field) => Ui.Column(4, new TextBlock { Text = label, FontSize = 12, Foreground = Ui.Muted, Margin = new Thickness(2, 0, 0, 0) }, field);
-        async Task CopyAsync(string text)
+        async Task FixAsync()
         {
-            if (TopLevel.GetTopLevel(_shell)?.Clipboard is not { } clipboard) { Say(status, L("Copie impossible ici : sélectionne les lignes.", "Can’t copy here: select the lines."), true); return; }
-            await clipboard.SetTextAsync(text);
-            Say(status, L("Copié.", "Copied."), false);
+            Say(status, HomeText.Fixing, false);
+            try { await client.HomeFixPolicyAsync(); await LoadAsync(); }
+            catch (Exception ex) when (Expected(ex)) { Say(status, Words(ex), true); }
         }
         async Task ConnectAsync()
         {

@@ -291,8 +291,18 @@ struct HomeTailnetState: Decodable, Sendable, Hashable {
     var server: String?
     var port: Int?
     var setup: Setup?
+    /// What Mira would change in the policy itself (POST Mira/home/tailnet/fix): « tag », « grant », « narrow ».
+    struct Change: Decodable, Sendable, Hashable {
+        var kind: String
+        var section: String?
+        var number: Int?
+        var sources: [String]?
+    }
     var policy: String?
     var open: [OpenRule]?
+    var fix: [Change]?
+    /// The OAuth client can do more than the home needs (« All »).
+    var broad: Bool?
 }
 
 /// What the administrator's side says when it refuses: the extension's words, the policy's verdict for a link.
@@ -344,6 +354,12 @@ extension JellyfinClient {
     /// The home connected to the tailnet with an OAuth client (Tailscale checks it first), or disconnected (both nil).
     func homeConnectTailnet(id: String?, secret: String?) async throws {
         let (status, data, _) = try await homeAdmin("PUT", "Mira/home/tailnet", body: ["clientId": id ?? NSNull(), "clientSecret": secret ?? NSNull()])
+        try Self.homeCheck(status, data)
+    }
+
+    /// The tailnet's policy put right by the extension, as `HomeTailnetState.fix` said (the client's policy_file scope).
+    func homeFixPolicy() async throws {
+        let (status, data, _) = try await homeAdmin("POST", "Mira/home/tailnet/fix", body: nil)
         try Self.homeCheck(status, data)
     }
 

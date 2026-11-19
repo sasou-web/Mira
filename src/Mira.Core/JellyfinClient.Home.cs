@@ -129,6 +129,10 @@ public sealed partial class JellyfinClient
     public Task HomeConnectTailnetAsync(string? clientId, string? clientSecret, CancellationToken ct = default) =>
         HomeAdminAsync(HttpMethod.Put, "Mira/home/tailnet", new JsonObject { ["clientId"] = clientId, ["clientSecret"] = clientSecret }, ct);
 
+    /// <summary>The tailnet's policy put right by the extension, as <see cref="HomeTailnetState.Fix"/> said (needs the client's policy_file scope).</summary>
+    public Task HomeFixPolicyAsync(CancellationToken ct = default) =>
+        HomeAdminAsync(HttpMethod.Post, "Mira/home/tailnet/fix", null, ct);
+
     /// <summary>
     /// A home link: a key of the home's tag for one device, for 48 hours. Refused while the tailnet's policy lets the
     /// home's devices go further than Jellyfin: <see cref="HomeLinkRefusedException"/> with its verdict.

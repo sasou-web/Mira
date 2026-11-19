@@ -35,15 +35,34 @@ enum HomeText {
     static var thisDevice: String { String(localized: "On this iPhone") }
     static var offline: String { String(localized: "No Internet connection right now.") }
 
+    /// One change Mira would make to the policy, in a line.
+    static func change(_ change: HomeTailnetState.Change) -> String {
+        switch change.kind {
+        case "tag": String(localized: "Add the tag:mira-home tag to “tagOwners”.")
+        case "grant": String(localized: "Add a rule: the home’s devices reach Jellyfin, nothing else.")
+        case "narrow":
+            String(localized: "Rule \(change.number ?? 0) of “\(change.section ?? "")”: its sources become \((change.sources ?? []).joined(separator: ", ")) (your devices, your shared friends, your other tags).")
+        default: change.kind
+        }
+    }
+
+    /// The OAuth client connected has more rights than the home needs.
+    static var broad: String {
+        String(localized: "The home’s OAuth client has every right on your Tailscale network, and its secret is kept on the server: replace it with one limited to Policy File, Devices → Core and Keys → Auth Keys (Disconnect, then the steps).")
+    }
+
     /// What the policy's verdict means for the administrator (GET Mira/home/tailnet), in a line.
     static func policy(_ policy: String?) -> String {
         switch policy {
         case "ok": String(localized: "Ready: the home’s devices reach only Jellyfin on your Tailscale network.")
         case "no-tag": String(localized: "The tag:mira-home tag isn’t in your Tailscale policy yet (tagOwners).")
-        case "too-open": String(localized: "Your policy lets the home’s devices go beyond Jellyfin: narrow the rules listed.")
-        case "no-access": String(localized: "No rule lets the home’s devices reach Jellyfin: add the rule above.")
+        case "too-open": String(localized: "Your policy lets the home’s devices go beyond Jellyfin.")
+        case "no-access": String(localized: "No rule lets the home’s devices reach Jellyfin yet.")
+        case "no-write": String(localized: "The home’s OAuth client can’t write the policy: create one with the policy_file scope, then connect the home again.")
+        case "changed": String(localized: "Your Tailscale policy just changed: check again, then fix it.")
+        case "invalid": String(localized: "Tailscale refused the fixed policy: nothing changed. Fix it in Tailscale’s console.")
         case "refused": String(localized: "Tailscale refuses the home’s OAuth client: it was deleted or revoked. Connect the home again.")
-        case "scope": String(localized: "The OAuth client lacks the rights it needs (auth_keys, devices:core, policy_file:read, and the tag:mira-home tag).")
+        case "scope": String(localized: "The OAuth client lacks the rights it needs (auth_keys, devices:core, policy_file, and the tag:mira-home tag).")
         case "no-tailscale": String(localized: "Tailscale isn’t on on Jellyfin’s PC.")
         case "unreachable": String(localized: "Tailscale didn’t answer. Try again in a moment.")
         case "disconnected": String(localized: "First connect the home to your Tailscale network.")

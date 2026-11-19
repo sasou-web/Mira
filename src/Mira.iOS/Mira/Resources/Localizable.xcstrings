@@ -535,12 +535,42 @@
         }
       }
     },
+    "1. In Tailscale, Access controls → Tags → Create tag: name it mira-home, then Save tag.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. Dans Tailscale, Access controls → Tags → Create tag : nomme-la mira-home, puis Save tag."
+          }
+        }
+      }
+    },
     "10 seconds into the end credits when they are marked, otherwise at the end of the episode. A button offers it sooner.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "10 secondes après le début du générique de fin quand il est repéré, sinon à la fin de l’épisode. Un bouton le propose plus tôt."
+          }
+        }
+      }
+    },
+    "2. Create an OAuth client with “Custom scopes”, not “All”: Policy File, Devices → Core and Keys → Auth Keys, read and write, with the tag %@ (%@). Mira refuses a client with more rights.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2. Crée un client OAuth en « Custom scopes », pas « All » : Policy File, Devices → Core et Keys → Auth Keys, en lecture et écriture, avec l’étiquette %@ (%@). Mira refuse un client qui a plus de droits."
+          }
+        }
+      }
+    },
+    "3. Paste its ID and secret. Mira keeps the secret on the server, never on this iPhone, then offers to fix the policy.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3. Colle son identifiant et son secret. Mira garde le secret sur le serveur, jamais sur cet iPhone, puis te propose de corriger la politique."
           }
         }
       }
@@ -561,6 +591,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Compte"
+          }
+        }
+      }
+    },
+    "Add a rule: the home’s devices reach Jellyfin, nothing else.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter une règle : les appareils du foyer joignent Jellyfin, rien d’autre."
+          }
+        }
+      }
+    },
+    "Add the tag:mira-home tag to “tagOwners”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter l’étiquette tag:mira-home à « tagOwners »."
           }
         }
       }
@@ -1322,6 +1372,16 @@
         }
       }
     },
+    "Fix my policy": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Corriger ma politique"
+          }
+        }
+      }
+    },
     "From this device": {
       "localizations": {
         "fr": {
@@ -1553,6 +1613,16 @@
         }
       }
     },
+    "Mira can fix your policy itself, keeping your comments:": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira peut corriger ta politique elle-même, sans toucher à tes commentaires :"
+          }
+        }
+      }
+    },
     "Mira can’t reach Jellyfin: it goes on as soon as it can.": {
       "localizations": {
         "fr": {
@@ -1669,6 +1739,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aucun appareil de ton réseau Tailscale ne répond comme ce Jellyfin. Vérifie que le PC de Jellyfin est allumé et connecté à Tailscale."
+          }
+        }
+      }
+    },
+    "No rule lets the home’s devices reach Jellyfin yet.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune règle ne laisse encore les appareils du foyer joindre Jellyfin."
           }
         }
       }
@@ -1823,6 +1903,16 @@
         }
       }
     },
+    "Open Tailscale’s tags": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir les étiquettes de Tailscale"
+          }
+        }
+      }
+    },
     "Opens in Safari": {
       "localizations": {
         "fr": {
@@ -1969,6 +2059,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réinitialiser le décalage des sous-titres"
+          }
+        }
+      }
+    },
+    "Rule %lld of “%@”: its sources become %@ (your devices, your shared friends, your other tags).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Règle %lld de « %@ » : ses sources deviennent %@ (tes appareils, tes amis partagés, tes autres étiquettes)."
           }
         }
       }
@@ -2739,6 +2839,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Connecte-toi avec ton compte Jellyfin : le groupe est alors sur ton accueil."
+          }
+        }
+      }
+    },
+    "Tailscale refused the fixed policy: nothing changed. Fix it in Tailscale’s console.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale a refusé la politique corrigée : rien n’a changé. Corrige-la dans la console de Tailscale."
+          }
+        }
+      }
+    },
+    "The home’s OAuth client can’t write the policy: create one with the policy_file scope, then connect the home again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le client OAuth du foyer ne peut pas écrire la politique : crée-en un avec le droit policy_file, puis relie de nouveau le foyer."
+          }
+        }
+      }
+    },
+    "The home’s OAuth client has every right on your Tailscale network, and its secret is kept on the server: replace it with one limited to Policy File, Devices → Core and Keys → Auth Keys (Disconnect, then the steps).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le client OAuth du foyer a tous les droits sur ton réseau Tailscale, et son secret est gardé sur le serveur : remplace-le par un client limité à Policy File, Devices → Core et Keys → Auth Keys (Déconnecter, puis les étapes)."
+          }
+        }
+      }
+    },
+    "The OAuth client lacks the rights it needs (auth_keys, devices:core, policy_file, and the tag:mira-home tag).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le client OAuth n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file, et l’étiquette tag:mira-home)."
           }
         }
       }
@@ -4533,6 +4673,16 @@
         }
       }
     },
+    "Your policy lets the home’s devices go beyond Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta politique laisse les appareils du foyer aller ailleurs que sur Jellyfin."
+          }
+        }
+      }
+    },
     "Your recap": {
       "localizations": {
         "fr": {
@@ -5059,6 +5209,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitter la party"
+          }
+        }
+      }
+    },
+    "Your Tailscale policy just changed: check again, then fix it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta politique Tailscale vient de changer : vérifie à nouveau, puis corrige."
           }
         }
       }
@@ -7555,36 +7715,6 @@
         }
       }
     },
-    "1. Add these lines to your network’s policy (in “tagOwners” and “grants”).": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1. Ajoute ces lignes à la politique de ton réseau (dans « tagOwners » et « grants »)."
-          }
-        }
-      }
-    },
-    "2. Create an OAuth client with the scopes %@, and the tag %@.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "2. Crée un client OAuth avec les droits %@, et le tag %@."
-          }
-        }
-      }
-    },
-    "3. Paste its ID and secret: Mira keeps them on the server, never on this iPhone.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "3. Colle son identifiant et son secret : Mira les garde sur le serveur, jamais sur cet iPhone."
-          }
-        }
-      }
-    },
     "4 digits": {
       "localizations": {
         "fr": {
@@ -7731,16 +7861,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Connexion au réseau du foyer %@…"
-          }
-        }
-      }
-    },
-    "Copied.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copié."
           }
         }
       }
@@ -8095,16 +8215,6 @@
         }
       }
     },
-    "No rule lets the home’s devices reach Jellyfin: add the rule above.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aucune règle ne laisse les appareils du foyer joindre Jellyfin : ajoute la règle ci-dessus."
-          }
-        }
-      }
-    },
     "Once only: Mira makes the home links’ keys on your Tailscale network itself. The home’s devices see only Jellyfin there.": {
       "localizations": {
         "fr": {
@@ -8435,16 +8545,6 @@
         }
       }
     },
-    "The OAuth client lacks the rights it needs (auth_keys, devices:core, policy_file:read, and the tag:mira-home tag).": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le client OAuth n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file:read, et l’étiquette tag:mira-home)."
-          }
-        }
-      }
-    },
     "The server says nothing about Tailscale: update the Mira extension.": {
       "localizations": {
         "fr": {
@@ -8691,16 +8791,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ta famille le tape une fois par appareil, puis choisit son profil. Le changer fait sortir tous les appareils du foyer."
-          }
-        }
-      }
-    },
-    "Your policy lets the home’s devices go beyond Jellyfin: narrow the rules listed.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ta politique laisse les appareils du foyer aller ailleurs que sur Jellyfin : restreins les règles listées."
           }
         }
       }

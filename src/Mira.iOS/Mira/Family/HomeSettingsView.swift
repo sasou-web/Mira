@@ -30,6 +30,7 @@ struct HomeSettingsView: View {
 
     static let credentials = URL(string: "https://login.tailscale.com/admin/settings/trust-credentials")!
     static let policy = URL(string: "https://login.tailscale.com/admin/acls/file")!
+    static let tags = URL(string: "https://login.tailscale.com/admin/acls/visual")!
 
     var body: some View {
         List {
@@ -248,28 +249,31 @@ struct HomeSettingsView: View {
                 if tailnet.connected {
                     Text(verbatim: HomeText.policy(tailnet.policy)).font(MiraFont.footnote)
                         .foregroundStyle(tailnet.policy == "ok" ? Palette.muted : Palette.warning)
+                    if tailnet.broad == true {
+                        Text(verbatim: HomeText.broad).font(MiraFont.footnote).foregroundStyle(Palette.warning)
+                    }
                     ForEach(tailnet.open ?? [], id: \.self) { rule in
                         Text("Rule \(rule.number) of “\(rule.section)”: \(rule.sources.joined(separator: ", ")) goes further than Jellyfin.")
                             .font(MiraFont.footnote).foregroundStyle(Palette.warning)
+                    }
+                    if tailnet.policy != "ok", let fix = tailnet.fix, !fix.isEmpty {
+                        // What Mira will write, said before the one tap that writes it.
+                        Text("Mira can fix your policy itself, keeping your comments:").font(MiraFont.footnote).foregroundStyle(Palette.ink)
+                        ForEach(fix, id: \.self) { change in
+                            Text(verbatim: "•  " + HomeText.change(change)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                        }
+                        Button("Fix my policy") { Task { await fixPolicy() } }.disabled(working)
                     }
                     Button("Check again") { Task { await load() } }
                     if tailnet.policy != "ok" { Button("Open the Tailscale policy") { openURL(Self.policy) } }
                     Button("Disconnect…", role: .destructive) { askDisconnect = true }
                 } else {
-                    Text("1. Add these lines to your network’s policy (in “tagOwners” and “grants”).").font(MiraFont.footnote).foregroundStyle(Palette.ink)
-                    if let setup = tailnet.setup {
-                        let lines = setup.tagOwners + "\n\n" + setup.grant
-                        Text(verbatim: lines).font(.system(.caption, design: .monospaced)).foregroundStyle(Palette.muted).textSelection(.enabled)
-                        Button("Copy") {
-                            UIPasteboard.general.string = lines
-                            said = String(localized: "Copied.")
-                        }
-                        Button("Open the Tailscale policy") { openURL(Self.policy) }
-                    }
-                    let scopes = tailnet.setup?.scopes.joined(separator: ", ") ?? "auth_keys, devices:core, policy_file:read"
-                    Text("2. Create an OAuth client with the scopes \(scopes), and the tag \(tailnet.setup?.tag ?? "tag:mira-home").").font(MiraFont.footnote).foregroundStyle(Palette.ink)
+                    Text("1. In Tailscale, Access controls → Tags → Create tag: name it mira-home, then Save tag.").font(MiraFont.footnote).foregroundStyle(Palette.ink)
+                    Button("Open Tailscale’s tags") { openURL(Self.tags) }
+                    let scopes = tailnet.setup?.scopes.joined(separator: ", ") ?? "auth_keys, devices:core, policy_file"
+                    Text("2. Create an OAuth client with “Custom scopes”, not “All”: Policy File, Devices → Core and Keys → Auth Keys, read and write, with the tag \(tailnet.setup?.tag ?? "tag:mira-home") (\(scopes)). Mira refuses a client with more rights.").font(MiraFont.footnote).foregroundStyle(Palette.ink)
                     Button("Open Tailscale’s credentials") { openURL(Self.credentials) }
-                    Text("3. Paste its ID and secret: Mira keeps them on the server, never on this iPhone.").font(MiraFont.footnote).foregroundStyle(Palette.ink)
+                    Text("3. Paste its ID and secret. Mira keeps the secret on the server, never on this iPhone, then offers to fix the policy.").font(MiraFont.footnote).foregroundStyle(Palette.ink)
                     TextField("Client ID", text: $clientId).textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("Secret", text: $clientSecret)
                     Button("Connect") { Task { await connect(clientId.trimmingCharacters(in: .whitespaces), clientSecret) } }
@@ -340,6 +344,21 @@ struct HomeSettingsView: View {
     private func connect(_ id: String?, _ secret: String?) async {
         await change(id == nil ? nil : String(localized: "Connected to Tailscale.")) { try await $0.homeConnectTailnet(id: id, secret: secret) }
         clientSecret = ""
+    }
+
+    private func fixPolicy() async {
+        guard let client = app.client else { return }
+        working = true
+        defer { working = false }
+        do {
+            try await client.homeFixPolicy()
+            said = nil
+            await load()
+        } catch let refused as HomeAdminRefused {
+            said = refused.policy.map(HomeText.policy) ?? refused.message
+        } catch {
+            said = words(error)
+        }
     }
 
     private func makeLink() async {
