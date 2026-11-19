@@ -1,0 +1,22 @@
+{
+  "about": "The name of a season's pill from the name Jellyfin gives it (Windows and Mac EpisodePages.Named, iPhone SeasonNames.label). Each case: what it is, the season number, Jellyfin's name, then the pill in French and in English; null = Mira's own « Saison N » / « Season N ».",
+  "cases": [
+    ["its own name", 1, "Bakemonogatari", "Bakemonogatari", "Bakemonogatari"],
+    ["its own name, spaces around", 3, " Nisemonogatari ", "Nisemonogatari", "Nisemonogatari"],
+    ["no name", 5, null, null, null],
+    ["empty", 5, "", null, null],
+    ["Season N", 1, "Season 1", null, null],
+    ["Saison 0N", 4, "Saison 04", null, null],
+    ["Staffel N", 7, "Staffel 7", null, null],
+    ["another season's number: a name", 6, "Season 2", "Season 2", "Season 2"],
+    ["the series and its season", 2, "L'attaque des Titans saison 2", null, null],
+    ["the series, a dash and its season", 2, "Attack on Titan - Season 2", null, null],
+    ["its season and a part", 3, "L'Attaque des Titans - Saison 3 Partie 1", "Saison 3 · partie 1", "Season 3 · part 1"],
+    ["Season N Part M", 3, "Season 3 Part 2", "Saison 3 · partie 2", "Season 3 · part 2"],
+    ["the final season, in French", 4, "L'Attaque des Titans - Saison Finale", "Saison finale", "Final Season"],
+    ["The Final Season", 4, "The Final Season", "Saison finale", "Final Season"],
+    ["a name with a number of its own", 9, "Monogatari Series Second Season", "Monogatari Series Second Season", "Monogatari Series Second Season"],
+    ["a name ending with another season", 5, "Owari Season 2", "Owari Season 2", "Owari Season 2"],
+    ["a name with words after the number", 2, "Season 2: Rise", "Season 2: Rise", "Season 2: Rise"]
+  ]
+}

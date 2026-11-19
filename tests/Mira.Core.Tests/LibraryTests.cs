@@ -685,6 +685,18 @@ internal static class LibraryTests
             Assert(EpisodePages.From(long1).Select(x => x.Label).SequenceEqual(["One Piece · 1–100", "One Piece · 101–120"]), "A long named season in slices");
             return Task.CompletedTask;
         });
+        await Test("Pastilles des saisons : le nom de Jellyfin, sauf ce qui ne dit que la saison, comme l’iPhone (tests/fixtures/season-names.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "season-names.json")));
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var (what, season, name) = (row[0].GetString(), row[1].GetInt32(), row[2].GetString());
+                var (french, english) = (EpisodePages.Named(season, name, french: true), EpisodePages.Named(season, name, french: false));
+                Assert(french == row[3].GetString() && english == row[4].GetString(), $"{what}: « {french} », « {english} »");
+            }
+            return Task.CompletedTask;
+        });
         await Test("Série : une saison marquée vue d’un coup, « À suivre » dans une autre saison, comme l’iPhone (tests/fixtures/seasons.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

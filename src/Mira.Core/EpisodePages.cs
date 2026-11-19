@@ -53,17 +53,31 @@ public static class EpisodePages
     }
 
     /// <summary>
-    /// A season's own name, as Jellyfin gives it with its episodes (« Bakemonogatari », « The Final Season », named by
-    /// TheTVDB or a season.nfo), the names of the pills as on the iPhone (maquette A « Le fondu », ogsas 2026-11-19); null
-    /// when it has none but its number in Jellyfin's language (« Season 2 », « Saison 02 », « Staffel 2 »): Mira's own
-    /// label then, in the app's language.
+    /// A season's own name, as Jellyfin gives it with its episodes (« Bakemonogatari », named by TheTVDB or a season.nfo),
+    /// the names of the pills (maquette A « Le fondu », ogsas 2026-11-19); null when it says nothing but the season
+    /// (« Season 2 », « Saison 02 », « L'attaque des Titans saison 2 »: Mira's own label then, in the app's language). A
+    /// name ending with its season and a part, or « Saison finale », in Mira's words: « Saison 3 · partie 1 », « Final
+    /// Season » (Attack on Titan on the Dell, 2026-11-19). The iPhone's SeasonNames, cases of tests/fixtures/season-names.json.
     /// </summary>
-    public static string? Named(int season, IEnumerable<string?> names)
+    public static string? Named(int season, IEnumerable<string?> names) => Named(season, names.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)), IsFrench);
+
+    private const string Word = @"(?:season|saison|staffel|temporada|stagione|seizoen)";
+    private static readonly System.Text.RegularExpressions.Regex Ending = new(@"(?:^|[\s\-–—:·,(])" + Word + @"\s*0*(\d+)\s*\)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex Part = new(@"(?:^|[\s\-–—:·,(])" + Word + @"\s*0*(\d+)\s*[\-–—:·,]?\s*(?:part|partie|teil|parte|cour)\s*0*(\d+)\s*\)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex Final = new(@"(?:^|[\s\-–—:·,(])(?:" + Word + @"\s+finale?|(?:the\s+)?final\s+season|la\s+saison\s+finale|finale)\s*\)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex Bare = new(@"^\p{L}+(?:\s\p{L}+)?\s*0*(\d+)$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary><see cref="Named(int, IEnumerable{string?})"/> for one name, in French or English (for the shared cases).</summary>
+    public static string? Named(int season, string? name, bool french)
     {
-        var name = names.Select(x => x?.Trim()).FirstOrDefault(x => !string.IsNullOrEmpty(x));
-        if (name is null) return null;
-        var number = System.Text.RegularExpressions.Regex.Match(name, @"^\p{L}+(?:\s\p{L}+)?\s*0*(\d+)$");
-        return number.Success && number.Groups[1].Value == season.ToString(System.Globalization.CultureInfo.InvariantCulture) ? null : name;
+        name = name?.Trim();
+        if (string.IsNullOrEmpty(name)) return null;
+        var number = season.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (Part.Match(name) is { Success: true } part && part.Groups[1].Value == number)
+            return french ? $"Saison {season} · partie {part.Groups[2].Value}" : $"Season {season} · part {part.Groups[2].Value}";
+        if (Final.IsMatch(name)) return french ? "Saison finale" : "Final Season";
+        if (Ending.Match(name) is { Success: true } ending && ending.Groups[1].Value == number) return null;
+        return Bare.Match(name) is { Success: true } bare && bare.Groups[1].Value == number ? null : name;
     }
 
     /// <summary>The episodes a page shows.</summary>

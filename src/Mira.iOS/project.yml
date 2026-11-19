@@ -168,6 +168,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/server-proof.json
         buildPhase: resources
+      - path: ../../tests/fixtures/season-names.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:
