@@ -97,4 +97,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] 20 min ensemble par Funnel sans pause ni lecture en boucle (sauts, changement de piste audio)
 - [ ] Toi dans la party de Sam (son Jellyfin), depuis Mira pour Windows
 - [ ] Lien refait : l'ancien ne marche plus
-- [ ] Le foyer : réglé sur le Dell (mot de passe, deux profils dont un à code), rejoint depuis un autre appareil, profil ouvert, changé, appareil retiré (quand les clients Windows, Mac, iPhone seront là)
+- [ ] Le foyer : réglé sur le Dell (mot de passe, deux profils dont un à code), rejoint depuis un autre appareil, profil ouvert, changé, appareil retiré (Windows prêt ; Mac et iPhone quand leurs clients seront là)
+- [ ] Le foyer sur Windows : PC sans compte à la maison → carte « Home of … » trouvée sur le réseau, mot de passe, « Who's watching? », code faux puis bon, Ctrl+P, « Leave this home »
+- [ ] Le foyer loin de chez soi (Windows) : Réglages → Foyer, client OAuth et politique sur le vrai Tailscale, lien du foyer ouvert sur un PC hors de la maison, profil ouvert par le nœud du foyer, appareil retiré = nœud parti du tailnet
+- [ ] Le foyer : lien du foyer ouvert depuis miracinema.app/home (le navigateur passe `mira://home#…` à Mira, fragment compris)

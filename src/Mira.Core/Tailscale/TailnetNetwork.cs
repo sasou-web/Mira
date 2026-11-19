@@ -43,6 +43,9 @@ public sealed class TailnetNetwork
     private readonly string? _computer;
     private readonly object _gate = new();
     private ITailnetNode? _node;
+    /// <summary>The home's own node (« Le foyer », <see cref="Family.HomeNode"/>) and the one host it reaches: the home's Jellyfin.</summary>
+    private ITailnetNode? _home;
+    private string? _homeHost;
     private TaskCompletionSource _changed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private IReadOnlyCollection<IPAddress>? _local;
     /// <summary>The node's last status: its devices' names are known again while it starts (a short name typed as the server).</summary>
@@ -103,19 +106,63 @@ public sealed class TailnetNetwork
         Pulse();
     }
 
+    /// <summary>
+    /// The home's node (a home link's key, on its administrator's tailnet: never the person's own Tailscale), and the
+    /// address of the home's Jellyfin on that tailnet: that host, and only it, goes through this node from now on, whatever
+    /// the person's own node or Tailscale app would do with it. Null to stop (the device left the home).
+    /// </summary>
+    public void UseHome(TailnetProcess? process, string? host)
+    {
+        if (process is not null && Volatile.Read(ref _home) is ProcessNode current && ReferenceEquals(current.Process, process) && TailnetRoute.Clean(host ?? "") == _homeHost) return;
+        FollowHome(process is null ? null : new ProcessNode(process), host);
+    }
+
+    /// <summary>As <see cref="UseHome"/>, for any node (the tests' stand-in).</summary>
+    public void FollowHome(ITailnetNode? node, string? host)
+    {
+        lock (_gate)
+        {
+            if (_home is not null) _home.Changed -= Pulse;
+            _home = node is null || string.IsNullOrWhiteSpace(host) ? null : node;
+            _homeHost = _home is null ? null : TailnetRoute.Clean(host!);
+            if (_home is not null) _home.Changed += Pulse;
+        }
+        Pulse();
+    }
+
+    /// <summary>The host the home's node reaches, while it runs for this app.</summary>
+    public string? HomeHost => Volatile.Read(ref _homeHost);
+
     /// <summary>Whether a host is a device of the tailnet, the node's devices included (« maison-pc »).</summary>
-    public bool IsTailnet(string host) => TailnetRoute.IsTailnet(host, Volatile.Read(ref _node)?.Status ?? Volatile.Read(ref _known));
+    public bool IsTailnet(string host) => HomeFor(host) is not null || TailnetRoute.IsTailnet(host, Volatile.Read(ref _node)?.Status ?? Volatile.Read(ref _known));
 
     /// <summary>The device of the tailnet a host names, as the node last saw it (its name, whether it is online, when it was last).</summary>
-    public TailnetDevice? Peer(string host) => (Volatile.Read(ref _node)?.Status ?? Volatile.Read(ref _known))?.Peer(TailnetRoute.Clean(host));
+    public TailnetDevice? Peer(string host) => (HomeFor(host) ?? Volatile.Read(ref _node))?.Status?.Peer(TailnetRoute.Clean(host)) ?? Volatile.Read(ref _known)?.Peer(TailnetRoute.Clean(host));
 
-    /// <summary>The way to a host now (see <see cref="TailnetRoute.Choose"/>).</summary>
-    public TailnetChoice Choose(string host)
+    /// <summary>The way to a host now (see <see cref="TailnetRoute.Choose"/>; the home's Jellyfin through the home's node).</summary>
+    public TailnetChoice Choose(string host) => Route(host).Choice;
+
+    /// <summary>The way to a host, and the node it goes through when it does.</summary>
+    private (TailnetChoice Choice, ITailnetNode? Node) Route(string host)
     {
+        if (HomeFor(host) is { } home)
+        {
+            var state = home.Status?.State;
+            return state == TailnetStates.Running && home.Proxy is not null
+                ? (TailnetChoice.Node, home)
+                : (TailnetChoice.Fail(TailnetRoute.Failure(state, home.Unavailable)), null);
+        }
         var node = Volatile.Read(ref _node);
         var status = node?.Status;
         if (status?.Peers.Count > 0) Volatile.Write(ref _known, status);
-        return TailnetRoute.Choose(host, node is not null, status, node?.Proxy is not null, Local(), node?.Unavailable, Volatile.Read(ref _known), _computer);
+        var choice = TailnetRoute.Choose(host, node is not null, status, node?.Proxy is not null, Local(), node?.Unavailable, Volatile.Read(ref _known), _computer);
+        return (choice, choice.Path == TailnetPath.Node ? node : null);
+    }
+
+    /// <summary>The home's node when <paramref name="host"/> is the home's Jellyfin.</summary>
+    private ITailnetNode? HomeFor(string host)
+    {
+        lock (_gate) return _home is not null && string.Equals(TailnetRoute.Clean(host), _homeHost, StringComparison.OrdinalIgnoreCase) ? _home : null;
     }
 
     /// <summary>The way to a host, after waiting <see cref="StartWait"/> at most for a node that is starting.</summary>
@@ -143,9 +190,9 @@ public sealed class TailnetNetwork
     public (string Proxy, string Authorization)? ForPlayer(Uri url)
     {
         if (url.Scheme is not ("http" or "https")) return null;
-        var choice = Choose(url.IdnHost);
+        var (choice, node) = Route(url.IdnHost);
         if (choice.Path == TailnetPath.Direct) return null;
-        if (choice.Path == TailnetPath.Fail || Volatile.Read(ref _node)?.Proxy is not { } proxy) throw new TailnetException(choice.Code ?? TailnetCodes.Helper);
+        if (choice.Path == TailnetPath.Fail || node?.Proxy is not { } proxy) throw new TailnetException(choice.Code ?? TailnetCodes.Helper);
         return ($"http://{Uri.EscapeDataString(proxy.User)}:{Uri.EscapeDataString(proxy.Password)}@{proxy.Address}", proxy.Authorization);
     }
 
@@ -214,9 +261,11 @@ public sealed class TailnetNetwork
     {
         var target = context.DnsEndPoint;
         var choice = await ChooseAsync(target.Host, ct).ConfigureAwait(false);
+        // The node of the way chosen, read again: the home's for the home's Jellyfin, Mira's own otherwise.
+        var node = choice.Path == TailnetPath.Node ? Route(target.Host).Node : null;
         switch (choice.Path)
         {
-            case TailnetPath.Node when Volatile.Read(ref _node)?.Proxy is { } proxy:
+            case TailnetPath.Node when node?.Proxy is { } proxy:
                 return await TunnelAsync(proxy, TailnetRoute.Clean(target.Host), target.Port, ct).ConfigureAwait(false);
             case TailnetPath.Node: throw new TailnetException(TailnetCodes.Helper, "the node's proxy is gone");
             case TailnetPath.Fail: throw new TailnetException(choice.Code ?? TailnetCodes.Helper);

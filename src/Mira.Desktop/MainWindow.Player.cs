@@ -654,6 +654,7 @@ public partial class MainWindow
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma && (!_playing || _miniPlayer)) { SettingsNav_Click(this, new()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && (!_playing || _miniPlayer) && RailShortcut(e.Key)) { e.Handled = true; return; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.P && (!_playing || _miniPlayer) && FamilyShortcut()) { e.Handled = true; return; }
         if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { Guide_Click(this, new()); e.Handled = true; return; }
         if (IsTyping(e) || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.

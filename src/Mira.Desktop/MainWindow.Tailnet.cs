@@ -70,6 +70,7 @@ public partial class MainWindow
     private async Task StopTailnetAsync()
     {
         if (_tailnet is { } tailnet) await tailnet.DisposeAsync();
+        if (_homeNode is { } home) await home.DisposeAsync();
     }
 
     /// <summary>After sleep, or another network: the node looks at the network afresh rather than waiting to notice.</summary>
@@ -277,8 +278,13 @@ public partial class MainWindow
     /// </summary>
     private (string Text, string? Action, Action? Act)? TailnetSays(string server, Exception? error)
     {
-        if (!TailnetOffered || HostOf(server) is not { } host) return null;
         var network = TailnetNetwork.Default;
+        // The home's Jellyfin, reached through the home's own node: said for the home, never « sign in to Tailscale ».
+        if (_home is { ThroughTailnet: true } home && HostOf(server) is { } homeHost && homeHost == network.HomeHost)
+            return network.Explain(error ?? new TimeoutException(), homeHost) is { } homeCode
+                ? (Mira.Core.Family.HomeText.Node(homeCode, home.Name), TailnetText.Retry, () => _ = FamilyNode.StartAsync(homeHost, null))
+                : null;
+        if (!TailnetOffered || HostOf(server) is not { } host) return null;
         if (network.Explain(error ?? new TimeoutException(), host) is { } code && TailnetText.Problem(code, network.Peer(host)) is { } said)
             return BuiltInTailnet.Remedy(code) switch
             {

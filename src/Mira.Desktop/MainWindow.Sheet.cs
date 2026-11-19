@@ -334,7 +334,7 @@ public partial class MainWindow
     [
         (PlaybackSettings, PlaybackSettingsNav), (SubtitleSettings, SubtitleSettingsNav), (LibrarySettings, LibrarySettingsNav), (GeneralSettings, GeneralSettingsNav), (DiscordPage, DiscordSettingsNav),
         (ServerSettings, ServerSettingsNav), (PrivacySettings, PrivacySettingsNav), (UpdateSettings, UpdateSettingsNav), (ReportSettings, ReportSettingsNav),
-        (SharingSettings, SharingSettingsNav), (CareSettings, CareSettingsNav), (JellyfinSettings, JellyfinSettingsNav), (TorLinkSettings, TorLinkSettingsNav)
+        (FamilySettings, FamilySettingsNav), (SharingSettings, SharingSettingsNav), (CareSettings, CareSettingsNav), (JellyfinSettings, JellyfinSettingsNav), (TorLinkSettings, TorLinkSettingsNav)
     ];
 
     private void SettingsSearch_Changed(object sender, TextChangedEventArgs e)

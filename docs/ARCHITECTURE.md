@@ -47,6 +47,7 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques, version minimale, avertissement HTTP
   ├─ ServerSearch : serveur proposé à la connexion (ce PC, découverte de Jellyfin sur le réseau, appareils Tailscale)
   ├─ ServerMove : serveur retrouvé par son Id quand la box change son adresse (ce PC, découverte, puis chaque adresse du réseau)
+  ├─ Family/ : « Le foyer » côté apps — HomeLink (lien du foyer lu et vérifié), HomeModels (réponses de /Mira/home, refus), HomeNode (nœud Tailscale du foyer, entré par la clé du lien, à côté de Tailscale intégré : TailnetNetwork.UseHome y envoie le seul Jellyfin du foyer), HomeText ; JellyfinClient.Home.cs = /Mira/home ; Windows : MainWindow.Family.cs (« Who's watching? », code, rejoindre, menu de la photo, Ctrl+P), MainWindow.FamilySettings.cs (Réglages → Foyer de l'administrateur), LocalProfile (home.protected, home-tailscale/)
   ├─ Tailscale/ : « Tailscale intégré » — TailnetProcess (mira-tailscale lancé, vérifié, relancé après une erreur, journal local), BuiltInTailnet (connexion par la page de Tailscale, démarrage avec l’app, déconnexion, avis dits une fois ; commun à Windows et Mac), TailnetNetwork et TailnetRoute (chemin de chaque connexion : direct ou par le nœud, cas communs `tests/fixtures/tailnet.json`), TailnetText
   ├─ LibraryStore, AccountData : cache SQLite, progression locale et file persistante ; fichiers d’un compte
   ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels

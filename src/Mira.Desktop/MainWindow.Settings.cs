@@ -165,7 +165,7 @@ public partial class MainWindow
         // Jellyfin's updates are told from « Mises à jour » too, while there is a Jellyfin on this PC to update.
         JellyfinUpdatesLink.Visibility = JellyfinHereRow.Visibility;
         // « Ton serveur » heads what only its owner sees, under what everyone uses.
-        ServerToolsLabel.Visibility = new[] { SharingSettingsNav, CareSettingsNav, JellyfinSettingsNav, TorLinkSettingsNav }.Any(x => x.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
+        ServerToolsLabel.Visibility = new[] { FamilySettingsNav, SharingSettingsNav, CareSettingsNav, JellyfinSettingsNav, TorLinkSettingsNav }.Any(x => x.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
     }
     private bool _settingsGroupsWatched;
     private void WatchSettingsGroups()
@@ -188,7 +188,7 @@ public partial class MainWindow
     {
         if (_settingsNavDrawn) return; _settingsNavDrawn = true;
         foreach (var button in SettingsNavigation.Children.OfType<Button>())
-            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", "discord" => "status", _ => "play" });
+            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "family" => "tv", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", "discord" => "status", _ => "play" });
         ShowUpdateDots();
     }
     /// <param name="animate">False as Réglages opens: the page comes as one, its section with it.</param>
@@ -215,6 +215,8 @@ public partial class MainWindow
         if (tab == "report") _ = ShowReportAsync();
         if (tab == "privacy") ShowPrivacy();
         if (tab == "discord") ShowDiscordSettings();
+        if (tab == "family") _ = ShowFamilySettingsAsync();
+        _ = ProbeFamilySettingsAsync();
     }
     private const string CustomOrder = "custom";
     private bool _showingLanguages;

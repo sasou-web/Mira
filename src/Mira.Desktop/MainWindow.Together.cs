@@ -581,6 +581,7 @@ public partial class MainWindow
     /// </summary>
     internal void OpenLink(string text)
     {
+        if (Mira.Core.Family.HomeLink.IsHomeLink(text)) { OpenHomeLink(text); return; }
         if (Together.ParseAppLink(text) is not { } invite) { SetNotice(L("Mira ne sait pas ouvrir ce lien.", "Mira can’t open this link.")); return; }
         _inviteWait?.Cancel(); _inviteWait = null;
         _invite = invite;

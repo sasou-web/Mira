@@ -272,4 +272,4 @@ public static class RemoteLines
 }
 
 /// <summary>What the relay of the extension refused, in Mira's words: not an administrator, an extension without it, a request it turned down.</summary>
-public sealed class RelayRefusedException(string message, HttpStatusCode status) : HttpRequestException(message, null, status);
+public class RelayRefusedException(string message, HttpStatusCode status) : HttpRequestException(message, null, status);

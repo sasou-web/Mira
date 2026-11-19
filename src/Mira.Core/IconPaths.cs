@@ -108,6 +108,9 @@ public static class IconPaths
         // Réglages → Confidentialité: a shield with its check.
         // A speech bubble with a play sign: Réglages → Discord and « Discord status » (never Discord's own logo).
         ["status"] = "M5.5 4.5H18.5Q20.5 4.5 20.5 6.5V14.5Q20.5 16.5 18.5 16.5H11L6.5 20V16.5H5.5Q3.5 16.5 3.5 14.5V6.5Q3.5 4.5 5.5 4.5Z M10.5 8L14.5 10.5L10.5 13Z",
+        // « Le foyer »: a profile kept by its PIN; a home found on this network.
+        ["lock"] = "M8 11V8A4 4 0 0 1 16 8V11 M7.5 11H16.5Q19 11 19 13.5V18.5Q19 21 16.5 21H7.5Q5 21 5 18.5V13.5Q5 11 7.5 11Z",
+        ["wifi"] = "M2.5 9Q12 1 21.5 9 M5.5 12.5Q12 7 18.5 12.5 M8.8 16Q12 13.5 15.2 16 M12 19.5H12.1",
         ["shield"] = "M12 3L18.6 5.5Q19.5 5.8 19.5 6.8V11.5Q19.5 17.5 12 21Q4.5 17.5 4.5 11.5V6.8Q4.5 5.8 5.4 5.5Z M8.8 12.2L11 14.4L15.3 10",
         // Aide's subjects and links (MainWindow.Sheet): keys, a screen on its foot, a page that opens elsewhere.
         ["keyboard"] = "M6 6H18Q21 6 21 9V15Q21 18 18 18H6Q3 18 3 15V9Q3 6 6 6Z M7 10H7.1 M10.5 10H10.6 M14 10H14.1 M17 10H17.1 M8 14.2H16",
