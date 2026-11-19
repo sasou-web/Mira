@@ -37,6 +37,8 @@ public sealed partial class MainWindow
         var downloadsEntry = _railButtons["downloads"];
         downloads.IsEnabled = downloadsEntry.IsVisible;
         downloadsEntry.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) downloads.IsEnabled = downloadsEntry.IsVisible; };
+        // ⌘P as Ctrl+P on Windows: the home's profiles (MainWindow.Family.cs), only on a Mac in a home.
+        var profiles = Item(L("Changer de profil…", "Switch Profile…"), new KeyGesture(Key.P, command), () => FamilyShortcut());
         var go = Menu(L("Aller", "Go"),
             Pressing(L("Précédent", "Back"), [new KeyGesture(Key.OemOpenBrackets, command)]),
             Pressing(L("Suivant", "Forward"), [new KeyGesture(Key.OemCloseBrackets, command)]),
@@ -47,7 +49,10 @@ public sealed partial class MainWindow
             Item(L("Séries", "Shows"), new KeyGesture(Key.D3, command), () => GoFromMenu("Series")),
             Item(L("Toute la bibliothèque", "Whole library"), new KeyGesture(Key.D4, command), () => GoFromMenu("library")),
             Item(L("Sur ce Mac", "On this Mac"), null, () => GoFromMenu("offline")),
-            downloads);
+            downloads,
+            null,
+            profiles);
+        _profilesItem = profiles; profiles.IsEnabled = _home is not null;
         var window = Menu(L("Fenêtre", "Window"),
             Item(L("Placer dans le Dock", "Minimize"), new KeyGesture(Key.M, command), () => { if (WindowState != WindowState.FullScreen) WindowState = WindowState.Minimized; }),
             Item(L("Réduire/agrandir", "Zoom"), null, () => { if (WindowState != WindowState.FullScreen) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; }),

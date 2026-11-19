@@ -878,6 +878,22 @@ public static class SelfCheck
                 withFriend.ShowSettingsSide();
             }
             else if (mock is not null) Check(false, "réglages : ajouter un ami", "section absente");
+            // « Foyer », as on Windows: off at first (its password asked), then on: the link and its QR code, the profiles, the devices.
+            if (mock is not null && window.Current is SettingsPage withHome)
+            {
+                withHome.Show("family");
+                var off = await Until(() => withHome.Family.Section.IsVisible && withHome.Family.Said.Contains(Lang.L("Activer le foyer", "Turn on the home")), 10);
+                Check(off, "réglages : foyer à activer pour l’administrateur", withHome.Family.Said);
+                mock.HomeOn = true;
+                await withHome.Family.LoadAsync();
+                var on = await Until(() => withHome.Family.Said.Contains("Alex") && withHome.Family.Said.Contains("Mira on MAISON-PC"), 10);
+                await withHome.Family.MakeLinkForCheck();
+                Check(on && withHome.Family.LinkShown && withHome.Family.Said.Contains(Lang.L("Administrateur : jamais dans le foyer.", "Administrator: never in the home.")),
+                    "réglages : foyer (lien et QR code, profils, appareils)", withHome.Family.Said);
+                await Task.Delay(500); Capture(window, output, "07c4-settings-family");
+                mock.HomeOn = false;
+                withHome.ShowSettingsSide();
+            }
             // « Sortie audio », as on Windows: the devices mpv lists, and « Tester » made and played here.
             if (window.Current is SettingsPage withAudio)
             {
@@ -1542,6 +1558,72 @@ public static class SelfCheck
                 Check(window.Login is not null && window.Session is null, "déconnexion");
                 bool told; lock (mock.Calls) told = mock.Calls.Contains("POST Sessions/Logout");
                 Check(told, "session fermée sur Jellyfin aussi");
+            }
+
+            // —— « Le foyer », as on Windows: joined by its password, « Who's watching? », a PIN, the rail's menu (⌘P), leaving ——
+            if (mock is not null && window.Login is { } homeLogin)
+            {
+                mock.HomeOn = true;
+                homeLogin.Server = MockJellyfin.Server;
+                await window.OfferHomeForCheckAsync(MockJellyfin.Server, "Jellyfin du contrôle", "check-server");
+                var card = await Until(() => window.Family is { Shown: FamilyView.Stage.Join }, 5);
+                Check(card, "foyer : proposé à la connexion pour un serveur de ce réseau", window.Family?.JoinHeading ?? "rien");
+                if (card && window.Family is { } family)
+                {
+                    await Task.Delay(500); Capture(window, output, "21a-home-join");
+                    family.Password = "pas le bon"; family.PressForCheck("join");
+                    Check(await Until(() => family.JoinErrorText is { Length: > 0 }, 5) && window.Home is null, "foyer : mauvais mot de passe refusé", family.JoinErrorText ?? "rien");
+                    family.Password = MockJellyfin.HomePassword; family.PressForCheck("join");
+                    var hall = await Until(() => family.Shown == FamilyView.Stage.Hall && family.Tiles.Count == 2, 10);
+                    Check(hall && window.Home?.Token == MockJellyfin.HomeToken && window.Profile.LoadHome()?.Token == MockJellyfin.HomeToken, "foyer : rejoint, « Qui regarde ? » et ses profils", string.Join(", ", family.Tiles));
+                    await Task.Delay(500); Capture(window, output, "21b-home-hall");
+                    family.ClickTile("Sam");
+                    var sam = await Until(() => window.Session?.Connection.UserName == "Sam" && window.Family is null && window.Current is HomePage, 15);
+                    Check(sam && window.Session!.Connection.DeviceId.StartsWith("mira-home-", StringComparison.Ordinal), "foyer : le profil de Sam ouvert", window.Session?.Connection.UserName ?? family.HallStatus ?? "rien");
+                    // ⌘P: the profiles beside the rail's picture; Alex's PIN, wrong then right.
+                    Check(window.FamilyShortcut() && await Until(() => window.FamilyMenu is { IsOpen: true }, 3), "foyer : ⌘P ouvre les profils");
+                    await Task.Delay(500); CaptureWindow(window, output, "21c-home-menu");
+                    window.ChooseFromMenuForCheck("Alex");
+                    var asked = await Until(() => window.Family is { Shown: FamilyView.Stage.Pin }, 5);
+                    Check(asked, "foyer : le code d’Alex demandé", window.Family?.PinHeading ?? "rien");
+                    if (asked)
+                    {
+                        await Task.Delay(500); Capture(window, output, "21d-home-pin");
+                        family.TypePin("0000");
+                        Check(await Until(() => family.PinErrorText is { Length: > 0 }, 5) && window.Session?.Connection.UserName == "Sam", "foyer : mauvais code refusé, essais restants", family.PinErrorText ?? "rien");
+                        family.TypePin(MockJellyfin.AlexPin);
+                        Check(await Until(() => window.Session?.Connection.UserName == "Alex" && window.Family is null, 15), "foyer : le profil d’Alex ouvert par son code", window.Session?.Connection.UserName ?? family.PinErrorText ?? "rien");
+                    }
+                    // The home out of reach: said on the hall, « Try again » brings its profiles back.
+                    mock.HomeDown = true;
+                    window.HallForCheck();
+                    var down = await Until(() => family.Shown == FamilyView.Stage.Hall && family.RetryShown && family.HallStatus is { Length: > 0 }, 10);
+                    Check(down, "foyer : injoignable dit, avec « Réessayer »", family.HallStatus ?? "rien");
+                    await Task.Delay(500); Capture(window, output, "21e-home-unreachable");
+                    mock.HomeDown = false; family.PressForCheck("retry");
+                    Check(await Until(() => !family.RetryShown && family.Tiles.Count == 2, 10), "foyer : « Réessayer » retrouve les profils", family.HallStatus ?? "");
+                    family.PressForCheck("escape");
+                    Check(await Until(() => window.Family is null, 3), "foyer : Échap revient à la bibliothèque");
+                    // A home link that has ended: said on its card, nothing to join.
+                    var data = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { v = 1, name = "Maison de Sam", id = "other-server", url = "http://100.88.12.34:8096", key = "tskey-auth-ended", until = DateTimeOffset.UtcNow.AddHours(-1).ToUnixTimeSeconds() });
+                    window.OpenLink(Mira.Core.Family.HomeLink.App + Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_'));
+                    var ended = await Until(() => window.Family is { Shown: FamilyView.Stage.Join, CanJoin: false, JoinErrorText.Length: > 0 }, 5);
+                    Check(ended, "foyer : lien du foyer expiré", window.Family?.JoinErrorText ?? "rien");
+                    await Task.Delay(500); Capture(window, output, "21f-home-link-ended");
+                    family.PressForCheck("escape");
+                    await Until(() => window.Family is null, 3);
+                    // Leaving: asked, told to the extension, the home's session closed, back to the sign-in.
+                    window.HallForCheck();
+                    await Until(() => window.Family is { Shown: FamilyView.Stage.Hall }, 5);
+                    family.PressForCheck("leave");
+                    var gone = await Until(() => window.Asking, 3) && window.AnswerConfirm(true) && await Until(() => window.Home is null && window.Login is not null && window.Session is null, 10);
+                    bool leaveTold; lock (mock.Calls) leaveTold = mock.Calls.Contains("POST Mira/home/leave");
+                    Check(gone && leaveTold && window.Profile.LoadHome() is null, "foyer : quitter ce foyer", window.NoticeText ?? "");
+                }
+                mock.HomeOn = false;
+                await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
+                await Until(() => window.Current is HomePage, 10);
+                await window.SignOutAsync();
             }
 
             // —— Keychain ——

@@ -50,6 +50,8 @@ public sealed class BuiltInTailscale
         catch (PlatformNotSupportedException) { }
     }
 
+    /// <summary>The checks' own coordination server (--tailnet-check), for the home's node too; null otherwise.</summary>
+    public string? ControlUrl => _control;
     /// <summary>This Mira carries the node: its offer, its settings and its notices show.</summary>
     public bool Offered { get; }
     /// <summary>The Tailscale app connected on this Mac: it reaches the tailnet itself, the node has nothing to add.</summary>

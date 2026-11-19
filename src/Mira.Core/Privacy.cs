@@ -90,7 +90,7 @@ public static class Privacy
             L("Comme l’app Tailscale : ton compte, le nom de l’appareil, son système, ses adresses IP et sa clé publique. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé.",
                 "Like the Tailscale app: your account, the device’s name, its system, its IP addresses and its public key. Videos stay end-to-end encrypted, no log is sent."),
             L("Se déconnecter de Tailscale, dans Compte & serveur.", "Sign out of Tailscale, in Account & server."), PrivacyControl.Tailscale, false, ["DERP"]));
-        if (windows)
+        if (app is PrivacyApp.Windows or PrivacyApp.Mac)
             list.Add(new("home-node", L("Le foyer loin de la maison", "The home away from home"),
                 L("Le serveur de coordination de Tailscale et ses relais, puis le seul Jellyfin du foyer, sur le réseau Tailscale de son administrateur.",
                     "Tailscale’s coordination server and its relays, then the home’s Jellyfin alone, on its administrator’s Tailscale network."),

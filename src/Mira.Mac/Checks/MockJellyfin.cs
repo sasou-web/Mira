@@ -21,6 +21,14 @@ public sealed class MockJellyfin : HttpMessageHandler
     public const string FriendServer = "http://127.0.0.1:8097/", PartyCode = "samsam-party-link-0001";
     /// <summary>The friend's party link was taken back: its page and its gateway answer 404.</summary>
     public bool PartyGone { get; set; }
+    /// <summary>« Le foyer » (/Mira/home): on, with its password; Sam's profile open to all, Alex's behind a PIN.</summary>
+    public bool HomeOn { get; set; }
+    public const string HomePassword = "maison-du-controle", HomeToken = "home-token", AlexPin = "1234";
+    /// <summary>The home's Jellyfin out of reach (its node, the network): every family request fails.</summary>
+    public bool HomeDown { get; set; }
+    /// <summary>What the administrator's side of the home was asked: « PUT Mira/home/password »…</summary>
+    public List<string> HomeAdmin { get; } = [];
+    private int _pinLeft = 5;
     /// <summary>A Jellyfin without Mira's extension (most of them): every Mira/… path answers 404.</summary>
     public bool NoExtension { get; set; }
     /// <summary>The account's session ended on Jellyfin: every request of it answered 401.</summary>
@@ -184,6 +192,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (request.Method == HttpMethod.Post && path == "Users/friend-1/Policy") { FriendPolicy = await request.Content!.ReadAsStringAsync(cancellationToken); return new HttpResponseMessage(HttpStatusCode.NoContent); }
         if (path == "QuickConnect/Enabled") return Json(true);
         if (path.StartsWith("Mira/") && NoExtension) return new HttpResponseMessage(HttpStatusCode.NotFound);
+        if (path.StartsWith("Mira/home")) return await HomeAsync(request, path, cancellationToken);
         if (path == "Mira/manifest.webmanifest") return Json(new { name = "Mira" });
         if (path.StartsWith("Mira/torlink")) return await RelayAsync(request, path, cancellationToken);
         // « Extension Mira sur Jellyfin »: its repositories, the plugin installed from Mira's, a restart.
@@ -425,6 +434,71 @@ public sealed class MockJellyfin : HttpMessageHandler
         return response;
     }
     private static HttpResponseMessage Items(IEnumerable<object> items) { var list = items.ToList(); return Json(new { Items = list, TotalRecordCount = list.Count }); }
+    /// <summary>
+    /// « Le foyer » as the extension answers it (HomeController of Mira.Jellyfin): the family's side by the home token in
+    /// X-Mira-Home, its refusals by status (401 wrong password or out of the home, 403 a PIN, with what is left), then the
+    /// administrator's side. Each profile opens a session of the check's account, under the home's device id.
+    /// </summary>
+    private async Task<HttpResponseMessage> HomeAsync(HttpRequestMessage request, string path, CancellationToken ct)
+    {
+        object[] Profiles() => [new { id = "user-sam", name = "Sam", imageTag = (string?)null, pin = false }, new { id = "user-alex", name = "Alex", imageTag = (string?)null, pin = true }];
+        var body = request.Content is null ? default : JsonDocument.Parse(await request.Content.ReadAsStringAsync(ct) is { Length: > 0 } text ? text : "{}").RootElement.Clone();
+        string? Field(string name) => body.ValueKind == JsonValueKind.Object && body.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        var token = request.Headers.TryGetValues(Mira.Core.JellyfinClient.HomeHeader, out var tokens) ? tokens.FirstOrDefault() : null;
+        if (path == "Mira/home") return Json(new { home = HomeOn });
+        if (path is "Mira/home/join" or "Mira/home/profiles" or "Mira/home/open" && HomeDown) throw new HttpRequestException("Connexion refusée (contrôle).");
+        if (request.Method == HttpMethod.Post && path == "Mira/home/join")
+        {
+            if (!HomeOn) return Json(new { error = "This Jellyfin has no home." }, HttpStatusCode.NotFound);
+            if (Field("password") != HomePassword) return Json(new { error = "Wrong password." }, HttpStatusCode.Unauthorized);
+            return Json(new { token = HomeToken, profiles = Profiles(), deviceId = "mira-home-check" });
+        }
+        if (path is "Mira/home/profiles" or "Mira/home/open" or "Mira/home/close" or "Mira/home/leave" && (token != HomeToken || !HomeOn))
+            return Json(new { error = "This device is no longer in the home." }, HttpStatusCode.Unauthorized);
+        if (path == "Mira/home/profiles") return Json(new { profiles = Profiles(), current = (string?)null, deviceId = "mira-home-check" });
+        if (request.Method == HttpMethod.Post && path == "Mira/home/open")
+        {
+            var profile = Field("profile");
+            if (profile == "user-alex")
+            {
+                var pin = Field("pin");
+                if (string.IsNullOrEmpty(pin)) return Json(new { error = "This profile has a PIN.", pin = true }, HttpStatusCode.Forbidden);
+                if (pin != AlexPin) { _pinLeft--; return Json(new { error = "Wrong PIN.", pin = true, left = _pinLeft }, HttpStatusCode.Forbidden); }
+                _pinLeft = 5;
+            }
+            else if (profile != "user-sam") return Json(new { error = "This profile is no longer in the home." }, HttpStatusCode.NotFound);
+            return Json(new { accessToken = "check-token", userId = UserId, userName = profile == "user-alex" ? "Alex" : "Sam", deviceId = "mira-home-check", serverId = "check-server" });
+        }
+        if (request.Method == HttpMethod.Post && path is "Mira/home/close" or "Mira/home/leave") { lock (Calls) Calls.Add("POST " + path); return new HttpResponseMessage(HttpStatusCode.NoContent); }
+        // The administrator's side.
+        if (path == "Mira/home/settings")
+            return Json(new
+            {
+                home = HomeOn, changed = HomeOn ? DateTimeOffset.UtcNow.AddDays(-3) : (DateTimeOffset?)null, minPassword = 8,
+                profiles = new object[]
+                {
+                    new { id = UserId, name = "Contrôle", imageTag = (string?)null, admin = true, disabled = false, offered = false, pin = false, allLibraries = true, maxRating = (string?)null },
+                    new { id = "user-sam", name = "Sam", imageTag = (string?)null, admin = false, disabled = false, offered = true, pin = false, allLibraries = true, maxRating = (string?)null },
+                    new { id = "user-alex", name = "Alex", imageTag = (string?)null, admin = false, disabled = false, offered = true, pin = true, allLibraries = false, maxRating = "FR-12" },
+                },
+                devices = HomeOn ? new object[] { new { id = "device-1", name = "Mira on MAISON-PC", joined = DateTimeOffset.UtcNow.AddDays(-2), seen = DateTimeOffset.UtcNow.AddHours(-1), profile = "user-sam", profileName = "Sam" } } : [],
+            });
+        if (path == "Mira/home/tailnet" && request.Method == HttpMethod.Get)
+            return Json(new { connected = true, connectedAt = DateTimeOffset.UtcNow.AddDays(-1), clientId = "k-check", server = "100.88.12.34", port = 8096, policy = "ok", open = Array.Empty<object>(), devices = Array.Empty<object>() });
+        if (request.Method == HttpMethod.Post && path == "Mira/home/link")
+        {
+            var data = JsonSerializer.SerializeToUtf8Bytes(new { v = 1, name = "Jellyfin du contrôle", id = "check-server", url = "http://100.88.12.34:8096", key = "tskey-auth-check", until = DateTimeOffset.UtcNow.AddHours(48).ToUnixTimeSeconds() });
+            return Json(new { link = Mira.Core.Family.HomeLink.Page + Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_'), expires = DateTimeOffset.UtcNow.AddHours(48) });
+        }
+        if (request.Method == HttpMethod.Put || request.Method == HttpMethod.Delete)
+        {
+            lock (HomeAdmin) HomeAdmin.Add(request.Method.Method + " " + path);
+            if (path == "Mira/home/password") HomeOn = Field("password") is not null;
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
+    }
+
     private static HttpResponseMessage Json(object value, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
 
     /// <summary>Artwork drawn by Avalonia: a tone per title and its name, in the requested shape.</summary>

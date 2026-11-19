@@ -139,17 +139,19 @@ public sealed class Profile
     /// Null when the key is there but cannot be read now (keychain locked, question declined) or cannot be kept: another
     /// one would sign the node out for nothing. May wait for the person after an update: never on the UI thread.
     /// </summary>
-    public byte[]? TailnetKey()
+    public byte[]? TailnetKey() => NodeKey(TailnetDirectory, TailnetFile, TailnetForget, TailnetTrusted, TailnetLabel);
+    /// <summary>The key of a node's state (<see cref="TailnetKey"/>, <see cref="HomeNodeKey"/>): its keychain entry, else its file, made the first time.</summary>
+    private byte[]? NodeKey(string directory, string fileName, string forget, string trusted, string label)
     {
         // Signed out while the keychain kept the old key: removed now, or never read again (a new key goes to the file).
         var keychain = _tokens;
-        if (keychain is not null && File.Exists(Marker(TailnetForget)))
+        if (keychain is not null && File.Exists(Marker(forget)))
         {
-            if (keychain.Delete(TailnetDirectory)) DeleteMarker(TailnetForget);
+            if (keychain.Delete(directory)) DeleteMarker(forget);
             else keychain = null;
         }
         // The file, when there, is the key the node uses: the keychain refused it. It moves there once the keychain takes it.
-        var file = Marker(TailnetFile);
+        var file = Marker(fileName);
         if (File.Exists(file))
         {
             byte[]? kept;
@@ -157,9 +159,9 @@ public sealed class Profile
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
             if (kept is not null)
             {
-                if (keychain?.Store(TailnetDirectory, Convert.ToBase64String(kept), TailnetLabel) == true)
+                if (keychain?.Store(directory, Convert.ToBase64String(kept), label) == true)
                 {
-                    WriteMarker(TailnetTrusted, Version);
+                    WriteMarker(trusted, Version);
                     try { File.Delete(file); }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
                 }
@@ -168,40 +170,41 @@ public sealed class Profile
         }
         else if (keychain is not null)
         {
-            var stored = keychain.Read(TailnetDirectory);
+            var stored = keychain.Read(directory);
             if (stored is null && !keychain.Missing) return null;
             if (Key(stored) is { } key)
             {
                 // Once per version, stored again by this copy, which the item then trusts, as the session's token.
-                if (ReadMarker(TailnetTrusted) != Version && keychain.Store(TailnetDirectory, stored!, TailnetLabel)) WriteMarker(TailnetTrusted, Version);
+                if (ReadMarker(trusted) != Version && keychain.Store(directory, stored!, label)) WriteMarker(trusted, Version);
                 return key;
             }
         }
         // None yet, or one that is not a key (damaged): a new one, and the node signs in again.
         var made = RandomNumberGenerator.GetBytes(32);
         var text = Convert.ToBase64String(made);
-        if (keychain?.Store(TailnetDirectory, text, TailnetLabel) == true)
+        if (keychain?.Store(directory, text, label) == true)
         {
-            WriteMarker(TailnetTrusted, Version);
+            WriteMarker(trusted, Version);
             // A damaged file left there would come first at the next start.
             try { File.Delete(file); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             return made;
         }
-        try { Write(TailnetFile, System.Text.Encoding.ASCII.GetBytes(text)); return made; }
+        try { Write(fileName, System.Text.Encoding.ASCII.GetBytes(text)); return made; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
     /// <summary>
     /// « Se déconnecter de Tailscale »: the node's key and state leave this Mac. A key the keychain keeps is removed at a
     /// later start, and never read again meanwhile. Not on the UI thread.
     /// </summary>
-    public void ForgetTailnet()
+    public void ForgetTailnet() => ForgetNode(TailnetDirectory, TailnetFile, TailnetForget, TailnetTrusted);
+    private void ForgetNode(string directory, string fileName, string forget, string trusted)
     {
-        if (_tokens is not null && !_tokens.Delete(TailnetDirectory)) WriteMarker(TailnetForget, "");
-        DeleteMarker(TailnetTrusted);
-        var file = Marker(TailnetFile);
+        if (_tokens is not null && !_tokens.Delete(directory)) WriteMarker(forget, "");
+        DeleteMarker(trusted);
+        var file = Marker(fileName);
         if (File.Exists(file)) File.Delete(file);
-        if (Directory.Exists(TailnetDirectory)) Directory.Delete(TailnetDirectory, recursive: true);
+        if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
     }
     private const string TailnetFile = "tailscale.key", TailnetForget = "tailscale-keychain-forget", TailnetTrusted = "tailscale-keychain-version", TailnetLabel = "Mira (Tailscale)";
     private static byte[]? Key(string? text)
@@ -209,6 +212,43 @@ public sealed class Profile
         var bytes = new byte[32];
         return Convert.TryFromBase64String(text?.Trim() ?? "", bytes, out var length) && length == bytes.Length ? bytes : null;
     }
+
+    // —— « Le foyer » ——
+    /// <summary>
+    /// This Mac in a home (where the home's Jellyfin is, its name, the profiles last read), in home.json of this macOS account
+    /// only, its home token in the keychain as the session's is (in the file only while the keychain refuses it). Null when it
+    /// is in none, or it cannot be read: it then joins again with the home's password. Not on the UI thread.
+    /// </summary>
+    public Mira.Core.Family.HomeMembership? LoadHome()
+    {
+        var path = Path.Combine(DirectoryPath, HomeFile);
+        if (!File.Exists(path)) return null;
+        Mira.Core.Family.HomeMembership? saved;
+        try { saved = JsonSerializer.Deserialize<Mira.Core.Family.HomeMembership>(File.ReadAllBytes(path), Json.Options); }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or NotSupportedException) { return null; }
+        if (saved is null || saved.Token.Length > 0) return saved;
+        return _tokens?.Read(HomeAccount) is { Length: > 0 } token ? saved with { Token = token } : null;
+    }
+    /// <summary>The home token in the keychain when it takes it; otherwise in the file with the rest. Not on the UI thread.</summary>
+    public void SaveHome(Mira.Core.Family.HomeMembership home)
+    {
+        var stored = _tokens?.Store(HomeAccount, home.Token) == true;
+        Write(HomeFile, JsonSerializer.SerializeToUtf8Bytes(stored ? home with { Token = "" } : home, Json.Options));
+    }
+    /// <summary>The device left the home: the file goes, and its token leaves the keychain. Not on the UI thread.</summary>
+    public void ClearHome()
+    {
+        _tokens?.Delete(HomeAccount);
+        var path = Path.Combine(DirectoryPath, HomeFile); if (File.Exists(path)) File.Delete(path);
+    }
+    /// <summary>The folder of the home's own Tailscale node (a home link's), apart from « Tailscale intégré »'s.</summary>
+    public string HomeNodeDirectory => Path.Combine(DirectoryPath, "home-tailscale");
+    /// <summary>The key of the home's node's state, kept as <see cref="TailnetKey"/> is for « Tailscale intégré ». Never on the UI thread.</summary>
+    public byte[]? HomeNodeKey() => NodeKey(HomeNodeDirectory, HomeNodeFile, HomeNodeForget, HomeNodeTrusted, HomeNodeLabel);
+    /// <summary>The device left the home: its node's key and state leave this Mac.</summary>
+    public void ForgetHomeNode() => ForgetNode(HomeNodeDirectory, HomeNodeFile, HomeNodeForget, HomeNodeTrusted);
+    private string HomeAccount => Path.Combine(DirectoryPath, "home");
+    private const string HomeFile = "home.json", HomeNodeFile = "home-tailscale.key", HomeNodeForget = "home-tailscale-keychain-forget", HomeNodeTrusted = "home-tailscale-keychain-version", HomeNodeLabel = "Mira (home)";
 
     /// <summary>True when settings.json exists but could not be read: the defaults are used instead, and replace it on the next save.</summary>
     public bool SettingsUnreadable { get; private set; }

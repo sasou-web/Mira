@@ -825,6 +825,37 @@ internal static class ConnectionTests
             Assert(profile.TailnetKey() is { Length: 32 } fourth && keychain.Tokens[account] == Convert.ToBase64String(fourth), "A damaged key was not replaced");
             return Task.CompletedTask;
         });
+        await Test("Mac : le foyer gardé sur ce Mac, son jeton dans le trousseau, la clé de son nœud à part de Tailscale intégré", () =>
+        {
+            var folder = Path.Combine(testRoot, "mac-home"); var keychain = new TokenStandIn();
+            var profile = new Mira.Mac.Services.Profile(folder, keychain); var file = Path.Combine(folder, "home.json");
+            var home = new Mira.Core.Family.HomeMembership
+            {
+                Server = "http://100.88.12.34:8096/", ServerId = "server-1", Name = "MAISON-PC", Token = "home-token-1", DeviceId = "mira-home-1", ThroughTailnet = true,
+                Profiles = [new("user-sam", "Sam", null, false), new("user-alex", "Alex", "tag", true)], Current = "user-sam",
+            };
+            Assert(profile.LoadHome() is null, "A home without having joined one");
+            profile.SaveHome(home);
+            Assert(File.Exists(file) && !File.ReadAllText(file).Contains("home-token-1") && keychain.Tokens.ContainsValue("home-token-1"), "Home token left in home.json while the keychain took it");
+            var read = profile.LoadHome();
+            Assert(read is { Token: "home-token-1", Current: "user-sam", ThroughTailnet: true } && read.Profiles.Count == 2 && read.Profiles[1].Pin, "Home not read back");
+            // The keychain refuses it: in the file, of this account only.
+            keychain.RefuseStore = true; profile.SaveHome(home with { Token = "home-token-2" }); keychain.RefuseStore = false;
+            Assert(File.ReadAllText(file).Contains("home-token-2") && profile.LoadHome()?.Token == "home-token-2", "Home token not kept in the file when the keychain refused it");
+            profile.SaveHome(home);
+            // Unreadable keychain: no home rather than one without its token (the password again).
+            keychain.Refuse = true;
+            Assert(profile.LoadHome() is null, "A home without its token");
+            keychain.Refuse = false;
+            // Its own node: another key than « Tailscale intégré »'s, gone when the Mac leaves the home.
+            var nodeKey = profile.HomeNodeKey(); var tailnetKey = profile.TailnetKey();
+            Assert(nodeKey is { Length: 32 } && tailnetKey is { Length: 32 } && !nodeKey.SequenceEqual(tailnetKey) && profile.HomeNodeKey()!.SequenceEqual(nodeKey), "The home's node shares Built-in Tailscale's key");
+            Directory.CreateDirectory(profile.HomeNodeDirectory); File.WriteAllText(Path.Combine(profile.HomeNodeDirectory, "state.bin"), "état");
+            profile.ForgetHomeNode(); profile.ClearHome();
+            Assert(!Directory.Exists(profile.HomeNodeDirectory) && profile.LoadHome() is null && !File.Exists(file) && !keychain.Tokens.ContainsValue("home-token-1"), "Home left on this Mac after leaving it");
+            Assert(profile.TailnetKey()!.SequenceEqual(tailnetKey!), "Leaving the home took Built-in Tailscale's key");
+            return Task.CompletedTask;
+        });
         await Test("Mac : un seul élément du trousseau pour la session et Tailscale intégré, repris des deux d’avant", () =>
         {
             var folder = Path.Combine(testRoot, "mac-vault"); var keychain = new TokenStandIn();

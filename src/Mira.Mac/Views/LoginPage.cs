@@ -117,6 +117,7 @@ public sealed class LoginPage : UserControl
     public Button PasswordEye => _eye;
     public bool PasswordShown => _password.RevealPassword;
     public bool CapsShown => _caps.IsVisible;
+    public void FocusServer() => _server.Focus();
     public void FocusPassword(string? text = null) { if (text is not null) _password.Text = text; _password.Focus(); ShowCaps(); }
 
     /// <summary>Fills the form and signs in, as a click on « Se connecter » would (the self-check).</summary>
@@ -154,7 +155,7 @@ public sealed class LoginPage : UserControl
         catch (Exception ex) when (Errors.Expected(ex) || ex is System.Net.Sockets.SocketException or System.Net.NetworkInformation.NetworkInformationException) { }
         if (version != _searchVersion) return;
         _servers = found; _noneFound = found.Count == 0;
-        if (found.Count > 0 && FieldFree) { UseServer(found[0]); RenderTailnet(); return; }
+        if (found.Count > 0 && FieldFree) { UseServer(found[0]); RenderTailnet(); _ = _shell.OfferHomeAsync(found[0]); return; }
         // Typed meanwhile: kept, with what was found beside it, and nothing said when nothing was.
         if (!FieldFree) { ShowFound(null); ShowChoices(null); RenderTailnet(); return; }
         ShowFound(ServerSearch.NoneFound(ThisMac)); ShowChoices(null); _searchAgain.IsVisible = true;

@@ -31,12 +31,13 @@ public sealed partial class SettingsPage
         ("privacy", L("Confidentialité", "Privacy"), "shield", L("Tout ce qui part sur le réseau, et comment l’arrêter.", "Everything that goes out on the network, and how to stop it.")),
         ("updates", L("Mises à jour", "Updates"), "refresh", L("La version de Mira et ses mises à jour.", "Mira’s version and its updates.")),
         ("report", L("Ton bilan", "Your recap"), "clock", L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices.")),
+        ("family", L("Foyer", "Home"), "tv", L("Un mot de passe pour la famille, chacun son profil, ici ou loin de chez toi.", "One password for the family, a profile each, at home or away.")),
         ("sharing", L("Amis & invités", "Friends & guests"), "users", L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
         ("care", L("Soin de la bibliothèque", "Library care"), "pencil", L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres.", "What keeps your library in shape: titles to fix, subtitles.")),
         ("jellyfin", L("Serveur Jellyfin", "Jellyfin server"), "server", L("Qui regarde quoi, et l’extension de Mira sur Jellyfin.", "Who is watching what, and Mira’s extension on Jellyfin.")),
     ];
     /// <summary>The sections only the server's owner has something in, listed under « Ton serveur ».</summary>
-    private static readonly string[] ServerTools = ["sharing", "care", "jellyfin"];
+    private static readonly string[] ServerTools = ["family", "sharing", "care", "jellyfin"];
     /// <summary>Aide's topics: the shortcuts and « Inviter un ami », shown in the window; the others open what they name.</summary>
     private static IReadOnlyList<(string Key, string Title, string Icon, bool Outside)> HelpTopics =>
     [
@@ -105,7 +106,7 @@ public sealed partial class SettingsPage
             button.Click += (_, _) => { if (!Again(key is "keys" or "friend" && HelpTopic == key)) OpenTopic(key); };
             _helpButtons[key] = button; _helpList.Children.Add(button);
         }
-        // « Amis & invités », « Soin de la bibliothèque » and « Serveur Jellyfin » hold only what an administrator sees:
+        // « Foyer », « Amis & invités », « Soin de la bibliothèque » and « Serveur Jellyfin » hold only what an administrator sees:
         // listed while one of their sections shows, and « Ton serveur » with them. « Serveur Jellyfin » for any
         // administrator: who watches what is asked only while it shows.
         void Listed()

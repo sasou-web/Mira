@@ -274,7 +274,8 @@ public sealed partial class MainWindow : Window
         _accountRail.Content = new Grid { Width = 29, Height = 29, Children = { new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3F3F3F"), Child = _avatar }, _avatarPhoto } };
         ToolTip.SetTip(_accountRail, L("Compte Jellyfin", "Jellyfin account"));
         Avalonia.Automation.AutomationProperties.SetName(_accountRail, L("Compte Jellyfin", "Jellyfin account"));
-        _accountRail.Click += (_, _) => OpenAccount();
+        // In a home, its profiles first (MainWindow.Family.cs): the quick switch of C.
+        _accountRail.Click += (_, _) => AccountClicked();
         // Its count of accounts in a corner, as the title page's « En groupe · 2 personnes ».
         _groupRail.Classes.Add("rail"); Avalonia.Automation.AutomationProperties.SetName(_groupRail, L("Groupe", "Group"));
         _groupRail.Content = new Grid
@@ -415,7 +416,9 @@ public sealed partial class MainWindow : Window
         await Tailnet.StartWithMiraAsync();
         // Off the interface thread: after an update, macOS may ask before Mira reads its keychain.
         // The black, the mark and « mira » until the Home page is drawn, then the mark glides to the rail (MainWindow.Opening.cs).
-        if (await Task.Run(Profile.LoadConnection) is { } connection) { var activating = ActivateAsync(connection); await OpenWhenReadyAsync(activating); await activating; }
+        // In a home: « Who's watching? » before anything of an account (the profile chosen opens its session).
+        if (await OpenHomeAtStartAsync()) await OpenAsync();
+        else if (await Task.Run(Profile.LoadConnection) is { } connection) { var activating = ActivateAsync(connection); await OpenWhenReadyAsync(activating); await activating; }
         else { ShowLogin(); await OpenAsync(); }
         if (tailnetCheck is not null) { await tailnetCheck.RunAsync(); return; }
         // Once, beside what the opening already said (a cache recreated) rather than in its place.
@@ -591,6 +594,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     public void OpenLink(string text)
     {
+        // A home link (mira://home#…): the home's card, its password asked (MainWindow.Family.cs).
+        if (Mira.Core.Family.HomeLink.IsHomeLink(text)) { OpenHomeLink(text); return; }
         if (Together.ParseAppLink(text) is not { } invite) { Notice(L("Mira ne sait pas ouvrir ce lien.", "Mira can’t open this link.")); return; }
         _inviteWait?.Cancel(); _inviteWait = null;
         _invite = invite;
@@ -1254,6 +1259,8 @@ public sealed partial class MainWindow : Window
         if (command && e.Source is not TextBox && ZoomKey(e)) { e.Handled = true; return; }
         if (command && e.Key is Key.F or Key.K) { if (Current is SettingsPage sheet) sheet.FocusSearch(); else NavigateRoot("search"); e.Handled = true; return; }
         if (command && e.Key == Key.OemComma) { NavigateRoot("settings"); e.Handled = true; return; }
+        // ⌘P: the home's profiles, as Ctrl+P on Windows.
+        if (command && e.Key == Key.P && FamilyShortcut()) { e.Handled = true; return; }
         // On a Mac the Go menu has them (macOS gives it the keys): here, for the keys it does not take.
         if (command && RailKey(e.Key) is { } rail) { GoFromMenu(rail); e.Handled = true; return; }
         // I brings the mini-player back over the window, as on Windows; never while typing.
@@ -1307,6 +1314,8 @@ public sealed partial class MainWindow : Window
             await AttemptAsync(CloseSessionAsync);
             // After the last reports to Jellyfin, which may go through it.
             await AttemptAsync(Tailnet.DisposeAsync);
+            // The home's own node too (its state kept for the next start).
+            if (_homeNode is { } homeNode) await AttemptAsync(async () => await homeNode.DisposeAsync());
         }
     }
     private void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }
