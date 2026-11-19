@@ -128,6 +128,10 @@ internal static class LibraryTests
             empty = catalog.Empty("", new CatalogQuery(), demo: false);
             Assert(empty.Icon == "folder" && empty.Guide && !empty.Reset && catalog.Items.Count == 0 && catalog.RecentPlayback.Count == 0, "Bibliothèque vide : le guide.");
             Assert(!catalog.Empty("", new CatalogQuery(), demo: true).Guide && catalog.Empty("zz", new CatalogQuery(), false).Title == "Aucun résultat pour « zz »", "Démo et recherche.");
+            catalog.Silent = true;
+            Assert(catalog.Empty("zz", new CatalogQuery(), false) is { Icon: "server", Guide: false } && catalog.Empty("", new CatalogQuery(), false).Title == "Jellyfin n’a pas donné cette liste", "Sans réponse : ni « aucun résultat » ni « bibliothèque vide ».");
+            catalog.Receive(new ItemsResult(), false);
+            Assert(!catalog.Silent, "Une liste reçue efface « sans réponse ».");
 
             catalog.View = "Movie";
             catalog.ShowDemo([Film("b2", position: 500) with { Name = "Bravo" }, Film("a2") with { Name = "Alpha" }, new MediaItem { Id = "s", Name = "Série", Type = "Series" }], "", new CatalogQuery(Sort: "title"));

@@ -404,7 +404,7 @@ public partial class MainWindow : Window
         _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); _choicesSoon.Stop(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _downloadsKnownFor = null; ShowDownloadsEntry(_torlinkEnabled); SetPhoto(null); _images = null; _store = null; _listening = false;
-        _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _homeLibraries = []; _pages.Clear();
+        _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _catalog.Shown = null; _homeLibraries = []; _pages.Clear();
         // Another account, the demo or none: this one's offline state is not theirs.
         _offlineShown = false; OfflineBadge.Visibility = Visibility.Collapsed;
     }
@@ -530,7 +530,7 @@ public partial class MainWindow : Window
             }), CancellationToken.None);
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return false;
             if (grouping is not null) { _catalog.Grouping = await grouping; if (version != _viewVersion) return false; }
-            _catalog.Receive(result, more, search);
+            _catalog.Receive(result, more, search); _catalog.Shown = key;
             if (!more) (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = (found, foundStudios, foundEpisodes, foundSagas);
             if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? []).Concat(playedLately)); }
             _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; _refreshErrorSaid = null; RenderLibrary(grow: more);
@@ -558,7 +558,14 @@ public partial class MainWindow : Window
             {
                 var cached = more ? null : await Task.Run(() => TryCache(() => { var page = store.Load<ItemsResult>(home ? "home" : key); if (page is not null) TryCache(() => store.ApplyLocalProgress(page.Items)); return page; }));
                 if (version != _viewVersion) return false;
-                if (cached is not null) _catalog.Receive(cached, false, home ? "" : search);
+                if (cached is not null) { _catalog.Receive(cached, false, home ? "" : search); _catalog.Shown = key; }
+                else if (!more && !quiet && _catalog.Shown != key)
+                {
+                    // Another list asked (a search, a filter, a page) and none came: never its title above the cards of the
+                    // one before (« Résultats pour « Alien » » over Dune), nor « Ta bibliothèque est vide ».
+                    _catalog.Receive(new ItemsResult(), false, home ? "" : search); (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = ([], [], [], []);
+                    _catalog.Silent = true; _catalog.Shown = key;
+                }
                 // Jellyfin answered, with an error (a 500 for one row, a page it could not read): said, but never « Hors
                 // connexion » nor « ne répond pas », as on Mac (MainWindow.Unanswered.cs). Said once, not at each try.
                 if (!Unanswered(ex))

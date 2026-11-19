@@ -284,6 +284,10 @@ public partial class MainWindow
             if (tag is not ("whatsnew" or "online")) first ??= button;
         }
         GuideMoreLabel.Visibility = more ? Visibility.Visible : Visibility.Collapsed;
+        // Nothing found: said, rather than an empty column.
+        var none = query.Length > 0 && !GuideNavigation.Children.OfType<Button>().Any(x => x.Visibility == Visibility.Visible);
+        GuideNoResult.Text = none ? L($"Rien dans l’aide pour « {query} ».", $"Nothing in help for “{query}”.") : "";
+        GuideNoResult.Visibility = none ? Visibility.Visible : Visibility.Collapsed;
         // The page shown follows the search while it speaks of something else.
         if (query.Length > 0 && first is not null && GuideNavigation.Children.OfType<Button>().FirstOrDefault(x => x.Tag?.ToString() == _guideTopic)?.Visibility != Visibility.Visible)
             SelectGuideTopic(first.Tag?.ToString() ?? "start", animate: false);
