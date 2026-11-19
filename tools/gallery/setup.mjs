@@ -119,23 +119,39 @@ if (portrait) {
   } catch (error) { console.log(`::warning::No photo for ${user}: ${error.message}`); }
 }
 
-// For a release's banner (MIRA_GALLERY_FAMILY=1): the home's profiles, four accounts with a photo each, a square from
-// the middle of a poster of the library. Mira for Windows turns the home on and offers them (windows-family).
+// For a release's banner (MIRA_GALLERY_FAMILY=1): the home's profiles, four accounts with a real profile picture each,
+// portraits from Unsplash (free to use, https://unsplash.com/license), cropped square on the face; a square from the
+// middle of a poster of the library when one cannot be fetched. Mira for Windows turns the home on and offers them
+// (windows-family). Only the gallery's runner fetches them: nothing of Mira itself.
 if (process.env.MIRA_GALLERY_FAMILY === '1') {
   const users = await call('GET', 'Users', { token });
-  for (const [name, film] of [['Alex', /Kiki/i], ['Sam', /Coco/i], ['Lou', /Klaus/i], ['Noa', /^Flow/i]]) {
+  const portrait = (id) => `https://images.unsplash.com/photo-${id}?w=400&h=400&fit=crop&crop=faces&fm=jpg&q=85`;
+  for (const [name, photo, film] of [
+    ['Alex', '1494790108377-be9c29b29330', /Kiki/i],
+    ['Sam', '1507003211169-0a1dd7228f2d', /Coco/i],
+    ['Lou', '1438761681033-6461ffad8d80', /Klaus/i],
+    ['Noa', '1500648767791-00dcc994a43e', /^Flow/i],
+  ]) {
     const account = users.find((x) => x.Name === name) ?? await call('POST', 'Users/New', { token, body: { Name: name, Password: 'mira-gallery-profile' } });
-    const poster = items.find((x) => x.Type === 'Movie' && film.test(x.Name ?? '') && x.ImageTags?.Primary);
-    if (!poster) { console.log(`::warning::No poster for ${name}`); continue; }
+    let bytes = null, from = 'Unsplash';
     try {
-      const picture = await fetch(`${base}/Items/${poster.Id}/Images/Primary?fillWidth=400&fillHeight=400&quality=90`, { headers: { Authorization: authorization(token) } });
-      if (!picture.ok) throw new Error(`poster: ${picture.status}`);
-      const sent = await fetch(`${base}/Users/${account.Id}/Images/Primary`, {
-        method: 'POST', headers: { Authorization: authorization(token), 'Content-Type': 'image/jpeg' }, body: Buffer.from(await picture.arrayBuffer()).toString('base64'),
-      });
-      if (!sent.ok) throw new Error(`photo: ${sent.status} ${(await sent.text()).slice(0, 200)}`);
-      console.log(`Profile ${name}: « ${poster.Name} »`);
-    } catch (error) { console.log(`::warning::No photo for ${name}: ${error.message}`); }
+      const picture = await fetch(portrait(photo));
+      if (!picture.ok || !/image\//.test(picture.headers.get('content-type') ?? '')) throw new Error(`${picture.status}`);
+      bytes = Buffer.from(await picture.arrayBuffer());
+    } catch (error) {
+      console.log(`::warning::No portrait for ${name} (${error.message}): a poster instead`);
+      const poster = items.find((x) => x.Type === 'Movie' && film.test(x.Name ?? '') && x.ImageTags?.Primary);
+      if (poster) {
+        const picture = await fetch(`${base}/Items/${poster.Id}/Images/Primary?fillWidth=400&fillHeight=400&quality=90`, { headers: { Authorization: authorization(token) } });
+        if (picture.ok) { bytes = Buffer.from(await picture.arrayBuffer()); from = `« ${poster.Name} »`; }
+      }
+    }
+    if (!bytes) { console.log(`::warning::No photo for ${name}`); continue; }
+    const sent = await fetch(`${base}/Users/${account.Id}/Images/Primary`, {
+      method: 'POST', headers: { Authorization: authorization(token), 'Content-Type': 'image/jpeg' }, body: bytes.toString('base64'),
+    });
+    if (!sent.ok) console.log(`::warning::No photo for ${name}: ${sent.status} ${(await sent.text()).slice(0, 200)}`);
+    else console.log(`Profile ${name}: ${from}`);
   }
 }
 
