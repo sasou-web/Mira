@@ -273,6 +273,25 @@ await part('party', async () => {
       && Object.values(direct).every((s) => s === 404),
     `film ${JSON.stringify(asFilm)} ; épisode ${JSON.stringify(asEpisode)} ; sans la passerelle ${JSON.stringify(direct)}`);
 
+  // The guest's session written as Jellyfin reads it but not as it is (a letter URL-encoded, a space before « = », an
+  // empty value first), or in its other places: still the guest's for Jellyfin, so still a 404 outside the gateway.
+  const encoded = `%${guest.charCodeAt(0).toString(16)}${guest.slice(1)}`;
+  const disguised = guest ? [
+    { Authorization: `MediaBrowser Client="Mira check", Device="check", DeviceId="check-guest-phone-01", Version="1", Token="${encoded}"` },
+    { Authorization: `MediaBrowser Client="Mira check", DeviceId="check-guest-phone-01", Token ="${guest}"` },
+    { Authorization: `MediaBrowser Client="Mira check", DeviceId="check-guest-phone-01", Token=,"${guest}"` },
+    { 'X-Emby-Authorization': `MediaBrowser Client="Mira check", DeviceId="check-guest-phone-01", Token="${encoded}"` },
+    { 'X-Emby-Token': guest }, { 'X-MediaBrowser-Token': guest }, 'ApiKey', 'api_key',
+  ] : [];
+  const sneaked = [];
+  for (const way of disguised) {
+    const query = typeof way === 'string' ? `&${way}=${guest}` : '';
+    const response = await fetch(`${base}/Items?userId=${uid}&recursive=true${query}`, { headers: typeof way === 'string' ? {} : way, redirect: 'manual' });
+    sneaked.push(response.status);
+  }
+  check('party : la séance de l’invité, encodée, espacée ou ailleurs qu’à sa place, toujours refusée hors de la passerelle',
+    disguised.length > 0 && sneaked.every((s) => s === 404), sneaked.join(', '));
+
   // Through Funnel, nothing but the party's page and the gateway: not Jellyfin, not the extension's other parts, not
   // even by a path that Jellyfin's server reads back to its own (« /Mira/%2e%2e/… »), and no WebSocket of another session.
   const outside = [];

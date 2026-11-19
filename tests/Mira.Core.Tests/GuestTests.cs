@@ -31,6 +31,46 @@ internal static class GuestTests
             Assert(!home.Everywhere && home.Said == "À la maison.", "À la maison");
             return Task.CompletedTask;
         });
+        await Test("Inviter par lien : le jeton d’un invité lu comme Jellyfin le lit, encodé, espacé, partout où il le lit", () =>
+        {
+            // AuthorizationContext of Jellyfin 10.9.11, 10.10.7 and 12.x: name trimmed, value URL-decoded, an empty value
+            // keeping the name for the next one. Each of these is the guest's session for Jellyfin: TunnelGuard must see it.
+            const string token = "ab0123456789abcdef0123456789abcd";
+            static List<string> Read(Dictionary<string, string?[]> headers, Dictionary<string, string?[]>? query = null)
+            {
+                var h = new Dictionary<string, string?[]>(headers, StringComparer.OrdinalIgnoreCase);
+                var q = new Dictionary<string, string?[]>(query ?? [], StringComparer.OrdinalIgnoreCase);
+                return [.. SessionTokens.Of(name => h.TryGetValue(name, out var v) ? v : [], name => q.TryGetValue(name, out var v) ? v : []).Distinct(StringComparer.Ordinal)];
+            }
+
+            var disguised = new (string Header, string Value)[]
+            {
+                ("Authorization", "MediaBrowser Token=\"%61b0123456789abcdef0123456789abcd\""),
+                ("Authorization", "MediaBrowser Token =\"" + token + "\""),
+                ("Authorization", "MediaBrowser Client=\"Mira\", Token=,\"" + token + "\""),
+                ("Authorization", "MediaBrowser Client=\"Mira\",Token\t=%61%62" + token[2..]),
+                ("authorization", "mediabrowser DeviceId=\"x\", Token=\"" + token[..30] + "%63%64\""),
+                ("X-Emby-Authorization", "Emby Device=\"x\", Token =\"%61b" + token[2..] + "\""),
+            };
+            foreach (var (header, value) in disguised)
+            {
+                Assert(Read(new() { [header] = [value] }).Contains(token), $"{header}: {value}");
+            }
+
+            Assert(Read(new() { ["Authorization"] = ["MediaBrowser Client=\"Mira\"", "MediaBrowser Token=\"%61b" + token[2..] + "\""] }).Contains(token), "le deuxième en-tête Authorization aussi");
+            Assert(Read(new() { ["x-emby-token"] = [token] }).Contains(token) && Read(new() { ["X-MediaBrowser-Token"] = [token] }).Contains(token), "X-Emby-Token, X-MediaBrowser-Token");
+            Assert(Read([], new() { ["apikey"] = [token] }).Contains(token) && Read([], new() { ["API_KEY"] = [token] }).Contains(token), "ApiKey, api_key dans la requête");
+            Assert(Read([], new() { ["ApiKey"] = ["x", "y"] }).Contains("x,y"), "deux valeurs jointes par une virgule, comme Jellyfin les lit");
+
+            // An app's own header: its one token, whatever the other parts say (the gateway wants exactly one).
+            var app = Read(new() { ["Authorization"] = ["MediaBrowser Client=\"Mira\", Device=\"T%C3%A9l%C3%A9phone de L%C3%A9a\", DeviceId=\"d\", Version=\"1\", Token=\"" + token + "\""] });
+            Assert(app.SequenceEqual([token]), $"en-tête d’une app : {string.Join(" | ", app)}");
+            Assert(Read(new() { ["Authorization"] = ["MediaBrowser Client=\"Mira\""] }).Count == 0, "sans jeton : aucun");
+
+            var parts = SessionTokens.Parts("Client=\"a,b\", Device=\"T%C3%A9l+1\", Token=").ToList();
+            Assert(parts.SequenceEqual([("Client", "a,b"), ("Device", "Tél 1")]), $"parties : {string.Join(" | ", parts)}");
+            return Task.CompletedTask;
+        });
         await Test("Inviter par lien : la passerelle ne laisse passer que la séance", () =>
         {
             static GuestRoutes.Access For(string method, string path, string? seriesId = null, string? size = null) =>
