@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The checks of the extension (web.yml), never shipped: every method of the plugin compiled by the JIT against one
+    Jellyfin's own assemblies, as Jellyfin will. The plugin is built against Jellyfin.Controller 10.9.11; a member that
+    a newer Jellyfin removed or changed (a return type is part of the signature) fails only when the method calling it
+    first runs, sometimes hours after start (TvdbOrders, every 10 minutes, and only with TheTVDB's plugin): here at once.
+      Usage: mira-bindings (Jellyfin folder) (plugin.dll)...
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>mira-bindings</AssemblyName>
+    <!-- Jellyfin 10.9 and 10.10 ran on .NET 8: their assemblies load all the same in the newest runtime. -->
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+</Project>
