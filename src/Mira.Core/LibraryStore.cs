@@ -272,6 +272,7 @@ public sealed class LibraryStore
     }
     public void RememberPlayback(MediaItem item)
     {
+        if (!ContinueWatching.Counts(item)) return;
         lock (_gate)
         {
             var history = ContinueWatching.History(RecentPlayback().Append(item)); Save("recent-playback", history);

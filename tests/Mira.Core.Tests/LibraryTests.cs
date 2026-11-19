@@ -211,6 +211,22 @@ internal static class LibraryTests
             Assert(list.Count == 2 && list[0].Id == "again", "Watched again and left halfway (still watched on Jellyfin 12): in « Continuer à regarder »");
             return Task.CompletedTask;
         });
+        await Test("Continuer à regarder : jamais un bonus (génériques d’un dossier Extras, bande-annonce)", () =>
+        {
+            var night = new DateTimeOffset(2026, 11, 19, 4, 0, 0, TimeSpan.Zero);
+            MediaItem Video(string id, string type, string? extra, DateTimeOffset at) => new() { Id = id, Type = type, ExtraType = extra, RunTimeTicks = 1000, UserData = new() { PlaybackPositionTicks = 300, LastPlayedDate = at } };
+            // Seen on Jellyfin 12.4 (Monogatari): an opening of the series' Extras folder left halfway, in UserItems/Resume.
+            var opening = Video("ncop", "Video", "Unknown", night); var trailer = Video("trailer", "Trailer", "Trailer", night.AddMinutes(10));
+            var featurette = Video("featurette", "Movie", "Featurette", night.AddMinutes(20)); var film = Video("film", "Movie", null, night.AddDays(-1));
+            var row = ContinueWatching.Order([opening, trailer, featurette, film], [], [opening, trailer, featurette, film]);
+            Assert(row.Select(x => x.Id).SequenceEqual(["film"]), "Bonus in the row: " + string.Join(", ", row.Select(x => x.Id)));
+            Assert(ContinueWatching.History([opening, film]).Single().Id == "film", "A bonus in the recent list");
+            var catalog = new Catalog(); catalog.Remember(opening);
+            Assert(catalog.Resume.Count == 0 && catalog.RecentPlayback.Count == 0 && catalog.ContinueRow().Count == 0, "The bonus playing put first in the row");
+            catalog.Remember(film);
+            Assert(catalog.ContinueRow().Single().Id == "film", "A film playing: first in the row");
+            return Task.CompletedTask;
+        });
         await Test("Continuer à regarder : un épisode laissé en cours puis dépassé cède la place au suivant", () =>
         {
             var night = new DateTimeOffset(2026, 11, 11, 20, 0, 0, TimeSpan.Zero);

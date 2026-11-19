@@ -70,6 +70,9 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var shelf: [Item]?
 
     var isEpisode: Bool { type == "Episode" }
+    /// A film or an episode, never a bonus (a series' openings of its Extras folder, a trailer): only these are picked up
+    /// in Continue watching (Counts of Core's ContinueWatching; Jellyfin keeps a bonus left halfway in UserItems/Resume).
+    var counts: Bool { (type == "Movie" || type == "Episode") && (extraType ?? "").isEmpty }
     var isSeries: Bool { type == "Series" }
     /// The title's own file among its versions (MediaSource.own); nil without its files.
     var ownSource: MediaSource? { MediaSource.own(mediaSources, of: id) }
