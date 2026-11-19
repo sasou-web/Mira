@@ -132,6 +132,7 @@ public partial class MainWindow
         stack.Children.Add(new TextBlock { Text = profile.Id == home.Current ? HomeText.ThisDevice : " ", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Palette.Get("Faint"), Margin = new Thickness(0, 4, 0, 0) });
         var button = new Button { Content = stack, Tag = profile, Padding = new Thickness(0), Margin = new Thickness(14, 0, 14, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), FocusVisualStyle = null, Cursor = Cursors.Hand };
         button.Template = BareButton();
+        Accessible.SetOwnFocusRing(button, true);
         AutomationProperties.SetName(button, profile.Pin ? L($"{profile.Name}, avec un code", $"{profile.Name}, with a PIN") : profile.Name);
         void Lit() { var on = button.IsKeyboardFocused || button.IsMouseOver; ring.BorderBrush = on ? Palette.Get("Text") : Brushes.Transparent; ((TextBlock)name.Children[0]).Foreground = Palette.Get(on ? "Text" : "TextBody"); }
         button.GotKeyboardFocus += (_, _) => Lit(); button.LostKeyboardFocus += (_, _) => Lit(); button.MouseEnter += (_, _) => Lit(); button.MouseLeave += (_, _) => Lit();
