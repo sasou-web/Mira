@@ -87,7 +87,7 @@ public sealed class MediaCard : Button
         var root = new StackPanel { Background = Brushes.Transparent };
         _visual = new Grid { Background = Palette.Get("Raised"), ClipToBounds = true };
         var placeholder = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20) };
-        placeholder.Children.Add(new Icon { Kind = wide ? "play" : "film", Width = 30, Height = 30, Foreground = new SolidColorBrush(Color.FromRgb(78, 78, 87)), Margin = new Thickness(0, 0, 0, 15) });
+        placeholder.Children.Add(new Icon { Kind = wide ? "play" : "film", Width = 30, Height = 30, Foreground = new SolidColorBrush(Color.FromRgb(80, 80, 80)), Margin = new Thickness(0, 0, 0, 15) });
         placeholder.Children.Add(new TextBlock { Text = item.DisplayTitle, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = Palette.Get("Faint"), FontSize = 13 });
         _visual.Children.Add(placeholder);
         // Jellyfin's BlurHash of the image, until the image itself fades in over it (as on Mira web and the iPhone).
@@ -133,7 +133,7 @@ public sealed class MediaCard : Button
             _hover.Children.Add(new Border { Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(90, 0, 0, 0), 90) });
             _hover.Children.Add(new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), Background = Palette.Get("Accent"), Child = new Icon { Kind = "play", Width = 19, Height = 19, Foreground = Brushes.Black } });
         }
-        _hover.Children.Add(new Squircle { BorderBrush = new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(PosterRadius) });
+        _hover.Children.Add(new Squircle { BorderBrush = new SolidColorBrush(Color.FromArgb(235, 245, 245, 245)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(PosterRadius) });
         _visual.Children.Add(_hover);
         FocusVisualStyle = null; Accessible.SetOwnFocusRing(this, true); // the ring above is the focus indicator
         MouseEnter += (_, _) => HoverEntered?.Invoke(this);
