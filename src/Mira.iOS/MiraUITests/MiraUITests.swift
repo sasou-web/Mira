@@ -966,7 +966,7 @@ final class MiraUITests: XCTestCase {
         let leave = app.buttons["switch.leave"]
         XCTAssertTrue(leave.waitForExistence(timeout: 10), "The switch sheet has no Leave this home")
         leave.tap()
-        let confirm = app.buttons["switch.leave.confirm"]
+        let confirm = app.buttons.matching(identifier: "switch.leave.confirm").firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Leaving is not asked first")
         confirm.tap()
         XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 20), "Leaving the home did not bring the sign-in back")
