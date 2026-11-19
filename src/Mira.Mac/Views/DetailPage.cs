@@ -1122,6 +1122,8 @@ public sealed partial class DetailPage : Page
         var picture = new Border { CornerRadius = new CornerRadius(10), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), ClipToBounds = true, Child = inside };
         var button = new Button { Content = picture, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top };
         var text = line.Kind == ShelfKind.Later ? EpisodeShelf.LaterText(line.Episodes, today) : EpisodeShelf.MissingText(line.Episodes, today);
+        // A single episode: its name is said too, as it shows on the tile.
+        if (!EpisodeShelf.Opens(line.Episodes) && line.First.Name.Length > 0) text += " · " + line.First.Name;
         Avalonia.Automation.AutomationProperties.SetName(button, text);
         if (EpisodeShelf.Opens(line.Episodes)) { Avalonia.Automation.AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open)); button.Click += (_, _) => Toggle(key); }
         return Tile(button, picture);
