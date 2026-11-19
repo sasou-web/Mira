@@ -1571,7 +1571,11 @@ internal static class LibraryTests
             {
                 var code = x.GetString()!; var season = Int(code[1..code.IndexOf('E')]); var span = code[(code.IndexOf('E') + 1)..].Split('-');
                 return Enumerable.Range(Int(span[0]), (span.Length > 1 ? Int(span[1]) : Int(span[0])) - Int(span[0]) + 1)
-                    .Select(n => new MediaItem { Id = $"{kind}-{season}-{n}", Type = "Episode", LocationType = kind == "v" ? "Virtual" : "FileSystem", ParentIndexNumber = season, IndexNumber = n, Name = kind == "n" ? "A title" : "" });
+                    .Select(n => new MediaItem
+                    {
+                        Id = $"{kind}-{season}-{n}", Type = "Episode", LocationType = kind is "v" or "c" ? "Virtual" : "FileSystem", ParentIndexNumber = season, IndexNumber = n, Name = kind == "n" ? "A title" : "",
+                        PremiereDate = kind == "c" ? new DateTimeOffset(2999, 1, 1, 0, 0, 0, TimeSpan.Zero) : null
+                    });
             }).ToList();
             static string Codes(IEnumerable<MediaItem> items) => string.Join(",", items.OrderBy(x => x.ParentIndexNumber).ThenBy(x => x.IndexNumber).Select(x => $"S{x.ParentIndexNumber}E{x.IndexNumber}"));
             foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
@@ -1583,7 +1587,7 @@ internal static class LibraryTests
                     var code = x.GetString()!; var span = code[(code.IndexOf('E') + 1)..].Split('-');
                     return new MediaItem { Id = "d-" + code, Type = "Episode", LocationType = "FileSystem", ParentIndexNumber = Int(code[1..code.IndexOf('E')]), IndexNumber = Int(span[0]), IndexNumberEnd = Int(span[^1]) };
                 }).ToList() : [];
-                var held = Expand(row.GetProperty("held"), "h").Concat(Optional(row, "heldNamed", "n")).Concat(doubles).ToList(); var virtuals = Expand(row.GetProperty("virtual"), "v");
+                var held = Expand(row.GetProperty("held"), "h").Concat(Optional(row, "heldNamed", "n")).Concat(doubles).ToList(); var virtuals = Expand(row.GetProperty("virtual"), "v").Concat(Optional(row, "virtualComing", "c")).ToList();
                 var seasonal = Codes(AbsoluteNumbers.Seasonal(held, virtuals)); var unheld = Codes(AbsoluteNumbers.Unheld(virtuals, held));
                 Assert(seasonal == Codes(Expand(row.GetProperty("seasonal"), "x")), $"{name}: seasonal {seasonal}");
                 Assert(unheld == Codes(Expand(row.GetProperty("unheld"), "x")), $"{name}: unheld {unheld}");
@@ -1594,7 +1598,7 @@ internal static class LibraryTests
                 var held = row.GetProperty("held").EnumerateArray().Select(x =>
                 {
                     var code = x[0].GetString()!; var season = Int(code[1..code.IndexOf('E')]); var span = code[(code.IndexOf('E') + 1)..].Split('-');
-                    return new MediaItem { Id = code, Type = "Episode", ParentIndexNumber = season, IndexNumber = Int(span[0]), IndexNumberEnd = span.Length > 1 ? Int(span[1]) : null, Path = x[1].GetString() };
+                    return new MediaItem { Id = code, Type = "Episode", ParentIndexNumber = season, IndexNumber = Int(span[0]), IndexNumberEnd = span.Length > 1 ? Int(span[1]) : null, Path = x[1].GetString(), Name = x.GetArrayLength() > 2 ? x[2].GetString()! : "" };
                 }).ToList();
                 var exists = row.GetProperty("exists").EnumerateArray().Select(x => x.GetString()!).ToHashSet();
                 var renames = AbsoluteNumbers.Renames(row.GetProperty("placed").EnumerateArray().Select(x => x.GetString()!), held, Expand(row.GetProperty("virtual"), "v"), exists.Contains);

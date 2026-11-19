@@ -177,7 +177,7 @@ public sealed class TorLinkPlacement : IDisposable
 
     /// <summary>
     /// Episodes placed under a number from the series' start (« Season 02/Show - S02E26 », a pack numbered 1 to 89 across
-    /// four seasons) renamed to their season's number (« S02E01 », <see cref="AbsoluteNumbers"/>) once Jellyfin lists
+    /// four seasons) renamed to their season's number (« S02E01 », <see cref="AbsoluteNumbers"/>), or past their season's end into the next (« Season 1-2 » numbered 1 to 37: « Season 01/S01E26 » → « Season 02/S02E01 ») once Jellyfin lists
     /// them and TheTVDB's extension knows the seasons: Jellyfin then finds their names and pictures, and the missing
     /// episodes are only those missing (ogsas, 2026-11-18). Only the files Mira placed, named as Mira names them, of a
     /// download of the last two weeks (the one placed before this version too); never an episode watched or started (Jellyfin's ids follow the file's path),
@@ -217,6 +217,11 @@ public sealed class TorLinkPlacement : IDisposable
                 var placed = entry.Files.Where(f => !f.Found).Select(f => f.Destination).ToList();
                 var renames = await Task.Run(() => AbsoluteNumbers.Renames(placed, held, known, File.Exists), token);
                 var moving = renames.Select(x => x.From).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                // Nothing to rename while TheTVDB hasn't described every episode placed (a season's length is read from them,
+                // « Season 1-2 » numbered 1 to 37 in season 1): looked at again ten minutes later, for a day at most.
+                if (renames.Count == 0 && now - entry.CompletedAt < TimeSpan.FromDays(1)
+                    && held.Any(x => x.Path is { } path && placed.Contains(path, StringComparer.OrdinalIgnoreCase) && !AbsoluteNumbers.Described(x)))
+                    continue;
                 if (renames.Count == 0 || held.Any(x => x.Path is { } path && moving.Contains(path) && (x.UserData.Played || x.UserData.PlaybackPositionTicks > 0)))
                 {
                     Importer.MarkNumbersChecked(entry.Id);
@@ -255,7 +260,12 @@ public sealed class TorLinkPlacement : IDisposable
         var done = new List<(string From, string To)>();
         try
         {
-            foreach (var (from, to) in renames) { File.Move(from, to); done.Add((from, to)); }
+            foreach (var (from, to) in renames)
+            {
+                // Into another season's folder, made when it isn't there yet.
+                if (Path.GetDirectoryName(to) is { Length: > 0 } folder) Directory.CreateDirectory(folder);
+                File.Move(from, to); done.Add((from, to));
+            }
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
