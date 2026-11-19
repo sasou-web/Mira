@@ -44,7 +44,6 @@ public sealed class PartyController : ControllerBase
 
     private async Task<IActionResult> HostAsync(bool again, CancellationToken cancellationToken)
     {
-        GuestCleanup.Wake(_clients, _host, Request.PathBase);
         var session = GuestAccounts.SessionOf(Request);
         using var client = _clients.CreateClient();
         var (status, text) = await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Get, "Users/Me", session, null, cancellationToken).ConfigureAwait(false);

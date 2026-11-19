@@ -8,7 +8,9 @@ namespace Mira.Jellyfin;
 /// « Inviter par lien »: what a guest's page may ask of Jellyfin through <see cref="GuestController"/>, and how its
 /// answers are made to come back there. A closed list: the title the group plays, its pictures, streams and
 /// subtitles, the playback reports, the clock, and SyncPlay without the queue (the host chooses the titles). Nothing
-/// lists the library, searches it, or reads another account; any other path is a 404. Free of ASP.NET, for the tests.
+/// lists the library, searches it, or reads another account; any other path is a 404. A route that names a title
+/// (<see cref="Access.Title"/>) passes only for the title of the guest's group (<see cref="InParty"/>, with its series
+/// and every episode of it). Free of ASP.NET, for the tests.
 /// </summary>
 public static partial class GuestRoutes
 {
@@ -23,6 +25,11 @@ public static partial class GuestRoutes
         Public,
         /// <summary>The guest's session, passed on as it is.</summary>
         Guest,
+        /// <summary>
+        /// The guest's session, for a title (<see cref="Titles"/>): only the one their group plays, else 404. The
+        /// account sees every library (<see cref="Policy"/>): this is what keeps it to the party's title.
+        /// </summary>
+        Title,
         /// <summary>SyncPlay's groups: only those of the host who invited.</summary>
         Groups,
         /// <summary>One group: only one of the host's.</summary>
@@ -40,20 +47,20 @@ public static partial class GuestRoutes
         ("GET", Route("system/ping"), Access.Public),
         ("POST", Route("system/ping"), Access.Public),
         ("GET", Route("users/me"), Access.Guest),
-        ("GET", Route($"items/(?:{Id})"), Access.Guest),
-        ("GET", Route($"items/(?:{Id})/images/[a-z]+(?:/\\d{{1,3}})?"), Access.Guest),
-        ("POST", Route($"items/(?:{Id})/playbackinfo"), Access.Guest),
-        ("GET", Route($"videos/(?:{Id})/stream(?:\\.[a-z0-9]{{1,6}})?"), Access.Guest),
-        ("GET", Route($"videos/(?:{Id})/(?:master|main|live)\\.m3u8"), Access.Guest),
-        ("GET", Route($"videos/(?:{Id})/hls1/[a-z0-9_-]{{1,40}}/-?\\d{{1,6}}\\.(?:ts|mp4|m4s|aac|mp3)"), Access.Guest),
-        ("GET", Route($"videos/(?:{Id})/(?:{Id})/subtitles/\\d{{1,3}}/(?:\\d{{1,20}}/)?(?:stream\\.[a-z0-9]{{1,6}}|subtitles\\.m3u8)"), Access.Guest),
-        ("GET", Route($"videos/(?:{Id})/trickplay/\\d{{1,5}}/(?:\\d{{1,6}}\\.jpg|tiles\\.m3u8)"), Access.Guest),
+        ("GET", Route($"items/(?:{Id})"), Access.Title),
+        ("GET", Route($"items/(?:{Id})/images/[a-z]+(?:/\\d{{1,3}})?"), Access.Title),
+        ("POST", Route($"items/(?:{Id})/playbackinfo"), Access.Title),
+        ("GET", Route($"videos/(?:{Id})/stream(?:\\.[a-z0-9]{{1,6}})?"), Access.Title),
+        ("GET", Route($"videos/(?:{Id})/(?:master|main|live)\\.m3u8"), Access.Title),
+        ("GET", Route($"videos/(?:{Id})/hls1/[a-z0-9_-]{{1,40}}/-?\\d{{1,6}}\\.(?:ts|mp4|m4s|aac|mp3)"), Access.Title),
+        ("GET", Route($"videos/(?:{Id})/(?:{Id})/subtitles/\\d{{1,3}}/(?:\\d{{1,20}}/)?(?:stream\\.[a-z0-9]{{1,6}}|subtitles\\.m3u8)"), Access.Title),
+        ("GET", Route($"videos/(?:{Id})/trickplay/\\d{{1,5}}/(?:\\d{{1,6}}\\.jpg|tiles\\.m3u8)"), Access.Title),
         ("DELETE", Route("videos/activeencodings"), Access.Guest),
-        ("GET", Route($"mira/hls/(?:{Id})/master\\.m3u8"), Access.Guest),
-        ("GET", Route($"mira/hls/(?:{Id})/(?:{Id})/subtitles/\\d{{1,3}}/subtitles\\.m3u8"), Access.Guest),
-        ("GET", Route($"shows/(?:{Id})/episodes"), Access.Guest),
-        ("GET", Route("shows/nextup"), Access.Guest),
-        ("GET", Route($"mediasegments/(?:{Id})"), Access.Guest),
+        ("GET", Route($"mira/hls/(?:{Id})/master\\.m3u8"), Access.Title),
+        ("GET", Route($"mira/hls/(?:{Id})/(?:{Id})/subtitles/\\d{{1,3}}/subtitles\\.m3u8"), Access.Title),
+        ("GET", Route($"shows/(?:{Id})/episodes"), Access.Title),
+        ("GET", Route("shows/nextup"), Access.Title),
+        ("GET", Route($"mediasegments/(?:{Id})"), Access.Title),
         ("POST", Route("sessions/playing(?:/progress|/stopped|/ping)?"), Access.Guest),
         ("POST", Route("sessions/capabilities(?:/full)?"), Access.Guest),
         ("POST", Route("sessions/logout"), Access.Guest),
@@ -110,6 +117,54 @@ public static partial class GuestRoutes
 
     [GeneratedRegex(@"^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9]+)?(?:/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9]+)?)*$")]
     private static partial Regex PathRule();
+
+    // The values of the query that name a title for Jellyfin's routes of the list (« shows/…/episodes?seasonId= »
+    // reads the season it names, whatever the series in the path).
+    private static readonly string[] TitleQuery = ["seriesId", "seasonId", "parentId", "startItemId", "adjacentTo"];
+
+    /// <summary>
+    /// Every title a request of <see cref="Access.Title"/> names: the first id of its path (a media source's after it is
+    /// that title's), and those of its query Jellyfin reads as a title. Null when a value there is no id: refused.
+    /// </summary>
+    public static IReadOnlyList<Guid>? Titles(string path, Func<string, string?> query)
+    {
+        var named = new List<Guid>();
+        var first = FirstId().Match(path);
+        if (first.Success)
+        {
+            named.Add(Guid.Parse(first.Value));
+        }
+
+        foreach (var name in TitleQuery)
+        {
+            if (query(name) is not { Length: > 0 } value)
+            {
+                continue;
+            }
+
+            if (!IsId(value))
+            {
+                return null;
+            }
+
+            named.Add(Guid.Parse(value));
+        }
+
+        return named;
+    }
+
+    [GeneratedRegex("(?<=/)(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=/|\\.|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex FirstId();
+
+    /// <summary>
+    /// Whether every title a request names (<paramref name="named"/>, at least one) belongs to the party's: one of the
+    /// group's queue (<paramref name="queue"/>), one of their series (<paramref name="series"/>), or a season or an
+    /// episode of one of them (<paramref name="seriesOf"/>: the series of a title, null for a film or anything else).
+    /// Nothing in the queue (no group, or a group playing nothing): nothing.
+    /// </summary>
+    public static bool InParty(IReadOnlyList<Guid> named, IReadOnlyCollection<Guid> queue, IReadOnlyCollection<Guid> series, Func<Guid, Guid?> seriesOf) =>
+        named.Count > 0 && queue.Count > 0
+        && named.All(id => queue.Contains(id) || series.Contains(id) || (seriesOf(id) is { } of && series.Contains(of)));
 
     public static bool IsId(string? value) => value is not null && Regex.IsMatch(value, "^(?:" + Id + ")$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
@@ -229,7 +284,9 @@ public static partial class GuestRoutes
     /// A guest's policy, from the one Jellyfin gave the new account: hidden from the sign-in screen, plays and converts
     /// (an iPhone plays converted HLS), joins the host's groups but makes none, one device, and nothing else: no
     /// download, no administration, no deletion, no other account's devices, no live TV, no sharing. Every library is
-    /// open to it, so that SyncPlay lets it play whatever the host puts on: the gateway is what keeps it to that title.
+    /// open to it, so that SyncPlay lets it play whatever the host puts on: the gateway is what keeps it to that title
+    /// (<see cref="Access.Title"/>), and its session goes nowhere else (<see cref="TunnelGuard"/>). Marked by
+    /// <see cref="GuestTag"/> among its blocked tags, so that an account whose link was lost is still known as a guest's.
     /// </summary>
     public static JsonObject Policy(JsonObject policy)
     {
@@ -259,8 +316,34 @@ public static partial class GuestRoutes
         }
 
         guest["EnableContentDeletionFromFolders"] = new JsonArray();
+        var blocked = guest["BlockedTags"] as JsonArray ?? [];
+        if (!blocked.Any(x => x?.GetValueKind() == System.Text.Json.JsonValueKind.String && x.GetValue<string>() == GuestTag))
+        {
+            blocked.Add(GuestTag);
+        }
+
+        guest["BlockedTags"] = blocked.DeepClone();
         return guest;
     }
+
+    /// <summary>
+    /// What marks a guest's account (a tag it may not see, which no title carries): the accounts the extension made, found
+    /// again on Jellyfin when the file of the links was lost (<see cref="IsGuestAccount"/>).
+    /// </summary>
+    public const string GuestTag = "mira-guest";
+
+    /// <summary>
+    /// Whether an account of Jellyfin (its UserDto) is a guest's the extension made: marked (<see cref="GuestTag"/>),
+    /// hidden, never an administrator. Only such an account is ever deleted by the extension.
+    /// </summary>
+    public static bool IsGuestAccount(JsonNode? user) =>
+        user?["Policy"] is JsonObject policy
+        && policy["IsAdministrator"]?.GetValueKind() == System.Text.Json.JsonValueKind.False
+        && policy["IsHidden"]?.GetValueKind() == System.Text.Json.JsonValueKind.True
+        && policy["BlockedTags"] is JsonArray tags && tags.Any(x => x?.GetValueKind() == System.Text.Json.JsonValueKind.String && x.GetValue<string>() == GuestTag);
+
+    /// <summary>Whether an account of Jellyfin (its UserDto) is an administrator: never deleted, whatever the links say.</summary>
+    public static bool IsAdministrator(JsonNode? user) => user?["Policy"]?["IsAdministrator"]?.GetValueKind() == System.Text.Json.JsonValueKind.True;
 
     /// <summary>A secret of 128 bits, written for an address (base64url): an invitation's code.</summary>
     public static string NewCode() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(16)).TrimEnd('=').Replace('+', '-').Replace('/', '_');

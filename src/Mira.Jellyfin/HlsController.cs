@@ -93,7 +93,9 @@ public sealed class HlsController : ControllerBase
             limit.CancelAfter(PerAddress);
             try
             {
-                using var response = await client.GetAsync(new Uri(root + pathAndQuery), limit.Token).ConfigureAwait(false);
+                using var message = new HttpRequestMessage(HttpMethod.Get, new Uri(root + pathAndQuery));
+                message.Headers.TryAddWithoutValidation(JellyfinLoopback.Header, JellyfinLoopback.Secret);
+                using var response = await client.SendAsync(message, limit.Token).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
                     return ((int)response.StatusCode, null);
