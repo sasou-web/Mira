@@ -151,6 +151,7 @@ Mira.Jellyfin (extension Jellyfin)
   ├─ PartyTitles : le titre que joue le groupe SyncPlay d'un invité (file lue dans SyncPlayManager), seul titre que la passerelle lui laisse ; GuestCleanupService : ménage des comptes invités dès le démarrage
   ├─ GuestInvites : les liens et les parties, gardés dans plugins/configurations/Mira.invites.json
   ├─ HomeController, HomeFamily : /Mira/home, « Le foyer » (mot de passe de la famille, profils = comptes cochés, codes vérifiés ici, appareils), séance du profil ouverte par Jellyfin (AuthenticateDirect) ; plugins/configurations/Mira.home.json ; jamais par Funnel
+  ├─ HomeTailnet, TailscaleApi : le foyer loin de la maison (/Mira/home/tailnet, /Mira/home/link) : client OAuth Tailscale de l’administrateur, politique vérifiée avant chaque lien, clé à usage unique de tag:mira-home dans le lien du foyer (miracinema.app/home#…), nœuds supprimés du tailnet avec leur appareil ; plugins/configurations/Mira.home-tailnet.json
   └─ IdentifyController, IdentifyImages : /Mira/identify/image, affiches des propositions de « Identifier… » (HTTPS vers une liste fermée d’hôtes, 5 Mo, image seulement), administrateurs seulement
 ```
 

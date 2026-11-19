@@ -3,7 +3,7 @@
 // « Ta party » (the host's link, its page and its JSON, a guest opening it, the gateway's closed list, the host's group
 // joined, the guest removed, a new link); Tailscale Funnel's guard; the TorLink relay with a fake agent (Mira for
 // Windows on the PC of Jellyfin): search in the three categories, a download asked, paused and cancelled, a magnet,
-// a non-administrator refused, errors in the language asked; « Le foyer » (a password for the family, its profiles, their PIN, its devices); the HLS playlists of the iPhone app (/Mira/hls); the
+// a non-administrator refused, errors in the language asked; « Le foyer » (a password for the family, its profiles, their PIN, its devices, away from home before Tailscale); the HLS playlists of the iPhone app (/Mira/hls); the
 // settings of automatic subtitles; the poster relay of « Identifier… »; the extension's own loops, as they run on a
 // server: automatic subtitles from a fake OpenSubtitles (tools/extension/fake-opensubtitles.mjs, web.yml points the
 // extension at it) and TheTVDB's order of a series (tools/web/fake-tvdb-client), quickened by MIRA_CHECK_TICK_SECONDS.
@@ -192,6 +192,15 @@ await part('foyer', async () => {
     tv?.profile === noa && openedAgain.status === 200 && removed.status === 204 && homeAfter.status === 401 && profileAfter.status === 401
       && secondBefore.status === 200 && secondAfter.status === 401 && oldPassword.status === 401,
     `appareil ${tv?.profile === noa ? 'sur Noa' : tv?.profile} ; retiré ${removed.status} ; jeton ${homeAfter.status}, profil ${profileAfter.status} ; autre appareil ${secondBefore.status} puis ${secondAfter.status} ; ancien mot de passe ${oldPassword.status}`);
+
+  // Away from home (Tailscale): never connected here (nothing is sent to Tailscale by this check), so what it says before.
+  const [tailnet, tailnetFriend, badClient, linkBefore, tailnetFunnel] = [await call('GET', 'Mira/home/tailnet', { token: host }),
+    await call('GET', 'Mira/home/tailnet', { token: friend, device: 'check-friend' }), await call('PUT', 'Mira/home/tailnet', { token: host, body: { clientId: 'k 1', clientSecret: 'court' } }),
+    await call('POST', 'Mira/home/link', { token: host }), await throughFunnel(`${root}/Mira/home/tailnet`)];
+  check('foyer : loin de la maison, rien sans client OAuth (réglage dit, administrateur seulement, pas de lien, rien par Funnel)',
+    tailnet.status === 200 && tailnet.json?.connected === false && tailnet.json?.setup?.tag === 'tag:mira-home' && tailnet.json?.setup?.grant?.includes(`tcp:${tailnet.json?.port}`)
+      && tailnetFriend.status === 403 && badClient.status === 400 && linkBefore.status === 409 && linkBefore.json?.policy === 'disconnected' && tailnetFunnel === 404,
+    `réglages ${tailnet.status} ${tailnet.text.slice(0, 160)} ; autre compte ${tailnetFriend.status} ; client ${badClient.status} ; lien ${linkBefore.status} ${linkBefore.json?.policy} ; Funnel ${tailnetFunnel}`);
   await call('PUT', 'Mira/home/password', { token: host, body: { password: null } });
 });
 

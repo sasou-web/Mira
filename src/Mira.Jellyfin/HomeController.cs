@@ -226,6 +226,7 @@ public sealed class HomeController : ControllerBase
         Home.Remove(device.Id);
         using var client = _clients.CreateClient();
         await EndSessionsAsync(client, device, cancellationToken).ConfigureAwait(false);
+        await LeaveTailnetAsync(client, device, CancellationToken.None).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -337,6 +338,13 @@ public sealed class HomeController : ControllerBase
             await EndSessionsAsync(client, device, CancellationToken.None, Admin()).ConfigureAwait(false);
         }
 
+        // The home turned off: its devices leave the tailnet too. A new password keeps them on it (they type it again).
+        if (password is null)
+        {
+            Plugin.HomeTailnet.RemoveAll();
+            await SweepTailnetAsync(client, CancellationToken.None).ConfigureAwait(false);
+        }
+
         return NoContent();
     }
 
@@ -409,10 +417,240 @@ public sealed class HomeController : ControllerBase
 
         using var client = _clients.CreateClient();
         await EndSessionsAsync(client, device, cancellationToken, Admin()).ConfigureAwait(false);
+        await LeaveTailnetAsync(client, device, CancellationToken.None).ConfigureAwait(false);
         return NoContent();
     }
 
+    // ---- Away from home: Tailscale (HomeTailnet) ----
+
+    /// <summary>
+    /// The home on the tailnet, as its administrator sees it: connected or not, this PC's Tailscale address, what to add
+    /// to the policy, whether the policy limits the home's devices to Jellyfin, and the tailnet's devices of the home's
+    /// tag. Nodes to delete are deleted now.
+    /// </summary>
+    [HttpGet("tailnet")]
+    [Authorize(Policy = "RequiresElevation")]
+    public async Task<IActionResult> Tailnet(CancellationToken cancellationToken)
+    {
+        var server = HomeTailnet.OwnAddress();
+        var port = _host.HttpPort;
+        var (tagOwners, grant) = HomeTailnet.Setup(server ?? "100.x.y.z", port);
+        var setup = new { tag = HomeTailnet.Tag, tagOwners, grant, scopes = new[] { "auth_keys", "devices:core", "policy_file:read" } };
+        if (Plugin.HomeTailnet.Client is not { } owner)
+        {
+            return Answer(StatusCodes.Status200OK, new { connected = false, server, port, setup, policy = (string?)null });
+        }
+
+        using var client = _clients.CreateClient();
+        var api = new TailscaleApi(client, owner.Id, owner.Secret);
+        string policy;
+        IReadOnlyList<HomeTailnet.OpenRule> open = [];
+        IReadOnlyList<TailnetDevice> nodes = [];
+        try
+        {
+            (policy, open) = await PolicyAsync(api, server, port, cancellationToken).ConfigureAwait(false);
+            nodes = await SweepAsync(api, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TailscaleApi.TailscaleException error)
+        {
+            policy = Failure(error);
+        }
+
+        var home = Home.Devices().Where(x => x.Tailnet is not null).ToDictionary(x => x.Tailnet!, StringComparer.OrdinalIgnoreCase);
+        var devices = nodes.Where(x => x.Tagged).Select(x =>
+        {
+            var inHome = x.Addresses.Select(a => home.GetValueOrDefault(a)).FirstOrDefault(d => d is not null);
+            return new { id = x.Id, name = x.Name, addresses = x.Addresses, created = x.Created, lastSeen = x.LastSeen, device = inHome?.Id, deviceName = inHome?.Name };
+        });
+        return Answer(StatusCodes.Status200OK, new
+        {
+            connected = true,
+            connectedAt = Plugin.HomeTailnet.Connected,
+            clientId = Mask(owner.Id),
+            server,
+            port,
+            setup,
+            policy,
+            open = open.Select(x => new { section = x.Section, number = x.Number, sources = x.Sources }),
+            devices,
+        });
+    }
+
+    /// <summary>The home connected to the tailnet with an OAuth client (checked with Tailscale first), or disconnected (both null).</summary>
+    [HttpPut("tailnet")]
+    [Authorize(Policy = "RequiresElevation")]
+    [RequestSizeLimit(2_048)]
+    public async Task<IActionResult> SetTailnet(CancellationToken cancellationToken)
+    {
+        var body = await ReadAsync<TailnetBody>(cancellationToken).ConfigureAwait(false);
+        if (body is null)
+        {
+            return BadRequest();
+        }
+
+        if (string.IsNullOrWhiteSpace(body.ClientId) && string.IsNullOrWhiteSpace(body.ClientSecret))
+        {
+            Plugin.HomeTailnet.SetClient(null, null);
+            return NoContent();
+        }
+
+        var id = body.ClientId?.Trim();
+        var secret = body.ClientSecret?.Trim();
+        if (!HomeTailnet.GoodClient(id, secret))
+        {
+            return Refuse(StatusCodes.Status400BadRequest, "Colle l’identifiant et le secret du client OAuth que Tailscale vient de te donner.");
+        }
+
+        using var client = _clients.CreateClient();
+        try
+        {
+            await new TailscaleApi(client, id!, secret!).CheckAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (TailscaleApi.TailscaleException error)
+        {
+            return error.Failure == TailscaleApi.Failure.Refused
+                ? Refuse(StatusCodes.Status400BadRequest, "Tailscale refuse ce client OAuth : vérifie l’identifiant et le secret.")
+                : Refuse(StatusCodes.Status502BadGateway, "Tailscale n’a pas répondu. Réessaie dans un instant.");
+        }
+
+        Plugin.HomeTailnet.SetClient(id, secret);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// A home link: a key of the home's tag for one device, that ends in <see cref="HomeTailnet.LinkLife"/>, and this
+    /// PC's Tailscale address. Only when the tailnet's policy limits the home's devices to this Jellyfin.
+    /// </summary>
+    [HttpPost("link")]
+    [Authorize(Policy = "RequiresElevation")]
+    public async Task<IActionResult> Link(CancellationToken cancellationToken)
+    {
+        if (!Home.On)
+        {
+            return Refuse(StatusCodes.Status409Conflict, "Choisis d’abord le mot de passe du foyer.");
+        }
+
+        if (Plugin.HomeTailnet.Client is not { } owner)
+        {
+            return Answer(StatusCodes.Status409Conflict, new { error = Text("Relie d’abord le foyer à ton réseau Tailscale."), policy = "disconnected" });
+        }
+
+        if (HomeTailnet.OwnAddress() is not { } server)
+        {
+            return Answer(StatusCodes.Status409Conflict, new { error = Text("Tailscale n’est pas allumé sur le PC de Jellyfin."), policy = "no-tailscale" });
+        }
+
+        using var client = _clients.CreateClient();
+        var api = new TailscaleApi(client, owner.Id, owner.Secret);
+        try
+        {
+            var (policy, open) = await PolicyAsync(api, server, _host.HttpPort, cancellationToken).ConfigureAwait(false);
+            if (policy != "ok")
+            {
+                return Answer(StatusCodes.Status409Conflict, new
+                {
+                    error = Text("Ta politique Tailscale laisse les appareils du foyer aller ailleurs que sur Jellyfin : corrige-la d’abord."),
+                    policy,
+                    open = open.Select(x => new { section = x.Section, number = x.Number, sources = x.Sources }),
+                });
+            }
+
+            var (key, _, expires) = await api.CreateKeyAsync(HomeTailnet.LinkLife, cancellationToken).ConfigureAwait(false);
+            var link = HomeTailnet.Link(new HomeTailnet.LinkData(
+                1, _host.FriendlyName ?? "Jellyfin", _host.SystemId ?? "", $"http://{server}:{_host.HttpPort}{Request.PathBase}", key, expires.ToUnixTimeSeconds()));
+            Response.Headers.CacheControl = "no-store";
+            return Ok(new { link, expires });
+        }
+        catch (TailscaleApi.TailscaleException error)
+        {
+            return Answer(StatusCodes.Status502BadGateway, new { error = Text(FailureText(error)), policy = Failure(error) });
+        }
+    }
+
     // ---- Shared ----
+
+    /// <summary>A device out of the home leaves the tailnet too, when it joined through it: now, or at the next call that reaches Tailscale.</summary>
+    private async Task LeaveTailnetAsync(HttpClient client, HomeDevice device, CancellationToken cancellationToken)
+    {
+        if (device.Tailnet is not { } address)
+        {
+            return;
+        }
+
+        Plugin.HomeTailnet.Remove(address);
+        await SweepTailnetAsync(client, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task SweepTailnetAsync(HttpClient client, CancellationToken cancellationToken)
+    {
+        if (Plugin.HomeTailnet.Client is not { } owner)
+        {
+            return;
+        }
+
+        try
+        {
+            await SweepAsync(new TailscaleApi(client, owner.Id, owner.Secret), cancellationToken).ConfigureAwait(false);
+        }
+        catch (TailscaleApi.TailscaleException error)
+        {
+            _logger.LogWarning("Mira: a device of the home could not be deleted from the tailnet yet ({Failure})", error.Failure);
+        }
+    }
+
+    /// <summary>The nodes of the home's tag to delete deleted (<see cref="HomeTailnet.ToDelete"/>); the tailnet's devices that remain.</summary>
+    private static async Task<IReadOnlyList<TailnetDevice>> SweepAsync(TailscaleApi api, CancellationToken cancellationToken)
+    {
+        var tailnet = Plugin.HomeTailnet;
+        var nodes = await api.DevicesAsync(cancellationToken).ConfigureAwait(false);
+        var gone = new List<TailnetDevice>();
+        foreach (var node in tailnet.ToDelete(nodes, Home.Devices().Select(x => x.Tailnet).OfType<string>()))
+        {
+            if (await api.DeleteAsync(node, cancellationToken).ConfigureAwait(false))
+            {
+                gone.Add(node);
+            }
+        }
+
+        var left = nodes.Except(gone).ToList();
+        var (leaving, all) = tailnet.Leaving();
+        // An address no node of the tag has any more is done with; all of them when none is left.
+        tailnet.Left(leaving.Where(a => !left.Any(n => n.Tagged && n.Addresses.Contains(a, StringComparer.OrdinalIgnoreCase))), all && !left.Any(n => n.Tagged));
+        return left;
+    }
+
+    private static async Task<(string Policy, IReadOnlyList<HomeTailnet.OpenRule> Open)> PolicyAsync(TailscaleApi api, string? server, int port, CancellationToken cancellationToken)
+    {
+        if (server is null)
+        {
+            return ("no-tailscale", []);
+        }
+
+        var (verdict, open) = HomeTailnet.CheckPolicy(await api.PolicyAsync(cancellationToken).ConfigureAwait(false), server, port);
+        return (verdict switch
+        {
+            HomeTailnet.Verdict.Ok => "ok",
+            HomeTailnet.Verdict.NoTag => "no-tag",
+            HomeTailnet.Verdict.TooOpen => "too-open",
+            _ => "no-access",
+        }, open);
+    }
+
+    private static string Failure(TailscaleApi.TailscaleException error) => error.Failure switch
+    {
+        TailscaleApi.Failure.Refused => "refused",
+        TailscaleApi.Failure.Scope => "scope",
+        _ => "unreachable",
+    };
+
+    private static string FailureText(TailscaleApi.TailscaleException error) => error.Failure switch
+    {
+        TailscaleApi.Failure.Refused => "Tailscale refuse le client OAuth du foyer : il a été supprimé ou révoqué. Relie de nouveau le foyer.",
+        TailscaleApi.Failure.Scope => "Le client OAuth du foyer n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file:read et l’étiquette tag:mira-home).",
+        _ => "Tailscale n’a pas répondu. Réessaie dans un instant.",
+    };
+
+    private static string Mask(string id) => id.Length <= 6 ? id : id[..6] + "…";
 
     /// <summary>The device of this request's home token, or null.</summary>
     private HomeDevice? Device() =>
@@ -545,6 +783,8 @@ public sealed class HomeController : ControllerBase
     private sealed record PasswordBody(string? Password);
 
     private sealed record OfferBody(bool? Offered);
+
+    private sealed record TailnetBody(string? ClientId, string? ClientSecret);
 
     /// <summary>What the home reads of a Jellyfin account (its UserDto).</summary>
     private sealed record Account(string? Id, string Name, string? ImageTag, bool Admin, bool Disabled, bool AllLibraries, string? MaxRating)

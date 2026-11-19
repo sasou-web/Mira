@@ -208,3 +208,5 @@ section.download { padding-bottom: clamp(3rem, 5vw, 5rem); }
 .lost h1 { font-size: clamp(40px, 6vw, 72px); line-height: 1; }
 .lost p { color: var(--ink-2); }
 .lost .actions { justify-content: center; margin-top: 12px; }
+.home-link [data-state]:not([hidden]) { display: grid; justify-items: center; gap: 18px; max-width: 34rem; }
+.home-link strong { color: var(--ink); }

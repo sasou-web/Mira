@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- A home link (« Le foyer »): what follows the « # » never leaves this browser; this page only hands it to Mira. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Join the home · Mira</title>
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="/img/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/site.css">
+  <script src="/js/home.js" defer></script>
+</head>
+<body>
+  <main class="lost home-link">
+    <img src="/img/mark.svg" alt="" width="56" height="56">
+    <div data-state="ready" hidden>
+      <h1 data-en="You’re invited home." data-fr="Le foyer t’attend.">You’re invited home.</h1>
+      <p><span data-en="Mira opens " data-fr="Mira ouvre ">Mira opens </span><strong data-name></strong><span data-en=", then asks for the home’s password." data-fr=", puis te demande le mot de passe du foyer.">, then asks for the home’s password.</span></p>
+      <div class="actions">
+        <a class="btn primary" data-open href="#" data-en="Open in Mira" data-fr="Ouvrir dans Mira">Open in Mira</a>
+        <a class="btn quiet" href="/#download" data-get data-en="Get Mira first" data-fr="Installer Mira d’abord">Get Mira first</a>
+      </div>
+      <p class="note" data-en="This link works once, until " data-fr="Ce lien sert une fois, jusqu’au ">This link works once, until </p>
+    </div>
+    <div data-state="spent" hidden>
+      <h1 data-en="This home link has ended." data-fr="Ce lien du foyer a expiré.">This home link has ended.</h1>
+      <p data-en="Ask whoever sent it for a new one: it takes them one click in Mira." data-fr="Demande-en un nouveau à qui te l’a envoyé : un clic dans Mira lui suffit.">Ask whoever sent it for a new one: it takes them one click in Mira.</p>
+    </div>
+    <div data-state="broken" hidden>
+      <h1 data-en="This link is incomplete." data-fr="Ce lien est incomplet.">This link is incomplete.</h1>
+      <p data-en="Copy the whole home link, up to its end, or ask for a new one." data-fr="Copie le lien du foyer en entier, jusqu’au bout, ou demandes-en un nouveau.">Copy the whole home link, up to its end, or ask for a new one.</p>
+      <div class="actions">
+        <a class="btn quiet" href="/" data-get data-en="What’s Mira?" data-fr="C’est quoi Mira ?">What’s Mira?</a>
+      </div>
+    </div>
+    <noscript><p>Mira’s home links need JavaScript, which reads the link here, in your browser. · Les liens du foyer de Mira ont besoin de JavaScript, qui lit le lien ici, dans ton navigateur.</p></noscript>
+  </main>
+</body>
+</html>
