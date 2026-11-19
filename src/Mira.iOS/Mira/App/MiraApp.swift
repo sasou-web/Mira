@@ -232,7 +232,7 @@ enum Messages {
             default: return HomeText.unreachable(home)
             }
         }
-        switch hint {
+        return switch hint {
         case .noNetwork:
             String(localized: "This iPhone isn’t connected to the Internet.")
         case .tailscaleOff:
@@ -257,7 +257,7 @@ enum Messages {
     /// A request Built-in Tailscale's relay could not take to Jellyfin, by its reason (X-Mira-Tailscale).
     static func tailscale(_ code: String) -> String {
         if let home = HomeNode.routing.withLock({ $0 }) { return HomeText.node(code, name: home, withKey: false) }
-        switch code {
+        return switch code {
         case "needs-login": text(.signedOut)
         case "expired": text(.expired)
         case "machine-auth": text(.approval)
