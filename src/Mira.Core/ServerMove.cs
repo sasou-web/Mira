@@ -97,21 +97,82 @@ public static class ServerMove
         connection with { Server = JellyfinClient.NormalizeServer(address), Origin = connection.Origin ?? connection.Server };
 
     /// <summary>
-    /// Looks for this account's server elsewhere on the home network (null: not found, or not <see cref="Movable"/>):
-    /// on this computer and by Jellyfin's discovery (<paramref name="home"/> replaces it in the tests), then at each
-    /// address of the networks this computer shares with the old one (<paramref name="own"/>: this computer's, read from
-    /// its network adapters when not given). Each address found is asked again for this server's id before it is taken.
+    /// Whether Jellyfin may be looked for elsewhere once silent: at another address of the home network
+    /// (<see cref="Movable"/>), or through Tailscale away from home: its id known, signed in at an address of the home
+    /// network (or reached through Tailscale for now, <see cref="Connection.Home"/>), never a party's guest.
+    /// </summary>
+    public static bool Searchable(Connection connection) => Movable(connection)
+        || connection.ServerId is { Length: > 0 } && !Together.IsGuest(connection) && HomeAddress(connection.Home ?? connection.Server) is not null;
+
+    /// <summary>
+    /// The account through Jellyfin's Tailscale address while its home address is out of reach (away from home, on the
+    /// Tailscale app or « Tailscale intégré »): the home address kept to come back to (<see cref="Connection.Home"/>), and
+    /// what names its data on this computer unchanged.
+    /// </summary>
+    public static Connection Away(Connection connection, string address) => connection with
+    {
+        Server = JellyfinClient.NormalizeServer(address),
+        Origin = connection.Origin ?? connection.Server,
+        Home = connection.Home ?? connection.Server,
+    };
+    /// <summary>The account at its home address again (full quality), back from Tailscale.</summary>
+    public static Connection Back(Connection connection, string address) => connection with
+    {
+        Server = JellyfinClient.NormalizeServer(address),
+        Home = null,
+        Origin = string.Equals(JellyfinClient.NormalizeServer(address), connection.Origin, StringComparison.OrdinalIgnoreCase) ? null : connection.Origin,
+    };
+    /// <summary>Where Jellyfin's Tailscale address is among the servers found: a device of the tailnet with this server's id.</summary>
+    public static string? ThroughTailnet(Connection connection, IEnumerable<ServerSearch.Found> found) => found
+        .Where(x => x.Where == ServerSearch.Place.Tailnet && SameId(x.Id, connection.ServerId)
+            && !string.Equals(JellyfinClient.NormalizeServer(x.Address), JellyfinClient.NormalizeServer(connection.Server), StringComparison.OrdinalIgnoreCase))
+        .Select(x => x.Address).FirstOrDefault();
+
+    /// <summary>
+    /// Looks for this account's server elsewhere (null: not found, or not <see cref="Searchable"/>), in this order: back
+    /// at its home address after a time through Tailscale; on this computer and by Jellyfin's discovery
+    /// (<paramref name="home"/> replaces it in the tests); at each address of the networks this computer shares with the
+    /// old one (<paramref name="own"/>: this computer's, read from its network adapters when not given); then, away from
+    /// home, on <paramref name="tailnet"/>'s devices (the Tailscale app's or « Tailscale intégré »'s, 8096). Each address
+    /// found is asked again for this server's id, and on the home network for its proof (<see cref="ServerProof"/>),
+    /// before it is taken. Through Tailscale, its proof too when the account has its key.
     /// </summary>
     public static async Task<Connection?> FindAsync(Connection connection, HttpMessageHandler? handler = null,
-        Func<CancellationToken, Task<IReadOnlyList<ServerSearch.Found>>>? home = null, IReadOnlyList<(IPAddress Address, int Prefix)>? own = null, CancellationToken ct = default)
+        Func<CancellationToken, Task<IReadOnlyList<ServerSearch.Found>>>? home = null, IReadOnlyList<(IPAddress Address, int Prefix)>? own = null,
+        IReadOnlyList<string>? tailnet = null, CancellationToken ct = default)
     {
-        if (!Movable(connection)) return null;
+        if (!Searchable(connection)) return null;
         using var http = new HttpClient(handler ?? TailnetNetwork.Default.Handler, disposeHandler: false);
         http.Timeout = Timeout.InfiniteTimeSpan;
-        var found = await ServerSearch.FindAsync([], handler, home, ct).ConfigureAwait(false);
-        if (Found(connection, found) is { } address && await AnswersAsync(http, address, connection, ct).ConfigureAwait(false) is { } confirmed)
-            return Moved(connection, confirmed);
-        // Discovery turned off on the server, or Jellyfin in a container that does not hear it: each address of the network.
+        // Back home: the home address answers again (the one signed in at: its id, and its proof when the key is known).
+        if (connection.Home is { } homeAddress && await AnswersAsync(http, homeAddress, connection, ct, proofNeeded: false).ConfigureAwait(false) is { } back)
+            return Back(connection, back);
+        var found = await ServerSearch.FindAsync(tailnet ?? [], handler, home, ct).ConfigureAwait(false);
+        if (Movable(connection))
+        {
+            if (Found(connection, found) is { } address && await AnswersAsync(http, address, connection, ct).ConfigureAwait(false) is { } confirmed)
+                return Moved(connection, confirmed);
+            if (await NeighbourAsync(http, connection, own, ct).ConfigureAwait(false) is { } neighbour) return neighbour;
+        }
+        // Away from home: through Tailscale, as the iPhone goes (Way). Never back to the same address.
+        if (ThroughTailnet(connection, found) is { } device && await AnswersAsync(http, device, connection, ct, proofNeeded: false).ConfigureAwait(false) is { } reached)
+            return Away(connection, reached);
+        return null;
+    }
+    /// <summary>
+    /// Through Tailscale for now (<see cref="Connection.Home"/>): the account at its home address again when it answers
+    /// (back home, on another network, Mira opened at home); null otherwise. Asked on each change of network.
+    /// </summary>
+    public static async Task<Connection?> HomeAgainAsync(Connection connection, HttpMessageHandler? handler = null, CancellationToken ct = default)
+    {
+        if (connection.Home is not { } address || connection.ServerId is not { Length: > 0 }) return null;
+        using var http = new HttpClient(handler ?? TailnetNetwork.Default.Handler, disposeHandler: false);
+        http.Timeout = Timeout.InfiniteTimeSpan;
+        return await AnswersAsync(http, address, connection, ct, proofNeeded: false).ConfigureAwait(false) is { } back ? Back(connection, back) : null;
+    }
+    /// <summary>Discovery turned off on the server, or Jellyfin in a container that does not hear it: each address of the network.</summary>
+    private static async Task<Connection?> NeighbourAsync(HttpClient http, Connection connection, IReadOnlyList<(IPAddress Address, int Prefix)>? own, CancellationToken ct)
+    {
         var neighbours = (own ?? OwnNetworks()).SelectMany(x => Neighbours(connection.Server, x.Address, x.Prefix)).Distinct().ToList();
         if (neighbours.Count == 0) return null;
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -130,10 +191,16 @@ public static class ServerMove
         return null;
     }
     /// <summary>The address, as it answered, when Jellyfin there is this server and proves it; null otherwise.</summary>
-    private static async Task<string?> AnswersAsync(HttpClient http, string address, Connection connection, CancellationToken ct)
+    /// <param name="proofNeeded">
+    /// False for the address signed in at, and a device of the tailnet (the Tailscale network authenticates it): its
+    /// proof asked only when the account has the key.
+    /// </param>
+    private static async Task<string?> AnswersAsync(HttpClient http, string address, Connection connection, CancellationToken ct, bool proofNeeded = true)
     {
         var probe = await ServerAddress.ProbeAsync(http, address, ct, Wait).ConfigureAwait(false);
-        return probe.Info is { } info && SameId(info.Id, connection.ServerId) && await ProvesAsync(http, info.Address, connection, ct).ConfigureAwait(false) ? info.Address : null;
+        if (probe.Info is not { } info || !SameId(info.Id, connection.ServerId)) return null;
+        if (!proofNeeded && connection.ServerProof is not { Length: > 0 }) return info.Address;
+        return await ProvesAsync(http, info.Address, connection, ct).ConfigureAwait(false) ? info.Address : null;
     }
     /// <summary>
     /// Whether Jellyfin at <paramref name="address"/> signs a new nonce with this account's proof key, asked without a
@@ -172,6 +239,10 @@ public static class ServerMove
         catch (Exception ex) when (ex is NetworkInformationException or PlatformNotSupportedException) { }
         return list;
     }
+
+    /// <summary>Said once Mira goes through Tailscale: why videos may come in a lower quality, which nothing else shows.</summary>
+    public static string SaidAway => L("Jellyfin ne répond pas à son adresse de la maison : Mira passe par Tailscale. Il reprendra l’adresse de la maison dès qu’elle répondra.",
+        "Jellyfin isn’t answering at its home address: Mira goes through Tailscale, and will go back to the home address as soon as it answers.");
 
     /// <summary>Said once Mira moved to the new address: what Jellyfin did, which nothing else on screen shows.</summary>
     public static string Said(string from, string to)

@@ -186,6 +186,7 @@ public partial class MainWindow : Window
     {
         // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.
         await StartTailnetWithMiraAsync();
+        if (!ValidationRun) WatchNetwork();
         if (_args.Contains("--demo")) await ShowDemoAsync();
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
         else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); if (_invite is not null) _ = OfferInviteAsync(); else FindServer(); }
@@ -337,6 +338,8 @@ public partial class MainWindow : Window
         if (!_args.Contains("--visual-check") && !_args.Contains("--ui-audit")) _ = MarkLibraryFoldersAsync(client, _connectionLifetime.Token);
         if (!_args.Any(x => x.EndsWith("-check", StringComparison.Ordinal) || x == "--ui-audit")) _ = KeepFunnelOpenAsync(client, _connectionLifetime.Token);
         _ = OfferDownloadsAsync();
+        // Through Tailscale when Mira last closed: home again, maybe (full quality).
+        if (connection.Home is not null) _ = ComeHomeAsync();
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant(); SetPhoto(null); _ = ShowPhotoAsync();
         SettingsServerAddress.Text = connection.Server;
         // Another account (signed in from Réglages): its window, drawn for the previous one (its titles to fix, its guest

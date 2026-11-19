@@ -481,6 +481,8 @@ public sealed partial class MainWindow : Window
         _overlay.Children.Clear(); _rail.IsVisible = true;
         _railButtons["downloads"].IsVisible = false;
         _ = OfferDownloadsAsync(Session);
+        // Through Tailscale when Mira last closed: home again, maybe (full quality).
+        if (connection.Home is not null) _ = ComeHomeAsync();
         CollectionRights = TitleCollections.Rights.None;
         _ = LoadCollectionRightsAsync(Session);
         _ = LoadOfflineAsync(Session);
