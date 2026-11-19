@@ -86,6 +86,12 @@ public sealed record HomeTailnetSetup(string Tag, string TagOwners, string Grant
 /// <summary>A rule of the tailnet's policy that lets the home's devices go further than Jellyfin.</summary>
 public sealed record HomeOpenRule(string Section, int Number, IReadOnlyList<string> Sources);
 
+/// <summary>
+/// What Mira would change in the tailnet's policy (<see cref="HomeText.Change"/>): « tag » (added to tagOwners), « grant »
+/// (the rule to Jellyfin), « narrow » (a rule's sources, as they become).
+/// </summary>
+public sealed record HomePolicyChange(string Kind, string? Section, int Number, IReadOnlyList<string>? Sources);
+
 /// <summary>A device of the home's tag on the tailnet, and the home's device it is, when it is one.</summary>
 public sealed record HomeTailnetNode(string Id, string Name, IReadOnlyList<string> Addresses, DateTimeOffset? Created, DateTimeOffset? LastSeen, string? Device, string? DeviceName);
 
@@ -103,6 +109,10 @@ public sealed record HomeTailnetState
     public HomeTailnetSetup? Setup { get; init; }
     public string? Policy { get; init; }
     public IReadOnlyList<HomeOpenRule> Open { get; init; } = [];
+    /// <summary>What Mira can change itself for the policy to be right (POST Mira/home/tailnet/fix); null when it can't, or needn't.</summary>
+    public IReadOnlyList<HomePolicyChange>? Fix { get; init; }
+    /// <summary>The OAuth client can do more than the home needs (« All »): its secret, kept on the server, is worth too much.</summary>
+    public bool Broad { get; init; }
     public IReadOnlyList<HomeTailnetNode> Devices { get; init; } = [];
 }
 

@@ -23,6 +23,8 @@ public sealed class MockJellyfin : HttpMessageHandler
     public bool PartyGone { get; set; }
     /// <summary>« Le foyer » (/Mira/home): on, with its password; Sam's profile open to all, Alex's behind a PIN.</summary>
     public bool HomeOn { get; set; }
+    /// <summary>Whether « Fix my policy » was asked: until then the tailnet's policy is the default « * ».</summary>
+    public bool PolicyFixed { get; set; }
     public const string HomePassword = "maison-du-controle", HomeToken = "home-token", AlexPin = "1234";
     /// <summary>The home's Jellyfin out of reach (its node, the network): every family request fails.</summary>
     public bool HomeDown { get; set; }
@@ -484,7 +486,21 @@ public sealed class MockJellyfin : HttpMessageHandler
                 devices = HomeOn ? new object[] { new { id = "device-1", name = "Mira on MAISON-PC", joined = DateTimeOffset.UtcNow.AddDays(-2), seen = DateTimeOffset.UtcNow.AddHours(-1), profile = "user-sam", profileName = "Sam" } } : [],
             });
         if (path == "Mira/home/tailnet" && request.Method == HttpMethod.Get)
-            return Json(new { connected = true, connectedAt = DateTimeOffset.UtcNow.AddDays(-1), clientId = "k-check", server = "100.88.12.34", port = 8096, policy = "ok", open = Array.Empty<object>(), devices = Array.Empty<object>() });
+            return PolicyFixed
+                ? Json(new { connected = true, connectedAt = DateTimeOffset.UtcNow.AddDays(-1), clientId = "k-check", server = "100.88.12.34", port = 8096, policy = "ok", open = Array.Empty<object>(), devices = Array.Empty<object>() })
+                : Json(new
+                {
+                    connected = true, connectedAt = DateTimeOffset.UtcNow.AddDays(-1), clientId = "k-check", server = "100.88.12.34", port = 8096, policy = "too-open",
+                    open = new[] { new { section = "grants", number = 1, sources = new[] { "*" } } },
+                    fix = new object[] { new { kind = "narrow", section = "grants", number = 1, sources = new[] { "autogroup:member", "autogroup:shared" } }, new { kind = "grant", section = (string?)null, number = 0, sources = (string[]?)null } },
+                    devices = Array.Empty<object>(),
+                });
+        if (request.Method == HttpMethod.Post && path == "Mira/home/tailnet/fix")
+        {
+            lock (HomeAdmin) HomeAdmin.Add("POST " + path);
+            PolicyFixed = true;
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }
         if (request.Method == HttpMethod.Post && path == "Mira/home/link")
         {
             var data = JsonSerializer.SerializeToUtf8Bytes(new { v = 1, name = "Jellyfin du contrôle", id = "check-server", url = "http://100.88.12.34:8096", key = "tskey-auth-check", until = DateTimeOffset.UtcNow.AddHours(48).ToUnixTimeSeconds() });

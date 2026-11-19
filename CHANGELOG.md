@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Mira corrige ta politique Tailscale elle-même (Windows, Mac, iPhone, extension)** : relier le foyer à Tailscale demandait de coller deux lignes au bon endroit de ta politique, et de restreindre sa règle `*` à la main, sinon les appareils du foyer voyaient tout ton réseau. Il reste trois étapes : créer l’étiquette `mira-home` d’un clic dans l’éditeur de Tailscale, créer le client OAuth (avec le droit `policy_file` en écriture) et le coller. Réglages → Foyer montre ensuite ce que Mira va changer et l’écrit sur « Fix my policy », commentaires gardés : `*` réservé à tes appareils, tes amis partagés et tes autres étiquettes, plus la règle vers Jellyfin. Un client « All » est refusé, son secret étant gardé sur le serveur. Contrôlé par les tests de Core contre un faux Tailscale et par le contrôle du Mac ; jamais contre le vrai Tailscale.
 - **Un menu de Mira ne reste plus seul par-dessus les autres apps (Mac)** : le menu d’un épisode restait sur Chrome en 0.9.14, ouvert d’un clic droit sur Mira derrière une autre app ou depuis une fenêtre qui n’était déjà plus active. Tant qu’un menu est ouvert, Mira regarde si elle est encore devant et le ferme dès qu’elle ne l’est plus, ou dès un clic ailleurs. Jamais vu sur un vrai Mac.
 
 ## 0.9.15 — 2026-11-19

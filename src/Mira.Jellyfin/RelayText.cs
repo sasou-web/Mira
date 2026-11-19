@@ -76,7 +76,12 @@ internal static class RelayText
         ["Tailscale n’est pas allumé sur le PC de Jellyfin."] = "Tailscale isn’t on on the Jellyfin PC.",
         ["Ta politique Tailscale laisse les appareils du foyer aller ailleurs que sur Jellyfin : corrige-la d’abord."] = "Your Tailscale policy lets the home’s devices reach more than Jellyfin: fix it first.",
         ["Tailscale refuse le client OAuth du foyer : il a été supprimé ou révoqué. Relie de nouveau le foyer."] = "Tailscale refuses the home’s OAuth client: it was deleted or revoked. Connect the home again.",
-        ["Le client OAuth du foyer n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file:read et l’étiquette tag:mira-home)."] = "The home’s OAuth client lacks what it needs (auth_keys, devices:core, policy_file:read and the tag:mira-home tag).",
+        ["Le client OAuth du foyer n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file et l’étiquette tag:mira-home)."] = "The home’s OAuth client lacks what it needs (auth_keys, devices:core, policy_file and the tag:mira-home tag).",
+        ["Ce client OAuth a plus de droits qu’il n’en faut : supprime-le, puis crée-en un avec seulement Policy File, Devices Core et Auth Keys (étiquette tag:mira-home)."] = "This OAuth client has more rights than it needs: delete it, then create one with only Policy File, Devices Core and Auth Keys (tag tag:mira-home).",
+        ["Mira ne sait pas corriger ces règles seule : restreins-les dans la politique Tailscale."] = "Mira can’t fix these rules by itself: narrow them in the Tailscale policy.",
+        ["Le client OAuth du foyer ne peut pas écrire la politique : crée-en un avec le droit policy_file, puis relie de nouveau le foyer."] = "The home’s OAuth client can’t write the policy: create one with the policy_file scope, then connect the home again.",
+        ["Ta politique Tailscale vient de changer : vérifie à nouveau, puis corrige."] = "Your Tailscale policy just changed: check again, then fix it.",
+        ["Tailscale a refusé la politique corrigée : rien n’a changé. Corrige-la dans la console de Tailscale."] = "Tailscale refused the fixed policy: nothing changed. Fix it in Tailscale’s console.",
     };
 
     /// <summary>Whether the request asks for French: the first of French and English among its languages, by preference.</summary>

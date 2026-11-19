@@ -163,8 +163,8 @@ public static class Privacy
             L("L’API de Tailscale, par l’extension Mira de Jellyfin.", "Tailscale’s API, through Jellyfin’s Mira extension."),
             L("Seulement si tu as relié le foyer à ton réseau Tailscale : quand tu fais un lien du foyer, retires un appareil ou ouvres les réglages du foyer.",
                 "Only if you connected the home to your Tailscale network: when you make a home link, remove a device or open the home’s settings."),
-            L("Le client OAuth que tu as créé, pour lire ta politique Tailscale, créer une clé à usage unique pour un appareil et supprimer un appareil du foyer. Rien de ta bibliothèque ni de tes comptes.",
-                "The OAuth client you created, to read your Tailscale policy, make a single-use key for one device and delete a device of the home. Nothing of your library or your accounts."),
+            L("Le client OAuth que tu as créé, pour lire ta politique Tailscale (et la corriger quand tu cliques sur « Corriger ma politique »), créer une clé à usage unique pour un appareil et supprimer un appareil du foyer. Rien de ta bibliothèque ni de tes comptes.",
+                "The OAuth client you created, to read your Tailscale policy (and fix it when you click “Fix my policy”), make a single-use key for one device and delete a device of the home. Nothing of your library or your accounts."),
             L("Délier le foyer de Tailscale, dans les réglages du foyer.", "Disconnect the home from Tailscale, in the home’s settings."), PrivacyControl.None, true, ["api.tailscale.com"]));
         list.Add(new("extension", L("Mises à jour de l’extension Mira", "Mira extension updates"),
             L("GitHub, où Mira est publiée.", "GitHub, where Mira is published."),

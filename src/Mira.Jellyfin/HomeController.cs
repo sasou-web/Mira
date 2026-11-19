@@ -435,7 +435,7 @@ public sealed class HomeController : ControllerBase
         var server = HomeTailnet.OwnAddress();
         var port = _host.HttpPort;
         var (tagOwners, grant) = HomeTailnet.Setup(server ?? "100.x.y.z", port);
-        var setup = new { tag = HomeTailnet.Tag, tagOwners, grant, scopes = new[] { "auth_keys", "devices:core", "policy_file:read" } };
+        var setup = new { tag = HomeTailnet.Tag, tagOwners, grant, scopes = HomeTailnet.Scopes };
         if (Plugin.HomeTailnet.Client is not { } owner)
         {
             return Answer(StatusCodes.Status200OK, new { connected = false, server, port, setup, policy = (string?)null });
@@ -446,9 +446,10 @@ public sealed class HomeController : ControllerBase
         string policy;
         IReadOnlyList<HomeTailnet.OpenRule> open = [];
         IReadOnlyList<TailnetDevice> nodes = [];
+        HomePolicyFix.Plan? fix = null;
         try
         {
-            (policy, open) = await PolicyAsync(api, server, port, cancellationToken).ConfigureAwait(false);
+            (policy, open, fix) = await PolicyAsync(api, server, port, cancellationToken).ConfigureAwait(false);
             nodes = await SweepAsync(api, cancellationToken).ConfigureAwait(false);
         }
         catch (TailscaleApi.TailscaleException error)
@@ -472,8 +473,66 @@ public sealed class HomeController : ControllerBase
             setup,
             policy,
             open = open.Select(x => new { section = x.Section, number = x.Number, sources = x.Sources }),
+            fix = fix?.Changes.Select(x => new { kind = x.Kind, section = x.Section, number = x.Number, sources = x.Sources }),
+            broad = TailscaleApi.TooBroad(api.Scopes),
             devices,
         });
+    }
+
+    /// <summary>
+    /// The tailnet's policy put right by Mira (<see cref="HomePolicyFix"/>), as the administrator saw it in the settings:
+    /// written only if it has not changed since it was read, comments kept. Needs the OAuth client's policy_file scope.
+    /// </summary>
+    [HttpPost("tailnet/fix")]
+    [Authorize(Policy = "RequiresElevation")]
+    public async Task<IActionResult> FixPolicy(CancellationToken cancellationToken)
+    {
+        if (Plugin.HomeTailnet.Client is not { } owner)
+        {
+            return Answer(StatusCodes.Status409Conflict, new { error = Text("Relie d’abord le foyer à ton réseau Tailscale."), policy = "disconnected" });
+        }
+
+        if (HomeTailnet.OwnAddress() is not { } server)
+        {
+            return Answer(StatusCodes.Status409Conflict, new { error = Text("Tailscale n’est pas allumé sur le PC de Jellyfin."), policy = "no-tailscale" });
+        }
+
+        using var client = _clients.CreateClient();
+        var api = new TailscaleApi(client, owner.Id, owner.Secret);
+        try
+        {
+            var (text, version) = await api.PolicyTextAsync(cancellationToken).ConfigureAwait(false);
+            var verdict = HomeTailnet.CheckPolicy(HomePolicyFix.Parse(text), server, _host.HttpPort).Verdict;
+            if (verdict == HomeTailnet.Verdict.Ok)
+            {
+                return NoContent();
+            }
+
+            if (HomePolicyFix.Make(text, server, _host.HttpPort) is not { } plan)
+            {
+                return Answer(StatusCodes.Status409Conflict, new { error = Text("Mira ne sait pas corriger ces règles seule : restreins-les dans la politique Tailscale."), policy = "too-open" });
+            }
+
+            await api.SetPolicyAsync(plan.Text, version, cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("Mira: the tailnet's policy was put right for the home ({Changes})", string.Join(", ", plan.Changes.Select(x => x.Kind)));
+            return NoContent();
+        }
+        catch (TailscaleApi.TailscaleException error)
+        {
+            if (error.Failure == TailscaleApi.Failure.Invalid)
+            {
+                _logger.LogWarning("Mira: Tailscale refused the policy put right for the home: {Message}", error.Message);
+            }
+
+            var (policy, message) = error.Failure switch
+            {
+                TailscaleApi.Failure.Scope => ("no-write", "Le client OAuth du foyer ne peut pas écrire la politique : crée-en un avec le droit policy_file, puis relie de nouveau le foyer."),
+                TailscaleApi.Failure.Changed => ("changed", "Ta politique Tailscale vient de changer : vérifie à nouveau, puis corrige."),
+                TailscaleApi.Failure.Invalid => ("invalid", "Tailscale a refusé la politique corrigée : rien n’a changé. Corrige-la dans la console de Tailscale."),
+                _ => (Failure(error), FailureText(error)),
+            };
+            return Answer(error.Failure == TailscaleApi.Failure.Unreachable ? StatusCodes.Status502BadGateway : StatusCodes.Status409Conflict, new { error = Text(message), policy });
+        }
     }
 
     /// <summary>The home connected to the tailnet with an OAuth client (checked with Tailscale first), or disconnected (both null).</summary>
@@ -504,7 +563,11 @@ public sealed class HomeController : ControllerBase
         using var client = _clients.CreateClient();
         try
         {
-            await new TailscaleApi(client, id!, secret!).CheckAsync(cancellationToken).ConfigureAwait(false);
+            // A client that can do everything is refused: its secret stays on this server, in the clear.
+            if (TailscaleApi.TooBroad(await new TailscaleApi(client, id!, secret!).CheckAsync(cancellationToken).ConfigureAwait(false)))
+            {
+                return Answer(StatusCodes.Status400BadRequest, new { error = Text("Ce client OAuth a plus de droits qu’il n’en faut : supprime-le, puis crée-en un avec seulement Policy File, Devices Core et Auth Keys (étiquette tag:mira-home)."), policy = "too-broad" });
+            }
         }
         catch (TailscaleApi.TailscaleException error)
         {
@@ -544,7 +607,7 @@ public sealed class HomeController : ControllerBase
         var api = new TailscaleApi(client, owner.Id, owner.Secret);
         try
         {
-            var (policy, open) = await PolicyAsync(api, server, _host.HttpPort, cancellationToken).ConfigureAwait(false);
+            var (policy, open, _) = await PolicyAsync(api, server, _host.HttpPort, cancellationToken).ConfigureAwait(false);
             if (policy != "ok")
             {
                 return Answer(StatusCodes.Status409Conflict, new
@@ -619,21 +682,24 @@ public sealed class HomeController : ControllerBase
         return left;
     }
 
-    private static async Task<(string Policy, IReadOnlyList<HomeTailnet.OpenRule> Open)> PolicyAsync(TailscaleApi api, string? server, int port, CancellationToken cancellationToken)
+    private static async Task<(string Policy, IReadOnlyList<HomeTailnet.OpenRule> Open, HomePolicyFix.Plan? Fix)> PolicyAsync(TailscaleApi api, string? server, int port, CancellationToken cancellationToken)
     {
         if (server is null)
         {
-            return ("no-tailscale", []);
+            return ("no-tailscale", [], null);
         }
 
-        var (verdict, open) = HomeTailnet.CheckPolicy(await api.PolicyAsync(cancellationToken).ConfigureAwait(false), server, port);
+        // As the administrator wrote it: what Mira would change is planned on the same text.
+        var (text, _) = await api.PolicyTextAsync(cancellationToken).ConfigureAwait(false);
+        var (verdict, open) = HomeTailnet.CheckPolicy(HomePolicyFix.Parse(text), server, port);
+        var fix = verdict == HomeTailnet.Verdict.Ok ? null : HomePolicyFix.Make(text, server, port);
         return (verdict switch
         {
             HomeTailnet.Verdict.Ok => "ok",
             HomeTailnet.Verdict.NoTag => "no-tag",
             HomeTailnet.Verdict.TooOpen => "too-open",
             _ => "no-access",
-        }, open);
+        }, open, fix);
     }
 
     private static string Failure(TailscaleApi.TailscaleException error) => error.Failure switch
@@ -646,7 +712,7 @@ public sealed class HomeController : ControllerBase
     private static string FailureText(TailscaleApi.TailscaleException error) => error.Failure switch
     {
         TailscaleApi.Failure.Refused => "Tailscale refuse le client OAuth du foyer : il a été supprimé ou révoqué. Relie de nouveau le foyer.",
-        TailscaleApi.Failure.Scope => "Le client OAuth du foyer n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file:read et l’étiquette tag:mira-home).",
+        TailscaleApi.Failure.Scope => "Le client OAuth du foyer n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file et l’étiquette tag:mira-home).",
         _ => "Tailscale n’a pas répondu. Réessaie dans un instant.",
     };
 

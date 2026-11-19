@@ -904,6 +904,12 @@ public static class SelfCheck
                 Check(on && withHome.Family.LinkShown && withHome.Family.Said.Contains(Lang.L("Administrateur : jamais dans le foyer.", "Administrator: never in the home.")),
                     "réglages : foyer (lien et QR code, profils, appareils)", withHome.Family.Said);
                 await Task.Delay(500); Capture(window, output, "07c4-settings-family");
+                // Away from home: the default « * » of the tailnet, what Mira would change, then « Fix my policy ».
+                var told = withHome.Family.Said.Contains(Mira.Core.Family.HomeText.FixAbout) && withHome.Family.Said.Contains("autogroup:member, autogroup:shared");
+                await withHome.Family.FixPolicyForCheck();
+                var fixedSaid = await Until(() => withHome.Family.Said.Contains(Mira.Core.Family.HomeText.Policy("ok")), 10);
+                Check(told && fixedSaid && mock.HomeAdmin.Contains("POST Mira/home/tailnet/fix"), "réglages : foyer, politique Tailscale corrigée par Mira", withHome.Family.Said);
+                mock.PolicyFixed = false;
                 mock.HomeOn = false;
                 withHome.ShowSettingsSide();
             }

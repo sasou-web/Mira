@@ -49,6 +49,10 @@ public sealed class TailscaleApi
         Unreachable,
         /// <summary>What was asked for is not there (404).</summary>
         Gone,
+        /// <summary>The policy changed since it was read (412).</summary>
+        Changed,
+        /// <summary>Tailscale refused the policy written (400): its words are the message.</summary>
+        Invalid,
     }
 
     public sealed class TailscaleException(Failure failure, string message) : Exception(message)
@@ -56,12 +60,36 @@ public sealed class TailscaleApi
         public Failure Failure { get; } = failure;
     }
 
-    /// <summary>Checks the client: an access token, made now.</summary>
-    public async Task CheckAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Checks the client: an access token, made now. Its scopes, as Tailscale grants them (« scope » of the token's
+    /// answer, split on spaces), or null when Tailscale does not say.
+    /// </summary>
+    public async Task<IReadOnlyList<string>?> CheckAsync(CancellationToken cancellationToken)
     {
         lock (Tokens) Tokens.Remove(_id);
         await TokenAsync(cancellationToken).ConfigureAwait(false);
+        lock (Tokens) return Granted.GetValueOrDefault(_id);
     }
+
+    /// <summary>The scopes of this client's last token, when Tailscale said them.</summary>
+    public IReadOnlyList<string>? Scopes
+    {
+        get
+        {
+            lock (Tokens) return Granted.GetValueOrDefault(_id);
+        }
+    }
+
+    // The scopes of each client's last token, when Tailscale said them.
+    private static readonly Dictionary<string, IReadOnlyList<string>?> Granted = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whether a client granted <paramref name="scopes"/> can do more than the home needs (<see cref="HomeTailnet.Scopes"/>
+    /// and their reads): « all », or any other scope. Its secret is kept on the server in the clear, so the least is kept.
+    /// </summary>
+    public static bool TooBroad(IReadOnlyList<string>? scopes) =>
+        scopes is not null && scopes.Any(x => !HomeTailnet.Scopes.Any(s => string.Equals(x, s, StringComparison.OrdinalIgnoreCase) || string.Equals(x, s + ":read", StringComparison.OrdinalIgnoreCase))
+            && !string.Equals(x, "devices:posture_attributes", StringComparison.OrdinalIgnoreCase) && !string.Equals(x, "devices:posture_attributes:read", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The tailnet's policy, as JSON (Tailscale drops the HuJSON's comments).</summary>
     public async Task<JsonNode?> PolicyAsync(CancellationToken cancellationToken)
@@ -69,6 +97,20 @@ public sealed class TailscaleApi
         var text = await SendAsync(HttpMethod.Get, "/api/v2/tailnet/-/acl", null, cancellationToken).ConfigureAwait(false);
         return Parse(text);
     }
+
+    /// <summary>The tailnet's policy as the administrator wrote it (HuJSON, comments kept), and its version (ETag).</summary>
+    public async Task<(string Text, string? Version)> PolicyTextAsync(CancellationToken cancellationToken)
+    {
+        var (text, version) = await SendAsync(HttpMethod.Get, "/api/v2/tailnet/-/acl", null, cancellationToken, "application/hujson").ConfigureAwait(false);
+        return (Unwrap(text), version);
+    }
+
+    /// <summary>
+    /// The tailnet's policy replaced by <paramref name="text"/> (HuJSON), only when it is still at
+    /// <paramref name="version"/>: <see cref="Failure.Changed"/> otherwise. Tailscale checks it (and its tests) first.
+    /// </summary>
+    public async Task SetPolicyAsync(string text, string? version, CancellationToken cancellationToken) =>
+        await SendAsync(HttpMethod.Post, "/api/v2/tailnet/-/acl", text, cancellationToken, "application/hujson", version).ConfigureAwait(false);
 
     /// <summary>A key for one device, preauthorized, of the home's tag, that ends after <paramref name="life"/>: its secret, its id, its end.</summary>
     public async Task<(string Key, string Id, DateTimeOffset Expires)> CreateKeyAsync(TimeSpan life, CancellationToken cancellationToken)
@@ -178,26 +220,42 @@ public sealed class TailscaleApi
         }
 
         var seconds = answer["expires_in"] is JsonValue v && v.TryGetValue<long>(out var s) ? s : 3600;
+        var granted = Str(answer["scope"]) is { Length: > 0 } scope ? scope.Split(' ', StringSplitOptions.RemoveEmptyEntries) : null;
+        lock (Tokens) Granted[_id] = granted;
         lock (Tokens) Tokens[_id] = (token, _now() + TimeSpan.FromSeconds(Math.Max(60, seconds - 300)));
         return token;
     }
 
-    private async Task<string> SendAsync(HttpMethod method, string path, string? json, CancellationToken cancellationToken)
+    private async Task<string> SendAsync(HttpMethod method, string path, string? json, CancellationToken cancellationToken) =>
+        (await SendAsync(method, path, json, cancellationToken, "application/json").ConfigureAwait(false)).Text;
+
+    private async Task<(string Text, string? Version)> SendAsync(HttpMethod method, string path, string? body, CancellationToken cancellationToken, string type, string? version = null)
     {
         var token = await TokenAsync(cancellationToken).ConfigureAwait(false);
         using var request = new HttpRequestMessage(method, _base + path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        if (json is not null)
+        // A policy is read as HuJSON, written as HuJSON, and Tailscale answers a write in JSON.
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(method == HttpMethod.Get ? type : "application/json"));
+        if (version is not null)
         {
-            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+            request.Headers.TryAddWithoutValidation("If-Match", version);
         }
 
-        var (status, text) = await RawAsync(request, cancellationToken).ConfigureAwait(false);
+        if (body is not null)
+        {
+            request.Content = new StringContent(body, Encoding.UTF8);
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue(type);
+        }
+
+        var (status, text, etag) = await RawAsync(request, cancellationToken, true).ConfigureAwait(false);
         switch (status)
         {
             case HttpStatusCode.OK or HttpStatusCode.NoContent:
-                return text;
+                return (text, etag);
+            case HttpStatusCode.PreconditionFailed:
+                throw new TailscaleException(Failure.Changed, "The policy changed meanwhile.");
+            case HttpStatusCode.BadRequest when method == HttpMethod.Post && path.EndsWith("/acl", StringComparison.Ordinal):
+                throw new TailscaleException(Failure.Invalid, Message(text) ?? "The policy was refused.");
             case HttpStatusCode.Unauthorized:
                 lock (Tokens) Tokens.Remove(_id);
                 throw new TailscaleException(Failure.Refused, "The OAuth client is refused.");
@@ -212,6 +270,12 @@ public sealed class TailscaleApi
 
     private async Task<(HttpStatusCode Status, string Text)> RawAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        var (status, text, _) = await RawAsync(request, cancellationToken, true).ConfigureAwait(false);
+        return (status, text);
+    }
+
+    private async Task<(HttpStatusCode Status, string Text, string? Version)> RawAsync(HttpRequestMessage request, CancellationToken cancellationToken, bool versioned)
+    {
         request.Headers.TryAddWithoutValidation("User-Agent", "Mira-Jellyfin");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(20));
@@ -219,7 +283,7 @@ public sealed class TailscaleApi
         {
             using var response = await _http.SendAsync(request, timeout.Token).ConfigureAwait(false);
             var text = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
-            return (response.StatusCode, text.Length > 1_000_000 ? "" : text);
+            return (response.StatusCode, text.Length > 1_000_000 ? "" : text, versioned ? response.Headers.ETag?.ToString() : null);
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
@@ -237,6 +301,24 @@ public sealed class TailscaleApi
         {
             return null;
         }
+    }
+
+    /// <summary>The policy's text: as Tailscale sends it, or out of { "acl": … } when it wraps it (base64 or text).</summary>
+    private static string Unwrap(string text)
+    {
+        if (Parse(text) is JsonObject o && o.Count <= 2 && o["acl"] is JsonValue acl && acl.TryGetValue<string>(out var inner) && o.All(x => x.Key is "acl" or "warnings"))
+        {
+            try
+            {
+                return Encoding.UTF8.GetString(Convert.FromBase64String(inner));
+            }
+            catch (FormatException)
+            {
+                return inner;
+            }
+        }
+
+        return text;
     }
 
     private static string? Message(string text) => Parse(text) is JsonObject o ? Str(o["message"]) : null;

@@ -63,6 +63,97 @@ internal static class HomeTailnetTests
             return Task.CompletedTask;
         });
 
+        await Test("Foyer loin de chez soi : Mira corrige la politique Tailscale elle-même, commentaires gardés", async () =>
+        {
+            static HomeTailnet.Verdict Verdict(string text) => HomeTailnet.CheckPolicy(HomePolicyFix.Parse(text), Server, 8096).Verdict;
+
+            // A new tailnet's policy, as Tailscale writes it (comments, trailing commas, tabs), with only the tag added
+            // by the visual editor: Mira narrows « * » to people and adds the rule to Jellyfin.
+            const string Fresh = "// Example/default ACLs for unrestricted connections.\n{\n\t// Declare static groups of users.\n\t\"tagOwners\": {\n\t\t\"tag:mira-home\": [\"autogroup:admin\"],\n\t\t\"tag:server\": [\"autogroup:admin\"],\n\t},\n\n"
+                + "\t\"grants\": [\n\t\t// Allow all connections.\n\t\t{\"src\": [\"*\"], \"dst\": [\"*\"], \"ip\": [\"*\"]},\n\t],\n\n"
+                + "\t\"ssh\": [\n\t\t{\n\t\t\t\"action\": \"check\",\n\t\t\t\"src\":    [\"autogroup:member\"],\n\t\t\t\"dst\":    [\"autogroup:self\"],\n\t\t\t\"users\":  [\"autogroup:nonroot\", \"root\"],\n\t\t},\n\t],\n}\n";
+            Assert(Verdict(Fresh) == HomeTailnet.Verdict.TooOpen, "The default « * » is too open");
+            var plan = HomePolicyFix.Make(Fresh, Server, 8096);
+            Assert(plan is not null && Verdict(plan.Text) == HomeTailnet.Verdict.Ok, "Put right");
+            Assert(plan!.Changes.Select(x => x.Kind).SequenceEqual(["narrow", "grant"]) && plan.Changes[0] is { Section: "grants", Number: 1, Sources: ["autogroup:member", "autogroup:shared", "tag:server"] }, "What changed, as the settings show it");
+            Assert(plan.Text.Contains("// Example/default ACLs for unrestricted connections.", StringComparison.Ordinal) && plan.Text.Contains("\t\t// Allow all connections.\n", StringComparison.Ordinal)
+                && plan.Text.Contains("\"src\":    [\"autogroup:member\"]", StringComparison.Ordinal), "Comments and spacing kept");
+            Assert(plan.Text.Contains("\t\"grants\": [\n\t\t{\"src\": [\"tag:mira-home\"], \"dst\": [\"100.88.12.34\"], \"ip\": [\"tcp:8096\"]},\n\t\t// Allow all connections.", StringComparison.Ordinal), "The rule first, at the same indent");
+            Assert(HomePolicyFix.Make(plan.Text, Server, 8096) is null, "Nothing more once right");
+
+            // ogsas's paste of 2026-11-19, put right by hand: the tag and the rule there, « * » still open.
+            const string Pasted = "{\n\t\"tagOwners\": {\n\t\t\"tag:mira-home\": [\"autogroup:admin\"],\n\t},\n\n\t\"grants\": [\n\t\t{\"src\": [\"*\"], \"dst\": [\"*\"], \"ip\": [\"*\"]},\n"
+                + "\t\t{\"src\": [\"tag:mira-home\"], \"dst\": [\"100.88.12.34\"], \"ip\": [\"tcp:8096\"]},\n\t],\n}";
+            var pasted = HomePolicyFix.Make(Pasted, Server, 8096);
+            Assert(pasted is { Changes: [{ Kind: "narrow", Sources: ["autogroup:member", "autogroup:shared"] }] } && Verdict(pasted.Text) == HomeTailnet.Verdict.Ok, "Only « * » narrowed");
+
+            // No tagOwners nor grants at all, ACLs of the old kind: both sections added, the ACL narrowed.
+            const string Old = "{\n  \"acls\": [\n    {\"action\": \"accept\", \"src\": [\"*\"], \"dst\": [\"*:*\"]}, // everyone\n  ],\n}";
+            var old = HomePolicyFix.Make(Old, Server, 8096);
+            Assert(old is not null && Verdict(old.Text) == HomeTailnet.Verdict.Ok && old.Changes.Select(x => x.Kind).SequenceEqual(["tag", "narrow", "grant"]), "Old ACLs, nothing of the tag");
+            Assert(old!.Text.Contains("\n  \"tagOwners\": {\n    \"tag:mira-home\": [\"autogroup:admin\"],\n  },", StringComparison.Ordinal) && old.Text.Contains("// everyone", StringComparison.Ordinal), "At the policy's own indent");
+
+            // autogroup:tagged with other sources: the other tags instead; with people kept as they were.
+            const string Tagged = "{\"tagOwners\": {\"tag:mira-home\": [], \"tag:nas\": []}, \"grants\": [{\"src\": [\"group:famille\", \"autogroup:tagged\"], \"dst\": [\"*\"], \"ip\": [\"*\"]}]}";
+            var tagged = HomePolicyFix.Make(Tagged, Server, 8096);
+            Assert(tagged is not null && Verdict(tagged.Text) == HomeTailnet.Verdict.Ok && tagged.Changes[0].Sources is ["group:famille", "tag:nas"], "autogroup:tagged becomes the other tags");
+            var alone = HomePolicyFix.Make("{\"tagOwners\": {\"tag:mira-home\": []}, \"grants\": [{\"src\": [\"group:famille\", \"autogroup:tagged\"], \"dst\": [\"*\"], \"ip\": [\"*\"]}]}", Server, 8096);
+            Assert(alone is not null && Verdict(alone.Text) == HomeTailnet.Verdict.Ok && alone.Changes[0].Sources is ["group:famille"] && !alone.Text.Contains("tagged", StringComparison.Ordinal), "No other tag: it goes");
+
+            // Never a guess: the tag named with every port, a range of the tailnet, an SSH rule from anyone, a broken policy.
+            foreach (var (text, why) in new[]
+            {
+                ("{\"tagOwners\": {\"tag:mira-home\": []}, \"grants\": [{\"src\": [\"tag:mira-home\"], \"dst\": [\"*\"], \"ip\": [\"*\"]}]}", "The tag itself everywhere"),
+                ("{\"tagOwners\": {\"tag:mira-home\": []}, \"grants\": [{\"src\": [\"100.64.0.0/10\"], \"dst\": [\"*\"], \"ip\": [\"*\"]}]}", "The tailnet's range"),
+                ("{\"tagOwners\": {\"tag:mira-home\": []}, \"ssh\": [{\"action\": \"accept\", \"src\": [\"*\"], \"dst\": [\"autogroup:self\"], \"users\": [\"root\"]}]}", "SSH from anyone"),
+                ("{\"tagOwners\": {\"tag:mira-home\": []}, \"grants\": [{\"src\": [\"*\"], \"dst\": [\"*\"], \"ip\": [\"*\"]}", "Not closed"),
+            })
+                Assert(HomePolicyFix.Make(text, Server, 8096) is null, why);
+            Assert(HomePolicyFix.Make(plan.Text, Server, 8096) is null, "Already right");
+
+            // Tailscale's API: the policy read as HuJSON with its version, written back only at that version.
+            var calls = new List<string>();
+            var changed = false;
+            using var http = new HttpClient(new Handler(async request =>
+            {
+                var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync();
+                calls.Add($"{request.Method} {request.RequestUri!.AbsolutePath} {request.Headers.Accept} {request.Content?.Headers.ContentType} {(request.Headers.TryGetValues("If-Match", out var match) ? string.Join(",", match) : "")} {body}");
+                HttpResponseMessage Json(string json, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                switch (request.RequestUri.AbsolutePath)
+                {
+                    case "/api/v2/oauth/token":
+                        return Json(body.Contains("tskey-client-all", StringComparison.Ordinal) ? "{\"access_token\": \"tskey-api-all\", \"expires_in\": 3600, \"scope\": \"all\"}"
+                            : "{\"access_token\": \"tskey-api-temp\", \"expires_in\": 3600, \"scope\": \"auth_keys devices:core policy_file\"}");
+                    case "/api/v2/tailnet/-/acl" when request.Method == HttpMethod.Get:
+                        var answer = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Fresh, Encoding.UTF8, "application/hujson") };
+                        answer.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"v1\"");
+                        return answer;
+                    case "/api/v2/tailnet/-/acl":
+                        return changed ? Json("{\"message\": \"precondition failed\"}", HttpStatusCode.PreconditionFailed) : Json("{}");
+                    default:
+                        return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+                }
+            }));
+            var api = new TailscaleApi(http, "kFix" + Guid.NewGuid().ToString("N"), "tskey-client-secret", "https://api.example.test");
+            Assert(!TailscaleApi.TooBroad(await api.CheckAsync(CancellationToken.None)), "The scopes the home needs");
+            Assert(TailscaleApi.TooBroad(await new TailscaleApi(http, "kAll" + Guid.NewGuid().ToString("N"), "tskey-client-all", "https://api.example.test").CheckAsync(CancellationToken.None)), "« All » refused: its secret stays on the server");
+            Assert(!TailscaleApi.TooBroad(null) && !TailscaleApi.TooBroad(["auth_keys", "devices:core:read", "policy_file:read", "devices:posture_attributes"]) && TailscaleApi.TooBroad(["auth_keys", "dns"]), "Silent, reads, one more");
+            var (read, version) = await api.PolicyTextAsync(CancellationToken.None);
+            Assert(read == Fresh && version == "\"v1\"" && calls[^1].Contains("application/hujson", StringComparison.Ordinal), "Read as HuJSON, with its version");
+            await api.SetPolicyAsync(plan.Text, version, CancellationToken.None);
+            Assert(calls[^1].StartsWith("POST /api/v2/tailnet/-/acl", StringComparison.Ordinal) && calls[^1].Contains("application/hujson \"v1\"", StringComparison.Ordinal) && calls[^1].EndsWith(plan.Text, StringComparison.Ordinal), "Written as HuJSON, at that version");
+            changed = true;
+            try
+            {
+                await api.SetPolicyAsync(plan.Text, version, CancellationToken.None);
+                Assert(false, "Changed meanwhile");
+            }
+            catch (TailscaleApi.TailscaleException error)
+            {
+                Assert(error.Failure == TailscaleApi.Failure.Changed, "Changed meanwhile");
+            }
+        });
+
         await Test("Foyer loin de chez soi : le lien du foyer et les appareils retirés du réseau Tailscale", async () =>
         {
             var data = new HomeTailnet.LinkData(1, "Maison", "f0a1b2c3d4e5f60718293a4b5c6d7e8f", "http://100.88.12.34:8096", "tskey-auth-kAbC123-xyz", 1_800_000_000);

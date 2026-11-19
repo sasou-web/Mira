@@ -429,7 +429,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/Mira/home/tailnet') {
     return send(res, 200, { connected: false, server: '100.88.12.34', port: 8096, policy: null,
-      setup: { tag: 'tag:mira-home', tagOwners: '"tagOwners": { "tag:mira-home": ["autogroup:admin"] }', grant: '{ "src": ["tag:mira-home"], "dst": ["100.88.12.34"], "ip": ["tcp:8096"] }', scopes: ['auth_keys', 'devices:core', 'policy_file:read'] } });
+      setup: { tag: 'tag:mira-home', tagOwners: '"tagOwners": { "tag:mira-home": ["autogroup:admin"] }', grant: '{ "src": ["tag:mira-home"], "dst": ["100.88.12.34"], "ip": ["tcp:8096"] }', scopes: ['auth_keys', 'devices:core', 'policy_file'] } });
   }
   if (url.pathname.startsWith('/Mira/home/') && ['PUT', 'DELETE', 'POST'].includes(req.method)) return send(res, administrator ? 204 : 403, undefined);
   // The account's policy: allowed to manage collections, not an administrator (but after /Mock/Admin).
