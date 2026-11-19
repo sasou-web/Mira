@@ -299,7 +299,12 @@ public partial class MainWindow
             var result = await _metadata!.EpisodesAsync(item.Id);
             var next = _client is { } client ? await NextEpisodeAsync(client, item.Id) : null;
             if (version != _detailVersion) return;
-            _episodes = result.Items;
+            // Put in the Recycle Bin from Mira a moment ago: Jellyfin lists them until its folder monitor has seen it,
+            // a few minutes (4 for two seasons of JoJo, 2026-11-19), and the page would bring them back meanwhile.
+            _episodes = _catalog.WithoutTrashed(result.Items);
+            var trashedSeasons = result.Items.Select(x => x.ParentIndexNumber).Distinct().Count() - _episodes.Select(x => x.ParentIndexNumber).Distinct().Count();
+            if (trashedSeasons > 0 && _detail is { Type: "Series", ChildCount: > 0 } series && series.Id == item.Id) _detail = series with { ChildCount = Math.Max(0, series.ChildCount.Value - trashedSeasons) };
+            if (next is not null && _catalog.WithoutTrashed([next]).Count == 0) next = null;
             if (_store is { } store) { var episodes = _episodes; await Task.Run(() => store.ApplyLocalProgress(episodes)); if (version != _detailVersion) return; }
             _detailNext = next is null ? null : _episodes.FirstOrDefault(x => x.Id == next.Id) ?? next;
             _episodesRead = true; FillSeasons();

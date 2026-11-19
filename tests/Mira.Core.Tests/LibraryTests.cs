@@ -2266,6 +2266,9 @@ internal static class LibraryTests
             catalog.Resume = [new() { Id = "e", SeriesId = "s" }];
             Assert(catalog.Items.Single().Id == "m" && catalog.TotalCount == 1 && catalog.ContinueRow().Count == 0, "Sent to the Recycle Bin: not back with Jellyfin's next answer");
             Assert(catalog.WithoutTrashed([new() { Id = "s" }], DateTimeOffset.UtcNow + Catalog.TrashedFor + TimeSpan.FromMinutes(1)).Count == 1, "Back after a while (a title restored from the Recycle Bin)");
+            // Episodes of a season sent from Mira: out of the series' page Jellyfin sends meanwhile, the others kept.
+            catalog.Forget("s1e1"); catalog.Forget("s1e2");
+            Assert(catalog.WithoutTrashed([new() { Id = "s1e1", SeriesId = "j" }, new() { Id = "s1e2", SeriesId = "j" }, new() { Id = "s6e1", SeriesId = "j" }]).Single().Id == "s6e1", "A season sent to the Recycle Bin: not back on the series' page");
             return Task.CompletedTask;
         });
         await Test("Corbeille : un épisode et ses fichiers du même nom, une saison et son dossier, un film et ses sous-titres, jamais le dossier d’une série pour moins qu’elle (tests/fixtures/recycle.json)", () =>
