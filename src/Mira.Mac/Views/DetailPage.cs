@@ -1067,11 +1067,14 @@ public sealed partial class DetailPage : Page
             if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeight.SemiBold, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center });
             if (MissingPillNote(page) is { } coming) label.Children.Add(coming);
             // « chip season »: no body of its own, the row draws it and the white pill of the one shown (SeasonRow).
-            var pill = new Button { Content = label, Classes = { "chip", "season" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Tag = page };
+            // The name goes in the pill or, cut, in its face: never in both, an Avalonia control has one parent (set as the
+            // pill's content first, the face threw and left a series of more than ten seasons with nothing under its buttons).
+            var pill = new Button { Content = compact ? null : label, Classes = { "chip", "season" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Tag = page };
             if (compact)
             {
-                // One height for the cut pills and the one shown; the name and the number both centred, cut as it opens.
-                pill.Height = PillRow.Round; pill.Padding = new Thickness(0); pill.VerticalContentAlignment = VerticalAlignment.Center; pill.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+                // One height for the cut pills and the one shown; the name and the number both centred, cut as it opens. Its face
+                // asks no width: stretched to the width the row gives it, or a button (left-aligned) is laid out 0 wide, empty.
+                pill.Height = PillRow.Round; pill.Padding = new Thickness(0); pill.HorizontalAlignment = HorizontalAlignment.Stretch; pill.VerticalContentAlignment = VerticalAlignment.Center; pill.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 var cut = new TextBlock { Text = EpisodeTiles.Short(page, pages), FontSize = 13.5, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 pill.Content = new SeasonRow.Face { Children = { label, cut } };
                 ToolTip.SetPlacement(pill, PlacementMode.Bottom); ToolTip.SetVerticalOffset(pill, 6); ToolTip.SetShowDelay(pill, 250);
