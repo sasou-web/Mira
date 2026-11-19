@@ -5,7 +5,13 @@ public static class ContinueWatching
 {
     /// <summary>A film stands for itself; an episode for its series.</summary>
     public static string Group(MediaItem item) => item.SeriesId ?? item.Id;
-    public static List<MediaItem> History(IEnumerable<MediaItem> items) => items
+    /// <summary>
+    /// Whether a played video counts among what one watches: a film or an episode, never a bonus (a series' openings and
+    /// endings of its Extras folder, a trailer, a making-of). Jellyfin keeps a bonus left halfway in UserItems/Resume like
+    /// any video (ogsas, 2026-11-19: Monogatari's openings in « Continuer à regarder »), and Mira put the one playing first.
+    /// </summary>
+    public static bool Counts(MediaItem item) => item.Type is "Movie" or "Episode" && string.IsNullOrEmpty(item.ExtraType);
+    public static List<MediaItem> History(IEnumerable<MediaItem> items) => items.Where(Counts)
         .OrderByDescending(x => x.UserData.LastPlayedDate).DistinctBy(x => x.Id).Take(64).ToList();
 
     /// <summary>
@@ -23,12 +29,12 @@ public static class ContinueWatching
     /// <param name="history">What was played lately, here and on other devices (Jellyfin's own record, by date played): each film or series stands where its last activity puts it.</param>
     public static List<MediaItem> Order(IEnumerable<MediaItem> resume, IEnumerable<MediaItem> next, IEnumerable<MediaItem> history)
     {
-        var played = history.ToList(); var upNext = next.Where(x => !x.UserData.Played).ToList();
+        var played = history.Where(Counts).ToList(); var upNext = next.Where(x => !x.UserData.Played && Counts(x)).ToList();
         var activity = played.GroupBy(Group).ToDictionary(x => x.Key, x => x.Max(i => i.UserData.LastPlayedDate) ?? DateTimeOffset.MinValue);
         // A real resume point wins over NextUp's not-yet-started episode of the same series (a title watched again too:
         // Jellyfin 12 keeps it watched, with its position), unless the series went on past it since. Among several resumed
         // episodes, the most recently watched one wins.
-        var candidates = resume.Where(x => x.Resumable && !LeftBehind(x, upNext, played))
+        var candidates = resume.Where(x => x.Resumable && Counts(x) && !LeftBehind(x, upNext, played))
             .OrderByDescending(x => x.UserData.LastPlayedDate).Concat(upNext)
             .DistinctBy(Group);
         return candidates.OrderByDescending(x =>

@@ -181,7 +181,7 @@ struct JellyfinClient: Sendable {
     }
 
     func resume(limit: Int = 16) async throws -> [Item] {
-        try await get("UserItems/Resume", cards.merging(["limit": String(limit), "mediaTypes": "Video", "enableUserData": "true"]) { $1 }, as: ItemList.self).items ?? []
+        try await get("UserItems/Resume", cards.merging(["limit": String(limit), "mediaTypes": "Video", "includeItemTypes": "Movie,Episode", "enableUserData": "true"]) { $1 }, as: ItemList.self).items ?? []
     }
 
     func nextUp(limit: Int = 16) async throws -> [Item] {

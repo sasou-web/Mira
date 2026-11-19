@@ -70,10 +70,11 @@ struct HomeContent: Codable, Sendable, Equatable {
     static func orderContinue(resume: [Item], next: [Item], history: [Item]) -> [Item] {
         func group(_ item: Item) -> String { item.seriesId ?? item.id }
         func played(_ item: Item) -> Date { item.userData?.lastPlayedDate.flatMap(parseDate) ?? .distantPast }
+        let history = history.filter(\.counts)
         var activity: [String: Date] = [:]
         for item in history { activity[group(item)] = max(activity[group(item)] ?? .distantPast, played(item)) }
-        let upNext = next.filter { $0.userData?.played != true }
-        let resumed = resume.filter { ($0.userData?.playbackPositionTicks ?? 0) > 0 && !leftBehind($0, next: upNext, history: history) }
+        let upNext = next.filter { $0.userData?.played != true && $0.counts }
+        let resumed = resume.filter { ($0.userData?.playbackPositionTicks ?? 0) > 0 && $0.counts && !leftBehind($0, next: upNext, history: history) }
             .enumerated().sorted { played($0.element) > played($1.element) || played($0.element) == played($1.element) && $0.offset < $1.offset }.map(\.element)
         var seen = Set<String>(), candidates: [Item] = []
         for item in resumed + upNext where seen.insert(group(item)).inserted {

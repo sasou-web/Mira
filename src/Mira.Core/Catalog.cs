@@ -173,6 +173,8 @@ public sealed class Catalog
     /// <summary>The title playing, put first in the recent list and in « Continuer à regarder » while it has a position.</summary>
     public void Remember(MediaItem snapshot)
     {
+        // A bonus (an opening, a trailer) is played, never picked up again: not in the row (ContinueWatching.Counts).
+        if (!ContinueWatching.Counts(snapshot)) return;
         RecentPlayback = ContinueWatching.History(RecentPlayback.Append(snapshot));
         Resume.RemoveAll(x => x.Id == snapshot.Id);
         if (snapshot.Resumable) Resume.Insert(0, snapshot);

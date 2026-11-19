@@ -174,6 +174,20 @@ struct HomeTests {
         #expect(HomeContent.orderContinue(resume: [left], next: [], history: history).map(\.id) == ["e2"])
     }
 
+    @Test("Continuer à regarder : jamais un bonus (génériques d'un dossier Extras, bande-annonce)")
+    func noExtras() {
+        var opening = item("ncop", position: 100, last: "2026-11-19T04:00:00Z")
+        opening.type = "Video"
+        opening.extraType = "Unknown"
+        var trailer = item("trailer", position: 100, last: "2026-11-19T04:10:00Z")
+        trailer.type = "Trailer"
+        trailer.extraType = "Trailer"
+        var marked = item("marked", position: 100, last: "2026-11-19T04:20:00Z")
+        marked.extraType = "Featurette"
+        let film = item("film", position: 100, last: "2026-11-18T20:00:00Z")
+        #expect(HomeContent.orderContinue(resume: [opening, trailer, marked, film], next: [], history: [opening, trailer, marked]).map(\.id) == ["film"])
+    }
+
     @Test("Un titre sans position n'est pas repris ; revu et laissé en cours, il l'est (Jellyfin 12 le garde vu)")
     func notResumed() {
         let resume = [item("revu", position: 100, played: true), item("vu", played: true), item("zero")]
