@@ -1,5 +1,5 @@
 {
-  "about": "Episodes numbered from the series' start in their season (AbsoluteNumbers of Core, the iPhone's AbsoluteNumbers). « S2E26-37 » = S2E26 to S2E37. held: the library's episodes; virtual: TheTVDB's through Jellyfin; seasonal: the held ones under their season's number; unheld: the virtual ones still missing or to come.",
+  "about": "Episodes numbered from the series' start in their season (AbsoluteNumbers of Core, the iPhone's AbsoluteNumbers). « S2E26-37 » = S2E26 to S2E37. held: the library's episodes (heldNamed: with a title of their own from TheTVDB; heldDouble: one file for two episodes); virtual: TheTVDB's through Jellyfin; seasonal: the held ones under their season's number; unheld: the virtual ones still missing or to come.",
   "cases": [
     {
       "name": "Shingeki no Kyojin: four seasons numbered 1 to 89",
@@ -49,6 +49,22 @@
       "virtual": ["S2E2-12"],
       "seasonal": ["S1E1-25", "S2E1", "S2E27"],
       "unheld": ["S2E2-12"]
+    },
+    {
+      "name": "The second half of a long season, its first half missing: TheTVDB names its episodes, nothing changes",
+      "held": ["S1E1-12"],
+      "heldNamed": ["S2E13-24"],
+      "virtual": ["S2E1-12"],
+      "seasonal": ["S1E1-12", "S2E13-24"],
+      "unheld": ["S2E1-12"]
+    },
+    {
+      "name": "A double episode in one file: the second one is not missing",
+      "held": ["S1E1-2", "S1E5"],
+      "heldDouble": ["S1E3-4"],
+      "virtual": ["S1E4", "S1E6"],
+      "seasonal": ["S1E1-2", "S1E3", "S1E5"],
+      "unheld": ["S1E6"]
     },
     {
       "name": "Without TheTVDB: nothing changes",

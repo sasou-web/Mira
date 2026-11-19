@@ -19,7 +19,10 @@ enum AbsoluteNumbers {
         var offset = 0
         for season in Set((own + known).compactMap(\.parentIndexNumber)).sorted() {
             let mine = own.filter { $0.parentIndexNumber == season }
-            let last = known.filter { $0.parentIndexNumber == season }.compactMap(\.indexNumber).max() ?? 0
+            // The season's last number at TheTVDB: its virtual episodes, and the held ones it describes (« S02E13 » to « S02E24 »
+            // held, S02E01–12 missing: the second half of a season of 24, never numbered from the start).
+            let last = (known.filter { $0.parentIndexNumber == season }.compactMap(\.indexNumber)
+                + mine.filter(described).map { $0.indexNumberEnd ?? $0.indexNumber ?? 0 }).max() ?? 0
             func inside(_ x: Item) -> Bool {
                 let number = x.indexNumber ?? 0
                 return number > last && number > offset && (x.indexNumberEnd ?? number) - offset <= last
@@ -32,6 +35,19 @@ enum AbsoluteNumbers {
             }
         }
         return found
+    }
+
+    /// A held episode TheTVDB knows under its number: Jellyfin gave it an overview, or a name that is not its number
+    /// (a file's: « Shingeki no Kyojin - S02E26 », « [SubsPlease] Show - 26 », « Episode 26 »).
+    static func described(_ episode: Item) -> Bool {
+        if let overview = episode.overview, !overview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
+        guard let name = episode.name?.trimmingCharacters(in: .whitespaces), !name.isEmpty, let number = episode.indexNumber else { return false }
+        let digits = String(number)
+        for run in name.split(whereSeparator: { !$0.isASCII || !$0.isNumber }) {
+            let trimmed = run.drop { $0 == "0" }
+            if String(trimmed) == digits { return false }
+        }
+        return true
     }
 
     /// The held episodes, those numbered from the start under their season's number (« S02E26 » as S02E01).
@@ -49,6 +65,11 @@ enum AbsoluteNumbers {
 
     /// The virtual episodes the library doesn't hold under another number: those still missing or to come.
     static func unheld(_ virtuals: [Item], held: [Item]) -> [Item] {
+        // A double episode held (« S01E03-E04 ») holds both: never the second « missing ».
+        let doubles = held.filter { x in x.parentIndexNumber != nil && (x.indexNumberEnd ?? 0) > (x.indexNumber ?? Int.max) }
+        let virtuals = virtuals.filter { v in
+            !doubles.contains { x in x.parentIndexNumber == v.parentIndexNumber && (x.indexNumber ?? 0) <= (v.indexNumber ?? -1) && (v.indexNumber ?? -1) <= (x.indexNumberEnd ?? 0) }
+        }
         let read = read(held, virtuals: virtuals)
         guard !read.isEmpty else { return virtuals }
         var taken = Set<Place>()

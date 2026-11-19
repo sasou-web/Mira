@@ -488,6 +488,56 @@ internal static class TorLinkTests
             var sintel = MediaPlanner.Plan("Sintel.2010.1080p.mkv", null, [Download("Sintel.2010.1080p.mkv", 100)], libraries);
             Assert(dune.Ignored is not null && sintel.Ignored is null && Targets(sintel) == "FILMS/Sintel (2010)/Sintel (2010).mkv", $"Film held: {dune.Ignored} / {Targets(sintel)}");
         });
+        await Test("TorLink : noms de l’audit du 2026-11-19 (batch « S2 - 01~11 », « -720p », OVA, « - 00 », « Final Season », collections, homonymes, « Staffel 1 »)", () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-audit");
+            var libraries = new MediaLibraries(Path.Combine(dir, "FILMS"), Path.Combine(dir, "SERIES"), Path.Combine(dir, "ANIME"));
+            void Make(string relative) { var path = Path.Combine(dir, relative); Directory.CreateDirectory(Path.GetDirectoryName(path)!); System.IO.File.WriteAllBytes(path, new byte[10]); }
+            SourceFile Download(string relative, long size = 1_000_000_000) => new(Path.Combine(dir, "downloads", relative), relative, size);
+            string Targets(ImportPlan plan) => string.Join(" | ", plan.Operations.Select(x => Path.GetRelativePath(dir, x.Destination).Replace('\\', '/')));
+            string First(ImportPlan plan) => plan.Operations.Count == 0 ? "" : Path.GetRelativePath(dir, plan.Operations[0].Destination).Replace('\\', '/');
+            // R1: a batch of season 2 numbered from 01, its files without the season.
+            const string Oshi = "[Judas] Oshi no Ko S2 - 01~11 [Batch]";
+            var oshi = MediaPlanner.Plan(Oshi, "nyaa", Enumerable.Range(1, 11).Select(i => Download($"{Oshi}/[Judas] Oshi no Ko - {i:00}.mkv")).ToList(), libraries);
+            Assert(First(oshi) == "ANIME/Oshi no Ko/Season 02/Oshi no Ko - S02E01.mkv" && ReleaseName.Season(Oshi) == 2, "R1: " + First(oshi));
+            Assert(ReleaseName.Season("Show.S01-S03.1080p") is null && ReleaseName.Season("Show Season 1-2 [Batch]") is null, "Season ranges");
+            // R4: an episode held under its number alone, in its season's folder.
+            Make("ANIME/Sousou no Frieren/Season 01/[SubsPlease] Sousou no Frieren - 05 (1080p).mkv");
+            Assert(MediaPlanner.Plan("[Erai-raws] Sousou no Frieren - 05 [1080p]", "nyaa", [Download("[Erai-raws] Sousou no Frieren - 05 [1080p].mkv")], libraries).Ignored is not null, "R4: held episode added again");
+            // R5, R13.
+            Assert(ReleaseName.Episode("Show.S01E05-720p.WEB", false)?.Label == "S01E05" && ReleaseName.Episode("Show.S01E01E02E03.1080p", false)?.Label == "S01E01-E03"
+                && ReleaseName.Episode("Show.S01E01-E02.1080p", false)?.Label == "S01E01-E02", "R5, R13");
+            // R7: the final season of a show already there, after its last season; « Cour 2 » keeps its number in the title.
+            Make("ANIME/Shingeki no Kyojin/Season 03/Shingeki no Kyojin - S03E01.mkv");
+            var final = MediaPlanner.Plan("[SubsPlease] Shingeki no Kyojin - The Final Season - 01 (1080p)", "nyaa", [Download("[SubsPlease] Shingeki no Kyojin - The Final Season - 01 (1080p).mkv")], libraries);
+            Assert(First(final) == "ANIME/Shingeki no Kyojin/Season 04/Shingeki no Kyojin - S04E01.mkv", "R7: " + First(final));
+            Assert(ReleaseName.Show("[SubsPlease] Jujutsu Kaisen Cour 2 - 03 (1080p)").Title == "Jujutsu Kaisen Cour 2" && ReleaseName.Show("Show Name - Season 2 - 05").Title == "Show Name", "Cour 2");
+            // R8, R12: an OVA and an episode « 00 » are specials, numbered after those held.
+            Make("ANIME/Kaguya-sama/Season 00/Kaguya-sama - S00E01.mkv");
+            var ova = MediaPlanner.Plan("Kaguya-sama - OVA (1080p)", null, [Download("Kaguya-sama - OVA (1080p).mkv")], libraries);
+            var zero = MediaPlanner.Plan("[SubsPlease] Mushoku Tensei S2 - 00 (1080p)", "nyaa", [Download("[SubsPlease] Mushoku Tensei S2 - 00 (1080p).mkv")], libraries);
+            Assert(First(ova) == "ANIME/Kaguya-sama/Season 00/Kaguya-sama - S00E02.mkv" && First(zero) == "ANIME/Mushoku Tensei/Season 00/Mushoku Tensei - S00E01.mkv", $"R8, R12: {First(ova)} / {First(zero)}");
+            Assert(ReleaseName.Season("Steins;Gate Season 1 + OVA + Movie Batch") == 1, "OVA beside a season");
+            // R10: a collection of films without their years.
+            const string Toy = "Toy Story 1-4 Collection 1080p";
+            var toy = MediaPlanner.Plan(Toy, null, new[] { "Toy Story", "Toy Story 2", "Toy Story 3", "Toy Story 4" }.Select(x => Download($"{Toy}/{x}.mkv", 2_000_000_000)).ToList(), libraries);
+            Assert(toy.Kind == MediaKind.Movie && toy.Folders.Count == 4 && !Targets(toy).Contains("version"), "R10: " + Targets(toy));
+            // R11: « (101-110) » are the episodes' own numbers.
+            const string Naruto = "Naruto Season 1 (101-110)";
+            var naruto = MediaPlanner.Plan(Naruto, null, Enumerable.Range(101, 10).Select(i => Download($"{Naruto}/Naruto - {i}.mkv")).ToList(), libraries);
+            Assert(First(naruto) == "SERIES/Naruto/Season 01/Naruto - S01E101.mkv", "R11: " + First(naruto));
+            // R14: homonyms, a year one off.
+            Directory.CreateDirectory(Path.Combine(dir, "SERIES", "Doctor Who (1963)")); Directory.CreateDirectory(Path.Combine(dir, "SERIES", "Doctor Who (2005)"));
+            Assert(First(MediaPlanner.Plan("Doctor.Who.S01E01.1080p", null, [Download("Doctor.Who.S01E01.1080p.mkv")], libraries)).StartsWith("SERIES/Doctor Who (2005)/", StringComparison.Ordinal)
+                && First(MediaPlanner.Plan("Doctor.Who.2006.S02E01.1080p", null, [Download("Doctor.Who.2006.S02E01.1080p.mkv")], libraries)).StartsWith("SERIES/Doctor Who (2005)/", StringComparison.Ordinal), "R14");
+            // R15, R16: « Staffel 1 », « Temporada 1 » are season folders; a double episode held holds both.
+            Make("SERIES/Dark/Staffel 1/Dark.S01E01.720p.mkv");
+            Make("SERIES/Lost/Temporada 1/Lost - S01E03-E04.mkv");
+            Assert(First(MediaPlanner.Plan("Dark.S01E02.1080p", null, [Download("Dark.S01E02.1080p.mkv")], libraries)) == "SERIES/Dark/Staffel 1/Dark - S01E02.mkv"
+                && MediaPlanner.Plan("Dark.S01E01.1080p", null, [Download("Dark.S01E01.1080p.mkv")], libraries).Ignored is not null
+                && MediaPlanner.Plan("Lost.S01E04.1080p", null, [Download("Lost.S01E04.1080p.mkv")], libraries).Ignored is not null, "R15, R16");
+            return Task.CompletedTask;
+        });
         await Test("TorLink : un fichier qui n’a pas pu être placé (pris, disque plein) est réessayé seul, de plus en plus tard", async () =>
         {
             var dir = Path.Combine(testRoot, "torlink-retry"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

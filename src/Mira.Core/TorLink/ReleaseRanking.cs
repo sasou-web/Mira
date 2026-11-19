@@ -68,14 +68,17 @@ public static partial class ReleaseRanking
     [GeneratedRegex(@"\[[^\]]*\]|\{[^}]*\}")] private static partial Regex Bracketed();
     [GeneratedRegex(@"^(?:19|20)\d\d$")] private static partial Regex YearOnly();
     [GeneratedRegex(@"^(\d{1,4})\s*[-~–]\s*(\d{1,4})$")] private static partial Regex EpisodeSpan();
-    [GeneratedRegex(@"^(?:(?:(?:seasons?|saisons?|temporadas?)\s*\d{1,2}(?:\s*[-~–]\s*\d{1,2})?|s\d{1,2}(?:\s*[-~–]\s*s\d{1,2})?|\d{1,2}(?:st|nd|rd|th)\s+season)(?:\s+(?:part(?:ie)?|cour)\s*\d{1,2})?|batch)$", Options)] private static partial Regex BatchWords();
+    [GeneratedRegex(@"^(?:(?:(?:seasons?|saisons?|temporadas?)\s*\d{1,2}(?:\s*[-~–]\s*\d{1,2})?|s\d{1,2}(?:\s*[-~–]\s*s\d{1,2})?|(?:\d{1,2}(?:st|nd|rd|th)|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+season)(?:\s+(?:part(?:ie)?|cour)\s*\d{1,2})?|batch)$", Options)] private static partial Regex BatchWords();
     [GeneratedRegex(@"(?<![0-9])(?:19|20)[0-9]{2}(?![0-9])")] private static partial Regex AnyYear();
     [GeneratedRegex(@"^[0-9A-Fa-f]{8}$")] private static partial Regex Checksum();
     [GeneratedRegex(@"^(?:19|20)\d\d(?:[-~](?:19|20)?\d\d)?$")] private static partial Regex Years();
-    [GeneratedRegex(@"(?<![a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?:-?e(\d{1,4})|-(\d{1,4})(?![0-9p]))?(?![0-9])", Options)] private static partial Regex SeasonEpisode();
+    // « S01E01-E02 », « S01E01E02E03 » (the last one counts), « S01E01-02 »; never « S01E05-720p ».
+    [GeneratedRegex(@"(?<![a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?:(?:-?e(\d{1,4}))+|-(\d{1,4})(?![0-9a-z]))?(?![0-9])", Options)] private static partial Regex SeasonEpisode();
+    // « Saison 2 Episode 3 », « Season 1 - Episode 05 ».
+    [GeneratedRegex(@"(?<![a-z0-9])(?:season|saison|temporada|staffel)\s*(\d{1,2})\s*[-,.]?\s*(?:episode|épisode|episodio|folge|ep\.?)\s*(\d{1,4})(?![0-9])", Options)] private static partial Regex WordsEpisode();
     [GeneratedRegex(@"(?<![a-z0-9])(\d{1,2})x(\d{2,3})(?![a-z0-9])", Options)] private static partial Regex CrossEpisode();
     [GeneratedRegex(@"(?<![a-z0-9])(?:s\d{1,2}\s*[-~]\s*s\d{1,2}|(?:seasons?|saisons?)\s*\d{1,2}\s*[-~]\s*\d{1,2})(?![0-9])", Options)] private static partial Regex SeasonRange();
-    [GeneratedRegex(@"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season)", Options)] private static partial Regex SeasonMarker();
+    [GeneratedRegex(@"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada|staffel)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season|(second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+season)", Options)] private static partial Regex SeasonMarker();
     [GeneratedRegex(@"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})(?:v\d)?(?:\s*[-~]\s*(\d{1,4})(?:v\d)?)?(?=\s|$)", Options)] private static partial Regex Numbered();
     [GeneratedRegex(@"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})[.,]5(?:v\d)?(?=\s|$)", Options)] private static partial Regex HalfNumbered();
     [GeneratedRegex(@"(?<![a-z0-9])(?:complete(?:\s+series)?|int[ée]grale|batch)(?![a-z0-9])", Options)] private static partial Regex Complete();
@@ -174,6 +177,11 @@ public static partial class ReleaseRanking
     }
 
     private static int Int(Group group) => int.Parse(group.Value, CultureInfo.InvariantCulture);
+    private static readonly string[] OrdinalWords = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+    // The season a SeasonMarker says: « S2 », « Season 2 », « 2nd Season », « Second Season ».
+    private static int SeasonOf(Match m) => m.Groups[1].Success ? Int(m.Groups[1]) : m.Groups[2].Success ? Int(m.Groups[2]) : m.Groups[3].Success ? Int(m.Groups[3])
+        : Array.IndexOf(OrdinalWords, m.Groups[4].Value.ToLowerInvariant()) + 2;
+
 
     public static ReleaseInfo Parse(string? name)
     {
@@ -235,6 +243,9 @@ public static partial class ReleaseRanking
             Mark(se.Index);
         }
         else if (CrossEpisode().Match(plain) is { Success: true } cross) { season = Int(cross.Groups[1]); episode = Int(cross.Groups[2]); Mark(cross.Index); }
+        else if (WordsEpisode().Match(plain) is { Success: true } words) { season = Int(words.Groups[1]); episode = Int(words.Groups[2]); Mark(words.Index); }
+        // « S01E05-E03 » says no second episode.
+        if (lastEpisode <= episode) lastEpisode = null;
         if (episode is null)
         {
             // Fansub numbering: « Show - 05 », « Show - 01 ~ 12 » (a batch); never a year.
@@ -248,7 +259,7 @@ public static partial class ReleaseRanking
                 && !range.Value.StartsWith("seasons", StringComparison.OrdinalIgnoreCase) && !range.Value.StartsWith("saisons", StringComparison.OrdinalIgnoreCase)) range = Match.Empty;
             var single = SeasonMarker().Match(plain);
             if (range.Success) { pack = true; Mark(range.Index); }
-            else if (single.Success) { season = Int(single.Groups[1].Success ? single.Groups[1] : single.Groups[2].Success ? single.Groups[2] : single.Groups[3]); pack = true; Mark(single.Index); }
+            else if (single.Success) { season = SeasonOf(single); pack = true; Mark(single.Index); }
             if (between.Success && (group is not null || season is not null || between.Groups[1].Length <= 3))
             {
                 half = Int(between.Groups[1]); Mark(between.Index);
@@ -266,7 +277,7 @@ public static partial class ReleaseRanking
         // « Show Season 2 - S02E05 », « [Judas] Show (Season 4 Part 3) - S04E29-31 »: the season said again before its
         // episode ends the title too.
         if (season is not null && tokens.Count > 0 && SeasonMarker().Match(plain) is { Success: true } said && said.Index > tokens[0].Index
-            && said.Index < cut && Int(said.Groups[1].Success ? said.Groups[1] : said.Groups[2].Success ? said.Groups[2] : said.Groups[3]) == season) Mark(said.Index);
+            && said.Index < cut && SeasonOf(said) == season) Mark(said.Index);
         foreach (Match complete in Complete().Matches(plain))
         {
             // « A Complete Unknown », « Star Wars The Bad Batch S03E15 »: words of the title, not every episode.
@@ -347,6 +358,18 @@ public static partial class ReleaseRanking
 
     /// <summary>Whether a site of TorLink counts who shares its results: SubsPlease never does.</summary>
     public static bool ReportsHealth(string? source) => !string.Equals(source, "subsplease", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The release as one of a show's (<paramref name="keys"/>: <see cref="TitleKey"/> of its names) reads, null when it is
+    /// another's: under its title or the other name it gives, or numbered at its title's end as a season of it (« Overlord IV
+    /// - 05 » of « Overlord »: S04E05). Never « Lupin III » of a show « Lupin III ».
+    /// </summary>
+    public static ReleaseInfo? Of(ReleaseInfo release, ISet<string> keys)
+    {
+        if (keys.Contains(TitleKey(release.Title)) || release.Alternate is { } other && keys.Contains(TitleKey(other))) return release;
+        return release.Absolute && ReleaseName.Sequel(release.Title) is { } sequel && keys.Contains(TitleKey(sequel.Title))
+            ? release with { Title = sequel.Title, Season = sequel.Season, Absolute = false } : null;
+    }
 
     /// <summary>How good a result is for us, the higher the better (releases.js: releaseScore).</summary>
     public static int Score(RelayHit hit, ReleaseInfo release, string? category = null)

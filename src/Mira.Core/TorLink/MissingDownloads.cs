@@ -110,9 +110,8 @@ public static partial class MissingDownloads
         foreach (var (search, hit) in hits)
         {
             if (!seen.Add(hit.Id)) continue;
-            var release = ReleaseRanking.Parse(hit.Name);
-            var titled = keys.Contains(ReleaseRanking.TitleKey(release.Title)) || release.Alternate is { } other && keys.Contains(ReleaseRanking.TitleKey(other));
-            if (!titled || release.Year is { } year && series.Year is { } born && Math.Abs(year - born) > 1) continue;
+            // « Overlord IV - 05 » of « Overlord »: its S04E05.
+            if (ReleaseRanking.Of(ReleaseRanking.Parse(hit.Name), keys) is not { } release || release.Year is { } year && series.Year is { } born && Math.Abs(year - born) > 1) continue;
             if (release.Source == "cam" || ReleaseRanking.ReportsHealth(hit.Source) && hit.Seeders <= 0) continue;
             var option = new MissingOption(search, new RankedRelease(hit, release, order++, ReleaseRanking.Score(hit, release, hit.Category)));
             if (release.Pack || release.Episode is null && release.Half is null && release.Season is not null)

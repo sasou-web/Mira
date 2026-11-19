@@ -1541,17 +1541,24 @@ internal static class LibraryTests
             using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "absolute.json")));
             static int Int(string x) => int.Parse(x, System.Globalization.CultureInfo.InvariantCulture);
             // « S2E26-37 »: S2E26 to S2E37, each its own episode.
+            static List<MediaItem> Optional(JsonElement row, string key, string kind) => row.TryGetProperty(key, out var list) ? Expand(list, kind) : [];
             static List<MediaItem> Expand(JsonElement list, string kind) => list.EnumerateArray().SelectMany(x =>
             {
                 var code = x.GetString()!; var season = Int(code[1..code.IndexOf('E')]); var span = code[(code.IndexOf('E') + 1)..].Split('-');
                 return Enumerable.Range(Int(span[0]), (span.Length > 1 ? Int(span[1]) : Int(span[0])) - Int(span[0]) + 1)
-                    .Select(n => new MediaItem { Id = $"{kind}-{season}-{n}", Type = "Episode", LocationType = kind == "v" ? "Virtual" : "FileSystem", ParentIndexNumber = season, IndexNumber = n });
+                    .Select(n => new MediaItem { Id = $"{kind}-{season}-{n}", Type = "Episode", LocationType = kind == "v" ? "Virtual" : "FileSystem", ParentIndexNumber = season, IndexNumber = n, Name = kind == "n" ? "A title" : "" });
             }).ToList();
             static string Codes(IEnumerable<MediaItem> items) => string.Join(",", items.OrderBy(x => x.ParentIndexNumber).ThenBy(x => x.IndexNumber).Select(x => $"S{x.ParentIndexNumber}E{x.IndexNumber}"));
             foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
             {
                 var name = row.GetProperty("name").GetString();
-                var held = Expand(row.GetProperty("held"), "h"); var virtuals = Expand(row.GetProperty("virtual"), "v");
+                // « heldNamed »: with a title of their own, as TheTVDB gives it; « heldDouble »: one file for two episodes (« S1E3-4 »).
+                var doubles = row.TryGetProperty("heldDouble", out var pairs) ? pairs.EnumerateArray().Select(x =>
+                {
+                    var code = x.GetString()!; var span = code[(code.IndexOf('E') + 1)..].Split('-');
+                    return new MediaItem { Id = "d-" + code, Type = "Episode", LocationType = "FileSystem", ParentIndexNumber = Int(code[1..code.IndexOf('E')]), IndexNumber = Int(span[0]), IndexNumberEnd = Int(span[^1]) };
+                }).ToList() : [];
+                var held = Expand(row.GetProperty("held"), "h").Concat(Optional(row, "heldNamed", "n")).Concat(doubles).ToList(); var virtuals = Expand(row.GetProperty("virtual"), "v");
                 var seasonal = Codes(AbsoluteNumbers.Seasonal(held, virtuals)); var unheld = Codes(AbsoluteNumbers.Unheld(virtuals, held));
                 Assert(seasonal == Codes(Expand(row.GetProperty("seasonal"), "x")), $"{name}: seasonal {seasonal}");
                 Assert(unheld == Codes(Expand(row.GetProperty("unheld"), "x")), $"{name}: unheld {unheld}");

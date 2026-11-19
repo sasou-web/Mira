@@ -2,6 +2,18 @@
   "comment": "« Télécharger les manquants » of a series' page: Mira.Core MissingDownloads (Windows, Mac) and Downloads/MissingDownloads.swift (iPhone). choose: TorLink's results for what a click asked (hits: name, size in GiB, seeders, site, category; each one's id is its place in the list), the season packs kept best first, the release put forward for each episode, and the episodes nothing was found for. queries: what TorLink is asked. runs: episodes in runs, as the menu names them. packChoices: the season packs a click on « Get season 2 » offers to choose from (kind, name, and whether it is too small for all the episodes while its name leaves them unsaid: never as a lighter choice).",
   "choose": [
     {
+      "name": "A season numbered at the title's end (« Overlord IV - 05 »): that season's episode; never another show (« Lupin III »)",
+      "series": { "name": "Overlord", "originalTitle": "Overlord", "year": 2015, "before": 39 },
+      "ask": { "season": 4, "episodes": [5, 6], "wholeSeason": false },
+      "hits": [
+        ["[SubsPlease] Overlord IV - 05 (1080p) [ABCD1234].mkv", 1.4, 300, "nyaa", "anime"],
+        ["[SubsPlease] Lupin III - 06 (1080p) [ABCD1234].mkv", 1.4, 300, "nyaa", "anime"]
+      ],
+      "packs": [],
+      "episodes": { "5": "[SubsPlease] Overlord IV - 05 (1080p) [ABCD1234].mkv" },
+      "notFound": [6]
+    },
+    {
       "name": "A gap in a season: one release per episode, the group most episodes share, never a pack, a cam, a dead one, two in one or a huge one",
       "series": { "name": "Arcane", "originalTitle": "Arcane", "year": 2021, "before": 9 },
       "ask": { "season": 2, "episodes": [6, 7, 8, 9], "wholeSeason": false },

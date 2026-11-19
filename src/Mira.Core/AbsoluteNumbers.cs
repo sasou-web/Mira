@@ -26,7 +26,10 @@ public static partial class AbsoluteNumbers
         foreach (var season in own.Concat(known).Select(x => x.ParentIndexNumber!.Value).Distinct().Order())
         {
             var mine = own.Where(x => x.ParentIndexNumber == season).ToList();
-            var last = known.Where(x => x.ParentIndexNumber == season).Select(x => x.IndexNumber!.Value).DefaultIfEmpty(0).Max();
+            // The season's last number at TheTVDB: its virtual episodes, and the held ones it describes (« S02E13 » to « S02E24 »
+            // held, S02E01–12 missing: the second half of a season of 24, never numbered from the start).
+            var last = known.Where(x => x.ParentIndexNumber == season).Select(x => x.IndexNumber!.Value)
+                .Concat(mine.Where(Described).Select(x => x.IndexNumberEnd ?? x.IndexNumber!.Value)).DefaultIfEmpty(0).Max();
             bool Inside(MediaItem x) => x.IndexNumber > last && x.IndexNumber > offset && (x.IndexNumberEnd ?? x.IndexNumber) - offset <= last;
             if (offset > 0 && last > 0 && mine.Count > 0 && mine.All(Inside))
             {
@@ -37,6 +40,21 @@ public static partial class AbsoluteNumbers
         }
         return found;
     }
+
+    /// <summary>
+    /// A held episode TheTVDB knows under its number: Jellyfin gave it an overview, or a name that is not its number
+    /// (a file's: « Shingeki no Kyojin - S02E26 », « [SubsPlease] Show - 26 », « Episode 26 »).
+    /// </summary>
+    public static bool Described(MediaItem episode)
+    {
+        if (!string.IsNullOrWhiteSpace(episode.Overview)) return true;
+        if (episode.Name.Trim().Length == 0 || episode.IndexNumber is not { } number) return false;
+        var digits = number.ToString(CultureInfo.InvariantCulture);
+        foreach (Match m in Digits().Matches(episode.Name)) if (m.Value.TrimStart('0') == digits) return false;
+        return true;
+    }
+    [GeneratedRegex(@"\d+")]
+    private static partial Regex Digits();
 
     /// <summary>The held episodes, those numbered from the start under their season's number (« S02E26 » as S02E01).</summary>
     public static List<MediaItem> Seasonal(IEnumerable<MediaItem> held, IEnumerable<MediaItem> virtuals)
@@ -50,8 +68,10 @@ public static partial class AbsoluteNumbers
     /// <summary>The virtual episodes the library doesn't hold under another number: those still missing or to come.</summary>
     public static List<MediaItem> Unheld(IEnumerable<MediaItem> virtuals, IEnumerable<MediaItem> held)
     {
-        var known = virtuals.ToList();
         var own = held.ToList();
+        // A double episode held (« S01E03-E04 ») holds both: never the second « missing ».
+        var doubles = own.Where(x => x.ParentIndexNumber is { } && x.IndexNumber is { } n && x.IndexNumberEnd > n).ToList();
+        var known = virtuals.Where(v => !doubles.Any(x => x.ParentIndexNumber == v.ParentIndexNumber && x.IndexNumber <= v.IndexNumber && v.IndexNumber <= x.IndexNumberEnd)).ToList();
         var read = Read(own, known);
         if (read.Count == 0) return known;
         var taken = new HashSet<(int, int)>();

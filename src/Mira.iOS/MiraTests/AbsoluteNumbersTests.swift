@@ -8,8 +8,8 @@ import Testing
 struct AbsoluteNumbersTests {
     private final class Bundled {}
 
-    /// « S2E26-37 »: S2E26 to S2E37, each its own episode.
-    private func expand(_ list: Any?, kind: String) -> [Item] {
+    /// « S2E26-37 »: S2E26 to S2E37, each its own episode; `named`: with a title of its own, as TheTVDB gives it.
+    private func expand(_ list: Any?, kind: String, named: Bool = false) -> [Item] {
         ((list as? [String]) ?? []).flatMap { code -> [Item] in
             let parts = code.dropFirst().split(separator: "E")
             let season = Int(parts[0]) ?? 0
@@ -20,6 +20,7 @@ struct AbsoluteNumbersTests {
                 item.locationType = kind == "v" ? "Virtual" : "FileSystem"
                 item.parentIndexNumber = season
                 item.indexNumber = n
+                if named { item.name = "A title" }
                 return item
             }
         }
@@ -38,7 +39,19 @@ struct AbsoluteNumbersTests {
         #expect(!rows.isEmpty)
         for row in rows {
             let name = row["name"] as? String ?? ""
-            let held = expand(row["held"], kind: "h")
+            // « heldDouble »: one file for two episodes (« S1E3-4 »).
+            let doubles = ((row["heldDouble"] as? [String]) ?? []).map { code -> Item in
+                let parts = code.dropFirst().split(separator: "E")
+                let span = parts[1].split(separator: "-").compactMap { Int($0) }
+                var item = Item(id: "d-\(code)")
+                item.type = "Episode"
+                item.locationType = "FileSystem"
+                item.parentIndexNumber = Int(parts[0])
+                item.indexNumber = span[0]
+                item.indexNumberEnd = span.last
+                return item
+            }
+            let held = expand(row["held"], kind: "h") + expand(row["heldNamed"], kind: "n", named: true) + doubles
             let virtuals = expand(row["virtual"], kind: "v")
             #expect(codes(AbsoluteNumbers.seasonal(held, virtuals: virtuals)) == codes(expand(row["seasonal"], kind: "x")), "\(name)")
             #expect(codes(AbsoluteNumbers.unheld(virtuals, held: held)) == codes(expand(row["unheld"], kind: "x")), "\(name)")
