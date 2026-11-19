@@ -13,7 +13,8 @@ public static class EdgeFade
     /// <summary>Width of the fade, in points.</summary>
     public const double Width = 48;
 
-    public static ScrollViewer Across(ScrollViewer row)
+    /// <param name="width">The fade's own width (the season line's, longer: maquette A « Le fondu »).</param>
+    public static ScrollViewer Across(ScrollViewer row, double width = Width)
     {
         var shown = "";
         void Update()
@@ -21,12 +22,12 @@ public static class EdgeFade
             var scrollable = row.Extent.Width - row.Viewport.Width;
             var before = row.Offset.X > .5;
             var after = row.Offset.X < scrollable - .5;
-            var width = row.Bounds.Width;
-            var key = before || after ? $"{before}{after}{Math.Round(width)}" : "";
+            var length = row.Bounds.Width;
+            var key = before || after ? $"{before}{after}{Math.Round(length)}" : "";
             if (key == shown) return;
             shown = key;
-            if (key.Length == 0 || width < Width * 2) { row.OpacityMask = null; return; }
-            var part = Width / width;
+            if (key.Length == 0 || length < width * 2) { row.OpacityMask = null; return; }
+            var part = width / length;
             row.OpacityMask = new LinearGradientBrush
             {
                 StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),

@@ -26,13 +26,18 @@ public static class EdgeFade
     public static bool GetEnabled(DependencyObject obj) => (bool)obj.GetValue(EnabledProperty);
     public static void SetEnabled(DependencyObject obj, bool value) => obj.SetValue(EnabledProperty, value);
 
+    /// <summary>A sideways fade of its own width (the season row's, longer: a name fading into the dark, maquette A « Le fondu »).</summary>
+    public static readonly DependencyProperty LengthProperty = DependencyProperty.RegisterAttached("Length", typeof(double), typeof(EdgeFade), new PropertyMetadata(Width));
+    public static double GetLength(DependencyObject obj) => (double)obj.GetValue(LengthProperty);
+    public static void SetLength(DependencyObject obj, double value) => obj.SetValue(LengthProperty, value);
+
     private static readonly DependencyProperty ShownProperty = DependencyProperty.RegisterAttached("Shown", typeof(string), typeof(EdgeFade), new PropertyMetadata(""));
 
     private static void AcrossChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not ScrollViewer row || !(bool)e.NewValue) return;
         // ScrollChanged also comes when the content or the row change width.
-        row.ScrollChanged += (_, _) => Update(row, row.HorizontalOffset, row.ScrollableWidth, row.ActualWidth, Width, sideways: true);
+        row.ScrollChanged += (_, _) => Update(row, row.HorizontalOffset, row.ScrollableWidth, row.ActualWidth, GetLength(row), sideways: true);
     }
 
     private static void EnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
