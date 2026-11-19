@@ -160,6 +160,8 @@ public sealed class HomeFamily
                 Name = name,
                 Joined = now,
                 Seen = now,
+                // Joined through the tailnet (a home link's key): the node to delete from it when the device leaves.
+                Tailnet = HomeTailnet.TailnetAddress(from),
             };
             _store.Devices.Add(entry);
             Save();
@@ -545,6 +547,8 @@ public sealed class HomeDevice
     public DateTimeOffset Seen { get; set; }
     /// <summary>The account it has open, if any.</summary>
     public string? Profile { get; set; }
+    /// <summary>The device's Tailscale address when it joined through the tailnet (a home link), else null.</summary>
+    public string? Tailnet { get; set; }
 
     public HomeDevice Copy() => (HomeDevice)MemberwiseClone();
 }

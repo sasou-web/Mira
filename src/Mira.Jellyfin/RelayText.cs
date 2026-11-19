@@ -68,6 +68,15 @@ internal static class RelayText
         ["Un compte administrateur n’est jamais ouvert par le mot de passe du foyer."] = "An administrator account is never opened with the home password.",
         ["Le foyer a déjà trop de profils."] = "The home already has too many profiles.",
         ["Cet appareil n’est plus dans le foyer : entre de nouveau son mot de passe."] = "This device is no longer in the home: enter its password again.",
+        ["Colle l’identifiant et le secret du client OAuth que Tailscale vient de te donner."] = "Paste the ID and secret of the OAuth client Tailscale just gave you.",
+        ["Tailscale refuse ce client OAuth : vérifie l’identifiant et le secret."] = "Tailscale refuses this OAuth client: check the ID and secret.",
+        ["Tailscale n’a pas répondu. Réessaie dans un instant."] = "Tailscale didn’t answer. Try again in a moment.",
+        ["Choisis d’abord le mot de passe du foyer."] = "Choose the home password first.",
+        ["Relie d’abord le foyer à ton réseau Tailscale."] = "Connect the home to your Tailscale network first.",
+        ["Tailscale n’est pas allumé sur le PC de Jellyfin."] = "Tailscale isn’t on on the Jellyfin PC.",
+        ["Ta politique Tailscale laisse les appareils du foyer aller ailleurs que sur Jellyfin : corrige-la d’abord."] = "Your Tailscale policy lets the home’s devices reach more than Jellyfin: fix it first.",
+        ["Tailscale refuse le client OAuth du foyer : il a été supprimé ou révoqué. Relie de nouveau le foyer."] = "Tailscale refuses the home’s OAuth client: it was deleted or revoked. Connect the home again.",
+        ["Le client OAuth du foyer n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file:read et l’étiquette tag:mira-home)."] = "The home’s OAuth client lacks what it needs (auth_keys, devices:core, policy_file:read and the tag:mira-home tag).",
     };
 
     /// <summary>Whether the request asks for French: the first of French and English among its languages, by preference.</summary>

@@ -33,12 +33,21 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         TvdbOrders.File = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.tvdb-orders.json");
         _proofFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.proof.key");
         _homeFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.home.json");
+        _homeTailnetFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.home-tailnet.json");
     }
 
     private static string? _subtitlesFile, _journalFile, _queueFile;
     private static string? _proofFile;
     private static string? _homeFile;
     private static HomeFamily? _home;
+    private static string? _homeTailnetFile;
+    private static HomeTailnet? _homeTailnet;
+
+    /// <summary>« Le foyer » away from home: the OAuth client of the tailnet and the nodes still to delete.</summary>
+    public static HomeTailnet HomeTailnet
+    {
+        get { lock (Gate) return _homeTailnet ??= new HomeTailnet(_homeTailnetFile, () => DateTimeOffset.UtcNow); }
+    }
 
     /// <summary>« Le foyer »: its password, profiles and devices, read from their file the first time they are needed.</summary>
     public static HomeFamily Home
