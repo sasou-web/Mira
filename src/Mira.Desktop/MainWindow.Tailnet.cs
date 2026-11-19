@@ -132,7 +132,9 @@ public partial class MainWindow
         if (news.SignedIn) TailnetSignedIn();
         if (news.Lost is { } lost) SetNotice(TailnetText.Problem(lost)!, TailnetText.SignIn, () => _ = SignInToTailnetAsync());
         if (news.Expiry is { } expiry) AddNotice(expiry);
-        // Joined (started, back from no network): what waited for it goes now.
+        // Joined (started, back from no network): what waited for it goes now, Jellyfin looked for through it at once
+        // (a search made while it started found no device, and would otherwise wait 2 min: a PC on a phone's hotspot).
+        if (news.Joined) { _moveSearched = DateTimeOffset.MinValue; _moveFruitless = 0; }
         if (news.Joined && _client is not null && _offlineSince is not null) _ = RefreshAsync(quiet: true);
         RenderTailnet();
     }

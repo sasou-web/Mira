@@ -147,7 +147,7 @@ public static class ServerMove
         // Back home: the home address answers again (the one signed in at: its id, and its proof when the key is known).
         if (connection.Home is { } homeAddress && await AnswersAsync(http, homeAddress, connection, ct, proofNeeded: false).ConfigureAwait(false) is { } back)
             return Back(connection, back);
-        var found = await ServerSearch.FindAsync(tailnet ?? [], handler, home, ct).ConfigureAwait(false);
+        var found = await ServerSearch.FindAsync(tailnet ?? [], handler, home, ct, ServerSearch.TailnetWait).ConfigureAwait(false);
         if (Movable(connection))
         {
             if (Found(connection, found) is { } address && await AnswersAsync(http, address, connection, ct).ConfigureAwait(false) is { } confirmed)
@@ -155,7 +155,7 @@ public static class ServerMove
             if (await NeighbourAsync(http, connection, own, ct).ConfigureAwait(false) is { } neighbour) return neighbour;
         }
         // Away from home: through Tailscale, as the iPhone goes (Way). Never back to the same address.
-        if (ThroughTailnet(connection, found) is { } device && await AnswersAsync(http, device, connection, ct, proofNeeded: false).ConfigureAwait(false) is { } reached)
+        if (ThroughTailnet(connection, found) is { } device && await AnswersAsync(http, device, connection, ct, proofNeeded: false, ServerSearch.TailnetWait).ConfigureAwait(false) is { } reached)
             return Away(connection, reached);
         return null;
     }
@@ -195,23 +195,24 @@ public static class ServerMove
     /// False for the address signed in at, and a device of the tailnet (the Tailscale network authenticates it): its
     /// proof asked only when the account has the key.
     /// </param>
-    private static async Task<string?> AnswersAsync(HttpClient http, string address, Connection connection, CancellationToken ct, bool proofNeeded = true)
+    /// <param name="wait">How long it has to answer: <see cref="Wait"/>, longer through Tailscale (<see cref="ServerSearch.TailnetWait"/>).</param>
+    private static async Task<string?> AnswersAsync(HttpClient http, string address, Connection connection, CancellationToken ct, bool proofNeeded = true, TimeSpan? wait = null)
     {
-        var probe = await ServerAddress.ProbeAsync(http, address, ct, Wait).ConfigureAwait(false);
+        var probe = await ServerAddress.ProbeAsync(http, address, ct, wait ?? Wait).ConfigureAwait(false);
         if (probe.Info is not { } info || !SameId(info.Id, connection.ServerId)) return null;
         if (!proofNeeded && connection.ServerProof is not { Length: > 0 }) return info.Address;
-        return await ProvesAsync(http, info.Address, connection, ct).ConfigureAwait(false) ? info.Address : null;
+        return await ProvesAsync(http, info.Address, connection, ct, wait).ConfigureAwait(false) ? info.Address : null;
     }
     /// <summary>
     /// Whether Jellyfin at <paramref name="address"/> signs a new nonce with this account's proof key, asked without a
     /// session (<see cref="ServerProof"/>): only the server signed in to can.
     /// </summary>
-    internal static async Task<bool> ProvesAsync(HttpClient http, string address, Connection connection, CancellationToken ct)
+    internal static async Task<bool> ProvesAsync(HttpClient http, string address, Connection connection, CancellationToken ct, TimeSpan? wait = null)
     {
         if (ServerProof.PlainId(connection.UserId) is not { } user || !Uri.TryCreate(address, UriKind.Absolute, out var uri)) return false;
         var nonce = ServerProof.NewNonce();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(Wait);
+        timeout.CancelAfter(wait ?? Wait);
         try
         {
             using var response = await http.GetAsync(new Uri(uri, $"Mira/proof?user={user}&nonce={nonce}"), HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);

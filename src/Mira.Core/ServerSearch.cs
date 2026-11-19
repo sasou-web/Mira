@@ -20,6 +20,12 @@ public static class ServerSearch
     public const string Question = "Who is JellyfinServer?";
     /// <summary>How long answers are awaited: a server asleep or offline costs this, no more.</summary>
     public static readonly TimeSpan Wait = TimeSpan.FromSeconds(2.5);
+    /// <summary>
+    /// How long a device of the tailnet has to answer when Jellyfin is looked for away from home: its first connection
+    /// may go through a relay of Tailscale on a phone's shared connection, slower than 2.5 s (a laptop on a hotspot,
+    /// 2026-11-19).
+    /// </summary>
+    public static readonly TimeSpan TailnetWait = TimeSpan.FromSeconds(8);
     /// <summary>A large tailnet (a company's) is not asked device by device.</summary>
     public const int MaxDevices = 32;
     /// <summary>Where a server was found: its address on this computer works only here, at home only at home, on Tailscale everywhere.</summary>
@@ -93,23 +99,25 @@ public static class ServerSearch
 
     /// <summary>
     /// Asks it all at once and waits <see cref="Wait"/> at most: Jellyfin on this computer, the home network
-    /// (<paramref name="home"/> replaces the broadcast in the tests), and <paramref name="tailnet"/>'s devices.
+    /// (<paramref name="home"/> replaces the broadcast in the tests), and <paramref name="tailnet"/>'s devices, given
+    /// <paramref name="tailnetWait"/> when said (<see cref="TailnetWait"/>, Jellyfin looked for away from home).
     /// </summary>
     public static async Task<IReadOnlyList<Found>> FindAsync(IReadOnlyList<string> tailnet, HttpMessageHandler? handler = null,
-        Func<CancellationToken, Task<IReadOnlyList<Found>>>? home = null, CancellationToken ct = default)
+        Func<CancellationToken, Task<IReadOnlyList<Found>>>? home = null, CancellationToken ct = default, TimeSpan? tailnetWait = null)
     {
+        var deviceWait = tailnet.Count > 0 && tailnetWait > Wait ? tailnetWait.Value : Wait;
         using var http = new HttpClient(handler ?? TailnetNetwork.Default.Handler, disposeHandler: false);
         http.Timeout = Timeout.InfiniteTimeSpan;
         var asked = new List<Task<IReadOnlyList<Found>>> { AskAsync(http, "http://127.0.0.1:8096/", Place.ThisComputer, ct), (home ?? AskHomeAsync)(ct) };
-        asked.AddRange(tailnet.Distinct().Take(MaxDevices).Select(device => AskAsync(http, $"http://{device}:8096/", Place.Tailnet, ct)));
-        // Each one stops by itself after Wait; one that would not (a stuck connection) is left behind, not waited for.
-        try { await Task.WhenAll(asked).WaitAsync(Wait + TimeSpan.FromSeconds(1), ct).ConfigureAwait(false); }
+        asked.AddRange(tailnet.Distinct().Take(MaxDevices).Select(device => AskAsync(http, $"http://{device}:8096/", Place.Tailnet, ct, deviceWait)));
+        // Each one stops by itself after its wait; one that would not (a stuck connection) is left behind, not waited for.
+        try { await Task.WhenAll(asked).WaitAsync(deviceWait + TimeSpan.FromSeconds(1), ct).ConfigureAwait(false); }
         catch (TimeoutException) { }
         return Ranked(asked.Where(x => x.IsCompletedSuccessfully).SelectMany(x => x.Result));
     }
-    private static async Task<IReadOnlyList<Found>> AskAsync(HttpClient http, string address, Place where, CancellationToken ct)
+    private static async Task<IReadOnlyList<Found>> AskAsync(HttpClient http, string address, Place where, CancellationToken ct, TimeSpan? wait = null)
     {
-        var probe = await ServerAddress.ProbeAsync(http, address, ct, Wait).ConfigureAwait(false);
+        var probe = await ServerAddress.ProbeAsync(http, address, ct, wait ?? Wait).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         return probe.Info is { Id.Length: > 0 } info ? [new Found(info.Address, info.Name, info.Id, where)] : [];
     }

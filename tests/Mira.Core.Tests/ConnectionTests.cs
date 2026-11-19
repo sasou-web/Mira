@@ -384,6 +384,9 @@ internal static class ConnectionTests
             var away = await ServerMove.FindAsync(connection, Answers(new() { ["100.88.12.34"] = id, ["100.90.1.3"] = "autre" }), nobody, hotel, ["100.90.1.3", "100.88.12.34"]);
             Assert(away is { Server: "http://100.88.12.34:8096/", Home: "http://192.168.1.42:8096/", Origin: "http://192.168.1.42:8096/", Token: "t" }, "Away: " + away);
             Assert(AccountData.LibraryProfile(away!) == AccountData.LibraryProfile(connection) && !StreamQuality.AtHome(away!.Server), "Account data, quality away");
+            // On a phone's hotspot, its first answer through a relay of Tailscale comes after the 2.5 s of the home network.
+            var relay = new Handler(async request => { await Task.Delay(TimeSpan.FromSeconds(4)); return await new HttpMessageInvoker(Answers(new() { ["100.88.12.34"] = id })).SendAsync(request, default); });
+            Assert(ServerSearch.TailnetWait > TimeSpan.FromSeconds(4) && await ServerMove.FindAsync(connection, relay, nobody, hotel, ["100.88.12.34"]) is { Server: "http://100.88.12.34:8096/" }, "Slow relay not waited for");
             // Another server of the tailnet is never taken; a tailnet that does not answer, nothing.
             Assert(await ServerMove.FindAsync(connection, Answers(new() { ["100.90.1.3"] = "autre" }), nobody, hotel, ["100.90.1.3"]) is null, "Another device taken");
             // With the key, a device of the tailnet proves it too: one that answers with the id only is not taken.
