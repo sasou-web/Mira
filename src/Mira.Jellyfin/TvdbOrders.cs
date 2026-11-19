@@ -49,7 +49,8 @@ public sealed class TvdbOrders : IHostedService, IDisposable
     /// For a series: how many files it had when weighed, the order Mira set ("" = aired), and whether its order is
     /// someone's own (chosen in Jellyfin before Mira looked, or changed there after): then never touched again.
     /// </summary>
-    public sealed record Decision(int Files, string Order, bool Theirs = false);
+    /// <summary><paramref name="Reread"/>: its seasons and episodes forgot the previous order's ids when Mira switched it (absent before 0.9.15).</summary>
+    public sealed record Decision(int Files, string Order, bool Theirs = false, bool Reread = false);
 
     public TvdbOrders(ILibraryManager library, ISessionManager sessions, IFileSystem fileSystem, IServiceProvider services, TitleRefresh refresh, ILogger<TvdbOrders> logger)
     {
@@ -132,6 +133,13 @@ public sealed class TvdbOrders : IHostedService, IDisposable
         if (before is { Theirs: true }) return true;
         // Chosen by someone in Jellyfin (or by Mira and then changed there): theirs.
         if (before is null ? current.Length > 0 : current != before.Order) { Remember(key, new Decision(files.Count, current, Theirs: true)); return true; }
+        // Switched by Mira before it made the seasons and episodes forget the previous order (0.9.14): their titles stayed.
+        if (before is { Theirs: false, Order.Length: > 0, Reread: false } && current == before.Order)
+        {
+            await RereadAsync(series, current, ct).ConfigureAwait(false);
+            Remember(key, before with { Reread = true });
+            return true;
+        }
         if (before is not null && before.Files == files.Count) return true;
         if (files.Count == 0 || !int.TryParse(series.GetProviderId(MetadataProvider.Tvdb), out var tvdbId)) { Remember(key, new Decision(files.Count, current)); return true; }
         var language = series.GetPreferredMetadataLanguage() ?? "en";
@@ -145,17 +153,45 @@ public sealed class TvdbOrders : IHostedService, IDisposable
                 if (await EpisodesAsync(tvdb, tvdbId, language, order, ct).ConfigureAwait(false) is { Count: > 0 } episodes) orders[order] = episodes;
         }
         var chosen = TvdbOrder.Best(files, orders) ?? "";
-        Remember(key, new Decision(files.Count, chosen));
-        if (chosen == current) return true;
+        if (chosen == current) { Remember(key, new Decision(files.Count, chosen)); return true; }
         series.DisplayOrder = chosen;
         await series.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, ct).ConfigureAwait(false);
+        await RereadAsync(series, chosen, ct).ConfigureAwait(false);
+        Remember(key, new Decision(files.Count, chosen, Reread: true));
+        _logger.LogInformation("Mira: {Series} shown in TheTVDB's {Order} order, which fits its {Files} files", series.Name, TvdbOrder.SeasonType(chosen), files.Count);
+        return true;
+    }
+
+    /// <summary>
+    /// A series read again in its new order. TheTVDB's plugin reads a season or an episode by the TheTVDB id it already
+    /// has, whatever the order (Monogatari on the Dell, 2026-11-19: seasons 2 to 7 kept the aired order's names and
+    /// titles, only the seasons the aired order lacks followed). So its seasons and episodes forget their TheTVDB id, and
+    /// the episodes « not in your library » of the previous order go: the plugin adds those of the new one once the series
+    /// is read again (<see cref="TitleRefresh"/> tells it the refresh ended). Its files are not touched.
+    /// </summary>
+    private async Task RereadAsync(Series series, string order, CancellationToken ct)
+    {
+        var tvdb = MetadataProvider.Tvdb.ToString();
+        var items = _library.GetItemsResult(new InternalItemsQuery { AncestorIds = [series.Id], IncludeItemTypes = [BaseItemKind.Season, BaseItemKind.Episode], Recursive = true }).Items;
+        var gone = 0;
+        // Episodes before seasons: a virtual season goes with its episodes already gone.
+        foreach (var item in items.OrderBy(x => x is Season))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (item.IsVirtualItem)
+            {
+                if (_library.GetItemById(item.Id) is null) continue;
+                _library.DeleteItem(item, new DeleteOptions { DeleteFileLocation = false });
+                gone++;
+            }
+            else if (item.ProviderIds.Remove(tvdb)) await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, ct).ConfigureAwait(false);
+        }
         // Without reading its extras again all at once (TitleRefresh): a franchise's textless credits, for one.
         _refresh.Queue(series, new MetadataRefreshOptions(new DirectoryService(_fileSystem))
         {
             MetadataRefreshMode = MetadataRefreshMode.FullRefresh, ImageRefreshMode = MetadataRefreshMode.Default, ReplaceAllMetadata = true, ReplaceAllImages = false,
         }, RefreshPriority.Normal);
-        _logger.LogInformation("Mira: {Series} shown in TheTVDB's {Order} order, which fits its {Files} files", series.Name, TvdbOrder.SeasonType(chosen), files.Count);
-        return true;
+        _logger.LogInformation("Mira: {Series} read again in TheTVDB's {Order} order ({Gone} missing episodes of the previous order removed)", series.Name, TvdbOrder.SeasonType(order), gone);
     }
 
     /// <summary>TheTVDB's plugin as Jellyfin runs it, and its method that lists a series' episodes in an order; null without it.</summary>
