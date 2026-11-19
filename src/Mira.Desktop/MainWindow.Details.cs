@@ -89,7 +89,11 @@ public partial class MainWindow
         // The facts and the cast after a series' episodes, a little apart from them.
         EpisodesPanel.Margin = new Thickness(0, 0, 0, item.Type == "Series" ? 30 : 0);
         if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
-        Motion.Reveal(DetailOverlay, 300, 14); UpdateHeroClock();
+        // From a page already there (a similar title, the saga, Retour): its content fades in over the page's black, not the
+        // whole page from 0, which let the library show through it for 300 ms (audit, 2026-11-19).
+        if (DetailOverlay.Visibility == Visibility.Visible && DetailOverlay.IsHitTestVisible && DetailOverlay.Opacity > .99) Motion.Reveal(DetailScroll, 300, 14);
+        else Motion.Reveal(DetailOverlay, 300, 14);
+        UpdateHeroClock();
         // Focus moves into the page: Enter plays, Tab stays inside, Escape goes back.
         _ = Dispatcher.BeginInvoke(() => { if (version == _detailVersion) DetailPlay.Focus(); }, System.Windows.Threading.DispatcherPriority.Input);
         var tasks = new List<Task>();
