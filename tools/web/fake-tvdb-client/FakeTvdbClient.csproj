@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The checks of the extension only (web.yml, beside tools/web/fake-tvdb in the same plugin folder), never shipped: a
+    stand-in for the TheTVDB plugin's own assembly, under its name, with the one method Mira's TvdbOrders asks it for
+    (TvdbClientManager.GetSeriesEpisodesAsync, found by reflection). The episodes of « Ordre Test » (tools/web/media.sh,
+    its folder gives the id) in two orders: its files fit the DVD order, not the aired one.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Jellyfin.Plugin.Tvdb</AssemblyName>
+    <RootNamespace>Jellyfin.Plugin.Tvdb</RootNamespace>
+    <Version>9999.0.0</Version>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Jellyfin.Controller" Version="10.9.11" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8g4q-xg66-9fp4" />
+  </ItemGroup>
+</Project>

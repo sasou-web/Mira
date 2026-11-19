@@ -32,7 +32,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
 {
     /// <summary>Titles searched per minute at most.</summary>
     private const int PerTick = 3;
-    private static readonly TimeSpan Tick = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan Tick = CheckTick.Or(TimeSpan.FromMinutes(1));
     /// <summary>
     /// A title Jellyfin has not read yet (no length: its streams, embedded subtitles among them, are unknown), or an
     /// episode it has not numbered yet.

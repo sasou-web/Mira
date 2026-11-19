@@ -27,7 +27,7 @@ namespace Mira.Jellyfin;
 /// </summary>
 public sealed class TvdbOrders : IHostedService, IDisposable
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan Tick = CheckTick.Or(TimeSpan.FromMinutes(10));
     private const int PerTick = 5;
     public static string? File { get; set; }
 

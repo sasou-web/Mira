@@ -6,7 +6,7 @@ Ce qui vérifie Mira, où ça tourne et comment le lancer. Les derniers résulta
 | --- | --- | --- | --- |
 | `tests/Mira.Core.Tests` | tout système (.NET 10) | tout ce qui se passe de WPF | `ci.yml`, sous Linux ; ses tests « Tailscale intégré » aussi dans `mac.yml`, avec le nœud signé de Mira.app |
 | `tests/Mira.Tests` | Windows | la suite précédente, puis l’app Windows | `ci.yml`, sous Windows |
-| `tools/extension/check.mjs` | Node.js 22 + Jellyfin | l’extension par son API, comme les apps s’en servent : party et passerelle d’invités, garde de Funnel, relais TorLink (faux agent), HLS de l’app iPhone, sous-titres automatiques, affiches d’« Identifier… », pages `/Mira` et de party, sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi) | `web.yml` |
+| `tools/extension/check.mjs` | Node.js 22 + Jellyfin | l’extension par son API, comme les apps s’en servent : party et passerelle d’invités, garde de Funnel, relais TorLink (faux agent), HLS de l’app iPhone, sous-titres automatiques (réglages, puis la boucle sur toute la bibliothèque depuis une fausse OpenSubtitles locale), ordre TheTVDB d’une série (faux client), affiches d’« Identifier… », pages `/Mira` et de party, sur Jellyfin 10.9, 10.10, 10.11, 12.1, 12.4 et `latest` (le lundi) ; puis `tools/extension/log.mjs` : échec sur toute erreur, tout avertissement ou toute exception de l’extension dans le journal de Jellyfin | `web.yml` |
 | harnais de `Mira.exe` | Windows | captures, vrai lecteur, intégration Windows, TorLink | `ci.yml` (galerie seulement) |
 | harnais de Mira.app | Mac | chaque écran et la lecture ; « Tailscale intégré » sur un réseau Tailscale de test | `mac.yml` |
 
@@ -46,7 +46,7 @@ node tools/extension/check.mjs <serveur> <user> <mdp> <dossier>             # l�
 for f in src/Mira.Jellyfin/Pages/*.js tools/web/*.mjs tools/extension/*.mjs; do node --experimental-default-type=module --check "$f"; done
 ```
 
-`web.yml` le fait sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi), avec une fausse extension TheTVDB (`tools/web/fake-tvdb`).
+`web.yml` le fait sur Jellyfin 10.9, 10.10, 10.11, 12.1, 12.4 et `latest` (le lundi), avec une fausse extension TheTVDB (`tools/web/fake-tvdb`, et son client sous le nom du vrai : `tools/web/fake-tvdb-client`), une fausse OpenSubtitles (`tools/extension/fake-opensubtitles.mjs`, lancée par `check.mjs`, port 8767 ; `Mira.subtitles.json` écrit avant le démarrage de Jellyfin la désigne), les boucles de l’extension toutes les 10 s (`MIRA_CHECK_TICK_SECONDS`), les médias en lecture seule, puis le journal lu par `docker logs jellyfin | node tools/extension/log.mjs`.
 
 ## Harnais des applications
 

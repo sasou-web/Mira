@@ -4,10 +4,15 @@
 // joined, the guest removed, a new link); Tailscale Funnel's guard; the TorLink relay with a fake agent (Mira for
 // Windows on the PC of Jellyfin): search in the three categories, a download asked, paused and cancelled, a magnet,
 // a non-administrator refused, errors in the language asked; the HLS playlists of the iPhone app (/Mira/hls); the
-// settings of automatic subtitles; the poster relay of « Identifier… ». results.txt; exit 1 on failure.
+// settings of automatic subtitles; the poster relay of « Identifier… »; the extension's own loops, as they run on a
+// server: automatic subtitles from a fake OpenSubtitles (tools/extension/fake-opensubtitles.mjs, web.yml points the
+// extension at it) and TheTVDB's order of a series (tools/web/fake-tvdb-client), quickened by MIRA_CHECK_TICK_SECONDS.
+// results.txt; exit 1 on failure. Jellyfin's log is read after, by tools/extension/log.mjs.
 //   node tools/extension/check.mjs <server> <user> <password> <out folder>
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
+import { KEY, fakeOpenSubtitles } from './fake-opensubtitles.mjs';
 
 const [server = 'http://127.0.0.1:8096', user = 'mira', password = 'mira-check', out = '.artifacts/extension'] = process.argv.slice(2);
 const base = server.replace(/\/$/, '');
@@ -281,11 +286,66 @@ await part('identifier', async () => {
 // once (TitleRefresh); for an administrator. Queued: the answer comes at once.
 await part('actualiser', async () => {
   const series = (await items('includeItemTypes=Series&searchTerm=Courte Web'))[0];
+  // An id no item has, drawn each time: a fixed one can be a real item (00…01 is a placeholder row of Jellyfin 10.11).
   const [asked, unknown, other] = [await call('POST', `Mira/refresh/${series?.Id}?images=false`, { token: host }),
-    await call('POST', 'Mira/refresh/00000000000000000000000000000001', { token: host }),
+    await call('POST', `Mira/refresh/${crypto.randomBytes(16).toString('hex')}`, { token: host }),
     friend ? await call('POST', `Mira/refresh/${series?.Id}`, { token: friend, device: 'check-friend' }) : { status: 0 }];
   check('actualiser : un titre relu par l’extension, pour un administrateur seulement', !!series && asked.status === 204 && unknown.status === 404 && other.status === 403,
     `demande ${asked.status}, inconnu ${unknown.status}, autre compte ${other.status}`);
+});
+
+// The loops the extension runs by itself on a server, which no request of the apps reaches: a failure there shows only
+// in Jellyfin's log, hours later (TvdbOrders on 12.4, subtitles on read-only media). Started every few seconds here
+// (MIRA_CHECK_TICK_SECONDS, web.yml).
+const until = async (test, seconds) => { for (const limit = Date.now() + seconds * 1000; Date.now() < limit; await sleep(1000)) { const value = await test(); if (value) return value; } return null; };
+
+// « Sous-titres automatiques » for the whole library, in a language no test title has (German), from the fake
+// OpenSubtitles: each title searched, its subtitle downloaded, written by Jellyfin where the library keeps them and
+// listed with the title. Nothing reaches the real service.
+await part('sous-titres automatiques', async () => {
+  const fake = fakeOpenSubtitles(8767);
+  await fake.start();
+  const before = (await call('GET', 'Mira/subtitles', { token: host })).json?.settings;
+  try {
+    const set = await call('PUT', 'Mira/subtitles/settings', { token: host, body: { enabled: true, languages: ['ger'] } });
+    const tested = (await call('POST', 'Mira/subtitles/test', { token: host })).json?.sources ?? [];
+    const opensubtitles = tested.find((x) => x.source === 'OpenSubtitles');
+    check('sous-titres automatiques : la source essayée depuis les Réglages (la fausse OpenSubtitles)', set.status < 300 && opensubtitles?.ok === true && opensubtitles.found >= 1,
+      `réglages ${set.status} ; ${JSON.stringify(tested).slice(0, 200)}`);
+    const queued = (await call('POST', 'Mira/subtitles/library', { token: host })).json;
+    const titles = await items('includeItemTypes=Movie,Episode&isMissing=false');
+    // Every title tried once (the queue empty), then Jellyfin has read again those that got one.
+    const done = await until(async () => (await call('GET', 'Mira/subtitles', { token: host })).json?.waiting === 0, 240);
+    const journal = (await call('GET', 'Mira/subtitles', { token: host })).json?.journal ?? [];
+    const kinds = journal.reduce((count, entry) => ({ ...count, [entry.kind]: (count[entry.kind] ?? 0) + 1 }), {});
+    const listed = await until(async () => {
+      const read = await items('includeItemTypes=Movie,Episode&isMissing=false&fields=MediaStreams');
+      const german = read.filter((x) => (x.MediaStreams ?? []).some((m) => m.Type === 'Subtitle' && /^(ger|deu|de)$/i.test(m.Language ?? '')));
+      return german.length >= titles.length ? german : null;
+    }, 60);
+    check('sous-titres automatiques : chaque film et épisode de la bibliothèque trouve, garde et liste son sous-titre',
+      queued?.added >= titles.length && !!done && (kinds.kept ?? 0) >= titles.length && Object.keys(kinds).every((kind) => kind === 'kept') && !!listed,
+      `${queued?.added} en attente pour ${titles.length} titres ; ${done ? 'file vidée' : 'file pas vidée en 4 min'} ; journal ${JSON.stringify(kinds)} ; ${listed?.length ?? 'pas tous'} listés avec leur sous-titre`
+        + (journal.find((x) => x.kind !== 'kept') ? ` ; ex. ${JSON.stringify(journal.find((x) => x.kind !== 'kept')).slice(0, 240)}` : ''));
+    check('sous-titres automatiques : rien vers le vrai OpenSubtitles, la clé des Réglages et le nom de Mira envoyés',
+      fake.seen.searches.length >= titles.length && fake.seen.files.length >= titles.length && [...fake.seen.keys].every((key) => key === KEY) && fake.seen.keys.size === 1
+        && [...fake.seen.agents].every((agent) => /^Mira/.test(agent)) && fake.seen.other.length === 0,
+      `${fake.seen.searches.length} recherches, ${fake.seen.downloads.length} téléchargements, ${fake.seen.files.length} fichiers ; clés ${[...fake.seen.keys].join(', ')} ; ${[...fake.seen.agents].join(', ')}${fake.seen.other.length ? ` ; autre : ${fake.seen.other.join(', ')}` : ''}`);
+  } finally {
+    await call('PUT', 'Mira/subtitles/settings', { token: host, body: { enabled: before?.enabled ?? false, languages: before?.languages ?? [] } });
+    await fake.stop();
+  }
+});
+
+// TheTVDB's order: « Ordre Test » (its id in its folder's name) has files that fit the DVD order of the stand-in for
+// TheTVDB's plugin, not the aired one: shown in the DVD order. A series without an id stays as it was.
+await part('ordre TheTVDB', async () => {
+  const [ordered, courte] = [(await items('includeItemTypes=Series&searchTerm=Ordre Test'))[0], (await items('includeItemTypes=Series&searchTerm=Courte Web'))[0]];
+  const order = async (id) => (await call('GET', `Items/${id}?userId=${me.Id}`, { token: host })).json?.DisplayOrder ?? '';
+  const dvd = await until(async () => (await order(ordered?.Id)) === 'dvd', 90);
+  const other = await order(courte?.Id);
+  check('ordre TheTVDB : une série montrée dans l’ordre des DVD où ses fichiers tombent juste, une série sans id laissée telle quelle',
+    !!ordered && !!dvd && !!courte && other === '', `Ordre Test « ${await order(ordered?.Id)} » ; Courte Web « ${other} »`);
 });
 
 // /Mira and a party's page, since Mira web is gone: where to get Mira, never the web app; their files served by the

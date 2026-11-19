@@ -1,8 +1,9 @@
 name: Web build
 # Mira's extension for Jellyfin (src/Mira.Jellyfin): packaged, installed from its repository on a real Jellyfin (12.1,
-# 12.4, and the 10.9 and 10.10 the README promises) and checked through its API as Mira for Windows, Mac and iPhone use
-# it; attached to the draft of each release, which tools/release.ps1 publishes once every platform is there. (Mira web,
-# which it served until 0.9.3, is gone: /Mira now sends to the apps.)
+# 12.4, and the 10.9, 10.10 and 10.11 the README promises), checked through its API as Mira for Windows, Mac and iPhone
+# use it, its own loops run, and Jellyfin's log read for anything it threw; attached to the draft of each release,
+# which tools/release.ps1 publishes once every platform is there. (Mira web, which it served until 0.9.3, is gone:
+# /Mira now sends to the apps.)
 on:
   push:
     branches: [main]
@@ -37,8 +38,8 @@ env:
 jobs:
   extension:
     # The plugin as Jellyfin installs it, against Jellyfin's own Docker image, on each version Mira claims to work with:
-    # 10.9 and 10.10 (.NET 8, what the plugin is built for), 12.1 (the one Mira for Windows installs) and the newest
-    # 12.x. Pinned by tag, moved by hand; `latest` follows Jellyfin and only fails the weekly run.
+    # 10.9 and 10.10 (.NET 8, what the plugin is built for), 10.11 (.NET 9, the last 10.x), 12.1 (the one Mira for
+    # Windows installs) and the newest 12.x. Pinned by tag, moved by hand; `latest` follows Jellyfin and only fails the weekly run.
     # Not for a release's draft: its commit was checked on its way to main.
     if: inputs.release == ''
     name: Extension · Jellyfin ${{ matrix.jellyfin }}
@@ -51,6 +52,7 @@ jobs:
         include:
           - { jellyfin: "10.9", image: "jellyfin/jellyfin:10.9.11", follows: false }
           - { jellyfin: "10.10", image: "jellyfin/jellyfin:10.10.7", follows: false }
+          - { jellyfin: "10.11", image: "jellyfin/jellyfin:10.11.11", follows: false }
           - { jellyfin: "12.1", image: "jellyfin/jellyfin:12.1.20260915-010956", follows: false }
           - { jellyfin: "12.4", image: "jellyfin/jellyfin:12.4.20261026-211555", follows: false }
           - { jellyfin: "latest", image: "jellyfin/jellyfin:latest", follows: true }
@@ -76,12 +78,14 @@ jobs:
         run: |
           dotnet build tools/extension/bindings -c Release -o .artifacts/bindings -nologo -v q
           dotnet build tools/web/fake-tvdb/FakeTvdb.csproj -c Release -o .artifacts/fake-tvdb -nologo -v q
+          dotnet build tools/web/fake-tvdb-client/FakeTvdbClient.csproj -c Release -o .artifacts/fake-tvdb-client -nologo -v q
           docker pull -q "$JELLYFIN_IMAGE"
           server=$(docker create "$JELLYFIN_IMAGE")
           docker cp "$server:/jellyfin" .artifacts/jellyfin-server
           docker rm "$server" >/dev/null
           unzip -q -o dist/web/mira-jellyfin-*.zip -d .artifacts/plugin
-          dotnet .artifacts/bindings/mira-bindings.dll .artifacts/jellyfin-server .artifacts/plugin/Mira.Jellyfin.dll .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll
+          dotnet .artifacts/bindings/mira-bindings.dll .artifacts/jellyfin-server .artifacts/plugin/Mira.Jellyfin.dll .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll \
+            .artifacts/fake-tvdb-client/Jellyfin.Plugin.Tvdb.dll
       # ffmpeg: imageio-ffmpeg's static build from PyPI, pinned by its hash, as tools/player-check.ps1 takes it on
       # Windows. Not apt: the runner has no ffmpeg, and the Ubuntu mirror sometimes sends its 92 MB at 76 kB/s (20 min).
       - name: ffmpeg
@@ -99,15 +103,30 @@ jobs:
       - name: Jellyfin ${{ matrix.jellyfin }}, the extension installed from its repository
         run: |
           (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
-          mkdir -p .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0 .artifacts/jf-cache
-          # A stand-in for TheTVDB's plugin (out of reach): the missing episodes and air dates of the test series
-          # (built by the step above).
-          cp .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0/
-          docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
+          mkdir -p .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0 .artifacts/jf-config/plugins/configurations .artifacts/jf-cache
+          # A stand-in for TheTVDB's plugin (out of reach): the missing episodes and air dates of the test series, and
+          # its client under the real plugin's name, which the extension asks for a series' orders (built above).
+          cp .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll .artifacts/fake-tvdb-client/Jellyfin.Plugin.Tvdb.dll .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0/
+          # Automatic subtitles off, OpenSubtitles on this machine (tools/extension/fake-opensubtitles.mjs, started by
+          # check.mjs) with a key of the check's: never the real service, nor Mira's key. Read once, at Jellyfin's start.
+          printf '{"enabled":false,"openSubtitles":{"enabled":true,"apiKey":"mira-check-opensubtitles","baseUrl":"http://127.0.0.1:8767/api/v1/"}}\n' \
+            > .artifacts/jf-config/plugins/configurations/Mira.subtitles.json
+          # The media read-only, as a NAS or a Docker library often is. The extension's loops every 10 s, not every
+          # 1 or 10 min (MIRA_CHECK_TICK_SECONDS, src/Mira.Jellyfin/CheckTick.cs), so that check.mjs sees them run.
+          docker run -d --name jellyfin --network host -e MIRA_CHECK_TICK_SECONDS=10 -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" \
+            -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
           node tools/web/setup.mjs http://127.0.0.1:8096 /media mira mira-check http://127.0.0.1:8765/jellyfin-manifest.json
       # The extension through its API, as Mira for Windows, Mac and iPhone use it, and its pages (/Mira, a party's).
       - name: Check the extension
         run: node tools/extension/check.mjs http://127.0.0.1:8096 mira mira-check .artifacts/check/extension
+      # Whatever the extension threw or reported as an error while Jellyfin started, scanned and ran the checks and the
+      # loops: a failure no answer of the API shows (tools/extension/log.mjs). Also when a check failed.
+      - name: Nothing from the extension in Jellyfin's log
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p .artifacts/check
+          docker logs jellyfin > .artifacts/check/jellyfin.log 2>&1 || true
+          node tools/extension/log.mjs < .artifacts/check/jellyfin.log
       - name: Jellyfin log
         if: failure()
         run: |
