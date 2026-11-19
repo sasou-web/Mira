@@ -25,6 +25,13 @@ import (
 // its PC with Jellyfin answers on 8096 with this stand-in.
 func startNet(t *testing.T) (*tailnettest.Net, string) {
 	t.Helper()
+	return startNetLogin(t, "interactive")
+}
+
+// startNetLogin is the test's network with its way of logging nodes in: « none » lets a key in at once (the coordination
+// server of the tests takes any key without a page, as a home link's key does on Tailscale's).
+func startNetLogin(t *testing.T, login string) (*tailnettest.Net, string) {
+	t.Helper()
 	jellyfin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/System/Info/Public":
@@ -38,7 +45,7 @@ func startNet(t *testing.T) (*tailnettest.Net, string) {
 		}
 	}))
 	t.Cleanup(jellyfin.Close)
-	network, err := tailnettest.Start(tailnettest.Options{Forward: map[uint16]string{8096: jellyfin.Listener.Addr().String()}, Logf: logger.Discard})
+	network, err := tailnettest.Start(tailnettest.Options{Login: login, Forward: map[uint16]string{8096: jellyfin.Listener.Addr().String()}, Logf: logger.Discard})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,4 +301,72 @@ func TestStatusJSON(t *testing.T) {
 	if strings.Contains(text, `"error"`) {
 		t.Errorf("an error without one: %s", text)
 	}
+}
+
+// « Le foyer » beside Built-in Tailscale: the home's node, logged in by a home link's key (no page), runs at the same
+// time as the person's own node, each with its folder, its state and its relay; both reach Jellyfin at once, and the
+// home's node leaving (the device left the home) leaves the other one as it was.
+func TestHomeBesideBuiltIn(t *testing.T) {
+	if testing.Short() {
+		t.Skip("a whole Tailscale network")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	network, pc := startNetLogin(t, "none")
+
+	var own, family bridge
+	t.Cleanup(func() {
+		own.stop()
+		family.stop()
+		own.log.close()
+		family.log.close()
+	})
+	if r := own.start(newConfig(t, network)); r.Error != nil {
+		t.Fatalf("own: %s", encode(r))
+	}
+
+	var cfg config
+	json.Unmarshal([]byte(newConfig(t, network)), &cfg)
+	cfg.Dir = filepath.Join(t.TempDir(), "HomeTailscale")
+	cfg.Hostname = "mira-home-iphone"
+	cfg.RelayPort = 0
+	cfg.RelaySecret = "home-relay-secret-0123456789"
+	cfg.AuthKey = "tskey-auth-home0123456789"
+	text, _ := json.Marshal(cfg)
+	if r := family.start(string(text)); r.Error != nil {
+		t.Fatalf("home: %s", encode(r))
+	}
+	reaches := func(b *bridge, what string) {
+		running := waitFor(t, ctx, b, what+" running with the PC", func(r report) bool {
+			if r.State != tailnet.StateRunning {
+				return false
+			}
+			for _, p := range r.Peers {
+				if p.Online && len(p.IPs) > 0 && p.IPs[0] == pc {
+					return true
+				}
+			}
+			return false
+		})
+		if status, _, body := get(t, fmt.Sprintf("%s/http/%s:8096/System/Info/Public", running.Relay, pc)); status != http.StatusOK || !strings.Contains(body, "b6c2f1a0d4e94c0a9f3e2d1c0b9a8f7e") {
+			t.Errorf("%s: Jellyfin %d %s", what, status, body)
+		}
+	}
+	reaches(&own, "own")
+	reaches(&family, "home")
+	if own.status().Relay == family.status().Relay {
+		t.Errorf("one relay for both nodes: %s", own.status().Relay)
+	}
+	if self := family.status().Self; self == nil || self.HostName != "mira-home-iphone" {
+		t.Errorf("the home's node: %s", encode(family.status()))
+	}
+
+	// The device leaves the home: its node signs out and stops; Built-in Tailscale goes on.
+	if a := family.logout(); a.Error != nil {
+		t.Fatalf("home logout: %s", encode(a))
+	}
+	if r := family.stop(); r.State != stateOff {
+		t.Errorf("home stopped: %s", encode(r))
+	}
+	reaches(&own, "own after the home left")
 }

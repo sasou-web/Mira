@@ -119,8 +119,13 @@ enum KeptStore {
 
     /// Every account's copies but this one's (nil: all of them): another account signed in, or signed out.
     static func erase(keeping account: String?) {
+        erase(keepingAll: account.map { [$0] } ?? [])
+    }
+
+    /// Every account's copies but these (the profiles of the home this iPhone is in keep theirs, one switch to the next).
+    static func erase(keepingAll kept: Set<String>) {
         let accounts = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
-        for folder in accounts where folder.lastPathComponent != account { try? FileManager.default.removeItem(at: folder) }
+        for folder in accounts where !kept.contains(folder.lastPathComponent) { try? FileManager.default.removeItem(at: folder) }
     }
 
     /// What the account's copies take on this iPhone, partial ones included.

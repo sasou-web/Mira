@@ -60,12 +60,17 @@ struct RootView: View {
             // Revealed by the opening, the first screen settles from a little closer.
             .scaleEffect(opening && !reduceMotion ? 1.04 : 1)
             .animation(.easeOut(duration: 0.6), value: opening)
+            // « Le foyer »: « Who's watching? », a PIN, joining; over the sign-in and the tabs, under the opening.
+            if app.family.shown {
+                FamilyView().transition(.opacity).zIndex(0.5)
+            }
             if app.opening.phase != .gone {
                 OpeningView().zIndex(1)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: app.session?.userId)
         .animation(.easeInOut(duration: 0.25), value: app.party.shown)
+        .animation(.easeInOut(duration: 0.25), value: app.family.shown)
         // A party link (mira://party/…): into the host's group, or as its guest when it is another Jellyfin's. The QR
         // code of « Mira on your iPhone » (mira://connect): the sign-in screen filled in.
         .onOpenURL { url in
@@ -119,6 +124,7 @@ struct MainView: View {
         .modifier(KeyboardWatch(shown: $keyboard))
         .environment(bar)
         .sheet(isPresented: $bar.groupShown) { GroupSheet() }
+        .sheet(isPresented: Binding(get: { app.family.switching }, set: { app.family.switching = $0 })) { SwitchProfileSheet() }
         .onChange(of: section) { _, now in
             bar.folded = false
             withAnimation(.easeOut(duration: 0.2)) { entered = now }
@@ -218,6 +224,14 @@ enum Messages {
         return String(localized: "No answer. \(host) is a home address: it only answers on the network it lives on. At that home, check that Jellyfin is running; if this server is at a friend’s home, ask them for its Tailscale address (it starts with 100.) and to share their PC with you.")
     }
     static func text(_ hint: WayPlan.Hint) -> String {
+        // A profile of the home reached through the home's node: the home, never Tailscale, is spoken of.
+        if let home = HomeNode.routing.withLock({ $0 }) {
+            switch hint {
+            case .noNetwork, .offline: return HomeText.offline
+            case .signedOut, .expired: return HomeText.removed(home)
+            default: return HomeText.unreachable(home)
+            }
+        }
         switch hint {
         case .noNetwork:
             String(localized: "This iPhone isn’t connected to the Internet.")
@@ -242,6 +256,7 @@ enum Messages {
 
     /// A request Built-in Tailscale's relay could not take to Jellyfin, by its reason (X-Mira-Tailscale).
     static func tailscale(_ code: String) -> String {
+        if let home = HomeNode.routing.withLock({ $0 }) { return HomeText.node(code, name: home, withKey: false) }
         switch code {
         case "needs-login": text(.signedOut)
         case "expired": text(.expired)

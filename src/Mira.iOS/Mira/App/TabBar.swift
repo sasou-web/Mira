@@ -122,6 +122,12 @@ struct MiraTabBar: View {
                 .accessibilityLabel(Text(entry.name))
                 .accessibilityAddTraits(chosen ? .isSelected : [])
                 .accessibilityIdentifier(entry.id)
+                // In a home: a long press on Settings switches profile (the quick switch of maquette C); VoiceOver has its row
+                // in Settings.
+                .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                    guard entry.section == .settings, app.family.membership != nil else { return }
+                    app.family.switching = true
+                }, isEnabled: entry.section == .settings && app.family.membership != nil)
                 .accessibilityShowsLargeContentViewer { Label { Text(entry.name) } icon: { Image(systemName: entry.symbol) } }
                 .transition(.opacity.combined(with: .scale(scale: 0.6)))
             }

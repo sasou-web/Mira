@@ -166,6 +166,8 @@ struct LoginView: View {
         message = nil
         server = found
         focus = username.isEmpty ? .username : .password
+        // A server with a home (« Le foyer »): its password instead of an account, unless the person wants their own.
+        if await app.family.offer(found) { focus = nil }
         quickConnect = await JellyfinClient(server: found.address, device: app.device).quickConnectEnabled()
     }
 

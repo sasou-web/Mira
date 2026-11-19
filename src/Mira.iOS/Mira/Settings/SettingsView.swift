@@ -74,6 +74,12 @@ struct SettingsView: View {
                 if me?.isAdministrator == true {
                     Section {
                         NavigationLink {
+                            HomeSettingsView()
+                        } label: {
+                            row("Home", "One password for the family, then “Who’s watching?”: profiles, PINs, devices, the home link.", symbol: "house")
+                        }
+                        .accessibilityIdentifier("settings.home")
+                        NavigationLink {
                             NowOnJellyfinView()
                         } label: {
                             row("Now on Jellyfin", "Who watches what, and whether Jellyfin converts it.", symbol: "server.rack")
@@ -200,6 +206,14 @@ struct SettingsView: View {
                 .listRowBackground(Palette.surface)
 
                 Section {
+                    if let home = app.family.membership {
+                        Button {
+                            app.family.switching = true
+                        } label: {
+                            SettingsRow("Switch profile", verbatim: HomeText.homeOf(home.name) + " · " + String(localized: "or hold the Settings tab"), symbol: "person.2")
+                        }
+                        .accessibilityIdentifier("settings.switch")
+                    }
                     if quickConnect {
                         Button {
                             approving = true
@@ -246,6 +260,9 @@ struct SettingsView: View {
             Button("Sign out", role: .destructive) { app.signOut() }
                 .accessibilityIdentifier("settings.signout.confirm")
         } message: {
+            if app.family.isHomeSession(app.session) {
+                Text("“Who’s watching?” opens again; this iPhone stays in the home.")
+            }
             if !app.keeper.copies.isEmpty {
                 Text("The titles kept on this iPhone are removed from it.")
             }

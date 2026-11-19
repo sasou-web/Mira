@@ -67,8 +67,10 @@ type bridge struct {
 	log   *fileLog
 }
 
-// shared is the bridge the C functions use.
-var shared bridge
+// shared is Built-in Tailscale, the person's own network; home is the node of « Le foyer » (a home link's key, on the
+// home administrator's network, reaching that Jellyfin only). Two nodes at once, each in its own folder with its own
+// state key and relay: the app keeps them apart (HomeNode in the app).
+var shared, home bridge
 
 // main never runs: the app links the library and calls its functions (main.go).
 func main() {}

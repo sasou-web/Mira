@@ -14,6 +14,9 @@ struct Session: Codable, Sendable, Hashable {
     /// The account's proof key from Mira's extension (ServerProof), learned once a way reaches Jellyfin: what Jellyfin
     /// found at another address of the home network must sign with before the token goes there.
     var proofKey: String? = nil
+    /// The device id this session was opened under, when it is not this installation's: a profile of « Le foyer »,
+    /// opened by Mira's extension under the home's device id (mira-home-…).
+    var deviceId: String? = nil
 
     /// What the way to Jellyfin asks of a server found elsewhere (nil without the key).
     var wayProof: Way.Proof? { proofKey.map { Way.Proof(user: userId, key: $0) } }
@@ -52,6 +55,8 @@ final class AppModel {
     let opening = Opening()
     /// « Keep on this iPhone »: films and episodes to watch without Jellyfin.
     let keeper = Keeper()
+    /// « Le foyer »: the home this iPhone is in, « Who's watching? » and its profiles.
+    let family: Family
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
     /// What this account may do with collections (TitleCollections), read once from Users/Me for the account signed in.
@@ -87,7 +92,9 @@ final class AppModel {
             Way.forgetAll()
             KeptStore.erase(keeping: nil)
             defaults.removeObject(forKey: "mira.tailnet.outageHidden")
+            Family.reset()
         }
+        family = Family()
         // Once the UI tests' reset is done: it reads whether it is on.
         tailnet = Tailnet()
         var id = defaults.string(forKey: Keys.deviceId) ?? ""
@@ -101,8 +108,11 @@ final class AppModel {
         together.app = self
         party.app = self
         keeper.app = self
+        family.app = self
+        // In a home: « Who's watching? » first, its node carrying the profile's Jellyfin when it came from a link.
+        family.start()
         JellyfinClient.refused = { [weak self] token in self?.refused(token) }
-        keeper.use(session)
+        keeper.use(session, alsoKeeping: homeAccounts(session))
         preferences.use(account: session?.userId)
         preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.ownClient } }
         // The UI tests reach the stand-in Jellyfin only through Built-in Tailscale, though it is on this Mac.
@@ -141,6 +151,7 @@ final class AppModel {
         guard wasAway else { return }
         Task {
             await tailnet.foreground(playing: player != nil || keeper.busy)
+            await family.foreground()
             await Way.shared.wake()
             keeper.resume()
         }
@@ -152,6 +163,7 @@ final class AppModel {
         inBackground = true
         keeper.background()
         tailnet.background(playing: player != nil || keeper.busy)
+        family.background(playing: player != nil || keeper.busy)
     }
 
     /// The copies all fetched (or stopped) while Mira is off screen: Built-in Tailscale stops now.
@@ -174,7 +186,19 @@ final class AppModel {
     /// This iPhone's account on its Jellyfin; a friend's party's guest instead while this iPhone is one.
     var client: JellyfinClient? {
         if party.guest != nil { return party.client(device) }
-        return session.map { JellyfinClient(server: $0.server, device: device, token: $0.token, userId: $0.userId) }
+        return session.map { JellyfinClient(server: $0.server, device: deviceFor($0), token: $0.token, userId: $0.userId) }
+    }
+
+    /// The kept copies' folders of the home's profiles, while this session is one of them: switching keeps them.
+    func homeAccounts(_ session: Session?) -> Set<String> {
+        guard let session, family.isHomeSession(session), let home = family.membership else { return [] }
+        return Set(home.profiles.map { KeptStore.account(serverId: session.serverId, userId: $0.id) })
+    }
+
+    /// How this iPhone introduces itself for a session: a profile of the home under the home's device id.
+    func deviceFor(_ session: Session) -> DeviceIdentity {
+        guard let id = session.deviceId, !id.isEmpty else { return device }
+        return DeviceIdentity(id: id, name: device.name, version: device.version)
     }
 
     /// This iPhone's own account, for what is kept on its Jellyfin (choices): none while a friend's party's guest.
@@ -198,8 +222,13 @@ final class AppModel {
 
     var lastServer: String { UserDefaults.standard.string(forKey: Keys.lastServer) ?? "" }
 
-    /// A mira:// link: a QR code of « Mira on your iPhone » (mira://connect), a group (mira://ensemble), or a party.
+    /// A mira:// link: a QR code of « Mira on your iPhone » (mira://connect), a group (mira://ensemble), a home link
+    /// (mira://home#…), or a party.
     func open(_ url: URL) async {
+        if HomeLink.isHomeLink(url.absoluteString) || url.host()?.lowercased() == "home" {
+            family.openLink(url.absoluteString)
+            return
+        }
         if url.host()?.lowercased() == "ensemble" {
             await together.openGroup(url)
             return
@@ -242,17 +271,31 @@ final class AppModel {
         }
     }
 
-    func signedIn(_ session: Session, typed: String) {
+    func signedIn(_ session: Session, typed: String?) {
         proofAsked = false
         Way.select(session.server, id: session.serverId, proof: session.wayProof)
         SessionStore.save(session)
-        UserDefaults.standard.set(typed, forKey: Keys.lastServer)
+        if let typed { UserDefaults.standard.set(typed, forKey: Keys.lastServer) }
         notice = nil
         self.session = session
         preferences.use(account: session.userId)
-        // Another account's copies leave this iPhone; this one's go on.
-        keeper.use(session)
+        // Another account's copies leave this iPhone (but those of the home's other profiles); this one's go on.
+        keeper.use(session, alsoKeeping: homeAccounts(session))
         keeper.resume()
+    }
+
+    /// Another profile of the home opened here: what the account before had open closes (its title, its group, its
+    /// choices), then the new session as a sign-in. Its Home kept for a quick start stays, for the next time.
+    func switchSession(_ session: Session, typed: String?) {
+        player?.close()
+        together.signedOut()
+        choices.stop()
+        newEpisodes.dismiss()
+        collectionRights = nil
+        collectionRightsAsked = nil
+        VirtualEpisodes.forget()
+        signedIn(session, typed: typed)
+        playback += 1
     }
 
     // MARK: Playing
@@ -399,15 +442,18 @@ final class AppModel {
         VirtualEpisodes.forget()
         newEpisodes.dismiss()
         choices.stop()
-        // What was kept on this iPhone goes with the account.
-        keeper.signedOut()
+        // What was kept on this iPhone goes with the account; a profile of the home keeps it for its next time.
+        if family.isHomeSession(session) { keeper.use(nil) } else { keeper.signedOut() }
         SessionStore.delete()
         let serverId = session?.serverId
+        let homeSession = family.isHomeSession(session)
         session = nil
+        // A profile of the home signed out: « Who's watching? » again.
+        if homeSession { family.sessionClosed() }
         // Told to Jellyfin on the way taken, then the way forgotten with the server's other addresses.
         Task {
             await client?.signOut()
-            if let serverId { await Way.shared.forget(serverId) }
+            if let serverId, !homeSession { await Way.shared.forget(serverId) }
             Way.select(nil, id: nil)
         }
     }
@@ -445,8 +491,14 @@ final class AppModel {
         // The copies stay for the same account signed in again: nothing is fetched meanwhile.
         keeper.stop()
         SessionStore.delete()
+        let homeSession = family.isHomeSession(session)
         notice = String(localized: "Your session on Jellyfin has ended. Sign in again.")
         self.session = nil
+        // A profile of the home: its session closed on the server (another device opened it, the administrator…): the hall.
+        if homeSession {
+            notice = nil
+            family.sessionClosed(String(localized: "This profile’s session has ended. Pick a profile again."))
+        }
         Way.select(nil, id: nil)
     }
 

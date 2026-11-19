@@ -265,7 +265,7 @@ struct OpeningView: View {
     }
 
     private var facts: Facts {
-        Facts(signedIn: app.session != nil, party: app.party.shown, home: app.opening.home, noWay: noWay)
+        Facts(signedIn: app.session != nil, party: app.party.shown || app.family.shown, home: app.opening.home, noWay: noWay)
     }
 
     /// No way to Jellyfin, and Mira knows why; Built-in Tailscale still connecting is waited for (Way gives it time).

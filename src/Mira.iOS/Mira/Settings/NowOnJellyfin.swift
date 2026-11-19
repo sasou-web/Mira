@@ -109,7 +109,7 @@ struct NowOnJellyfinView: View {
     private func load() async {
         guard let client = app.client else { return }
         do {
-            let found = Viewers.parse(try await client.sessions(), ownDevice: app.device.id)
+            let found = Viewers.parse(try await client.sessions(), ownDevice: app.client?.device.id ?? app.device.id)
             viewers = found
             failure = nil
         } catch is CancellationError {

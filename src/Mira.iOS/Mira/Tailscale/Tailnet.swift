@@ -203,6 +203,8 @@ final class Tailnet {
 
     /// Way hears of each change, in order.
     private func push() {
+        // The home's node carries the Jellyfin signed in to: it tells Way itself.
+        guard HomeNode.routing.withLock({ $0 }) == nil else { return }
         let view = WayPlan.Tailnet(status, enabled: enabled)
         let previous = pushing
         pushing = Task {
