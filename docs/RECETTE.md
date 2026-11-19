@@ -22,6 +22,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Corbeille sur le PC de Jellyfin : un épisode (clic droit) avec ses sous-titres, une saison (« … » de la ligne Épisodes), sur un fichier de test ; la fenêtre dit ce qui part ; tout revient depuis la Corbeille de Windows ; sur le WD monté dans un dossier
 
 ## Ton PC 🖥
+- [ ] Bonus hors de « Continuer à regarder » (dès la 0.9.15) : lancer un générique de Monogatari (pastille Bonus), l’arrêter à mi-chemin ; il n’est pas dans « Continuer à regarder », ni pendant le mini-lecteur ni après avoir relancé Mira ; pareil pour une bande-annonce avant un film arrêtée en cours
 - [ ] Mise à jour de Mira proposée et faite (à la prochaine version)
 - [ ] Bonus d’une série (« La pastille ») : sur Monogatari Series, pastille « Extras » après la saison 14 ; un clic montre Openings et Endings, une ligne chacun, « Tout afficher » les déplie ; une vignette lance le générique ; un film garde sa rangée « Bonus » (Mac et iPhone pareil)
 - [ ] Lecteur : image « Cinéma » sans saccade sur un film 4K ; Informations dit « Cinéma »
