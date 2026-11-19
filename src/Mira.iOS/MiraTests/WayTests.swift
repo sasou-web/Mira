@@ -131,10 +131,13 @@ struct WayPlanTests {
         final class Bundled {}
         let url = try #require(Bundle(for: Bundled.self).url(forResource: "server-proof", withExtension: "json"))
         let x = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
-        let secret = try #require(Data(base64Encoded: try #require(x["secret"] as? String)))
-        let key = ServerProof.key(secret: secret, user: try #require(x["user"] as? String))
+        let encoded = try #require(x["secret"] as? String)
+        let secret = try #require(Data(base64Encoded: encoded))
+        let user = try #require(x["user"] as? String)
+        let key = ServerProof.key(secret: secret, user: user)
         #expect(key.base64EncodedString() == x["key"] as? String)
-        for row in try #require(x["proofs"] as? [[String]]) {
+        let proofs = try #require(x["proofs"] as? [[String]])
+        for row in proofs {
             #expect(ServerProof.prove(key: key, nonce: row[0], host: row[1]) == row[2], "\(row)")
             #expect(ServerProof.holds(key: key.base64EncodedString(), nonce: row[0], host: row[1], proof: row[2]), "\(row)")
             #expect(!ServerProof.holds(key: key.base64EncodedString(), nonce: row[0], host: "192.168.1.58:8096", proof: row[2]), "\(row)")
