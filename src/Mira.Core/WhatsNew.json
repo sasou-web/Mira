@@ -10,6 +10,7 @@
       { "category": "Corbeille", "text": "Une saison ou un épisode à la Corbeille, avec une vraie confirmation de ce qui part.", "en": { "category": "Recycle Bin", "text": "Send a season or an episode to the Recycle Bin, with a real confirmation of what goes." } },
       { "category": "Rangement", "text": "Réessais automatiques, jamais de 2e version, packs « Second Season » et « 1-64 », type de la recherche suivi.", "en": { "category": "Sorting", "text": "Automatic retries, never a second version, “Second Season” and “1-64” packs, the search’s type kept." } },
       { "category": "PC de Jellyfin", "text": "Bonus analysés 4 par 4 au lieu d’une rafale ; épisodes renumérotés quand Jellyfin a refait la série.", "en": { "category": "Jellyfin PC", "text": "Extras analysed 4 at a time, not all at once; episodes renumbered when Jellyfin remade the show." } },
+      { "category": "Mac", "text": "Les saisons et les épisodes reviennent sur la fiche d’une série de plus de 10 saisons.", "en": { "category": "Mac", "text": "Shows with more than ten seasons show their seasons and episodes again." } },
       { "category": "Aide", "text": "« Inviter un ami » dans l’Aide, à tout moment.", "en": { "category": "Help", "text": "“Invite a friend” in Help, any time." } }
     ],
     "items": [
