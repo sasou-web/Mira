@@ -10,6 +10,7 @@ public static partial class MacApplication
     [LibraryImport(ObjC, StringMarshalling = StringMarshalling.Utf8)] private static partial IntPtr sel_registerName(string name);
     [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial IntPtr Send(IntPtr receiver, IntPtr selector);
     [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial byte SendBool(IntPtr receiver, IntPtr selector);
+    [LibraryImport(ObjC, EntryPoint = "objc_msgSend")] private static partial nuint SendUInt(IntPtr receiver, IntPtr selector);
 
     /// <summary>True when Mira is the app in front, false when another is; null where it cannot be read (Linux).</summary>
     public static bool? Active
@@ -23,6 +24,17 @@ public static partial class MacApplication
                 return application == IntPtr.Zero ? null : SendBool(application, sel_registerName("isActive")) != 0;
             }
             catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return null; }
+        }
+    }
+
+    /// <summary>A mouse button held down anywhere on the screen, in Mira or in another app ([NSEvent pressedMouseButtons]).</summary>
+    public static bool MousePressed
+    {
+        get
+        {
+            if (!OperatingSystem.IsMacOS()) return false;
+            try { return SendUInt(objc_getClass("NSEvent"), sel_registerName("pressedMouseButtons")) != 0; }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return false; }
         }
     }
 }
