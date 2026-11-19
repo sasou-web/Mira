@@ -39,7 +39,10 @@ public sealed partial class DetailPage : Page
     private readonly ComboBox _seasons = new() { MinWidth = 200 };
     private readonly StackPanel _episodes = new() { Spacing = 0 };
     /// <summary>The seasons as pills (EpisodeTiles): two to ten pages; more, the list.</summary>
-    private readonly SeasonRow _pills = new() { IsVisible = false, Margin = new Thickness(0, 2, 0, 16) };
+    private readonly SeasonRow _pills = new() { IsVisible = false };
+    /// <summary>The pills' line, stopping under « ⋮ » and fading (maquette A « Le fondu »): its width set by the buttons above (<see cref="Actions"/>).</summary>
+    private SeasonStrip Strip => _strip ??= new SeasonStrip(_pills) { IsVisible = false, Margin = new Thickness(0, 2, 0, 16) };
+    private SeasonStrip? _strip;
     /// <summary>The tiles of the season shown (stills, hollow ones for those the library lacks), sized again with the page.</summary>
     private readonly List<(Control Tile, Control Picture)> _tiles = [];
     private WrapPanel? _tileGrid;
@@ -488,7 +491,9 @@ public sealed partial class DetailPage : Page
     /// </summary>
     private ActionLine Actions()
     {
-        var line = new ActionLine { Margin = new Thickness(0, 22, 0, 0) };
+        // As wide as its buttons: the season line below stops under its « ⋮ » (maquette A « Le fondu »).
+        var line = new ActionLine { Margin = new Thickness(0, 22, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        line.SizeChanged += (_, e) => Strip.MaxWidth = Math.Max(360, e.NewSize.Width);
         _play = new Button { Classes = { "primary" }, VerticalContentAlignment = VerticalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, CornerRadius = ActionLine.Corners };
         _play.Click += (_, _) =>
         {
@@ -935,9 +940,9 @@ public sealed partial class DetailPage : Page
         DockPanel.SetDock(_seasons, Dock.Right); DockPanel.SetDock(_seasonMark, Dock.Right);
         // Kept from one refresh to the next (after the player, a title marked watched): each leaves the section it was in,
         // the heading too, or adding it again throws and the page is left without its episodes, nothing to scroll.
-        foreach (var kept in new Control[] { _seasons, _seasonMark, _episodeHeading, _pills, _episodes }) (kept.Parent as Panel)?.Children.Remove(kept);
+        foreach (var kept in new Control[] { _seasons, _seasonMark, _episodeHeading, Strip, _episodes }) (kept.Parent as Panel)?.Children.Remove(kept);
         header.Children.Add(_seasons); header.Children.Add(_seasonMark); header.Children.Add(_episodeHeading);
-        return Ui.Column(14, header, _pills, _episodes);
+        return Ui.Column(14, header, Strip, _episodes);
     }
     /// <summary>
     /// The season list: the library's seasons (slices of a long one), then those it has none of (« Saison 1 · absente »);
@@ -1147,16 +1152,16 @@ public sealed partial class DetailPage : Page
         return new Border { Child = grid, BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(22), Margin = new Thickness(0, 0, 0, EpisodeTiles.RowGap) };
     }
     /// <summary>
-    /// The seasons as pills under the heading; a click shows that one (the hidden list stays the source). Past
-    /// <see cref="EpisodeTiles.MaxPills"/> pages (« Les numéros », as on Windows) each pill but the one shown is cut to its
-    /// number, a bubble giving its name and where you are; the row wraps when even that is too long.
+    /// The seasons as pills under the heading, each by its whole name; a click shows that one (the hidden list stays the
+    /// source). One line that stops under the page's « ⋮ » and fades, scrolling (<see cref="SeasonStrip"/>, maquette A « Le
+    /// fondu », as on Windows: the names past ten seasons too, instead of « Les numéros »).
     /// </summary>
     private void FillPills(IReadOnlyList<EpisodePage> pages, bool extras = false)
     {
-        _pills.Children.Clear(); _pills.IsVisible = pages.Count > 0;
+        _pills.Children.Clear(); _pills.IsVisible = Strip.IsVisible = pages.Count > 0;
+        Strip.Reset();
         _missingViews.RemoveAll(x => x.Pill);
-        var compact = EpisodeTiles.Compact(pages);
-        _pills.Compact = compact;
+        _pills.Compact = false;
         foreach (var page in pages)
         {
             var (name, note) = EpisodeTiles.Pill(page);
@@ -1164,24 +1169,13 @@ public sealed partial class DetailPage : Page
             if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeight.SemiBold, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center });
             if (MissingPillNote(page) is { } coming) label.Children.Add(coming);
             // « chip season »: no body of its own, the row draws it and the white pill of the one shown (SeasonRow).
-            // The name goes in the pill or, cut, in its face: never in both, an Avalonia control has one parent (set as the
-            // pill's content first, the face threw and left a series of more than ten seasons with nothing under its buttons).
-            var pill = new Button { Content = compact ? null : label, Classes = { "chip", "season" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Tag = page };
-            if (compact)
-            {
-                // One height for the cut pills and the one shown; the name and the number both centred, cut as it opens. Its face
-                // asks no width: stretched to the width the row gives it, or a button (left-aligned) is laid out 0 wide, empty.
-                pill.Height = PillRow.Round; pill.Padding = new Thickness(0); pill.HorizontalAlignment = HorizontalAlignment.Stretch; pill.VerticalContentAlignment = VerticalAlignment.Center; pill.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-                var cut = new TextBlock { Text = EpisodeTiles.Short(page, pages), FontSize = 13.5, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                pill.Content = new SeasonRow.Face { Children = { label, cut } };
-                ToolTip.SetPlacement(pill, PlacementMode.Bottom); ToolTip.SetVerticalOffset(pill, 6); ToolTip.SetShowDelay(pill, 250);
-            }
+            var pill = new Button { Content = label, Classes = { "chip", "season" }, Padding = new Thickness(16, 8), CornerRadius = new CornerRadius(18), Tag = page };
             Avalonia.Automation.AutomationProperties.SetName(pill, page.Label);
             pill.Click += (_, _) => _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? _seasons.SelectedItem;
             _pills.Children.Add(pill);
         }
         // « Extras » after the last season (SeriesExtras), also after a single one.
-        if (extras && pages.Count > 0) AddExtrasPill(compact);
+        if (extras && pages.Count > 0) AddExtrasPill(false);
     }
     private void UpdatePills(object? shown)
     {
@@ -1199,8 +1193,9 @@ public sealed partial class DetailPage : Page
             ToolTip.SetTip(pill, on ? null : tip);
             Avalonia.Automation.AutomationProperties.SetHelpText(pill, note);
         }
-        // The row's white pill goes there as a jelly (at once the first time, and without motion).
+        // The row's white pill goes there as a jelly (at once the first time, and without motion), the line brought to it.
         _pills.Show(index, animate: true);
+        Strip.Reveal(index);
     }
     private void Toggle(string key)
     {

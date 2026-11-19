@@ -715,7 +715,7 @@ public static class SelfCheck
             }
             else Check(false, swipeCheck, "rien sous le pointeur");
             MacMotion.Override(null);
-            // Fourteen seasons (as Monogatari): pills cut to their numbers, and the episodes under them, not an empty page.
+            // Fourteen seasons (as Monogatari): every name on one line that stops under « ⋮ » and fades (maquette A « Le fondu »), and the episodes under them, not an empty page.
             window.Go("Series");
             if (await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15) && ((BrowsePage)window.Current!).Items.FirstOrDefault(x => x.Name == "Série-fleuve") is { } river)
             {
@@ -723,14 +723,17 @@ public static class SelfCheck
                 var riverShown = await Until(() => window.Current is DetailPage { Episodes.Count: > 0, PillsShown: true, TilesShown: > 0 }, 20);
                 var riverPage = window.Current as DetailPage;
                 await Task.Delay(600);
-                // Each pill as wide as the row draws it (a cut pill's face asks no width: left-aligned, it was 0 wide, blank).
+                // Each pill by its name, all on one line, the line as wide as the buttons above and scrolling the rest.
                 var riverPills = riverPage?.GetVisualDescendants().OfType<SeasonRow>().FirstOrDefault()?.Children.OfType<Button>().ToList() ?? [];
-                var narrowest = riverPills.Count > 0 ? riverPills.Min(x => x.Bounds.Width) : 0;
-                Check(riverShown && riverPage?.SeasonLabels.Count() == 14 && riverPills.Count == 14 && narrowest >= PillRow.Round - 1, "fiche d’une série de 14 saisons : pastilles « Les numéros » et épisodes",
-                    $"{riverPage?.SeasonLabels.Count()} saisons, {riverPage?.TilesShown} tuiles, {riverPills.Count} pastilles, la plus étroite {narrowest:0} px");
+                var strip = riverPage?.GetVisualDescendants().OfType<SeasonStrip>().FirstOrDefault();
+                var named = riverPills.Count(x => x.Content is StackPanel);
+                var pillLines = riverPills.Select(x => Math.Round(x.Bounds.Top)).Distinct().Count();
+                Check(riverShown && riverPage?.SeasonLabels.Count() == 14 && riverPills.Count == 14 && named == 14 && pillLines == 1 && strip is { Scrollable: > 0 } && strip.Bounds.Width <= strip.MaxWidth + 1,
+                    "fiche d’une série de 14 saisons : noms sur une ligne qui s’estompe, et épisodes",
+                    $"{riverPage?.SeasonLabels.Count()} saisons, {riverPage?.TilesShown} tuiles, {riverPills.Count} pastilles, {named} noms, {pillLines} ligne(s), largeur {strip?.Bounds.Width:0}/{strip?.MaxWidth:0}, défilement {strip?.Scrollable:0}");
                 Capture(window, output, "06h-series-fourteen-seasons");
             }
-            else Check(false, "fiche d’une série de 14 saisons : pastilles « Les numéros » et épisodes", "Série-fleuve absente");
+            else Check(false, "fiche d’une série de 14 saisons : noms sur une ligne qui s’estompe, et épisodes", "Série-fleuve absente");
             MacMotion.Override(reduced: false);
             // A pinch (or ⌘+) makes the grid's posters larger: fewer of them on a line.
             window.Go("Movie");

@@ -1695,6 +1695,18 @@ internal static class LibraryTests
             Assert(from > .5 && opener.At(10.1 + PillRow.Opening) == 0, $"Told again mid-way: from where it stands ({from})");
             return Task.CompletedTask;
         });
+        await Test("Pastilles des saisons sur une ligne qui s'estompe : la saison choisie ramenée hors des fondus (Windows et Mac)", () =>
+        {
+            // A line of 700 that scrolls by up to 1,300, fades of 110.
+            Assert(PillRow.Reveal(120, 260, 0, 700, 1300, 110) == 0, "Already clear: as it is");
+            Assert(PillRow.Reveal(0, 140, 0, 700, 1300, 110) == 0, "At the start, no fade at the left: as it is");
+            Assert(PillRow.Reveal(560, 700, 0, 700, 1300, 110) == 110, $"Under the right fade: just clear of it ({PillRow.Reveal(560, 700, 0, 700, 1300, 110)})");
+            Assert(PillRow.Reveal(400, 520, 500, 700, 1300, 110) == 290, $"Gone left: clear of the left fade ({PillRow.Reveal(400, 520, 500, 700, 1300, 110)})");
+            Assert(PillRow.Reveal(1850, 2000, 0, 700, 1300, 110) == 1300, "The last one: the line at its end, no fade there");
+            Assert(PillRow.Reveal(1000, 1700, 0, 700, 1300, 110) == 890, "Wider than the room: by its start");
+            Assert(PillRow.Reveal(500, 600, 0, 700, 0, 110) == 0, "A short series fits: never moves");
+            return Task.CompletedTask;
+        });
         await Test("Épisodes manquants et à venir : tous lus, même au-delà de 5 000 épisodes virtuels", async () =>
         {
             // As Jellyfin 12.1 sorts them (by air day, those without one first): 5,050 old missing episodes of a long series

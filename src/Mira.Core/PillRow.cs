@@ -64,6 +64,22 @@ public static class PillRow
         return (left + (Math.Min(left, cellLeft) - left) * t, right + (Math.Max(right, cellRight) - right) * t);
     }
 
+    /// <summary>
+    /// Where a line of pills that scrolls (maquette A « Le fondu », ogsas 2026-11-19) goes so that the pill from
+    /// <paramref name="left"/> to <paramref name="right"/> stands clear of its fades (<paramref name="fade"/> wide, at most a
+    /// third of the <paramref name="viewport"/>): as it is when already clear, else just far enough; a pill wider than the
+    /// room by its start. Within 0 and <paramref name="scrollable"/>, where no fade is drawn.
+    /// </summary>
+    public static double Reveal(double left, double right, double offset, double viewport, double scrollable, double fade)
+    {
+        if (scrollable <= 0 || viewport <= 0) return 0;
+        fade = Math.Min(fade, viewport / 3);
+        var to = offset;
+        if (right > to + viewport - fade) to = right - viewport + fade;
+        if (left < to + fade) to = left - fade;
+        return Math.Clamp(to, 0, scrollable);
+    }
+
     /// <summary>One pill opening or closing: from where it was when told, eased towards 0 or 1; told again mid-way, from where it stands.</summary>
     public sealed class Opener
     {

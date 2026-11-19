@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -212,17 +211,17 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// The seasons as pills under the heading; a click shows that one (the hidden list stays the source). Past
-    /// <see cref="EpisodeTiles.MaxPills"/> pages (« Les numéros », EpisodeTiles.Compact) each pill but the one shown is cut
-    /// to its number, a bubble under it giving its name and where you are; the row wraps when even that is too long. The
-    /// row (<see cref="SeasonRow"/>) draws the white pill under the one shown and sends it as a jelly to the next.
+    /// The seasons as pills under the heading, each by its whole name; a click shows that one (the hidden list stays the
+    /// source). One line that stops under the page's « ⋮ » and fades, scrolling (<see cref="SeasonStrip"/>, maquette A « Le
+    /// fondu », ogsas 2026-11-19: the names, as on the iPhone, past ten seasons too, instead of « Les numéros »). The row
+    /// (<see cref="SeasonRow"/>) draws the white pill under the one shown and sends it as a jelly to the next.
     /// </summary>
     private void FillSeasonPills(IReadOnlyList<EpisodePage> pages, bool extras = false)
     {
         SeasonPills.Children.Clear(); _missingViews.RemoveAll(x => x.Pill);
-        SeasonPills.Visibility = pages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        var compact = EpisodeTiles.Compact(pages);
-        SeasonPills.Compact = compact;
+        SeasonStrip.Visibility = pages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SeasonStrip.Reset();
+        SeasonPills.Compact = false;
         foreach (var page in pages)
         {
             var (name, note) = EpisodeTiles.Pill(page);
@@ -234,16 +233,7 @@ public partial class MainWindow
             label.Children.Add(new TextBlock { Text = name, FontSize = 13.5, FontWeight = FontWeights.SemiBold });
             if (note is not null) label.Children.Add(new TextBlock { Text = note, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.62 });
             if (coming is not null) label.Children.Add(coming);
-            if (compact)
-            {
-                // One height for the cut pills and the one shown; the name and the number both centred, cut by the pill
-                // as it opens (wider than it: centred past both sides, clipped).
-                pill.Height = PillRow.Round; pill.Padding = new Thickness(0); pill.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-                var cut = new TextBlock { Text = EpisodeTiles.Short(page, pages), FontSize = 13.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
-                pill.Content = new SeasonRow.Face { Children = { label, cut } };
-                ToolTipService.SetPlacement(pill, PlacementMode.Bottom); ToolTipService.SetVerticalOffset(pill, 6); ToolTipService.SetInitialShowDelay(pill, 250);
-            }
-            else pill.Content = label;
+            pill.Content = label;
             AutomationProperties.SetName(pill, page.Label);
             pill.Click += (_, _) => SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, page)) ?? SeasonSelector.SelectedItem;
             SeasonPills.Children.Add(pill);
@@ -269,7 +259,10 @@ public partial class MainWindow
             pill.ToolTip = on ? null : tip;
             AutomationProperties.SetHelpText(pill, note);
         }
-        // The row's white pill goes there as a jelly (at once the first time, and without motion).
+        // The row's white pill goes there as a jelly (at once the first time, and without motion), the line brought to it.
         SeasonPills.Show(index, animate: true);
+        SeasonStrip.Reveal(index);
     }
+    /// <summary>The season line as long as the buttons above it: it stops under « ⋮ » (maquette A « Le fondu »).</summary>
+    private void DetailActions_SizeChanged(object sender, SizeChangedEventArgs e) => SeasonStrip.MaxWidth = Math.Max(360, DetailActions.ActualWidth);
 }
