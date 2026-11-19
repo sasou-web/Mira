@@ -56,7 +56,7 @@ public sealed class SeasonStrip : Grid
         button.Background = Ui.Raised; button.BorderBrush = Ui.LineStrong; button.BorderThickness = new Thickness(1);
         button.HorizontalAlignment = side; button.VerticalAlignment = VerticalAlignment.Center;
         button.HorizontalContentAlignment = HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
-        button.Focusable = false; button.Opacity = 0; button.IsHitTestVisible = false;
+        button.Focusable = false; button.Opacity = 0; button.IsHitTestVisible = false; button.IsVisible = false;
         button.Transitions = [new Avalonia.Animation.DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(120) }];
         Children.Add(button);
         return button;
@@ -117,6 +117,7 @@ public sealed class SeasonStrip : Grid
     private static void Show(Button arrow, bool shown)
     {
         if (arrow.IsHitTestVisible == shown) return;
-        arrow.IsHitTestVisible = shown; arrow.Opacity = shown ? 1 : 0;
+        // Hidden, out of what VoiceOver reads too.
+        arrow.IsHitTestVisible = shown; arrow.IsVisible = shown; arrow.Opacity = shown ? 1 : 0;
     }
 }

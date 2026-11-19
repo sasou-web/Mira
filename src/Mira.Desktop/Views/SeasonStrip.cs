@@ -60,7 +60,7 @@ public sealed class SeasonStrip : Grid
         var button = new Button
         {
             Width = Arrow, Height = Arrow, Padding = new Thickness(0), HorizontalAlignment = side, VerticalAlignment = VerticalAlignment.Center,
-            Content = new Icon { Kind = icon, Width = 15, Height = 15 }, Focusable = false, Opacity = 0, IsHitTestVisible = false,
+            Content = new Icon { Kind = icon, Width = 15, Height = 15 }, Focusable = false, Opacity = 0, IsHitTestVisible = false, Visibility = Visibility.Collapsed,
             ToolTip = name
         };
         button.SetResourceReference(FrameworkElement.StyleProperty, "IconButton");
@@ -109,7 +109,9 @@ public sealed class SeasonStrip : Grid
     private static void Show(Button arrow, bool shown)
     {
         if (arrow.IsHitTestVisible == shown) return;
+        // Hidden, out of the tree a screen reader reads too (Dell 2026-11-19: « Next seasons » was read on a short series).
         arrow.IsHitTestVisible = shown;
-        Motion.Fade(arrow, shown ? 1 : 0, 120);
+        if (shown) { arrow.Visibility = Visibility.Visible; Motion.Fade(arrow, 1, 120, from: 0); }
+        else { arrow.BeginAnimation(UIElement.OpacityProperty, null); arrow.Opacity = 0; arrow.Visibility = Visibility.Collapsed; }
     }
 }
