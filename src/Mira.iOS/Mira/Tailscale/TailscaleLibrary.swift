@@ -115,8 +115,29 @@ enum TailscaleLibrary {
     /// Stops the node and its relay (Mira leaves the screen).
     static func stop() async { _ = await call { MiraTailscaleStop() } }
 
-    /// Built-in Tailscale as Way sees it, read now (any thread).
+    // MARK: The home's node (« Le foyer »)
+
+    /// Starts the home's node (logged in by a home link's key the first time), beside Built-in Tailscale.
+    static func homeStart(_ config: Config) async -> TailnetStatus {
+        guard let json = try? JSONEncoder().encode(config) else { return .off }
+        let text = String(decoding: json, as: UTF8.self)
+        return status(await call { MiraTailscaleHomeStart(text) })
+    }
+
+    static func homeStatus() async -> TailnetStatus { status(await call { MiraTailscaleHomeStatus() }) }
+    static func homeCheck() async -> TailnetStatus { status(await call { MiraTailscaleHomeCheck() }) }
+
+    /// Signs the home's node out of the home's network (this iPhone left the home).
+    static func homeLogout() async {
+        _ = await call { MiraTailscaleHomeLogout() }
+    }
+
+    static func homeStop() async { _ = await call { MiraTailscaleHomeStop() } }
+
+    /// The way's Tailscale, read now (any thread): the home's node while it carries the home's Jellyfin signed in to
+    /// (HomeNode.routing), else Built-in Tailscale.
     static func snapshot() async -> WayPlan.Tailnet {
+        if HomeNode.routing.withLock({ $0 }) != nil { return WayPlan.Tailnet(await homeStatus(), enabled: true) }
         guard Tailnet.isEnabled else { return .off }
         return WayPlan.Tailnet(await status(), enabled: true)
     }

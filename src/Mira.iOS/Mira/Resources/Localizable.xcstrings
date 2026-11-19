@@ -7514,6 +7514,1256 @@
           }
         }
       }
+    },
+    "%@’s home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foyer %@"
+          }
+        }
+      }
+    },
+    "%@’s home isn’t answering right now. Try again in a moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le foyer %@ ne répond pas pour l’instant. Réessaie dans un moment."
+          }
+        }
+      }
+    },
+    "%@’s PIN": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code de %@"
+          }
+        }
+      }
+    },
+    "%@’s profile": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil de %@"
+          }
+        }
+      }
+    },
+    "1. Add these lines to your network’s policy (in “tagOwners” and “grants”).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. Ajoute ces lignes à la politique de ton réseau (dans « tagOwners » et « grants »)."
+          }
+        }
+      }
+    },
+    "2. Create an OAuth client with the scopes %@, and the tag %@.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2. Crée un client OAuth avec les droits %@, et le tag %@."
+          }
+        }
+      }
+    },
+    "3. Paste its ID and secret: Mira keeps them on the server, never on this iPhone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3. Colle son identifiant et son secret : Mira les garde sur le serveur, jamais sur cet iPhone."
+          }
+        }
+      }
+    },
+    "4 digits": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4 chiffres"
+          }
+        }
+      }
+    },
+    "A PIN is 4 digits.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un code fait 4 chiffres."
+          }
+        }
+      }
+    },
+    "Add a PIN": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter un code"
+          }
+        }
+      }
+    },
+    "Administrator: never in the home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Administrateur : jamais dans le foyer."
+          }
+        }
+      }
+    },
+    "At least %lld characters": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Au moins %lld caractères"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retour"
+          }
+        }
+      }
+    },
+    "Back to Mira": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retour à Mira"
+          }
+        }
+      }
+    },
+    "Change PIN": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changer le code"
+          }
+        }
+      }
+    },
+    "Change the home password?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changer le mot de passe du foyer ?"
+          }
+        }
+      }
+    },
+    "Check again": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier à nouveau"
+          }
+        }
+      }
+    },
+    "Checked by Jellyfin’s Mira plugin, not by this iPhone. 5 wrong tries lock the profile for 5 minutes.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifié par l’extension Mira de Jellyfin, pas par cet iPhone. 5 erreurs bloquent le profil 5 minutes."
+          }
+        }
+      }
+    },
+    "Client ID": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identifiant du client"
+          }
+        }
+      }
+    },
+    "Connect": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecter"
+          }
+        }
+      }
+    },
+    "Connected to Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relié à Tailscale."
+          }
+        }
+      }
+    },
+    "Connecting to %@’s home network…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion au réseau du foyer %@…"
+          }
+        }
+      }
+    },
+    "Copied.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copié."
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier"
+          }
+        }
+      }
+    },
+    "Devices in the home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appareils du foyer"
+          }
+        }
+      }
+    },
+    "Disconnect": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déconnecter"
+          }
+        }
+      }
+    },
+    "Disconnect Tailscale from the home?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déconnecter Tailscale du foyer ?"
+          }
+        }
+      }
+    },
+    "Disconnect…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déconnecter…"
+          }
+        }
+      }
+    },
+    "Each device that typed the password. Removing one closes its profile; it will need the password to come back.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque appareil qui a tapé le mot de passe. En retirer un ferme son profil ; il lui faudra le mot de passe pour revenir."
+          }
+        }
+      }
+    },
+    "Ends %@. Send it with the password, by two different ways if you can.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finit le %@. Envoie-le avec le mot de passe, par deux chemins différents si tu peux."
+          }
+        }
+      }
+    },
+    "Every device in the home will need to type the new one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque appareil du foyer devra taper le nouveau."
+          }
+        }
+      }
+    },
+    "Every device leaves the home and its profiles close. The Jellyfin accounts stay.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tous les appareils sortent du foyer et leurs profils se ferment. Les comptes Jellyfin restent."
+          }
+        }
+      }
+    },
+    "First connect the home to your Tailscale network.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relie d’abord le foyer à ton réseau Tailscale."
+          }
+        }
+      }
+    },
+    "First finish “Away from home” below: it’s once only.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Termine d’abord « Loin de chez toi » plus bas : une seule fois."
+          }
+        }
+      }
+    },
+    "For a device away from home: the link takes Mira to your Jellyfin through Tailscale, with no address or Tailscale account to create. It works once and ends after 48 hours; the password is still asked.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour un appareil loin de chez toi : le lien emmène Mira jusqu’à ton Jellyfin par Tailscale, sans adresse ni compte Tailscale à créer. Il sert une seule fois et finit au bout de 48 heures ; le mot de passe reste demandé."
+          }
+        }
+      }
+    },
+    "Forgot it? Ask %@’s administrator.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oublié ? Demande à l’administrateur de %@."
+          }
+        }
+      }
+    },
+    "Found at this address.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trouvé à cette adresse."
+          }
+        }
+      }
+    },
+    "Hide password": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquer le mot de passe"
+          }
+        }
+      }
+    },
+    "Home link": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lien du foyer"
+          }
+        }
+      }
+    },
+    "Home link QR code": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR code du lien du foyer"
+          }
+        }
+      }
+    },
+    "Home password": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mot de passe du foyer"
+          }
+        }
+      }
+    },
+    "I have my own account": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "J’ai mon propre compte"
+          }
+        }
+      }
+    },
+    "Its profile closes. It will need the password, and away from home a new link, to come back.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son profil se ferme. Il lui faudra le mot de passe, et loin de chez toi un nouveau lien, pour revenir."
+          }
+        }
+      }
+    },
+    "Join %@’s home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejoindre le foyer %@"
+          }
+        }
+      }
+    },
+    "Leave this home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitter ce foyer"
+          }
+        }
+      }
+    },
+    "Leave this home?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitter ce foyer ?"
+          }
+        }
+      }
+    },
+    "Leaving the home…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sortie du foyer…"
+          }
+        }
+      }
+    },
+    "Make a home link": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créer un lien du foyer"
+          }
+        }
+      }
+    },
+    "Mira can’t reach this home from this iPhone right now. Close Mira and open it again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne peut pas joindre ce foyer depuis cet iPhone pour l’instant. Ferme Mira et rouvre-le."
+          }
+        }
+      }
+    },
+    "Mira knows where this home is, there and away from it. Nothing else to install or type.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira sait où est ce foyer, chez lui comme ailleurs. Rien d’autre à installer ni à taper."
+          }
+        }
+      }
+    },
+    "Mira on %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira sur %@"
+          }
+        }
+      }
+    },
+    "New password": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau mot de passe"
+          }
+        }
+      }
+    },
+    "Next: pick your profile. This iPhone stays in the home until it’s removed.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ensuite : choisis ton profil. Cet iPhone reste dans le foyer tant qu’on ne l’en retire pas."
+          }
+        }
+      }
+    },
+    "No devices yet.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun appareil pour l’instant."
+          }
+        }
+      }
+    },
+    "No Internet connection right now.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas de connexion à Internet pour l’instant."
+          }
+        }
+      }
+    },
+    "No more home links. Devices already away from home keep their access until you remove them.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus aucun lien du foyer. Les appareils déjà loin de chez toi gardent leur accès tant que tu ne les retires pas."
+          }
+        }
+      }
+    },
+    "No profile open": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun profil ouvert"
+          }
+        }
+      }
+    },
+    "No profiles in this home yet: ask its administrator to turn one on in Settings → Home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun profil dans ce foyer pour l’instant : demande à son administrateur d’en cocher un dans Réglages → Foyer."
+          }
+        }
+      }
+    },
+    "No rule lets the home’s devices reach Jellyfin: add the rule above.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune règle ne laisse les appareils du foyer joindre Jellyfin : ajoute la règle ci-dessus."
+          }
+        }
+      }
+    },
+    "Once only: Mira makes the home links’ keys on your Tailscale network itself. The home’s devices see only Jellyfin there.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une seule fois : Mira crée lui-même les clés des liens du foyer sur ton réseau Tailscale. Les appareils du foyer n’y voient que Jellyfin."
+          }
+        }
+      }
+    },
+    "One password for the family, then “Who’s watching?”: profiles, PINs, devices, the home link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un mot de passe pour la famille, puis « Qui regarde ? » : profils, codes, appareils, lien du foyer."
+          }
+        }
+      }
+    },
+    "One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. No administrator is ever one of them.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Aucun administrateur n’en fait partie."
+          }
+        }
+      }
+    },
+    "Open Tailscale’s credentials": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir les identifiants de Tailscale"
+          }
+        }
+      }
+    },
+    "Open the Tailscale policy": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir la politique Tailscale"
+          }
+        }
+      }
+    },
+    "Opened from %@’s link": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvert depuis le lien de %@"
+          }
+        }
+      }
+    },
+    "Opening %@’s profile…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouverture du profil de %@…"
+          }
+        }
+      }
+    },
+    "or hold the Settings tab": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ou appui long sur l’onglet Réglages"
+          }
+        }
+      }
+    },
+    "Part of the library": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une partie de la bibliothèque"
+          }
+        }
+      }
+    },
+    "Profiles": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profils"
+          }
+        }
+      }
+    },
+    "Ready: the home’s devices reach only Jellyfin on your Tailscale network.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prêt : les appareils du foyer n’atteignent que Jellyfin sur ton réseau Tailscale."
+          }
+        }
+      }
+    },
+    "Remove PIN": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer le code"
+          }
+        }
+      }
+    },
+    "Remove this device from the home?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer cet appareil du foyer ?"
+          }
+        }
+      }
+    },
+    "Remove…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer…"
+          }
+        }
+      }
+    },
+    "Rule %lld of “%@”: %@ goes further than Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Règle %lld de « %@ » : %@ va plus loin que Jellyfin."
+          }
+        }
+      }
+    },
+    "Save PIN": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer le code"
+          }
+        }
+      }
+    },
+    "Secret": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Secret"
+          }
+        }
+      }
+    },
+    "Send the home link": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyer le lien du foyer"
+          }
+        }
+      }
+    },
+    "Show password": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher le mot de passe"
+          }
+        }
+      }
+    },
+    "Signing in…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion…"
+          }
+        }
+      }
+    },
+    "Switch profile": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changer de profil"
+          }
+        }
+      }
+    },
+    "Tailscale didn’t answer. Try again in a moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale n’a pas répondu. Réessaie dans un instant."
+          }
+        }
+      }
+    },
+    "Tailscale isn’t on on Jellyfin’s PC.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale n’est pas allumé sur le PC de Jellyfin."
+          }
+        }
+      }
+    },
+    "Tailscale refuses the home’s OAuth client: it was deleted or revoked. Connect the home again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale refuse le client OAuth du foyer : il a été supprimé ou révoqué. Relie de nouveau le foyer."
+          }
+        }
+      }
+    },
+    "That’s not the right PIN.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce n’est pas le bon code."
+          }
+        }
+      }
+    },
+    "That’s not the right PIN. %lld tries left.": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "That’s not the right PIN. %lld try left."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "That’s not the right PIN. %lld tries left."
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ce n’est pas le bon code. Encore %lld essai."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ce n’est pas le bon code. Encore %lld essais."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "The home is off.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le foyer est désactivé."
+          }
+        }
+      }
+    },
+    "The home isn’t connected to your Tailscale network: it works only at home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le foyer n’est pas relié à ton réseau Tailscale : il ne marche qu’à la maison."
+          }
+        }
+      }
+    },
+    "The home password is set.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le mot de passe du foyer est enregistré."
+          }
+        }
+      }
+    },
+    "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; administrators are never part of it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; les administrateurs n’en font jamais partie."
+          }
+        }
+      }
+    },
+    "The OAuth client lacks the rights it needs (auth_keys, devices:core, policy_file:read, and the tag:mira-home tag).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le client OAuth n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file:read, et l’étiquette tag:mira-home)."
+          }
+        }
+      }
+    },
+    "The server says nothing about Tailscale: update the Mira extension.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur ne dit rien de Tailscale : mets à jour l’extension Mira."
+          }
+        }
+      }
+    },
+    "The tag:mira-home tag isn’t in your Tailscale policy yet (tagOwners).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’étiquette tag:mira-home n’est pas encore dans ta politique Tailscale (tagOwners)."
+          }
+        }
+      }
+    },
+    "The whole library": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toute la bibliothèque"
+          }
+        }
+      }
+    },
+    "This home link is incomplete: copy all of it, or ask for a new one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien du foyer est incomplet : recopie-le en entier, ou demande-en un nouveau."
+          }
+        }
+      }
+    },
+    "This iPhone is no longer in %@’s home. To come back, ask for a new home link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet iPhone n’est plus dans le foyer %@. Pour revenir, demande un nouveau lien du foyer."
+          }
+        }
+      }
+    },
+    "This iPhone left %@’s home here; the server didn’t hear it: its administrator can remove it in Settings → Home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet iPhone a quitté le foyer %@ ici ; le serveur ne l’a pas su : son administrateur peut le retirer dans Réglages → Foyer."
+          }
+        }
+      }
+    },
+    "This iPhone left %@’s home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet iPhone a quitté le foyer %@."
+          }
+        }
+      }
+    },
+    "This isn’t %@’s Jellyfin: the link no longer matches. Ask for a new link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce n’est pas le Jellyfin de %@ : le lien ne correspond plus. Demande-lui un nouveau lien."
+          }
+        }
+      }
+    },
+    "This Jellyfin has no home: its Mira plugin needs updating.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce Jellyfin n’a pas de foyer : son extension Mira doit être à jour."
+          }
+        }
+      }
+    },
+    "This link has expired (48 h). Ask %@ for a new home link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien a expiré (48 h). Demande un nouveau lien du foyer à %@."
+          }
+        }
+      }
+    },
+    "This link was already used or taken back. Ask %@ for a new home link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien a déjà servi ou a été retiré. Demande un nouveau lien du foyer à %@."
+          }
+        }
+      }
+    },
+    "This profile’s session has ended. Pick a profile again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La session de ce profil a pris fin. Choisis de nouveau un profil."
+          }
+        }
+      }
+    },
+    "To come back, you’ll need the home’s password and a new link from %@.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour revenir, il faudra le mot de passe du foyer et un nouveau lien de %@."
+          }
+        }
+      }
+    },
+    "To come back, you’ll need the home’s password.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour revenir, il faudra le mot de passe du foyer."
+          }
+        }
+      }
+    },
+    "Too many tries: try again in %lld min.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trop d’essais : réessaie dans %lld min."
+          }
+        }
+      }
+    },
+    "Turn off": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désactiver"
+          }
+        }
+      }
+    },
+    "Turn off the home?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désactiver le foyer ?"
+          }
+        }
+      }
+    },
+    "Turn off the home…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désactiver le foyer…"
+          }
+        }
+      }
+    },
+    "Turn on the home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activer le foyer"
+          }
+        }
+      }
+    },
+    "Type the home’s password.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tape le mot de passe du foyer."
+          }
+        }
+      }
+    },
+    "up to %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "jusqu’à %@"
+          }
+        }
+      }
+    },
+    "Use my own account": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser mon propre compte"
+          }
+        }
+      }
+    },
+    "Who’s watching?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qui regarde ?"
+          }
+        }
+      }
+    },
+    "With a PIN": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avec un code"
+          }
+        }
+      }
+    },
+    "Your family types it once per device, then picks their profile. Changing it signs every device out of the home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta famille le tape une fois par appareil, puis choisit son profil. Le changer fait sortir tous les appareils du foyer."
+          }
+        }
+      }
+    },
+    "Your policy lets the home’s devices go beyond Jellyfin: narrow the rules listed.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta politique laisse les appareils du foyer aller ailleurs que sur Jellyfin : restreins les règles listées."
+          }
+        }
+      }
+    },
+    "“Who’s watching?” opens again; this iPhone stays in the home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« Qui regarde ? » revient ; cet iPhone reste dans le foyer."
+          }
+        }
+      }
+    },
+    "The home, away from home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le foyer, loin de la maison"
+          }
+        }
+      }
+    },
+    "Tailscale’s coordination server and its relays, your router (as Built-in Tailscale), then the home’s Jellyfin alone, on its administrator’s Tailscale network.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de coordination de Tailscale et ses relais, ton routeur (comme Tailscale intégré), puis le seul Jellyfin du foyer, sur le réseau Tailscale de son administrateur."
+          }
+        }
+      }
+    },
+    "Only after a home link opened in Mira, each time Mira opens, until you leave the home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement après un lien du foyer ouvert dans Mira, à chaque ouverture de Mira, jusqu’à ce que tu quittes le foyer."
+          }
+        }
+      }
+    },
+    "As Built-in Tailscale, without your Tailscale account: the device’s name, its system, its IP addresses and its public key; the link’s single-use key, once. Videos stay end-to-end encrypted, no log is sent.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comme Tailscale intégré, sans ton compte Tailscale : le nom de l’appareil, son système, ses adresses IP et sa clé publique ; la clé à usage unique du lien, une fois. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé."
+          }
+        }
+      }
+    },
+    "“Leave this home”, in Settings → Switch profile.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« Quitter ce foyer », dans Réglages → Changer de profil."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

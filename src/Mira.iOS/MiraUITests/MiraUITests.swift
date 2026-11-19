@@ -870,6 +870,122 @@ final class MiraUITests: XCTestCase {
         capture("iphone-series")
     }
 
+    /// « Le foyer » (the stand-in's /Mira/home): an expired home link says so and lets nothing be typed; then, at home,
+    /// the address typed finds a server with a home, which asks only its password (a wrong one said), then « Who's
+    /// watching? »; Lina's PIN, wrong then right, opens her profile and Home; Settings switches to Sam without a PIN;
+    /// Settings → Home for an administrator; « Leave this home » tells the home and comes back to the sign-in.
+    @MainActor
+    func testHome() throws {
+        mock("/Mock/Home")
+        let app = launch(language: "en", locale: "en_US")
+        XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 10), "No sign-in screen")
+        // A link of 1970: expired.
+        let expired = #"{"v":1,"name":"Alex","id":"b6c2f1a0d4e94c0a9f3e2d1c0b9a8f7e","url":"http://100.88.12.34:8096","key":"tskey-auth-test0123456789","until":1000}"#
+        let data = Data(expired.utf8).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+        app.open(URL(string: "mira://home#" + data)!)
+        let said = app.descendants(matching: .any)["family.said"]
+        XCTAssertTrue(app.descendants(matching: .any)["family.join"].waitForExistence(timeout: 10), "A home link opened no join card")
+        XCTAssertTrue(said.waitForExistence(timeout: 5) && said.label.contains("expired"), "An expired link is not said: \(said.label)")
+        XCTAssertFalse(app.buttons["family.continue"].isEnabled, "An expired link can still be joined")
+        settle()
+        capture("80-home-link-expired")
+        app.buttons["family.own"].tap()
+
+        // At home: the address typed, the home found there.
+        let address = app.textFields["login.address"]
+        XCTAssertTrue(address.waitForExistence(timeout: 10), "« I have my own account » did not bring the sign-in back")
+        focus(address)
+        address.typeText(Self.server)
+        app.buttons["login.continue"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["family.join"].waitForExistence(timeout: 15), "The server's home was not offered")
+        let password = app.secureTextFields["family.password"]
+        XCTAssertTrue(password.waitForExistence(timeout: 5), "No home password field")
+        focus(password)
+        password.typeText("not-the-one")
+        app.buttons["family.continue"].tap()
+        XCTAssertTrue(said.waitForExistence(timeout: 10), "A wrong home password is not said")
+        settle()
+        capture("81-home-join")
+        focus(password)
+        password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 12) + "family-home")
+        app.buttons["family.continue"].tap()
+        let hall = app.staticTexts["family.hall"]
+        XCTAssertTrue(hall.waitForExistence(timeout: 15), "Joining did not open « Who's watching? »")
+        dismissSavePassword(app, timeout: 4)
+        settle()
+        capture("82-home-hall")
+
+        // Lina's PIN: wrong, then right.
+        app.buttons["family.profile.Lina"].tap()
+        let pin = app.textFields["family.pin"]
+        XCTAssertTrue(pin.waitForExistence(timeout: 10), "Lina's PIN was not asked")
+        app.typeText("1111")
+        XCTAssertTrue(said.waitForExistence(timeout: 10) && said.label.contains("4 tries left"), "A wrong PIN is not said: \(said.label)")
+        settle()
+        capture("83-home-pin")
+        app.typeText("2580")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Lina's profile did not open Home")
+        XCTAssertTrue(homeLog().contains { $0["what"] as? String == "open" && $0["profile"] as? String == "Lina" && $0["pin"] as? String == "sent" }, "The PIN never went to the home")
+
+        // Settings: the switch, to Sam.
+        openSettings(app)
+        let switching = app.buttons["settings.switch"]
+        for _ in 0..<6 where !(switching.exists && switching.isHittable) { app.swipeUp() }
+        XCTAssertTrue(switching.waitForExistence(timeout: 5), "Settings offer no Switch profile in a home")
+        switching.tap()
+        let sam = app.buttons["switch.Sam"]
+        XCTAssertTrue(sam.waitForExistence(timeout: 10), "The switch sheet does not list Sam")
+        settle()
+        capture("84-home-switch")
+        sam.tap()
+        XCTAssertTrue(waitFor({ self.homeLog().contains { $0["what"] as? String == "open" && $0["profile"] as? String == "Sam" } }, timeout: 15), "Sam's profile was never opened")
+
+        // Settings → Home, as an administrator.
+        mock("/Mock/Admin")
+        // Settings touched again start over, and read the account again: an administrator now.
+        let tab = app.buttons["tab.settings"]
+        let homeRow = app.buttons["settings.home"]
+        for _ in 0..<3 where !homeRow.waitForExistence(timeout: 4) {
+            if tab.waitForExistence(timeout: 3) { tab.tap() }
+        }
+        XCTAssertTrue(homeRow.waitForExistence(timeout: 10), "Settings offer no Home to an administrator")
+        homeRow.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["home.offer.Lina"].waitForExistence(timeout: 15), "Settings → Home lists no profiles")
+        settle()
+        capture("85-home-settings")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // Leaving the home: told, then the sign-in.
+        for _ in 0..<6 where !(switching.exists && switching.isHittable) { app.swipeUp() }
+        switching.tap()
+        let leave = app.buttons["switch.leave"]
+        XCTAssertTrue(leave.waitForExistence(timeout: 10), "The switch sheet has no Leave this home")
+        leave.tap()
+        let confirm = app.buttons["switch.leave.confirm"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Leaving is not asked first")
+        confirm.tap()
+        XCTAssertTrue(app.textFields["login.address"].waitForExistence(timeout: 20), "Leaving the home did not bring the sign-in back")
+        XCTAssertTrue(homeLog().contains { $0["what"] as? String == "leave" }, "The home never heard this iPhone leave")
+        settle()
+        capture("86-home-left")
+    }
+
+    /// What the stand-in's home was asked (join, open, leave), in order.
+    private func homeLog() -> [[String: Any]] {
+        guard let data = try? Data(contentsOf: URL(string: "http://\(Self.server)/Mock/HomeLog")!),
+              let log = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return log
+    }
+
+    private func waitFor(_ condition: () -> Bool, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        return false
+    }
+
     /// Built-in Tailscale from end to end (ios.yml starts the stand-in Tailscale network, whose « Jellyfin PC » puts the
     /// stand-in Jellyfin on it, and passes its address in MIRA_TS_CONTROL): turned on from the sign-in screen, signed in
     /// once on its page, Jellyfin found on the network, then the account, Home and a title played; every request through

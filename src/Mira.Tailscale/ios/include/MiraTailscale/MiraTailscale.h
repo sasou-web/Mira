@@ -12,6 +12,12 @@ void MiraTailscaleNetwork(const char *name);
 char * _Nullable MiraTailscaleLogin(void);
 char * _Nullable MiraTailscaleLogout(void);
 char * _Nullable MiraTailscaleStop(void);
+// The home's node (« Le foyer »), beside Built-in Tailscale.
+char * _Nullable MiraTailscaleHomeStart(const char *config);
+char * _Nullable MiraTailscaleHomeStatus(void);
+char * _Nullable MiraTailscaleHomeCheck(void);
+char * _Nullable MiraTailscaleHomeLogout(void);
+char * _Nullable MiraTailscaleHomeStop(void);
 void MiraTailscaleFree(char * _Nullable text);
 
 #pragma clang assume_nonnull end

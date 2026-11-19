@@ -126,7 +126,7 @@ final class Keeper {
     // MARK: The account
 
     /// The account signed in (nil: none): its copies; another account's are removed.
-    func use(_ session: Session?) {
+    func use(_ session: Session?, alsoKeeping others: Set<String> = []) {
         stop()
         guard let session else {
             account = nil
@@ -135,7 +135,7 @@ final class Keeper {
         }
         let account = KeptStore.account(serverId: session.serverId, userId: session.userId)
         self.account = account
-        KeptStore.erase(keeping: account)
+        KeptStore.erase(keepingAll: others.union([account]))
         copies = KeptStore.list(account: account)
     }
 

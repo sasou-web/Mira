@@ -13,6 +13,9 @@
 // /Mock/Admin makes the account an administrator, /Mock/Extension serves the page of Mira's extension at /Mira/ (as a
 // server with it; not its HLS playlists: no player test asks for it), /Mock/Up undoes them all;
 // /Mock/Mark?name=… notes when a moment of a filmed test came (/Mock/Marks, read by ios.yml to cut the film).
+// « Le foyer » (/Mira/home of the extension): /Mock/Home turns a home on, password « family-home », two profiles: Sam
+// (the account's own id, no PIN) and Lina (PIN 2580, 5 tries); /Mock/HomeLog lists what the family's side was asked
+// (join, open, leave). Without it, /Mira/home is Jellyfin's own 404, as on a server without the extension.
 // « Keep on this iPhone »: Items/{id}/Download sends the file (ranges), and Cosmos Laundromat's PlaybackInfo, asked with
 // no subtitles from its start (as the app asks to keep a title), is a conversion of an MKV: its HLS playlists cut
 // media/clip.mp4 into an init segment and segments, put end to end again by the app; its subtitles as WebVTT; where a
@@ -45,6 +48,11 @@ const reports = [];
 /** PlaybackInfo's asks: the title, the file named, the tracks asked. */
 const asks = [];
 let slow = 0, down = false, revoked = false, administrator = false, extension = false;
+// « Le foyer »: off until /Mock/Home; its devices by home token.
+const ACCOUNT_ID = 'f0e1d2c3b4a5968778695a4b3c2d1e0f', LINA_ID = 'e2d3c4b5a6978877695a4b3c2d1e0f1a';
+const homeProfiles = [{ id: ACCOUNT_ID, name: 'Sam', imageTag: null, pin: false }, { id: LINA_ID, name: 'Lina', imageTag: null, pin: true }];
+let homeOn = false, homeTries = 5;
+const homeDevices = new Map(), homeLog = [];
 const marks = [];
 
 const port = Number(process.argv[2] ?? 18097);
@@ -281,11 +289,16 @@ const server = http.createServer(async (req, res) => {
     revoked = path === '/Mock/Revoke';
     if (revoked) for (const socket of sockets) socket.destroy();
     if (down) for (const socket of sockets) socket.destroy();
-    if (path === '/Mock/Up') { administrator = extension = false; boxSets.splice(0, boxSets.length, ...firstBoxSets()); }
+    if (path === '/Mock/Up') {
+      administrator = extension = homeOn = false; homeTries = 5; homeDevices.clear();
+      boxSets.splice(0, boxSets.length, ...firstBoxSets());
+    }
     return send(res, 204, undefined);
   }
   if (req.method === 'POST' && path === '/Mock/Admin') { administrator = true; return send(res, 204, undefined); }
   if (req.method === 'POST' && path === '/Mock/Extension') { extension = true; return send(res, 204, undefined); }
+  if (req.method === 'POST' && path === '/Mock/Home') { homeOn = true; homeTries = 5; return send(res, 204, undefined); }
+  if (path === '/Mock/HomeLog') return send(res, 200, homeLog);
   if (path === '/Mock/Mark' && req.method === 'POST') { marks.push({ name: q.get('name') ?? '', at: Date.now() }); return send(res, 204, undefined); }
   if (path === '/Mock/Marks') return send(res, 200, marks);
   if (down && !path.startsWith('/Mock/')) { req.socket.destroy(); return; }
@@ -294,6 +307,44 @@ const server = http.createServer(async (req, res) => {
     if (!extension) return send(res, 404, undefined);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return res.end('<!doctype html><title>Mira</title>');
+  }
+  // « Le foyer », the family's side: no Jellyfin session, the home token in X-Mira-Home (HomeController of the extension).
+  if (url.pathname === '/Mira/home' || url.pathname.startsWith('/Mira/home/') && !['/Mira/home/settings', '/Mira/home/tailnet'].includes(url.pathname) && !/^\/Mira\/home\/(profiles\/[^/]+|password|devices\/)/.test(url.pathname)) {
+    if (!homeOn) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found'); }
+    if (url.pathname === '/Mira/home') return send(res, 200, { home: true });
+    const body = JSON.parse(raw || '{}');
+    if (url.pathname === '/Mira/home/join' && req.method === 'POST') {
+      homeLog.push({ what: 'join', name: body.name ?? '' });
+      if (body.password !== 'family-home') return send(res, 401, { error: 'That’s not the home’s password.' });
+      const token = randomUUID().replaceAll('-', '');
+      const deviceId = 'mira-home-' + createHash('sha256').update(body.device ?? '').digest('hex').slice(0, 16);
+      homeDevices.set(token, { name: body.name ?? '', deviceId, profile: null });
+      return send(res, 200, { token, profiles: homeProfiles, current: null, deviceId });
+    }
+    const device = homeDevices.get(req.headers['x-mira-home'] ?? '');
+    if (!device) return send(res, 401, { error: 'This device is no longer in the home.' });
+    if (url.pathname === '/Mira/home/profiles') return send(res, 200, { profiles: homeProfiles, current: device.profile, deviceId: device.deviceId });
+    if (url.pathname === '/Mira/home/open' && req.method === 'POST') {
+      const profile = homeProfiles.find((x) => x.id === body.profile);
+      homeLog.push({ what: 'open', profile: profile?.name ?? '', pin: body.pin ? 'sent' : 'none' });
+      if (!profile) return send(res, 404, { error: 'This profile is no longer in the home.' });
+      if (profile.pin) {
+        if (homeTries <= 0) return send(res, 429, { error: 'Too many tries: wait a few minutes.', pin: true, wait: 300 });
+        if (!body.pin) return send(res, 403, { error: 'This profile has a PIN.', pin: true, left: homeTries });
+        if (body.pin !== '2580') { homeTries--; return send(res, 403, { error: 'That’s not the right PIN.', pin: true, left: homeTries }); }
+        homeTries = 5;
+      }
+      device.profile = profile.id;
+      revoked = false;
+      return send(res, 200, { accessToken: TOKEN, userId: profile.id, userName: profile.name, serverId: SERVER_ID, deviceId: device.deviceId });
+    }
+    if (url.pathname === '/Mira/home/leave' && req.method === 'POST') {
+      homeLog.push({ what: 'leave' });
+      homeDevices.delete(req.headers['x-mira-home']);
+      return send(res, 204, undefined);
+    }
+    if (url.pathname === '/Mira/home/close' && req.method === 'POST') { device.profile = null; return send(res, 204, undefined); }
+    return send(res, 404, { error: 'Not found.' });
   }
   if (url.pathname === `/Mira/party/${PARTY}`) return send(res, 200, { host: 'Sam' });
   if (url.pathname === '/Mira/guest/open' && req.method === 'POST') {
@@ -367,6 +418,20 @@ const server = http.createServer(async (req, res) => {
     syncPlay(sync[1], JSON.parse(raw || '{}'), guest ? 'Guest' + sync[1] : sync[1]);
     return send(res, 204, undefined);
   }
+  // « Le foyer », the administrator's side (with the account's session).
+  if (url.pathname === '/Mira/home/settings') {
+    if (!administrator) return send(res, 403, undefined);
+    const accounts = [{ id: 'a0a0a0a0b1b1b1b1c2c2c2c2d3d3d3d3', name: 'Alex', imageTag: null, admin: true, disabled: false, offered: false, pin: false, allLibraries: true, maxRating: null },
+      ...homeProfiles.map((x) => ({ id: x.id, name: x.name, imageTag: null, admin: false, disabled: false, offered: true, pin: x.pin, allLibraries: x.pin, maxRating: x.pin ? null : 'PG-13' }))];
+    const devices = [...homeDevices.values()].map((x, i) => ({ id: `device${i}`, name: x.name, joined: new Date().toISOString(), seen: new Date().toISOString(), profile: x.profile,
+      profileName: homeProfiles.find((p) => p.id === x.profile)?.name ?? null }));
+    return send(res, 200, { home: homeOn, changed: new Date().toISOString(), minPassword: 8, profiles: accounts, devices });
+  }
+  if (url.pathname === '/Mira/home/tailnet') {
+    return send(res, 200, { connected: false, server: '100.88.12.34', port: 8096, policy: null,
+      setup: { tag: 'tag:mira-home', tagOwners: '"tagOwners": { "tag:mira-home": ["autogroup:admin"] }', grant: '{ "src": ["tag:mira-home"], "dst": ["100.88.12.34"], "ip": ["tcp:8096"] }', scopes: ['auth_keys', 'devices:core', 'policy_file:read'] } });
+  }
+  if (url.pathname.startsWith('/Mira/home/') && ['PUT', 'DELETE', 'POST'].includes(req.method)) return send(res, administrator ? 204 : 403, undefined);
   // The account's policy: allowed to manage collections, not an administrator (but after /Mock/Admin).
   if (path === '/Users/Me') return send(res, 200, { Id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f', Name: 'ogsas', Policy: { IsAdministrator: administrator, EnableCollectionManagement: true } });
   if (path === '/Items' && q.get('locationTypes') === 'Virtual') return send(res, 200, list(virtualEpisodes));
