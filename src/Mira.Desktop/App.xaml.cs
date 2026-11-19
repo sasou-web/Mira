@@ -174,7 +174,7 @@ public partial class App : Application
         var window = new Window
         {
             Title = "Mira", Width = 380, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 16, 18)),
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 0, 0)),
             Content = new System.Windows.Controls.TextBlock { Text = L("Mira termine une mise à jour : il s’ouvre dès qu’elle est finie.", "Mira is finishing an update: it opens as soon as it’s done."), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(24), FontSize = 14, Foreground = System.Windows.Media.Brushes.WhiteSmoke }
         };
         window.Closed += (_, _) => { waiting = false; frame.Continue = false; };

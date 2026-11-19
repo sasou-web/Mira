@@ -8,7 +8,7 @@ public sealed class CarouselProgress : FrameworkElement
 {
     public static readonly DependencyProperty ProgressProperty = DependencyProperty.Register(nameof(Progress), typeof(double), typeof(CarouselProgress), new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty AccentProperty = DependencyProperty.Register(nameof(Accent), typeof(Brush), typeof(CarouselProgress), new FrameworkPropertyMetadata(Brushes.WhiteSmoke, FrameworkPropertyMetadataOptions.AffectsRender));
-    private static readonly Brush Track = new SolidColorBrush(Color.FromArgb(115, 175, 175, 184));
+    private static readonly Brush Track = new SolidColorBrush(Color.FromArgb(115, 178, 178, 178));
     static CarouselProgress() { Track.Freeze(); }
     public double Progress { get => (double)GetValue(ProgressProperty); set => SetValue(ProgressProperty, value); }
     public Brush Accent { get => (Brush)GetValue(AccentProperty); set => SetValue(AccentProperty, value); }

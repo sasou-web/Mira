@@ -108,16 +108,21 @@ public partial class MainWindow
     }
 
     // —— The collection's page ——
+    /// <summary>The title whose picture is at the top of the collection's page.</summary>
+    private string? _shelfPicture;
     private async Task ShowShelfAsync(MediaItem box)
     {
         var version = ++_shelfVersion; ClosePreview();
         if (ShelfOverlay.Visibility != Visibility.Visible) _shelfOrigin = Keyboard.FocusedElement;
         // A title's page over it goes: the collection is what was asked for.
         if (DetailOverlay.Visibility == Visibility.Visible) { ++_detailVersion; _returnToDetail = null; _detailTrail.Clear(); _ = Motion.HideAsync(DetailOverlay); }
-        AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay);
+        AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); _ = Motion.HideAsync(GuideOverlay);
         _shelfBox = box; _shelfTitles = box.Shelf?.ToList() ?? []; _shelfOrder = null; _shelfTarget = null; _shelfEditing = false;
         SmoothScroll.Jump(ShelfScroll);
-        ShelfTitle.Text = box.DisplayTitle; ShelfBackdrop.Source = null;
+        // Never black while its picture comes: the BlurHash of the title it picks up at, then the picture over it.
+        var lead = box.Shelf is { Count: > 0 } titles ? CollectionShelf.UpNext(titles) is int at ? titles[at] : titles[0] : null;
+        ShelfTitle.Text = box.DisplayTitle; ShelfBackdrop.Source = lead is null ? null : DetailBlur(lead); _shelfPicture = null;
+        if (ShelfBackdrop.Source is not null) Motion.Fade(ShelfBackdrop, 1, 0);
         ShowShelfOrderChoice(byRelease: false);
         ShowFavoriteOf(box);
         RenderShelf(loading: _shelfTitles.Count == 0);
@@ -257,9 +262,13 @@ public partial class MainWindow
         if (title is null) return;
         if (_images is { } cache)
         {
-            var picture = await cache.PageBackdropAsync(title);
-            if (version != _shelfVersion) return;
-            if (picture is not null) { ShelfBackdrop.Source = picture; Motion.Fade(ShelfBackdrop, 1, 420, 0, Motion.Soft); }
+            // The same picture as before (the page read again after Vu, after playing): left as it is, no fade from black.
+            if (_shelfPicture != title.Id)
+            {
+                var picture = await cache.PageBackdropAsync(title);
+                if (version != _shelfVersion) return;
+                if (picture is not null) { ShelfBackdrop.Source = picture; _shelfPicture = title.Id; Motion.Fade(ShelfBackdrop, 1, 420, 0, Motion.Soft); }
+            }
         }
         if (title.Type != "Series") { _shelfTarget = title; return; }
         var next = await NextEpisodeAsync(client, title.Id);
@@ -300,8 +309,8 @@ public partial class MainWindow
         var played = !_shelfTitles.All(CollectionShelf.Watched);
         ShowState(ShelfWatched, "watched", played, "", "");
         // One request for all its titles: Jellyfin marks each one of a collection (UserPlayedItems on a BoxSet, checked on 12.1).
-        if (await SetPlayedAsync(box, played)) await RefreshShelfAsync();
-        else ShowWatchedOf(_shelfTitles);
+        // Done, SetPlayedAsync reads the page again itself (RenderAfterUserDataChange): once, not twice.
+        if (!await SetPlayedAsync(box, played)) ShowWatchedOf(_shelfTitles);
     }
     private void ShelfMore_Click(object sender, RoutedEventArgs e)
     {

@@ -28,7 +28,7 @@ public partial class MainWindow
     }
 
     /// <summary>The ring of a tile under the pointer: the posters' (MediaCard).</summary>
-    private static readonly SolidColorBrush HoverRing = Frozen(new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)));
+    private static readonly SolidColorBrush HoverRing = Frozen(new SolidColorBrush(Color.FromArgb(235, 245, 245, 245)));
     private static T Frozen<T>(T value) where T : Freezable { value.Freeze(); return value; }
 
     // The tiles' panel: as wide as the page plus one gap, each tile followed by its gap.

@@ -707,10 +707,13 @@ public partial class MainWindow
     }
     private async void HeroFavorite_Click(object sender, RoutedEventArgs e)
     {
-        if (_hero is not { } hero) return; HeroFavorite.IsEnabled = false;
-        try { var item = hero.SeriesId is { } seriesId && _client is { } client ? await LoadHeroSeriesAsync(client, seriesId) ?? hero : hero; await ToggleFavoriteAsync(item); if (_hero.Id == hero.Id) RenderHero(hero); }
-        finally { HeroFavorite.IsEnabled = true; }
+        // Busy, not disabled: a disabled heart went pale for the request's time (the title page avoids that too).
+        if (_heroFavoriteBusy || _hero is not { } hero) return; _heroFavoriteBusy = true;
+        // _hero may be gone by the answer (signed out, another account): nothing left to redraw then.
+        try { var item = hero.SeriesId is { } seriesId && _client is { } client ? await LoadHeroSeriesAsync(client, seriesId) ?? hero : hero; await ToggleFavoriteAsync(item); if (_hero?.Id == hero.Id) RenderHero(hero); }
+        finally { _heroFavoriteBusy = false; }
     }
+    private bool _heroFavoriteBusy;
     /// <summary>The countdown bar follows the notice's rounded corners (ClipToBounds clips a rectangle: the bar showed past them).</summary>
     private void NoticeBody_SizeChanged(object sender, SizeChangedEventArgs e) => NoticeBody.Clip = new RectangleGeometry(new Rect(e.NewSize), 15, 15);
     private void DismissNotice_Click(object sender, RoutedEventArgs e) => HideNotice();

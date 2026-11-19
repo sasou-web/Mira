@@ -15,6 +15,10 @@ public partial class MainWindow
     private IInputElement? _detailOrigin;
     private (string Id, bool Favorite)? _favoriteOverride;
     private MediaItem? _detailNext;
+    /// <summary>The open page, apart from its versions: a page read again (Vu) is still the page that was opened.</summary>
+    private int _detailPage;
+    /// <summary>Its picture and its similar titles arrived: a page read again before then asks for them again.</summary>
+    private bool _detailArtDone, _similarDone, _seasonMarkBusy;
     /// <summary>The file of the episode Lecture plays on a series, once asked for: its picture shows in the page (« 1080p »).</summary>
     private (string Id, MediaSource? Source)? _detailFile;
     private List<MediaItem> _similar = [];
@@ -51,7 +55,7 @@ public partial class MainWindow
     /// <param name="returnTo">Coming back to this page with « Retour » (<see cref="_detailTrail"/>): scrolled back there once it is drawn.</param>
     private async Task ShowDetailsAsync(MediaItem item, MediaItem? atEpisode = null, double? returnTo = null)
     {
-        var version = ++_detailVersion; (_detailEpisode, _detailEpisodeShown) = (atEpisode, false);
+        var version = ++_detailVersion; var page = ++_detailPage; (_detailEpisode, _detailEpisodeShown) = (atEpisode, false);
         var previewArt = _hoverCard?.Item.Id == item.Id ? _hoverCard.ImageSource : null;
         var left = returnTo is null ? null : _detail;
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
@@ -62,11 +66,12 @@ public partial class MainWindow
             else _detailTrail.Clear();
         }
         ClosePreview(); _detail = item; _detailSettled = null; DetailOverview.Text = ""; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
-        _detailSize = null; _episodeSizes = null; _episodeMeta.Clear();
+        _detailArtDone = _similarDone = false; _detailSize = null; _episodeSizes = null; _episodeMeta.Clear();
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
         StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = SeasonMoreButton.Visibility = Visibility.Collapsed;
         _extras = []; _extrasOpen.Clear(); ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
-        AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
+        // Over Settings or Help (a notification, the mini player's title): the page is what was asked for.
+        AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); _ = Motion.HideAsync(GuideOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null; DetailLogo.Source = null; DetailLogo.Visibility = Visibility.Collapsed; DetailTitle.Visibility = Visibility.Visible;
         WaitForDetailLogo(item);
         // Never black while the backdrop comes: the banner's own picture, else Jellyfin's BlurHash of the backdrop, which
@@ -101,7 +106,8 @@ public partial class MainWindow
             _similar = (_demoItems ?? DemoLibrary.Items()).Where(x => x.Id != item.Id && x.Genres.Intersect(item.Genres).Any()).ToList(); RenderSimilar();
         }
         await Task.WhenAll(tasks);
-        if (returnTo is { } offset && version == _detailVersion) await Dispatcher.InvokeAsync(() => ReturnToPlace(version, offset, left), System.Windows.Threading.DispatcherPriority.Loaded);
+        // Still this page (a click on Vu meanwhile reads it again, under a new version): back to where it was scrolled.
+        if (returnTo is { } offset && page == _detailPage) await Dispatcher.InvokeAsync(() => ReturnToPlace(_detailVersion, offset, left), System.Windows.Threading.DispatcherPriority.Loaded);
     }
     /// <summary>
     /// Back on a page left for another: where it was scrolled, and the keyboard on the card that was opened from it
@@ -124,6 +130,10 @@ public partial class MainWindow
         if (_metadata is null) { RenderDetailText(item); if (_episodes.Count > 0) RenderEpisodes(); return; }
         var tasks = new List<Task> { LoadDetailMetadataAsync(item, version) };
         if (item.Type == "Series") { tasks.Add(LoadDetailEpisodesAsync(item, version)); tasks.Add(LoadCalendarAsync(item, version)); }
+        // What the page's opening was still waiting for, which this new version would drop: its picture would stay a blur,
+        // « Titres similaires » never come (a click on Vu in the page's first second).
+        if (_images is not null && !_detailArtDone) { tasks.Add(LoadDetailBackdropAsync(item, version)); tasks.Add(LoadDetailLogoAsync(item, version)); }
+        if (!_similarDone) tasks.Add(LoadSimilarAsync(item, version));
         await Task.WhenAll(tasks);
     }
     /// <summary>Its logo from Jellyfin in place of its name, when it has one of its own (a film's, a series').</summary>
@@ -205,8 +215,9 @@ public partial class MainWindow
             if (!request.IsCompleted && await preview is { } small && version == _detailVersion && !request.IsCompleted) SetDetailBackdrop(small, animate: true);
         }
         var bitmap = await request;
-        if (version != _detailVersion || bitmap is null) return;
-        SetDetailBackdrop(bitmap, animate: !ready);
+        if (version != _detailVersion) return;
+        _detailArtDone = true;
+        if (bitmap is not null) SetDetailBackdrop(bitmap, animate: !ready);
     }
     private async Task LoadDetailMetadataAsync(MediaItem item, int version)
     {
@@ -356,9 +367,9 @@ public partial class MainWindow
             var result = await _metadata!.SimilarAsync(item.Id); if (version != _detailVersion) return;
             var similar = result.Items.Where(x => x.Id != item.Id && saga?.Items.Any(s => s.Id == x.Id) != true).ToList();
             if (_store is { } store) { await Task.Run(() => { if (saga is not null) store.ApplyLocalProgress(saga.Items); store.ApplyLocalProgress(similar); }); if (version != _detailVersion) return; }
-            _similar = similar; _saga = saga; RenderSimilar();
+            _similar = similar; _saga = saga; _similarDone = true; RenderSimilar();
         }
-        catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion && saga is not null) { _saga = saga; RenderSimilar(); } }
+        catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion) { _similarDone = true; if (saga is not null) { _saga = saga; RenderSimilar(); } } }
     }
     private Saga? _saga;
     /// <summary>The saga's row and the similar titles' row: as many posters as the page is wide, sized like the library grid.</summary>
@@ -682,8 +693,9 @@ public partial class MainWindow
     /// <summary>A whole season watched or not: Jellyfin is told (the season in one call, else each episode), then the page follows it.</summary>
     private async void SeasonMark_Click(object sender, RoutedEventArgs e)
     {
-        if (SeasonMarkButton.Tag is not (int season, bool played) || _detail is not { } series) return;
-        SeasonMarkButton.IsEnabled = false;
+        if (_seasonMarkBusy || SeasonMarkButton.Tag is not (int season, bool played) || _detail is not { } series) return;
+        // Busy, not disabled: a disabled button would lose the keyboard's focus.
+        _seasonMarkBusy = true;
         try
         {
             var episodes = _episodes.Where(x => EpisodePages.Season(x) == season).ToList();
@@ -692,11 +704,13 @@ public partial class MainWindow
             if (_store is { } store) await Task.Run(() => { foreach (var episode in episodes) store.ForgetProgress(episode.Id); });
             foreach (var episode in episodes) { episode.UserData.Played = played; episode.UserData.PlaybackPositionTicks = 0; }
             _metadata?.Clear();
+            // Another page opened meanwhile (a similar title): it is not this series' to draw.
+            if (_detail?.Id != series.Id) { await RefreshAsync(quiet: true); return; }
             RenderEpisodes();
             if (!_demo) { await RefreshDetailAsync(); await RefreshAsync(quiet: true); }
         }
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); if (_detail?.Id == series.Id) await RefreshDetailAsync(); }
-        finally { SeasonMarkButton.IsEnabled = true; }
+        finally { _seasonMarkBusy = false; }
     }
     private ContextMenu EpisodeMenu(MediaItem episode)
     {
