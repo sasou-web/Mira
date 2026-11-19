@@ -77,7 +77,15 @@ public sealed class TvdbOrders : IHostedService, IDisposable
 
     private void OnChanged(object? sender, ItemChangeEventArgs e)
     {
-        if (e.Item is Episode { IsVirtualItem: false } episode && episode.SeriesId != Guid.Empty) lock (_gate) { _dirty.Remove(episode.SeriesId); _dirty.Insert(0, episode.SeriesId); }
+        if (e.Item is not Episode { IsVirtualItem: false } episode) return;
+        // A new episode is announced before its SeriesId is set (a new series' first scan): found by its folders instead.
+        var series = episode.SeriesId != Guid.Empty ? episode.SeriesId : episode.FindSeriesId();
+        lock (_gate)
+        {
+            // Not found either (an episode already removed from its series): every series weighed again, an unchanged one costs nothing.
+            if (series == Guid.Empty) _everything = true;
+            else { _dirty.Remove(series); _dirty.Insert(0, series); }
+        }
     }
 
     private async Task LoopAsync(CancellationToken ct)
@@ -199,10 +207,15 @@ public sealed class TvdbOrders : IHostedService, IDisposable
     {
         try
         {
-            var type = AppDomain.CurrentDomain.GetAssemblies().Where(x => x.GetName().Name == "Jellyfin.Plugin.Tvdb")
-                .Select(x => x.GetType("Jellyfin.Plugin.Tvdb.TvdbClientManager", false)).FirstOrDefault(x => x is not null);
-            var method = type?.GetMethod("GetSeriesEpisodesAsync", [typeof(int), typeof(string), typeof(string), typeof(CancellationToken)]);
-            return type is not null && method is not null && _services.GetService(type) is { } manager ? (manager, method) : null;
+            // After Jellyfin restarts through its API (System/Restart), the process keeps the plugin's previous load too, unknown
+            // to the new services: the one they resolve, the latest load first.
+            foreach (var type in AppDomain.CurrentDomain.GetAssemblies().Where(x => x.GetName().Name == "Jellyfin.Plugin.Tvdb").Reverse()
+                .Select(x => x.GetType("Jellyfin.Plugin.Tvdb.TvdbClientManager", false)).OfType<Type>())
+            {
+                var method = type.GetMethod("GetSeriesEpisodesAsync", [typeof(int), typeof(string), typeof(string), typeof(CancellationToken)]);
+                if (method is not null && _services.GetService(type) is { } manager) return (manager, method);
+            }
+            return null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException) { _logger.LogDebug(ex, "Mira: TheTVDB's plugin"); return null; }
     }
