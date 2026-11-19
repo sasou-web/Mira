@@ -204,6 +204,8 @@ public partial class MainWindow
         if (MissingTilePart(line) is var (part, bar)) { show.Margin = new Thickness(0, 8, 0, 0); if (copy.Children.Contains(show)) copy.Children.Insert(copy.Children.IndexOf(show), part); else copy.Children.Add(part); inside.Children.Add(bar); }
         picture.Child = inside; button.Content = picture;
         var text = line.Kind == ShelfKind.Later ? EpisodeShelf.LaterText(line.Episodes, today) : EpisodeShelf.MissingText(line.Episodes, today);
+        // A single episode: its name is said too, as it shows on the tile.
+        if (!EpisodeShelf.Opens(line.Episodes) && line.First.Name.Length > 0) text += " · " + line.First.Name;
         AutomationProperties.SetName(button, text);
         if (EpisodeShelf.Opens(line.Episodes)) { AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open)); button.Click += (_, _) => Toggle(key); }
         return Tile(button, picture);

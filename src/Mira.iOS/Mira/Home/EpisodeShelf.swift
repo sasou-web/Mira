@@ -265,7 +265,9 @@ struct ShelfGapTile: View {
         let today = EpisodeCalendar.Day.today()
         let opens = EpisodeShelf.opens(line.episodes)
         let shown = opens && open.contains(line.id)
-        let text = line.kind == .later ? EpisodeShelf.laterText(line.episodes, today: today) : EpisodeShelf.missingText(line.episodes, today: today)
+        let said = line.kind == .later ? EpisodeShelf.laterText(line.episodes, today: today) : EpisodeShelf.missingText(line.episodes, today: today)
+        // A single episode: its name is said too, as it shows on the tile.
+        let text = !opens && !(line.episodes[0].name ?? "").isEmpty ? said + " · " + (line.episodes[0].name ?? "") : said
         let (first, second) = EpisodeShelf.gapLines(line, today: today)
         VStack(alignment: .leading, spacing: 8) {
         Button {
