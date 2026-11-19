@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Un menu de Mira ne reste plus seul par-dessus les autres apps (Mac)** : le menu d’un épisode restait sur Chrome en 0.9.14, ouvert d’un clic droit sur Mira derrière une autre app ou depuis une fenêtre qui n’était déjà plus active. Tant qu’un menu est ouvert, Mira regarde si elle est encore devant et le ferme dès qu’elle ne l’est plus, ou dès un clic ailleurs. Jamais vu sur un vrai Mac.
+
 ## 0.9.15 — 2026-11-19
 
 - **Les noms de saison qui répètent la série sont nettoyés (Windows, Mac, iPhone)** : « L’attaque des Titans saison 2 » devient « Saison 2 », « L’Attaque des Titans - Saison 3 Partie 1 » devient « Saison 3 · partie 1 », « … Saison Finale » devient « Saison finale » (en anglais « Season 2 », « Season 3 · part 1 », « Final Season »). Un vrai nom (« Bakemonogatari ») reste tel quel, comme un nom qui parle d’une autre saison. Mêmes cas pour les trois apps (`tests/fixtures/season-names.json`). L’iPhone n’a été essayé que sur simulateur.

@@ -48,6 +48,16 @@ public static class SelfCheck
         var exit = 1;
         try
         {
+            // A menu left alone over another app (0.9.14, an episode's menu over Chrome): the rule of OpenPopups' watch.
+            {
+                var front = new OrphanWatch(true, false); var stays = !front.Left(true, false, 100);
+                var gone = front.Left(false, false, 200);
+                var behind = new OrphanWatch(false, true); var opening = !behind.Left(false, true, 100) && !behind.Left(false, false, 200) && !behind.Left(false, false, 5000);
+                var clickedAway = !behind.Left(false, true, 5100) && !behind.Left(false, false, 5200) && behind.Left(false, false, 5350);
+                var onMenu = new OrphanWatch(false, false); var picked = !onMenu.Left(false, true, 100) && !onMenu.Left(true, false, 200) && !onMenu.Left(true, false, 600);
+                Check(stays && gone && opening && clickedAway && picked, "menus : fermés quand Mira n’est plus devant, même ouverts Mira derrière une autre app",
+                    $"devant : {stays}, quitté : {gone}, ouvert derrière : {opening}, clic ailleurs : {clickedAway}, clic sur le menu : {picked}");
+            }
             Check(Playback.MpvPlayer.FindLibrary(window.Settings.MpvPath) is not null, "libmpv trouvé", Playback.MpvPlayer.FindLibrary(window.Settings.MpvPath) ?? "introuvable");
             // The player's own safety with this libmpv: https:// checked before the token goes, yt-dlp never run, and
             // the subtitles a film starts with (--track-media: the films of mac.yml).
