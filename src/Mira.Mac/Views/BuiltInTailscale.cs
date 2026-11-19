@@ -45,7 +45,7 @@ public sealed class BuiltInTailscale
             if (slept) _ = RebindAsync();
         };
         _clock.Start();
-        _network.Tick += (_, _) => { _network.Stop(); _ = RebindAsync(); };
+        _network.Tick += (_, _) => { _network.Stop(); _ = RebindAsync(); _shell.NetworkChanged(); };
         try { NetworkChange.NetworkAddressChanged += NetworkChanged; }
         catch (PlatformNotSupportedException) { }
     }

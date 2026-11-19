@@ -356,7 +356,51 @@ internal static class ConnectionTests
             // One that passes the question on to the real server by another way: signed for another address, refused.
             Assert(await ServerMove.FindAsync(connection, Answers(new() { ["192.168.1.57"] = id }, relayedTo: "jellyfin.example.test"), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), own) is null, "A relayed proof taken");
             asked.Clear();
-            Assert(await ServerMove.FindAsync(connection with { ServerProof = null }, Answers(new() { ["192.168.1.57"] = id }), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), own) is null && asked.IsEmpty, "Looked for without its proof key");
+            Assert(await ServerMove.FindAsync(connection with { ServerProof = null }, Answers(new() { ["192.168.1.57"] = id }), _ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]), own) is null
+                && !asked.Any(x => x.StartsWith("192.168.1.", StringComparison.Ordinal)), "Home network asked without its proof key: " + string.Join(", ", asked));
+        });
+        await Test("Serveur qui change d’adresse : loin de chez toi par Tailscale, puis l’adresse de la maison dès qu’elle répond", async () =>
+        {
+            const string id = "0d07f480c3c54c588da1d5ba7c7a1662";
+            var connection = new Connection("http://192.168.1.42:8096/", ProofUser, "Alex", "t", "d") { ServerId = id };
+            HttpResponseMessage Info(string server) => JsonResponse(new { ServerName = "MAISON-PC", Version = "12.1.0", ProductName = "Jellyfin Server", Id = server });
+            var asked = new System.Collections.Concurrent.ConcurrentBag<string>();
+            Handler Answers(Dictionary<string, string> servers) => new(request =>
+            {
+                var uri = request.RequestUri!;
+                asked.Add(uri.Host);
+                Assert(request.Headers.Authorization is null, "Token sent to " + uri);
+                if (uri.AbsolutePath == "/Mira/proof")
+                {
+                    var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                    return Task.FromResult(JsonResponse(new { proof = ServerProof.Prove(ServerProof.Key(ProofSecret, query["user"]!), query["nonce"]!, uri.Authority) }));
+                }
+                return servers.TryGetValue(uri.Host, out var server) ? Task.FromResult(Info(server)) : throw new HttpRequestException("refusé");
+            });
+            var nobody = (Func<CancellationToken, Task<IReadOnlyList<ServerSearch.Found>>>)(_ => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([]));
+            var hotel = new List<(IPAddress, int)> { (IPAddress.Parse("10.20.0.7"), 24) };
+            // At a friend's: the home address silent, the PC's Tailscale address answers (even without the extension's key).
+            Assert(ServerMove.Searchable(connection) && !ServerMove.Movable(connection), "Searchable without its key");
+            var away = await ServerMove.FindAsync(connection, Answers(new() { ["100.88.12.34"] = id, ["100.90.1.3"] = "autre" }), nobody, hotel, ["100.90.1.3", "100.88.12.34"]);
+            Assert(away is { Server: "http://100.88.12.34:8096/", Home: "http://192.168.1.42:8096/", Origin: "http://192.168.1.42:8096/", Token: "t" }, "Away: " + away);
+            Assert(AccountData.LibraryProfile(away!) == AccountData.LibraryProfile(connection) && !StreamQuality.AtHome(away!.Server), "Account data, quality away");
+            // Another server of the tailnet is never taken; a tailnet that does not answer, nothing.
+            Assert(await ServerMove.FindAsync(connection, Answers(new() { ["100.90.1.3"] = "autre" }), nobody, hotel, ["100.90.1.3"]) is null, "Another device taken");
+            // With the key, a device of the tailnet proves it too: one that answers with the id only is not taken.
+            Assert(await ServerMove.FindAsync(connection with { ServerProof = Convert.ToBase64String(new byte[32]) }, Answers(new() { ["100.88.12.34"] = id }), nobody, hotel, ["100.88.12.34"]) is null, "Proof skipped on the tailnet");
+            // Back home: the home address answers again, Tailscale's forgotten.
+            Assert(await ServerMove.HomeAgainAsync(away!, Answers(new() { ["100.88.12.34"] = id })) is null, "Home again while it is silent");
+            var back = await ServerMove.HomeAgainAsync(away!, Answers(new() { ["192.168.1.42"] = id }));
+            Assert(back is { Server: "http://192.168.1.42:8096/", Home: null, Origin: null } && back.Account == connection.Account && StreamQuality.AtHome(back.Server), "Back: " + back);
+            Assert(await ServerMove.HomeAgainAsync(away! with { ServerId = "autre" }, Answers(new() { ["192.168.1.42"] = id })) is null && await ServerMove.HomeAgainAsync(connection, Answers(new() { ["192.168.1.42"] = id })) is null, "Home again: another server, or not away");
+            // Through Tailscale when Mira closed, the home address answering as it opens: the search goes home first.
+            var opened = await ServerMove.FindAsync(away!, Answers(new() { ["192.168.1.42"] = id, ["100.88.12.34"] = id }), nobody, hotel, ["100.88.12.34"]);
+            Assert(opened is { Server: "http://192.168.1.42:8096/", Home: null }, "Home first: " + opened);
+            // Kept with the session.
+            var saved = JsonSerializer.Deserialize<Connection>(JsonSerializer.Serialize(away, Json.Options), Json.Options)!;
+            Assert(saved == away, "Session file: " + saved);
+            // Searched again less and less often, never through Tailscale for a party's guest.
+            Assert(!ServerMove.Searchable(new Connection("http://192.168.1.42:8096/Mira/guest/", ProofUser, "Alex", "t", "d") { ServerId = id }) && !ServerMove.Searchable(connection with { ServerId = null }), "Guest or no id");
         });
         await Test("Certificat HTTPS refusé : pas de repli en http:// pour un nom d’Internet, et la raison est dite", async () =>
         {
