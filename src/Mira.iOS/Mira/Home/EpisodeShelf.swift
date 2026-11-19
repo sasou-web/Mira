@@ -165,6 +165,16 @@ enum EpisodeShelf {
             : EpisodeCalendar.dayTitle(when, today: today, french: french))
     }
 
+    /// The heading of a tile standing for a run (EpisodeShelf.Heading of Core): « E3–4 », or « E4 · The name » for a single
+    /// episode, which then has nothing more to open.
+    static func heading(_ run: [Item], french: Bool = EpisodeShelf.french) -> String {
+        if run.count == 1, let name = run[0].name, !name.isEmpty { return code(run, french: french) + " · " + name }
+        return code(run, french: french)
+    }
+
+    /// Whether a tile standing for a run opens into one tile each: only for two episodes or more.
+    static func opens(_ run: [Item]) -> Bool { run.count > 1 }
+
     /// The two lines of a tile standing for a run the library lacks (EpisodeTiles.GapLines of Core): « Not in your
     /// library » + « Aired Nov 3 – Nov 10 », « Coming » + « Nov 29 – Dec 27 ».
     static func gapLines(_ line: Line, today: Day, french: Bool = EpisodeShelf.french) -> (first: String, second: String) {
@@ -253,27 +263,31 @@ struct ShelfGapTile: View {
 
     var body: some View {
         let today = EpisodeCalendar.Day.today()
-        let shown = open.contains(line.id)
+        let opens = EpisodeShelf.opens(line.episodes)
+        let shown = opens && open.contains(line.id)
         let text = line.kind == .later ? EpisodeShelf.laterText(line.episodes, today: today) : EpisodeShelf.missingText(line.episodes, today: today)
         let (first, second) = EpisodeShelf.gapLines(line, today: today)
         VStack(alignment: .leading, spacing: 8) {
         Button {
+            guard opens else { return }
             withAnimation(reduceMotion ? nil : .snappy(duration: 0.28)) { if shown { open.remove(line.id) } else { open.insert(line.id) } }
         } label: {
             Color.clear
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .overlay(alignment: .leading) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: EpisodeShelf.code(line.episodes)).font(MiraFont.bold(15, .subheadline)).foregroundStyle(Palette.ink)
+                        Text(verbatim: EpisodeShelf.heading(line.episodes)).font(MiraFont.bold(15, .subheadline)).foregroundStyle(Palette.ink).lineLimit(1)
                         Text(verbatim: first).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(1)
                         Text(verbatim: second).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(1)
-                        HStack(spacing: 4) {
-                            Text(verbatim: EpisodeShelf.show(line.episodes.count, open: shown))
-                            Image(systemName: shown ? "chevron.up" : "chevron.down").font(.caption2.weight(.bold))
+                        if opens {
+                            HStack(spacing: 4) {
+                                Text(verbatim: EpisodeShelf.show(line.episodes.count, open: shown))
+                                Image(systemName: shown ? "chevron.up" : "chevron.down").font(.caption2.weight(.bold))
+                            }
+                            .font(MiraFont.bold(13, .footnote))
+                            .foregroundStyle(Palette.ink)
+                            .padding(.top, 6)
                         }
-                        .font(MiraFont.bold(13, .footnote))
-                        .foregroundStyle(Palette.ink)
-                        .padding(.top, 6)
                     }
                     .minimumScaleFactor(0.8)
                     .padding(.horizontal, 14)
@@ -286,7 +300,7 @@ struct ShelfGapTile: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(verbatim: text))
-        .accessibilityHint(Text(verbatim: EpisodeShelf.show(line.episodes.count, open: shown)))
+        .accessibilityHint(Text(verbatim: opens ? EpisodeShelf.show(line.episodes.count, open: shown) : ""))
         .accessibilityIdentifier(line.kind == .later ? "series.shelf.later" : "series.shelf.missing")
         MissingTileFoot(line: line)
         }

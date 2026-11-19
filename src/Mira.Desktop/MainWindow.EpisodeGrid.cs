@@ -191,20 +191,21 @@ public partial class MainWindow
         var picture = new Border { CornerRadius = new CornerRadius(10), Background = Brushes.Transparent, BorderBrush = Palette.Get("Raised2"), BorderThickness = new Thickness(1) };
         var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 20, 0) };
         var (first, second) = EpisodeTiles.GapLines(line, today);
-        copy.Children.Add(new TextBlock { Text = EpisodeShelf.Code(line.Episodes), FontSize = 15, FontWeight = FontWeights.Bold, Foreground = Palette.Get("TextTertiary") });
+        copy.Children.Add(new TextBlock { Text = EpisodeShelf.Heading(line.Episodes), FontSize = 15, FontWeight = FontWeights.Bold, Foreground = Palette.Get("TextTertiary"), TextTrimming = TextTrimming.CharacterEllipsis });
         copy.Children.Add(new TextBlock { Text = first, FontSize = 12.5, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         copy.Children.Add(new TextBlock { Text = second, FontSize = 12.5, Foreground = Palette.Get("Muted"), TextTrimming = TextTrimming.CharacterEllipsis });
         var show = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         show.Children.Add(new TextBlock { Text = EpisodeShelf.Show(line.Episodes.Count, open), FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextSecondary") });
         show.Children.Add(new Icon { Kind = open ? "up" : "down", Width = 12, Height = 12, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Palette.Get("TextSecondary") });
-        copy.Children.Add(show);
+        // A single episode: its name is on the tile already, nothing to open.
+        if (EpisodeShelf.Opens(line.Episodes)) copy.Children.Add(show);
         var inside = new Grid(); inside.Children.Add(copy);
         // « Télécharger É6–9 » (MainWindow.MissingDownloads.cs): under the lines, the bar of what comes along the foot.
-        if (MissingTilePart(line) is var (part, bar)) { show.Margin = new Thickness(0, 8, 0, 0); copy.Children.Insert(copy.Children.IndexOf(show), part); inside.Children.Add(bar); }
+        if (MissingTilePart(line) is var (part, bar)) { show.Margin = new Thickness(0, 8, 0, 0); if (copy.Children.Contains(show)) copy.Children.Insert(copy.Children.IndexOf(show), part); else copy.Children.Add(part); inside.Children.Add(bar); }
         picture.Child = inside; button.Content = picture;
         var text = line.Kind == ShelfKind.Later ? EpisodeShelf.LaterText(line.Episodes, today) : EpisodeShelf.MissingText(line.Episodes, today);
-        AutomationProperties.SetName(button, text); AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open));
-        button.Click += (_, _) => Toggle(key);
+        AutomationProperties.SetName(button, text);
+        if (EpisodeShelf.Opens(line.Episodes)) { AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open)); button.Click += (_, _) => Toggle(key); }
         return Tile(button, picture);
     }
 
