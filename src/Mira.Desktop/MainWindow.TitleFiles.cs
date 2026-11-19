@@ -249,7 +249,7 @@ public partial class MainWindow
         var sub = string.Join(" · ", new[] { of, files, OfflineCopies.SizeText(contents.Size) }.Where(x => !string.IsNullOrEmpty(x)));
         var where = targets.Count == 1 ? folder : folder + L($"  (+ {targets.Count - 1} à côté)", $"  (+ {targets.Count - 1} beside it)");
         return await ConfirmRecycleAsync(L($"Mettre « {name} » à la Corbeille ?", $"Move “{name}” to the Recycle Bin?"), sub, rows, where,
-            extra + L("Tu pourras le remettre depuis la Corbeille de Windows. Jellyfin le retire de la bibliothèque dans une minute environ.", "You can put it back from the Windows Recycle Bin. Jellyfin takes it out of the library in about a minute."));
+            extra + L("Tu pourras le remettre depuis la Corbeille de Windows. Jellyfin le retire de la bibliothèque d’ici quelques minutes.", "You can put it back from the Windows Recycle Bin. Jellyfin takes it out of the library within a few minutes."));
     }
 
     private static string Count(int count, string one, string many, string oneEn, string manyEn) =>
@@ -272,7 +272,7 @@ public partial class MainWindow
             return;
         }
         await forget();
-        SetNotice(L($"« {name} » est dans la Corbeille. Jellyfin le retire de la bibliothèque dans une minute environ.", $"“{name}” is in the Recycle Bin. Jellyfin takes it out of the library in about a minute."));
+        SetNotice(L($"« {name} » est dans la Corbeille. Jellyfin le retire de la bibliothèque d’ici quelques minutes.", $"“{name}” is in the Recycle Bin. Jellyfin takes it out of the library within a few minutes."));
     }
 
     /// <summary>
