@@ -197,7 +197,7 @@ public partial class MainWindow : Window
         if (await RunRequestedCheckAsync()) return;
 #endif
         _fallbackRefresh.Start();
-        StartKeepingAwake(); _ = ReadRemotePlaybackAsync();
+        StartKeepingAwake(); StartPlaybackFirst(); _ = ReadRemotePlaybackAsync();
         StartGpuRecheck();
         StartJellyfinCare();
         _ = RefreshEngineAsync();

@@ -34,6 +34,17 @@ internal static class QBittorrentTests
             return Task.CompletedTask;
         });
 
+        await Test("qBittorrent : plus lent pendant qu’on regarde sur Jellyfin (même ce PC), pas pour une pause, encore une minute après", () =>
+        {
+            Viewer Session(bool own, bool paused) => new("s", own, "Alex", "iPhone", "Mira", null, "Movie", "Dune", null, null, null, 60, 7200, paused, "DirectPlay", null, true);
+            Assert(!PlaybackFirst.Watching([]) && !PlaybackFirst.Watching([Session(false, paused: true)]), "Nobody, or paused: downloads go on at full speed");
+            Assert(PlaybackFirst.Watching([Session(false, false)]) && PlaybackFirst.Watching([Session(true, false), Session(false, true)]), "Another device or this PC watching");
+            var now = DateTimeOffset.Parse("2026-11-19T15:00:00Z");
+            Assert(PlaybackFirst.Slow(true, now, now) && PlaybackFirst.Slow(false, now.AddSeconds(-50), now), "Slow while watching, and just after (a seek, the next episode)");
+            Assert(!PlaybackFirst.Slow(false, now.AddMinutes(-1), now) && !PlaybackFirst.Slow(false, null, now), "Full speed a minute after, or never watched");
+            return Task.CompletedTask;
+        });
+
         await Test("qBittorrent : réglages de Mira écrits dans qBittorrent.ini sans toucher au reste, mot de passe au format de qBittorrent", () =>
         {
             var salt = Enumerable.Range(1, 16).Select(x => (byte)x).ToArray();
@@ -57,7 +68,7 @@ internal static class QBittorrentTests
             Assert(preferences.Contains("WebUI\\Enabled=true") && preferences.TrimEnd().EndsWith("Advanced\\updateCheck=false", StringComparison.Ordinal) && preferences.EndsWith("\r\n\r\n", StringComparison.Ordinal),
                 "New keys in their section, before the blank line: " + preferences);
             var bitTorrent = merged[..merged.IndexOf("[Preferences]", StringComparison.Ordinal)];
-            Assert(bitTorrent.Contains("Session\\Port=51413\r\nSession\\DiskIOType=3\r\nSession\\PieceExtentAffinity=true\r\nSession\\Preallocation=true\r\n"), "Disk settings under [BitTorrent], read at its start: " + bitTorrent);
+            Assert(bitTorrent.Contains("Session\\Port=51413\r\nSession\\DiskIOType=3\r\nSession\\PieceExtentAffinity=true\r\nSession\\Preallocation=false\r\n"), "Disk settings under [BitTorrent], read at its start: " + bitTorrent);
             Assert(QBittorrentSettings.Ini(merged, 18411, "a:b") == merged, "Written again: the same");
             return Task.CompletedTask;
         });
@@ -133,7 +144,8 @@ internal static class QBittorrentTests
             var preferences = QBittorrentSettings.Preferences("D:\\Mira", 51413);
             Assert(preferences["max_seeding_time_enabled"] is true && preferences["max_seeding_time"] is 4320 && preferences["max_ratio_enabled"] is false
                 && preferences["max_inactive_seeding_time_enabled"] is false && preferences["max_ratio_act"] is 0, "72 hours, then stopped (0), never removed");
-            Assert(preferences["enable_piece_extent_affinity"] is true && preferences["disk_io_type"] is 3 && preferences["preallocate_all"] is true && preferences["recheck_completed_torrents"] is false, "A slow drive kept up with: pieces finished side by side, written by pwrite (« Simple pread/pwrite »)");
+            Assert(preferences["enable_piece_extent_affinity"] is true && preferences["disk_io_type"] is 3 && preferences["preallocate_all"] is false && preferences["recheck_completed_torrents"] is false, "A slow drive kept up with: pieces finished side by side, written by pwrite (« Simple pread/pwrite »), never zeros written ahead of them (preallocation)");
+            Assert(preferences["alt_dl_limit"] is PlaybackFirst.Download && preferences["alt_up_limit"] is PlaybackFirst.Upload && preferences["scheduler_enabled"] is false, "Slower limits for watching first, never switched by qBittorrent's schedule");
             return Task.CompletedTask;
         });
 
@@ -280,6 +292,8 @@ internal static class QBittorrentTests
             }
 
             await client.SetPreferencesAsync(QBittorrentSettings.Preferences(downloads, peers), ct);
+            // Watching first: the slower limits on, kept on, then off, as Mira sets them while Jellyfin plays something.
+            Assert(await client.SlowAsync(true, ct) && !await client.SlowAsync(true, ct) && await client.SlowAsync(false, ct) && !await client.SlowAsync(false, ct), "Slower limits on and off");
             var ini = File.ReadAllText(Path.Combine(config, QBittorrentSettings.FileName));
 
             // A private .torrent whose file is there already: checked, then shared.
