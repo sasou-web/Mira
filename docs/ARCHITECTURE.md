@@ -150,6 +150,7 @@ Mira.Jellyfin (extension Jellyfin)
   ├─ GuestController, GuestRoutes : /Mira/guest/…, passerelle des invités (ouverture du lien, routes de la liste fermée relayées en boucle locale, playlists réécrites)
   ├─ PartyTitles : le titre que joue le groupe SyncPlay d'un invité (file lue dans SyncPlayManager), seul titre que la passerelle lui laisse ; GuestCleanupService : ménage des comptes invités dès le démarrage
   ├─ GuestInvites : les liens et les parties, gardés dans plugins/configurations/Mira.invites.json
+  ├─ HomeController, HomeFamily : /Mira/home, « Le foyer » (mot de passe de la famille, profils = comptes cochés, codes vérifiés ici, appareils), séance du profil ouverte par Jellyfin (AuthenticateDirect) ; plugins/configurations/Mira.home.json ; jamais par Funnel
   └─ IdentifyController, IdentifyImages : /Mira/identify/image, affiches des propositions de « Identifier… » (HTTPS vers une liste fermée d’hôtes, 5 Mo, image seulement), administrateurs seulement
 ```
 

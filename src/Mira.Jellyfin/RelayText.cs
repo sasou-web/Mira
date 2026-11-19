@@ -53,6 +53,21 @@ internal static class RelayText
         ["Ce lien ouvre ta party depuis Internet, pour tout le monde."] = "This link opens your party from the Internet, for everyone.",
         ["Ce lien ne marche que pour ceux qui ont Tailscale sur ton réseau : ouvre Tailscale Funnel sur le PC de Jellyfin (Mira pour Windows le fait) pour qu’il marche partout."] = "This link only works for people on your Tailscale network: open Tailscale Funnel on the Jellyfin PC (Mira for Windows does it) so it works everywhere.",
         ["Ce lien ne marche qu’à la maison : ouvre Tailscale Funnel sur le PC de Jellyfin (Mira pour Windows le fait) pour qu’il marche partout."] = "This link only works at home: open Tailscale Funnel on the Jellyfin PC (Mira for Windows does it) so it works everywhere.",
+        // « Le foyer » (HomeController).
+        ["Ce Jellyfin n’a pas de foyer."] = "This Jellyfin has no home.",
+        ["Trop d’essais : attends quelques minutes."] = "Too many tries: wait a few minutes.",
+        ["Ce n’est pas le mot de passe du foyer."] = "That’s not the home password.",
+        ["Le foyer a déjà trop d’appareils : demande d’en retirer un."] = "The home already has too many devices: ask for one to be removed.",
+        ["Un administrateur de ce Jellyfin doit d’abord ouvrir les réglages du foyer dans Mira."] = "An administrator of this Jellyfin must first open the home settings in Mira.",
+        ["Ce profil n’est pas dans le foyer."] = "This profile isn’t in the home.",
+        ["Ce profil a un code."] = "This profile has a PIN.",
+        ["Ce n’est pas le bon code."] = "That’s not the right PIN.",
+        ["Le code fait quatre chiffres."] = "The PIN is four digits.",
+        ["Le mot de passe du foyer fait au moins 8 caractères."] = "The home password is at least 8 characters.",
+        ["Ce compte n’existe pas sur ce Jellyfin."] = "This account doesn’t exist on this Jellyfin.",
+        ["Un compte administrateur n’est jamais ouvert par le mot de passe du foyer."] = "An administrator account is never opened with the home password.",
+        ["Le foyer a déjà trop de profils."] = "The home already has too many profiles.",
+        ["Cet appareil n’est plus dans le foyer : entre de nouveau son mot de passe."] = "This device is no longer in the home: enter its password again.",
     };
 
     /// <summary>Whether the request asks for French: the first of French and English among its languages, by preference.</summary>

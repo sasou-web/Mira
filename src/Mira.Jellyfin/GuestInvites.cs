@@ -279,6 +279,21 @@ public sealed class GuestInvites
         }
     }
 
+    /// <summary>Whether an account is a guest's, of a link or of a party, or one on its way out: never a profile of the home.</summary>
+    public bool IsGuestAccount(string? userId)
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _store.Invites.Any(x => SameId(x.UserId, userId)) || _store.Gone.Any(x => SameId(x, userId))
+                || _making.Keys.Any(x => SameId(x, userId));
+        }
+    }
+
     /// <summary>An account deleted from Jellyfin (or already gone there): nothing more to do for it.</summary>
     public void Deleted(string userId)
     {

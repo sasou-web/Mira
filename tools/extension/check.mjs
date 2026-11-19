@@ -3,7 +3,7 @@
 // « Ta party » (the host's link, its page and its JSON, a guest opening it, the gateway's closed list, the host's group
 // joined, the guest removed, a new link); Tailscale Funnel's guard; the TorLink relay with a fake agent (Mira for
 // Windows on the PC of Jellyfin): search in the three categories, a download asked, paused and cancelled, a magnet,
-// a non-administrator refused, errors in the language asked; the HLS playlists of the iPhone app (/Mira/hls); the
+// a non-administrator refused, errors in the language asked; « Le foyer » (a password for the family, its profiles, their PIN, its devices); the HLS playlists of the iPhone app (/Mira/hls); the
 // settings of automatic subtitles; the poster relay of « Identifier… »; the extension's own loops, as they run on a
 // server: automatic subtitles from a fake OpenSubtitles (tools/extension/fake-opensubtitles.mjs, web.yml points the
 // extension at it) and TheTVDB's order of a series (tools/web/fake-tvdb-client), quickened by MIRA_CHECK_TICK_SECONDS.
@@ -95,6 +95,104 @@ await part('preuve', async () => {
     hostKey.status === 200 && key.length === 32 && friendKey.status === 200 && friendKey.json?.key !== hostKey.json?.key && anonymous.status === 401
       && asked.status === 200 && asked.json?.proof === expected && noNonce.status === 400 && funnel === 404,
     `clé ${hostKey.status}/${friendKey.status}/${anonymous.status} ; preuve ${asked.status} ${asked.json?.proof === expected ? 'juste' : 'fausse'} ; nonce court ${noNonce.status} ; Funnel ${funnel}`);
+});
+
+// « Le foyer » (HomeController): one password for the family, then a profile, an account the administrator offered.
+// The password and the accounts offered by an administrator only; a device joins with the password, never at a wrong
+// one; its profiles never an administrator's; a profile opened is a real session of that account under the home's
+// device id, a PIN checked by the extension (5 tries, then a wait), one profile at a time on a device; a device
+// removed and a new password put every device out; nothing through Funnel.
+await part('foyer', async () => {
+  const HOME = 'X-Mira-Home';
+  const homeCall = (method, path, token, body) => call(method, `Mira/home/${path}`, { device: 'check-home', body, headers: token ? { [HOME]: token } : {} });
+  const account = async (name, pw) => {
+    let token = await signIn(name, pw, 'check-home-setup');
+    if (!token) { await call('POST', 'Users/New', { token: host, body: { Name: name, Password: pw } }); token = await signIn(name, pw, 'check-home-setup'); }
+    return (await call('GET', 'Users/Me', { token, device: 'check-home-setup' })).json?.Id?.replace(/-/g, '');
+  };
+  const [lina, noa] = [await account('Profil Lina', 'profil-lina-check'), await account('Profil Noa', 'profil-noa-check')];
+  const admin = String(me.Id).replace(/-/g, '');
+  await call('PUT', 'Mira/home/password', { token: host, body: { password: null } });
+
+  const [off, refusedSettings, refusedPassword, short] = [await call('GET', 'Mira/home'), await call('GET', 'Mira/home/settings', { token: friend, device: 'check-friend' }),
+    await call('PUT', 'Mira/home/password', { token: friend, device: 'check-friend', body: { password: 'famille-check-1' } }),
+    await call('PUT', 'Mira/home/password', { token: host, body: { password: 'court' } })];
+  const set = await call('PUT', 'Mira/home/password', { token: host, body: { password: 'famille-check-1' } });
+  const offers = [await call('PUT', `Mira/home/profiles/${lina}`, { token: host, body: { offered: true } }), await call('PUT', `Mira/home/profiles/${noa}`, { token: host, body: { offered: true } })];
+  const adminOffer = await call('PUT', `Mira/home/profiles/${admin}`, { token: host, body: { offered: true } });
+  const settings = (await call('GET', 'Mira/home/settings', { token: host })).json;
+  const row = (id) => settings?.profiles?.find((p) => p.id === id);
+  check('foyer : réglé par un administrateur seulement (mot de passe d’au moins 8 caractères, profils cochés), jamais un compte administrateur',
+    off.json?.home === false && refusedSettings.status === 403 && refusedPassword.status === 403 && short.status === 400 && set.status === 204
+      && offers.every((o) => o.status === 204) && adminOffer.status === 409 && settings?.home === true && row(lina)?.offered && row(noa)?.offered
+      && row(admin)?.admin && !row(admin)?.offered && (await call('GET', 'Mira/home')).json?.home === true,
+    `sans foyer ${off.json?.home} ; un autre compte ${refusedSettings.status}/${refusedPassword.status} ; court ${short.status} ; réglé ${set.status} ; profils ${offers.map((o) => o.status)} ; administrateur ${adminOffer.status}`);
+
+  const wrong = await homeCall('POST', 'join', null, { password: 'pas-le-bon', device: 'check-home-tv-01', name: 'Salon' });
+  const joined = await homeCall('POST', 'join', null, { password: 'famille-check-1', device: 'check-home-tv-01', name: 'Télé du salon' });
+  const home = joined.json?.token;
+  const listed = await homeCall('GET', 'profiles', home);
+  const ids = (listed.json?.profiles ?? []).map((p) => p.id);
+  const [noToken, badToken] = [await homeCall('GET', 'profiles'), await homeCall('GET', 'profiles', 'pas-un-jeton')];
+  check('foyer : rejoint avec son mot de passe seulement, les profils cochés sans l’administrateur',
+    wrong.status === 401 && joined.status === 200 && home?.length >= 32 && listed.status === 200 && ids.includes(lina) && ids.includes(noa) && !ids.includes(admin)
+      && noToken.status === 401 && badToken.status === 401,
+    `mauvais ${wrong.status} ; rejoint ${joined.status} ; profils ${listed.status} ${JSON.stringify(listed.json?.profiles?.map((p) => p.name))} ; sans jeton ${noToken.status}/${badToken.status}`);
+
+  // A profile opened: Jellyfin's own session of the account, under the home's device id, used as any other.
+  const openedLina = await homeCall('POST', 'open', home, { profile: lina, client: 'Mira check', version: '1.0' });
+  const linaToken = openedLina.json?.accessToken;
+  const deviceId = openedLina.json?.deviceId;
+  const asLina = await call('GET', 'Users/Me', { token: linaToken, device: deviceId });
+  const linaItems = await call('GET', `Items?userId=${lina}&recursive=true&includeItemTypes=Movie`, { token: linaToken, device: deviceId });
+  const sessions = (await call('GET', `Sessions?deviceId=${deviceId}`, { token: host })).json ?? [];
+  const adminOpen = await homeCall('POST', 'open', home, { profile: admin });
+  check('foyer : un profil ouvert est une vraie séance Jellyfin de ce compte, sous l’appareil du foyer ; jamais l’administrateur',
+    openedLina.status === 200 && openedLina.json?.userId === lina && openedLina.json?.serverId === info.Id && /^mira-home-[0-9a-f]{32}$/.test(deviceId ?? '')
+      && asLina.json?.Name === 'Profil Lina' && (linaItems.json?.Items?.length ?? 0) > 0 && sessions.some((s) => s.UserName === 'Profil Lina' && s.DeviceName === 'Télé du salon')
+      && adminOpen.status === 404,
+    `ouvert ${openedLina.status} ${openedLina.text.slice(0, 80)} ; Users/Me ${asLina.json?.Name} ; films ${linaItems.json?.Items?.length} ; séances ${sessions.map((s) => `${s.UserName}@${s.DeviceName}`)} ; administrateur ${adminOpen.status}`);
+
+  // A PIN: asked, wrong (tries left), right; five wrong in a row, then a wait even with the right one. The profile's
+  // own session changes it only with the current one.
+  const pinSet = await call('PUT', `Mira/home/profiles/${noa}/pin`, { token: host, body: { pin: '2468' } });
+  const badPin = await call('PUT', `Mira/home/profiles/${noa}/pin`, { token: host, body: { pin: '12a4' } });
+  const asked = await homeCall('POST', 'open', home, { profile: noa });
+  const wrongPin = await homeCall('POST', 'open', home, { profile: noa, pin: '0000' });
+  const openedNoa = await homeCall('POST', 'open', home, { profile: noa, pin: '2468' });
+  const noaToken = openedNoa.json?.accessToken;
+  const [linaAfter, noaMe] = [await call('GET', 'Users/Me', { token: linaToken, device: deviceId }), await call('GET', 'Users/Me', { token: noaToken, device: deviceId })];
+  const ownWithout = await call('PUT', 'Mira/home/pin', { token: noaToken, device: deviceId, body: { pin: '1357' } });
+  const ownWith = await call('PUT', 'Mira/home/pin', { token: noaToken, device: deviceId, body: { pin: '1357', current: '2468' } });
+  const pinsBefore = (await call('GET', 'Mira/home/settings', { token: host })).json?.profiles?.find((p) => p.id === noa)?.pin;
+  check('foyer : le code d’un profil vérifié par l’extension, un seul profil ouvert par appareil, le code changé par son profil avec l’ancien',
+    pinSet.status === 204 && badPin.status === 400 && asked.status === 403 && asked.json?.pin === true && wrongPin.status === 403 && wrongPin.json?.left === 4
+      && openedNoa.status === 200 && noaMe.json?.Name === 'Profil Noa' && linaAfter.status === 401 && ownWithout.status === 403 && ownWith.status === 204 && pinsBefore === true,
+    `réglé ${pinSet.status}/${badPin.status} ; demandé ${asked.status} ; faux ${wrongPin.status} reste ${wrongPin.json?.left} ; bon ${openedNoa.status} ; Lina après ${linaAfter.status} ; par son profil ${ownWithout.status}/${ownWith.status}`);
+  const tries = [];
+  for (let i = 0; i < 5; i++) tries.push((await homeCall('POST', 'open', home, { profile: noa, pin: '9999' })).status);
+  const locked = await homeCall('POST', 'open', home, { profile: noa, pin: '1357' });
+  check('foyer : cinq codes faux de suite, puis il faut attendre, même avec le bon', tries.slice(0, 4).every((s) => s === 403) && tries[4] === 429 && locked.status === 429 && locked.json?.wait > 0,
+    `${tries.join(', ')} ; puis le bon ${locked.status} (${locked.json?.wait} s)`);
+  await call('PUT', `Mira/home/profiles/${noa}/pin`, { token: host, body: { pin: null } });
+
+  // Nothing of the home through Funnel.
+  const funnel = [await throughFunnel(`${root}/Mira/home`), await throughFunnel(`${root}/Mira/home/profiles`, { [HOME]: home })];
+  check('foyer : rien par Tailscale Funnel', funnel.every((s) => s === 404), funnel.join(', '));
+
+  // Removed by the administrator: its home token and its profile's session end; a new password: every device out.
+  const second = (await homeCall('POST', 'join', null, { password: 'famille-check-1', device: 'check-home-phone-02', name: 'Téléphone' })).json?.token;
+  const tv = (await call('GET', 'Mira/home/settings', { token: host })).json?.devices?.find((d) => d.name === 'Télé du salon');
+  const openedAgain = await homeCall('POST', 'open', home, { profile: lina });
+  const removed = await call('DELETE', `Mira/home/devices/${tv?.id}`, { token: host });
+  const [homeAfter, profileAfter, secondBefore] = [await homeCall('GET', 'profiles', home), await call('GET', 'Users/Me', { token: openedAgain.json?.accessToken, device: deviceId }), await homeCall('GET', 'profiles', second)];
+  await call('PUT', 'Mira/home/password', { token: host, body: { password: 'famille-check-2' } });
+  const [secondAfter, oldPassword] = [await homeCall('GET', 'profiles', second), await homeCall('POST', 'join', null, { password: 'famille-check-1', device: 'check-home-phone-02', name: 'Téléphone' })];
+  check('foyer : un appareil retiré est dehors avec son profil ; un nouveau mot de passe met tous les appareils dehors',
+    tv?.profile === noa && openedAgain.status === 200 && removed.status === 204 && homeAfter.status === 401 && profileAfter.status === 401
+      && secondBefore.status === 200 && secondAfter.status === 401 && oldPassword.status === 401,
+    `appareil ${tv?.profile === noa ? 'sur Noa' : tv?.profile} ; retiré ${removed.status} ; jeton ${homeAfter.status}, profil ${profileAfter.status} ; autre appareil ${secondBefore.status} puis ${secondAfter.status} ; ancien mot de passe ${oldPassword.status}`);
+  await call('PUT', 'Mira/home/password', { token: host, body: { password: null } });
 });
 
 await part('party', async () => {
