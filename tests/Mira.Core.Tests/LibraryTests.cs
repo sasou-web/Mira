@@ -1588,6 +1588,12 @@ internal static class LibraryTests
                     return new MediaItem { Id = "d-" + code, Type = "Episode", LocationType = "FileSystem", ParentIndexNumber = Int(code[1..code.IndexOf('E')]), IndexNumber = Int(span[0]), IndexNumberEnd = Int(span[^1]) };
                 }).ToList() : [];
                 var held = Expand(row.GetProperty("held"), "h").Concat(Optional(row, "heldNamed", "n")).Concat(doubles).ToList(); var virtuals = Expand(row.GetProperty("virtual"), "v").Concat(Optional(row, "virtualComing", "c")).ToList();
+                // « aired »: the day each listed episode aired.
+                if (row.TryGetProperty("aired", out var aired))
+                {
+                    MediaItem On(MediaItem x) => aired.TryGetProperty($"S{x.ParentIndexNumber}E{x.IndexNumber}", out var day) ? x with { PremiereDate = DateTimeOffset.Parse(day.GetString()! + "T22:00:00Z", System.Globalization.CultureInfo.InvariantCulture) } : x;
+                    held = held.Select(On).ToList(); virtuals = virtuals.Select(On).ToList();
+                }
                 var seasonal = Codes(AbsoluteNumbers.Seasonal(held, virtuals)); var unheld = Codes(AbsoluteNumbers.Unheld(virtuals, held));
                 Assert(seasonal == Codes(Expand(row.GetProperty("seasonal"), "x")), $"{name}: seasonal {seasonal}");
                 Assert(unheld == Codes(Expand(row.GetProperty("unheld"), "x")), $"{name}: unheld {unheld}");

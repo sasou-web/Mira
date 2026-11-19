@@ -118,12 +118,22 @@ enum AbsoluteNumbers {
         }
     }
 
+    /// An episode TheTVDB also lists in parts, held as those parts (AbsoluteNumbers.InParts of Core): two held episodes or
+    /// more of its season aired the same day (UTC), none of them the next one. Monogatari's « Ougi Formula », whole as
+    /// S13E1, its halves as S13E20–21.
+    static func inParts(_ episode: Item, held: [Item]) -> Bool {
+        guard let aired = episode.premiereDate?.prefix(10), aired.count == 10, let season = episode.parentIndexNumber, let number = episode.indexNumber else { return false }
+        let same = held.filter { $0.parentIndexNumber == season && $0.indexNumber != nil && $0.premiereDate?.prefix(10) == aired }
+        return same.count >= 2 && same.allSatisfy { ($0.indexNumber ?? 0) > number + 1 }
+    }
+
     /// The virtual episodes the library doesn't hold under another number: those still missing or to come.
     static func unheld(_ virtuals: [Item], held: [Item]) -> [Item] {
         // A double episode held (« S01E03-E04 ») holds both: never the second « missing ».
         let doubles = held.filter { x in x.parentIndexNumber != nil && (x.indexNumberEnd ?? 0) > (x.indexNumber ?? Int.max) }
         let virtuals = virtuals.filter { v in
             !doubles.contains { x in x.parentIndexNumber == v.parentIndexNumber && (x.indexNumber ?? 0) <= (v.indexNumber ?? -1) && (v.indexNumber ?? -1) <= (x.indexNumberEnd ?? 0) }
+                && !inParts(v, held: held)
         }
         let read = read(held, virtuals: virtuals)
         guard !read.isEmpty else { return virtuals }
