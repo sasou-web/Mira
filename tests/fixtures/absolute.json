@@ -1,5 +1,5 @@
 {
-  "about": "Episodes numbered from the series' start in their season (AbsoluteNumbers of Core, the iPhone's AbsoluteNumbers). « S2E26-37 » = S2E26 to S2E37. held: the library's episodes (heldNamed: with a title of their own from TheTVDB; heldDouble: one file for two episodes); virtual: TheTVDB's through Jellyfin (virtualComing: not aired yet); seasonal: the held ones under their season's number; unheld: the virtual ones still missing or to come.",
+  "about": "Episodes numbered from the series' start in their season (AbsoluteNumbers of Core, the iPhone's AbsoluteNumbers). « S2E26-37 » = S2E26 to S2E37. held: the library's episodes (heldNamed: with a title of their own from TheTVDB; heldDouble: one file for two episodes); virtual: TheTVDB's through Jellyfin (virtualComing: not aired yet); seasonal: the held ones under their season's number; unheld: the virtual ones still missing or to come; aired: the day (UTC) an episode aired, by code, held or virtual alike.",
   "cases": [
     {
       "name": "Shingeki no Kyojin: four seasons numbered 1 to 89",
@@ -113,6 +113,31 @@
       "virtual": [],
       "seasonal": ["S1E1-25", "S2E26-37"],
       "unheld": []
+    }
+,
+    {
+      "name": "Monogatari's Book Order: « Ougi Formula » whole as S13E1, its two halves held as S13E20-21, all aired the same day",
+      "held": ["S13E2-21"],
+      "virtual": ["S13E1"],
+      "aired": {"S13E1": "2015-10-03", "S13E2": "2015-10-10", "S13E20": "2015-10-03", "S13E21": "2015-10-03"},
+      "seasonal": ["S13E2-21"],
+      "unheld": []
+    },
+    {
+      "name": "A premiere of three the same day: the first one missing stays missing",
+      "held": ["S1E2-3"],
+      "virtual": ["S1E1"],
+      "aired": {"S1E1": "2024-01-06", "S1E2": "2024-01-06", "S1E3": "2024-01-06"},
+      "seasonal": ["S1E2-3"],
+      "unheld": ["S1E1"]
+    },
+    {
+      "name": "One held episode aired the same day is no split",
+      "held": ["S1E5"],
+      "virtual": ["S1E1"],
+      "aired": {"S1E1": "2024-01-06", "S1E5": "2024-01-06"},
+      "seasonal": ["S1E5"],
+      "unheld": ["S1E1"]
     }
   ],
   "renames": [

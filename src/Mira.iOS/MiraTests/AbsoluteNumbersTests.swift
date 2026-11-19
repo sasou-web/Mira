@@ -53,8 +53,15 @@ struct AbsoluteNumbersTests {
                 item.indexNumberEnd = span.last
                 return item
             }
-            let held = expand(row["held"], kind: "h") + expand(row["heldNamed"], kind: "n", named: true) + doubles
-            let virtuals = expand(row["virtual"], kind: "v") + expand(row["virtualComing"], kind: "c")
+            // « aired »: the day each listed episode aired.
+            let aired = (row["aired"] as? [String: String]) ?? [:]
+            func on(_ item: Item) -> Item {
+                var item = item
+                if let day = aired["S\(item.parentIndexNumber ?? 0)E\(item.indexNumber ?? 0)"] { item.premiereDate = day + "T22:00:00.0000000Z" }
+                return item
+            }
+            let held = (expand(row["held"], kind: "h") + expand(row["heldNamed"], kind: "n", named: true) + doubles).map(on)
+            let virtuals = (expand(row["virtual"], kind: "v") + expand(row["virtualComing"], kind: "c")).map(on)
             #expect(codes(AbsoluteNumbers.seasonal(held, virtuals: virtuals)) == codes(expand(row["seasonal"], kind: "x")), "\(name)")
             #expect(codes(AbsoluteNumbers.unheld(virtuals, held: held)) == codes(expand(row["unheld"], kind: "x")), "\(name)")
         }

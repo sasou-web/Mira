@@ -125,7 +125,8 @@ public static partial class AbsoluteNumbers
         var own = held.ToList();
         // A double episode held (« S01E03-E04 ») holds both: never the second « missing ».
         var doubles = own.Where(x => x.ParentIndexNumber is { } && x.IndexNumber is { } n && x.IndexNumberEnd > n).ToList();
-        var known = virtuals.Where(v => !doubles.Any(x => x.ParentIndexNumber == v.ParentIndexNumber && x.IndexNumber <= v.IndexNumber && v.IndexNumber <= x.IndexNumberEnd)).ToList();
+        var known = virtuals.Where(v => !doubles.Any(x => x.ParentIndexNumber == v.ParentIndexNumber && x.IndexNumber <= v.IndexNumber && v.IndexNumber <= x.IndexNumberEnd))
+            .Where(v => !InParts(v, own)).ToList();
         var read = Read(own, known, now);
         if (read.Count == 0) return known;
         var taken = new HashSet<(int, int)>();
@@ -133,6 +134,20 @@ public static partial class AbsoluteNumbers
             if (read.TryGetValue(x.Id, out var at))
                 for (var n = at.Episode; n <= at.Episode + ((x.IndexNumberEnd ?? x.IndexNumber!.Value) - x.IndexNumber!.Value); n++) taken.Add((at.Season, n));
         return known.Where(x => !(x.ParentIndexNumber is { } s && x.IndexNumber is { } n && taken.Contains((s, n)))).ToList();
+    }
+
+    /// <summary>
+    /// An episode TheTVDB also lists in parts, held as those parts: two held episodes or more of its season aired the same
+    /// day, none of them the next one (Monogatari's Book Order: « Ougi Formula » whole as S13E1, its halves as S13E20–21,
+    /// all on 3 October 2015; ogsas, 2026-11-19, « E1 · Not in your library »). A first episode missing from a premiere of
+    /// three the same day stays missing: the second one is the next.
+    /// </summary>
+    public static bool InParts(MediaItem episode, IReadOnlyCollection<MediaItem> held)
+    {
+        if (episode is not { PremiereDate: { } aired, ParentIndexNumber: { } season, IndexNumber: { } number }) return false;
+        var day = aired.UtcDateTime.Date;
+        var same = held.Where(x => x.ParentIndexNumber == season && x.IndexNumber is not null && x.PremiereDate?.UtcDateTime.Date == day).ToList();
+        return same.Count >= 2 && same.All(x => x.IndexNumber > number + 1);
     }
 
     /// <summary>
