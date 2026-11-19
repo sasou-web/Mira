@@ -156,6 +156,9 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
 
     private enum Outcome { Quick, Searched, Stop }
 
+    /// <summary>The exception under Jellyfin's wrapping (an AggregateException from its subtitle manager).</summary>
+    private static Exception Unwrap(Exception ex) => ex is AggregateException { InnerExceptions.Count: 1 } one ? Unwrap(one.InnerExceptions[0]) : ex;
+
     /// <summary>One title in one language: done without asking anything (Quick), asked the sources, or stop for now (a quota spent, someone watching).</summary>
     private async Task<Outcome> TryAsync(SubtitleWait wait, SubtitleSettings settings, CancellationToken ct)
     {
@@ -197,11 +200,13 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
         foreach (var score in chosen.Take(3))
         {
             var candidate = score.Candidate;
+            var writing = false;
             try
             {
                 if (!syncing || score.Verdict == MatchVerdict.Sure)
                 {
                     // Made for this very file (or nothing to align with): as « Chercher des sous-titres » would.
+                    writing = true;
                     await _subtitles.DownloadSubtitles(video, mira.Id + "_" + MiraSubtitleProvider.Id(candidate), ct).ConfigureAwait(false);
                     Reread(video);
                     Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, "kept", candidate.Source, candidate.ReleaseName, score.Score));
@@ -229,6 +234,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                     if (SubtitleMatch.Check(moved, TimeSpan.FromTicks(video.RunTimeTicks.Value)).Verdict == SubtitleCheckVerdict.Ok) (text, format) = SubtitleText.Moved(text, moved, sync);
                     else sync = null;
                 }
+                writing = true;
                 await _subtitles.UploadSubtitle(video, new SubtitleResponse
                 {
                     Format = format,
@@ -250,6 +256,17 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                 _pausedUntil = until; PausedUntil = until;
                 Queue.Postpone(wait.ItemId, wait.Language, until);
                 return Outcome.Stop;
+            }
+            catch (Exception ex) when (writing && Unwrap(ex) is IOException or UnauthorizedAccessException && !ct.IsCancellationRequested)
+            {
+                // Jellyfin 12 no longer falls back to its own folder when the media folder is read-only (Docker :ro, a NAS):
+                // every other candidate would fail the same way and spend a download of the day. Tried again later.
+                var cause = Unwrap(ex).Message;
+                _logger.LogWarning("Mira: subtitles for {Name} not written by Jellyfin: {Message}", name, cause);
+                Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, "failed", candidate.Source, candidate.ReleaseName, score.Score,
+                    "Jellyfin could not write the subtitles next to the video (read-only folder?): " + cause));
+                Queue.Retry(wait.ItemId, wait.Language);
+                return Outcome.Searched;
             }
             catch (Exception ex) when (ex is SubtitleSourceException or InvalidOperationException or HttpRequestException or IOException or TaskCanceledException && !ct.IsCancellationRequested)
             {

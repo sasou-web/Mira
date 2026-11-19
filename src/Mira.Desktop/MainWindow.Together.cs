@@ -542,11 +542,11 @@ public partial class MainWindow
         InviteLead.Text = L("Envoie ce lien : qui l’ouvre te rejoint dans Mira, sur Windows, Mac ou iPhone.", "Send this link: whoever opens it joins you in Mira, on Windows, Mac or iPhone.");
         InviteLink.Text = party.Link;
         InviteSteps.Children.Clear();
-        var steps = Together.PartySteps(party.Note);
+        var steps = Together.PartySteps(party.Said);
         for (var i = 0; i < steps.Count; i++)
-            InviteSteps.Children.Add(new TextBlock { Text = $"{i + 1}. {steps[i]}", FontSize = 13, LineHeight = 19, Foreground = Palette.Get(party.Reach != "internet" && i == steps.Count - 1 ? "Warning" : "Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
-        if (party.Reach == "internet") return;
-        // On the PC of Jellyfin, Funnel opens by itself, and the link that works everywhere replaces this one.
+            InviteSteps.Children.Add(new TextBlock { Text = $"{i + 1}. {steps[i]}", FontSize = 13, LineHeight = 19, Foreground = Palette.Get(!party.Everywhere && i == steps.Count - 1 ? "Warning" : "Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+        if (party.Everywhere) return;
+        // On the PC of Jellyfin, Funnel opens by itself (again, when it went off), and the link that works everywhere replaces this one.
         if (!opened && await KeepFunnelOpenAsync(client, _connectionLifetime.Token))
         {
             await ShowPartyAsync(client, opened: true);

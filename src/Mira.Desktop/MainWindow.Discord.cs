@@ -107,7 +107,7 @@ public partial class MainWindow
         {
             var party = await client.PartyAsync(ct: _connectionLifetime.Token);
             if (!ReferenceEquals(_discordPartyFor, client)) return;
-            _discordParty = party is { Reach: "internet" } ? DiscordPresence.PartyButton(party.Link)?.Url : null;
+            _discordParty = party is { Everywhere: true } ? DiscordPresence.PartyButton(party.Link)?.Url : null;
             UpdateDiscord(force: true);
         }
         catch (Exception ex) when (IsExpected(ex)) { }

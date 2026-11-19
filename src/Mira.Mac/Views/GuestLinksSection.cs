@@ -130,8 +130,8 @@ public sealed class GuestLinksSection
         Avalonia.Automation.AutomationProperties.SetName(field, L("Lien de ta party", "Your party link"));
         var actions = Ui.Row(10);
         var box = Ui.Column(10, field);
-        if (!string.IsNullOrWhiteSpace(party.Note))
-            box.Children.Add(new TextBlock { Text = party.Note, FontSize = 13, Foreground = party.Reach is "internet" or null ? Ui.Muted : Ui.Brush("#E9DCC3"), TextWrapping = TextWrapping.Wrap });
+        if (!string.IsNullOrWhiteSpace(party.Said))
+            box.Children.Add(new TextBlock { Text = party.Said, FontSize = 13, Foreground = party.Everywhere || party.Reach is null ? Ui.Muted : Ui.Brush("#E9DCC3"), TextWrapping = TextWrapping.Wrap });
         box.Children.Add(actions);
         void Idle()
         {

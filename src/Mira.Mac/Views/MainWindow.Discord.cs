@@ -113,7 +113,7 @@ public sealed partial class MainWindow
         {
             var party = await session.Client.PartyAsync(ct: session.Lifetime);
             if (!ReferenceEquals(_discordPartyFor, session)) return;
-            _discordParty = party is { Reach: "internet" } ? DiscordPresence.PartyButton(party.Link)?.Url : null;
+            _discordParty = party is { Everywhere: true } ? DiscordPresence.PartyButton(party.Link)?.Url : null;
             TellDiscord(force: true);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { }

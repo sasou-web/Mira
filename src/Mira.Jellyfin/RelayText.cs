@@ -38,6 +38,7 @@ internal static class RelayText
         // « Inviter par lien » (GuestController, InvitesController).
         ["Trop d’essais : attends une minute."] = "Too many tries: wait a minute.",
         ["Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité."] = "This link no longer works: ask the person who invited you for a new one.",
+        ["Ce lien ne marche plus ou la party est pleine : demande à la personne qui t’a invité."] = "This link no longer works or the party is full: ask the person who invited you.",
         ["Ce lien sert déjà sur un autre appareil : demande-en un nouveau à la personne qui t’a invité."] = "This link is already in use on another device: ask the person who invited you for a new one.",
         ["Jellyfin n’a pas ouvert la séance. Réessaie dans un instant."] = "Jellyfin didn’t open the session. Try again in a moment.",
         ["Trop de liens en cours : retire ceux qui ne servent plus."] = "Too many links at once: remove those no longer in use.",

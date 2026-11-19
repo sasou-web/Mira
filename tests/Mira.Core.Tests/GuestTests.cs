@@ -19,6 +19,18 @@ internal static class GuestTests
     public static async Task RunAsync(TestRun run)
     {
         var Test = run.Test;
+        await Test("Ta party : un lien Funnel qui ne répond plus n’est pas dit « partout »", () =>
+        {
+            static Mira.Core.PartyLink Read(string json) => System.Text.Json.JsonSerializer.Deserialize<Mira.Core.PartyLink>(json)!;
+            var open = Read("{\"code\":\"c\",\"link\":\"https://maison-pc.tail1234.ts.net/Mira/party/c\",\"reach\":\"internet\",\"note\":\"Partout.\",\"tunnel\":{\"state\":\"closed\",\"text\":\"OK\"}}");
+            var unknown = Read("{\"code\":\"c\",\"link\":\"l\",\"reach\":\"internet\",\"note\":\"Partout.\"}");
+            var dead = Read("{\"code\":\"c\",\"link\":\"l\",\"reach\":\"internet\",\"note\":\"Partout.\",\"tunnel\":{\"state\":\"unreachable\",\"text\":\"Funnel ne répond pas.\"}}");
+            var home = Read("{\"code\":\"c\",\"link\":\"l\",\"reach\":\"home\",\"note\":\"À la maison.\"}");
+            Assert(open.Everywhere && open.Said == "Partout." && unknown.Everywhere, "Funnel qui répond, ou pas encore essayé : partout");
+            Assert(!dead.Everywhere && dead.Said == "Funnel ne répond pas.", $"Funnel éteint : pas partout, et pourquoi ({dead.Said})");
+            Assert(!home.Everywhere && home.Said == "À la maison.", "À la maison");
+            return Task.CompletedTask;
+        });
         await Test("Inviter par lien : la passerelle ne laisse passer que la séance", () =>
         {
             static GuestRoutes.Access For(string method, string path, string? seriesId = null, string? size = null) =>
