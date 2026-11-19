@@ -294,6 +294,7 @@ public partial class MainWindow : Window
     }
     private async Task ActivateConnectionAsync(Connection connection)
     {
+        var previous = _client?.Connection;
         await DisconnectServicesAsync();
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
         var client = _client = new JellyfinClient(connection, ServerHandler);
@@ -319,6 +320,8 @@ public partial class MainWindow : Window
         var damaged = _store.DamagedCopy is not null;
         _catalog.Clear(); _pages.Clear(); _episodes = []; _detail = null; _detailTrail.Clear(); _hero = null; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = ShelfOverlay.Visibility = Visibility.Collapsed; _shelfBox = null; _returnToShelf = false; _grouping = null;
+        // Nothing of the previous account in the filters while this one's Jellyfin has not answered yet.
+        ForgetLibraryChoices();
         // Never leave the previous account's posters on screen while this one loads.
         _catalog.Loading = true; RenderLibrary(); ForgetKeptCards();
         _images = new ImageCache(_client, _profile.DirectoryPath); FitArtwork(_images); _sync = sync;
@@ -336,6 +339,15 @@ public partial class MainWindow : Window
         _ = OfferDownloadsAsync();
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant(); SetPhoto(null); _ = ShowPhotoAsync();
         SettingsServerAddress.Text = connection.Server;
+        // Another account (signed in from Réglages): its window, drawn for the previous one (its titles to fix, its guest
+        // links, its server), closes rather than act on a session that is no longer this PC's. The same account moved
+        // to another address keeps it.
+        if (previous is not null && (previous.UserId != connection.UserId || (previous.Origin ?? previous.Server) != (connection.Origin ?? connection.Server))
+            && (SettingsOverlay.Visibility == Visibility.Visible || GuideOverlay.Visibility == Visibility.Visible))
+        {
+            if (SettingsOverlay.Visibility == Visibility.Visible) AutoSaveSettings();
+            SettingsOverlay.Visibility = GuideOverlay.Visibility = Visibility.Collapsed; ForgetBackdrop(); UpdateNavigation();
+        }
         LoginOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
         try
         {
@@ -343,22 +355,9 @@ public partial class MainWindow : Window
             // All null when the cache could not be read.
             if (ReferenceEquals(store, _store)) { _catalog.RecentPlayback = history ?? []; _catalog.HiddenResume = hidden ?? []; }
             if (cached is not null && ReferenceEquals(store, _store)) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; _catalog.Resume = cachedResume ?? []; _catalog.Loading = false; RenderLibrary(); }
+            // Its libraries, genres and languages come with the first refresh Jellyfin answers (LoadLibraryChoicesAsync),
+            // now or once it is back: Mira started before Jellyfin, at sign-in, or with the network still down.
             await RefreshAsync();
-            // Signed out, or another account, while the first page loaded: this one stops here (_client may be null).
-            if (!ReferenceEquals(_client, client)) return;
-            if (_offlineSince is null) _ = LearnServerIdAsync(client);
-            var libraries = await client.LibrariesAsync();
-            if (!ReferenceEquals(_client, client)) return;
-            LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
-            _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
-            // Films, series and mixed libraries only: Musique, Photos or Vidéos perso would open an empty page.
-            foreach (var library in libraries.Where(x => LibrarySection.Browsed(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
-            _filterBusy = false;
-            var filters = await client.FiltersAsync();
-            string? version = null;
-            try { version = await client.ServerVersionAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
-            if (!ReferenceEquals(_client, client)) return;
-            PopulateFilters(filters, LibraryFilters.LanguagesSupported(version));
         }
         // A client disposed by a sign-out meanwhile fails its request: nothing to say then.
         catch (Exception ex) when (IsExpected(ex) || (!ReferenceEquals(_client, client) && ex is ObjectDisposedException or OperationCanceledException)) { if (ReferenceEquals(_client, client)) SetError(Friendly(ex)); }
@@ -534,6 +533,8 @@ public partial class MainWindow : Window
             if (!more) (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = (found, foundStudios, foundEpisodes, foundSagas);
             if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? []).Concat(playedLately)); }
             _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; _refreshErrorSaid = null; RenderLibrary(grow: more);
+            // Jellyfin answers: its libraries, genres and languages, if they could not be read before.
+            _ = LoadLibraryChoicesAsync(client);
             // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.
             if (_sync is { PendingCount: > 0 } sync) sync.Wake();
             PumpOffline();
@@ -547,6 +548,9 @@ public partial class MainWindow : Window
         catch (Exception ex) when (IsExpected(ex))
         {
             if (version != _viewVersion) return false;
+            // The session expired: the sign-in form once. Already open, each refresh (every 45 s) leaves what is being typed,
+            // the error and the focus as they are.
+            if (ex is UnauthorizedAccessException && LoginOverlay.Visibility == Visibility.Visible) return true;
             if (ex is UnauthorizedAccessException)
             {
                 ServerBox.Text = client.Connection.Server; UsernameBox.Text = client.Connection.UserName; LoginError.Text = Friendly(ex);

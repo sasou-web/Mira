@@ -71,6 +71,16 @@ public partial class MainWindow
             _profile.SaveConnection(connection);
             await ActivateConnectionAsync(connection);
             WhatsNewOverlay.Visibility = WelcomeOverlay.Visibility = GuideOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
+            // Mira opened before Jellyfin (at sign-in, the network still down): its libraries, genres and languages come
+            // once Jellyfin answers, without opening Mira again. Before, never in that session (night audit, 2026-11-19).
+            step = "opened before Jellyfin";
+            await Until("the first page", () => !_catalog.Loading && LibraryFilter.Items.Count > 1, 60);
+            await RunServerCommandAsync("MIRA_STOP");
+            await ActivateConnectionAsync(connection);
+            Require(LibraryFilter.Items.Count == 1 && GenreFilter.Items.Count == 1 && _homeLibraries.Count == 0, "opened while Jellyfin is stopped: no library nor genre offered yet, none kept from before");
+            await RunServerCommandAsync("MIRA_START");
+            await UntilServer("the libraries once Jellyfin is back", async () => { await RefreshAsync(quiet: true); return LibraryFilter.Items.Count > 1 && GenreFilter.Items.Count > 1 ? "" : null; }, 180);
+            Require(_homeLibraries.Count >= 3, $"Jellyfin back: its libraries ({LibraryFilter.Items.Count - 1}) and genres ({GenreFilter.Items.Count - 1}) offered in the same session");
             var client = _client ?? throw new InvalidOperationException("No connection after signing in.");
             Info($"Jellyfin {await client.ServerVersionAsync()} at {client.Connection.Server}");
             Require(LoginOverlay.Visibility == Visibility.Collapsed && client.Connection.UserName == user, $"signs in to Jellyfin as {user}");

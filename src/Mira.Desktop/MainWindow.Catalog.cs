@@ -94,6 +94,54 @@ public partial class MainWindow
         LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
     }
     /// <param name="languages">Audio and subtitle languages offered: Jellyfin 12 or later (<see cref="LibraryFilters.LanguagesSupported"/>).</param>
+    /// <summary>This account's libraries, genres, years and languages read from Jellyfin (false until it answered them).</summary>
+    private bool _choicesLoaded, _choicesLoading;
+    /// <summary>
+    /// The account's libraries, genres, years and languages, read at the first refresh Jellyfin answers: at once, or
+    /// only when it comes back (Mira opened at sign-in before Jellyfin, the network still down). Jellyfin silent again:
+    /// tried at the next refresh that reaches it, which already says what failed.
+    /// </summary>
+    private async Task LoadLibraryChoicesAsync(JellyfinClient client)
+    {
+        if (_choicesLoaded || _choicesLoading || _demo || InParty || !ReferenceEquals(_client, client)) return;
+        _choicesLoading = true;
+        var ct = _connectionLifetime.Token;
+        try
+        {
+            _ = LearnServerIdAsync(client);
+            var libraries = await client.LibrariesAsync(ct);
+            var filters = await client.FiltersAsync(ct: ct);
+            string? version = null;
+            try { version = await client.ServerVersionAsync(ct); } catch (Exception ex) when (IsExpected(ex)) { }
+            if (!ReferenceEquals(_client, client)) return;
+            LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
+            _filterBusy = true;
+            var chosen = Choice(LibraryFilter);
+            LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
+            // Films, series and mixed libraries only: Musique, Photos or Vidéos perso would open an empty page.
+            foreach (var library in libraries.Where(x => LibrarySection.Browsed(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
+            if (chosen.Length > 0) LibraryFilter.SelectedItem = LibraryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == chosen) ?? LibraryFilter.Items[0];
+            _filterBusy = false;
+            PopulateFilters(filters, LibraryFilters.LanguagesSupported(version));
+            _choicesLoaded = true;
+            // The libraries TorLink places into, now that Jellyfin says them.
+            _ = RefreshTorLinkLibrariesAsync();
+        }
+        // Silent again, or signed out meanwhile: the next refresh that reaches Jellyfin tries again.
+        catch (Exception ex) when (IsExpected(ex) || ex is OperationCanceledException || (!ReferenceEquals(_client, client) && ex is ObjectDisposedException)) { }
+        finally { if (ReferenceEquals(_client, client)) _choicesLoading = false; }
+    }
+    /// <summary>Another account opens: nothing of the previous one's libraries, genres, years or languages stays offered.</summary>
+    private void ForgetLibraryChoices()
+    {
+        _choicesLoaded = _choicesLoading = false; _homeLibraries = [];
+        _filterBusy = true;
+        LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
+        GenreFilter.SelectedIndex = YearFilter.SelectedIndex = AudioFilter.SelectedIndex = SubtitleFilter.SelectedIndex = 0;
+        _filterBusy = false;
+        PopulateFilters(new CatalogFilters());
+        _filterChoices.Clear(); _choicesShown = "";
+    }
     private void PopulateFilters(CatalogFilters filters, bool languages = false)
     {
         _filterBusy = true;
