@@ -132,17 +132,23 @@ extension JellyfinClient {
     /// The episode Jellyfin would play next in a series: the one started, else the first not watched. When Jellyfin has
     /// none (a series watched to its end, watched out of order, only specials left), SeriesStart: one left halfway, the
     /// first not watched, else the first to watch it again, the numbered seasons before the specials.
-    func nextUp(series: String) async throws -> Item? {
+    func nextUp(series: String) async throws -> Item? { try await seriesStart(series: series).item }
+
+    /// nextUp, and whether it starts the series again from its first episode, every one watched (« Watch again », as
+    /// Windows and the Mac say then).
+    func seriesStart(series: String) async throws -> (item: Item?, again: Bool) {
         let list: ItemList = try await get("Shows/NextUp", [
             "userId": userId, "seriesId": series, "limit": "1", "enableResumable": "true", "enableRewatching": "false", "fields": "MediaSources",
         ])
-        if let next = list.items?.first { return next }
+        if let next = list.items?.first { return (next, false) }
         let all: ItemList = try await get("Shows/\(series)/Episodes", [
             "userId": userId, "isMissing": "false", "enableUserData": "true", "enableImages": "false",
         ])
-        guard let start = SeriesStart.start(all.items ?? []) else { return nil }
+        let episodes = all.items ?? []
+        guard let start = SeriesStart.start(episodes) else { return (nil, false) }
+        let again = SeriesStart.unfinished(episodes) == nil && SeriesStart.again(episodes) == nil
         // With its files (the languages under Play): asked for this one alone, not for each of a long anime's episodes.
-        return try await item(start.id)
+        return (try await item(start.id), again)
     }
 
     /// An address the player reads without an Authorization header, carrying the session as Mira web's do (ApiKey):

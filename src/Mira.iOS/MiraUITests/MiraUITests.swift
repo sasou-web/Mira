@@ -604,6 +604,39 @@ final class MiraUITests: XCTestCase {
         mock("/Mock/Mark?name=film-end")
     }
 
+    /// The film of the seasons' pill (« La gelée », ios.yml's film: testSeasonsFilm; skipped otherwise): Pioneer One's
+    /// chips touched one after the other, Jellyfin quick, then slow (the season before stays, dimmed, until the next).
+    @MainActor
+    func testSeasonsFilm() throws {
+        guard ProcessInfo.processInfo.environment["MIRA_FILM"] == "1" else { throw XCTSkip("Only for ios.yml's film") }
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let series = app.buttons["Pioneer One, 2010"].firstMatch
+        XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
+        tapCard(app, series)
+        let first = app.buttons["Season 1"]
+        let extras = app.buttons["series.chip.extras"]
+        XCTAssertTrue(extras.waitForExistence(timeout: 10), "No chip « Extras » after the seasons")
+        app.swipeUp()
+        for _ in 0..<4 where !(extras.exists && extras.isHittable) { app.swipeDown() }
+        XCTAssertTrue(first.exists && first.isHittable, "No chip « Season 1 »")
+        settle()
+        mock("/Mock/Mark?name=film-start")
+        Thread.sleep(forTimeInterval: 0.8)
+        for answer in ["/Mock/Up", "/Mock/Slow?ms=900"] {
+            mock(answer)
+            for chip in [extras, first, extras, first] {
+                chip.tap()
+                Thread.sleep(forTimeInterval: 1.6)
+            }
+        }
+        mock("/Mock/Up")
+        XCTAssertTrue(app.buttons["episode.play.1"].waitForExistence(timeout: 10), "Season 1's episodes did not come back")
+        mock("/Mock/Mark?name=film-end")
+    }
+
     /// A friend's party on another Jellyfin, with no account on this iPhone: its link opened in Mira asks the first
     /// name, makes this iPhone the party's guest (the stand-in's /Mira/guest), waits for the host's group, joins it as
     /// soon as the host opens it, then leaves it, back to the sign-in.

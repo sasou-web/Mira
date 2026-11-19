@@ -57,6 +57,18 @@ struct TrackLanguagesTests {
         }
     }
 
+    @Test("Un ordre qu'aucun choix n'écrit reste « Ordre personnalisé », comme sur Windows")
+    func custom() {
+        for first in ["en", "fr", "de", "ja"] {
+            for japanese in [true, false] { #expect(TrackLanguages.isAudioChoice(TrackLanguages.audio(first, japaneseFirst: japanese)), "audio \(first)") }
+            #expect(TrackLanguages.isSubtitleChoice(TrackLanguages.subtitles(first)), "subtitles \(first)")
+        }
+        #expect(!TrackLanguages.isSubtitleChoice("eng,en"))
+        #expect(!TrackLanguages.isAudioChoice("jpn,ja,ger,deu,de"))
+        #expect(!TrackLanguages.isAudioChoice("fre,fra,fr,ger,deu,de"))
+        #expect(TrackLanguages.isAudioChoice("FRE,fra,fr,eng,en"))
+    }
+
     @Test("Une langue proposée pour chacune, nommée")
     func choices() {
         let choices = TrackLanguages.choices(locale: Locale(identifier: "en"))

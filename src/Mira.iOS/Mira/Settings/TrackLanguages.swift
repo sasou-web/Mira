@@ -51,6 +51,20 @@ enum TrackLanguages {
     /// Whether a Japanese track goes before the others (an anime's original language).
     static func japaneseFirst(_ order: String?) -> Bool { two(split(order).first) == "ja" }
 
+    /// Whether Settings' choices write this order (IsAudioChoice of Core); otherwise it shows as « Custom order », and a
+    /// touch on another language never rewrites it unasked (audit I8: « fre,ger » read as French, German lost).
+    static func isAudioChoice(_ order: String?) -> Bool {
+        guard let first = first(of: order) else { return false }
+        return same(order, audio(first, japaneseFirst: japaneseFirst(order)))
+    }
+
+    static func isSubtitleChoice(_ order: String?) -> Bool {
+        guard let first = first(of: order) else { return false }
+        return same(order, subtitles(first))
+    }
+
+    private static func same(_ a: String?, _ b: String) -> Bool { split(a).map { $0.lowercased() } == split(b) }
+
     /// The languages Settings offers, named in Mira's language: this iPhone's first, then by name.
     static func choices(locale: Locale = Locale(identifier: AccountChoices.language)) -> [(two: String, name: String)] {
         let start = self.start

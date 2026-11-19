@@ -139,24 +139,24 @@ struct SettingsView: View {
                         row("Skip intros and recaps", "When Jellyfin or the file’s chapters mark them, playback jumps over them. Otherwise, a button offers it.")
                     }
                     .accessibilityIdentifier("settings.autoSkip")
-                    Picker("Audio language", selection: Binding(get: { TrackLanguages.first(of: preferences.audioOrder) ?? Self.customOrder }, set: { chosen in
+                    Picker("Audio language", selection: Binding(get: { audioChoice ?? Self.customOrder }, set: { chosen in
                         guard chosen != Self.customOrder else { return }
                         preferences.audioLanguages = TrackLanguages.audio(chosen, japaneseFirst: TrackLanguages.japaneseFirst(preferences.audioOrder))
                     })) {
-                        languageTags(custom: TrackLanguages.first(of: preferences.audioOrder) == nil)
+                        languageTags(custom: audioChoice == nil)
                     }
                     .accessibilityIdentifier("settings.audio")
                     Toggle(isOn: Binding(get: { TrackLanguages.japaneseFirst(preferences.audioOrder) }, set: { on in
-                        if let first = TrackLanguages.first(of: preferences.audioOrder) { preferences.audioLanguages = TrackLanguages.audio(first, japaneseFirst: on) }
+                        if let first = audioChoice { preferences.audioLanguages = TrackLanguages.audio(first, japaneseFirst: on) }
                     })) {
                         row("Japanese first", "When a title has a Japanese track, as most anime do.")
                     }
-                    .disabled(TrackLanguages.first(of: preferences.audioOrder) == nil)
+                    .disabled(audioChoice == nil)
                     .accessibilityIdentifier("settings.japaneseFirst")
-                    Picker("Subtitle language", selection: Binding(get: { TrackLanguages.first(of: preferences.subtitleOrder) ?? Self.customOrder }, set: { chosen in
+                    Picker("Subtitle language", selection: Binding(get: { subtitleChoice ?? Self.customOrder }, set: { chosen in
                         if chosen != Self.customOrder { preferences.subtitleLanguages = TrackLanguages.subtitles(chosen) }
                     })) {
-                        languageTags(custom: TrackLanguages.first(of: preferences.subtitleOrder) == nil)
+                        languageTags(custom: subtitleChoice == nil)
                     }
                     .accessibilityIdentifier("settings.subtitles")
                 } header: {
@@ -345,6 +345,11 @@ struct SettingsView: View {
 
     /// The value of a languages' list for an order no choice writes (kept on Jellyfin by another device).
     private static let customOrder = "custom"
+
+    /// The language Settings shows for each order: nil (« Custom order ») unless one of its choices wrote it, as on
+    /// Windows and the Mac (an order set there, « fre,ger », stays whole until another language is picked here).
+    private var audioChoice: String? { TrackLanguages.isAudioChoice(app.preferences.audioOrder) ? TrackLanguages.first(of: app.preferences.audioOrder) : nil }
+    private var subtitleChoice: String? { TrackLanguages.isSubtitleChoice(app.preferences.subtitleOrder) ? TrackLanguages.first(of: app.preferences.subtitleOrder) : nil }
 
     /// The languages Settings offers (TrackLanguages: this iPhone's first), then « Custom order » for an order none writes.
     @ViewBuilder private func languageTags(custom: Bool) -> some View {
