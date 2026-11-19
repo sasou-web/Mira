@@ -951,7 +951,11 @@ final class MiraUITests: XCTestCase {
         }
         XCTAssertTrue(homeRow.exists, "Settings offer no Home to an administrator")
         homeRow.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["home.offer.Lina"].waitForExistence(timeout: 15), "Settings → Home lists no profiles")
+        // The profiles come after the password and the link: a list only has what is on screen.
+        let lina = app.descendants(matching: .any)["home.offer.Lina"]
+        XCTAssertTrue(app.descendants(matching: .any)["home.password"].waitForExistence(timeout: 15) || lina.exists, "Settings → Home did not load")
+        for _ in 0..<8 where !lina.exists { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(lina.waitForExistence(timeout: 5), "Settings → Home lists no profiles")
         settle()
         capture("85-home-settings")
         app.navigationBars.buttons.firstMatch.tap()
@@ -1189,6 +1193,13 @@ final class MiraUITests: XCTestCase {
     @MainActor
     private func tapCard(_ app: XCUIApplication, _ card: XCUIElement) {
         if !card.isHittable { dismissSavePassword(app, timeout: 5) }
+        // Shown by iOS outside Mira on some runs: Springboard's « Not Now » then.
+        if !card.isHittable {
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            let notNow = springboard.buttons.matching(NSPredicate(format: "label IN %@", ["Not Now", "Pas maintenant"])).firstMatch
+            if notNow.waitForExistence(timeout: 5) { notNow.tap() }
+            _ = waitFor({ card.isHittable }, timeout: 10)
+        }
         card.tap()
     }
 
