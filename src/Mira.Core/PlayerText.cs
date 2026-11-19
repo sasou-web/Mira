@@ -109,11 +109,14 @@ public static class PlayerText
         var number = item.IndexNumber ?? (position >= 0 ? position + 1 : (int?)null);
         var seasons = episodes.Select(x => x.ParentIndexNumber ?? 0).Where(x => x > 0).Distinct().Count();
         var parts = new List<string>();
-        if (season == 0) parts.Add(L("Hors-série", "Specials"));
+        if (season == 0) parts.Add(L("Épisodes spéciaux", "Specials"));
         else if (season is > 0 && (seasons > 1 || season > 1)) parts.Add(L($"Saison {season}", $"Season {season}"));
         var episode = number is null ? L("Épisode", "Episode") : L($"Épisode {number}", $"Episode {number}");
-        // A partial list must not claim "Episode 30 / 12".
-        if (number is not null && sameSeason.Count >= number) episode += $" / {sameSeason.Count}";
+        // A partial list must not claim "Episode 30 / 12"; a season numbered from 1 with a gap counts to its last number
+        // (E01, E02, E04: "Episode 2 / 4", not "/ 3").
+        var total = sameSeason.Count;
+        if (sameSeason.Count > 0 && sameSeason.Min(x => x.IndexNumber ?? int.MaxValue) == 1) total = Math.Max(total, sameSeason.Max(x => x.IndexNumber ?? 0));
+        if (number is not null && total >= number) episode += $" / {total}";
         parts.Add(episode);
         var name = item.Name.Trim();
         if (name.Length > 0 && !GenericName.IsMatch(name) && !string.Equals(name, item.SeriesName, StringComparison.CurrentCultureIgnoreCase)) parts.Add(name);

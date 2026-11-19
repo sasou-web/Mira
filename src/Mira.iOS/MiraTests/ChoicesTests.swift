@@ -113,6 +113,12 @@ struct TrackChoiceTests {
         #expect(memory == AccountChoices.track(.object(["audio": .string("jpn"), "subtitles": .bool(true), "subtitle": .string("fre"), "forced": .bool(true)])))
         let again = TrackChoice.choose(source, memory: memory, audioOrder: "fre,fra,fr", subtitleOrder: "eng,en")
         #expect(again.audio == 1 && again.subtitle == 4)
+        // Signs only, then an episode without them: no subtitles, not the full French ones.
+        let noSigns = MediaSource(defaultAudioStreamIndex: 1, defaultSubtitleStreamIndex: 99, mediaStreams: [
+            MediaStream(index: 0, type: "Video"), MediaStream(index: 1, type: "Audio", codec: "aac", language: "jpn", channels: 2),
+            MediaStream(index: 2, type: "Subtitle", codec: "subrip", language: "fre", isDefault: false, isForced: false, isTextSubtitleStream: true),
+        ])
+        #expect(TrackChoice.choose(noSigns, memory: memory, audioOrder: "", subtitleOrder: "").subtitle == -1)
     }
 }
 

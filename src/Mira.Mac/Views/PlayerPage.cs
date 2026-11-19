@@ -568,7 +568,7 @@ public sealed partial class PlayerPage : UserControl
     private async Task<MediaItem?> NextAfterAsync(MediaItem current)
     {
         if (_shell.Session is not { } session || current.SeriesId is null) return null;
-        try { var episodes = (await session.EpisodesAsync(current.SeriesId)).Items; var index = episodes.FindIndex(x => x.Id == current.Id); return index >= 0 ? episodes.ElementAtOrDefault(index + 1) : null; }
+        try { var episodes = (await session.EpisodesAsync(current.SeriesId)).Items; return EpisodePages.After(episodes, current.Id); }
         catch (Exception ex) when (Errors.Expected(ex)) { return OfflineCopies.NextEpisode(_shell.OfflineCopiesKept, current)?.Item; }
     }
     /// <summary>The next episode in this same player: the window stays as it is (fullscreen included).</summary>
@@ -1185,8 +1185,7 @@ public sealed partial class PlayerPage : UserControl
                 var episodes = (await session.EpisodesAsync(series)).Items;
                 if (generation != _generation) return;
                 _episodes = episodes;
-                var index = episodes.FindIndex(x => x.Id == episode.Id);
-                _skips.Next = index >= 0 && lastPart ? episodes.ElementAtOrDefault(index + 1) : null;
+                _skips.Next = lastPart ? EpisodePages.After(episodes, episode.Id) : null;
                 _subtitle.Text = parts?.Subtitle(item.Id, episodes) ?? PlayerText.Subtitle(item, episodes);
             }
             // Without Jellyfin: the next episode kept on this Mac, if there is one.

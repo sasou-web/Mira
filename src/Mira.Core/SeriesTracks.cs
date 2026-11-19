@@ -33,8 +33,10 @@ public static class SeriesTracks
     {
         var tracks = Read(trackList);
         var audio = Best(tracks.Where(t => t.Type == "audio"), memory.Audio, memory.AudioTitle, null);
-        var subtitle = memory.Subtitles ? Best(tracks.Where(t => t.Type == "sub"), memory.Subtitle, memory.SubtitleTitle, memory.Forced)?.Id : "no";
-        return (audio?.Id, subtitle);
+        var subtitle = memory.Subtitles ? Best(tracks.Where(t => t.Type == "sub"), memory.Subtitle, memory.SubtitleTitle, memory.Forced) : null;
+        // Signs only (forced) chosen: an episode without them shows none, never its full subtitles in their place.
+        if (memory.Forced && subtitle is { Forced: false } && !SameTitle(subtitle.Title, memory.SubtitleTitle)) return (audio?.Id, "no");
+        return (audio?.Id, memory.Subtitles ? subtitle?.Id : "no");
     }
 
     /// <summary>The same language (or, without one, the same name); among them the same name, then forced or not alike, then the file's order.</summary>

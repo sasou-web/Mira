@@ -69,7 +69,13 @@ enum TrackChoice {
             } else {
                 let language = remembered["subtitle"]?.string
                 let wantForced = remembered["forced"]?.bool == true
-                subtitle = (readable.first { same($0.language, language) && ($0.isForced == true) == wantForced } ?? readable.first { same($0.language, language) })?.index
+                let alike = readable.first { same($0.language, language) && ($0.isForced == true) == wantForced }
+                // Signs only (forced) chosen: an episode without them shows none, never its full subtitles in their place.
+                if wantForced, alike == nil, readable.contains(where: { same($0.language, language) }) {
+                    subtitle = -1
+                } else {
+                    subtitle = (alike ?? readable.first { same($0.language, language) })?.index
+                }
             }
         }
         // Then the settings' order. Left to Jellyfin's choice when no language of it has subtitles and the audio's is

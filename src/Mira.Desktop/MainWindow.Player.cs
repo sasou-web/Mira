@@ -470,8 +470,8 @@ public partial class MainWindow
         if (_client is null || current.SeriesId is null) return (null, []);
         try
         {
-            var episodes = await _client.EpisodesAsync(current.SeriesId); var index = episodes.Items.FindIndex(x => x.Id == current.Id);
-            return (index >= 0 ? episodes.Items.ElementAtOrDefault(index + 1) : null, episodes.Items);
+            var episodes = await _client.EpisodesAsync(current.SeriesId);
+            return (EpisodePages.After(episodes.Items, current.Id), episodes.Items);
         }
         catch (Exception ex) when (IsExpected(ex))
         {

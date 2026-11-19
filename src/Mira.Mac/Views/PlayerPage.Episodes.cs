@@ -50,8 +50,7 @@ public sealed partial class PlayerPage
     }
     private MediaItem? PreviousEpisode(MediaItem current)
     {
-        var index = _episodes.FindIndex(x => x.Id == current.Id);
-        return index > 0 ? _episodes[index - 1] : null;
+        return EpisodePages.Before(_episodes, current.Id);
     }
     private void PlayPrevious()
     {
