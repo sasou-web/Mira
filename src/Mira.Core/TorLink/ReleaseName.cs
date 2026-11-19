@@ -94,7 +94,8 @@ public static partial class ReleaseName
     [GeneratedRegex(@"^(?:\d{3,4}[pi]|[hx]\.?26[45]|(?:dd|ddp|eac3|ac3|aac|dts)[\d.+]*|\d{1,2}-?bit)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TagPattern();
     [GeneratedRegex(@"^[0-9A-Fa-f]{8}$")] private static partial Regex Checksum();
-    [GeneratedRegex(@"(?<![a-z0-9])S(?<s>\d{1,2})[\s._-]*E(?<e>\d{1,4})(?:[\s._-]*E(?<e2>\d{1,4})|-(?<e2>\d{1,4})(?![0-9]))?(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // « S01E01-E02 », « S01E01E02E03 » (the last one counts), « S01E01-02 »; never « S01E05-720p », a tag after a dash.
+    [GeneratedRegex(@"(?<![a-z0-9])S(?<s>\d{1,2})[\s._-]*E(?<e>\d{1,4})(?:(?:[\s._-]*E(?<e2>\d{1,4}))+|-(?<e2>\d{1,4})(?![0-9a-z]))?(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonEpisode();
     [GeneratedRegex(@"(?<![a-z0-9])(?<s>\d{1,2})x(?<e>\d{2,3})(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CrossEpisode();
@@ -118,12 +119,13 @@ public static partial class ReleaseName
     // alone (« Monogatari Series Second Season », « The Book of Boba Fett »).
     [GeneratedRegex(@"\b(?:Series|Livre|Book)\s+(?<r>\d{1,2}|I{1,3}|IV|VI{0,3}|IX|X)(?![\w'’])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex BookSeason();
-    // A pack of a show's specials (« [Judas] Sousou no Frieren - Specials »): its season 0.
-    [GeneratedRegex(@"(?:^|\s)[-–]?\s*Specials\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // A pack of a show's specials (« [Judas] Sousou no Frieren - Specials »), an OVA or OAD (« Kaguya-sama - OVA »,
+    // « Kaguya-sama OVA - 01 »): its season 0, never a film nor another show.
+    [GeneratedRegex(@"(?:^|\s)[-–]?\s*(?:Specials|OVAs?|OADs?)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SpecialsWord();
     // The episodes of a pack (« Fullmetal Alchemist Brotherhood 1-64 », « Naruto Shippuden Episodes 001-500 », « E01-E12 »):
     // never a title's own digits (« 9-1-1 »), years (« 1999-2003 ») or seasons (« S01-S05 »).
-    [GeneratedRegex(@"(?<![\w-])(?:(?:Episodes?|Eps?\.?)\s*)?E?(?<a>\d{1,4})\s*[-~]\s*E?(?<b>\d{1,4})(?![\w-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![\w-])(?:(?:Episodes?|Eps?\.?)\s*)?E?(?<a>\d{1,4})(?:[-~]|\s*~\s*)E?(?<b>\d{1,4})(?![\w-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex EpisodeSpanMarker();
     // A sequel numbered as Roman numerals at a show's end (« Overlord IV », « Mob Psycho 100 III »).
     [GeneratedRegex(@"^(?<t>.+?)\s+(?<r>II|III|IV|V|VI|VII|VIII|IX|X)$", RegexOptions.CultureInvariant)]
@@ -131,7 +133,8 @@ public static partial class ReleaseName
     // « 2nd Season », « Second Season » (« [sam] Haikyuu!! Second Season - 01 »: Haikyuu!!'s season 2, ogsas 2026-11-18).
     [GeneratedRegex(@"\b(?:(?<s>\d{1,2})(?:st|nd|rd|th)|(?<w>second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth))\s+Season\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex OrdinalSeason();
-    [GeneratedRegex(@"\b(?:Seasons?|Saisons?|S)\s*\d{1,2}\s*[-~]\s*S?\d{1,2}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // « S01-S03 », « S1-3 », « Season 1-2 », « Seasons 1 - 3 »; never « S2 - 01~11 », a season and its episodes.
+    [GeneratedRegex(@"\b(?:(?:Seasons?|Saisons?|S)\s*\d{1,2}(?:[-~]|\s*[-~]\s*S)\d{1,2}|(?:Seasons|Saisons)\s*\d{1,2}\s*[-~]\s*\d{1,2})\b(?!\s*[-~]\s*\d)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonRange();
     [GeneratedRegex(@"\b(?:Complete(?:\s+Series)?|Int[ée]grale|Batch)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CompleteMarker();
@@ -148,7 +151,7 @@ public static partial class ReleaseName
     private static partial Regex Creditless();
     [GeneratedRegex(@"(?<![a-z0-9])(?<k>OP|ED)\s*(?<n>\d{1,2})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex OpeningEnding();
-    [GeneratedRegex(@"^(?:Season|Saison|Series|Book|Livre|S)\s*0*(?<n>\d{1,3})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:Season|Saison|Staffel|Temporada|Stagione|Seizoen|Sezon|Series|Book|Livre|S)\s*0*(?<n>\d{1,3})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonFolder();
     [GeneratedRegex(@"^(?:(?:part|partie|cour|vol(?:ume)?|chapter|chapitre|arc|ep(?:isode)?|e|s|season|saison)\s*\d{1,3}|\d{1,2}(?:st|nd|rd|th)\s+(?:season|cour|part))$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PartAlone();
@@ -222,7 +225,8 @@ public static partial class ReleaseName
     {
         var text = Readable(name, out var group);
         var m = SeasonEpisode().Match(text);
-        if (m.Success) return new(Number(m, "s"), Number(m, "e"), OptionalNumber(m, "e2"));
+        // « S01E05-E03 » says no second episode.
+        if (m.Success) return new(Number(m, "s"), Number(m, "e"), OptionalNumber(m, "e2") is { } last && last > Number(m, "e") ? last : null);
         m = WordsEpisode().Match(text);
         if (m.Success) return new(Number(m, "s"), Number(m, "e"));
         m = CrossEpisode().Match(text);
@@ -278,6 +282,7 @@ public static partial class ReleaseName
         if (SeasonRange().IsMatch(text)) return null;
         var values = SeasonMarker().Matches(text).Concat(SeasonWord().Matches(text)).Concat(OrdinalSeason().Matches(text))
             .Select(x => Number(x, "s")).Concat(BookSeason().Matches(text).Where(x => x.Index > 0).Select(x => Roman(x.Groups["r"].Value))).Distinct().ToList();
+        // « Show - Specials », « Kaguya-sama - OVA »: season 0, when no other season is said (« Steins;Gate Season 1 + OVA »).
         if (values.Count == 0 && SpecialsWord().Match(text) is { Success: true, Index: > 0 }) return 0;
         return values.Count == 1 ? values[0] : null;
     }
@@ -359,6 +364,28 @@ public static partial class ReleaseName
         if (SeasonEpisode().IsMatch(text) || CrossEpisode().IsMatch(text) || WordsEpisode().IsMatch(text)) return false;
         var m = AbsoluteEpisode().Match(text);
         return m.Success && !m.Value.Any(char.IsLetter);
+    }
+
+    /// <summary>
+    /// A show's last season or a part of a season named instead of numbered (« Shingeki no Kyojin - The Final Season »,
+    /// « Jujutsu Kaisen Cour 2 », « Show Part 2 »): the show's own title and whether it is its final season; null otherwise.
+    /// </summary>
+    public static (string Title, bool Final)? NamedSeason(string title)
+    {
+        var m = NamedSeasonMarker().Match(title.Trim());
+        return m.Success && Key(m.Groups["t"].Value).Length > 0 ? (m.Groups["t"].Value.Trim().TrimEnd('-', '–', ':', ' '), m.Groups["f"].Success) : null;
+    }
+    [GeneratedRegex(@"^(?<t>.+?)\s*[-–:]?\s+(?:(?<f>(?:The\s+)?Final\s+Season)|(?:Cour|Part)\s*(?:[2-9]|1\d))$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NamedSeasonMarker();
+
+    /// <summary>The first number of the episodes a name gives as a range (« Naruto Season 1 (101-110) » gives 101); null without one.</summary>
+    public static int? EpisodeSpanStart(string name)
+    {
+        var text = StripExtension(name.Trim());
+        if (EpisodeSpan(Readable(text, out _)) is { } m) return Number(m, "a");
+        foreach (Match p in Parenthesized().Matches(text))
+            if (EpisodeRange().Match(p.Groups["c"].Value.Trim()) is { Success: true } r && Span(r)) return Number(r, "a");
+        return null;
     }
 
     /// <summary>« Overlord IV » gives (« Overlord », 4): a show's sequel numbered at its title's end; null otherwise.</summary>

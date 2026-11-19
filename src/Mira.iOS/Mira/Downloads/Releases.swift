@@ -151,7 +151,7 @@ enum Releases {
     private static func batchPart(_ inner: String, year: Bool) -> String {
         let value = inner.trimmingCharacters(in: .whitespaces)
         if (year && isYear(value))
-            || Regex.test(#"^(?:(?:(?:seasons?|saisons?|temporadas?)\s*\d{1,2}(?:\s*[-~–]\s*\d{1,2})?|s\d{1,2}(?:\s*[-~–]\s*s\d{1,2})?|\d{1,2}(?:st|nd|rd|th)\s+season)(?:\s+(?:part(?:ie)?|cour)\s*\d{1,2})?|batch)$"#, value) {
+            || Regex.test(#"^(?:(?:(?:seasons?|saisons?|temporadas?)\s*\d{1,2}(?:\s*[-~–]\s*\d{1,2})?|s\d{1,2}(?:\s*[-~–]\s*s\d{1,2})?|(?:\d{1,2}(?:st|nd|rd|th)|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+season)(?:\s+(?:part(?:ie)?|cour)\s*\d{1,2})?|batch)$"#, value) {
             return " \(value) "
         }
         if let span = Regex.first(#"^(\d{1,4})\s*[-~–]\s*(\d{1,4})$"#, in: value, options: []), let first = span.text(1), let last = span.text(2), !isYear(first) {
@@ -212,6 +212,35 @@ enum Releases {
         return out
     }
 
+    /// « S2 », « Season 2 », « 2nd Season », « Second Season ».
+    private static let seasonMarker = #"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada|staffel)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season|(second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+season)"#
+    private static let ordinalWords = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
+    private static func seasonOf(_ m: Regex.Match) -> Int? {
+        m.int(1) ?? m.int(2) ?? m.int(3) ?? m.text(4).flatMap { word in ordinalWords.firstIndex(of: word.lowercased()).map { $0 + 2 } }
+    }
+
+    /// « Overlord IV » gives (« Overlord », 4): a show's season numbered at its title's end; nil otherwise.
+    static func sequel(_ title: String) -> (title: String, season: Int)? {
+        guard let m = Regex.first(#"^(.+?)\s+(II|III|IV|V|VI|VII|VIII|IX|X)$"#, in: title.trimmingCharacters(in: .whitespaces), options: []),
+              let base = m.text(1), let roman = m.text(2), !titleKey(base).isEmpty else { return nil }
+        let digits: [Character: Int] = ["I": 1, "V": 5, "X": 10]
+        let values = roman.map { digits[$0] ?? 0 }
+        var total = 0
+        for (i, value) in values.enumerated() { total += i + 1 < values.count && values[i + 1] > value ? -value : value }
+        return (base.trimmingCharacters(in: .whitespaces), total)
+    }
+
+    /// The release as one of a show's (`keys`: `titleKey` of its names) reads, nil when it is another's: under its title or
+    /// the other name it gives, or numbered at its title's end as a season of it (« Overlord IV - 05 » of « Overlord »:
+    /// S04E05). Never « Lupin III » of a show « Lupin III ».
+    static func of(_ release: Release, keys: Set<String>) -> Release? {
+        if keys.contains(titleKey(release.title)) || release.alternate.map({ keys.contains(titleKey($0)) }) == true { return release }
+        guard release.absolute, let sequel = sequel(release.title), keys.contains(titleKey(sequel.title)) else { return nil }
+        var read = release
+        read.title = sequel.title; read.season = sequel.season; read.absolute = false
+        return read
+    }
+
     /// What a release name says.
     static func parse(_ name: String?) -> Release {
         var text = Regex.replace("[\u{0000}-\u{001f}\u{007f}-\u{009f}]", in: name ?? "", with: " ", options: []).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -267,7 +296,8 @@ enum Releases {
         // Season and episode.
         var season: Int?, episode: Int?, lastEpisode: Int?, half: Int?, absolute = false, pack = false, cut = plainLength
         func mark(_ index: Int) { if index >= 0, index < cut { cut = index } }
-        var found = Regex.first(#"(?<![a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?:-?e(\d{1,4})|-(\d{1,4})(?![0-9p]))?(?![0-9])"#, in: plain)
+        // « S01E01-E02 », « S01E01E02E03 » (the last one counts), « S01E01-02 »; never « S01E05-720p ».
+        var found = Regex.first(#"(?<![a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?:(?:-?e(\d{1,4}))+|-(\d{1,4})(?![0-9a-z]))?(?![0-9])"#, in: plain)
         if let m = found {
             season = m.int(1); episode = m.int(2); lastEpisode = m.int(3) ?? m.int(4); mark(m.start)
         }
@@ -275,6 +305,13 @@ enum Releases {
             found = m
             season = m.int(1); episode = m.int(2); mark(m.start)
         }
+        // « Saison 2 Episode 3 », « Season 1 - Episode 05 ».
+        if found == nil, let m = Regex.first(#"(?<![a-z0-9])(?:season|saison|temporada|staffel)\s*(\d{1,2})\s*[-,.]?\s*(?:episode|épisode|episodio|folge|ep\.?)\s*(\d{1,4})(?![0-9])"#, in: plain) {
+            found = m
+            season = m.int(1); episode = m.int(2); mark(m.start)
+        }
+        // « S01E05-E03 » says no second episode.
+        if let last = lastEpisode, let first = episode, last <= first { lastEpisode = nil }
         if episode == nil {
             // Fansub numbering: « Show - 05 », « Show - 01 ~ 12 » (a batch); never a year.
             let numbered = Regex.first(#"(?:^|\s)[-–]\s*(?:ep?\.?\s*|episode\s*|#)?(\d{1,4})(?:v\d)?(?:\s*[-~]\s*(\d{1,4})(?:v\d)?)?(?=\s|$)"#, in: plain)
@@ -284,11 +321,11 @@ enum Releases {
             // « Show Season 2 - 05 » is season 2, episode 5, never seasons 2 to 5: the dash is the episode's.
             if let r = range, let n = numbered ?? between, n.start > r.start, n.start < r.start + r.result.range.length,
                let words = r.text(0)?.lowercased(), !words.hasPrefix("seasons"), !words.hasPrefix("saisons") { range = nil }
-            let single = Regex.first(#"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season)"#, in: plain)
+            let single = Regex.first(seasonMarker, in: plain)
             if let range {
                 pack = true; mark(range.start)
             } else if let single {
-                season = single.int(1) ?? single.int(2) ?? single.int(3); pack = true; mark(single.start)
+                season = seasonOf(single); pack = true; mark(single.start)
             }
             if let between, let number = between.text(1), (group?.isEmpty == false) || season != nil || number.count <= 3 {
                 half = Int(number); mark(between.start)
@@ -306,8 +343,8 @@ enum Releases {
         // « Show Season 2 - S02E05 », « [Judas] Show (Season 4 Part 3) - S04E29-31 »: the season said again before its
         // episode ends the title too.
         if let season, let first = tokens.first,
-           let said = Regex.first(#"(?<![a-z0-9])(?:s(\d{1,2})(?![0-9a-z])|(?:season|saison|temporada)\s*(\d{1,2})(?![0-9])|(\d{1,2})(?:st|nd|rd|th)\s+season)"#, in: plain),
-           said.start > first.index, said.start < cut, (said.int(1) ?? said.int(2) ?? said.int(3)) == season { mark(said.start) }
+           let said = Regex.first(seasonMarker, in: plain),
+           said.start > first.index, said.start < cut, seasonOf(said) == season { mark(said.start) }
         for complete in Regex.all(#"(?<![a-z0-9])(?:complete(?:\s+series)?|int[ée]grale|batch)(?![a-z0-9])"#, in: plain) {
             // « A Complete Unknown », « Star Wars The Bad Batch S03E15 »: words of the title, not every episode.
             if let at = tokens.firstIndex(where: { $0.index == complete.start }), !(complete.text(0) ?? "").contains(" "), !endsTitle(tokens, at) { continue }

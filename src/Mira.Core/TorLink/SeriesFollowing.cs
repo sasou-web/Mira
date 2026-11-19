@@ -117,9 +117,8 @@ public static partial class SeriesFollowing
         {
             if (RemoteDownloads.InfoHash(found.Magnet) is not { } hash || !seen.Add(hash)) continue;
             var hit = new RelayHit(found.Id, found.Name, found.Size, found.Seeders, found.Leechers, found.Source, found.Added, category);
-            var release = ReleaseRanking.Parse(found.Name);
-            var titled = keys.Contains(ReleaseRanking.TitleKey(release.Title)) || release.Alternate is { } other && keys.Contains(ReleaseRanking.TitleKey(other));
-            if (!titled || release.Year is { } year && series.Year is { } born && Math.Abs(year - born) > 1) continue;
+            // « Overlord IV - 05 » of « Overlord »: its S04E05.
+            if (ReleaseRanking.Of(ReleaseRanking.Parse(found.Name), keys) is not { } release || release.Year is { } year && series.Year is { } born && Math.Abs(year - born) > 1) continue;
             matched = true;
             // Never « Season 02 », which a pack may give in parentheses.
             foreach (var name in new[] { release.Title, release.Alternate }.OfType<string>())

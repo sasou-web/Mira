@@ -126,9 +126,8 @@ enum MissingDownloads {
         var order = 0
         for (search, hit) in hits {
             guard seen.insert(hit.id.lowercased()).inserted else { continue }
-            let release = Releases.parse(hit.name)
-            let titled = keys.contains(Releases.titleKey(release.title)) || release.alternate.map { keys.contains(Releases.titleKey($0)) } == true
-            if !titled { continue }
+            // « Overlord IV - 05 » of « Overlord »: its S04E05.
+            guard let release = Releases.of(Releases.parse(hit.name), keys: keys) else { continue }
             if let year = release.year, let born = series.year, abs(year - born) > 1 { continue }
             if release.source == "cam" || Releases.reportsHealth(hit.source) && (hit.seeders ?? 0) <= 0 { continue }
             let option = Option(search: search, entry: Releases.Entry(hit: hit, release: release, order: order, score: Releases.score(hit, release, category: hit.category)))
