@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Core.TorLink;
 using Mira.Mac.Services;
@@ -57,6 +58,14 @@ public sealed partial class DetailPage : Page
     /// <summary>The file of the episode Lecture plays on a series: its picture shows in the page (« 1080p »).</summary>
     private (string Id, MediaSource? Source)? _targetFile;
     private bool _filling;
+    /// <summary>Jellyfin gave the series' episodes (none is an answer too: bonus alone); until then, « Chargement des épisodes… ».</summary>
+    private bool _episodesRead;
+    /// <summary>Why Jellyfin gave no episodes on the first try: said with « Réessayer » in their place.</summary>
+    private Exception? _episodesError;
+    /// <summary>The title's details read from Jellyfin, not just its card's: « Aucun résumé » can be said.</summary>
+    private bool _detailsRead;
+    /// <summary>« Identifier… » applied: the BlurHash of the new picture, under the former until it comes.</summary>
+    private bool _artChanged;
     /// <summary>An episode a search found: the series' page opens at its season, the episode set apart.</summary>
     private readonly MediaItem? _found;
     /// <summary>« Suivre une série »: known once the relay answered for an administrator; the series as it follows it, null when it does not.</summary>
@@ -141,9 +150,16 @@ public sealed partial class DetailPage : Page
         // The card's item already names its pictures (a bare series opened from an episode does not: then after its details).
         var named = _item.ImageTags.Count > 0 || _item.BackdropImageTags.Length > 0;
         if (BlurHash.Of(_item, Artwork.Backdrop(_item, ownPage: true)) is { } hash) _blur.Source = Cards.Blur(hash, 16 / 9d);
-        _logoPending = named && Shell.Session is not null && _item.ImageTags.ContainsKey("Logo");
+        // A bare item (a series whose details could not be read before its page opened) names no picture yet: its name
+        // waits for them too, rather than showing in text and giving way to its logo (audit 2026-11-19, M5).
+        _logoPending = Shell.Session is not null && (!named || _item.ImageTags.ContainsKey("Logo"));
         RenderTop();
         if (named && Shell.Session is { } session) _ = LoadArtAsync(session);
+        else if (_logoPending) _ = ShowTitleLaterAsync();
+        // As on Windows, the keyboard on Lecture: Return plays, Tab goes on from it (M9); its ring only after keys.
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (IsShowing && Shell.Current == this && Shell.Player is not { IsMini: false } && !IsKeyboardFocusWithin && _play is { IsEffectivelyVisible: true } play) play.Focus(Shell.KeysLast ? Avalonia.Input.NavigationMethod.Tab : Avalonia.Input.NavigationMethod.Unspecified); }, Avalonia.Threading.DispatcherPriority.Loaded);
+        // A series: « Chargement des épisodes… » under its picture until Jellyfin gives them, as on Windows (M4).
+        if (_item.Type == "Series") _body.Children.Add(EpisodeSection());
         await RefreshAsync();
     }
     public override async Task RefreshAsync()
@@ -151,20 +167,44 @@ public sealed partial class DetailPage : Page
         if (Shell.Session is not { } session) return;
         session.Forget();
         var started = DateTimeOffset.UtcNow;
-        var full = await session.ItemAsync(_item.Id);
+        MediaItem full;
+        try { full = await session.ItemAsync(_item.Id); }
+        catch (Exception ex) when (Errors.Expected(ex) && _item.Type == "Series" && !_episodesRead)
+        {
+            // Never read: « Réessayer » in place of the episodes, the window saying why (offline, refused…).
+            _episodesError = ex; RenderEpisodes();
+            throw;
+        }
         Shell.Reached(started);
         await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress([full])));
-        _item = full;
-        if (!_artStarted) _ = LoadArtAsync(session);
+        _item = full; _detailsRead = true;
+        if (!_artStarted)
+        {
+            // Its BlurHash under the picture from its details when the card had none (a bare series, a title identified again).
+            if (BlurHash.Of(_item, Artwork.Backdrop(_item, ownPage: true)) is { } hash && (_blur.Source is null || _artChanged)) _blur.Source = Cards.Blur(hash, 16 / 9d);
+            _artChanged = false;
+            _logoPending = _logoPending && _item.ImageTags.ContainsKey("Logo");
+            _ = LoadArtAsync(session);
+        }
         // Its details name a logo the card did not.
         else if (_logo is null && !_logoPending && _item.ImageTags.ContainsKey("Logo")) _ = LoadLogoAsync(session);
         if (_item.Type == "Series")
         {
-            var episodes = await session.EpisodesAsync(_item.Id);
-            _next = await session.NextEpisodeAsync(_item.Id);
-            await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(episodes.Items)));
-            _allEpisodes = episodes.Items;
-            if (_next is not null) _next = _allEpisodes.FirstOrDefault(x => x.Id == _next.Id) ?? _next;
+            try
+            {
+                var episodes = await session.EpisodesAsync(_item.Id);
+                var next = await session.NextEpisodeAsync(_item.Id);
+                await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(episodes.Items)));
+                _allEpisodes = episodes.Items; _next = next; _episodesRead = true; _episodesError = null;
+                if (_next is not null) _next = _allEpisodes.FirstOrDefault(x => x.Id == _next.Id) ?? _next;
+            }
+            // Jellyfin refused them, or did not answer: as on Windows, why and « Réessayer » in their place, the rest of the
+            // page complete (M4: an empty page under the picture). Read before: the page keeps them as they were.
+            catch (Exception ex) when (Errors.Expected(ex))
+            {
+                if (!_episodesRead) _episodesError = ex;
+                Shell.Unreached(ex);
+            }
         }
         RenderTop(); RenderBody(session);
         _ = LoadSizeAsync(session);
@@ -221,30 +261,30 @@ public sealed partial class DetailPage : Page
     private void ShowWatched(bool on) => ShowState(_watched!, "watched", on, WatchedLabel(on), WatchedTip(on));
     // Favori and Vu change at the click, before Jellyfin answers (their glyph alone: the page does not move); a refusal
     // puts them back.
-    private bool _favoriteBusy, _watchedBusy;
+    // What a click asked while Jellyfin has not answered: a page drawn again meanwhile (the other button's answer reads the
+    // title again) shows it, not the state Jellyfin had before (M7: Favori then Vu quickly, Vu's glyph went back and forth).
+    private bool? _favoriteWant, _watchedWant;
     private async Task FlipFavoriteAsync()
     {
-        if (_favoriteBusy) return; _favoriteBusy = true;
+        if (_favoriteWant is not null) return;
         var item = _item; var want = !item.UserData.IsFavorite;
         try
         {
-            _settled = true; ShowFavorite(want);
+            _settled = true; _favoriteWant = want; ShowFavorite(want);
             await Shell.SetFavoriteAsync(item, want);
-            if (item.UserData.IsFavorite != want && ReferenceEquals(item, _item)) RenderTop();
         }
-        finally { _favoriteBusy = false; }
+        finally { _favoriteWant = null; if (_item.Id == item.Id) ShowFavorite(_item.UserData.IsFavorite); }
     }
     private async Task FlipWatchedAsync()
     {
-        if (_watchedBusy) return; _watchedBusy = true;
+        if (_watchedWant is not null) return;
         var item = _item; var want = !item.UserData.Played;
         try
         {
-            _settled = true; ShowWatched(want);
+            _settled = true; _watchedWant = want; ShowWatched(want);
             await Shell.SetPlayedAsync(item, want);
-            if (item.UserData.Played != want && ReferenceEquals(item, _item)) RenderTop();
         }
-        finally { _watchedBusy = false; }
+        finally { _watchedWant = null; if (_item.Id == item.Id) ShowWatched(_item.UserData.Played); }
     }
     /// <summary>
     /// The room the title takes on the server (TitleStorage), in the line of facts once Jellyfin answered: never waited
@@ -317,9 +357,10 @@ public sealed partial class DetailPage : Page
     {
         var logo = await session.Images.LogoAsync(_item);
         _logoPending = false;
-        if (logo is null) { _title.Opacity = 1; return; }
+        // After « Identifier… » the former logo stays until this one is known (M10): never the name in between.
+        if (logo is null && _logo is null) { _title.Opacity = 1; return; }
         _logo = logo;
-        var index = _top.Children.IndexOf(_title);
+        var index = _titleShown is null ? -1 : _top.Children.IndexOf(_titleShown);
         if (index >= 0) _top.Children[index] = Title();
     }
     private async Task ShowTitleLaterAsync()
@@ -330,7 +371,10 @@ public sealed partial class DetailPage : Page
     }
     /// <summary>Its name in large type, the page's heading; its logo instead once Jellyfin gave one.</summary>
     private TextBlock _title = new();
-    private Control Title()
+    /// <summary>What stands for the title in the page now: its logo or its name.</summary>
+    private Control? _titleShown;
+    private Control Title() => _titleShown = MakeTitle();
+    private Control MakeTitle()
     {
         if (_logo is { } logo)
         {
@@ -393,8 +437,10 @@ public sealed partial class DetailPage : Page
         if (MediaQuality.EndsAt(played, DateTime.Now, played is not null && Resumes(played), named: _item.Type == "Series") is { } end) meta.Add(end);
         Add(new TextBlock { Text = string.Join("  ·  ", meta), FontSize = 14.5, Foreground = Ui.Brush("#C7C7C7"), Margin = new Thickness(1, 16, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         // The summary on three lines over the picture, « Lire la suite » for the rest.
-        var summary = OverviewText.Plain(string.IsNullOrWhiteSpace(_item.Overview) ? L("Aucun résumé disponible pour ce titre.", "No summary available for this title.") : _item.Overview);
-        var overview = new TextBlock { Text = summary, FontSize = 15, LineHeight = 24, Foreground = Ui.Brush("#C7C7C7"), TextWrapping = TextWrapping.Wrap, MaxWidth = 660, HorizontalAlignment = HorizontalAlignment.Left, MaxLines = _overviewOpen ? 0 : 3, TextTrimming = TextTrimming.WordEllipsis, Margin = new Thickness(1, 16, 0, 0) };
+        // « Aucun résumé » only once its details said so: a bare item has none yet (M5); its line kept, unseen, meanwhile.
+        var none = string.IsNullOrWhiteSpace(_item.Overview);
+        var summary = OverviewText.Plain(none ? L("Aucun résumé disponible pour ce titre.", "No summary available for this title.") : _item.Overview);
+        var overview = new TextBlock { Text = summary, Opacity = none && !_detailsRead ? 0 : 1, FontSize = 15, LineHeight = 24, Foreground = Ui.Brush("#C7C7C7"), TextWrapping = TextWrapping.Wrap, MaxWidth = 660, HorizontalAlignment = HorizontalAlignment.Left, MaxLines = _overviewOpen ? 0 : 3, TextTrimming = TextTrimming.WordEllipsis, Margin = new Thickness(1, 16, 0, 0) };
         Add(overview);
         // Three lines of the summary's width hold about 300 characters: a longer one gets « Lire la suite ».
         if (summary.Length > 260)
@@ -522,7 +568,7 @@ public sealed partial class DetailPage : Page
         ToolTip.SetTip(together, togetherTip);
         Avalonia.Automation.AutomationProperties.SetName(together, group is null ? togetherLabel : togetherTip);
         Avalonia.Automation.AutomationProperties.SetHelpText(together, group is null ? togetherTip : null);
-        ShowFavorite(_item.UserData.IsFavorite); ShowWatched(_item.UserData.Played);
+        ShowFavorite(_favoriteWant ?? _item.UserData.IsFavorite); ShowWatched(_watchedWant ?? _item.UserData.Played);
         var follow = _followButton!;
         follow.IsVisible = _followKnown;
         if (_followKnown)
@@ -721,7 +767,8 @@ public sealed partial class DetailPage : Page
             var sheet = new IdentifySheet(session, _item);
             await sheet.ShowAsync(Shell);
             if (sheet.Said is { } said) Shell.Notice(said);
-            if (sheet.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; _blur.Source = null; _logo = null; _artStarted = false; await RefreshAsync(); }
+            // The picture and the logo it had stay until the new ones come, each in place (M10: black, then the name, then the logo).
+            if (sheet.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _artStarted = false; _artChanged = true; _logoPending = false; await RefreshAsync(); }
         }
         async Task RefreshMetadataAsync()
         {
@@ -792,10 +839,15 @@ public sealed partial class DetailPage : Page
     private int _castCount;
     private void RenderBody(Session session)
     {
-        _body.Children.Clear();
+        foreach (var drawn in _body.Children.Where(x => !_rows.Contains(x)).ToList()) _body.Children.Remove(drawn);
+        var at = 0;
+        void Add(Control control) => _body.Children.Insert(at++, control);
+        // Episodes, facts and cast drawn again; the rows after them (saga, studio, bonus, similar) stay as they were until
+        // LoadSimilarAsync brings others: taken away meanwhile, the page lost its height and its scroll went up with it
+        // (M1, M2: back on a title, a click on Favori, the player closed, the refresh every 45 s).
         // A series' episodes first, right under its buttons; then the facts, two by two, and the cast in one row of
         // smaller photos, as on Windows (under the buttons, the cast stood in the way of the episodes).
-        if (_item.Type == "Series") _body.Children.Add(EpisodeSection());
+        if (_item.Type == "Series") Add(EpisodeSection());
         var left = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 40, 0) };
         var right = new StackPanel { Spacing = 10 }; Grid.SetColumn(right, 1);
         // Each genre: Films or Séries (as the title is) filtered on it, as in Mira web.
@@ -810,7 +862,7 @@ public sealed partial class DetailPage : Page
         {
             var facts = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
             facts.Children.Add(left); facts.Children.Add(right);
-            _body.Children.Add(facts);
+            Add(facts);
         }
         _cast = null; _castCount = 0;
         if (_item.CastPeople.Length > 0)
@@ -827,9 +879,12 @@ public sealed partial class DetailPage : Page
             }
             _castCount = cards.Count;
             _cast = new CardRow(L("Distribution", "Cast"), cards, sidePadding: 0, people: true);
-            _body.Children.Add(_cast);
+            Add(_cast);
         }
     }
+    /// <summary>The rows under the cast (saga, studio, bonus, similar), and what they showed, to keep them when nothing changed.</summary>
+    private readonly List<Control> _rows = [];
+    private string _rowsShown = "";
     /// <summary>« GENRES   Aventure · Animation »: a small label in its column, the names beside it.</summary>
     private static Control Fact(string title, Control content)
     {
@@ -886,7 +941,8 @@ public sealed partial class DetailPage : Page
     {
         var previous = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage; var extras = ExtrasShown;
         var own = EpisodePages.From(_allEpisodes);
-        var pages = EpisodeShelf.Pages(own, _allEpisodes, ShelfVirtuals, EpisodeCalendar.Today(), Shell.Settings.ShowMissingEpisodes);
+        // Before the episodes, no season: TheTVDB's alone would show pills over « Chargement des épisodes… ».
+        IReadOnlyList<EpisodePage> pages = _episodesRead ? EpisodeShelf.Pages(own, _allEpisodes, ShelfVirtuals, EpisodeCalendar.Today(), Shell.Settings.ShowMissingEpisodes) : [];
         _filling = true;
         _seasons.Items.Clear();
         foreach (var page in pages) _seasons.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
@@ -910,6 +966,7 @@ public sealed partial class DetailPage : Page
         _episodes.Children.Clear(); _tiles.Clear(); _tileGrid = null; _episodeMeta.Clear();
         _missingViews.RemoveAll(x => !x.Pill);
         if (Shell.Session is not { } session) return;
+        if (!_episodesRead) { DrawEpisodesComing(); return; }
         if (ExtrasShown) { UpdatePills(ExtrasPage); DrawExtras(session); return; }
         var page = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         UpdatePills(page);
@@ -945,6 +1002,36 @@ public sealed partial class DetailPage : Page
         _episodes.Children.Add(grid);
         LayoutTiles();
     }
+    /// <summary>
+    /// Before Jellyfin gave the episodes, as on Windows: « Chargement des épisodes… »; refused or out of reach, why, and
+    /// « Réessayer » (M4: nothing under the picture, nothing to do).
+    /// </summary>
+    private void DrawEpisodesComing()
+    {
+        _episodeHeading.Text = L("Épisodes", "Episodes"); _seasonMark.IsVisible = false;
+        if (_episodesError is not { } error)
+        {
+            _episodes.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Ui.Muted, Margin = new Thickness(0, 8, 0, 8) });
+            return;
+        }
+        _episodes.Children.Add(new TextBlock { Text = Errors.Friendly(error), Foreground = Ui.Danger, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+        var retry = new Button { Content = L("Réessayer", "Try again"), Classes = { "quiet" }, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+        retry.Click += (_, _) => _ = RetryEpisodesAsync();
+        _episodes.Children.Add(retry);
+    }
+    private async Task RetryEpisodesAsync()
+    {
+        _episodesError = null; RenderEpisodes();
+        try { await RefreshAsync(); }
+        catch (Exception ex) when (Errors.Expected(ex)) { if (!Shell.Unreached(ex)) Shell.Say(ex); }
+    }
+    /// <summary>For the self-check: the page's scroll, and the cards of the rows under the cast (saga, studio, similar).</summary>
+    public ScrollViewer Scroll => (ScrollViewer)Content!;
+    public IReadOnlyList<Button> RowCards => _rows.SelectMany(x => x.GetVisualDescendants()).OfType<Button>().Where(x => x.Classes.Contains("card")).ToList();
+    public int RowsShown => _rows.Count(x => x.Parent == _body);
+    /// <summary>For the self-check: « Réessayer » in place of the episodes Jellyfin refused.</summary>
+    public bool EpisodesRetryShown => _episodes.Children.OfType<Button>().Any(x => x.Content as string == L("Réessayer", "Try again"));
+    public void RetryEpisodesForCheck() => _ = RetryEpisodesAsync();
     private async Task LoadCalendarAsync(Session session)
     {
         List<MediaItem> found;
@@ -1247,11 +1334,20 @@ public sealed partial class DetailPage : Page
         if (saga is null && studio is null && extras.Count == 0 && similar.Count == 0) return;
         try { await Task.Run(() => { if (saga is not null) session.Store.ApplyLocalProgress(saga.Items); if (studio is { } found) session.Store.ApplyLocalProgress(found.Items); session.Store.ApplyLocalProgress(similar); }); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
-        foreach (var old in _body.Children.OfType<CardRow>().Where(x => x != _cast).ToList()) _body.Children.Remove(old);
+        // The same titles in the same state (a refresh): the rows stay as they are, cards and pictures, the scroll with them.
+        static string Said(IEnumerable<MediaItem> items) => string.Join(",", items.Select(x => $"{x.Id}:{x.UserData.Played}:{x.UserData.IsFavorite}:{x.UserData.PlaybackPositionTicks}"));
+        var shown = string.Join("|", saga?.Name, Said(saga?.Items ?? []), studio?.Studio.Name, Said(studio?.Items ?? []), Said(extras), Said(similar));
+        if (shown == _rowsShown && _rows.All(x => x.Parent == _body)) return;
         CardRow Row(string title, List<MediaItem> items) => new(title, items.Select(x => { var card = Cards.Poster(x, session.Images, Shell.Open, Shell.Menu); card.Width = 168; return (Control)card; }), sidePadding: 0);
-        if (saga is not null) _body.Children.Add(Row(saga.Name, saga.Items));
-        if (studio is { } titles) _body.Children.Add(Row(L($"Du même studio · {titles.Studio.Name}", $"More from {titles.Studio.Name}"), titles.Items));
-        if (extras.Count > 0) _body.Children.Add(new CardRow(L("Bonus", "Extras"), extras.Select(x => (Control)Cards.Wide(x, session.Images, extra => _ = Shell.PlayAsync(extra))), sidePadding: 0));
-        if (similar.Count > 0) _body.Children.Add(Row(L("Titres similaires", "More like this"), similar));
+        var rows = new List<Control>();
+        if (saga is not null) rows.Add(Row(saga.Name, saga.Items));
+        if (studio is { } titles) rows.Add(Row(L($"Du même studio · {titles.Studio.Name}", $"More from {titles.Studio.Name}"), titles.Items));
+        if (extras.Count > 0) rows.Add(new CardRow(L("Bonus", "Extras"), extras.Select(x => (Control)Cards.Wide(x, session.Images, extra => _ = Shell.PlayAsync(extra))), sidePadding: 0));
+        if (similar.Count > 0) rows.Add(Row(L("Titres similaires", "More like this"), similar));
+        // The new rows put in before the old ones go: the page never gets shorter in between.
+        var at = _rows.FirstOrDefault(x => x.Parent == _body) is { } first ? _body.Children.IndexOf(first) : _body.Children.Count;
+        _body.Children.InsertRange(at, rows);
+        foreach (var old in _rows) _body.Children.Remove(old);
+        _rows.Clear(); _rows.AddRange(rows); _rowsShown = shown;
     }
 }

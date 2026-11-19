@@ -219,10 +219,12 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "Items/Filters2") return Json(new { Genres = new[] { new { Name = "Aventure" }, new { Name = "Animation" }, new { Name = "Comédie" } } });
         if (path == "UserViews") return Items(new object[] { new { Id = "view-movies", Name = "Films", CollectionType = "movies" }, new { Id = "view-series", Name = "Séries", CollectionType = "tvshows" } });
         if (path == "Years") return Items(new object[] { new { Id = "y1", Name = "2025" }, new { Id = "y2", Name = "2024" } });
+        if (path.StartsWith("Shows/") && path.EndsWith("/Episodes") && RefuseEpisodes) return new HttpResponseMessage(HttpStatusCode.InternalServerError);
         if (path.StartsWith("Shows/") && path.EndsWith("/Episodes")) return Items(_episodes.GetValueOrDefault(path.Split('/')[1]) ?? []);
         // Items/{id}/LocalTrailers of Jellyfin 12.1: the trailer of « Ciel ouvert », a short video of its own.
         if (path.EndsWith("/LocalTrailers"))
             return Json(path.Split('/')[1] == "movie-3" ? new object[] { new { Id = "trailer-3", Name = "Bande-annonce", Type = "Trailer", ExtraType = "Trailer", MediaType = "Video", RunTimeTicks = 6 * TimeSpan.TicksPerSecond, UserData = new { PlaybackPositionTicks = 0L, Played = false } } } : Array.Empty<object>());
+        if (path.EndsWith("/Similar")) await Task.Delay(SlowSimilar, cancellationToken);
         if (path.EndsWith("/Similar")) return Items(_movies.Where(x => !path.Contains(Id(x))));
         if (path.EndsWith("/PlaybackInfo"))
         {
@@ -302,6 +304,10 @@ public sealed class MockJellyfin : HttpMessageHandler
     private static bool Short(string id) => id.StartsWith("series") || id.StartsWith("trailer") || id.StartsWith("parts");
     /// <summary>The time the library's lists and pictures take: the cards' shapes and soft placeholders while they come.</summary>
     public TimeSpan Slow { get; set; }
+    /// <summary>The time the similar titles take: the rows under a title's page while the page is read again.</summary>
+    public TimeSpan SlowSimilar { get; set; }
+    /// <summary>A series' episodes refused (500) while true: « Réessayer » in their place.</summary>
+    public bool RefuseEpisodes { get; set; }
     /// <summary>The name of the collection « Ajouter à une collection » made.</summary>
     public string? CollectionMade { get; private set; }
     /// <summary>No stream for any title while true: the player's « Lecture impossible ».</summary>

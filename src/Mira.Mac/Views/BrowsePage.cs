@@ -480,7 +480,8 @@ public sealed class BrowsePage : Page
         if (Shell.Session is not { } session) return;
         ShowTools();
         var search = _search.Text?.Trim() ?? "";
-        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowStudios([]); ShowFound([], []); _count.Text = ""; _empty.Show("search", L("Que veux-tu regarder ?", "What do you want to watch?"), L("Cherche un film, une série, un épisode, une saga, un acteur ou un studio de ta bibliothèque.", "Find a movie, show, episode, collection, actor or studio in your library.")); return; }
+        // The search cleared while its answer comes: that answer is dropped, never shown under an empty field (M3).
+        if (_kind == BrowseKind.Search && search.Length == 0) { _request?.Cancel(); ++_version; _loading = false; _grid.Skeleton(0); _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowStudios([]); ShowFound([], []); _count.Text = ""; _empty.Show("search", L("Que veux-tu regarder ?", "What do you want to watch?"), L("Cherche un film, une série, un épisode, une saga, un acteur ou un studio de ta bibliothèque.", "Find a movie, show, episode, collection, actor or studio in your library.")); return; }
         _request?.Cancel(); _request = new CancellationTokenSource();
         var ct = _request.Token; var version = ++_version;
         _loading = true;

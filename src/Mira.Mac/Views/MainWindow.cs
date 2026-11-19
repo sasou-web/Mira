@@ -35,6 +35,8 @@ public abstract class Page : UserControl
     /// keeps Films lit, never a rail with nothing lit.
     /// </summary>
     public virtual string Lit => Rail.Length > 0 ? Rail : CameFrom;
+    /// <summary>What had the keyboard when the page was left for another: Back gives it back (<see cref="MainWindow.Back"/>).</summary>
+    internal Control? LeftFocus { get; set; }
     /// <summary>The rail entry lit when this page was first shown (<see cref="MainWindow.NavigateAsync"/>).</summary>
     internal string CameFrom { get; set; } = "";
     /// <summary>Fills the page; called once, when it first shows.</summary>
@@ -223,6 +225,10 @@ public sealed partial class MainWindow : Window
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
         // double click) left the pointer captured by what remained: every turn of the wheel went there, never to the page.
         AddHandler(PointerMovedEvent, (_, e) => Unstick(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        // Which of the keyboard or the pointer was used last: Back gives the keyboard back to the card it left from only
+        // after keys, as on Windows (Enter would open it again).
+        AddHandler(KeyDownEvent, (_, _) => KeysLast = true, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerPressedEvent, (_, _) => KeysLast = false, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerWheelChangedEvent, OnWheel, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         MenuBase.ClosedEvent.AddClassHandler<MenuBase>((_, _) => Dispatcher.UIThread.Post(ReleasePointer));
         Closing += OnClosing;
@@ -772,8 +778,9 @@ public sealed partial class MainWindow : Window
         Current = page;
         if (left is not null && left != page)
         {
-            // Never the keyboard's focus in a page put away: what is typed would go to a field nobody sees.
-            if (left.IsKeyboardFocusWithin) FocusManager?.ClearFocus();
+            // Never the keyboard's focus in a page put away: what is typed would go to a field nobody sees. Where it was is
+            // kept for Back (M9).
+            if (left.IsKeyboardFocusWithin) { left.LeftFocus = FocusManager?.GetFocusedElement() as Control; FocusManager?.ClearFocus(); }
             left.IsVisible = false;
         }
         if (page is not null) page.IsVisible = true;
@@ -823,6 +830,9 @@ public sealed partial class MainWindow : Window
         if (Current is { } current) _forward.Add(current);
         Host(previous); Light(previous.Lit);
         _ = RefreshPageAsync(previous, say: false);
+        // After keys, the card the page was left from has the keyboard again, as on Windows (M9).
+        if (KeysLast && previous.LeftFocus is { } was)
+            Dispatcher.UIThread.Post(() => { if (Current == previous && previous.IsVisualAncestorOf(was) && was.IsEffectivelyVisible && FocusManager?.GetFocusedElement() is null) was.Focus(NavigationMethod.Tab); }, DispatcherPriority.Loaded);
         return true;
     }
     /// <summary>The rail's group button: shown with its count while this Mac is in a group, what it says in its tooltip.</summary>
@@ -843,7 +853,7 @@ public sealed partial class MainWindow : Window
         if (Group.Queue is { } queue && Player?.Item?.Id != queue.ItemId)
         {
             try { title = await session.Client.ItemAsync(queue.ItemId, session.Lifetime).WaitAsync(TimeSpan.FromSeconds(3)); }
-            catch (Exception ex) when (ex is TimeoutException || Errors.Expected(ex)) { }
+            catch (Exception ex) when (Errors.Expected(ex)) { }
         }
         if (!Group.Active || Group.Group is not { } group || !ReferenceEquals(session, Session)) return;
         var menu = new ContextMenu();
@@ -863,9 +873,31 @@ public sealed partial class MainWindow : Window
     {
         // A collection plays nothing by itself: its page (« L'étagère »), its titles in their watch order.
         if (item.Type == "BoxSet") { _ = NavigateAsync(new ShelfPage(this, item)); return; }
+        var opening = ++_opens;
         // An episode opens its series' page, at its season.
-        if (item.Type == "Episode" && item.SeriesId is not null) { _ = NavigateAsync(new DetailPage(this, new MediaItem { Id = item.SeriesId, Name = item.SeriesName ?? item.Name, Type = "Series" }, item)); return; }
+        if (item.Type == "Episode" && item.SeriesId is { } seriesId) { _ = OpenSeriesAsync(item, seriesId, opening); return; }
         _ = NavigateAsync(new DetailPage(this, item));
+    }
+    private int _opens;
+    /// <summary>The keyboard used last, not the pointer: a page's first control gets a focus ring it can see.</summary>
+    public bool KeysLast { get; private set; }
+    /// <summary>
+    /// The series of an episode read before its page opens, as on Windows (PageItemAsync): its picture, logo and summary
+    /// from the first frame, never black with its name in text and « No summary available » (audit 2026-11-19, M5). Not
+    /// answered within a moment, the page opens bare and reads them itself.
+    /// </summary>
+    private async Task OpenSeriesAsync(MediaItem episode, string seriesId, int opening)
+    {
+        var series = new MediaItem { Id = seriesId, Name = episode.SeriesName ?? episode.Name, Type = "Series" };
+        if (Session is { } session)
+        {
+            try { series = await session.ItemAsync(seriesId).WaitAsync(TimeSpan.FromSeconds(1.5)); }
+            catch (Exception ex) when (Errors.Expected(ex)) { }
+            if (!ReferenceEquals(session, Session)) return;
+        }
+        // Another title chosen meanwhile: that one opens, not this one after it.
+        if (opening != _opens) return;
+        await NavigateAsync(new DetailPage(this, series, episode));
     }
     /// <summary>A person's titles: <paramref name="director"/> says what they did, null when it is not known (found by a search).</summary>
     public void OpenPerson(PersonInfo person, bool? director) => _ = NavigateAsync(new BrowsePage(this, BrowseKind.All, person, director));

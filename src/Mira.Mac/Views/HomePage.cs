@@ -140,13 +140,16 @@ public sealed class HomePage : Page
     }
 
     public override Task LoadAsync() => RefreshAsync();
+    private int _refreshes;
     public override async Task RefreshAsync()
     {
         if (Shell.Session is not { } session) return;
+        // Only the last refresh asked draws the page: one before it that Jellyfin answers later never puts back older rows (M8).
+        var version = ++_refreshes;
         _ = LoadGroupsAsync(session);
         var store = session.Store;
         // The last known home first, so the page never opens empty; then Jellyfin's answer.
-        if (_heroItems.Count == 0 && await Task.Run(() => Errors.TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume")))) is ({ } cachedHome, var cachedResume))
+        if (_heroItems.Count == 0 && await Task.Run(() => Errors.TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume")))) is ({ } cachedHome, var cachedResume) && version == _refreshes)
             Render(session, cachedResume ?? [], cachedHome.Items, [], [], []);
         var client = session.Client; var started = DateTimeOffset.UtcNow;
         var resume = client.ResumeAsync(); var next = client.NextUpAsync();
@@ -185,6 +188,7 @@ public sealed class HomePage : Page
             });
             return (merged, ContinueWatching.History(history.Concat(played.Result ?? [])), Errors.TryCache(store.HiddenFromResume) ?? []);
         });
+        if (version != _refreshes || !ReferenceEquals(session, Shell.Session)) return;
         var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(merged, next.Result.Items, history), hidden, history);
         _latestTotal = latest.Result.TotalRecordCount;
         Render(session, row, latest.Result.Items, favorites.Result.Items, views, shelves);
@@ -199,6 +203,8 @@ public sealed class HomePage : Page
     /// the last known home) keeps them as they are, cards and pictures, instead of drawing the page again whole.
     /// </summary>
     private Dictionary<string, Control> _drawn = [];
+    /// <summary>A card of « Continuer à regarder » picks up its title where it stopped, as on Windows (M6: its page opened instead).</summary>
+    private void Resume(MediaItem item) => _ = Shell.PlayAsync(item);
     private void Render(Session session, List<MediaItem> resume, List<MediaItem> latest, List<MediaItem> favorites, List<LibrarySection> libraries, Dictionary<string, List<MediaItem>> shelves)
     {
         Continue = resume; Latest = latest;
@@ -222,7 +228,7 @@ public sealed class HomePage : Page
             // « Ajoutés récemment » is the grid under the rows, as on Windows: it goes on with « Afficher plus ».
             if (items.Count == 0 || row.Key == HomeLayout.Latest) continue;
             Add(row.Key + "|" + row.Title + "|" + string.Join('\n', items.Select(Cards.Key)),
-                () => new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, x => Shell.Menu(x, resume: true))) : items.Select(Poster)));
+                () => new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Resume, 320, x => Shell.Menu(x, resume: true))) : items.Select(Poster)));
         }
         if (latest.Count > 0 && HomeLayout.Rows(Shell.Settings.HomeRows, libraries).Any(x => x.Key == HomeLayout.Latest && x.Shown))
             Add("latest|" + string.Join('\n', latest.Select(Cards.Key)), () => LatestGrid(session, latest));
