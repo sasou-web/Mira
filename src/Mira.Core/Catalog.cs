@@ -138,7 +138,7 @@ public sealed class Catalog
     public void Receive(ItemsResult result, bool more, string search = "")
     {
         var (fetched, absorbed) = more ? (Fetched, Absorbed) : (0, 0);
-        var page = result.Items;
+        var page = WithoutTrashed(result.Items);
         if (Groups(search) && Grouping.Shelves.Count > 0)
         {
             var placed = (more ? Items : []).Where(x => x.Shelf is not null).Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -148,7 +148,7 @@ public sealed class Catalog
         }
         if (more) _items.AddRange(page.Where(x => _items.All(old => old.Id != x.Id))); else _items = page;
         (Fetched, Absorbed) = (fetched + result.Items.Count, absorbed);
-        TotalCount = result.TotalRecordCount; Silent = false;
+        TotalCount = result.TotalRecordCount - (result.Items.Count - WithoutTrashed(result.Items).Count); Silent = false;
     }
     /// <summary>« Continuer à regarder »: Jellyfin's resume and next-up rows with what this PC played, without what was taken out.</summary>
     /// <summary>
@@ -166,7 +166,20 @@ public sealed class Catalog
         item.Type == "Episode" ? $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00}" : item.ProductionYear?.ToString() ?? "",
         item.Type == "Episode" ? item.Name : item.DurationLabel, MediaQuality.Left(item) ?? ""
     }.Where(x => x.Length > 0));
-    public List<MediaItem> ContinueRow() => ContinueWatching.WithoutHidden(ContinueWatching.Order(Resume, NextUp, RecentPlayback), HiddenResume, RecentPlayback);
+    public List<MediaItem> ContinueRow() => WithoutTrashed(ContinueWatching.WithoutHidden(ContinueWatching.Order(Resume, NextUp, RecentPlayback), HiddenResume, RecentPlayback));
+
+    /// <summary>How long a title sent to the Recycle Bin from Mira stays out of Jellyfin's answers (its scan takes it out for good).</summary>
+    public static readonly TimeSpan TrashedFor = TimeSpan.FromMinutes(15);
+    private readonly Dictionary<string, DateTimeOffset> _trashed = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The list without the titles (and their episodes) sent to the Recycle Bin a moment ago.</summary>
+    public List<MediaItem> WithoutTrashed(List<MediaItem> items, DateTimeOffset? now = null)
+    {
+        if (_trashed.Count == 0) return items;
+        var at = now ?? DateTimeOffset.UtcNow;
+        foreach (var gone in _trashed.Where(x => x.Value <= at).Select(x => x.Key).ToList()) _trashed.Remove(gone);
+        return _trashed.Count == 0 ? items : items.Where(x => !_trashed.ContainsKey(x.Id) && (x.SeriesId is null || !_trashed.ContainsKey(x.SeriesId))).ToList();
+    }
     /// <summary>
     /// The titles of the banner: those of the row, then the latest, one per series, five at most. A title taken out of
     /// the row does not come back in the banner either.
@@ -197,8 +210,10 @@ public sealed class Catalog
         if (item.Type == "Series") foreach (var episode in episodes.Concat(Resume).Where(x => x.SeriesId == item.Id)) { episode.UserData.Played = played; episode.UserData.PlaybackPositionTicks = 0; }
     }
     /// <summary>A film or series gone from Jellyfin (sent to the Recycle Bin from Mira): out of every list, its episodes with it.</summary>
-    public void Forget(string id)
+    public void Forget(string id, DateTimeOffset? now = null)
     {
+        // Jellyfin lists a title sent to its Recycle Bin until its next scan: kept out of what it sends meanwhile.
+        _trashed[id] = (now ?? DateTimeOffset.UtcNow) + TrashedFor;
         bool Of(MediaItem x) => x.Id == id || x.SeriesId == id;
         // Out of Jellyfin's list too: the next page starts one place earlier, or a title would be skipped.
         var removed = Items.RemoveAll(Of); TotalCount -= removed; Fetched = Math.Max(0, Fetched - removed);

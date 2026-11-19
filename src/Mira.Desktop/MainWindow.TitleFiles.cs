@@ -281,6 +281,8 @@ public partial class MainWindow
     /// </summary>
     private async Task Forget(MediaItem item, IReadOnlySet<string>? episodes)
     {
+        // Out of what this PC remembers playing too: « Continuer à regarder » would bring it back after Jellyfin's scan.
+        if (_store is { } store) { var ids = episodes?.ToList() ?? [item.Id]; _ = Task.Run(() => TryCache(() => { foreach (var id in ids) store.ForgetProgress(id); })); }
         if (episodes is null)
         {
             _catalog.Forget(item.Id); RenderLibrary();

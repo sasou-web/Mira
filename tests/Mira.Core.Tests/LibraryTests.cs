@@ -2257,6 +2257,11 @@ internal static class LibraryTests
             var catalog = new Catalog { Items = [new() { Id = "s" }, new() { Id = "m" }], TotalCount = 2, Resume = [new() { Id = "e", SeriesId = "s" }], NextUp = [new() { Id = "e2", SeriesId = "s" }], Shelves = new() { ["new"] = [new() { Id = "s" }, new() { Id = "m" }] } };
             catalog.Forget("s");
             Assert(catalog.Items.Single().Id == "m" && catalog.TotalCount == 1 && catalog.Resume.Count == 0 && catalog.NextUp.Count == 0 && catalog.Shelves["new"].Single().Id == "m", "Forgotten everywhere, its episodes with it");
+            // Jellyfin still lists it until its scan: its answers meanwhile do not bring it back, for a while only.
+            catalog.Receive(new ItemsResult { Items = [new() { Id = "s" }, new() { Id = "e3", SeriesId = "s" }, new() { Id = "m" }], TotalRecordCount = 3 }, false);
+            catalog.Resume = [new() { Id = "e", SeriesId = "s" }];
+            Assert(catalog.Items.Single().Id == "m" && catalog.TotalCount == 1 && catalog.ContinueRow().Count == 0, "Sent to the Recycle Bin: not back with Jellyfin's next answer");
+            Assert(catalog.WithoutTrashed([new() { Id = "s" }], DateTimeOffset.UtcNow + Catalog.TrashedFor + TimeSpan.FromMinutes(1)).Count == 1, "Back after a while (a title restored from the Recycle Bin)");
             return Task.CompletedTask;
         });
         await Test("Corbeille : un épisode et ses fichiers du même nom, une saison et son dossier, un film et ses sous-titres, jamais le dossier d’une série pour moins qu’elle (tests/fixtures/recycle.json)", () =>
