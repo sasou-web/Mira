@@ -886,6 +886,8 @@
   <Grid x:Name="ConfirmOverlay" Grid.RowSpan="2" Panel.ZIndex="78" Visibility="Collapsed" Background="{StaticResource Scrim}" KeyboardNavigation.TabNavigation="Cycle">
    <Viewbox Margin="28,44,28,24" Stretch="Uniform" StretchDirection="DownOnly" TextOptions.TextFormattingMode="Ideal">
     <v:Squircle x:Name="ConfirmCard" Width="480" Padding="34,30" Background="{StaticResource Sheet}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="{StaticResource RadiusSheet}">
+     <!-- Its own adorner layer: the focus ring moves with the card as it slides in (Motion.Reveal), not 16 px below. -->
+     <AdornerDecorator>
      <StackPanel>
       <TextBlock x:Name="ConfirmTitle" FontSize="24" FontWeight="Bold" TextWrapping="Wrap"/>
       <TextBlock x:Name="ConfirmNote" FontSize="14" Foreground="{StaticResource TextBody}" TextWrapping="Wrap" Margin="0,10,0,22"/>
@@ -893,6 +895,7 @@
       <StackPanel x:Name="ConfirmDetails" Visibility="Collapsed" Margin="0,8,0,24"><TextBlock x:Name="ConfirmSub" FontSize="14" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,0,18"/><v:Squircle Background="{StaticResource SheetRow}" CornerRadius="{StaticResource RadiusCard}" Padding="20,4"><StackPanel x:Name="ConfirmRows"/></v:Squircle><TextBlock x:Name="ConfirmPath" FontSize="12.5" Foreground="{DynamicResource Faint}" TextWrapping="Wrap" Margin="0,16,0,0"/><DockPanel Margin="0,14,0,0"><v:Icon Kind="info" Width="16" Height="16" Foreground="{DynamicResource Muted}" VerticalAlignment="Top" Margin="0,2,10,0"/><TextBlock x:Name="ConfirmInfo" FontSize="13.5" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"/></DockPanel></StackPanel>
       <StackPanel x:Name="ConfirmButtons" Orientation="Horizontal"><Button x:Name="ConfirmYes" Style="{StaticResource Primary}" v:Motion.Radius="{StaticResource RadiusControl}" Padding="22,10" Click="ConfirmYes_Click"/><Button x:Name="ConfirmNo" Style="{StaticResource Quiet}" Margin="8,0,0,0" Click="ConfirmNo_Click"/></StackPanel>
      </StackPanel>
+     </AdornerDecorator>
     </v:Squircle>
    </Viewbox>
   </Grid>
