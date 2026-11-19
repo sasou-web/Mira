@@ -11,6 +11,37 @@ namespace Mira.Jellyfin;
 /// </summary>
 internal static class JellyfinLoopback
 {
+    /// <summary>
+    /// The header every request of the plugin to this server carries (<see cref="Secret"/>): what lets a guest's session
+    /// go on, from the gateway, to Jellyfin's own routes (<see cref="TunnelGuard"/>), and from nowhere else.
+    /// </summary>
+    public const string Header = "X-Mira-Gateway";
+
+    /// <summary>The value of <see cref="Header"/>: 256 bits drawn when Jellyfin starts, never written or sent elsewhere.</summary>
+    public static readonly string Secret = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+    /// <summary>Whether a request came from the plugin itself (<see cref="Header"/> with <see cref="Secret"/>).</summary>
+    public static bool FromPlugin(string? value) =>
+        value is { Length: 64 } && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(value), Encoding.ASCII.GetBytes(Secret));
+
+    /// <summary>
+    /// Jellyfin's base URL (« » or « /jellyfin »), read by name from its network settings, whose type moved between
+    /// versions. « » when they cannot be read.
+    /// </summary>
+    public static string BaseUrl(MediaBrowser.Common.Configuration.IConfigurationManager? config)
+    {
+        try
+        {
+            var network = config?.GetConfiguration("network");
+            var value = network?.GetType().GetProperty("BaseUrl")?.GetValue(network) as string;
+            return string.IsNullOrWhiteSpace(value) ? "" : "/" + value.Trim().Trim('/');
+        }
+        catch (Exception error) when (error is InvalidOperationException or ArgumentException or System.Reflection.TargetInvocationException or System.Reflection.AmbiguousMatchException)
+        {
+            return "";
+        }
+    }
+
     /// <summary>Each root of this server, its base URL (<paramref name="pathBase"/>) after it, ending with « / ».</summary>
     public static IEnumerable<string> Roots(IServerApplicationHost host, string pathBase)
     {
@@ -43,6 +74,7 @@ internal static class JellyfinLoopback
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             limit.CancelAfter(within ?? TimeSpan.FromSeconds(15));
             using var message = new HttpRequestMessage(method, new Uri(root + pathAndQuery));
+            message.Headers.TryAddWithoutValidation(Header, Secret);
             foreach (var (name, value) in headers)
             {
                 message.Headers.TryAddWithoutValidation(name, value);

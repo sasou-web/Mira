@@ -37,6 +37,9 @@ public sealed class GuestInvites
     private readonly Func<DateTimeOffset> _now;
     private readonly Dictionary<string, Queue<DateTimeOffset>> _tries = new(StringComparer.Ordinal);
     private readonly Queue<DateTimeOffset> _allTries = new();
+    // Accounts made on Jellyfin and not yet in the list (between Users/New and Add): not orphans, whatever a sweep finds.
+    private readonly Dictionary<string, DateTimeOffset> _making = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan Making = TimeSpan.FromMinutes(10);
     private Store _store = new();
 
     public GuestInvites(string? file, Func<DateTimeOffset> now)
@@ -130,6 +133,7 @@ public sealed class GuestInvites
                 Code = GuestRoutes.NewCode(), Name = name, UserId = userId, Password = password, HostId = hostId, HostName = hostName,
                 Created = now, Used = now, Party = party, Device = device,
             };
+            _making.Remove(userId);
             _store.Invites.Add(invite);
             Save();
             return invite.Copy();
@@ -151,6 +155,7 @@ public sealed class GuestInvites
             if (party is null || mine is not null || _store.Invites.Count >= MaxInvites
                 || _store.Invites.Count(x => x.Party is not null && Same(x.Party, party.Code)) >= MaxPartyGuests)
             {
+                _making.Remove(userId);
                 _store.Gone.Add(userId);
                 Save();
                 return mine?.Copy();
@@ -197,6 +202,80 @@ public sealed class GuestInvites
             }
 
             return [.. _store.Gone];
+        }
+    }
+
+    /// <summary>
+    /// An account Jellyfin just made for a guest, not yet in the list: no sweep takes it for an orphan meanwhile
+    /// (<see cref="Orphans"/>). <see cref="Add"/> ends it, or <see cref="Unmade"/> when the account went again.
+    /// </summary>
+    public void Made(string userId)
+    {
+        lock (_gate)
+        {
+            _making[userId] = _now();
+        }
+    }
+
+    public void Unmade(string userId)
+    {
+        lock (_gate)
+        {
+            _making.Remove(userId);
+        }
+    }
+
+    /// <summary>
+    /// The guests' accounts Jellyfin has (<paramref name="guestAccounts"/>: those marked as a guest's,
+    /// <see cref="GuestRoutes.IsGuestAccount"/>) that no link holds, nor any being made: an account whose link was lost
+    /// (the file of the links unreadable, a crash between two writes), to delete. How many were found.
+    /// </summary>
+    public int Orphans(IEnumerable<string> guestAccounts)
+    {
+        lock (_gate)
+        {
+            var now = _now();
+            foreach (var old in _making.Where(x => now - x.Value >= Making).Select(x => x.Key).ToList())
+            {
+                _making.Remove(old);
+            }
+
+            var found = 0;
+            foreach (var userId in guestAccounts.Where(GuestRoutes.IsId))
+            {
+                if (_making.ContainsKey(userId) || _store.Invites.Any(x => SameId(x.UserId, userId)) || _store.Gone.Any(x => SameId(x, userId)))
+                {
+                    continue;
+                }
+
+                _store.Gone.Add(userId);
+                found++;
+            }
+
+            if (found > 0)
+            {
+                Save();
+            }
+
+            return found;
+        }
+    }
+
+    private static bool SameId(string a, string b) =>
+        string.Equals(a.Replace("-", "", StringComparison.Ordinal), b.Replace("-", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether a session token is a guest's, of any link (no use counted): what may reach Jellyfin only through the gateway.</summary>
+    public bool IsGuestToken(string? token)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return false;
+        }
+
+        var hash = GuestRoutes.TokenHash(token);
+        lock (_gate)
+        {
+            return _store.Invites.Any(x => x.Token is not null && Same(x.Token, hash));
         }
     }
 
@@ -456,11 +535,53 @@ public sealed class GuestInvites
         }
         catch (Exception error) when (error is JsonException or IOException or UnauthorizedAccessException)
         {
-            // Unreadable: put aside, so that the accounts it named can still be found; the links start again empty.
+            // Unreadable: put aside; the links start again empty, but the accounts it still names go (to delete), and
+            // the API key it held is kept, so that nothing of it stays on Jellyfin. Accounts it no longer names: found
+            // by their mark (Orphans).
+            string? text = null;
+            try { text = File.ReadAllText(_file); }
+            catch (Exception reading) when (reading is IOException or UnauthorizedAccessException) { }
             try { File.Move(_file, _file + ".bad-" + _now().ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture), true); }
             catch (Exception moving) when (moving is IOException or UnauthorizedAccessException) { }
-            _store = new Store();
+            _store = Salvage(text);
+            if (text is not null)
+            {
+                Save();
+            }
         }
+    }
+
+    /// <summary>
+    /// What an unreadable file of links still says, read as text: the guests' accounts (each « userId », those of
+    /// « gone ») to delete, and the plugin's API key. Never a host's account: they are under another name (« hostId »).
+    /// </summary>
+    internal static Store Salvage(string? text)
+    {
+        var store = new Store();
+        if (string.IsNullOrEmpty(text))
+        {
+            return store;
+        }
+
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(text, "\"userId\"\\s*:\\s*\"([0-9a-fA-F-]{32,36})\"", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)))
+        {
+            ids.Add(match.Groups[1].Value);
+        }
+
+        var gone = System.Text.RegularExpressions.Regex.Match(text, "\"gone\"\\s*:\\s*\\[([^\\]]*)", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+        if (gone.Success)
+        {
+            foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(gone.Groups[1].Value, "\"([0-9a-fA-F-]{32,36})\"", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)))
+            {
+                ids.Add(match.Groups[1].Value);
+            }
+        }
+
+        store.Gone.AddRange(ids.Where(GuestRoutes.IsId));
+        var key = System.Text.RegularExpressions.Regex.Match(text, "\"key\"\\s*:\\s*\"([0-9a-fA-F]{32})\"", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+        store.Key = key.Success ? key.Groups[1].Value : null;
+        return store;
     }
 
     private void Save()
@@ -483,7 +604,7 @@ public sealed class GuestInvites
         }
     }
 
-    private sealed class Store
+    internal sealed class Store
     {
         public string? Address { get; set; }
         public string? Key { get; set; }

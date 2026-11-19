@@ -70,6 +70,9 @@ internal static class GuestAccounts
             return (Made.Failed, null, null, null);
         }
 
+        // Not an orphan for a sweep until its link holds it (GuestInvites.Add).
+        Plugin.Invites.Made(userId);
+
         // A new account sees every library and downloads (Jellyfin 12.1): its policy is read, made a guest's, sent back whole.
         var (userStatus, userText) = await JellyfinLoopback.CallAsync(client, roots, HttpMethod.Get, $"Users/{userId}", admin, null, cancellationToken).ConfigureAwait(false);
         var policy = userStatus == (int)HttpStatusCode.OK ? Parse(userText)?["Policy"] as JsonObject : null;
@@ -78,6 +81,7 @@ internal static class GuestAccounts
         if (policyStatus is not ((int)HttpStatusCode.OK or (int)HttpStatusCode.NoContent))
         {
             await JellyfinLoopback.CallAsync(client, roots, HttpMethod.Delete, $"Users/{userId}", admin, null, CancellationToken.None).ConfigureAwait(false);
+            Plugin.Invites.Unmade(userId);
             return (Made.Failed, null, null, null);
         }
 

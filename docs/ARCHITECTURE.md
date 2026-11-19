@@ -148,6 +148,7 @@ Mira.Jellyfin (extension Jellyfin)
   ├─ TorLinkController, TorLinkRelay : /Mira/torlink/…, relais (en mémoire) des recherches et téléchargements envoyés au PC serveur, administrateurs seulement ; séries suivies (TorLinkRelay.Follows, /Mira/torlink/follows) gardées dans plugins/configurations/Mira.follows.json
   ├─ InvitesController : /Mira/invites, invités (lister, retirer, adresse des liens), administrateurs seulement ; GuestCleanup supprime les comptes des liens finis
   ├─ GuestController, GuestRoutes : /Mira/guest/…, passerelle des invités (ouverture du lien, routes de la liste fermée relayées en boucle locale, playlists réécrites)
+  ├─ PartyTitles : le titre que joue le groupe SyncPlay d'un invité (file lue dans SyncPlayManager), seul titre que la passerelle lui laisse ; GuestCleanupService : ménage des comptes invités dès le démarrage
   ├─ GuestInvites : les liens et les parties, gardés dans plugins/configurations/Mira.invites.json
   └─ IdentifyController, IdentifyImages : /Mira/identify/image, affiches des propositions de « Identifier… » (HTTPS vers une liste fermée d’hôtes, 5 Mo, image seulement), administrateurs seulement
 ```

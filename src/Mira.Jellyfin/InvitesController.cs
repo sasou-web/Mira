@@ -1,10 +1,13 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Mira.Jellyfin;
 
@@ -218,42 +221,13 @@ public sealed class InvitesController : ControllerBase
 
 /// <summary>
 /// The accounts of links taken back or gone unused, deleted from Jellyfin: with an administrator's session when one is
-/// there (their requests), otherwise with the plugin's API key, every half hour once anything of the guests was asked
-/// since Jellyfin started.
+/// there (their requests), otherwise with the plugin's API key (<see cref="GuestCleanupService"/>, from Jellyfin's
+/// start). An account Jellyfin has, marked as a guest's, that no link holds goes too (its link lost with an unreadable
+/// file). Never an administrator's account, whatever the links say.
 /// </summary>
 internal static class GuestCleanup
 {
-    private static readonly TimeSpan Every = TimeSpan.FromMinutes(30);
-    private static readonly object Gate = new();
-    private static Timer? _timer;
     private static int _running;
-
-    /// <summary>Starts the half-hourly sweep, once, with what it needs to reach Jellyfin.</summary>
-    public static void Wake(IHttpClientFactory clients, IServerApplicationHost host, string pathBase)
-    {
-        lock (Gate)
-        {
-            _timer ??= new Timer(_ => _ = SweepWithKeyAsync(clients, host, pathBase), null, TimeSpan.FromMinutes(1), Every);
-        }
-    }
-
-    private static async Task SweepWithKeyAsync(IHttpClientFactory clients, IServerApplicationHost host, string pathBase)
-    {
-        if (Plugin.Invites.Key is not { } key)
-        {
-            return;
-        }
-
-        try
-        {
-            using var client = clients.CreateClient();
-            await SweepAsync(client, JellyfinLoopback.Roots(host, pathBase), GuestAccounts.WithKey(key), CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception error) when (error is HttpRequestException or OperationCanceledException or InvalidOperationException)
-        {
-            // Jellyfin stopping, or out of reach: the next half hour.
-        }
-    }
 
     /// <summary>Deletes each account still to delete; one Jellyfin no longer has counts as deleted.</summary>
     public static async Task SweepAsync(HttpClient client, IEnumerable<string> roots, IReadOnlyList<(string, string)> admin, CancellationToken cancellationToken)
@@ -265,8 +239,23 @@ internal static class GuestCleanup
 
         try
         {
+            var (usersStatus, usersText) = await JellyfinLoopback.CallAsync(client, roots, HttpMethod.Get, "Users", admin, null, cancellationToken).ConfigureAwait(false);
+            if (usersStatus != (int)HttpStatusCode.OK || GuestAccounts.Parse(usersText) is not JsonArray users)
+            {
+                return;
+            }
+
+            var byId = users.OfType<JsonNode>().Where(x => GuestAccounts.Text(x["Id"]) is not null)
+                .ToDictionary(x => GuestAccounts.Text(x["Id"])!.Replace("-", "", StringComparison.Ordinal), StringComparer.OrdinalIgnoreCase);
+            Plugin.Invites.Orphans(byId.Values.Where(GuestRoutes.IsGuestAccount).Select(x => GuestAccounts.Text(x["Id"])!));
             foreach (var userId in Plugin.Invites.Sweep())
             {
+                if (!byId.TryGetValue(userId.Replace("-", "", StringComparison.Ordinal), out var user) || GuestRoutes.IsAdministrator(user))
+                {
+                    Plugin.Invites.Deleted(userId);
+                    continue;
+                }
+
                 var (status, _) = await JellyfinLoopback.CallAsync(client, roots, HttpMethod.Delete, $"Users/{userId}", admin, null, cancellationToken).ConfigureAwait(false);
                 if (status is (int)HttpStatusCode.NoContent or (int)HttpStatusCode.OK or (int)HttpStatusCode.NotFound)
                 {
@@ -277,6 +266,63 @@ internal static class GuestCleanup
         finally
         {
             Interlocked.Exchange(ref _running, 0);
+        }
+    }
+}
+
+/// <summary>
+/// The guests' accounts swept with the plugin's API key a minute after Jellyfin starts, then every half hour, whether
+/// or not anyone asks anything of the guests (<see cref="GuestCleanup"/>).
+/// </summary>
+internal sealed class GuestCleanupService : BackgroundService
+{
+    private static readonly TimeSpan First = TimeSpan.FromMinutes(1), Every = TimeSpan.FromMinutes(30);
+    private readonly IHttpClientFactory _clients;
+    private readonly IServerApplicationHost _host;
+    private readonly IConfigurationManager _config;
+    private readonly ILogger<GuestCleanupService> _logger;
+
+    public GuestCleanupService(IHttpClientFactory clients, IServerApplicationHost host, IConfigurationManager config, ILogger<GuestCleanupService> logger)
+    {
+        _clients = clients;
+        _host = host;
+        _config = config;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await Task.Delay(First, stoppingToken).ConfigureAwait(false);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await SweepAsync(stoppingToken).ConfigureAwait(false);
+                await Task.Delay(Every, stoppingToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Jellyfin stopping.
+        }
+    }
+
+    private async Task SweepAsync(CancellationToken stoppingToken)
+    {
+        if (!Plugin.InvitesReady || Plugin.Invites.Key is not { } key)
+        {
+            return;
+        }
+
+        try
+        {
+            using var client = _clients.CreateClient();
+            await GuestCleanup.SweepAsync(client, JellyfinLoopback.Roots(_host, JellyfinLoopback.BaseUrl(_config)), GuestAccounts.WithKey(key), stoppingToken).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is HttpRequestException or InvalidOperationException || (error is OperationCanceledException && !stoppingToken.IsCancellationRequested))
+        {
+            // Jellyfin out of reach: the next half hour.
+            _logger.LogDebug(error, "Mira: the guests' accounts were not swept");
         }
     }
 }

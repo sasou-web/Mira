@@ -33,11 +33,13 @@ public sealed partial class GuestController : ControllerBase
 
     private readonly IHttpClientFactory _clients;
     private readonly IServerApplicationHost _host;
+    private readonly PartyTitles _titles;
 
-    public GuestController(IHttpClientFactory clients, IServerApplicationHost host)
+    public GuestController(IHttpClientFactory clients, IServerApplicationHost host, PartyTitles titles)
     {
         _clients = clients;
         _host = host;
+        _titles = titles;
     }
 
     private bool French => RelayText.French(Request);
@@ -52,7 +54,6 @@ public sealed partial class GuestController : ControllerBase
     [RequestSizeLimit(4_096)]
     public async Task<IActionResult> Open(CancellationToken cancellationToken)
     {
-        GuestCleanup.Wake(_clients, _host, Request.PathBase);
         OpenBody? body;
         try
         {
@@ -104,7 +105,6 @@ public sealed partial class GuestController : ControllerBase
                     mine = Plugin.Invites.JoinParty(guestName!, guestId!, password!, party!.Code, device);
                     if (mine is null)
                     {
-                        GuestCleanup.Wake(_clients, _host, Request.PathBase);
                         return Refuse(StatusCodes.Status409Conflict, "Ce lien ne marche plus ou la party est pleine : demande à la personne qui t’a invité.");
                     }
 
@@ -167,7 +167,6 @@ public sealed partial class GuestController : ControllerBase
     [Route("{**path}")]
     public async Task<IActionResult> Relay(string? path, CancellationToken cancellationToken)
     {
-        GuestCleanup.Wake(_clients, _host, Request.PathBase);
         var rest = path ?? "";
         var access = GuestRoutes.For(Request.Method, rest, name => Request.Query.TryGetValue(name, out var value) ? value.ToString() : null);
         if (access == GuestRoutes.Access.None)
@@ -187,6 +186,14 @@ public sealed partial class GuestController : ControllerBase
             }
 
             token = tokens[0];
+        }
+
+        // A title: only the one the guest's group plays (its series and episodes with it), whatever else the account sees.
+        if (access == GuestRoutes.Access.Title
+            && !(GuestRoutes.Titles(rest, name => Request.Query.TryGetValue(name, out var value) ? value.ToString() : null) is { } named
+                && _titles.Allows(invite!.UserId, invite.Device!, named)))
+        {
+            return NotFound();
         }
 
         byte[]? body = null;
@@ -267,6 +274,7 @@ public sealed partial class GuestController : ControllerBase
         foreach (var root in Roots())
         {
             using var message = new HttpRequestMessage(method, new Uri(root + pathAndQuery));
+            message.Headers.TryAddWithoutValidation(JellyfinLoopback.Header, JellyfinLoopback.Secret);
             if (auth is not null)
             {
                 message.Headers.TryAddWithoutValidation("Authorization", auth);

@@ -26,15 +26,15 @@ internal static class GuestTests
             var open = new (string Method, string Path, GuestRoutes.Access Access)[]
             {
                 ("GET", "System/Info/Public", GuestRoutes.Access.Public), ("GET", "System/Ping", GuestRoutes.Access.Public),
-                ("GET", $"Items/{Item}", GuestRoutes.Access.Guest), ("GET", $"Items/{Dashed}/Images/Primary", GuestRoutes.Access.Guest),
-                ("GET", $"Items/{Item}/Images/Backdrop/0", GuestRoutes.Access.Guest), ("POST", $"Items/{Item}/PlaybackInfo", GuestRoutes.Access.Guest),
-                ("GET", $"Videos/{Item}/stream.mkv", GuestRoutes.Access.Guest), ("HEAD", $"videos/{Item}/stream", GuestRoutes.Access.Guest),
-                ("GET", $"videos/{Dashed}/master.m3u8", GuestRoutes.Access.Guest), ("GET", $"videos/{Item}/main.m3u8", GuestRoutes.Access.Guest),
-                ("GET", $"videos/{Item}/hls1/main/-1.mp4", GuestRoutes.Access.Guest), ("GET", $"videos/{Item}/hls1/main/12.ts", GuestRoutes.Access.Guest),
-                ("GET", $"Videos/{Item}/{Source}/Subtitles/3/0/Stream.vtt", GuestRoutes.Access.Guest), ("GET", $"Videos/{Item}/{Source}/Subtitles/3/subtitles.m3u8", GuestRoutes.Access.Guest),
-                ("GET", $"Videos/{Item}/Trickplay/320/4.jpg", GuestRoutes.Access.Guest), ("DELETE", "Videos/ActiveEncodings", GuestRoutes.Access.Guest),
-                ("GET", $"Mira/hls/{Item}/master.m3u8", GuestRoutes.Access.Guest), ("GET", $"Mira/hls/{Item}/{Source}/Subtitles/2/subtitles.m3u8", GuestRoutes.Access.Guest),
-                ("GET", $"Shows/{Item}/Episodes", GuestRoutes.Access.Guest), ("GET", $"MediaSegments/{Item}", GuestRoutes.Access.Guest),
+                ("GET", $"Items/{Item}", GuestRoutes.Access.Title), ("GET", $"Items/{Dashed}/Images/Primary", GuestRoutes.Access.Title),
+                ("GET", $"Items/{Item}/Images/Backdrop/0", GuestRoutes.Access.Title), ("POST", $"Items/{Item}/PlaybackInfo", GuestRoutes.Access.Title),
+                ("GET", $"Videos/{Item}/stream.mkv", GuestRoutes.Access.Title), ("HEAD", $"videos/{Item}/stream", GuestRoutes.Access.Title),
+                ("GET", $"videos/{Dashed}/master.m3u8", GuestRoutes.Access.Title), ("GET", $"videos/{Item}/main.m3u8", GuestRoutes.Access.Title),
+                ("GET", $"videos/{Item}/hls1/main/-1.mp4", GuestRoutes.Access.Title), ("GET", $"videos/{Item}/hls1/main/12.ts", GuestRoutes.Access.Title),
+                ("GET", $"Videos/{Item}/{Source}/Subtitles/3/0/Stream.vtt", GuestRoutes.Access.Title), ("GET", $"Videos/{Item}/{Source}/Subtitles/3/subtitles.m3u8", GuestRoutes.Access.Title),
+                ("GET", $"Videos/{Item}/Trickplay/320/4.jpg", GuestRoutes.Access.Title), ("DELETE", "Videos/ActiveEncodings", GuestRoutes.Access.Guest),
+                ("GET", $"Mira/hls/{Item}/master.m3u8", GuestRoutes.Access.Title), ("GET", $"Mira/hls/{Item}/{Source}/Subtitles/2/subtitles.m3u8", GuestRoutes.Access.Title),
+                ("GET", $"Shows/{Item}/Episodes", GuestRoutes.Access.Title), ("GET", $"MediaSegments/{Item}", GuestRoutes.Access.Title),
                 ("POST", "Sessions/Playing", GuestRoutes.Access.Guest), ("POST", "Sessions/Playing/Progress", GuestRoutes.Access.Guest),
                 ("POST", "Sessions/Playing/Stopped", GuestRoutes.Access.Guest), ("POST", "Sessions/Capabilities", GuestRoutes.Access.Guest),
                 ("GET", "GetUtcTime", GuestRoutes.Access.Guest), ("GET", "SyncPlay/List", GuestRoutes.Access.Groups),
@@ -43,7 +43,7 @@ internal static class GuestTests
             };
             foreach (var (method, path, access) in open)
                 Assert(For(method, path) == access, $"{method} {path}: {For(method, path)}");
-            Assert(For("GET", "Shows/NextUp", seriesId: Item) == GuestRoutes.Access.Guest && For("GET", "Shows/NextUp") == GuestRoutes.Access.None, "Next up: of one series only");
+            Assert(For("GET", "Shows/NextUp", seriesId: Item) == GuestRoutes.Access.Title && For("GET", "Shows/NextUp") == GuestRoutes.Access.None, "Next up: of one series only");
             Assert(For("GET", "Playback/BitrateTest", size: "4000000") == GuestRoutes.Access.Guest && For("GET", "Playback/BitrateTest", size: "900000000") == GuestRoutes.Access.None
                 && For("GET", "Playback/BitrateTest") == GuestRoutes.Access.None, "Connection test: 10 MB at most");
             // The library, the accounts, the server's settings, the queue, downloads: never.
@@ -58,6 +58,31 @@ internal static class GuestTests
             })
                 Assert(For(method, path) == GuestRoutes.Access.None, $"{method} {path} let through");
             Assert(GuestRoutes.IsId(Item) && GuestRoutes.IsId(Dashed) && !GuestRoutes.IsId("x") && !GuestRoutes.IsId(null), "Ids");
+            return Task.CompletedTask;
+        });
+
+        await Test("Ta party : un invité ne lit que le titre de son groupe, sa série et ses épisodes", () =>
+        {
+            static Guid G(int n) => new($"{n:x8}-0000-0000-0000-000000000000");
+            static IReadOnlyList<Guid>? Titles(string path, string? seasonId = null, string? seriesId = null) =>
+                GuestRoutes.Titles(path, name => name == "seasonId" ? seasonId : name == "seriesId" ? seriesId : null);
+            var item = Guid.Parse(Item);
+            Assert(Titles($"Items/{Item}") is [var a] && a == item && Titles($"videos/{Dashed}/stream.mkv") is [var b] && b == item
+                && Titles($"Videos/{Item}/{Source}/Subtitles/3/0/Stream.vtt") is [var c] && c == item && Titles($"Mira/hls/{Item}/master.m3u8") is [var d] && d == item,
+                "The title of the path, not its media source");
+            Assert(Titles($"Shows/{Item}/Episodes", seasonId: Source) is [var e, var f] && e == item && f == Guid.Parse(Source)
+                && Titles("Shows/NextUp", seriesId: Dashed) is [var g] && g == item, "And those of the query Jellyfin reads");
+            Assert(Titles($"Shows/{Item}/Episodes", seasonId: "../Users") is null, "A value of the query that is no id: refused");
+
+            // A film playing (1); a series (10) with its seasons (11, 12) and episodes (111, 112, 121); another series (20).
+            var seriesOf = new Dictionary<Guid, Guid> { [G(11)] = G(10), [G(12)] = G(10), [G(111)] = G(10), [G(112)] = G(10), [G(121)] = G(10), [G(21)] = G(20), [G(211)] = G(20) };
+            Guid? Of(Guid id) => seriesOf.TryGetValue(id, out var series) ? series : null;
+            bool Film(params Guid[] named) => GuestRoutes.InParty(named, [G(1)], [], Of);
+            bool Series(params Guid[] named) => GuestRoutes.InParty(named, [G(112)], [G(10)], Of);
+            Assert(Film(G(1)) && !Film(G(2)) && !Film(G(10)) && !Film(G(111)) && !Film(G(1), G(2)), "A film: that film, nothing else");
+            Assert(Series(G(112)) && Series(G(10)) && Series(G(11)) && Series(G(121)) && Series(G(10), G(12)), "A series: its episodes, seasons and itself");
+            Assert(!Series(G(20)) && !Series(G(21)) && !Series(G(211)) && !Series(G(1)) && !Series(G(10), G(21)), "Not another series, nor a season of it in the query");
+            Assert(!GuestRoutes.InParty([G(1)], [], [], Of) && !GuestRoutes.InParty([], [G(1)], [], Of), "No group, or a request naming no title: nothing");
             return Task.CompletedTask;
         });
 
@@ -180,7 +205,14 @@ internal static class GuestTests
                 && guest["EnableAllDevices"]!.GetValue<bool>() && !guest["EnableContentDownloading"]!.GetValue<bool>() && !guest["EnableContentDeletion"]!.GetValue<bool>()
                 && !guest["EnableRemoteControlOfOtherUsers"]!.GetValue<bool>() && !guest["EnableUserPreferenceAccess"]!.GetValue<bool>() && !guest["EnableSyncTranscoding"]!.GetValue<bool>()
                 && guest["SyncPlayAccess"]!.GetValue<string>() == "JoinGroups" && guest["MaxActiveSessions"]!.GetValue<int>() == 1
-                && guest["AuthenticationProviderId"]!.GetValue<string>() == "Default" && ((JsonArray)guest["EnableContentDeletionFromFolders"]!).Count == 0, "Guest policy: " + guest.ToJsonString());
+                && guest["AuthenticationProviderId"]!.GetValue<string>() == "Default" && ((JsonArray)guest["EnableContentDeletionFromFolders"]!).Count == 0
+                && guest["BlockedTags"] is JsonArray { Count: 1 } tags && tags[0]!.GetValue<string>() == GuestRoutes.GuestTag, "Guest policy: " + guest.ToJsonString());
+            Assert(GuestRoutes.Policy(guest)["BlockedTags"] is JsonArray { Count: 1 }, "Marked once");
+            Assert(GuestRoutes.IsGuestAccount(new JsonObject { ["Policy"] = guest.DeepClone() }) && !GuestRoutes.IsGuestAccount(new JsonObject { ["Policy"] = policy.DeepClone() })
+                && !GuestRoutes.IsGuestAccount(null), "A guest's account known by its mark");
+            var marked = (JsonObject)guest.DeepClone();
+            marked["IsAdministrator"] = true;
+            Assert(!GuestRoutes.IsGuestAccount(new JsonObject { ["Policy"] = marked }) && GuestRoutes.IsAdministrator(new JsonObject { ["Policy"] = marked.DeepClone() }), "Never an administrator, marked or not");
             Assert(policy["IsAdministrator"]!.GetValue<bool>(), "Jellyfin's policy left as it was");
             Assert(GuestRoutes.GuestName(" Léa ", "Invité", ["admin"]) == "Léa" && GuestRoutes.GuestName("", "Invité", ["invité"]) == "Invité 2"
                 && GuestRoutes.GuestName("Léa", "Invité", ["léa", "Léa 2"]) == "Léa 3" && GuestRoutes.GuestName("Léa ’O", "Invité", []) == "Léa 'O"
@@ -241,10 +273,30 @@ internal static class GuestTests
             for (var i = 0; i < GuestInvites.TriesInAll; i++) tries.Open("x", "d", $"10.0.0.{i}");
             Assert(tries.Open("x", "d", "10.1.1.1").Result == GuestInvites.Opening.TooMany, "Sixty a minute in all");
 
-            // An unreadable file is put aside, the links start again.
-            File.WriteAllText(file, "{ not json");
+            // A guest's session is known as one (what may reach Jellyfin only through the gateway), no use counted.
+            var known = new GuestInvites(null, () => now);
+            var sam = known.Add("Sam", Item, "secret", "host-id", "ogsas");
+            known.Opened(sam.Id, "device-s", "iPhone", "token-s");
+            Assert(known.IsGuestToken("token-s") && !known.IsGuestToken("token-x") && !known.IsGuestToken(null), "A guest's session");
+
+            // Accounts marked as a guest's that no link holds: to delete; one being made, or held, is not.
+            const string Lost = "11111111222233334444555555555555", Making = "66666666777788889999aaaaaaaaaaaa";
+            known.Made(Making);
+            Assert(known.Orphans([Item.ToUpperInvariant(), Lost, Making, "x"]) == 1 && known.Sweep().SequenceEqual([Lost]), "Only the lost one");
+            Assert(known.Orphans([Lost]) == 0 && known.Sweep().Count == 1, "Counted once");
+            known.Add("Alex", Making, "secret", "host-id", "ogsas");
+            now = now.AddMinutes(20);
+            Assert(known.Orphans([Making]) == 0, "Held by its link now");
+
+            // An unreadable file is put aside, the links start again; the accounts and the key it still names are kept.
+            var hostId = "abcdefabcdefabcdefabcdefabcdefab";
+            File.WriteAllText(file, $$"""{ "key": "0123456789abcdef0123456789abcdef", "invites": [ { "userId": "{{Dashed}}", "hostId": "{{hostId}}" }, { "userId": "{{Lost}}", "hos""");
             var fresh = new GuestInvites(file, () => now);
             Assert(fresh.All().Count == 0 && Directory.GetFiles(Path.GetDirectoryName(file)!, "Mira.invites.json.bad-*").Length == 1, "Unreadable file put aside");
+            Assert(fresh.Key == "0123456789abcdef0123456789abcdef" && fresh.Sweep().Order().SequenceEqual(new[] { Dashed, Lost }.Order()), "Its guests' accounts to delete, its key kept, never the host");
+            Assert(new GuestInvites(file, () => now).Sweep().Count == 2, "Written down at once");
+            Assert(GuestInvites.Salvage("""{ "gone": [ "11111111222233334444555555555555", "x" ], "hostId": "abcdefabcdefabcdefabcdefabcdefab" }""").Gone.SequenceEqual([Lost])
+                && GuestInvites.Salvage(null).Gone.Count == 0, "Those still to delete");
             return Task.CompletedTask;
         });
 

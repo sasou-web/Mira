@@ -109,8 +109,40 @@ await part('party', async () => {
   const members = ((await call('GET', 'SyncPlay/List', { token: host })).json ?? []).find((g) => g.GroupId === hostGroup?.GroupId)?.Participants ?? [];
   check('party : l’invité ouvre le lien (un prénom, sans compte, un appareil nommé avec des accents), dans le groupe de l’hôte par la passerelle, et rien d’autre',
     opened.status === 200 && opened.json?.userName === 'Léa' && opened.json?.host === me.Name && opened.json?.serverId === info.Id
-      && meAsGuest.json?.Name === 'Léa' && device === 'Téléphone de Léa' && users.status === 404 && list.status === 404 && title2.status === 200 && !!hostGroup && joined.status < 300 && members.length >= 2,
-    `ouverture ${opened.status} ${opened.json?.userName ?? opened.text.slice(0, 80)} sur « ${device} » ; Users/Me ${meAsGuest.json?.Name} ; Users ${users.status}, Items ${list.status}, le film ${title2.status} ; groupe ${hostGroup ? 'vu' : 'absent'}, rejoint ${joined.status}, ${members.length} membres`);
+      && meAsGuest.json?.Name === 'Léa' && device === 'Téléphone de Léa' && users.status === 404 && list.status === 404 && title2.status === 404 && !!hostGroup && joined.status < 300 && members.length >= 2,
+    `ouverture ${opened.status} ${opened.json?.userName ?? opened.text.slice(0, 80)} sur « ${device} » ; Users/Me ${meAsGuest.json?.Name} ; Users ${users.status}, Items ${list.status}, le film hors du groupe ${title2.status} ; groupe ${hostGroup ? 'vu' : 'absent'}, rejoint ${joined.status}, ${members.length} membres`);
+
+  // The title the host puts on, and nothing else: a film, then an episode (its series, its seasons and episodes with
+  // it); another film, another series, a season of another series named in the query: 404. The guest's session used
+  // straight on Jellyfin, not through the gateway (a guest at home, on Jellyfin's network): 404 too.
+  const uid = opened.json?.userId;
+  const queue = async (id) => { await call('POST', 'SyncPlay/SetNewQueue', { token: host, body: { PlayingQueue: [id], PlayingItemPosition: 0, StartPositionTicks: 0 } }); await sleep(1000); };
+  const other = (await items('includeItemTypes=Movie&searchTerm=Aube'))[0];
+  const [webSeries, hlsSeries] = [(await items('includeItemTypes=Series&searchTerm=Courte Web'))[0], (await items('includeItemTypes=Series&searchTerm=Courte HLS'))[0]];
+  const episodesOf = async (series) => (await call('GET', `Shows/${series?.Id}/Episodes?userId=${me.Id}`, { token: host })).json?.Items ?? [];
+  const [webEpisodes, hlsEpisodes] = [await episodesOf(webSeries), await episodesOf(hlsSeries)];
+  await queue(film?.Id);
+  const asFilm = {
+    film: (await gateway('GET', `Items/${film?.Id}?userId=${uid}`)).status, info: (await gateway('POST', `Items/${film?.Id}/PlaybackInfo?userId=${uid}`, {})).status,
+    other: (await gateway('GET', `Items/${other?.Id}?userId=${uid}`)).status, poster: (await gateway('GET', `Items/${other?.Id}/Images/Primary`)).status,
+    stream: (await gateway('GET', `Videos/${other?.Id}/stream?static=true`)).status, episodes: (await gateway('GET', `Shows/${webSeries?.Id}/Episodes?userId=${uid}`)).status,
+  };
+  await queue(webEpisodes[1]?.Id);
+  const asEpisode = {
+    episode: (await gateway('GET', `Items/${webEpisodes[1]?.Id}?userId=${uid}`)).status, series: (await gateway('GET', `Items/${webSeries?.Id}?userId=${uid}`)).status,
+    sibling: (await gateway('GET', `Items/${webEpisodes[0]?.Id}?userId=${uid}`)).status, episodes: (await gateway('GET', `Shows/${webSeries?.Id}/Episodes?userId=${uid}`)).status,
+    film: (await gateway('GET', `Items/${film?.Id}?userId=${uid}`)).status, otherSeries: (await gateway('GET', `Items/${hlsEpisodes[0]?.Id}?userId=${uid}`)).status,
+    otherSeason: (await gateway('GET', `Shows/${webSeries?.Id}/Episodes?userId=${uid}&seasonId=${hlsEpisodes[0]?.SeasonId}`)).status,
+  };
+  const direct = { me: (await call('GET', 'Users/Me', { token: guest, device: 'check-guest-phone-01' })).status, film: (await call('GET', `Items/${film?.Id}?userId=${uid}`, { token: guest, device: 'check-guest-phone-01' })).status,
+    library: (await call('GET', `Items?userId=${uid}&recursive=true`, { token: guest, device: 'check-guest-phone-01' })).status };
+  check('party : l’invité ne lit que le titre du groupe (un film ; un épisode, sa série et ses épisodes), jamais un autre, ni sa séance hors de la passerelle',
+    !!film && !!other && webEpisodes.length >= 2 && hlsEpisodes.length >= 1
+      && asFilm.film === 200 && asFilm.info === 200 && [asFilm.other, asFilm.poster, asFilm.stream, asFilm.episodes].every((s) => s === 404)
+      && [asEpisode.episode, asEpisode.series, asEpisode.sibling, asEpisode.episodes].every((s) => s === 200)
+      && [asEpisode.film, asEpisode.otherSeries, asEpisode.otherSeason].every((s) => s === 404)
+      && Object.values(direct).every((s) => s === 404),
+    `film ${JSON.stringify(asFilm)} ; épisode ${JSON.stringify(asEpisode)} ; sans la passerelle ${JSON.stringify(direct)}`);
 
   // Through Funnel, nothing but the party's page and the gateway: not Jellyfin, not the extension's other parts, not
   // even by a path that Jellyfin's server reads back to its own (« /Mira/%2e%2e/… »), and no WebSocket of another session.

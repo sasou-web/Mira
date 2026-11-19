@@ -55,6 +55,12 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         get { lock (Gate) return _queue ??= new SubtitleQueue(_queueFile); }
     }
 
+    /// <summary>Whether Jellyfin made the plugin, its file of links known: <see cref="Invites"/> may be read.</summary>
+    public static bool InvitesReady
+    {
+        get { lock (Gate) return _invitesFile is not null; }
+    }
+
     /// <summary>The guests' links, read from their file the first time they are needed.</summary>
     public static GuestInvites Invites
     {
