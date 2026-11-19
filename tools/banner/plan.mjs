@@ -33,6 +33,9 @@
 //   its space filled (four titles or more in a row, never a half-empty page); the account's real photo, never its bare
 //   initial (tools/gallery/setup.mjs gives it one); the rail lit on the page the thing belongs to. Look at the drawn
 //   banner before taking it, and change the capture (tools/banner/media.sh, the gallery) rather than the crop when it fails.
+//   And, from 0.9.13's banner (kept as it was by ogsas): a window shown whole (its close button in), framed tight enough
+//   that no empty slot is left and the posters are large; the account's photo readable when it shows (simple and
+//   contrasted, or a crop that shows it); the point's text names only what the image shows (« say » rewrites it).
 //
 // film (0.9.7 to 0.9.12): the release's film at the top right, melting into black as Mira shows a title; the version,
 // its date and its sentence on the left (en.summary cut at its first comma: the start in bold); below, a band of real

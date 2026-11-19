@@ -1,5 +1,25 @@
 [
   {
+    "version": "0.9.14", "date": "2026-11-19",
+    "summary": "Les séries de bout en bout, des fiches qui s’ouvrent sur leur image, un rangement plus solide.",
+    "en": { "summary": "Shows end to end, title pages that open on their picture and sturdier sorting." },
+    "changes": [
+      { "category": "Extension", "text": "L’ordre des épisodes de TheTVDB marche sur Jellyfin 12.4 ; chaque appel de l’extension vérifié contre chaque Jellyfin.", "en": { "category": "Extension", "text": "TheTVDB episode order now works on Jellyfin 12.4; every call of the extension is checked against each Jellyfin." } },
+      { "category": "Séries", "text": "Compteur « 2 sur 6 vus » sur la saison, pastille de saison qui glisse, bonus derrière une pastille Extras.", "en": { "category": "Shows", "text": "A “2 of 6 watched” season counter, a season pill that glides, extras behind an Extras pill." } },
+      { "category": "Fiche", "text": "S’ouvre sur son image floue puis nette, logo à sa place, préparée dès le survol.", "en": { "category": "Title page", "text": "Opens on its blurred picture, then sharp, logo in place, warmed up on hover." } },
+      { "category": "Corbeille", "text": "Une saison ou un épisode à la Corbeille, avec une vraie confirmation de ce qui part.", "en": { "category": "Recycle Bin", "text": "Send a season or an episode to the Recycle Bin, with a real confirmation of what goes." } },
+      { "category": "Rangement", "text": "Réessais automatiques, jamais de 2e version, packs « Second Season » et « 1-64 », type de la recherche suivi.", "en": { "category": "Sorting", "text": "Automatic retries, never a second version, “Second Season” and “1-64” packs, the search’s type kept." } },
+      { "category": "PC de Jellyfin", "text": "Bonus analysés 4 par 4 au lieu d’une rafale ; épisodes renumérotés quand Jellyfin a refait la série.", "en": { "category": "Jellyfin PC", "text": "Extras analysed 4 at a time, not all at once; episodes renumbered when Jellyfin remade the show." } },
+      { "category": "Aide", "text": "« Inviter un ami » dans l’Aide, à tout moment.", "en": { "category": "Help", "text": "“Invite a friend” in Help, any time." } }
+    ],
+    "items": [
+      { "icon": "series", "title": "Une série de bout en bout", "text": "Où tu en es dans la saison (« 2 sur 6 vus »), une pastille de saison qui glisse, les bonus derrière une pastille Extras.", "en": { "title": "Shows end to end", "text": "Where you are in a season (“2 of 6 watched”), a season pill that glides, extras behind an Extras pill." } },
+      { "icon": "film", "title": "Une fiche s’ouvre sur son image", "text": "Son image floue d’abord, nette ensuite, le logo à sa place : plus de page noire en attendant.", "en": { "title": "A title opens on its picture", "text": "Its blurred picture first, then sharp, the logo in place: no more black page while it loads." } },
+      { "icon": "close", "title": "Une saison ou un épisode à la Corbeille", "text": "Une vraie confirmation dit ce qui part, ligne par ligne, et où. Jamais de suppression définitive.", "en": { "title": "A season or an episode to the Recycle Bin", "text": "A real confirmation says what goes, line by line, and where. Never deleted for good." } },
+      { "icon": "download", "title": "Un rangement plus solide", "text": "Réessayé tout seul, jamais une deuxième version, plus de packs bien lus, et l’ordre de TheTVDB sur Jellyfin 12.4.", "en": { "title": "Sturdier sorting", "text": "Retried by itself, never a second version, more packs read right, and TheTVDB’s order on Jellyfin 12.4." } }
+    ]
+  },
+  {
     "version": "0.9.13", "date": "2026-11-18",
     "summary": "Une franchise en une carte, les grandes séries bien rangées, un PC de Jellyfin plus autonome.",
     "en": { "summary": "A franchise in one card, big series sorted right and a Jellyfin PC that looks after itself." },

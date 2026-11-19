@@ -1,4 +1,5 @@
 {
+  "0.9.14": { "film": "arcane", "point": 1, "shot": "windows-series", "at": [100, 80], "size": [1320, 400], "scale": 0.48, "say": "Where you are in each season, at a glance: a ring and how many you watched. The season pill glides to the one you pick." },
   "0.9.13": { "film": "mad-max-fury-road", "point": 1, "shot": "windows-shelf", "at": [20, 10], "size": [1400, 880], "scale": 0.45 },
   "0.9.12": {
     "film": "wild-robot",
