@@ -319,6 +319,45 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
 
+    /// <summary>
+    /// Watching first (<see cref="PlaybackFirst"/>): its disk reads and writes at Windows' « very low » priority while
+    /// something plays, which the disk's class driver holds back behind Jellyfin's (2026-11-19, the Dell's USB disk:
+    /// qBittorrent checking pieces at 20-70 MB/s, the drive busy 98 %, under the slower speed limits, which bound only
+    /// what peers send); normal again after. Set again on a qBittorrent started since (a new process starts normal).
+    /// </summary>
+    public void Yield(bool low)
+    {
+        // Set once at least (a qBittorrent left at very low by a Mira that quit), then only when it changes or its process does.
+        if (_yieldSet && low == _yielding && (_yielded.Count == 0 ? !low : _yielded.All(Alive))) return;
+        var ids = OwnIds();
+        if (ids is null) return;
+        _yielded.Clear();
+        foreach (var id in ids)
+        {
+            var process = OpenProcess(ProcessSetInformation, false, id);
+            if (process == IntPtr.Zero) continue;
+            try
+            {
+                var priority = low ? IoPriorityVeryLow : IoPriorityNormal;
+                if (NtSetInformationProcess(process, ProcessIoPriority, ref priority, sizeof(int)) == 0) _yielded.Add(id);
+            }
+            finally { CloseHandle(process); }
+        }
+        _yielding = low; _yieldSet = true;
+    }
+    private bool _yielding, _yieldSet;
+    private readonly List<int> _yielded = [];
+    private static bool Alive(int id)
+    {
+        try { using var process = Process.GetProcessById(id); return !process.HasExited; }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception) { return false; }
+    }
+    private const int ProcessIoPriority = 33, IoPriorityVeryLow = 0, IoPriorityNormal = 2;
+    private const uint ProcessSetInformation = 0x0200;
+    [DllImport("ntdll.dll")] private static extern int NtSetInformationProcess(IntPtr process, int infoClass, ref int info, int length);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, int id);
+    [DllImport("kernel32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+
     /// <summary>It stopped answering (quit, or restarted): asked again, and started if need be, at the next use.</summary>
     public void Lost() => _client = null;
 
