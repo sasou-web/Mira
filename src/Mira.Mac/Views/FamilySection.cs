@@ -96,7 +96,7 @@ public sealed class FamilySection
 
     private Control PasswordCard(JellyfinClient client, HomeSettings settings)
     {
-        var password = new TextBox { PasswordChar = '•', Width = 260 };
+        var password = new TextBox { PasswordChar = '•', Width = 260, Watermark = settings.Home ? L("Nouveau mot de passe", "New password") : L($"Au moins {settings.MinPassword} caractères", $"At least {settings.MinPassword} characters") };
         Avalonia.Automation.AutomationProperties.SetName(password, settings.Home ? L("Nouveau mot de passe du foyer", "New home password") : HomeText.Password);
         var status = Note("");
         var line = new WrapPanel { Margin = new Thickness(0, 14, 0, 0), ItemSpacing = 10, LineSpacing = 8 };
