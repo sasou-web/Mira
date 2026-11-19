@@ -927,7 +927,8 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Lina's profile did not open Home")
         XCTAssertTrue(homeLog().contains { $0["what"] as? String == "open" && $0["profile"] as? String == "Lina" && $0["pin"] as? String == "sent" }, "The PIN never went to the home")
 
-        // Settings: the switch, to Sam.
+        // Settings: the switch, to Sam (an administrator from here, for Settings → Home below: read when Settings open).
+        mock("/Mock/Admin")
         openSettings(app)
         let switching = app.buttons["settings.switch"]
         for _ in 0..<6 where !(switching.exists && switching.isHittable) { app.swipeUp() }
@@ -941,14 +942,14 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitFor({ self.homeLog().contains { $0["what"] as? String == "open" && $0["profile"] as? String == "Sam" } }, timeout: 15), "Sam's profile was never opened")
 
         // Settings → Home, as an administrator.
-        mock("/Mock/Admin")
-        // Settings touched again start over, and read the account again: an administrator now.
-        let tab = app.buttons["tab.settings"]
+        // In the Administration section, further down; pulled down first, which reads the account again.
         let homeRow = app.buttons["settings.home"]
-        for _ in 0..<3 where !homeRow.waitForExistence(timeout: 4) {
-            if tab.waitForExistence(timeout: 3) { tab.tap() }
+        for _ in 0..<3 where !(homeRow.exists && homeRow.isHittable) {
+            for _ in 0..<3 { app.swipeDown() }
+            settle()
+            for _ in 0..<8 where !(homeRow.exists && homeRow.isHittable) { app.swipeUp(velocity: .slow) }
         }
-        XCTAssertTrue(homeRow.waitForExistence(timeout: 10), "Settings offer no Home to an administrator")
+        XCTAssertTrue(homeRow.exists, "Settings offer no Home to an administrator")
         homeRow.tap()
         XCTAssertTrue(app.descendants(matching: .any)["home.offer.Lina"].waitForExistence(timeout: 15), "Settings → Home lists no profiles")
         settle()
