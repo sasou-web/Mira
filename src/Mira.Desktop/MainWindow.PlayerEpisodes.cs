@@ -25,12 +25,13 @@ public partial class MainWindow
         PreviousButton.ToolTip = previous is null ? L("Premier épisode disponible", "First available episode") : L("Épisode précédent · ", "Previous episode · ") + PlayerText.Subtitle(previous, episodes);
         PlayerEpisodesButton.IsEnabled = episodes.Count > 0;
     }
-    private MediaItem? PreviousEpisode(MediaItem current)
-    {
-        // A part of an episode in several files: the episode before its title.
-        if (_parts is { } parts && parts.Holds(current.Id)) current = parts.Title;
-        return EpisodePages.Before(_playerEpisodes, current.Id);
-    }
+    private MediaItem? PreviousEpisode(MediaItem current) => EpisodePages.Before(_playerEpisodes, EpisodeOf(current).Id);
+    /// <summary>
+    /// The episode as the season lists it: a part of an episode in several files is its title, whichever part plays (the
+    /// menu raised none of them, and a click on its row started it again).
+    /// </summary>
+    private MediaItem EpisodeOf(MediaItem item) => _parts is { } parts && parts.Holds(item.Id) ? parts.Title : item;
+    private MediaItem? PlayingEpisode => _session.Item is { } item ? EpisodeOf(item) : null;
     private async void Previous_Click(object sender, RoutedEventArgs e)
     {
         if (_session.Item is not { } current || PreviousEpisode(current) is not { } previous) return;
@@ -41,7 +42,7 @@ public partial class MainWindow
     private void BuildEpisodesMenu()
     {
         _playerPages = EpisodePages.From(_playerEpisodes);
-        var holding = EpisodePages.Holding(_playerPages, _playerEpisodes, _session.Item);
+        var holding = EpisodePages.Holding(_playerPages, _playerEpisodes, PlayingEpisode);
         _playerPage = holding is null ? 0 : Math.Max(0, _playerPages.IndexOf(holding));
         RenderEpisodePage();
     }
@@ -70,7 +71,7 @@ public partial class MainWindow
     /// </summary>
     private Button EpisodeRow(MediaItem episode)
     {
-        var playing = episode.Id == _session.Item?.Id;
+        var playing = episode.Id == PlayingEpisode?.Id;
         var watched = episode.UserData.Played && !playing;
         var row = new Button { Style = (Style)FindResource("PlayerMenuItem"), Padding = new Thickness(8), Tag = episode.Id };
         Motion.SetRadius(row, Palette.Card);
@@ -134,7 +135,7 @@ public partial class MainWindow
     }
     /// <summary>The episode playing, else the first of the page: what the keyboard starts from.</summary>
     private Button? CurrentEpisodeRow() =>
-        EpisodeList.Children.OfType<Button>().FirstOrDefault(x => Equals(x.Tag, _session.Item?.Id)) ?? EpisodeList.Children.OfType<Button>().FirstOrDefault();
+        EpisodeList.Children.OfType<Button>().FirstOrDefault(x => Equals(x.Tag, PlayingEpisode?.Id)) ?? EpisodeList.Children.OfType<Button>().FirstOrDefault();
     /// <summary>
     /// A row of a menu's list brought into view (focus, the episode playing) comes with its focus ring, drawn 3 px outside it:
     /// without the room, the list's edge cut the ring of the row at its top or bottom.

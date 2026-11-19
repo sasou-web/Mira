@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Input;
 using System.Windows.Interop;
 using Mira.Desktop.Playback;
 using Mira.Desktop.Services;
@@ -207,6 +208,43 @@ public partial class MainWindow
     private bool _layersMade;
     /// <summary>mpv draws the first picture of this title unseen: it comes up from black (<see cref="RevealVideo"/>).</summary>
     private bool _videoWaits;
+    /// <summary>
+    /// A playback opening under the black sheet, before the player is up (Jellyfin preparing the stream can take ten
+    /// seconds): Échap gives it up (<see cref="GiveUpOpening"/>) rather than close the page hidden under the sheet.
+    /// </summary>
+    private CancellationTokenSource? _playOpening;
+    /// <summary>The stream is open and mpv starting: the player comes up in a moment, Échap waits for it.</summary>
+    private bool _playOpeningCommitted;
+    /// <summary>
+    /// A stream slow to open: the player's black and its spinner come under the sheet, which lifts, as on the Mac. Before,
+    /// the window stayed black, nothing turning, until Jellyfin answered.
+    /// </summary>
+    private async Task ShowOpeningAsync(CancellationTokenSource opening)
+    {
+        await Task.Delay(SpinnerAfterMs);
+        if (_playOpening != opening || opening.IsCancellationRequested || _playing || Shade is not { } shade) return;
+        // Another try from « Lecture impossible »: its « Trying again… » says it already.
+        if (!PlayerErrorShown)
+        {
+            // The last picture of the title before would show there until the next one.
+            _videoHost?.Conceal(true);
+            PlayerShell.Visibility = Visibility.Visible; SetPlayerLoading(true);
+            await RenderedAsync(2);
+        }
+        if (_playOpening == opening && !opening.IsCancellationRequested) await shade.LiftAsync(140);
+    }
+    /// <summary>Échap while a playback opens: Jellyfin is no longer waited for, and the page the person was on comes back.</summary>
+    private void GiveUpOpening()
+    {
+        if (_playOpening is not { } opening || _playOpeningCommitted || opening.IsCancellationRequested) return;
+        FrameProbe.Note("opening given up");
+        _playerLeft++; opening.Cancel(); Mouse.OverrideCursor = null; SetPlayerLoading(false);
+        // The player was showing (the next episode, another try): back to the library; else the page under the sheet.
+        if (PlayerErrorShown || LibraryShell.Visibility != Visibility.Visible) { HidePlayerError(); ReturnToLibrary(reveal: false); }
+        else PlayerShell.Visibility = Visibility.Collapsed;
+        _videoHost?.Conceal(false);
+        _ = Shade?.LiftAsync(LiftMs);
+    }
     /// <summary>A start that takes longer than usual: the sheet goes, black on black, and the spinner shows.</summary>
     private async Task LiftForSpinnerAsync(int generation)
     {

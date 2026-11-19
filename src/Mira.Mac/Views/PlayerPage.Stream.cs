@@ -80,6 +80,8 @@ public sealed partial class PlayerPage
         _stream = stream; _converted = stream.Converted ? new(stream) : null;
         _recovery.Reset(); _reloadTracks = null; _reopenTracks = null; _reopenText = null; _reopenChosen = false;
         _trackIds = default; _playingTracks = null; _fileOpen = false; _skipEnds = 0; _reloading = false; _recoveryLoad = false;
+        // « C » turns back on this title's subtitles, never those of the one before.
+        _subtitlesBeforeOff = null; _convertedBeforeOff = null;
         Awake();
     }
     /// <summary>The playback stops: Jellyfin's conversion with it (Jellyfin ends it on « stop » too, but later).</summary>

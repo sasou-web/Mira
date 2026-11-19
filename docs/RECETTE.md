@@ -22,6 +22,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Corbeille sur le PC de Jellyfin : un épisode (clic droit) avec ses sous-titres, une saison (« … » de la ligne Épisodes), sur un fichier de test ; la fenêtre dit ce qui part ; tout revient depuis la Corbeille de Windows ; sur le WD monté dans un dossier
 
 ## Ton PC 🖥
+- [ ] Ouverture lente du lecteur (dès la 0.9.15) : un film lourd hors de chez toi (conversion) ; au bout d’une seconde, roue sur fond noir au lieu d’un écran noir ; Échap pendant l’attente ramène la fiche (pas l’Accueil) ; relancé tout de suite, il s’ouvre. Pendant le compte à rebours de fin d’épisode laissé aller, Échap pendant la préparation du suivant : le lecteur ne revient pas. Touche C sur un film converti avec sous-titres PGS : coupés puis revenus ; l’épisode suivant garde le choix.
 - [ ] Bonus hors de « Continuer à regarder » (dès la 0.9.15) : lancer un générique de Monogatari (pastille Bonus), l’arrêter à mi-chemin ; il n’est pas dans « Continuer à regarder », ni pendant le mini-lecteur ni après avoir relancé Mira ; pareil pour une bande-annonce avant un film arrêtée en cours
 - [ ] Mise à jour de Mira proposée et faite (à la prochaine version)
 - [ ] Bonus d’une série (« La pastille ») : sur Monogatari Series, pastille « Extras » après la saison 14 ; un clic montre Openings et Endings, une ligne chacun, « Tout afficher » les déplie ; une vignette lance le générique ; un film garde sa rangée « Bonus » (Mac et iPhone pareil)
