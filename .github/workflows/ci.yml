@@ -239,6 +239,16 @@ jobs:
           [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
           [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hWnd, uint command);
           public struct RECT { public int Left, Top, Right, Bottom; }
+          delegate bool EnumProc(IntPtr hWnd, IntPtr data);
+          [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr data);
+          [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+          // Every top-level window of the process Windows shows, owned ones too (MainWindowHandle skips a window out of the taskbar).
+          public static int VisibleWindows(int processId)
+          {
+              var count = 0;
+              EnumWindows((hWnd, _) => { uint owner; GetWindowThreadProcessId(hWnd, out owner); if (owner == processId && IsWindowVisible(hWnd)) count++; return true; }, IntPtr.Zero);
+              return count;
+          }
           '@
           $exe = [IO.Path]::GetFullPath('src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe')
           $profile = Join-Path $PWD '.artifacts/sign-in-profile'
@@ -247,7 +257,9 @@ jobs:
             Start-Sleep -Seconds 20
             $run.Refresh()
             if ($run.HasExited) { throw "Mira ended after a start at sign-in (exit $($run.ExitCode))." }
-            if ($run.MainWindowHandle -ne [IntPtr]::Zero) { throw 'A start at sign-in showed a window.' }
+            # Off screen and out of the taskbar is not enough: a window Windows shows is still drawn (Dell, 2026-11-19).
+            $shown = [Mira.Win]::VisibleWindows($run.Id)
+            if ($shown -ne 0) { throw "A start at sign-in left $shown window(s) shown." }
             Write-Output 'PASS: started at sign-in, no window shown after 20 s'
             $again = Start-Process -FilePath $exe -ArgumentList @('--demo', '--data', "`"$profile`"") -PassThru
             if (-not $again.WaitForExit(30000)) { $again.Kill(); throw 'The second launch did not end.' }

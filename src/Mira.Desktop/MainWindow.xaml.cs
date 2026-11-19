@@ -184,8 +184,6 @@ public partial class MainWindow : Window
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // Started at sign-in: put away by the clock at once, everything below runs as usual.
-        if (AtSignIn) Hide();
         // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.
         await StartTailnetWithMiraAsync();
         if (_args.Contains("--demo")) await ShowDemoAsync();
