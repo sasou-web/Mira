@@ -1,5 +1,24 @@
 [
   {
+    "version": "0.9.15", "date": "2026-11-19",
+    "summary": "Le foyer et « Qui regarde ? », les vrais noms des saisons, la lecture avant les téléchargements.",
+    "en": { "summary": "The home and “Who’s watching?”, seasons by their own names, watching before downloading." },
+    "changes": [
+      { "category": "Foyer", "text": "« Qui regarde ? » sur Windows, Mac et iPhone : un mot de passe familial, un profil chacun, un code si on veut.", "en": { "category": "Home", "text": "“Who’s watching?” on Windows, Mac and iPhone: one family password, a profile each, a PIN if you like." } },
+      { "category": "Loin de chez toi", "text": "Le lien du foyer passe par Tailscale intégré ; Mira bascule sur Tailscale dès que la maison ne répond plus.", "en": { "category": "Away from home", "text": "The home link goes through built-in Tailscale; Mira switches to Tailscale as soon as home stops answering." } },
+      { "category": "Séries", "text": "Les vrais noms des saisons sur une ligne qui s’estompe ; une saison mise à la Corbeille part tout de suite.", "en": { "category": "Shows", "text": "Seasons by their own names on one line that fades out; a season sent to the Recycle Bin is gone at once." } },
+      { "category": "Rangement", "text": "Packs de plusieurs saisons rangés dans leurs saisons, plus de code devant un titre, 16 noms de sortie mieux lus.", "en": { "category": "Sorting", "text": "Multi-season packs land in their seasons, no code before a title, 16 release names read right." } },
+      { "category": "PC de Jellyfin", "text": "La lecture passe avant qBittorrent, qui tient bon quand son disque est débranché ou son port pris.", "en": { "category": "Jellyfin PC", "text": "Watching comes before qBittorrent, which holds on when its drive is unplugged or its port taken." } },
+      { "category": "Extension", "text": "Un invité de party ne contourne plus son filtre ; toute la série suit l’ordre de TheTVDB, même neuve.", "en": { "category": "Extension", "text": "A party guest can no longer get around their filter; the whole show follows TheTVDB’s order, even a new one." } }
+    ],
+    "items": [
+      { "icon": "users", "title": "Qui regarde ?", "text": "Un mot de passe pour la famille, puis chacun choisit son profil, avec un code s’il veut. Loin de chez toi aussi, par le lien du foyer.", "en": { "title": "Who’s watching?", "text": "One password for the family, then everyone picks their profile, with a PIN if they like. Away from home too, through the home link." } },
+      { "icon": "series", "title": "Les vrais noms des saisons", "text": "« Bakemonogatari », « Nisemonogatari »… sur une ligne qui s’estompe sous les boutons, au lieu de « Saison 1 » à « Saison 14 ».", "en": { "title": "Seasons by their own names", "text": "“Bakemonogatari”, “Nisemonogatari”… on one line that fades under the buttons, instead of “Season 1” to “Season 14”." } },
+      { "icon": "play", "title": "La lecture d’abord", "text": "Un film ne charge plus pendant que qBittorrent télécharge sur le même disque.", "en": { "title": "Watching comes first", "text": "A film no longer stalls while qBittorrent downloads to the same drive." } },
+      { "icon": "shield", "title": "Plus sûr", "text": "Un invité de ta party ne voit que ce que vous regardez, et Mira vérifie qu’un Jellyfin retrouvé ailleurs est bien le tien.", "en": { "title": "Safer", "text": "A guest of your party sees only what you watch, and Mira checks that a Jellyfin found elsewhere is really yours." } }
+    ]
+  },
+  {
     "version": "0.9.14", "date": "2026-11-19",
     "summary": "Les séries de bout en bout, des fiches qui s’ouvrent sur leur image, un rangement plus solide.",
     "en": { "summary": "Shows end to end, title pages that open on their picture and sturdier sorting." },

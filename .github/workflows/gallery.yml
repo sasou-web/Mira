@@ -82,8 +82,21 @@ jobs:
           dotnet build tools/web/fake-tvdb/FakeTvdb.csproj -c Release -o .artifacts/fake-tvdb -nologo -v q
           if ($LASTEXITCODE -ne 0) { throw 'tools/web/fake-tvdb did not build.' }
           Copy-Item .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll $plugin
+      # For a release's banner only: Mira's extension, whose home (« Who's watching? ») windows-family shows, its
+      # profiles the accounts setup.mjs makes with MIRA_GALLERY_FAMILY.
+      - name: Mira's extension (banner)
+        if: inputs.windows_only
+        shell: pwsh
+        run: |
+          $plugin = Join-Path $PWD '.artifacts/jf-data/data/plugins/Mira_9999.0.0.0'
+          New-Item -ItemType Directory -Force -Path $plugin | Out-Null
+          dotnet build src/Mira.Jellyfin/Mira.Jellyfin.csproj -c Release -o .artifacts/mira-jellyfin -nologo -v q
+          if ($LASTEXITCODE -ne 0) { throw 'src/Mira.Jellyfin did not build.' }
+          Copy-Item .artifacts/mira-jellyfin/Mira.Jellyfin.dll $plugin
       - name: Jellyfin, its library and a viewer's traces
         shell: pwsh
+        env:
+          MIRA_GALLERY_FAMILY: ${{ inputs.windows_only && '1' || '0' }}
         run: |
           $j = Join-Path $PWD '.artifacts/jf-data'
           foreach ($d in 'data', 'cache', 'config', 'log') { New-Item -ItemType Directory -Force -Path (Join-Path $j $d) | Out-Null }
