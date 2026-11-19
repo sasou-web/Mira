@@ -18,6 +18,18 @@ internal static class LibraryTests
         var Test = run.Test;
         var testRoot = run.Root;
         LibraryStore Store(string name) => new(testRoot, name);
+        await Test("Titres : le code qu’un outil de téléchargement met devant le nom du fichier n’est jamais dit (« À reprendre », Discord, fiche)", () =>
+        {
+            const string code = "0c76ce5c44cd079b008af19790bb4cc3";
+            Assert(TitleNames.Clean(code + "_The Nightmare Before Christmas") == "The Nightmare Before Christmas", TitleNames.Clean(code + "_The Nightmare Before Christmas"));
+            Assert(TitleNames.Clean("da39a3ee5e6b4b0d3255bfef95601890afd80709__Alien") == "Alien", "Empreinte de 40 chiffres aussi.");
+            string[] kept = ["L’Étrange Noël de monsieur Jack", "1917", code, code + "_", code + "_ ", "0c76ce5c44cd079b008af19790bb4cc_Trop court", "0c76ce5c44cd079b008af19790bb4cc3a_Trop long", "Deadbeef_Film", "2001 : l’odyssée de l’espace"];
+            Assert(kept.All(x => TitleNames.Clean(x) == x), "Gardés : " + string.Join(", ", kept.Where(x => TitleNames.Clean(x) != x)));
+            var item = JsonSerializer.Deserialize<MediaItem>($$"""{"Name":"{{code}}_Pilot","SeriesName":"{{code}}_The Show","Type":"Episode"}""", Json.Options)!;
+            Assert(item.Name == "Pilot" && item.SeriesName == "The Show" && item.DisplayTitle == "The Show", item.Name + " / " + item.SeriesName);
+            Assert(new MediaItem { Name = code + "_Alien" }.Name == "Alien" && (new MediaItem { Name = "Alien" } with { Name = code + "_Aliens" }).Name == "Aliens", "Aussi en code.");
+            return Task.CompletedTask;
+        });
         await Test("Bibliothèques : films, séries et mixtes listées ; musique, photos, vidéos perso, livres, TV en direct jamais (pages vides)", () =>
         {
             // CollectionType as Jellyfin 12.1 gives it in UserViews: none for a mixed library.

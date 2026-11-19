@@ -69,8 +69,8 @@ public static class PartyPage
                 continue;
             }
 
-            var name = Text(item["Name"]) ?? "";
-            if (Text(item["Type"]) == "Episode" && Text(item["SeriesName"]) is { Length: > 0 } series)
+            var name = Mira.Core.TitleNames.Clean(Text(item["Name"]) ?? "");
+            if (Text(item["Type"]) == "Episode" && Mira.Core.TitleNames.CleanOrNull(Text(item["SeriesName"])) is { Length: > 0 } series)
             {
                 var season = Number(item["ParentIndexNumber"]);
                 var episode = Number(item["IndexNumber"]);

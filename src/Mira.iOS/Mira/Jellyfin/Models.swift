@@ -4,7 +4,7 @@ import Foundation
 /// writes its keys in PascalCase, and in camelCase for a few answers: `JSON.decoder` reads both.
 struct Item: Codable, Sendable, Identifiable, Hashable {
     let id: String
-    var name: String?
+    @TitleName var name: String?
     var type: String?
     var collectionType: String?
     var productionYear: Int?
@@ -19,7 +19,7 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var communityRating: Double?
     var childCount: Int?
     var seriesId: String?
-    var seriesName: String?
+    @TitleName var seriesName: String?
     var seasonId: String?
     var parentIndexNumber: Int?
     var indexNumber: Int?

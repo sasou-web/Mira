@@ -23,9 +23,10 @@ public sealed record UserData
 public sealed record MediaItem
 {
     public string Id { get; init; } = "";
-    public string Name { get; init; } = "";
+    /// <summary>Jellyfin's name, without a download tool's code before it (<see cref="TitleNames"/>).</summary>
+    public string Name { get; init => field = TitleNames.Clean(value ?? ""); } = "";
     public string Type { get; init; } = "Movie";
-    public string? SeriesName { get; init; }
+    public string? SeriesName { get; init => field = TitleNames.CleanOrNull(value); }
     public string? SeriesId { get; init; }
     public string? SeasonId { get; init; }
     public string? Overview { get; init; }
