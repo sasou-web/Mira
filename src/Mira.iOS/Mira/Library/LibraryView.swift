@@ -358,12 +358,15 @@ struct LibraryView: View {
 
     private func reload() async {
         guard let client = app.client else { return }
+        // A filter changed meanwhile: this answer is the page of the one before, never shown (audit I9).
+        let wanted = query
         loading = true
-        defer { loading = false }
+        defer { if wanted == query { loading = false } }
         do {
             let asked = askGrouping(client)
-            let page = try await client.browse(query, start: 0)
+            let page = try await client.browse(wanted, start: 0)
             await apply(asked, client)
+            guard wanted == query, !Task.isCancelled else { return }
             items = receive(page.items ?? [], more: false)
             total = page.totalRecordCount ?? fetched
             failure = nil
@@ -371,7 +374,7 @@ struct LibraryView: View {
             app.sessionEnded()
         } catch is CancellationError {
         } catch {
-            if items.isEmpty { failure = error }
+            if items.isEmpty, wanted == query { failure = error }
         }
     }
 

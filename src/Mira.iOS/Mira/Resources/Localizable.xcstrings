@@ -4293,6 +4293,16 @@
         }
       }
     },
+    "Watch again": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoir"
+          }
+        }
+      }
+    },
     "Watch together": {
       "localizations": {
         "fr": {

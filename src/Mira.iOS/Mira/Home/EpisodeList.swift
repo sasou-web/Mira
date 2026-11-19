@@ -6,10 +6,18 @@ struct EpisodeList: View {
     let series: Item
     /// The episode Play plays on the series' page.
     let next: Item?
+    /// The series' page read (`next` known): the season shown first waits for it, never Specials first and then a
+    /// glide to the season of the episode to watch (audit I6).
+    var ready = true
     @Environment(AppModel.self) private var app
     @State private var seasons: [Item] = []
+    @State private var seasonsLoaded = false
     @State private var season: String?
-    @State private var episodes: [Item] = []
+    /// Each season's episodes as Jellyfin last gave them: a season seen once comes back at once, read again behind.
+    @State private var loaded: [String: [Item]] = [:]
+    /// The season whose episodes are on screen: the one before, dimmed and untouchable, until the one chosen is read,
+    /// so that « Mark » or « Keep the season » never acts on a season no longer chosen (audit I1).
+    @State private var onScreen: String?
     @State private var failed = false
     /// A season chosen by hand: the episode to watch next no longer moves the list.
     @State private var picked = false
@@ -28,8 +36,16 @@ struct EpisodeList: View {
     @State private var missing = MissingWatch()
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// The white capsule of the season shown, one for the row: it glides to the next one chosen (as the jelly of Windows and Mac).
-    @Namespace private var shownPill
+    /// The white pill of the season shown, one for the row (« La gelée », as on Windows and the Mac): sent as a jelly to
+    /// the season chosen (JellyPill), the names under it in black, cut by its shape, so no name is ever grey on grey.
+    @State private var pill = JellyPill()
+    /// The season the pill stands on or goes to; nil before the row's first layout.
+    @State private var pillSeason: String?
+    @State private var pillMoving = false
+    @State private var pillRound = 0
+    /// Each chip's place in the row (its own space: scrolling moves none).
+    @State private var chipFrames: [String: CGRect] = [:]
+    private static let rowSpace = "series.seasons.row"
 
     var body: some View {
         let today = EpisodeCalendar.Day.today()
@@ -41,45 +57,15 @@ struct EpisodeList: View {
                 // with many seasons (Monogatari Series: 14), the one shown is brought into sight.
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
-                        HStack(spacing: 8) {
-                            ForEach(chips) { entry in
-                                let chosen = entry.id == season
-                                if entry.id == Self.extrasId {
-                                    // A thin line between the seasons and « Extras », as on Windows and the Mac.
-                                    Rectangle().fill(Palette.line).frame(width: 1, height: 22).padding(.horizontal, 4)
-                                }
-                                let coming = entry.season.flatMap { missing.progress(season: $0, episodes: nil) }.map { MissingDownloads.pill($0) } ?? ""
-                                Button {
-                                    picked = true
-                                    season = entry.id
-                                } label: {
-                                    Text(verbatim: coming.isEmpty ? entry.name : "\(entry.name)  ·  \(coming)")
-                                        .font(MiraFont.callout)
-                                        .foregroundStyle(chosen ? Palette.onAccent : Palette.ink)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 8)
-                                        .background {
-                                            ZStack {
-                                                Capsule().fill(Palette.raised)
-                                                if chosen { Capsule().fill(Palette.accent).matchedGeometryEffect(id: "shown", in: shownPill) }
-                                            }
-                                        }
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityAddTraits(chosen ? .isSelected : [])
-                                .accessibilityIdentifier(entry.id == Self.extrasId ? "series.chip.extras" : "series.chip")
-                                .id(entry.id)
-                            }
-                        }
+                        seasonRow(chips)
                     }
                     .scrollIndicators(.hidden)
-                    // A soft spring for the capsule and the inks, a little rebound at the end (the grid keeps its fade).
-                    .animation(reduceMotion ? nil : .spring(duration: 0.4, bounce: 0.22), value: season)
                     .accessibilityIdentifier("series.seasons")
                     .onAppear { if let season { proxy.scrollTo(season, anchor: .center) } }
                     .onChange(of: season) { _, shown in
                         guard let shown else { return }
-                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(shown, anchor: .center) }
+                        // The row brought along at the pill's pace, never ahead of it.
+                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.5)) { proxy.scrollTo(shown, anchor: .center) }
                     }
                 }
             } else if let only = chips.first?.name {
@@ -90,6 +76,7 @@ struct EpisodeList: View {
                 Text(verbatim: [String(localized: "\(episodes.count) episodes"), StorageSize.text(StorageSize.sum(episodes, StorageSize.sizes(episodes)))].compactMap(\.self).joined(separator: " · "))
                     .font(MiraFont.footnote)
                     .foregroundStyle(Palette.muted)
+                    .opacity(stale ? 0.45 : 1)
                     .accessibilityIdentifier("series.seasonSize")
             }
             // The season's counter, « 2 of 6 watched » beside a ring (maquette B, ogsas 2026-11-18), as on Windows and Mac:
@@ -103,12 +90,15 @@ struct EpisodeList: View {
                     SeasonCounter(seen: seen, total: episodes.count)
                 }
                 .buttonStyle(.plain)
-                .disabled(marking)
+                .disabled(marking || stale)
+                .opacity(stale ? 0.45 : 1)
                 .accessibilityLabel(mark.played ? Text("Mark the season as unwatched") : Text("Mark the season as watched"))
                 .accessibilityValue(Text(verbatim: SeasonCounter.words(seen: seen, total: episodes.count)))
                 .accessibilityIdentifier("series.markSeason")
             }
             KeepSeasonButton(episodes: episodes)
+                .disabled(stale)
+                .opacity(stale ? 0.45 : 1)
             if failed && episodes.isEmpty {
                 Text(verbatim: Messages.text(JellyfinError.unreachable)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
             }
@@ -129,11 +119,15 @@ struct EpisodeList: View {
                 LazyVGrid(columns: EpisodeGrid.columns(typeSize), alignment: .leading, spacing: EpisodeGrid.rowSpacing) {
                     ForEach(tiles(shelf(today: today, showMissing: showMissing))) { tileView($0) }
                 }
-                .id(season)
+                // The season before, dimmed, until the one chosen comes; then a fade from one to the other.
+                .opacity(stale ? 0.45 : 1)
+                .allowsHitTesting(!stale)
+                .id(shown)
                 .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: season)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: shown)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: stale)
         .environment(missing)
         .task(id: "\(series.id)-\(missing.round)") { await missing.watch(series, app: app) }
         // Episodes asked from this page placed: they leave the hollow tiles for their own.
@@ -154,15 +148,20 @@ struct EpisodeList: View {
         .task(id: series.id) {
             await loadVirtuals()
             // A series the library holds no season of: its first season known to TheTVDB.
-            if season == nil, seasons.isEmpty { season = self.chips(today: .today(), showMissing: app.preferences.showMissingEpisodes).first?.id }
+            _ = chooseSeason()
         }
         .task(id: season) { await loadEpisodes() }
+        .onChange(of: season) { _, chosen in
+            // A season read before: on screen at once (read again behind).
+            if let chosen, loaded[chosen] != nil { onScreen = chosen }
+            placePill()
+        }
+        .onChange(of: chipFrames) { placePill() }
+        .onChange(of: ready) { _ = chooseSeason() }
         // A title stopped or marked: the season shown is read again in place (same episodes, same rows).
         .onChange(of: app.playback) { Task { await loadEpisodes() } }
         // The episode to watch next, known after the seasons: its season comes first.
-        .onChange(of: next?.seasonId) { _, id in
-            if !picked, let id, seasons.contains(where: { $0.id == id }) { season = id }
-        }
+        .onChange(of: next?.seasonId) { _ = chooseSeason() }
     }
 
     /// The seasons to choose from: Jellyfin's, then those the library has none of (« Season 1 · not in library »).
@@ -175,10 +174,19 @@ struct EpisodeList: View {
     private func chips(today: EpisodeCalendar.Day, showMissing: Bool) -> [Chip] {
         let held = Set(seasons.compactMap(\.indexNumber))
         let absent = EpisodeShelf.absentSeasons(held: held, virtuals: virtuals, today: today, showMissing: showMissing)
-        let all = seasons.map { Chip(id: $0.id, name: $0.name ?? "", season: $0.indexNumber) }
-            + absent.map { Chip(id: Self.absentPrefix + "\($0)", name: EpisodeShelf.seasonLabel($0, virtuals: virtuals, today: today), season: $0) }
+        // In their order, those the library lacks among the others (« Season 1 · not in library » before Season 2, audit
+        // I5); Specials first, as Jellyfin lists them; a season without a number last.
+        let library: [Chip] = seasons.map { Chip(id: $0.id, name: $0.name ?? "", season: $0.indexNumber) }
+        let lacking: [Chip] = absent.map { Chip(id: Self.absentPrefix + "\($0)", name: EpisodeShelf.seasonLabel($0, virtuals: virtuals, today: today), season: $0) }
+        let all: [Chip] = Self.ordered(library + lacking)
         // « Extras » after the last season, also after a single one (SeriesExtras).
         return SeriesExtras.pills(seasons: all.count, extras: extras.count) && !extras.isEmpty ? all + [Chip(id: Self.extrasId, name: SeriesExtras.name())] : all
+    }
+
+    /// By season number, Jellyfin's order kept between equals.
+    private static func ordered(_ chips: [Chip]) -> [Chip] {
+        let numbered = chips.enumerated().map { (key: $0.element.season ?? Int.max, at: $0.offset, chip: $0.element) }
+        return numbered.sorted { $0.key != $1.key ? $0.key < $1.key : $0.at < $1.at }.map(\.chip)
     }
 
     private static let absentPrefix = "absent-"
@@ -192,7 +200,7 @@ struct EpisodeList: View {
 
     /// The season shown: its episodes, those it lacks at their place.
     private func shelf(today: EpisodeCalendar.Day, showMissing: Bool) -> [EpisodeShelf.Line] {
-        guard let number = seasons.first(where: { $0.id == season })?.indexNumber else { return episodes.map { EpisodeShelf.Line(kind: .episode, episodes: [$0]) } }
+        guard let number = seasons.first(where: { $0.id == shown })?.indexNumber else { return episodes.map { EpisodeShelf.Line(kind: .episode, episodes: [$0]) } }
         return EpisodeShelf.lines(episodes, virtuals: virtuals, season: number, today: today, showMissing: showMissing)
     }
 
@@ -247,12 +255,133 @@ struct EpisodeList: View {
         guard let client = app.client else { return }
         do {
             seasons = try await client.seasons(series.id)
-            if absentSeason == nil, season != Self.extrasId, season == nil || !seasons.contains(where: { $0.id == season }) {
-                season = seasons.first { $0.id == next?.seasonId }?.id ?? seasons.first?.id
-            } else {
-                await loadEpisodes()
-            }
+            seasonsLoaded = true
+            if !chooseSeason() { await loadEpisodes() }
         } catch JellyfinError.unauthorized { app.sessionEnded() } catch { failed = true }
+    }
+
+    /// The season to show, unless one was chosen by hand and is still there: the season of the episode to watch next,
+    /// else the one shown, else the first numbered season (Specials, season 0, only when there is nothing else), else
+    /// the first known to TheTVDB. Waits for the seasons and the page (`ready`). True when it changed the season.
+    @discardableResult private func chooseSeason() -> Bool {
+        guard seasonsLoaded, ready else { return false }
+        let ids = chips(today: .today(), showMissing: app.preferences.showMissingEpisodes).map(\.id)
+        if picked, let season, ids.contains(season) { return false }
+        let wanted = seasons.first { $0.id == next?.seasonId }?.id
+            ?? season.flatMap { ids.contains($0) ? $0 : nil }
+            ?? seasons.first { ($0.indexNumber ?? 1) > 0 }?.id
+            ?? ids.first
+        guard let wanted, wanted != season else { return false }
+        season = wanted
+        return true
+    }
+
+    /// The pill sent to the season shown: at once the first time (and with « Reduce Motion »), as a jelly after.
+    private func placePill() {
+        guard let season, let frame = chipFrames[season] else { return }
+        let left = Double(frame.minX), right = Double(frame.maxX)
+        if pillSeason == nil || pillSeason == season || reduceMotion {
+            if pillSeason == nil || pill.targetLeft != left || pill.targetRight != right { pill.put(left, right) }
+            if pillSeason != season { pillMoving = false }
+        } else {
+            pill.go(left, right, now: Date().timeIntervalSinceReferenceDate)
+            pillMoving = true
+            pillRound += 1
+            let round = pillRound
+            Task {
+                // Still within half a second (JellyPill); the frames' clock then stops.
+                try? await Task.sleep(for: .seconds(1))
+                if pillRound == round { pillMoving = false }
+            }
+        }
+        pillSeason = season
+    }
+
+    /// The pill as drawn at `date`: the season's chip while still, the jelly while it moves.
+    private func pillShape(at date: Date) -> CGRect? {
+        guard let season, let frame = chipFrames[season], pillSeason != nil else { return nil }
+        guard pillMoving else { return frame }
+        let shape = pill.at(date.timeIntervalSinceReferenceDate)
+        let height = frame.height * shape.height
+        return CGRect(x: shape.left, y: frame.midY - height / 2, width: max(0, shape.right - shape.left), height: height)
+    }
+
+    /// The row of seasons: each chip on its grey capsule, white names; over them, the pill and the same names in black
+    /// seen only through it.
+    private func seasonRow(_ chips: [Chip]) -> some View {
+        chipStack(chips, lit: false)
+            .coordinateSpace(.named(Self.rowSpace))
+            .overlay(alignment: .topLeading) {
+                TimelineView(.animation(minimumInterval: nil, paused: !pillMoving)) { context in
+                    if let shape = pillShape(at: context.date) {
+                        ZStack(alignment: .topLeading) {
+                            Capsule().fill(Palette.accent)
+                                .frame(width: shape.width, height: shape.height)
+                                .offset(x: shape.minX, y: shape.minY)
+                            chipStack(chips, lit: true)
+                                .mask(alignment: .topLeading) {
+                                    Capsule().frame(width: shape.width, height: shape.height).offset(x: shape.minX, y: shape.minY)
+                                }
+                        }
+                    }
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+            // Drawn by the pill's own clock: no fade of the page's carries it along.
+            .transaction { $0.animation = nil }
+    }
+
+    /// The chips; `lit`: their names only, in black, where the pill is.
+    private func chipStack(_ chips: [Chip], lit: Bool) -> some View {
+        HStack(spacing: 8) {
+            ForEach(chips) { entry in
+                if entry.id == Self.extrasId {
+                    // A thin line between the seasons and « Extras », as on Windows and the Mac.
+                    Rectangle().fill(lit ? Color.clear : Palette.line).frame(width: 1, height: 22).padding(.horizontal, 4)
+                }
+                if lit {
+                    chipLabel(entry, ink: Palette.onAccent)
+                } else {
+                    Button {
+                        picked = true
+                        season = entry.id
+                    } label: {
+                        chipLabel(entry, ink: Palette.ink).background(Palette.raised, in: .capsule)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(entry.id == season ? .isSelected : [])
+                    .accessibilityIdentifier(entry.id == Self.extrasId ? "series.chip.extras" : "series.chip")
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.rowSpace)) } action: { chipFrames[entry.id] = $0 }
+                    .id(entry.id)
+                }
+            }
+        }
+    }
+
+    private func chipLabel(_ entry: Chip, ink: Color) -> some View {
+        let coming = entry.season.flatMap { missing.progress(season: $0, episodes: nil) }.map { MissingDownloads.pill($0) } ?? ""
+        return Text(verbatim: coming.isEmpty ? entry.name : "\(entry.name)  ·  \(coming)")
+            .font(MiraFont.callout)
+            .foregroundStyle(ink)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+    }
+
+    /// The season whose episodes are on screen: the one chosen once read, the one before until then.
+    private var shown: String? {
+        guard let season else { return nil }
+        if absentSeason != nil || season == Self.extrasId || loaded[season] != nil { return season }
+        return onScreen
+    }
+
+    /// The season chosen is still being read: what shows is the one before, dimmed.
+    private var stale: Bool { shown != season }
+
+    /// The episodes on screen.
+    private var episodes: [Item] {
+        guard let shown, absentSeason == nil, shown != Self.extrasId else { return [] }
+        return loaded[shown] ?? []
     }
 
     /// The series' bonus videos, when Jellyfin counts some (or did not say).
@@ -282,11 +411,18 @@ struct EpisodeList: View {
     private func loadEpisodes() async {
         guard let client = app.client, let season else { return }
         // A season the library has none of: nothing to ask Jellyfin.
-        if absentSeason != nil || season == Self.extrasId { episodes = []; failed = false; return }
+        if absentSeason != nil || season == Self.extrasId { failed = false; return }
         do {
-            episodes = try await client.episodes(series.id, season: season)
-            failed = false
-        } catch JellyfinError.unauthorized { app.sessionEnded() } catch is CancellationError {} catch { failed = true }
+            let found = try await client.episodes(series.id, season: season)
+            // Jellyfin's specials « aired during » the season come with it (Display specials within seasons): they stay
+            // in Specials, never counted, marked or kept with the season (audit I7), as on Windows and the Mac.
+            loaded[season] = found.filter { $0.seasonId == nil || $0.seasonId == season }
+            // A late answer for a season left meanwhile is kept for later, never shown in place of the one chosen.
+            if self.season == season {
+                onScreen = season
+                failed = false
+            }
+        } catch JellyfinError.unauthorized { app.sessionEnded() } catch is CancellationError {} catch { if self.season == season { failed = true } }
     }
 }
 

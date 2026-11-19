@@ -17,8 +17,13 @@ struct TitleView: View {
     /// Jellyfin answered for this title (its files, its next episode): until then Play and the languages keep their
     /// place without changing the page's height.
     @State private var loaded = false
+    /// Jellyfin did not answer for this title (no network, the server away): said with « Try again », and asked again
+    /// once a way to Jellyfin is found (audit I4).
+    @State private var failure: Error?
     /// What Play plays: the title, or a series' next episode.
     @State private var next: Item?
+    /// Every episode watched: Play starts the series again from its first (« Watch again », as Windows and the Mac).
+    @State private var again = false
     /// The room the title takes on the server (StorageSize), once Jellyfin answered.
     @State private var size: Int64?
     @State private var audioIndex: Int?
@@ -48,6 +53,19 @@ struct TitleView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     actions
+                    if let failure, !loaded {
+                        EmptyState(symbol: "wifi.exclamationmark", title: Text("Jellyfin isn’t answering"), text: Text(Messages.text(failure))) {
+                            Button {
+                                Task {
+                                    await Way.shared.retry()
+                                    await load()
+                                }
+                            } label: { Text("Try again").font(MiraFont.headline).padding(.horizontal, 8) }
+                                .buttonStyle(.glass)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("title.failure")
+                    }
                     if let playable { TrackLine(playable: playable, loaded: loaded, audioIndex: $audioIndex, subtitleIndex: $subtitleIndex) }
                     if app.together.group != nil, let playable { TogetherSection(item: playable) }
                     else if !app.together.open.isEmpty { TogetherOpen() }
@@ -60,7 +78,7 @@ struct TitleView: View {
                             .lineSpacing(2)
                     }
                     if item.isSeries {
-                        EpisodeList(series: item, next: next).padding(.top, 6)
+                        EpisodeList(series: item, next: next, ready: loaded).padding(.top, 6)
                     }
                     let credits = Credits.of(item)
                     if !credits.isEmpty { CreditsRow(credits: credits) }
@@ -108,6 +126,10 @@ struct TitleView: View {
         .task(id: route.item.id) { await load() }
         // A title stopped or marked: read again in place, what is shown stays until the new answer.
         .onChange(of: app.playback) { Task { await load() } }
+        // A way to Jellyfin found again: a page that could not be read is asked again.
+        .onChange(of: app.way) { _, way in
+            if way != nil, failure != nil { Task { await load() } }
+        }
     }
 
     /// The series of an episode, the title (its logo when Jellyfin has one), what it is in one line, how far it was
@@ -126,7 +148,7 @@ struct TitleView: View {
             }
             if item.isEpisode, let series = item.seriesName, let seriesId = item.seriesId {
                 // The series' page, from one of its episodes.
-                NavigationLink(value: TitleRoute(item: Item(id: seriesId, name: series, type: "Series"), source: "series-\(seriesId)")) {
+                NavigationLink(value: TitleRoute(item: Self.series(of: item, id: seriesId, name: series), source: "series-\(seriesId)")) {
                     HStack(spacing: 4) {
                         Text(verbatim: series)
                         Image(systemName: "chevron.right").font(.caption.weight(.bold)).accessibilityHidden(true)
@@ -335,10 +357,17 @@ struct TitleView: View {
         guard let client = app.client else { return }
         do {
             let fresh = try await client.item(route.item.id)
-            if fresh.isSeries { next = try await client.nextUp(series: fresh.id) }
+            if fresh.isSeries {
+                let start = try await client.seriesStart(series: fresh.id)
+                next = start.item
+                again = start.again
+            }
             item = fresh
             loaded = true
-        } catch JellyfinError.unauthorized { app.sessionEnded() } catch {}
+            failure = nil
+        } catch JellyfinError.unauthorized { app.sessionEnded() } catch is CancellationError {} catch {
+            failure = error
+        }
         // The groups open on Jellyfin: one to join shows under Play.
         if app.together.group == nil { await app.together.refresh() }
         // The room it takes on the server, last: never waited for (a long anime's list), kept for the next time.
@@ -360,7 +389,22 @@ struct TitleView: View {
     /// A wide picture of the title (an episode's own, when its series has no backdrop); never a poster cut to 16:9.
     private var heroArt: Artwork? { Artwork.of(item, .backdrop) ?? (item.isEpisode ? Artwork.of(item, .wide) : nil) }
 
-    private var hasBackdrop: Bool { heroArt != nil }
+    /// A page opened from a bare title (a series from one of its episodes, before Jellyfin answered): the picture's room
+    /// kept, so that nothing is pushed down when it comes (audit I3).
+    private var hasBackdrop: Bool { heroArt != nil || (!loaded && route.item.imageTags == nil && route.item.backdropImageTags == nil) }
+
+    /// A series opened from one of its episodes: with the pictures the episode already names (its series' backdrop, logo
+    /// and poster), so that its page opens with them, as it will stay.
+    static func series(of episode: Item, id: String, name: String) -> Item {
+        var series = Item(id: id, name: name, type: "Series")
+        var tags: [String: String] = [:]
+        if episode.parentBackdropItemId == id { series.backdropImageTags = episode.parentBackdropImageTags }
+        if episode.parentLogoItemId == id, let logo = episode.parentLogoImageTag { tags["Logo"] = logo }
+        if let poster = episode.seriesPrimaryImageTag { tags["Primary"] = poster }
+        if !tags.isEmpty { series.imageTags = tags }
+        series.imageBlurHashes = episode.imageBlurHashes
+        return series
+    }
 
     /// The picture from the top of the screen: the bars over it, then 16:9 across the page (560 points at most).
     private var artworkHeight: CGFloat { hasBackdrop ? bars + min(width * 9 / 16, 560 - bars) : bars + 8 }
@@ -441,6 +485,7 @@ struct TitleView: View {
         }
         if item.isSeries {
             let code = ItemText.episodeCode(playable)
+            if !resume, again { return String(localized: "Watch again") }
             return resume ? String(localized: "Resume \(code)") : String(localized: "Watch \(code)")
         }
         return resume ? String(localized: "Resume") : String(localized: "Play")

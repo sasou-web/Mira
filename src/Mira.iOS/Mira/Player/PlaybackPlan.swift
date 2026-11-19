@@ -256,8 +256,9 @@ enum TrackNames {
     /// The track of the same language in another episode's file (and forced or not alike, for subtitles), to keep the
     /// languages chosen from one episode to the next; nil when it has none.
     static func same(_ stream: MediaStream?, in streams: [MediaStream]) -> MediaStream? {
-        guard let stream, let language = stream.language?.lowercased(), !language.isEmpty else { return nil }
-        let alike = streams.filter { $0.language?.lowercased() == language }
+        // One language whatever its code: « ja » in one file, « jpn » in the next (TrackChoice.key, as Core).
+        guard let stream, TrackChoice.key(stream.language) != nil else { return nil }
+        let alike = streams.filter { TrackChoice.same($0.language, stream.language) }
         return alike.first { ($0.isForced ?? false) == (stream.isForced ?? false) && ($0.title ?? "") == (stream.title ?? "") }
             ?? alike.first { ($0.isForced ?? false) == (stream.isForced ?? false) } ?? alike.first
     }
