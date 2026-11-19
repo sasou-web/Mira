@@ -314,19 +314,30 @@ await part('sous-titres automatiques', async () => {
       `réglages ${set.status} ; ${JSON.stringify(tested).slice(0, 200)}`);
     const queued = (await call('POST', 'Mira/subtitles/library', { token: host })).json;
     const titles = await items('includeItemTypes=Movie,Episode&isMissing=false');
-    // Every title tried once (the queue empty), then Jellyfin has read again those that got one.
-    const done = await until(async () => (await call('GET', 'Mira/subtitles', { token: host })).json?.waiting === 0, 240);
-    const journal = (await call('GET', 'Mira/subtitles', { token: host })).json?.journal ?? [];
+    // Every title tried once: an entry of the journal for each. The media are read-only (web.yml): Jellyfin 10.x writes
+    // subtitles in its own folder and keeps them; 12.x only beside the video, refused, which the extension must say
+    // title by title in its journal, without spending another download on it, never throw (night audit E1). Titles of
+    // the backlog are asked for once only: none waits after.
+    const journalOf = async () => (await call('GET', 'Mira/subtitles', { token: host })).json?.journal ?? [];
+    const done = await until(async () => new Set((await journalOf()).map((x) => x.itemId)).size >= titles.length, 240);
+    const journal = await journalOf();
+    const waiting = (await call('GET', 'Mira/subtitles', { token: host })).json?.waiting;
     const kinds = journal.reduce((count, entry) => ({ ...count, [entry.kind]: (count[entry.kind] ?? 0) + 1 }), {});
-    const listed = await until(async () => {
+    const odd = journal.find((x) => x.kind !== (olderJellyfin ? 'kept' : 'failed'));
+    const listed = olderJellyfin ? await until(async () => {
       const read = await items('includeItemTypes=Movie,Episode&isMissing=false&fields=MediaStreams');
       const german = read.filter((x) => (x.MediaStreams ?? []).some((m) => m.Type === 'Subtitle' && /^(ger|deu|de)$/i.test(m.Language ?? '')));
       return german.length >= titles.length ? german : null;
-    }, 60);
-    check('sous-titres automatiques : chaque film et épisode de la bibliothèque trouve, garde et liste son sous-titre',
-      queued?.added >= titles.length && !!done && (kinds.kept ?? 0) >= titles.length && Object.keys(kinds).every((kind) => kind === 'kept') && !!listed,
-      `${queued?.added} en attente pour ${titles.length} titres ; ${done ? 'file vidée' : 'file pas vidée en 4 min'} ; journal ${JSON.stringify(kinds)} ; ${listed?.length ?? 'pas tous'} listés avec leur sous-titre`
-        + (journal.find((x) => x.kind !== 'kept') ? ` ; ex. ${JSON.stringify(journal.find((x) => x.kind !== 'kept')).slice(0, 240)}` : ''));
+    }, 60) : null;
+    const summary = `${queued?.added} en attente pour ${titles.length} titres ; ${done ? 'tous essayés' : 'pas tous essayés en 4 min'} ; journal ${JSON.stringify(kinds)} ; encore en attente ${waiting}`
+      + (odd ? ` ; ex. ${JSON.stringify(odd).slice(0, 240)}` : '');
+    if (olderJellyfin) {
+      check('sous-titres automatiques : chaque film et épisode de la bibliothèque trouve, garde et liste son sous-titre (Jellyfin 10, dans son dossier à lui)',
+        queued?.added >= titles.length && !!done && (kinds.kept ?? 0) >= titles.length && !odd && !!listed, `${summary} ; ${listed?.length ?? 'pas tous'} listés avec leur sous-titre`);
+    } else {
+      check('sous-titres automatiques : médias en lecture seule, chaque titre dit « pas écrit » dans le journal, un seul téléchargement, sans exception (Jellyfin 12)',
+        queued?.added >= titles.length && !!done && (kinds.failed ?? 0) >= titles.length && !odd && fake.seen.downloads.length <= titles.length, summary);
+    }
     check('sous-titres automatiques : rien vers le vrai OpenSubtitles, la clé des Réglages et le nom de Mira envoyés',
       fake.seen.searches.length >= titles.length && fake.seen.files.length >= titles.length && [...fake.seen.keys].every((key) => key === KEY) && fake.seen.keys.size === 1
         && [...fake.seen.agents].every((agent) => /^Mira/.test(agent)) && fake.seen.other.length === 0,
