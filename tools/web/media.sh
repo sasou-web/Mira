@@ -76,11 +76,12 @@ for code in S01E01 S01E02 S02E01; do
 done
 # A series known to TheTVDB by its folder (« [tvdbid-…] », read by Jellyfin 10.9 and later), for the extension's
 # TheTVDB order (web.yml's stand-in for TheTVDB's client, tools/web/fake-tvdb-client): its files fit the DVD order
-# there, not the aired one.
+# there, not the aired one. Made beside, then moved: Git Bash leaves a path with « [ » unconverted for ffmpeg on Windows.
 for code in S01E01 S01E02 S02E01; do
   mkdir -p "$ROOT/Séries/Ordre Test [tvdbid-424242]/Season ${code:1:2}"
   q -f lavfi -i testsrc=duration=4:size=640x360:rate=24 -f lavfi -i sine=frequency=560:duration=4 \
-    -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -c:a libopus -shortest "$ROOT/Séries/Ordre Test [tvdbid-424242]/Season ${code:1:2}/Ordre Test $code.webm"
+    -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -c:a libopus -shortest "$ROOT/Ordre Test $code.webm"
+  mv "$ROOT/Ordre Test $code.webm" "$ROOT/Séries/Ordre Test [tvdbid-424242]/Season ${code:1:2}/"
 done
 # A series whose chapters name its end credits, then the next episode's preview: in Apple's player, the next episode
 # starts by itself 10 s into the credits (22 s), before the end (30 s).
