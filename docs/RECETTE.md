@@ -13,6 +13,8 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Redémarrer le PC (ou après une mise à jour de Windows) puis ouvrir la session : Mira revient seul près de l’horloge, aucune fenêtre au premier plan ni dans la barre des tâches ; un téléchargement demandé depuis l’iPhone part sans ouvrir Mira ; clic sur l’icône = fenêtre à sa place habituelle (agrandie si elle l’était) ; Réglages → Serveur Jellyfin dit « Prêt »
 - [ ] Téléchargements : un magnet public par TorLink, rangé dans la bibliothèque
 - [ ] Un `.torrent` de C411 par qBittorrent, rangé (lien physique), qBittorrent continue de partager
+- [ ] qBittorrent et un disque USB : débrancher le disque de son dossier de téléchargement pendant un téléchargement, la ligne dit « disque sans doute débranché » (la file reste) ; le rebrancher, il reprend seul en moins d’une minute (page Téléchargements ouverte)
+- [ ] qBittorrent et son port pris (rare, dur à provoquer à la main) : dans le Gestionnaire des tâches, jamais de qBittorrent qui redémarre en boucle ; si la page Téléchargements dit une panne de qBittorrent, la noter telle quelle
 - [ ] Téléchargement qui atterrit sur le disque USB de 6 To monté dans `MEDIAS` (dès qu'il est là)
 - [ ] Suivre une série : l'épisode suivant arrive tout seul (laisser tourner une semaine)
 - [ ] Sous-titres automatiques activés : un film sans sous-titres en reçoit, bien calés

@@ -24,6 +24,15 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private QBittorrentClient? _client;
     private Secret? _secret;
+    private DateTime _failedAt = DateTime.MinValue, _restartedAt = DateTime.MinValue;
+
+    /// <summary>
+    /// After a start that failed, how long the downloads list waits before trying again (it asks every few seconds): a
+    /// qBittorrent that can't start is not started over and over. What the person does (a link, a .torrent) tries at once.
+    /// </summary>
+    private static readonly TimeSpan Retry = TimeSpan.FromSeconds(30);
+    /// <summary>Mira's own qBittorrent stopped and started again for a refused sign-in at most this often: never in a loop.</summary>
+    private static readonly TimeSpan RestartEvery = TimeSpan.FromMinutes(5);
 
     /// <summary>Its profile: qBittorrent keeps it in &lt;here&gt;/qBittorrent/config and data.</summary>
     public string ProfileDirectory => Path.Combine(profile, "qbittorrent");
@@ -61,11 +70,20 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
     /// <summary>
     /// qBittorrent answering under Mira's account: the one of this profile already running, or started now, its
     /// downloads going into <paramref name="savePath"/>. Null once it answers, otherwise why not (<see cref="Problem"/>).
+    /// <paramref name="now"/> false (the list read every few seconds): within <see cref="Retry"/> of a start that failed,
+    /// that failure again, without trying.
     /// </summary>
-    public async Task<string?> StartAsync(string savePath, CancellationToken ct)
+    public async Task<string?> StartAsync(string savePath, CancellationToken ct, bool now = true)
     {
         await _gate.WaitAsync(ct);
-        try { Problem = await StartCoreAsync(savePath, ct); return Problem; }
+        try
+        {
+            if (_client is not null) return null;
+            if (!now && Problem is not null && DateTime.UtcNow - _failedAt < Retry) return Problem;
+            Problem = await StartCoreAsync(savePath, ct);
+            if (Problem is not null) _failedAt = DateTime.UtcNow;
+            return Problem;
+        }
         finally { _gate.Release(); }
     }
 
@@ -73,6 +91,13 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
     {
         if (Program() is not { } program) return L("qBittorrent n’est pas installé sur ce PC.", "qBittorrent isn’t installed on this PC.");
         var secret = _secret ??= LoadSecret();
+        // Its ports taken by another program meanwhile (a game, a VPN, another qBittorrent): new ones drawn, before
+        // asking anything there (another program answering on the Web UI's port would look like a refused password).
+        if (Moved(secret) is { } moved)
+        {
+            secret = moved;
+            if (_client is not null) { _client.Dispose(); _client = null; }
+        }
         var client = _client ?? new QBittorrentClient(secret.Port, secret.Password);
         try
         {
@@ -92,20 +117,29 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
                     var until = DateTime.UtcNow + TimeSpan.FromSeconds(45);
                     while (await client.VersionAsync(ct) is null)
                     {
-                        if (DateTime.UtcNow > until) return L("qBittorrent a démarré mais ne répond pas à Mira : un autre programme utilise peut-être son port.", "qBittorrent started but isn’t answering Mira: another program may be using its port.");
+                        if (DateTime.UtcNow > until)
+                        {
+                            // Its port taken while it started: drawn again, and started once more.
+                            if (!restarted && Moved(secret) is not null) { client.Dispose(); StopOwn(); return await StartCoreAsync(savePath, ct, restarted: true); }
+                            return L("qBittorrent a démarré mais ne répond pas à Mira. Redémarre le PC si ça dure.", "qBittorrent started but isn’t answering Mira. Restart the PC if this lasts.");
+                        }
                         await Task.Delay(500, ct);
                     }
                 }
             }
-            Directory.CreateDirectory(savePath);
-            await client.SetPreferencesAsync(QBittorrentSettings.Preferences(savePath, secret.PeerPort), ct);
+            // A download folder on a drive unplugged (a USB disk) doesn't keep qBittorrent from answering: its list is read,
+            // its downloads say their drive is away, and a new one is refused with that reason (MainWindow.QBittorrentAsync).
+            var preferences = QBittorrentSettings.Preferences(savePath, secret.PeerPort);
+            if (!await Task.Run(() => QBittorrentDownloads.Reachable(savePath, make: true), ct)) preferences.Remove("save_path");
+            await client.SetPreferencesAsync(preferences, ct);
             _client = client;
             return null;
         }
-        catch (QBittorrentException ex) when (ex.SignIn && !restarted && StopOwn() > 0)
+        catch (QBittorrentException ex) when (ex.SignIn && !restarted && DateTime.UtcNow - _restartedAt > RestartEvery && StopOwn() > 0)
         {
             // Mira's own qBittorrent refuses its password (one started with an older one, or banning 127.0.0.1 after
-            // too many tries): stopped, then started again from the settings written now, once.
+            // too many tries): stopped, then started again from the settings written now, once, and not again for a while.
+            _restartedAt = DateTime.UtcNow;
             if (!ReferenceEquals(client, _client)) client.Dispose();
             _client = null;
             await Task.Delay(1500, ct);
@@ -164,11 +198,75 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
             if (saved is { Password.Length: >= 16, Port: > 1024 and < 65536, PeerPort: > 1024 and < 65536 }) return saved;
         }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or CryptographicException or JsonException) { }
-        var made = new Secret(Convert.ToHexString(RandomNumberGenerator.GetBytes(24)), FreePort(), RandomNumberGenerator.GetInt32(20_000, 60_000));
-        var temporary = SecretFile + ".tmp";
-        File.WriteAllBytes(temporary, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(made), null, DataProtectionScope.CurrentUser));
-        File.Move(temporary, SecretFile, overwrite: true);
+        var made = new Secret(Convert.ToHexString(RandomNumberGenerator.GetBytes(24)), FreePort(), PeerPort());
+        SaveSecret(made);
         return made;
+    }
+
+    private void SaveSecret(Secret secret)
+    {
+        var temporary = SecretFile + ".tmp";
+        File.WriteAllBytes(temporary, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(secret), null, DataProtectionScope.CurrentUser));
+        File.Move(temporary, SecretFile, overwrite: true);
+    }
+
+    /// <summary>
+    /// The Web UI's port or the peers' port listened on by another program than Mira's own qBittorrent: new ones drawn and
+    /// kept, Mira's qBittorrent stopped when it was running (its Web UI, unable to listen, never answers; it starts again
+    /// on the new port). Null when both are free or its own, or when Windows can't tell.
+    /// </summary>
+    private Secret? Moved(Secret secret)
+    {
+        var (web, peers) = (ListenerOwner(secret.Port), ListenerOwner(secret.PeerPort));
+        if (web is null && peers is null) return null;
+        if (OwnIds() is not { } own) return null;
+        var (webTaken, peersTaken) = (web is { } w && !own.Contains(w), peers is { } p && !own.Contains(p));
+        if (!webTaken && !peersTaken) return null;
+        var moved = secret with { Port = webTaken ? FreePort() : secret.Port, PeerPort = peersTaken ? PeerPort() : secret.PeerPort };
+        try { SaveSecret(moved); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException) { return null; }
+        _secret = moved;
+        if (webTaken) StopOwn();
+        return moved;
+    }
+
+    /// <summary>A port for peers, among those nobody listens on.</summary>
+    private static int PeerPort()
+    {
+        for (var attempt = 0; ; attempt++)
+            if (RandomNumberGenerator.GetInt32(20_000, 60_000) is var port && (attempt >= 20 || ListenerOwner(port) is null)) return port;
+    }
+
+    [DllImport("iphlpapi.dll")] private static extern uint GetExtendedTcpTable(IntPtr table, ref int size, [MarshalAs(UnmanagedType.Bool)] bool sort, int family, int tableClass, uint reserved);
+
+    /// <summary>
+    /// The process listening on this TCP port (IPv4, any address), read from Windows' table of listeners
+    /// (TCP_TABLE_OWNER_PID_LISTENER); null when nobody listens there, or the table can't be read.
+    /// </summary>
+    internal static int? ListenerOwner(int port)
+    {
+        var size = 0;
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            var table = size > 0 ? Marshal.AllocHGlobal(size) : IntPtr.Zero;
+            try
+            {
+                // 2 = AF_INET, 3 = TCP_TABLE_OWNER_PID_LISTENER; 122 = ERROR_INSUFFICIENT_BUFFER (size now says how much).
+                var result = GetExtendedTcpTable(table, ref size, false, 2, 3, 0);
+                if (result == 122) continue;
+                if (result != 0 || table == IntPtr.Zero) return null;
+                var count = Marshal.ReadInt32(table);
+                // MIB_TCPROW_OWNER_PID: state, local address, local port (network order, low 16 bits), remote address and port, process: 6 × 4 bytes.
+                for (var i = 0; i < count && 4 + (i + 1) * 24 <= size; i++)
+                {
+                    var local = Marshal.ReadInt32(table, 4 + i * 24 + 8);
+                    if ((((local & 0xFF) << 8) | ((local >> 8) & 0xFF)) == port) return Marshal.ReadInt32(table, 4 + i * 24 + 20);
+                }
+                return null;
+            }
+            finally { if (table != IntPtr.Zero) Marshal.FreeHGlobal(table); }
+        }
+        return null;
     }
 
     private static int FreePort()
@@ -185,26 +283,38 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
     private int StopOwn()
     {
         var stopped = 0;
+        foreach (var id in OwnIds() ?? [])
+        {
+            try
+            {
+                using var process = Process.GetProcessById(id);
+                process.Kill();
+                process.WaitForExit(10_000);
+                stopped++;
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception) { }
+        }
+        return stopped;
+    }
+
+    /// <summary>The processes of the qBittorrent started under this profile (none: empty); null when WMI can't say.</summary>
+    private List<int>? OwnIds()
+    {
         try
         {
+            var ids = new List<int>();
             dynamic locator = Activator.CreateInstance(Type.GetTypeFromProgID("WbemScripting.SWbemLocator", throwOnError: true)!)!;
             dynamic service = locator.ConnectServer(".", @"root\cimv2");
             foreach (dynamic found in service.ExecQuery("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'qbittorrent.exe'"))
             {
                 var line = (object?)found.Properties_.Item("CommandLine").Value as string;
                 if (line is null || !line.Contains("--profile=" + ProfileDirectory, StringComparison.OrdinalIgnoreCase)) continue;
-                try
-                {
-                    using var process = Process.GetProcessById(Convert.ToInt32((object)found.Properties_.Item("ProcessId").Value));
-                    process.Kill();
-                    process.WaitForExit(10_000);
-                    stopped++;
-                }
-                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception or FormatException or OverflowException) { }
+                try { ids.Add(Convert.ToInt32((object)found.Properties_.Item("ProcessId").Value)); }
+                catch (Exception ex) when (ex is FormatException or OverflowException or InvalidCastException) { }
             }
+            return ids;
         }
-        catch (Exception ex) when (ex is COMException or ArgumentException or InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or TypeLoadException) { }
-        return stopped;
+        catch (Exception ex) when (ex is COMException or ArgumentException or InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or TypeLoadException) { return null; }
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }

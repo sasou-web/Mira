@@ -289,16 +289,58 @@ public static class QBittorrentDownloads
     public static bool StopsSharing(QBittorrentTorrent torrent) =>
         Finished(torrent) && torrent.Private == false && torrent.State is not ("pausedUP" or "stoppedUP");
 
-    public static RelayDownload Download(QBittorrentTorrent torrent)
+    /// <param name="unreachable">Its folder can't be reached (<see cref="Reachable"/> false): its drive unplugged, said so, not « files gone ».</param>
+    public static RelayDownload Download(QBittorrentTorrent torrent, bool unreachable = false)
     {
         var status = Status(torrent.State);
         return new(torrent.Hash, RemoteDownloads.CleanName(torrent.Name) ?? torrent.Hash, status, (int)Math.Clamp(Math.Floor(torrent.Progress * 100), 0, 100),
             status == "downloading" ? Math.Max(0, torrent.Speed) : 0, Math.Max(0, torrent.Peers), Math.Max(0, torrent.Size), Math.Clamp(torrent.Completed, 0, Math.Max(0, torrent.Size)),
             status == "downloading" && torrent.Eta is > 0 and < Infinite ? Math.Min(torrent.Eta, RemoteDownloads.MaxEta) : null,
-            status == "failed" ? torrent.State == "missingFiles"
+            status == "failed" ? unreachable ? Unreachable(torrent.SavePath)
+                : torrent.State == "missingFiles"
                 ? L("Ses fichiers ne sont plus là où qBittorrent les a mis.", "Its files are no longer where qBittorrent put them.")
                 : L("qBittorrent signale une erreur : ouvre-le sur le PC serveur pour la voir.", "qBittorrent reports an error: open it on the server PC to see it.") : null);
     }
+
+    /// <summary>
+    /// A download that failed because its folder's drive is unplugged (a USB disk, a drive mounted in a folder): the
+    /// person plugs it back in, Mira has qBittorrent check it again and start it (<see cref="AfterDisk"/>).
+    /// </summary>
+    public static string Unreachable(string folder) => L(
+        $"« {folder} » est injoignable : son disque est sans doute débranché. Rebranche-le, le téléchargement reprend tout seul.",
+        $"“{folder}” can’t be reached: its drive is probably unplugged. Plug it back in and the download picks up on its own.");
+
+    /// <summary>A new download refused while the folder qBittorrent downloads to can't be reached.</summary>
+    public static string FolderUnreachable(string folder) => L(
+        $"qBittorrent télécharge dans « {folder} », injoignable : son disque est sans doute débranché. Rebranche-le puis réessaie.",
+        $"qBittorrent downloads to “{folder}”, which can’t be reached: its drive is probably unplugged. Plug it back in, then try again.");
+
+    /// <summary>
+    /// The drive under <paramref name="folder"/> answers: the folder itself, or, once it is gone (moved, deleted), the
+    /// nearest folder above it, read. False for a drive unplugged (no root left) or a drive mounted in a folder that is
+    /// unplugged (the folder is there, reading it fails). <paramref name="make"/>: the folder made first when missing.
+    /// </summary>
+    public static bool Reachable(string folder, bool make = false)
+    {
+        try
+        {
+            var path = Path.GetFullPath(folder.Trim());
+            if (make) Directory.CreateDirectory(path);
+            while (!Directory.Exists(path)) { if (Path.GetDirectoryName(path) is not { } parent) return false; path = parent; }
+            using var entries = Directory.EnumerateFileSystemEntries(path).GetEnumerator();
+            entries.MoveNext();
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
+    }
+
+    /// <summary>
+    /// What Mira does with a failed download, from what it saw before (<paramref name="waiting"/>: its drive was found
+    /// unplugged): « wait » while the drive is still away, « recheck » once it is back (qBittorrent checks what it has,
+    /// then goes on), nothing for a failure Mira didn't see start with an unplugged drive (files deleted, another error).
+    /// </summary>
+    public static string? AfterDisk(QBittorrentTorrent torrent, bool reachable, bool waiting) =>
+        Status(torrent.State) != "failed" ? null : !reachable ? "wait" : waiting ? "recheck" : null;
 
     /// <summary>torrents/info: the list, with what Mira reads of each; nothing for anything else.</summary>
     public static List<QBittorrentTorrent> Parse(JsonElement root)
@@ -529,8 +571,8 @@ public sealed class QBittorrentClient : IDisposable
     }
 
     /// <summary>
-    /// pause, resume, or delete (its files with it, as « Annuler » does): qBittorrent 5 names the first two stop and start,
-    /// 4 pause and resume (the other's address answers 404).
+    /// pause, resume, delete (its files with it, as « Annuler » does) or recheck (its files read again, after a drive came
+    /// back): qBittorrent 5 names the first two stop and start, 4 pause and resume (the other's address answers 404).
     /// </summary>
     public async Task ControlAsync(string hash, string action, CancellationToken ct)
     {
@@ -539,6 +581,7 @@ public sealed class QBittorrentClient : IDisposable
         switch (action)
         {
             case "delete": await TextAsync(HttpMethod.Post, "torrents/delete", Form(deleteFiles: true), ct); break;
+            case "recheck": await TextAsync(HttpMethod.Post, "torrents/recheck", Form(), ct); break;
             case "pause" or "resume":
                 var (current, older) = action == "pause" ? ("torrents/stop", "torrents/pause") : ("torrents/start", "torrents/resume");
                 if (await TextAsync(HttpMethod.Post, current, Form(), ct, accept: [HttpStatusCode.NotFound]) is null)

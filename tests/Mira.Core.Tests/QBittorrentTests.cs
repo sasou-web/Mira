@@ -92,6 +92,29 @@ internal static class QBittorrentTests
             return Task.CompletedTask;
         });
 
+        await Test("qBittorrent : disque débranché sous un téléchargement dit tel quel, revérifié et relancé à son retour, pas pour des fichiers supprimés", () =>
+        {
+            var root = Path.Combine(Path.GetTempPath(), "mira-qb-disk-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Assert(QBittorrentDownloads.Reachable(Path.Combine(root, "Mira"), make: true) && Directory.Exists(Path.Combine(root, "Mira")), "Its folder made and read");
+                Assert(QBittorrentDownloads.Reachable(Path.Combine(root, "gone", "deeper")), "A folder deleted on a drive that answers: reachable (its files are gone, not its drive)");
+                Assert(!QBittorrentDownloads.Reachable("\0bad"), "A path that can't be one: not reachable");
+                var missing = new QBittorrentTorrent("0123456789abcdef0123456789abcdef01234567", "Dune", "missingFiles", 0.5, 0, 0, 10, 5, 0, Path.Combine(root, "Mira"), null, "Mira", 0, 0);
+                var unplugged = QBittorrentDownloads.Download(missing, unreachable: true);
+                Assert(unplugged is { Status: "failed" } && unplugged.Error!.Contains(missing.SavePath, StringComparison.Ordinal) && unplugged.Error.Contains("débranché", StringComparison.Ordinal), "Its drive named: " + unplugged.Error);
+                var gone = QBittorrentDownloads.Download(missing).Error;
+                Assert(gone?.Contains("plus là", StringComparison.Ordinal) == true, "Files gone from a drive that answers: said so: " + gone);
+                Assert(QBittorrentDownloads.AfterDisk(missing, reachable: false, waiting: false) == "wait" && QBittorrentDownloads.AfterDisk(missing, reachable: false, waiting: true) == "wait", "Drive away: waited for");
+                Assert(QBittorrentDownloads.AfterDisk(missing, reachable: true, waiting: true) == "recheck", "Drive back: checked again and started");
+                Assert(QBittorrentDownloads.AfterDisk(missing, reachable: true, waiting: false) is null, "Files deleted, never seen with the drive away: left to the person");
+                Assert(QBittorrentDownloads.AfterDisk(missing with { State = "downloading" }, reachable: false, waiting: true) is null, "Going on: nothing to do");
+                Assert(QBittorrentDownloads.FolderUnreachable("E:\\Films").Contains("E:\\Films", StringComparison.Ordinal), "A new download refused, its folder named");
+            }
+            finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+            return Task.CompletedTask;
+        });
+
         await Test("qBittorrent : partage arrêté dès la fin pour un torrent public, après 72 h pour un privé ou un inconnu, jamais supprimé", () =>
         {
             using var document = JsonDocument.Parse("""
@@ -283,6 +306,8 @@ internal static class QBittorrentTests
             while ((await Find())?.State is not ("pausedDL" or "stoppedDL")) await Task.Delay(200, ct);
             await client.ControlAsync(hash, "resume", ct);
             while (QBittorrentDownloads.Status((await Find())!.State) == "paused") await Task.Delay(200, ct);
+            // What Mira asks once an unplugged drive is back: accepted by qBittorrent's API (4.x and 5.x).
+            await client.ControlAsync(hash, "recheck", ct);
             await client.ControlAsync(hash, "delete", ct);
             while (await Find() is not null) await Task.Delay(200, ct);
             Assert((await client.TorrentsAsync(ct)).Count == 1, "Only Mira's category");

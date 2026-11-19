@@ -117,6 +117,24 @@ await Test("Préférences : migration des anciens réglages et persistance de l�
     Assert(!restored.ShowProgress && restored.ReduceMotion && !restored.HeroAutoPlay && restored.PosterDensity == "Compact" && !restored.RememberPosition && restored.AudioLanguage == "eng,en", "Preferences were not persisted");
     return Task.CompletedTask;
 });
+await Test("qBittorrent : le programme qui écoute sur un port lu dans la table de Windows, un disque absent injoignable", () =>
+{
+    var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+    listener.Start();
+    try
+    {
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        Assert(QBittorrentHost.ListenerOwner(port) == Environment.ProcessId, $"Port {port}: {QBittorrentHost.ListenerOwner(port)} instead of {Environment.ProcessId}");
+    }
+    finally { listener.Stop(); }
+    var free = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0); free.Start(); var freePort = ((IPEndPoint)free.LocalEndpoint).Port; free.Stop();
+    Assert(QBittorrentHost.ListenerOwner(freePort) is null, "Nobody listening: nobody");
+    var used = DriveInfo.GetDrives().Select(x => char.ToUpperInvariant(x.Name[0])).ToHashSet();
+    if (Enumerable.Range('D', 'Z' - 'D' + 1).Select(x => (char)x).FirstOrDefault(x => !used.Contains(x)) is var letter and not '\0')
+        Assert(!Mira.Core.TorLink.QBittorrentDownloads.Reachable($"{letter}:\\Films\\Mira") && !Mira.Core.TorLink.QBittorrentDownloads.Reachable($"{letter}:\\Mira", make: true), $"Drive {letter}: absent, unreachable");
+    return Task.CompletedTask;
+});
+
 await Test("Moteur mpv : celui installé par Mira est trouvé, un chemin choisi passe avant, un mpv qui n’est pas x64 est ignoré", () =>
 {
     // The headers of a PE file: DOS stub, signature, COFF header (machine), optional header (PE32 or PE32+).
