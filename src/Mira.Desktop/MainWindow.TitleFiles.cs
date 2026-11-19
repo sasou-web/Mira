@@ -290,8 +290,14 @@ public partial class MainWindow
         }
         foreach (var id in episodes) _catalog.Forget(id);
         if (_detail?.Id != (item.Type == "Series" ? item.Id : item.SeriesId)) return;
+        var seasons = _episodes.Select(x => x.ParentIndexNumber).Distinct().Count();
         _episodes.RemoveAll(x => episodes.Contains(x.Id));
         _metadata?.Clear();
         FillSeasons(); RenderEpisodes();
+        // The facts at the top follow at once (« 2 seasons · 2 MB »), not when the page opens again.
+        var gone = seasons - _episodes.Select(x => x.ParentIndexNumber).Distinct().Count();
+        if (gone > 0 && _detail is { Type: "Series", ChildCount: > 0 } series) _detail = series with { ChildCount = Math.Max(0, series.ChildCount.Value - gone) };
+        if (_episodeSizes is not null) _detailSize = TitleStorage.Sum(_episodes, _episodeSizes);
+        RenderDetailMeta();
     }
 }
