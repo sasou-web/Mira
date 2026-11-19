@@ -25,7 +25,8 @@ public sealed partial class DetailPage
     private void ShowSeriesExtras(List<MediaItem> extras)
     {
         _seriesExtras = extras;
-        if (_allEpisodes.Count > 0) { FillSeasons(); RenderEpisodes(); }
+        // Read, even with none (a series of bonus alone): « Extras » shows them, as on Windows (M11: never shown).
+        if (_episodesRead) { FillSeasons(); RenderEpisodes(); }
     }
 
     /// <summary>« Extras » after the seasons, a thin line between them.</summary>

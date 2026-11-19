@@ -431,6 +431,14 @@ public static class SelfCheck
                 Check(await Until(() => window.Current is BrowsePage { People.Count: > 0 } found && found.People[0].Id == "actor-1", 15), "recherche : une personne",
                     string.Join(", ", (window.Current as BrowsePage)?.People.Select(x => x.Name) ?? []));
                 await Task.Delay(800); Capture(window, output, "04-search-people");
+                // The search cleared while Jellyfin answers it: that answer never comes back under the empty field (audit 2026-11-19, M3).
+                var cleared = (BrowsePage)window.Current!;
+                mock.Slow = TimeSpan.FromSeconds(1.5);
+                cleared.Search("Brume"); await Task.Delay(700);
+                cleared.Search(""); await Task.Delay(2400);
+                mock.Slow = default;
+                Check(cleared.Items.Count == 0 && cleared.People.Count == 0 && string.IsNullOrEmpty(cleared.SearchBox.Text), "recherche effacée pendant sa requête : rien ne revient sous le champ vide",
+                    $"{cleared.Items.Count} titres, {cleared.People.Count} personnes");
             }
 
             // —— Title pages ——
@@ -527,6 +535,39 @@ public static class SelfCheck
                     if (window.NoticeText is { Length: > 0 } notice) moved.Add($"{kind}: a notice « {notice} »");
                 }
                 Check(moved.Count == 0, "fiche d’un film : un clic sur Favori ou Vu ne bouge rien, sans avis", string.Join(" ; ", moved.Distinct().Take(6)));
+                // The page kept where it was (audit 2026-11-19, M1, M2): read again (Favori, the player closed, every 45 s) or
+                // come back to, its rows under the cast stay while Jellyfin answers, and the scroll with them.
+                mock.SlowSimilar = TimeSpan.FromSeconds(1.5);
+                async Task<(double Before, double Lowest, int Rows)> HeldAsync(DetailPage page, Func<Task> act)
+                {
+                    page.UpdateLayout();
+                    var before = page.Scroll.Offset.Y; var lowest = before; var rows = page.RowsShown;
+                    await act();
+                    var clock = Stopwatch.StartNew();
+                    while (clock.ElapsedMilliseconds < 2600) { await Task.Delay(16); page.UpdateLayout(); lowest = Math.Min(lowest, page.Scroll.Offset.Y); rows = Math.Min(rows, page.RowsShown); }
+                    return (before, lowest, rows);
+                }
+                still.Scroll.Offset = new Vector(0, Math.Max(0, still.Scroll.Extent.Height - still.Scroll.Viewport.Height));
+                await Task.Delay(400);
+                var reread = await HeldAsync(still, () => window.RefreshPagesAsync());
+                Check(reread.Before > 300 && reread.Lowest >= reread.Before - 1 && reread.Rows > 0, "fiche relue (Favori, lecteur fermé, toutes les 45 s) : ses rangées et sa place restent",
+                    $"{reread.Before:0} → {reread.Lowest:0} px, {reread.Rows} rangées");
+                // With the keyboard (M9): a similar title opened by Return has the keyboard on its Lecture; Échap comes back
+                // to the page where it was, the keyboard on that card again.
+                if (still.RowCards.FirstOrDefault(x => x.IsEffectivelyVisible) is { } similar)
+                {
+                    similar.Focus(NavigationMethod.Tab);
+                    Press(window, Avalonia.Input.Key.Enter);
+                    var opened = await Until(() => window.Current is DetailPage other && other != still, 5);
+                    var lectureReady = opened && await Until(() => window.Current is DetailPage { PlayButton.IsFocused: true }, 5);
+                    var back = await HeldAsync(still, async () => { Press(window, Avalonia.Input.Key.Escape); await Until(() => window.Current == still, 3); });
+                    var onCard = await Until(() => window.FocusManager?.GetFocusedElement() is Button { Classes: var classes } focused && classes.Contains("card") && Avalonia.Automation.AutomationProperties.GetName(focused) == Avalonia.Automation.AutomationProperties.GetName(similar), 3);
+                    Check(opened && back.Before > 300 && back.Lowest >= back.Before - 1 && back.Rows > 0, "retour sur une fiche : ses rangées et sa place restent, comme sous Windows", $"{back.Before:0} → {back.Lowest:0} px, {back.Rows} rangées");
+                    Check(lectureReady && onCard, "clavier : Lecture prête à l’ouverture d’une fiche, Retour rend la carte", $"Lecture {lectureReady}, carte {onCard} ({(window.FocusManager?.GetFocusedElement() as Control)?.GetType().Name})");
+                }
+                else Check(false, "retour sur une fiche : ses rangées et sa place restent, comme sous Windows", "aucune carte sous la distribution");
+                mock.SlowSimilar = default;
+                still.Scroll.Offset = default;
             }
             // A favourite: « Favori » solid, the same square as off, no words.
             if (mock is not null)
@@ -589,6 +630,19 @@ public static class SelfCheck
             window.Go("Series");
             await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15);
             var series = ((BrowsePage)window.Current!).Items.OrderByDescending(x => x.Name.Contains("Longue", StringComparison.OrdinalIgnoreCase)).First();
+            // Its episodes refused by Jellyfin (audit 2026-11-19, M4): why, and « Réessayer », which brings them.
+            if (mock is not null)
+            {
+                mock.RefuseEpisodes = true;
+                window.Open(series);
+                var refusedShown = await Until(() => window.Current is DetailPage { EpisodesRetryShown: true }, 15);
+                await Task.Delay(500); Capture(window, output, "06-series-refused");
+                mock.RefuseEpisodes = false;
+                (window.Current as DetailPage)?.RetryEpisodesForCheck();
+                Check(refusedShown && await Until(() => window.Current is DetailPage { Episodes.Count: > 0, EpisodesRetryShown: false }, 15), "épisodes refusés par Jellyfin : la raison et « Réessayer », qui les ramène");
+                // Then the series' page as it opens normally.
+                window.Back();
+            }
             window.Open(series);
             Check(await Until(() => window.Current is DetailPage { Episodes.Count: > 0 }, 20), "fiche d’une série : épisodes", $"{series.Name} : {(window.Current as DetailPage)?.Episodes.Count} épisodes");
             if (window.Current is DetailPage { Episodes.Count: > 100 } longSeries)
