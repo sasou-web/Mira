@@ -41,8 +41,8 @@ public partial class MainWindow
     private DispatcherTimer? _statusHide;
 
     /// <summary>A title from Jellyfin: PlaybackInfo with mpv's profile at the quality chosen, the series' tracks for a conversion.</summary>
-    private async Task<ServerStream> OpenStreamAsync(JellyfinClient client, MediaItem item, double start) =>
-        await ServerStreams.OpenAsync(client, _speed, _settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(item)), _settings.AudioLanguage, ReachableFileAsync);
+    private async Task<ServerStream> OpenStreamAsync(JellyfinClient client, MediaItem item, double start, CancellationToken ct = default) =>
+        await ServerStreams.OpenAsync(client, _speed, _settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(item)), _settings.AudioLanguage, ReachableFileAsync, ct);
     private async Task<TrackMemory?> SeriesMemoryAsync(MediaItem item) =>
         _store is { } store && item.SeriesId is { Length: > 0 } series ? await Task.Run(() => TryCache(() => store.TracksOf(series))) : null;
 
@@ -52,6 +52,8 @@ public partial class MainWindow
         _stream = stream; _converted = stream is { Converted: true } ? new(stream) : null;
         _recovery.Reset(); _reopenTracks = null; _reopenText = null; _reopenChosen = false; _recoveryLoad = false;
         _trackIds = default; _playingTracks = null;
+        // « C » turns back on this title's subtitles, never those of the one before.
+        _subtitlesBeforeOff = null; _convertedBeforeOff = null;
     }
     /// <summary>The playback stops: Jellyfin's conversion with it (Jellyfin ends it on « stop » too, but later).</summary>
     private void ForgetStream()

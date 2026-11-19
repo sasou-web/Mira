@@ -273,6 +273,18 @@ public sealed class ConvertedTracks(ServerStream stream)
     /// <summary>mpv shows subtitles that are not the source's: a file of the person's.</summary>
     public bool ShowsOther(string? sid) => stream.Burned is null && Off(sid) is false && !_added.ContainsValue(sid!);
     public static bool Off(string? sid) => sid is null or "" or "no" or "false";
+    /// <summary>
+    /// The subtitles « C » turns back on, by Jellyfin's index: those shown before it turned them off (<paramref name="before"/>),
+    /// pictures drawn into a conversion again; else the first text track, else the first pictures. Null for none. A track
+    /// this source has not (another title's) or cannot show is never taken: « Subtitles on » and nothing on screen.
+    /// </summary>
+    public int? Back(int? before)
+    {
+        var all = Subtitles.Select(Index).ToList();
+        bool Shows(int index) => IsPicture(index) || Path(index) is not null;
+        if (before is { } index && all.Contains(index) && Shows(index)) return index;
+        return all.Where(i => !IsPicture(i) && Path(i) is not null).Select(i => (int?)i).FirstOrDefault() ?? all.Where(IsPicture).Select(i => (int?)i).FirstOrDefault();
+    }
     /// <summary>What the series keeps for its next episodes (<see cref="SeriesTracks"/>); null while a file of the person's shows.</summary>
     public TrackMemory? Remember(string? sid) => ShowsOther(sid) ? null
         : SeriesTracks.Remember(ServerStreams.TrackList(stream.Source), stream.Audio?.ToString(CultureInfo.InvariantCulture), Shown(sid)?.ToString(CultureInfo.InvariantCulture));

@@ -282,9 +282,9 @@ public sealed partial class PlayerPage
                 return;
             }
             if (_subtitlesBeforeOff is not null) { _mpv.Set("sid", _subtitlesBeforeOff); ShowSeekPill(L("Sous-titres activés", "Subtitles on")); return; }
-            var first = _convertedBeforeOff ?? converted.Subtitles.Select(ConvertedTracks.Index).FirstOrDefault(i => !converted.IsPicture(i) && converted.Path(i) is not null, -1);
-            if (first < 0) { ShowSeekPill(L("Aucun sous-titre", "No subtitles")); return; }
-            _ = ChooseConvertedAsync(text: first); ShowSeekPill(L("Sous-titres activés", "Subtitles on"));
+            // Pictures drawn in before come back drawn in: as text, nothing showed, and « off » was kept for the series.
+            if (converted.Back(_convertedBeforeOff) is not { } again) { ShowSeekPill(L("Aucun sous-titre", "No subtitles")); return; }
+            _ = converted.IsPicture(again) ? ChooseConvertedAsync(burn: again) : ChooseConvertedAsync(text: again); ShowSeekPill(L("Sous-titres activés", "Subtitles on"));
             return;
         }
         var current = _mpv.Get("sid");

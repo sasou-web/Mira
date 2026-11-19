@@ -297,6 +297,11 @@ internal static class StreamTests
             Assert(tracks.StartText(new TrackMemory("eng", null, true, "fre", null, false), "fre") is null, "The series' pictures, not drawn in: none rather than other ones");
             var burned = new ConvertedTracks(stream with { Burned = 3 });
             Assert(burned.Shown("no") == 3 && burned.StartText(null, "fre") is null && burned.Remember("no") is { Subtitles: true, Subtitle: "fre", Forced: false }, "Pictures drawn in: shown, kept, no text over them");
+            // « C » back on: the pictures drawn in before (they had come back as text that does not exist), a text track,
+            // never another title's track nor one that cannot show.
+            Assert(tracks.Back(3) == 3 && tracks.Back(4) == 4 && tracks.Back(null) == 4 && tracks.Back(99) == 4 && tracks.Back(5) == 4, $"C back on: {tracks.Back(3)} {tracks.Back(null)} {tracks.Back(99)} {tracks.Back(5)}");
+            var pictures = new ConvertedTracks(stream with { Source = stream.Source with { MediaStreams = [.. stream.Source.MediaStreams.Where(s => s.Index != 4)] } });
+            Assert(pictures.Back(null) == 3 && pictures.Back(99) == 3 && new ConvertedTracks(stream with { Source = stream.Source with { MediaStreams = [.. stream.Source.MediaStreams.Where(s => s.Type != "Subtitle")] } }).Back(null) is null, "Only pictures: drawn in; none: none");
             Assert(StreamQuality.Describe(stream) == "Converti par Jellyfin · jusqu’à 3 Mb/s · débit au-dessus de la qualité choisie" && StreamQuality.Describe(stream with { Converted = false }) == "Fichier tel quel", StreamQuality.Describe(stream));
             return Task.CompletedTask;
         });

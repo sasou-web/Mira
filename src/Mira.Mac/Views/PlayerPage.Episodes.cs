@@ -67,7 +67,7 @@ public sealed partial class PlayerPage
         if (opening)
         {
             _episodePages = EpisodePages.From(_episodes);
-            var holding = EpisodePages.Holding(_episodePages, _episodes, _session.Item);
+            var holding = EpisodePages.Holding(_episodePages, _episodes, PlayingTitle);
             _episodePage = holding is null ? 0 : Math.Max(0, _episodePages.IndexOf(holding));
         }
         var page = _episodePages.ElementAtOrDefault(_episodePage);
@@ -98,7 +98,7 @@ public sealed partial class PlayerPage
     }
     private Button EpisodeRow(MediaItem episode)
     {
-        var playing = episode.Id == _session.Item?.Id;
+        var playing = episode.Id == PlayingTitle?.Id;
         var hidden = Spoilers.Hides(episode, _shell.Settings.HideSpoilers) && !playing;
         var image = new Image { Stretch = Stretch.UniformToFill };
         if (hidden) image.Source = BlurHash.Of(episode, Spoilers.Still(episode)) is { } hash ? Cards.Blur(hash, 16 / 9d) : null;
@@ -157,6 +157,6 @@ public sealed partial class PlayerPage
     {
         if (_episodesButton.Flyout is not Flyout { Content: DockPanel { Children: [_, ScrollViewer { Content: StackPanel list }] } }) return null;
         var rows = list.Children.OfType<Button>().ToList();
-        return rows.FirstOrDefault(x => Equals(x.Tag, _session.Item?.Id)) ?? rows.FirstOrDefault();
+        return rows.FirstOrDefault(x => Equals(x.Tag, PlayingTitle?.Id)) ?? rows.FirstOrDefault();
     }
 }

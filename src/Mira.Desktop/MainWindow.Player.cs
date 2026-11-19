@@ -43,13 +43,15 @@ public partial class MainWindow
     /// <param name="groupStart">Put on by « Regarder ensemble » (MainWindow.Together.cs): opened paused there, until the group plays.</param>
     /// <param name="chosen">Picked on a page (a title, a card, a menu), not by the player: in a group that has another title on, asked first.</param>
     /// <param name="trailerDone">The film after its trailer (« Bande-annonce avant le film »): never its trailer again.</param>
-    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null, bool chosen = false, bool trailerDone = false)
+    /// <param name="since">The player's closings counted when this playback was decided (<see cref="_playerLeft"/>): the
+    /// next episode or part, looked for after the end of one. Closed since, nothing opens.</param>
+    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null, bool chosen = false, bool trailerDone = false, int? since = null)
     {
-        ClosePreview(); var asked = item; Task? darkening = null;
+        ClosePreview(); var asked = item; Task? darkening = null; CancellationTokenSource? opening = null;
         // The countdown or the end of the previous episode: started by itself (« Tu regardes toujours ? »).
         var byItself = _nextByItself; _nextByItself = false;
         if (_playBusy) return; _playBusy = true;
-        var left = _playerLeft;
+        var left = since ?? _playerLeft;
         // Back from the player, the title's page is laid out afresh (« Depuis le début », the progress line).
         _detailSettled = null;
         // Opening a stream can take a moment: say so right away instead of looking frozen.
@@ -58,6 +60,8 @@ public partial class MainWindow
         if (ShelfOverlay.Visibility == Visibility.Visible && _shelfBox is not null) _returnToShelf = true;
         try
         {
+            // The player closed while the next episode was looked for: it stays closed.
+            if (left != _playerLeft) return;
             // Without an engine nothing can play: say so before any request, with the one click that fixes it.
             if (MpvEngine.FindLibrary(_settings.MpvPath) is null)
             {
@@ -92,7 +96,13 @@ public partial class MainWindow
             MediaItem? film = null;
             if (!trailerDone && !_demo && groupStart is null && await TrailerBeforeAsync(item, fromStart) is { } trailer) { film = item; item = trailer; }
             // The page darkens while the stream opens: the player comes up behind black, not in one cut.
-            if (!_playing && !keepMini && !(_demo && _testMedia is null) && Shade is { } shade) darkening = shade.DarkenAsync(DarkenMs);
+            if (!_playing && !keepMini && !(_demo && _testMedia is null) && Shade is { } shade)
+            {
+                darkening = shade.DarkenAsync(DarkenMs);
+                // Until the player is up, Échap gives the opening up (never the page hidden under the sheet), and a slow
+                // stream shows the spinner instead of a black window (ShowOpeningAsync).
+                opening = _playOpening = new CancellationTokenSource(); _playOpeningCommitted = false; _ = ShowOpeningAsync(opening);
+            }
             string location; string? authorization = null; MediaSource? source = null; string session = ""; OfflineCopy? kept = null; ServerStream? stream = null;
             // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
             double StartAt() => groupStart is { } ticks ? ticks / 1e7 : film is not null ? 0 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack);
@@ -112,11 +122,17 @@ public partial class MainWindow
             {
                 if (_client is null) return;
                 // The file as it is, or Jellyfin's conversion under the quality chosen (MainWindow.PlayerStream.cs).
-                stream = await OpenStreamAsync(_client, item, StartAt());
+                stream = await OpenStreamAsync(_client, item, StartAt(), opening?.Token ?? default);
                 source = stream.Source; session = stream.PlaySessionId; location = stream.Location; authorization = stream.Authorization;
             }
             // The player closed while the stream opened (the next episode, started by itself or by « Suivant »): it stays closed.
-            if (left != _playerLeft) return;
+            if (left != _playerLeft)
+            {
+                if (stream is { Converted: true } && _client is { } client) _ = StopEncodingAsync(client, stream.PlaySessionId);
+                return;
+            }
+            // From here the player comes up whatever happens: Échap waits for it.
+            _playOpeningCommitted = true;
             await StopPlaybackAsync(completePrevious);
             if (darkening is not null) await darkening;
             _playingCopy = kept; UseStream(stream);
@@ -181,6 +197,8 @@ public partial class MainWindow
             // The sheet stays until the first picture rises from it; a slow start shows its spinner.
             if (darkening is not null) { darkening = null; _ = LiftForSpinnerAsync(generation); }
         }
+        // Given up with Échap while Jellyfin prepared the stream (GiveUpOpening): the page is back already.
+        catch (OperationCanceledException) when (opening?.IsCancellationRequested == true) { }
         catch (Exception ex) when (IsExpected(ex) || ex is TimeoutException)
         {
             await StopPlaybackAsync();
@@ -196,6 +214,13 @@ public partial class MainWindow
         finally
         {
             _playBusy = false; Mouse.OverrideCursor = null;
+            if (opening is not null)
+            {
+                if (_playOpening == opening) _playOpening = null;
+                opening.Dispose();
+                // Hidden for the spinner (ShowOpeningAsync), and no picture to reveal it: shown again with the next one.
+                if (!_videoWaits) _videoHost?.Conceal(false);
+            }
             // Stopped before the player came up (a stream that cannot open): the page is back, or the error's screen is.
             if (darkening is not null) _ = Shade?.LiftAsync(LiftMs);
         }
@@ -308,6 +333,8 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(async () =>
         {
             if (!_playing || generation != _playGeneration) return;
+            // Closed from here on (the report of the end, the next episode looked for): the player stays closed.
+            var left = _playerLeft;
             if (interrupted) { _loaded = false; _session.Failure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
             // A stream from Jellyfin that stopped before the end of its title: the connection, as on Mira web.
             if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
@@ -319,9 +346,10 @@ public partial class MainWindow
             await StopPlaybackAsync(eof);
             // Watched to the end: shown as seen right away, and the next play starts from the beginning.
             if (eof && previous is not null) { previous.UserData.Played = true; previous.UserData.PlaybackPositionTicks = 0; }
+            if (left != _playerLeft) return;
             var stoppedGeneration = _playGeneration;
             // A title in several files: its next part right away, in the same player (« Arrêter à la fin » waits for its last part).
-            if (eof && previous is not null && _parts?.After(previous.Id) is { } part) { await PlayAsync(part, keepMini); return; }
+            if (eof && previous is not null && _parts?.After(previous.Id) is { } part) { await PlayAsync(part, keepMini, since: left); return; }
             // « Arrêter à la fin de l’épisode »: this one was the last.
             var last = eof && _sleep.AtEnd;
             if (last) _sleep.Clear();
@@ -332,10 +360,10 @@ public partial class MainWindow
             if (eof && _settings.AutoNext && !last && !_demo && !stay && title?.Type == "Episode")
             {
                 var next = following ?? await GetNextAsync(title);
-                if (stoppedGeneration != _playGeneration || _playing) return;
+                if (stoppedGeneration != _playGeneration || _playing || left != _playerLeft) return;
                 // « Tu regardes toujours ? »: three episodes in a row with nothing touched, the next one waits for an answer.
                 if (next is not null && AsksStillWatching()) { ShowStillWatching(next, keepMini); return; }
-                if (next is not null) { _nextByItself = true; await PlayAsync(next, keepMini); return; }
+                if (next is not null) { _nextByItself = true; await PlayAsync(next, keepMini, since: left); return; }
             }
             if (error is not null) { PlaybackFailed(error, previous, keepMini, RetryText, previous is null ? null : () => PlayAsync(previous, keepMini)); return; }
             ReturnToLibrary();
@@ -483,8 +511,8 @@ public partial class MainWindow
     }
     private async void Next_Click(object sender, RoutedEventArgs e)
     {
-        if (_session.Item is null) return; var next = _skips.Next ?? await GetNextAsync(_session.Item);
-        if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skips.ToNext && _skips.Active is not null); else PlayingSubtitle.Content = L("Aucun épisode suivant disponible.", "No next episode available.");
+        if (_session.Item is null) return; var left = _playerLeft; var next = _skips.Next ?? await GetNextAsync(_session.Item);
+        if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skips.ToNext && _skips.Active is not null, since: left); else PlayingSubtitle.Content = L("Aucun épisode suivant disponible.", "No next episode available.");
     }
     private void BackFromPlayer_Click(object sender, RoutedEventArgs e)
     { if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayerSmoothly(true); }
@@ -636,6 +664,8 @@ public partial class MainWindow
     /// <summary>One step back: menu, account screen, settings, title page, then the player.</summary>
     private bool GoBack()
     {
+        // A playback opening under the black sheet: given up, before anything hidden under it.
+        if (_playOpening is { IsCancellationRequested: false }) { GiveUpOpening(); return true; }
         if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.IsOpen = false; return true; }
         if (PlayerErrorShown) { PlayerErrorBack_Click(this, new()); return true; }
         if (ConfirmOverlay.Visibility == Visibility.Visible && ConfirmOverlay.IsHitTestVisible) { Answer(false); return true; }
