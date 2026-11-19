@@ -1062,6 +1062,8 @@ public sealed partial class MainWindow : Window
     /// <summary>« Tailscale intégré » joined the tailnet (started, back from no network): the page Jellyfin did not answer loads again.</summary>
     public void TailnetJoined()
     {
+        // Jellyfin looked for through it at once: a search made while it started found no device (MainWindow.ServerMove).
+        _moveSearched = DateTimeOffset.MinValue; _moveFruitless = 0;
         if (!_unanswered || Session is null) return;
         _unanswered = false;
         _ = RefreshPagesAsync(fromServer: true);
