@@ -738,9 +738,10 @@ final class MiraUITests: XCTestCase {
         let coming = app.descendants(matching: .any)["series.shelf.coming"]
         XCTAssertTrue(coming.exists && coming.label.contains("The Sun Never Sets"), "The coming episode is not at its place: \(coming.label)")
         XCTAssertFalse(app.buttons["series.calendar"].exists, "The old card above the episodes is still there")
+        // A single missing episode: its name on the tile, nothing to open (the same episode twice otherwise).
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Triangle'")).firstMatch.exists, "The tile does not name the missing episode")
         missing.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["series.shelf.entry"].waitForExistence(timeout: 5), "The gap did not open into a tile per episode")
-        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Triangle'")).firstMatch.exists, "The opened tiles do not name the missing episode")
+        XCTAssertFalse(app.descendants(matching: .any)["series.shelf.entry"].waitForExistence(timeout: 2), "A single missing episode opened into a second tile")
         settle()
         capture("60-series-calendar")
         // An account that shows missing episodes in Jellyfin (the stand-in lists them so unless asked isMissing=false):
