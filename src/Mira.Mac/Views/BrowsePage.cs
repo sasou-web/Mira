@@ -339,48 +339,64 @@ public sealed class BrowsePage : Page
 
     public override async Task LoadAsync()
     {
-        if (Shell.Session is not { } session) return;
-        if (_kind != BrowseKind.Search)
-        {
-            // Asked together: the grid waits for both.
-            var libraries = session.Client.LibrariesAsync();
-            // The genres and years of this page's titles only: a series' genre on Films gave an empty page.
-            var options = session.Client.FiltersAsync(_kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", _ => "Movie,Series" });
-            var version = session.Client.ServerVersionAsync();
-            try
-            {
-                // A mixed library holds both: offered on each page; music, photos or home videos on none.
-                _libraries = (await libraries).Where(x => _kind switch
-                {
-                    BrowseKind.Movies => LibrarySection.Holds(x.CollectionType, series: false),
-                    BrowseKind.Series => LibrarySection.Holds(x.CollectionType, series: true),
-                    _ => LibrarySection.Browsed(x.CollectionType)
-                }).ToList();
-                _filling = true;
-                _library.Items.Add(L("Toutes les bibliothèques", "All libraries")); foreach (var library in _libraries) _library.Items.Add(library.Name);
-                _library.SelectedIndex = 0; _libraryField.IsVisible = _person is null && _saga is null && _studio is null && _libraries.Count > 1;
-                _filling = false;
-            }
-            catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; }
-            try
-            {
-                var filters = await options;
-                _filling = true;
-                _genre.Items.Add(L("Tous les genres", "All genres")); foreach (var genre in filters.Genres.Select(x => x.Trim()).Distinct(StringComparer.CurrentCultureIgnoreCase)) _genre.Items.Add(genre);
-                _year.Items.Add(L("Toutes les années", "All years")); foreach (var year in filters.Years.OrderDescending()) _year.Items.Add(year.ToString());
-                _genre.SelectedIndex = 0; _year.SelectedIndex = 0;
-                if (_openGenre is { } opened) { if (!_genre.Items.Contains(opened)) _genre.Items.Add(opened); _genre.SelectedItem = opened; }
-                _filling = false;
-                BuildGenreChips();
-            }
-            catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; }
-            try { FillChoices(LibraryFilters.LanguagesSupported(await version)); }
-            catch (Exception ex) when (Errors.Expected(ex)) { }
-        }
+        if (Shell.Session is null) return;
+        await LoadChoicesAsync();
         await ReloadAsync();
         await LoadPickUpAsync();
     }
-    public override async Task RefreshAsync() { await ReloadAsync(keep: true); await LoadPickUpAsync(); }
+    public override async Task RefreshAsync()
+    {
+        // Opened while Jellyfin was silent (Mira opened at sign-in before it, the network still down): its libraries,
+        // genres and languages once it answers again.
+        if (!_choicesLoaded) await LoadChoicesAsync();
+        await ReloadAsync(keep: true); await LoadPickUpAsync();
+    }
+    /// <summary>The libraries, genres, years and languages Jellyfin offers this page (false until it answered them all).</summary>
+    private bool _choicesLoaded;
+    private async Task LoadChoicesAsync()
+    {
+        if (Shell.Session is not { } session || _kind == BrowseKind.Search) { _choicesLoaded = true; return; }
+        // Asked together: the grid waits for both.
+        var libraries = session.Client.LibrariesAsync();
+        // The genres and years of this page's titles only: a series' genre on Films gave an empty page.
+        var options = session.Client.FiltersAsync(_kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", _ => "Movie,Series" });
+        var version = session.Client.ServerVersionAsync();
+        var loaded = true;
+        try
+        {
+            // A mixed library holds both: offered on each page; music, photos or home videos on none.
+            var found = (await libraries).Where(x => _kind switch
+            {
+                BrowseKind.Movies => LibrarySection.Holds(x.CollectionType, series: false),
+                BrowseKind.Series => LibrarySection.Holds(x.CollectionType, series: true),
+                _ => LibrarySection.Browsed(x.CollectionType)
+            }).ToList();
+            if (!ReferenceEquals(Shell.Session, session)) return;
+            _libraries = found;
+            _filling = true;
+            _library.Items.Clear(); _library.Items.Add(L("Toutes les bibliothèques", "All libraries")); foreach (var library in _libraries) _library.Items.Add(library.Name);
+            _library.SelectedIndex = 0; _libraryField.IsVisible = _person is null && _saga is null && _studio is null && _libraries.Count > 1;
+            _filling = false;
+        }
+        catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; loaded = false; }
+        try
+        {
+            var filters = await options;
+            if (!ReferenceEquals(Shell.Session, session)) return;
+            _filling = true;
+            _genre.Items.Clear(); _year.Items.Clear();
+            _genre.Items.Add(L("Tous les genres", "All genres")); foreach (var genre in filters.Genres.Select(x => x.Trim()).Distinct(StringComparer.CurrentCultureIgnoreCase)) _genre.Items.Add(genre);
+            _year.Items.Add(L("Toutes les années", "All years")); foreach (var year in filters.Years.OrderDescending()) _year.Items.Add(year.ToString());
+            _genre.SelectedIndex = 0; _year.SelectedIndex = 0;
+            if (_openGenre is { } opened) { if (!_genre.Items.Contains(opened)) _genre.Items.Add(opened); _genre.SelectedItem = opened; }
+            _filling = false;
+            BuildGenreChips();
+        }
+        catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; loaded = false; }
+        try { var known = await version; if (ReferenceEquals(Shell.Session, session)) FillChoices(LibraryFilters.LanguagesSupported(known)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { loaded = false; }
+        _choicesLoaded = loaded && ReferenceEquals(Shell.Session, session);
+    }
 
     /// <summary>« Tous », then each genre: a click is the choice of Genre under « Filtrer ».</summary>
     private void BuildGenreChips()
