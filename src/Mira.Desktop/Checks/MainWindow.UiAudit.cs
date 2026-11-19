@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -178,6 +179,27 @@ public partial class MainWindow
                 if (_missingPopup is { } popup) popup.IsOpen = false;
             }
         }
+        await BackFromDetailsAsync();
+        if (every) await AuditSeriesExtrasAsync(run);
+    }
+
+    /// <summary>
+    /// A series' bonus videos behind its pill « Extras » (SeriesExtras, « La pastille »): the first series Jellyfin says has
+    /// some, its pill clicked as a person would, the rows of openings, endings and the rest seen.
+    /// </summary>
+    private async Task AuditSeriesExtrasAsync(AuditRun run)
+    {
+        if (_client is not { } client) return;
+        MediaItem? series = null;
+        try { series = (await client.GetAsync<ItemsResult>($"Items?userId={client.Connection.UserId}&includeItemTypes=Series&recursive=true&hasSpecialFeature=true&limit=1")).Items.FirstOrDefault(); }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException or System.Text.Json.JsonException) { run.Notes.Add("Séries avec des bonus : Jellyfin n'a pas répondu (" + ex.Message + ")."); return; }
+        if (series is null) { run.Notes.Add("Aucune série avec des bonus : la pastille « Extras » n'est pas vue."); return; }
+        await ShowDetailsAsync(series); await AuditSettleAsync();
+        Button? pill = null;
+        for (var wait = 0; wait < 75 && pill is null; wait++) { pill = SeasonPills.Children.OfType<Button>().FirstOrDefault(x => ReferenceEquals(x.Tag, ExtrasPage)); if (pill is null) await Task.Delay(200); }
+        if (pill is null) { run.Notes.Add($"« {series.Name} » : Jellyfin dit qu'elle a des bonus, mais la pastille « Extras » n'est pas venue en 15 s."); await BackFromDetailsAsync(); return; }
+        pill.BringIntoView(); pill.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, pill)); await AuditSettleAsync();
+        await AuditScrollAsync(run, "bonus d'une série", DetailScroll);
         await BackFromDetailsAsync();
     }
 
