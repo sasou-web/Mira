@@ -71,6 +71,12 @@ public sealed class Catalog
     /// <summary>Nothing to show yet: the page shows placeholders.</summary>
     public bool Loading { get; set; }
 
+    /// <summary>The list the cards on screen belong to (<see cref="Key"/>), once Jellyfin or the cache gave it.</summary>
+    public string? Shown { get; set; }
+
+    /// <summary>Jellyfin did not answer for the list asked, and no copy of it was kept: its page says so, not « empty ».</summary>
+    public bool Silent { get; set; }
+
     /// <summary>The home page, not searched: the banner, « Continuer à regarder » and the latest titles.</summary>
     public bool IsHome(string search) => View == "home" && search.Length == 0;
     /// <summary>Jellyfin's item types for this page.</summary>
@@ -142,7 +148,7 @@ public sealed class Catalog
         }
         if (more) _items.AddRange(page.Where(x => _items.All(old => old.Id != x.Id))); else _items = page;
         (Fetched, Absorbed) = (fetched + result.Items.Count, absorbed);
-        TotalCount = result.TotalRecordCount;
+        TotalCount = result.TotalRecordCount; Silent = false;
     }
     /// <summary>« Continuer à regarder »: Jellyfin's resume and next-up rows with what this PC played, without what was taken out.</summary>
     /// <summary>
@@ -217,6 +223,7 @@ public sealed class Catalog
         var emptyLibrary = !demo && search.Length == 0 && !filtered && !Favorites && View is "home" or "library" && Resume.Count == 0;
         var (icon, title, hint) = (search.Length, filtered) switch
         {
+            _ when Silent => ("server", L("Jellyfin n’a pas donné cette liste", "Jellyfin didn’t send this list"), L("Elle s’affichera dès qu’il répondra : actualise pour réessayer.", "It will show up as soon as it answers: refresh to try again.")),
             _ when AwaitsSearch(search) => ("search", L("Que veux-tu regarder ?", "What do you want to watch?"), L("Tape le nom d’un film, d’une série, d’un épisode, d’une collection, d’un acteur ou d’un studio.", "Type the name of a movie, a show, an episode, a collection, an actor or a studio.")),
             ( > 0, _) => ("search", L($"Aucun résultat pour « {search} »", $"No results for “{search}”"), L("Vérifie l’orthographe ou essaie un autre titre.", "Check the spelling or try another title.")),
             (_, true) => ("sliders", L("Aucun titre ne correspond à ces filtres", "No titles match these filters"), L("Élargis ta sélection pour retrouver tes titres.", "Widen your selection to find your titles.")),
@@ -227,7 +234,7 @@ public sealed class Catalog
             _ => ("library", L("Rien à afficher ici", "Nothing to show here"), L("Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.", "Titles added to your Jellyfin library will show up here."))
         };
         // A search alone has its own ×: « Réinitialiser les filtres » only when a filter or the favourites narrow the list.
-        return new(icon, title, hint, Reset: !AwaitsSearch(search) && (filtered || Favorites || search.Length > 0 && View != "search"), Guide: emptyLibrary);
+        return new(icon, title, hint, Reset: !AwaitsSearch(search) && (filtered || Favorites || search.Length > 0 && View != "search"), Guide: emptyLibrary && !Silent);
     }
 
     /// <summary>The demo's list for this page, searched, filtered and sorted as Jellyfin would.</summary>

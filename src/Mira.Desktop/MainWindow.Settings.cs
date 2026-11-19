@@ -54,7 +54,7 @@ public partial class MainWindow
         SettingsContent.AddHandler(Selector.SelectionChangedEvent, new SelectionChangedEventHandler((_, _) => Changed()));
         SettingsContent.AddHandler(RangeBase.ValueChangedEvent, new RoutedPropertyChangedEventHandler<double>((_, _) => Changed()));
         // A field applies when left, not at each letter (half a folder's path would be a folder for TorLink).
-        SettingsContent.AddHandler(LostKeyboardFocusEvent, new KeyboardFocusChangedEventHandler((_, e) => { if (e.OriginalSource is TextBox) Changed(); }));
+        SettingsContent.AddHandler(LostKeyboardFocusEvent, new KeyboardFocusChangedEventHandler((_, e) => { if (e.OriginalSource is not TextBox box) return; Changed(); if (ReferenceEquals(box, TorLinkPathBox)) DescribeTorLinkSettings(); }));
     }
     /// <summary>Mira's language as the settings show it: the one chosen, else the one Mira speaks (Windows' or the installer's).</summary>
     private string ShownLanguage => Lang.Known(_settings.Language) ?? Lang.Code;
