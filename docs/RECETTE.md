@@ -100,4 +100,5 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Le foyer : réglé sur le Dell (mot de passe, deux profils dont un à code), rejoint depuis un autre appareil, profil ouvert, changé, appareil retiré (Windows prêt ; Mac et iPhone quand leurs clients seront là)
 - [ ] Le foyer sur Windows : PC sans compte à la maison → carte « Home of … » trouvée sur le réseau, mot de passe, « Who's watching? », code faux puis bon, Ctrl+P, « Leave this home »
 - [ ] Le foyer loin de chez soi (Windows) : Réglages → Foyer, client OAuth et politique sur le vrai Tailscale, lien du foyer ouvert sur un PC hors de la maison, profil ouvert par le nœud du foyer, appareil retiré = nœud parti du tailnet
+- [ ] Le foyer sur le Mac (ami Mac) : carte trouvée sur le réseau, mot de passe, « Who's watching? », code faux puis bon, ⌘P, macOS qui demande le trousseau au premier lancement après une mise à jour, « Leave this home » ; puis un lien du foyer ouvert hors de la maison
 - [ ] Le foyer : lien du foyer ouvert depuis miracinema.app/home (le navigateur passe `mira://home#…` à Mira, fragment compris)

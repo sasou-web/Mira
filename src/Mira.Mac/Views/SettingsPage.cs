@@ -121,6 +121,9 @@ public sealed partial class SettingsPage : Page
         Tab("report").Children.Add(Section(null, Report()));
 
         // —— Ton serveur: what only its owner sees, in Windows' order ——
+        // « Foyer »: the home's password, link, profiles and devices, for an administrator of a Jellyfin with the home (as on Windows).
+        Family = new FamilySection(shell, Section);
+        Tab("family").Children.Add(Family.Section);
         // « Ajouter un ami »: an account of their own, as on Windows, for an administrator.
         Friend = new FriendsSection(shell, Section);
         Tab("sharing").Children.Add(Friend.Section);
@@ -155,6 +158,7 @@ public sealed partial class SettingsPage : Page
     public TailnetSection Tailnet { get; }
     public FixTitlesSection Fix { get; }
     public FriendsSection Friend { get; }
+    public FamilySection Family { get; }
     /// <summary>« Autoriser un appareil », which Aide's « Inviter un ami » opens.</summary>
     private readonly Control _devices;
     public ViewersSection Viewing { get; }
