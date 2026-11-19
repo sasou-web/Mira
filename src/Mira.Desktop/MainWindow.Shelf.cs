@@ -55,6 +55,17 @@ public partial class MainWindow
         }
     }
     /// <summary>
+    /// The collections grouped as last known, even older than <see cref="GroupingAge"/> (the refresh reads them again): a
+    /// cached page shows at once as it will stay. Never read yet, Jellyfin is waited for a moment, no longer.
+    /// </summary>
+    private async Task<CollectionShelf.Index> KnownGroupingAsync(JellyfinClient client)
+    {
+        if (_grouping is { } known && ReferenceEquals(known.Client, client)) return known.Index;
+        var asked = GroupingAsync(client);
+        return await Task.WhenAny(asked, Task.Delay(GroupingWait)) == asked ? await asked : _catalog.Grouping;
+    }
+    private static readonly TimeSpan GroupingWait = TimeSpan.FromMilliseconds(1500);
+    /// <summary>
     /// The first time Mira groups sagas on its own (none chosen by this account): how many titles went where, once,
     /// with « Annuler », which leaves them as they were (each one « not grouped » for this account).
     /// </summary>

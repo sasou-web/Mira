@@ -20,7 +20,7 @@ internal static class Toasts
     /// </summary>
     public static bool Show(string title, string text, string? image, Action activated, string group = "episodes", TimeSpan? expires = null)
     {
-        if (App.ShellValidation) return false;
+        if (!Enabled) return false;
         try
         {
             var xml = new XmlDocument();
@@ -35,5 +35,19 @@ internal static class Toasts
             return true;
         }
         catch (Exception ex) when (ex is COMException or ArgumentException or UnauthorizedAccessException or UriFormatException or IOException) { return false; }
+    }
+
+    /// <summary>
+    /// Windows shows Mira's notifications: off in Réglages → Notifications (for Mira or all of them), or by a policy, a
+    /// notification shown is dropped without an error.
+    /// </summary>
+    public static bool Enabled
+    {
+        get
+        {
+            if (App.ShellValidation) return false;
+            try { return ToastNotificationManager.CreateToastNotifier(App.ShellAppId).Setting == NotificationSetting.Enabled; }
+            catch (Exception ex) when (ex is COMException or ArgumentException or UnauthorizedAccessException) { return false; }
+        }
     }
 }

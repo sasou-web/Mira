@@ -317,7 +317,7 @@ public partial class MainWindow
             var said = await client.TorLinkCancelAsync(request.Id, _connectionLifetime.Token) switch
             {
                 true => null,
-                false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC has already taken it: cancel it in its list as soon as it shows up there."),
+                false => L($"{ServerPcStart} l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", $"{ServerPcStart} has already taken it: cancel it in its list as soon as it shows up there."),
                 null => L("Cette demande n’est plus là.", "This request is no longer there.")
             };
             if (said is not null) SetNotice(said);

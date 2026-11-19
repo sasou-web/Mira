@@ -17,6 +17,12 @@ public sealed class Images
     private readonly SemaphoreSlim _downloads = new(6);
     /// <summary>A title page's backdrop and logo have their own lane, never behind the posters and stills asked with them (as on Windows).</summary>
     private readonly SemaphoreSlim _pageDownloads = new(3);
+    /// <summary>Cards hovered warm their page one at a time, in their own line: never ahead of an open page's backdrop and logo (as on Windows).</summary>
+    private readonly SemaphoreSlim _warming = new(1);
+    /// <summary>Raised by each hover and each page opened: a warm still waiting for its turn and no longer the latest is dropped.</summary>
+    private int _warmGeneration;
+    /// <summary>A title page opens: the warms still waiting are dropped (the one under way ends).</summary>
+    public void DropWarming() => Interlocked.Increment(ref _warmGeneration);
     /// <summary>Backdrops already put on disk by <see cref="WarmPageAsync"/>, asked once per run.</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _warmed = new();
     /// <summary>128 MB of decoded bitmaps kept for reuse, as on Windows; bitmaps on screen keep their own reference.</summary>
@@ -42,14 +48,22 @@ public sealed class Images
     /// </summary>
     public async Task WarmPageAsync(MediaItem item)
     {
-        var image = Artwork.Backdrop(item, ownPage: true);
-        var logo = item.ImageTags.ContainsKey("Logo") ? LogoAsync(item) : Task.FromResult<Bitmap?>(null);
-        if (image.ItemId.Length > 0)
+        var mine = Interlocked.Increment(ref _warmGeneration);
+        await _warming.WaitAsync();
+        try
         {
-            var key = Key(image, PageBackdropWidth);
-            if (_warmed.TryAdd(key, 0)) await Task.Run(() => KeepAsync(key, image, PageBackdropWidth));
+            // Another card hovered since, or a page opened: its turn is given up.
+            if (mine != Volatile.Read(ref _warmGeneration)) return;
+            var image = Artwork.Backdrop(item, ownPage: true);
+            var logo = item.ImageTags.ContainsKey("Logo") ? LogoAsync(item) : Task.FromResult<Bitmap?>(null);
+            if (image.ItemId.Length > 0)
+            {
+                var key = Key(image, PageBackdropWidth);
+                if (_warmed.TryAdd(key, 0)) await Task.Run(() => KeepAsync(key, image, PageBackdropWidth));
+            }
+            await logo;
         }
-        await logo;
+        finally { _warming.Release(); }
     }
     /// <summary>The width a title page asks its backdrop at (DetailPage).</summary>
     public const int PageBackdropWidth = 1920;
@@ -67,10 +81,9 @@ public sealed class Images
     {
         var file = PathOf(key);
         if (File.Exists(file)) return;
-        await _pageDownloads.WaitAsync();
-        try { if (!File.Exists(file)) Keep(file, await _client.ImageAsync(image.ItemId, image.Type, width)); }
+        // In the hover's line (WarmPageAsync), not in the open page's.
+        try { Keep(file, await _client.ImageAsync(image.ItemId, image.Type, width)); }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or UnauthorizedAccessException) { _warmed.TryRemove(key, out _); }
-        finally { _pageDownloads.Release(); }
     }
     /// <summary>A wide card: for an episode, art of its season or of the episode itself before the series' (see Artwork.Landscape).</summary>
     public Task<Bitmap?> LandscapeAsync(MediaItem item, int width = 560) => Get(Artwork.Landscape(item), width);

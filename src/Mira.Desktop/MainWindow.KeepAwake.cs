@@ -44,6 +44,12 @@ public partial class MainWindow
     }
 
     /// <summary>Jellyfin on this PC (its address is this PC's), judged once per server.</summary>
+    /// <summary>
+    /// Jellyfin known to run on this PC (as <see cref="JellyfinOnThisPcAsync"/> last found it): its texts say « ce PC »,
+    /// never « le PC serveur ».
+    /// </summary>
+    private bool JellyfinHere => !_demo && _client is { } client && _awakeServer is { Local: true } known && known.Server == client.Connection.Server;
+
     private async Task<bool> JellyfinOnThisPcAsync(JellyfinClient client)
     {
         if (_awakeServer is { } known && known.Server == client.Connection.Server) return known.Local;

@@ -133,7 +133,8 @@ public partial class MainWindow
         panel.Children.Add(AutoSwitch(L("Accepter les traductions automatiques", "Accept machine translations"), L("Seulement s’il n’y a rien d’autre.", "Only when there is nothing else."),
             s.MachineTranslated, on => new JsonObject { ["machineTranslated"] = on }));
         panel.Children.Add(AutoSwitch(L("Recaler sur la vidéo", "Sync to the video"),
-            L("Sur une piste de sous-titres du fichier, sinon sur les voix : le PC serveur écoute le film (une minute ou deux, en priorité basse).", "On a subtitle track of the file, else on the voices: the server PC listens to the film (a minute or two, at low priority)."),
+            JellyfinHere ? L("Sur une piste de sous-titres du fichier, sinon sur les voix : ce PC écoute le film (une minute ou deux, en priorité basse).", "On a subtitle track of the file, else on the voices: this PC listens to the film (a minute or two, at low priority).")
+                : L("Sur une piste de sous-titres du fichier, sinon sur les voix : le PC serveur écoute le film (une minute ou deux, en priorité basse).", "On a subtitle track of the file, else on the voices: the server PC listens to the film (a minute or two, at low priority)."),
             s.Sync, on => new JsonObject { ["sync"] = on }));
 
         panel.Children.Add(Heading(L("Sources", "Sources")));
@@ -156,7 +157,7 @@ public partial class MainWindow
         var accountLine = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
         accountLine.Children.Add(user); accountLine.Children.Add(password); accountLine.Children.Add(saveAccount);
         panel.Children.Add(accountLine);
-        panel.Children.Add(Description(L("Le mot de passe reste sur le PC serveur, jamais renvoyé à un appareil. Laisse le nom vide pour effacer le compte.", "The password stays on the server PC and is never sent back to a device. Leave the name empty to clear the account.")));
+        panel.Children.Add(Description((JellyfinHere ? L("Le mot de passe reste sur ce PC, jamais renvoyé à un appareil. Laisse le nom vide pour effacer le compte.", "The password stays on this PC and is never sent back to a device. Leave the name empty to clear the account.") : L("Le mot de passe reste sur le PC serveur, jamais renvoyé à un appareil. Laisse le nom vide pour effacer le compte.", "The password stays on the server PC and is never sent back to a device. Leave the name empty to clear the account."))));
 
         var sd = s.SubDl;
         if (sd?.Ready == true)
@@ -180,7 +181,7 @@ public partial class MainWindow
             keyLine.Children.Add(clear);
         }
         panel.Children.Add(keyLine);
-        panel.Children.Add(Description(L("Une clé gratuite : crée un compte sur subdl.com, puis copie celle de ton profil. Elle reste sur le PC serveur.", "A free key: create an account on subdl.com, then copy the one from your profile. It stays on the server PC.")));
+        panel.Children.Add(Description(L($"Une clé gratuite : crée un compte sur subdl.com, puis copie celle de ton profil. Elle reste sur {(JellyfinHere ? "ce PC" : "le PC serveur")}.", $"A free key: create an account on subdl.com, then copy the one from your profile. It stays on {(JellyfinHere ? "this PC" : "the server PC")}.")));
 
         var actions = new WrapPanel { Margin = new Thickness(0, 16, 0, 0) };
         var test = new Button { Content = L("Essayer les sources", "Test the sources"), Margin = new Thickness(0, 0, 10, 8) };
