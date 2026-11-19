@@ -14,6 +14,26 @@ public static class EpisodePages
 {
     public const int Size = 100;
 
+    /// <summary>
+    /// The episode after <paramref name="id"/> in <paramref name="episodes"/> (Jellyfin's order: specials first), among
+    /// its own kind: the last special is not followed by S01E01, nor is S01E01 preceded by a special.
+    /// </summary>
+    public static MediaItem? After(IReadOnlyList<MediaItem> episodes, string id) => Beside(episodes, id, 1);
+
+    /// <summary>The episode before <paramref name="id"/>, among its own kind (see <see cref="After"/>).</summary>
+    public static MediaItem? Before(IReadOnlyList<MediaItem> episodes, string id) => Beside(episodes, id, -1);
+
+    private static MediaItem? Beside(IReadOnlyList<MediaItem> episodes, string id, int step)
+    {
+        var index = -1;
+        for (var i = 0; i < episodes.Count; i++) if (episodes[i].Id == id) { index = i; break; }
+        if (index < 0) return null;
+        var special = episodes[index].ParentIndexNumber == 0;
+        for (var i = index + step; i >= 0 && i < episodes.Count; i += step)
+            if (episodes[i].ParentIndexNumber == 0 == special) return episodes[i];
+        return null;
+    }
+
     /// <summary>The pages in season order; <paramref name="episodes"/> in Jellyfin's order (season, then number).</summary>
     public static List<EpisodePage> From(IReadOnlyList<MediaItem> episodes)
     {

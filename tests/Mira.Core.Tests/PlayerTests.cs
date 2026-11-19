@@ -1019,8 +1019,10 @@ internal static class PlayerTests
             Assert(PlayerText.Subtitle(single[0]) == "Épisode 1 · Le monde des épées", "Before the episode list: " + PlayerText.Subtitle(single[0]));
             var seasons = single.Take(12).Concat(Enumerable.Range(1, 10).Select(n => Episode($"s2e{n}", 2, n))).Append(Episode("sp1", 0, 1, "OVA")).ToList();
             Assert(PlayerText.Subtitle(seasons[0], seasons) == "Saison 1 · Épisode 1 / 12 · Le monde des épées" && PlayerText.Subtitle(seasons[13], seasons) == "Saison 2 · Épisode 2 / 10"
-                && PlayerText.Subtitle(seasons[^1], seasons) == "Hors-série · Épisode 1 / 1 · OVA", "Seasons: " + PlayerText.Subtitle(seasons[13], seasons));
+                && PlayerText.Subtitle(seasons[^1], seasons) == "Épisodes spéciaux · Épisode 1 / 1 · OVA", "Seasons: " + PlayerText.Subtitle(seasons[13], seasons));
             Assert(PlayerText.Subtitle(Episode("e30", 1, 30), single.Take(10).ToList()) == "Épisode 30", "A partial list claims a total");
+            var gap = new[] { Episode("g1", 1, 1), Episode("g2", 1, 2), Episode("g4", 1, 4) };
+            Assert(PlayerText.Subtitle(gap[1], gap) == "Épisode 2 / 4" && PlayerText.Subtitle(gap[2], gap) == "Épisode 4 / 4", "A missing E03 counts to the last number: " + PlayerText.Subtitle(gap[1], gap));
             Assert(PlayerText.Subtitle(new MediaItem { Name = "Your Name", Type = "Movie", ProductionYear = 2016, RunTimeTicks = TimeSpan.FromMinutes(106).Ticks }) == "2016  ·  1 h 46", "Film line changed");
             Assert(PlayerText.Track("2", null, "jpn", "aac", 2) == ("Japonais", "AAC · stéréo") && PlayerText.Track("3", "Signs & Songs", "fre", "ass", forced: true) == ("Signs & Songs", "Français · ASS · forcés")
                 && PlayerText.Track("4", "", "und", "") == ("Piste 4", "") && PlayerText.Track("5", "japanese", "pt-BR", "eac3", 6) == ("Japanese", "Portugais · Dolby Digital Plus · 5.1"), "Track names");
@@ -1064,6 +1066,9 @@ internal static class PlayerTests
             // Names that change between releases: the same language, forced or not alike.
             const string renamed = """[{"id":1,"type":"audio","lang":"jpn"},{"id":1,"type":"sub","lang":"fre","title":"Signs","forced":true},{"id":2,"type":"sub","lang":"fre","title":"Full"}]""";
             Assert(SeriesTracks.Choose(renamed, full!) == ("1", "2") && SeriesTracks.Choose(renamed, signs) == ("1", "1"), "Renamed tracks: " + SeriesTracks.Choose(renamed, full!));
+            // Signs only, then an episode without them: no subtitles, not the full ones.
+            const string noSigns = """[{"id":1,"type":"audio","lang":"jpn"},{"id":1,"type":"sub","lang":"fre","title":"Complet"}]""";
+            Assert(SeriesTracks.Choose(noSigns, signs) == ("1", "no") && SeriesTracks.Choose(noSigns, full!) == ("1", "1"), "Forced remembered, none in the next episode: " + SeriesTracks.Choose(noSigns, signs));
             // Nothing alike: mpv keeps its own choice (the languages of the settings).
             const string english = """[{"id":1,"type":"audio","lang":"eng"},{"id":1,"type":"sub","lang":"eng"}]""";
             Assert(SeriesTracks.Choose(english, full!) == (null, null) && SeriesTracks.Choose(null, full!) == (null, null), "A track chosen without its language");

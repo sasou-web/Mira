@@ -649,6 +649,11 @@ internal static class LibraryTests
             Assert(EpisodePages.Episodes(episodes, pages[6]).Select(x => x.IndexNumber).SequenceEqual(Enumerable.Range(501, 20).Select(x => (int?)x)), "The last slice holds 501 to 520");
             Assert(EpisodePages.Holding(pages, episodes, episodes.Single(x => x.Id == "s1e250")) == pages[3] && EpisodePages.Holding(pages, episodes, episodes[^1]) == pages[^1], "The page of an episode");
             Assert(EpisodePages.Holding(pages, episodes, Episode(1, 999)) is null && EpisodePages.Holding(pages, episodes, null) is null, "An episode not in the list has no page");
+            // Next and previous stay among their kind: no S01E01 after the last special, no special before S01E01.
+            var withSpecials = new[] { Episode(0, 1), Episode(0, 2), Episode(1, 1), Episode(1, 2), Episode(2, 1) };
+            Assert(EpisodePages.After(withSpecials, "s0e1")?.Id == "s0e2" && EpisodePages.After(withSpecials, "s0e2") is null && EpisodePages.Before(withSpecials, "s1e1") is null
+                && EpisodePages.After(withSpecials, "s1e2")?.Id == "s2e1" && EpisodePages.Before(withSpecials, "s2e1")?.Id == "s1e2" && EpisodePages.After(withSpecials, "s2e1") is null
+                && EpisodePages.After(withSpecials, "gone") is null, "Next and previous around the specials");
             // Numbered from where the season starts, as anime often are, and without numbers.
             var numbered = Enumerable.Range(1, 150).Select(i => Episode(3, 400 + i)).ToList();
             Assert(EpisodePages.From(numbered).Select(x => x.Label).SequenceEqual(["Saison 3 · 401–500", "Saison 3 · 501–550"]), "Labels use the episode numbers");

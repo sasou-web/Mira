@@ -27,8 +27,9 @@ public partial class MainWindow
     }
     private MediaItem? PreviousEpisode(MediaItem current)
     {
-        var index = _playerEpisodes.FindIndex(x => x.Id == current.Id);
-        return index > 0 ? _playerEpisodes[index - 1] : null;
+        // A part of an episode in several files: the episode before its title.
+        if (_parts is { } parts && parts.Holds(current.Id)) current = parts.Title;
+        return EpisodePages.Before(_playerEpisodes, current.Id);
     }
     private async void Previous_Click(object sender, RoutedEventArgs e)
     {
