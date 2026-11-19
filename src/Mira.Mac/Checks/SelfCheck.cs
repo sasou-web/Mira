@@ -660,6 +660,24 @@ public static class SelfCheck
                 Check(followed && cameBack && wentBack && forward, swipeCheck, $"suit {followed}, revenue {cameBack}, retour {wentBack}, avant {forward} ({window.Current?.GetType().Name})");
             }
             else Check(false, swipeCheck, "rien sous le pointeur");
+            MacMotion.Override(null);
+            // Fourteen seasons (as Monogatari): pills cut to their numbers, and the episodes under them, not an empty page.
+            window.Go("Series");
+            if (await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15) && ((BrowsePage)window.Current!).Items.FirstOrDefault(x => x.Name == "Série-fleuve") is { } river)
+            {
+                window.Open(river);
+                var riverShown = await Until(() => window.Current is DetailPage { Episodes.Count: > 0, PillsShown: true, TilesShown: > 0 }, 20);
+                var riverPage = window.Current as DetailPage;
+                await Task.Delay(600);
+                // Each pill as wide as the row draws it (a cut pill's face asks no width: left-aligned, it was 0 wide, blank).
+                var riverPills = riverPage?.GetVisualDescendants().OfType<SeasonRow>().FirstOrDefault()?.Children.OfType<Button>().ToList() ?? [];
+                var narrowest = riverPills.Count > 0 ? riverPills.Min(x => x.Bounds.Width) : 0;
+                Check(riverShown && riverPage?.SeasonLabels.Count() == 14 && riverPills.Count == 14 && narrowest >= PillRow.Round - 1, "fiche d’une série de 14 saisons : pastilles « Les numéros » et épisodes",
+                    $"{riverPage?.SeasonLabels.Count()} saisons, {riverPage?.TilesShown} tuiles, {riverPills.Count} pastilles, la plus étroite {narrowest:0} px");
+                Capture(window, output, "06h-series-fourteen-seasons");
+            }
+            else Check(false, "fiche d’une série de 14 saisons : pastilles « Les numéros » et épisodes", "Série-fleuve absente");
+            MacMotion.Override(reduced: false);
             // A pinch (or ⌘+) makes the grid's posters larger: fewer of them on a line.
             window.Go("Movie");
             if (await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15))

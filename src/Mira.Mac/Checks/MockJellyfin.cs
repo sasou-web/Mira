@@ -89,14 +89,16 @@ public sealed class MockJellyfin : HttpMessageHandler
             Genres = new[] { "Comédie" }, ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + id }, ImageBlurHashes = Blurs(id), BackdropImageTags = new[] { "b" + id },
             People = new[] { Person("actor-1", "Jeanne Essai", "Actor") }, UserData = new { PlaybackPositionTicks = 0L, Played = false, IsFavorite = false }
         };
-        _series = [Series("series-1", "Petite série", 1), Series("series-2", "Longue série", 1)];
+        // « Série-fleuve »: fourteen seasons, as Monogatari: past ten the pills are cut to their numbers (« Les numéros »).
+        _series = [Series("series-1", "Petite série", 1), Series("series-2", "Longue série", 1), Series("series-3", "Série-fleuve", 14)];
         _episodes["series-1"] = Enumerable.Range(1, 3).Select(i => Episode("series-1", "Petite série", i, 6)).ToList();
         _episodes["series-2"] = Enumerable.Range(1, 130).Select(i => Episode("series-2", "Longue série", i, 6)).ToList();
+        _episodes["series-3"] = Enumerable.Range(1, 14).SelectMany(season => Enumerable.Range(1, 2).Select(i => Episode("series-3", "Série-fleuve", i, 6, season))).ToList();
     }
-    private static object Episode(string series, string seriesName, int number, int seconds) => new
+    private static object Episode(string series, string seriesName, int number, int seconds, int season = 1) => new
     {
-        Id = $"{series}-e{number}", Name = $"Épisode {number}", Type = "Episode", SeriesId = series, SeriesName = seriesName, SeasonId = series + "-s1",
-        ParentIndexNumber = 1, IndexNumber = number, RunTimeTicks = seconds * TimeSpan.TicksPerSecond, Overview = $"L’épisode {number}.",
+        Id = season == 1 ? $"{series}-e{number}" : $"{series}-s{season}e{number}", Name = $"Épisode {number}", Type = "Episode", SeriesId = series, SeriesName = seriesName, SeasonId = $"{series}-s{season}",
+        ParentIndexNumber = season, IndexNumber = number, RunTimeTicks = seconds * TimeSpan.TicksPerSecond, Overview = $"L’épisode {number}.",
         ImageTags = new Dictionary<string, string> { ["Primary"] = $"p{series}{number}" }, ParentBackdropItemId = series, ParentBackdropImageTags = new[] { "b" + series },
         UserData = new { PlaybackPositionTicks = 0L, Played = false, IsFavorite = false }
     };
