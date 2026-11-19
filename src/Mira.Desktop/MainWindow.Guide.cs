@@ -135,7 +135,7 @@ public partial class MainWindow
             (["Shift", "← →"], L("1 min en arrière, en avant", "1 min back, forward")), (["0", L("à", "to") + " 9"], L("aller à 0 – 90 %", "jump to 0 – 90 %")),
             (["F", "F11"], L("plein écran", "full screen")), (["C"], L("sous-titres", "subtitles")),
             (["↑", "↓"], L("volume", "volume")), (["M"], L("couper le son", "mute")),
-            (["S"], L("passer le générique", "skip the intro")), (["E"], L("épisodes", "episodes")),
+            (["S"], L("passer l’intro ou le générique", "skip the intro or credits")), (["E"], L("épisodes", "episodes")),
             (["I"], L("mini-lecteur", "mini player")), (["N"], L("épisode suivant", "next episode")), (["P"], L("épisode précédent", "previous episode")),
             ([L("Échap", "Esc")], L("revenir en arrière", "go back")), (["Ctrl", ","], L("réglages", "settings")), (["F1"], L("aide", "help")),
         ];

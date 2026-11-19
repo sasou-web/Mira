@@ -51,11 +51,12 @@ public partial class MainWindow
             if (_playing) { _playerLeft++; await StopPlaybackAsync(); ReturnToLibrary(); }
             WindowsCommand(DesktopCommand.Hide, 0);
             if (_settings.CloseKeptTold) return;
-            _settings.CloseKeptTold = true; TrySaveSettings();
-            Toasts.Show(L("Mira continue près de l’horloge", "Mira keeps going by the clock"),
+            // Told only once the notification did show: notifications of Mira turned off in Windows, it is said next time.
+            if (!Toasts.Show(L("Mira continue près de l’horloge", "Mira keeps going by the clock"),
                 L("Il travaille encore pour tes autres appareils ou tes téléchargements. Pour le fermer : clic droit sur son icône, « Quitter Mira ».",
                     "It’s still working for your other devices or your downloads. To close it: right-click its icon, then “Quit Mira”."),
-                null, () => Dispatcher.BeginInvoke(RestoreFromWindows), "mira");
+                null, () => Dispatcher.BeginInvoke(RestoreFromWindows), "mira")) return;
+            _settings.CloseKeptTold = true; TrySaveSettings();
         }
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }

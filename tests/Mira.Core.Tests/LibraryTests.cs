@@ -373,6 +373,11 @@ internal static class LibraryTests
                 var shown = HomeLayout.Show(row[0].GetString(), libraries, row[1].GetString()!, row[2].GetBoolean());
                 Assert(shown == row[3].GetString(), $"« {row[0]} » {row[1]} {row[2]}: {shown}");
             }
+            // Libraries not read yet (Jellyfin silent at the start): a row ticked keeps every « New in … » of the settings.
+            const string saved = "continue,latest,favorites,library:L1,collections,-library:L2";
+            var ticked = HomeLayout.KeepUnread(HomeLayout.Show(saved, [], "favorites", false), saved, []);
+            Assert(ticked.Contains("library:L1") && ticked.Contains("-library:L2") && ticked.Contains("-favorites"), "Library rows dropped: " + ticked);
+            Assert(HomeLayout.KeepUnread("continue", saved, libraries) == "continue", "Known libraries: the value is as given");
             return Task.CompletedTask;
         });
         await Test("Collections à la main : noms refusés (vide, trop long, nom ou dossier déjà pris), dossier, droits, comme Mira web (tests/fixtures/collections.json)", () =>

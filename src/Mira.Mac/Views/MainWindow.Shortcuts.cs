@@ -41,7 +41,7 @@ public sealed partial class MainWindow
             (["M"], L("couper le son", "mute")),
             (["C"], L("sous-titres", "subtitles")),
             (["F"], L("plein écran", "full screen")),
-            (["S"], L("passer le générique", "skip the intro")),
+            (["S"], L("passer l’intro ou le générique", "skip the intro or credits")),
             (["N"], L("épisode suivant", "next episode")),
             (["P"], L("épisode précédent", "previous episode")),
             (["E"], L("épisodes", "episodes")),

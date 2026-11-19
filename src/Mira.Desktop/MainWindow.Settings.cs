@@ -67,6 +67,8 @@ public partial class MainWindow
     /// Writes the settings. A file that cannot be written (full disk, held by another program) is no reason to stop what
     /// Mira was doing: the settings stay applied for this session, and closing Mira writes them again.
     /// </summary>
+    /// <summary>Saved, or said once it could not be (a full disk, a file held by another program): never an unexpected error.</summary>
+    private void SaveSettingsOrSay() { if (!TrySaveSettings()) SetNotice(SettingsNotSaved); }
     private bool TrySaveSettings()
     {
         try { _profile.SaveSettings(_settings); return true; }

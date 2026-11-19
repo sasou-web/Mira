@@ -627,7 +627,7 @@ public partial class MainWindow
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && (!_playing || _miniPlayer) && RailShortcut(e.Key)) { e.Handled = true; return; }
         if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { Guide_Click(this, new()); e.Handled = true; return; }
-        if (e.OriginalSource is TextBox or System.Windows.Controls.PasswordBox || !_playing) return;
+        if (IsTyping(e) || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.
         if (e.Key == Key.I && !e.IsRepeat) { if (_pip is not null) ReturnFromPip(); else SetMiniPlayerSmoothly(!_miniPlayer); e.Handled = true; }
     }
@@ -686,7 +686,7 @@ public partial class MainWindow
             Attempt(() => { _windows?.Dispose(); _windows = null; });
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
             _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop(); FrameProbe.Flush();
-            await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(CloseDiscordAsync); await AttemptAsync(() => _engineReleased); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
+            await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(CloseDiscordAsync); await AttemptAsync(() => _engineReleased); await AttemptAsync(StopTorLinkAsync); await AttemptAsync(() => EndGuestSessionAsync().WaitAsync(TimeSpan.FromSeconds(3))); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
             // After the last reports to Jellyfin, which may go through it; before an update replaces its file.
             await AttemptAsync(StopTailnetAsync);
             Attempt(() => _videoHost?.Dispose()); await AttemptAsync(ApplyUpdateAtCloseAsync);

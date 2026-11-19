@@ -153,7 +153,8 @@ public partial class MainWindow
     }
     private void ApplyHomeRows(string value, string? focus = null)
     {
-        _settings.HomeRows = value;
+        // Reset ("") stays a reset; otherwise the « New in … » rows are kept while the libraries are unknown.
+        _settings.HomeRows = value.Length == 0 ? value : HomeLayout.KeepUnread(value, _settings.HomeRows, _homeLibraries);
         if (!TrySaveSettings()) SetNotice(SettingsNotSaved);
         ShowHomeRowsSetting(focus);
         // A row newly shown comes from Jellyfin; the others move at once.
