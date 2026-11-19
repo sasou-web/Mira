@@ -51,7 +51,7 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex) || ex is SocketException or NetworkInformationException or System.Security.SecurityException) { }
         if (version != _loginSearchVersion) return;
         _loginServers = found; _loginNoneFound = found.Count == 0;
-        if (found.Count > 0 && ServerFieldFree) { UseServer(found[0]); RenderTailnetLogin(); return; }
+        if (found.Count > 0 && ServerFieldFree) { UseServer(found[0]); RenderTailnetLogin(); _ = OfferHomeAsync(found[0]); return; }
         // Typed meanwhile: kept, with what was found beside it, and nothing said when nothing was.
         if (!ServerFieldFree) { ServerHint.Text = ""; ShowServerChoices(null); RenderTailnetLogin(); return; }
         // A Jellyfin installed here but silent (stopped, still starting): its address, and what is wrong with it.

@@ -15,6 +15,7 @@ using System.Text.Json.Nodes;
 ///   --state &lt;state&gt;        the state its saved state gives at start: running (signed in before), expired, machine-auth
 ///   --login-waits          gives the login page but stays signed out, as while the person signs in in the browser
 ///   --key-expiry &lt;date&gt;    when its key expires once signed in
+/// A start with an authKey (a home link's) is signed in at once, unless the key has « spent » in it.
 /// </summary>
 internal static class FakeTailnet
 {
@@ -63,7 +64,9 @@ internal static class FakeTailnet
                     if (key.Length != 32 || string.IsNullOrEmpty((string?)request["proxyUser"]) || string.IsNullOrEmpty((string?)request["proxyPassword"]) || string.IsNullOrEmpty((string?)request["dir"]))
                     { Send(new { id, ok = false, code = "protocol", error = "start: missing key, folder or proxy credentials" }); break; }
                     Send(new { @event = "proxy", address = ProxyAddress });
-                    Send(new { @event = "status", status = first == "running" ? running : (object)new { state = first, authURL = Page } });
+                    // A home link's key: a good one logs the node in, a spent one (« spent » in it) leaves it signed out.
+                    var state = (string?)request["authKey"] is { Length: > 0 } authKey ? authKey.Contains("spent", StringComparison.Ordinal) ? "needs-login" : "running" : first;
+                    Send(new { @event = "status", status = state == "running" ? running : (object)new { state, authURL = Page } });
                     Send(new { id, ok = true });
                     if (crashMarker.Length > 0 && !File.Exists(crashMarker)) { File.WriteAllText(crashMarker, "crashed"); return 3; }
                     break;

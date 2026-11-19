@@ -90,6 +90,14 @@ public static class Privacy
             L("Comme l’app Tailscale : ton compte, le nom de l’appareil, son système, ses adresses IP et sa clé publique. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé.",
                 "Like the Tailscale app: your account, the device’s name, its system, its IP addresses and its public key. Videos stay end-to-end encrypted, no log is sent."),
             L("Se déconnecter de Tailscale, dans Compte & serveur.", "Sign out of Tailscale, in Account & server."), PrivacyControl.Tailscale, false, ["DERP"]));
+        if (windows)
+            list.Add(new("home-node", L("Le foyer loin de la maison", "The home away from home"),
+                L("Le serveur de coordination de Tailscale et ses relais, puis le seul Jellyfin du foyer, sur le réseau Tailscale de son administrateur.",
+                    "Tailscale’s coordination server and its relays, then the home’s Jellyfin alone, on its administrator’s Tailscale network."),
+                L("Seulement pour un foyer rejoint par un lien du foyer, à chaque ouverture de Mira.", "Only for a home joined from a home link, each time Mira opens."),
+                L("Comme Tailscale intégré : le nom de l’appareil, son système, ses adresses IP et sa clé publique, sous l’étiquette du foyer, sans ton compte Tailscale. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé.",
+                    "Like Built-in Tailscale: the device’s name, its system, its IP addresses and its public key, under the home’s tag, without your Tailscale account. Videos stay end-to-end encrypted, no log is sent."),
+                L("Quitter ce foyer (la photo du profil, en bas à gauche) : l’appareil quitte aussi le réseau Tailscale.", "Leave this home (the profile’s picture, bottom left): the device leaves the Tailscale network too."), PrivacyControl.None, false, ["tag:mira-home"]));
         list.Add(new("trailers", L("Bandes-annonces du web", "Trailers from the web"),
             L("Le site de la bande-annonce (souvent YouTube), dans ton navigateur, jamais dans Mira.", "The trailer’s site (often YouTube), in your browser, never in Mira."),
             L("Seulement quand tu cliques sur « Bande-annonce » d’un titre qui n’en a pas sur ton serveur.", "Only when you click “Trailer” on a title that has none on your server."),

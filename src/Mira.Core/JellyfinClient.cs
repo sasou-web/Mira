@@ -9,7 +9,7 @@ using Mira.Core.TorLink;
 
 namespace Mira.Core;
 
-public sealed class JellyfinClient : IDisposable
+public sealed partial class JellyfinClient : IDisposable
 {
     private readonly HttpClient _http;
     /// <summary>The handler given (the tests'), for the rare request longer than <see cref="_http"/>'s limit.</summary>

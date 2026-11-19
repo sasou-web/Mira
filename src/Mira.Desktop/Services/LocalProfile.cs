@@ -65,6 +65,46 @@ public sealed class LocalProfile
     }
     /// <summary>Ties the key to this use: DPAPI data of the same account made for something else does not decrypt it.</summary>
     private static readonly byte[] TailnetEntropy = Encoding.UTF8.GetBytes("Mira tailnet state key v1");
+    /// <summary>
+    /// « Le foyer »: this PC in a home (its home token, where the home's Jellyfin is), kept with DPAPI as the session is;
+    /// null when it is in none, or it cannot be read (it then joins again with the home's password).
+    /// </summary>
+    public Mira.Core.Family.HomeMembership? LoadHome()
+    {
+        var path = Path.Combine(DirectoryPath, "home.protected");
+        if (!File.Exists(path)) return null;
+        try { return JsonSerializer.Deserialize<Mira.Core.Family.HomeMembership>(ProtectedData.Unprotect(File.ReadAllBytes(path), HomeEntropy, DataProtectionScope.CurrentUser), Json.Options); }
+        catch (Exception ex) when (ex is CryptographicException or JsonException or IOException or UnauthorizedAccessException or NotSupportedException) { return null; }
+    }
+    public void SaveHome(Mira.Core.Family.HomeMembership home) => AtomicWrite("home.protected",
+        ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(home, Json.Options), HomeEntropy, DataProtectionScope.CurrentUser));
+    public void ClearHome() { var path = Path.Combine(DirectoryPath, "home.protected"); if (File.Exists(path)) File.Delete(path); }
+    /// <summary>The folder of the home's own Tailscale node (a home link's), apart from « Tailscale intégré »'s.</summary>
+    public string HomeNodeDirectory => Path.Combine(DirectoryPath, "home-tailscale");
+    /// <summary>The key of the home's node's state, as <see cref="TailnetKey"/> is for « Tailscale intégré ».</summary>
+    public byte[]? HomeNodeKey()
+    {
+        var path = Path.Combine(DirectoryPath, "home-tailscale.protected");
+        try
+        {
+            var key = ProtectedData.Unprotect(File.ReadAllBytes(path), HomeNodeEntropy, DataProtectionScope.CurrentUser);
+            if (key.Length == 32) return key;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or CryptographicException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+        var made = RandomNumberGenerator.GetBytes(32);
+        AtomicWrite("home-tailscale.protected", ProtectedData.Protect(made, HomeNodeEntropy, DataProtectionScope.CurrentUser));
+        return made;
+    }
+    /// <summary>The device left the home: its node's key and state leave this PC.</summary>
+    public void ForgetHomeNode()
+    {
+        var path = Path.Combine(DirectoryPath, "home-tailscale.protected");
+        if (File.Exists(path)) File.Delete(path);
+        if (Directory.Exists(HomeNodeDirectory)) Directory.Delete(HomeNodeDirectory, recursive: true);
+    }
+    private static readonly byte[] HomeEntropy = Encoding.UTF8.GetBytes("Mira home membership v1");
+    private static readonly byte[] HomeNodeEntropy = Encoding.UTF8.GetBytes("Mira home tailnet state key v1");
     /// <summary>True when settings.json exists but could not be read: the defaults are used instead, and replace it on the next save.</summary>
     public bool SettingsUnreadable { get; private set; }
     /// <summary>The copy of that unreadable file kept beside it (settings.json.bad-…); null when it could not be copied either.</summary>

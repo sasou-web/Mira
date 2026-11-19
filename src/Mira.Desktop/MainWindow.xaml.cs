@@ -188,6 +188,8 @@ public partial class MainWindow : Window
         await StartTailnetWithMiraAsync();
         if (!ValidationRun) WatchNetwork();
         if (_args.Contains("--demo")) await ShowDemoAsync();
+        // In a home: « Who's watching? » before anything of an account (the profile chosen opens its session).
+        else if (OpenHomeAtStart()) { }
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
         else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); if (_invite is not null) _ = OfferInviteAsync(); else FindServer(); }
         RenderTailnet(); _ = ReadTailscaleAppAsync();

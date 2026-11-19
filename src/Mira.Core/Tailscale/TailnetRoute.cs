@@ -99,18 +99,21 @@ public static class TailnetRoute
         var app = local.Any(InRange);
         if (node?.State == TailnetStates.Running && proxy) return device is not null || !app ? TailnetChoice.Node : TailnetChoice.Direct;
         if (app) return TailnetChoice.Direct;
-        return TailnetChoice.Fail(node?.State switch
-        {
-            TailnetStates.NeedsLogin => TailnetCodes.NeedsLogin,
-            TailnetStates.Expired => TailnetCodes.Expired,
-            TailnetStates.MachineAuth => TailnetCodes.MachineAuth,
-            TailnetStates.Starting => TailnetCodes.Starting,
-            TailnetStates.Stopped => TailnetCodes.Stopped,
-            // Its proxy gone with it: the helper ended.
-            TailnetStates.Running => TailnetCodes.Helper,
-            _ => withoutNode ?? TailnetCodes.Helper,
-        });
+        return TailnetChoice.Fail(Failure(node?.State, withoutNode));
     }
+
+    /// <summary>Why a node in this state takes no connection (<see cref="TailnetCodes"/>); <paramref name="withoutNode"/> while it has none.</summary>
+    public static string Failure(string? state, string? withoutNode) => state switch
+    {
+        TailnetStates.NeedsLogin => TailnetCodes.NeedsLogin,
+        TailnetStates.Expired => TailnetCodes.Expired,
+        TailnetStates.MachineAuth => TailnetCodes.MachineAuth,
+        TailnetStates.Starting => TailnetCodes.Starting,
+        TailnetStates.Stopped => TailnetCodes.Stopped,
+        // Its proxy gone with it: the helper ended.
+        TailnetStates.Running => TailnetCodes.Helper,
+        _ => withoutNode ?? TailnetCodes.Helper,
+    };
 
     private static bool Same(IPAddress a, IPAddress b)
     {
