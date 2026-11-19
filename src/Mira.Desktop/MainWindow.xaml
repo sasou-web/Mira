@@ -857,9 +857,9 @@
      <WrapPanel x:Name="FamilyTiles" HorizontalAlignment="Center" v:Accessible.ArrowKeys="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
      <TextBlock x:Name="FamilyHallStatus" FontSize="13" LineHeight="19" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" MaxWidth="560" Foreground="{DynamicResource Muted}" Margin="0,26,0,0" v:Accessible.Announce="Polite"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,40,0,0">
-      <Button x:Name="FamilyRetry" Click="FamilyRetry_Click" Visibility="Collapsed" Margin="0,0,10,0" Padding="16,9"><StackPanel Orientation="Horizontal"><v:Icon Kind="refresh" Width="15" Height="15" Margin="0,0,8,0"/><TextBlock Text="{v:L 'Réessayer', 'Try again'}"/></StackPanel></Button>
+      <Button x:Name="FamilyRetry" Click="FamilyRetry_Click" Visibility="Collapsed" Margin="0,0,10,0" Padding="16,9" AutomationProperties.Name="{v:L 'Réessayer', 'Try again'}"><StackPanel Orientation="Horizontal"><v:Icon Kind="refresh" Width="15" Height="15" Margin="0,0,8,0"/><TextBlock Text="{v:L 'Réessayer', 'Try again'}"/></StackPanel></Button>
       <Button x:Name="FamilyOwnAccountHall" Style="{StaticResource Quiet}" Click="FamilyOwnAccount_Click" Padding="14,9" Margin="0,0,6,0"/>
-      <Button x:Name="FamilyLeave" Style="{StaticResource Quiet}" Click="FamilyLeave_Click" Padding="14,9"><StackPanel Orientation="Horizontal"><v:Icon Kind="exit" Width="15" Height="15" Margin="0,0,8,0"/><TextBlock x:Name="FamilyLeaveText"/></StackPanel></Button>
+      <Button x:Name="FamilyLeave" Style="{StaticResource Quiet}" Click="FamilyLeave_Click" Padding="14,9" AutomationProperties.Name="{Binding Text, ElementName=FamilyLeaveText}"><StackPanel Orientation="Horizontal"><v:Icon Kind="exit" Width="15" Height="15" Margin="0,0,8,0"/><TextBlock x:Name="FamilyLeaveText"/></StackPanel></Button>
      </StackPanel>
     </StackPanel>
    </Viewbox>
@@ -875,7 +875,7 @@
      <TextBlock x:Name="FamilyPinNote" FontSize="12" LineHeight="17" TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource Faint}" Margin="0,18,0,0"/>
      <TextBlock x:Name="FamilyPinError" Foreground="{StaticResource Danger}" FontSize="12.5" TextWrapping="Wrap" TextAlignment="Center" Margin="0,12,0,0" v:Accessible.Announce="Assertive"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
-      <Button x:Name="FamilyPinBack" Click="FamilyPinBack_Click" Padding="14,8"><StackPanel Orientation="Horizontal"><v:Icon Kind="back" Width="15" Height="15" Margin="0,0,7,0"/><TextBlock Text="{v:L 'Retour', 'Back'}"/></StackPanel></Button>
+      <Button x:Name="FamilyPinBack" Click="FamilyPinBack_Click" Padding="14,8" AutomationProperties.Name="{v:L 'Retour', 'Back'}"><StackPanel Orientation="Horizontal"><v:Icon Kind="back" Width="15" Height="15" Margin="0,0,7,0"/><TextBlock Text="{v:L 'Retour', 'Back'}"/></StackPanel></Button>
       <TextBlock x:Name="FamilyPinForgot" FontSize="12.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="16,0,0,0"/>
      </StackPanel>
     </StackPanel>
