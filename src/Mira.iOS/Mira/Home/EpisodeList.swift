@@ -299,7 +299,7 @@ struct EpisodeList: View {
 
     /// The pill as drawn at `date`: the season's chip while still, the jelly while it moves.
     private func pillShape(at date: Date) -> CGRect? {
-        guard let season, let frame = chipFrames[season], pillSeason != nil else { return nil }
+        guard let season, let frame = chipFrames[season] else { return nil }
         guard pillMoving else { return frame }
         let shape = pill.at(date.timeIntervalSinceReferenceDate)
         let height = frame.height * shape.height
@@ -312,17 +312,14 @@ struct EpisodeList: View {
         chipStack(chips, lit: false)
             .coordinateSpace(.named(Self.rowSpace))
             .overlay(alignment: .topLeading) {
-                TimelineView(.animation(minimumInterval: nil, paused: !pillMoving)) { context in
-                    if let shape = pillShape(at: context.date) {
-                        ZStack(alignment: .topLeading) {
-                            Capsule().fill(Palette.accent)
-                                .frame(width: shape.width, height: shape.height)
-                                .offset(x: shape.minX, y: shape.minY)
-                            chipStack(chips, lit: true)
-                                .mask(alignment: .topLeading) {
-                                    Capsule().frame(width: shape.width, height: shape.height).offset(x: shape.minX, y: shape.minY)
-                                }
+                // Still: drawn from the state, at once (a paused clock would keep its first, empty, frame). Moving: by its clock.
+                Group {
+                    if pillMoving {
+                        TimelineView(.animation(minimumInterval: nil, paused: false)) { context in
+                            pillLayer(chips, pillShape(at: context.date))
                         }
+                    } else {
+                        pillLayer(chips, pillShape(at: .now))
                     }
                 }
                 .allowsHitTesting(false)
@@ -330,6 +327,22 @@ struct EpisodeList: View {
             }
             // Drawn by the pill's own clock: no fade of the page's carries it along.
             .transaction { $0.animation = nil }
+    }
+
+    /// The pill at `shape`, and the names in black seen through it.
+    @ViewBuilder
+    private func pillLayer(_ chips: [Chip], _ shape: CGRect?) -> some View {
+        if let shape {
+            ZStack(alignment: .topLeading) {
+                Capsule().fill(Palette.accent)
+                    .frame(width: shape.width, height: shape.height)
+                    .offset(x: shape.minX, y: shape.minY)
+                chipStack(chips, lit: true)
+                    .mask(alignment: .topLeading) {
+                        Capsule().frame(width: shape.width, height: shape.height).offset(x: shape.minX, y: shape.minY)
+                    }
+            }
+        }
     }
 
     /// The chips; `lit`: their names only, in black, where the pill is.
