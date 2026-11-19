@@ -126,6 +126,26 @@ struct WayPlanTests {
         #expect(!routes.contains { WayPlan.same($0.address, URL(string: "http://192.168.1.57:8096")!) || WayPlan.same($0.address, Home.server) })
     }
 
+    @Test("Preuve de l'extension : cas communs avec Windows et Mac (tests/fixtures/server-proof.json)")
+    func proof() throws {
+        final class Bundled {}
+        let url = try #require(Bundle(for: Bundled.self).url(forResource: "server-proof", withExtension: "json"))
+        let x = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let secret = try #require(Data(base64Encoded: try #require(x["secret"] as? String)))
+        let key = ServerProof.key(secret: secret, user: try #require(x["user"] as? String))
+        #expect(key.base64EncodedString() == x["key"] as? String)
+        for row in try #require(x["proofs"] as? [[String]]) {
+            #expect(ServerProof.prove(key: key, nonce: row[0], host: row[1]) == row[2], "\(row)")
+            #expect(ServerProof.holds(key: key.base64EncodedString(), nonce: row[0], host: row[1], proof: row[2]), "\(row)")
+            #expect(!ServerProof.holds(key: key.base64EncodedString(), nonce: row[0], host: "192.168.1.58:8096", proof: row[2]), "\(row)")
+            #expect(!ServerProof.holds(key: Data(count: 32).base64EncodedString(), nonce: row[0], host: row[1], proof: row[2]), "\(row)")
+        }
+        #expect(ServerProof.plainId("5F0C8E0E-2B6F-4C7A-9D1E-3B2A4C6D8E0F") == "5f0c8e0e2b6f4c7a9d1e3b2a4c6d8e0f" && ServerProof.plainId("u1") == nil)
+        #expect(ServerProof.host(of: URL(string: "http://192.168.1.57:8096/jellyfin")!) == "192.168.1.57:8096")
+        let nonce = ServerProof.newNonce()
+        #expect(nonce.count == 43 && nonce != ServerProof.newNonce() && nonce.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" })
+    }
+
     @Test("Une adresse du serveur sur un autre chemin : même chemin, même requête ; celles des autres jamais")
     func map() {
         let base = URL(string: Home.pcBase)!
@@ -431,23 +451,39 @@ struct WayTests {
         let own: Way.Own = { reads.count.withLock { $0 += 1 }; return ("192.168.1.10", 24) }
         var quick = timing
         quick.neighbours = 0
-        let way = Way(ask: answers.ask, timing: quick, suite: suite, own: own)
-        await way.use(Home.server, id: Home.id)
+        let proof = Way.Proof(user: "5f0c8e0e2b6f4c7a9d1e3b2a4c6d8e0f", key: Data(count: 32).base64EncodedString())
+        // The real server proves it; a device of another network with the same public id would not.
+        let proves: Way.Prove = { base, _ in base.absoluteString.hasPrefix("http://192.168.1.57:8096") }
+        let impostor = Way(ask: answers.ask, prove: { _, _ in false }, timing: quick, suite: suite + ".impostor", own: own)
+        await impostor.use(Home.server, id: Home.id, proof: proof)
+        #expect(await impostor.map(item) == item)
+        #expect(await impostor.current() == nil)
+        UserDefaults.standard.removePersistentDomain(forName: suite + ".impostor")
+        // Without the account's proof key, the network is never asked address by address.
+        let unproven = Way(ask: answers.ask, prove: proves, timing: quick, suite: suite + ".unproven", own: own)
+        await unproven.use(Home.server, id: Home.id)
+        let unread = reads.count.withLock { $0 }
+        #expect(await unproven.map(item) == item)
+        #expect(reads.count.withLock { $0 } == unread)
+        UserDefaults.standard.removePersistentDomain(forName: suite + ".unproven")
+
+        let way = Way(ask: answers.ask, prove: proves, timing: quick, suite: suite, own: own)
+        await way.use(Home.server, id: Home.id, proof: proof)
         #expect(await way.map(item).absoluteString == "http://192.168.1.57:8096/Items/1?fields=Overview")
         #expect(await way.current()?.kind == .home)
         #expect(await way.addresses().map(\.absoluteString) == ["http://192.168.1.57:8096"])
         #expect(!answers.bases.contains("http://192.168.1.10:8096"))
         // The next time, the new address is tried with the old one, without asking the network again.
-        let again = Way(ask: answers.ask, timing: quick, suite: suite, own: own)
-        await again.use(Home.server, id: Home.id)
+        let again = Way(ask: answers.ask, prove: proves, timing: quick, suite: suite, own: own)
+        await again.use(Home.server, id: Home.id, proof: proof)
         let before = reads.count.withLock { $0 }
         #expect(await again.map(item).absoluteString.hasPrefix("http://192.168.1.57:8096"))
         #expect(reads.count.withLock { $0 } == before)
 
         // Away from home (cellular), the network there is never asked address by address.
-        let away = Way(ask: Answers().ask, timing: quick, suite: suite + ".away", own: own)
+        let away = Way(ask: Answers().ask, prove: proves, timing: quick, suite: suite + ".away", own: own)
         await away.network(.cellular)
-        await away.use(Home.server, id: Home.id)
+        await away.use(Home.server, id: Home.id, proof: proof)
         let then = reads.count.withLock { $0 }
         #expect(await away.map(item) == item)
         #expect(reads.count.withLock { $0 } == then)

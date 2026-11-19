@@ -532,7 +532,7 @@ public partial class MainWindow : Window
             _catalog.Receive(result, more, search); _catalog.Shown = key;
             if (!more) (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = (found, foundStudios, foundEpisodes, foundSagas);
             if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? []).Concat(playedLately)); }
-            _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; _refreshErrorSaid = null; RenderLibrary(grow: more);
+            _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; _moveFruitless = 0; _refreshErrorSaid = null; RenderLibrary(grow: more);
             // Jellyfin answers: its libraries, genres and languages, if they could not be read before.
             _ = LoadLibraryChoicesAsync(client);
             // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.

@@ -1,0 +1,23 @@
+{
+  "about": "The proof that Jellyfin found at another address is the account's own (ServerProof.cs: Mira for Windows and Mac, the extension's /Mira/proof; ServerProof.swift on the iPhone). key = HMAC-SHA256(secret, \"mira-proof\\n\" + the user's id as 32 lowercase digits); proof = base64(HMAC-SHA256(key, nonce + \"\\n\" + the host asked, in lowercase)).",
+  "secret": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "user": "5F0C8E0E-2B6F-4C7A-9D1E-3B2A4C6D8E0F",
+  "key": "2rlYV5sCdY0T34vSgjlxTjtvJ72RCerx9bkCL9NipL8=",
+  "proofs": [
+    [
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "192.168.1.57:8096",
+      "x+MMwwEE51twm34kSsvo1yA2gjsCpEKHLU/rXEuXxTA="
+    ],
+    [
+      "q2Vt-Wm_0123456789abcdefghijklmnopqrstuvwxyz",
+      "MAISON-PC:8096",
+      "4oCp9q4aYJZlhpcvpZsNcWM6VkAPJdcJQq5qYH6l100="
+    ],
+    [
+      "q2Vt-Wm_0123456789abcdefghijklmnopqrstuvwxyz",
+      "maison-pc:8096",
+      "4oCp9q4aYJZlhpcvpZsNcWM6VkAPJdcJQq5qYH6l100="
+    ]
+  ]
+}

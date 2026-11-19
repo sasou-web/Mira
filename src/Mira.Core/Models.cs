@@ -250,6 +250,8 @@ public sealed record Connection(string Server, string UserId, string UserName, s
     public string? ServerId { get; init; }
     /// <summary>The address signed in at, when Jellyfin has since moved to <see cref="Server"/>: what names this account's data on this computer.</summary>
     public string? Origin { get; init; }
+    /// <summary>This account's proof key from Mira's extension (<see cref="ServerProof"/>): what a server found at another address must sign with before the token goes there.</summary>
+    public string? ServerProof { get; init; }
     /// <summary>The address that names this account's cache, artwork and copies: the one signed in at, wherever Jellyfin went since.</summary>
     [JsonIgnore] public string Account => Origin ?? Server;
 }

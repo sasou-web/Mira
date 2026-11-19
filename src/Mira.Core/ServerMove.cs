@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Mira.Core.Tailscale;
@@ -11,22 +12,33 @@ namespace Mira.Core;
 /// computer, then by Jellyfin's discovery on the home network (<see cref="ServerSearch"/>), then at each address of the
 /// network this computer shares with the old one, on its port. Only an address of the home network moves so: a name,
 /// an address of the Internet or of Tailscale stays as it is. Nothing is asked beyond the home network, and only
-/// Jellyfin's public information, as the login screen asks it; the token goes only to the address that answered with
-/// this server's id. The account keeps its data on this computer (<see cref="Connection.Account"/>). The iPhone does
-/// the same in its way to Jellyfin (Way, WayPlan.neighbours), on the cases of tests/fixtures/server-move.json.
+/// Jellyfin's public information, as the login screen asks it, then its proof (<see cref="ServerProof"/>): the id is
+/// public, and a device of another network (a hotel's, a friend's on the same 192.168.1.x) that answered with it would
+/// otherwise have been sent the token. The token goes only to the address that signed this account's nonce; an account
+/// without its proof key (extension absent or older) never moves. Nothing found: asked again less and less often
+/// (<see cref="After"/>), as on a network that is not the home's. The account keeps its data on this computer
+/// (<see cref="Connection.Account"/>). The iPhone does the same in its way to Jellyfin (Way, WayPlan.neighbours), on the
+/// cases of tests/fixtures/server-move.json.
 /// </summary>
 public static class ServerMove
 {
     /// <summary>Looked for at most this often while Jellyfin stays silent (each refresh that fails tries again).</summary>
     public static readonly TimeSpan Every = TimeSpan.FromMinutes(2);
+    /// <summary>
+    /// The wait before the next search after <paramref name="fruitless"/> found nothing in a row: 2 min, then twice as long
+    /// each time, 30 min at most. Away from home (a hotel's network may be 192.168.1.x too), each address of its network
+    /// is not asked every 2 min for hours.
+    /// </summary>
+    public static TimeSpan After(int fruitless) => TimeSpan.FromMinutes(Math.Min(30, 2 * Math.Pow(2, Math.Clamp(fruitless - 1, 0, 4))));
     /// <summary>How long each address of the network has to answer.</summary>
     public static readonly TimeSpan Wait = TimeSpan.FromSeconds(2.5);
 
     /// <summary>
-    /// Whether this account's Jellyfin may have moved: its id known, at an IPv4 address of the home network (10.x,
-    /// 172.16–31.x, 192.168.x), never this computer, Tailscale, a name, nor a party's guest account.
+    /// Whether this account's Jellyfin may have moved: its id and its proof key known, at an IPv4 address of the home
+    /// network (10.x, 172.16–31.x, 192.168.x), never this computer, Tailscale, a name, nor a party's guest account.
     /// </summary>
-    public static bool Movable(Connection connection) => connection.ServerId is { Length: > 0 } && !Together.IsGuest(connection) && HomeAddress(connection.Server) is not null;
+    public static bool Movable(Connection connection) => connection.ServerId is { Length: > 0 } && connection.ServerProof is { Length: > 0 }
+        && ServerProof.PlainId(connection.UserId) is not null && !Together.IsGuest(connection) && HomeAddress(connection.Server) is not null;
 
     /// <summary>The IPv4 address of the home network in <paramref name="server"/>; null for anything else.</summary>
     public static IPAddress? HomeAddress(string server)
@@ -97,13 +109,13 @@ public static class ServerMove
         using var http = new HttpClient(handler ?? TailnetNetwork.Default.Handler, disposeHandler: false);
         http.Timeout = Timeout.InfiniteTimeSpan;
         var found = await ServerSearch.FindAsync([], handler, home, ct).ConfigureAwait(false);
-        if (Found(connection, found) is { } address && await AnswersAsync(http, address, connection.ServerId!, ct).ConfigureAwait(false) is { } confirmed)
+        if (Found(connection, found) is { } address && await AnswersAsync(http, address, connection, ct).ConfigureAwait(false) is { } confirmed)
             return Moved(connection, confirmed);
         // Discovery turned off on the server, or Jellyfin in a container that does not hear it: each address of the network.
         var neighbours = (own ?? OwnNetworks()).SelectMany(x => Neighbours(connection.Server, x.Address, x.Prefix)).Distinct().ToList();
         if (neighbours.Count == 0) return null;
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var asked = neighbours.Select(x => AnswersAsync(http, x, connection.ServerId!, stop.Token)).ToList();
+        var asked = neighbours.Select(x => AnswersAsync(http, x, connection, stop.Token)).ToList();
         try
         {
             while (asked.Count > 0)
@@ -117,11 +129,32 @@ public static class ServerMove
         ct.ThrowIfCancellationRequested();
         return null;
     }
-    /// <summary>The address, as it answered, when Jellyfin there is this server; null otherwise.</summary>
-    private static async Task<string?> AnswersAsync(HttpClient http, string address, string id, CancellationToken ct)
+    /// <summary>The address, as it answered, when Jellyfin there is this server and proves it; null otherwise.</summary>
+    private static async Task<string?> AnswersAsync(HttpClient http, string address, Connection connection, CancellationToken ct)
     {
         var probe = await ServerAddress.ProbeAsync(http, address, ct, Wait).ConfigureAwait(false);
-        return probe.Info is { } info && SameId(info.Id, id) ? info.Address : null;
+        return probe.Info is { } info && SameId(info.Id, connection.ServerId) && await ProvesAsync(http, info.Address, connection, ct).ConfigureAwait(false) ? info.Address : null;
+    }
+    /// <summary>
+    /// Whether Jellyfin at <paramref name="address"/> signs a new nonce with this account's proof key, asked without a
+    /// session (<see cref="ServerProof"/>): only the server signed in to can.
+    /// </summary>
+    internal static async Task<bool> ProvesAsync(HttpClient http, string address, Connection connection, CancellationToken ct)
+    {
+        if (ServerProof.PlainId(connection.UserId) is not { } user || !Uri.TryCreate(address, UriKind.Absolute, out var uri)) return false;
+        var nonce = ServerProof.NewNonce();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(Wait);
+        try
+        {
+            using var response = await http.GetAsync(new Uri(uri, $"Mira/proof?user={user}&nonce={nonce}"), HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > 4096) return false;
+            using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false), default, timeout.Token).ConfigureAwait(false);
+            var proof = json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("proof", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+            // Signed for the address asked: a device that passed the question on to the server by another way is caught.
+            return ServerProof.Holds(connection.ServerProof, nonce, uri.Authority, proof);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException) { ct.ThrowIfCancellationRequested(); return false; }
     }
     /// <summary>This computer's IPv4 networks at home: up, neither loopback nor a tunnel nor Tailscale.</summary>
     private static IReadOnlyList<(IPAddress Address, int Prefix)> OwnNetworks()

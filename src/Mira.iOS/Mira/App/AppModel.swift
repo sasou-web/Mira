@@ -11,6 +11,12 @@ struct Session: Codable, Sendable, Hashable {
     var userId: String
     var userName: String
     var token: String
+    /// The account's proof key from Mira's extension (ServerProof), learned once a way reaches Jellyfin: what Jellyfin
+    /// found at another address of the home network must sign with before the token goes there.
+    var proofKey: String? = nil
+
+    /// What the way to Jellyfin asks of a server found elsewhere (nil without the key).
+    var wayProof: Way.Proof? { proofKey.map { Way.Proof(user: userId, key: $0) } }
 }
 
 /// What the whole app shares: the session, kept in the Keychain (only on this iPhone, never in a backup), and this
@@ -104,7 +110,7 @@ final class AppModel {
         #if DEBUG
         if arguments.contains("-mira-way-builtin") { only = [.builtIn] }
         #endif
-        Way.select(session?.server, id: session?.serverId)
+        Way.select(session?.server, id: session?.serverId, proof: session?.wayProof)
         Task { [weak self, only] in
             await Way.shared.setup(readTailnet: { await TailscaleLibrary.snapshot() }, onChange: { route, hint in
                 Task { @MainActor in self?.wayChanged(route, hint) }
@@ -123,6 +129,7 @@ final class AppModel {
     private func wayChanged(_ route: WayPlan.Route?, _ hint: WayPlan.Hint?) {
         // A way to Jellyfin again: the copies that wait go on, what was watched here is told.
         if route != nil, route != way { keeper.resume() }
+        if route != nil { learnProof() }
         if route != way { way = route }
         if hint != wayHint { wayHint = hint }
     }
@@ -218,8 +225,26 @@ final class AppModel {
         }
     }
 
+    /// The account's proof key, asked of Mira's extension once per launch while it is missing (the extension absent or
+    /// older: asked again at the next launch).
+    private var proofAsked = false
+    private func learnProof() {
+        guard !proofAsked, party.guest == nil, let session, session.proofKey == nil, let client = ownClient else { return }
+        proofAsked = true
+        Task { [weak self] in
+            struct Answer: Decodable, Sendable { let key: String }
+            guard let answer = try? await client.get("Mira/proof/key", as: Answer.self), Data(base64Encoded: answer.key)?.count == 32,
+                  let self, var current = self.session, current.token == session.token else { return }
+            current.proofKey = answer.key
+            SessionStore.save(current)
+            self.session = current
+            Way.select(current.server, id: current.serverId, proof: current.wayProof)
+        }
+    }
+
     func signedIn(_ session: Session, typed: String) {
-        Way.select(session.server, id: session.serverId)
+        proofAsked = false
+        Way.select(session.server, id: session.serverId, proof: session.wayProof)
         SessionStore.save(session)
         UserDefaults.standard.set(typed, forKey: Keys.lastServer)
         notice = nil

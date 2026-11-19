@@ -30,9 +30,18 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         _journalFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles-journal.json");
         _queueFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles-queue.json");
         TvdbOrders.File = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.tvdb-orders.json");
+        _proofFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.proof.key");
     }
 
     private static string? _subtitlesFile, _journalFile, _queueFile;
+    private static string? _proofFile;
+    private static byte[]? _proofSecret;
+
+    /// <summary>The secret behind each account's proof key (<see cref="ProofController"/>), made the first time it is needed; null when it cannot be kept.</summary>
+    public static byte[]? ProofSecret
+    {
+        get { lock (Gate) return _proofSecret ??= ProofSecrets.Read(_proofFile); }
+    }
     private static SubtitleConfig? _subtitles;
     private static SubtitleJournal? _journal;
     private static SubtitleQueue? _queue;

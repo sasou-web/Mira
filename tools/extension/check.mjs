@@ -80,6 +80,23 @@ const throughFunnel = (path, headers = {}) => new Promise((resolve) => {
 const SOCKET = { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==' };
 const root = new URL(base).pathname.replace(/\/$/, '');
 
+// The proof that a Jellyfin found at another address is the account's own (ServerProof.cs, ServerMove): each account
+// its key, with its session; a nonce signed for the host asked, without one; nothing through Funnel.
+await part('preuve', async () => {
+  const [hostKey, friendKey, anonymous] = [await call('GET', 'Mira/proof/key', { token: host }), await call('GET', 'Mira/proof/key', { token: friend }), await call('GET', 'Mira/proof/key')];
+  const key = Buffer.from(hostKey.json?.key ?? '', 'base64');
+  const nonce = crypto.randomBytes(32).toString('base64url');
+  const plain = String(me.Id).replace(/-/g, '').toLowerCase();
+  const asked = await call('GET', `Mira/proof?user=${me.Id}&nonce=${nonce}`);
+  const hostName = new URL(base).host.toLowerCase();
+  const expected = key.length === 32 ? crypto.createHmac('sha256', key).update(`${nonce}\n${hostName}`).digest('base64') : '?';
+  const [noNonce, funnel] = [await call('GET', `Mira/proof?user=${plain}&nonce=court`), await throughFunnel(`${root}/Mira/proof?user=${plain}&nonce=${nonce}`)];
+  check('preuve : une clé par compte avec sa session, le nonce signé pour l’adresse demandée, rien par Funnel',
+    hostKey.status === 200 && key.length === 32 && friendKey.status === 200 && friendKey.json?.key !== hostKey.json?.key && anonymous.status === 401
+      && asked.status === 200 && asked.json?.proof === expected && noNonce.status === 400 && funnel === 404,
+    `clé ${hostKey.status}/${friendKey.status}/${anonymous.status} ; preuve ${asked.status} ${asked.json?.proof === expected ? 'juste' : 'fausse'} ; nonce court ${noNonce.status} ; Funnel ${funnel}`);
+});
+
 await part('party', async () => {
   for (const old of (await call('GET', 'Mira/invites', { token: host })).json?.invites ?? []) await call('DELETE', `Mira/invites/${old.id}`, { token: host });
   const address = await call('PUT', 'Mira/invites/address', { token: host, body: { address: 'https://mira-check.tail0000.ts.net' } });
