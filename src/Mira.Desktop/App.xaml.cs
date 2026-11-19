@@ -126,6 +126,8 @@ public partial class App : Application
             else if (args.Contains("--offscreen") && dataArg >= 0) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; }
             if (args.Contains("--qa-window")) window.Title = L("Mira · Validation du lecteur", "Mira · Player validation");
             window.Show(); _shown = true;
+            // Started at sign-in: put away by the clock once shown (MainWindow.SignIn.cs).
+            window.PutAwayAtSignIn();
 #if MIRA_VALIDATION
             if (args.Contains("--ui-audit")) window.KeepUnderEverything();
 #endif

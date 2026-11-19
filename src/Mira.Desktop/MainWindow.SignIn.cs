@@ -51,6 +51,21 @@ public partial class MainWindow
     }
 
     /// <summary>
+    /// After the first Show of a start at sign-in: the window hidden for real. a Hide in Loaded (raised before Show is over) left
+    /// WPF saying « hidden » and the window shown off every screen, still drawn (Dell, 2026-11-19: IsWindowVisible true at
+    /// -21845, -21845, out of the taskbar). Windows' own state is checked too.
+    /// </summary>
+    internal void PutAwayAtSignIn()
+    {
+        if (!AtSignIn) return;
+        Hide();
+        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (handle != IntPtr.Zero && IsWindowVisible(handle)) ShowWindow(handle, 0); // SW_HIDE
+    }
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
+
+    /// <summary>
     /// Before the first show after a start at sign-in: where the window was last left, in the taskbar again. True when it
     /// is to be maximized once shown (set before, Windows would show it at once, wherever it is).
     /// </summary>
