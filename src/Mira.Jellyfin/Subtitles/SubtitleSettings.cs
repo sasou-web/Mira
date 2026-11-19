@@ -139,9 +139,14 @@ public sealed class SubtitleConfig
     private void Save()
     {
         if (_file is null) return;
-        var temp = _file + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(_settings, Json));
-        File.Move(temp, _file, true);
+        // As the queue's file: a full disk or a refused folder keeps the settings for this run, never an error 500.
+        try
+        {
+            var temp = _file + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(_settings, Json));
+            File.Move(temp, _file, true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 }
 

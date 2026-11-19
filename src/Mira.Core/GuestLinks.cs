@@ -153,7 +153,15 @@ public sealed record PartyLink(
     [property: JsonPropertyName("link")] string Link,
     [property: JsonPropertyName("appLink")] string? AppLink,
     [property: JsonPropertyName("reach")] string? Reach,
-    [property: JsonPropertyName("note")] string? Note);
+    [property: JsonPropertyName("note")] string? Note,
+    [property: JsonPropertyName("tunnel")] GuestTunnel? Tunnel = null)
+{
+    /// <summary>The link works from anywhere: through Funnel, and Mira answers there (not off since it was given).</summary>
+    [JsonIgnore] public bool Everywhere => Reach == "internet" && Tunnel?.State != "unreachable";
+
+    /// <summary>What to tell the host about who the link reaches: why a Funnel address does not answer, when it does not.</summary>
+    [JsonIgnore] public string? Said => Reach == "internet" && !Everywhere && !string.IsNullOrWhiteSpace(Tunnel?.Text) ? Tunnel.Text : Note;
+}
 
 /// <summary>
 /// A party of another Jellyfin, joined as its guest (<see cref="JellyfinClient.OpenPartyAsync"/>): the guest's session,

@@ -54,9 +54,9 @@ public partial class MainWindow
         PartyPanel.Visibility = party is null ? Visibility.Collapsed : Visibility.Visible;
         if (party is null) return;
         PartyLinkBox.Text = party.Link;
-        PartyReach.Text = party.Note ?? "";
-        PartyReach.Foreground = Palette.Get(party.Reach is "internet" or null ? "Muted" : "Warning");
-        PartyReach.Visibility = string.IsNullOrWhiteSpace(party.Note) ? Visibility.Collapsed : Visibility.Visible;
+        PartyReach.Text = party.Said ?? "";
+        PartyReach.Foreground = Palette.Get(party.Everywhere || party.Reach is null ? "Muted" : "Warning");
+        PartyReach.Visibility = string.IsNullOrWhiteSpace(party.Said) ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void HideGuestAdmin()
