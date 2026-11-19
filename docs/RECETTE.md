@@ -49,6 +49,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 
 ## iPhone 📱
 - [ ] Installation par AltStore, rafraîchie après 7 jours sans rien faire
+- [ ] Installation d’AltStore depuis un Mac (guide du wiki « iPhone and iPad », étapes Mac : AltServer pour macOS, Wi-Fi du Finder, ouverture à la connexion, Mac sans veille), puis rafraîchissement en Wi-Fi par le Mac
 - [ ] Filtres de Films : pastilles Image, Note, Audio, Sous-titres ; « 4K » + « Audio · Français » ensemble, puis Réinitialiser
 - [ ] Le même film en deux fichiers : la 2e partie suit la 1re, « Partie 2 sur 2 » sous le titre, « Lecture » reprend dans la bonne partie
 - [ ] QR code de « Mira sur ton iPhone » (Guide de Mira pour Windows, ou Réglages → serveur sur Mac) scanné par l'appareil photo : Mira s'ouvre, serveur rempli, puis code ou mot de passe ; ensuite Jellyfin joint à la maison et en 4G
