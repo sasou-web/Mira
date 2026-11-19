@@ -25,6 +25,10 @@ public partial class MainWindow
     private DateTime _qbPlacedAt = DateTime.MinValue;
     /// <summary>Links being read or shown in this PC's window right now: never tidied away under it.</summary>
     private readonly HashSet<string> _linksRead = [];
+    /// <summary>Downloads seen failing while their drive was unplugged: checked again and started once it is back.</summary>
+    private readonly HashSet<string> _qbAwaitingDisk = [];
+    /// <summary>What the downloads page last said of a qBittorrent that can't start: said once, not at every read of the list.</summary>
+    private string? _qbSaid;
 
     /// <summary>qBittorrent is installed on this PC (Mira's or the person's own).</summary>
     private static bool QBittorrentInstalled() => QBittorrentHost.Program() is not null;
@@ -52,14 +56,23 @@ public partial class MainWindow
         return _settings.QBittorrentFolder.Length > 0 ? _settings.QBittorrentFolder : QBittorrentHistory.DownloadFolder(new(null, null, null));
     }
 
-    /// <summary>qBittorrent answering Mira, started when needed; null with why not.</summary>
-    private async Task<(QBittorrentClient? Client, string? Problem)> QBittorrentAsync(CancellationToken ct)
+    /// <summary>
+    /// qBittorrent answering Mira, started when needed; null with why not. <paramref name="adding"/>: something new goes
+    /// into its download folder, refused with the reason while that folder's drive is unplugged. <paramref name="now"/>
+    /// false (the list read every few seconds): a start that just failed isn't tried again at once.
+    /// </summary>
+    private async Task<(QBittorrentClient? Client, string? Problem)> QBittorrentAsync(CancellationToken ct, bool adding = true, bool now = true)
     {
         if (_demo) return (null, L("Pas de qBittorrent dans la démo.", "No qBittorrent in the demo."));
-        if (QbHost.Client is { } running) return (running, null);
-        if (!QBittorrentInstalled()) return (null, L("qBittorrent n’est pas installé sur le PC serveur : installe-le dans la page Téléchargements de Mira, sur ce PC.", "qBittorrent isn’t installed on the server PC: install it from Mira’s Downloads page, on that PC."));
-        var problem = await QbHost.StartAsync(QBittorrentFolder(), ct);
-        return (QbHost.Client, problem);
+        if (QbHost.Client is null)
+        {
+            if (!QBittorrentInstalled()) return (null, L("qBittorrent n’est pas installé sur le PC serveur : installe-le dans la page Téléchargements de Mira, sur ce PC.", "qBittorrent isn’t installed on the server PC: install it from Mira’s Downloads page, on that PC."));
+            if (await QbHost.StartAsync(QBittorrentFolder(), ct, now) is { } problem) return (null, problem);
+        }
+        if (QbHost.Client is not { } client) return (null, L("qBittorrent ne répond pas à Mira.", "qBittorrent isn’t answering Mira."));
+        if (adding && QBittorrentFolder() is var folder && !await Task.Run(() => QBittorrentDownloads.Reachable(folder, make: true), ct))
+            return (null, QBittorrentDownloads.FolderUnreachable(folder));
+        return (client, null);
     }
 
     /// <summary>
@@ -69,11 +82,35 @@ public partial class MainWindow
     private async Task<List<RelayDownload>> QBittorrentDownloadsAsync(CancellationToken ct)
     {
         if (_demo || !QBittorrentUsed() || !QBittorrentInstalled()) return [];
-        var (client, _) = await QBittorrentAsync(ct);
-        if (client is null) return [];
+        var (client, problem) = await QBittorrentAsync(ct, adding: false, now: false);
+        if (client is null)
+        {
+            // Nothing in its column says why it's empty: said once on the page (a port taken, a start refused…).
+            if (problem is not null && problem != _qbSaid && _serverScreen && _serverLocal) SetNotice(problem);
+            _qbSaid = problem;
+            return [];
+        }
+        _qbSaid = null;
         try
         {
             var torrents = await client.TorrentsAsync(ct);
+            // A drive unplugged under a download (a USB disk): said so, and once it's back, checked again and started.
+            var reachable = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in torrents.Where(x => QBittorrentDownloads.Status(x.State) == "failed").Select(x => x.SavePath).Distinct(StringComparer.OrdinalIgnoreCase))
+                reachable[path] = await Task.Run(() => QBittorrentDownloads.Reachable(path), ct);
+            foreach (var torrent in torrents)
+            {
+                switch (QBittorrentDownloads.AfterDisk(torrent, reachable.GetValueOrDefault(torrent.SavePath, true), _qbAwaitingDisk.Contains(torrent.Hash)))
+                {
+                    case "wait": _qbAwaitingDisk.Add(torrent.Hash); break;
+                    case "recheck":
+                        _qbAwaitingDisk.Remove(torrent.Hash);
+                        try { await client.ControlAsync(torrent.Hash, "recheck", ct); await client.ControlAsync(torrent.Hash, "resume", ct); }
+                        catch (HttpRequestException) { }
+                        break;
+                }
+            }
+            _qbAwaitingDisk.IntersectWith(torrents.Select(x => x.Hash));
             // A public download stops sharing once finished; a private one when qBittorrent's own limit says (72 h).
             foreach (var done in torrents.Where(QBittorrentDownloads.StopsSharing))
             {
@@ -82,7 +119,7 @@ public partial class MainWindow
             }
             if (DateTime.UtcNow - _qbPlacedAt > TimeSpan.FromSeconds(15)) { _qbPlacedAt = DateTime.UtcNow; _ = PlaceQBittorrentAsync(client, torrents); await TidyLinksAsync(client, ct); }
             // A finished one is in the library: listed there (placed), not as a download.
-            return torrents.Where(x => !QBittorrentDownloads.Finished(x)).Select(QBittorrentDownloads.Download).ToList();
+            return torrents.Where(x => !QBittorrentDownloads.Finished(x)).Select(x => QBittorrentDownloads.Download(x, !reachable.GetValueOrDefault(x.SavePath, true))).ToList();
         }
         catch (Exception ex) when (ex is HttpRequestException or QBittorrentException || ex is OperationCanceledException && !ct.IsCancellationRequested)
         {
