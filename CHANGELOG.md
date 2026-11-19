@@ -4,6 +4,7 @@
 
 - **Mira revenu après un redémarrage ne dessine plus une fenêtre hors de l’écran (Windows, PC de Jellyfin)** : lancé à l’ouverture de session, Mira restait près de l’horloge, mais sa fenêtre était encore affichée pour Windows, loin hors de l’écran, et donc toujours dessinée. Elle est maintenant vraiment cachée jusqu’à ce qu’on l’ouvre. Vu sur le Dell avant le correctif ; le correctif seulement en CI.
 
+- **L’ordre de TheTVDB choisi d’abord pour ce qui vient d’arriver (extension)** : après une mise à jour ou un redémarrage de Jellyfin, l’extension repasse toutes les séries, 5 toutes les 10 minutes ; elle commence maintenant par les plus récentes, et une série qui reçoit des épisodes passe devant les autres. Une grande bibliothèque ne fait plus attendre des heures le pack qu’on vient de ranger. Seulement compilé et contrôlé en CI.
 ## 0.9.14 — 2026-11-19
 
 - **L’ordre de TheTVDB marche sur Jellyfin 12.4 (extension)** : sur Jellyfin 12.4, le choix automatique de l’ordre des épisodes (0.9.13) s’arrêtait toutes les 10 minutes sur une erreur (« MissingMethodException ILibraryManager.GetItemList » dans le journal de Jellyfin) : une méthode de Jellyfin a changé de type de retour en 12.4. L’extension passe par une méthode présente de 10.9 à 12.4, et la CI compile maintenant chaque méthode de l’extension contre les fichiers de chaque Jellyfin essayé (10.9, 10.10, 12.1, 12.4, dernière) : un appel disparu se voit avant la release, plus seulement sur le serveur. À voir sur le Dell.

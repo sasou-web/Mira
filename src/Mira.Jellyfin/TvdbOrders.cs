@@ -39,7 +39,8 @@ public sealed class TvdbOrders : IHostedService, IDisposable
     private readonly ILogger<TvdbOrders> _logger;
     private readonly CancellationTokenSource _stop = new();
     private readonly object _gate = new();
-    private readonly HashSet<Guid> _dirty = [];
+    /// <summary>The series to weigh, the one whose files changed last first: what was just downloaded shows right soonest.</summary>
+    private readonly List<Guid> _dirty = [];
     private Dictionary<string, Decision>? _decisions;
     private bool _everything = true;
     private Task? _loop;
@@ -75,7 +76,7 @@ public sealed class TvdbOrders : IHostedService, IDisposable
 
     private void OnChanged(object? sender, ItemChangeEventArgs e)
     {
-        if (e.Item is Episode { IsVirtualItem: false } episode && episode.SeriesId != Guid.Empty) lock (_gate) _dirty.Add(episode.SeriesId);
+        if (e.Item is Episode { IsVirtualItem: false } episode && episode.SeriesId != Guid.Empty) lock (_gate) { _dirty.Remove(episode.SeriesId); _dirty.Insert(0, episode.SeriesId); }
     }
 
     private async Task LoopAsync(CancellationToken ct)
@@ -102,16 +103,18 @@ public sealed class TvdbOrders : IHostedService, IDisposable
             if (_everything)
             {
                 // GetItemsResult, not GetItemList: its return type changed in 12.x (MissingMethodException), see Bindings in web.yml.
-                foreach (var series in _library.GetItemsResult(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Series], Recursive = true }).Items) _dirty.Add(series.Id);
+                // The latest added first (a pack placed the day before the update waits minutes, not hours, behind a big library).
+                foreach (var series in _library.GetItemsResult(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Series], Recursive = true }).Items.OrderByDescending(x => x.DateCreated))
+                    if (!_dirty.Contains(series.Id)) _dirty.Add(series.Id);
                 _everything = false;
             }
             next = _dirty.Take(PerTick).ToList();
-            foreach (var id in next) _dirty.Remove(id);
+            _dirty.RemoveRange(0, next.Count);
         }
         foreach (var id in next)
         {
             ct.ThrowIfCancellationRequested();
-            if (_library.GetItemById(id) is Series series && !await WeighAsync(series, tvdb, ct).ConfigureAwait(false)) lock (_gate) _dirty.Add(id);
+            if (_library.GetItemById(id) is Series series && !await WeighAsync(series, tvdb, ct).ConfigureAwait(false)) lock (_gate) if (!_dirty.Contains(id)) _dirty.Add(id);
         }
     }
 
