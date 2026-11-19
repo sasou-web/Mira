@@ -5,13 +5,13 @@ import Testing
 /// « Le foyer » on the iPhone: the home link the extension makes read back (and nothing else taken for one), as
 /// FamilyTests of Core; the refusals of /Mira/home as the app shows them.
 @Suite("Foyer")
-struct HomeTests {
+struct FamilyTests {
     private static let id = "0123456789abcdef0123456789abcdef"
     private static let until = Date().addingTimeInterval(48 * 3600)
 
     /// A link as HomeTailnet.Link of the extension writes it: its page, then base64url of its JSON.
     private func made(address: String = "http://100.88.12.34:8096", key: String = "tskey-auth-kAbC123CNTRL-0123456789abcdef", name: String = "Maison",
-                      version: Int = 1, until: Date = HomeTests.until) -> String {
+                      version: Int = 1, until: Date = FamilyTests.until) -> String {
         let json: [String: Any] = ["v": version, "name": name, "id": Self.id, "url": address, "key": key, "until": Int(until.timeIntervalSince1970)]
         let data = (try? JSONSerialization.data(withJSONObject: json)) ?? Data()
         return HomeLink.page + data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
