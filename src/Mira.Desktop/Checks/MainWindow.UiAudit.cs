@@ -191,7 +191,17 @@ public partial class MainWindow
     {
         if (_client is not { } client) return;
         MediaItem? series = null;
-        try { series = (await client.GetAsync<ItemsResult>($"Items?userId={client.Connection.UserId}&includeItemTypes=Series&recursive=true&hasSpecialFeature=true&limit=1")).Items.FirstOrDefault(); }
+        // Jellyfin 12.4 ne voit pas un dossier « Extras » par hasSpecialFeature=true : on lit SpecialFeatureCount, dans la liste puis titre par titre.
+        try
+        {
+            var all = (await client.GetAsync<ItemsResult>($"Items?userId={client.Connection.UserId}&includeItemTypes=Series&recursive=true&fields=SpecialFeatureCount&sortBy=SortName&limit=200")).Items;
+            series = all.FirstOrDefault(x => x.SpecialFeatureCount > 0);
+            foreach (var candidate in all.Take(80))
+            {
+                if (series is not null) break;
+                if ((await client.ItemAsync(candidate.Id)).SpecialFeatureCount > 0) series = candidate;
+            }
+        }
         catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException or System.Text.Json.JsonException) { run.Notes.Add("Séries avec des bonus : Jellyfin n'a pas répondu (" + ex.Message + ")."); return; }
         if (series is null) { run.Notes.Add("Aucune série avec des bonus : la pastille « Extras » n'est pas vue."); return; }
         await ShowDetailsAsync(series); await AuditSettleAsync();
