@@ -630,7 +630,7 @@ public static partial class MediaPlanner
     /// A new season's folder named as the show's others are (« Saison 1 » gives « Saison 2 »), « Season 02 » otherwise:
     /// a show's seasons side by side, as the person named them.
     /// </summary>
-    private static string SeasonName(IEnumerable<string> existing, int season)
+    internal static string SeasonName(IEnumerable<string> existing, int season)
     {
         foreach (var folder in existing)
         {

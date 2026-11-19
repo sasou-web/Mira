@@ -17,10 +17,12 @@ struct AbsoluteNumbersTests {
             return (span[0]...(span.last ?? span[0])).map { n in
                 var item = Item(id: "\(kind)-\(season)-\(n)")
                 item.type = "Episode"
-                item.locationType = kind == "v" ? "Virtual" : "FileSystem"
+                item.locationType = kind == "v" || kind == "c" ? "Virtual" : "FileSystem"
                 item.parentIndexNumber = season
                 item.indexNumber = n
                 if named { item.name = "A title" }
+                // « virtualComing »: not aired yet.
+                if kind == "c" { item.premiereDate = "2999-01-01T00:00:00.0000000Z" }
                 return item
             }
         }
@@ -52,7 +54,7 @@ struct AbsoluteNumbersTests {
                 return item
             }
             let held = expand(row["held"], kind: "h") + expand(row["heldNamed"], kind: "n", named: true) + doubles
-            let virtuals = expand(row["virtual"], kind: "v")
+            let virtuals = expand(row["virtual"], kind: "v") + expand(row["virtualComing"], kind: "c")
             #expect(codes(AbsoluteNumbers.seasonal(held, virtuals: virtuals)) == codes(expand(row["seasonal"], kind: "x")), "\(name)")
             #expect(codes(AbsoluteNumbers.unheld(virtuals, held: held)) == codes(expand(row["unheld"], kind: "x")), "\(name)")
         }

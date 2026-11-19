@@ -16,20 +16,23 @@ namespace Mira.Core;
 public static partial class AbsoluteNumbers
 {
     /// <summary>The number in its season of each held episode numbered from the series' start: episode id → (season, number).</summary>
-    public static Dictionary<string, (int Season, int Episode)> Read(IEnumerable<MediaItem> held, IEnumerable<MediaItem> virtuals)
+    public static Dictionary<string, (int Season, int Episode)> Read(IEnumerable<MediaItem> held, IEnumerable<MediaItem> virtuals, DateTimeOffset? now = null)
     {
         var own = held.Where(x => x.LocationType != "Virtual" && x.ParentIndexNumber is >= 1 && x.IndexNumber is >= 1).ToList();
         var known = virtuals.Where(x => x.ParentIndexNumber is >= 1 && x.IndexNumber is >= 1).ToList();
         var found = new Dictionary<string, (int, int)>(StringComparer.OrdinalIgnoreCase);
         if (known.Count == 0) return found;
+        var seasons = own.Concat(known).Select(x => x.ParentIndexNumber!.Value).Distinct().Order().ToList();
+        // The season's last number at TheTVDB: its virtual episodes, and the held ones it describes (« S02E13 » to « S02E24 »
+        // held, S02E01–12 missing: the second half of a season of 24, never numbered from the start).
+        int Last(int season) => known.Where(x => x.ParentIndexNumber == season).Select(x => x.IndexNumber!.Value)
+            .Concat(own.Where(x => x.ParentIndexNumber == season && Described(x)).Select(x => x.IndexNumberEnd ?? x.IndexNumber!.Value)).DefaultIfEmpty(0).Max();
+        Spill(own, known, seasons, Last, now ?? DateTimeOffset.UtcNow, found);
         var offset = 0;
-        foreach (var season in own.Concat(known).Select(x => x.ParentIndexNumber!.Value).Distinct().Order())
+        foreach (var season in seasons)
         {
-            var mine = own.Where(x => x.ParentIndexNumber == season).ToList();
-            // The season's last number at TheTVDB: its virtual episodes, and the held ones it describes (« S02E13 » to « S02E24 »
-            // held, S02E01–12 missing: the second half of a season of 24, never numbered from the start).
-            var last = known.Where(x => x.ParentIndexNumber == season).Select(x => x.IndexNumber!.Value)
-                .Concat(mine.Where(Described).Select(x => x.IndexNumberEnd ?? x.IndexNumber!.Value)).DefaultIfEmpty(0).Max();
+            var mine = own.Where(x => x.ParentIndexNumber == season && !found.ContainsKey(x.Id)).ToList();
+            var last = Last(season);
             bool Inside(MediaItem x) => x.IndexNumber > last && x.IndexNumber > offset && (x.IndexNumberEnd ?? x.IndexNumber) - offset <= last;
             if (offset > 0 && last > 0 && mine.Count > 0 && mine.All(Inside))
             {
@@ -39,6 +42,57 @@ public static partial class AbsoluteNumbers
             else offset += Math.Max(last, mine.Select(x => x.IndexNumberEnd ?? x.IndexNumber!.Value).DefaultIfEmpty(0).Max());
         }
         return found;
+    }
+
+    /// <summary>
+    /// A pack of several seasons numbered from 1 to its end in one season (« Shingeki no Kyojin (Season 1-2) [Batch] », « - 01 »
+    /// to « - 37 », all placed in season 1): the held episodes past the season's last number at TheTVDB (S01E26–37, a season
+    /// of 25) belong to the seasons after it (S02E01–12), when those hold nothing, are known to TheTVDB and have aired (a
+    /// season announced is never filled by an episode TheTVDB doesn't list yet). All of them land, or none (audit of
+    /// 2026-11-19, R3).
+    /// </summary>
+    private static void Spill(List<MediaItem> own, List<MediaItem> known, List<int> seasons, Func<int, int> lastOf, DateTimeOffset now, Dictionary<string, (int, int)> found)
+    {
+        var filled = new HashSet<int>();
+        foreach (var season in seasons)
+        {
+            if (filled.Contains(season)) continue;
+            var last = lastOf(season);
+            if (last == 0) continue;
+            var past = own.Where(x => x.ParentIndexNumber == season && x.IndexNumber > last).ToList();
+            // Numbered on from the season's own episodes: never a season numbered from the series' start (« S02E26 », Read).
+            if (past.Count == 0 || !own.Any(x => x.ParentIndexNumber == season && x.IndexNumber <= last)) continue;
+            // The seasons right after it, held nothing: as many of their numbers as have aired.
+            var after = new List<(int Season, int Size)>();
+            for (var next = season + 1; !own.Any(x => x.ParentIndexNumber == next); next++)
+            {
+                var listed = known.Where(x => x.ParentIndexNumber == next).ToList();
+                var aired = listed.Where(x => x.PremiereDate is not { } date || date <= now).Select(x => x.IndexNumber!.Value).DefaultIfEmpty(0).Max();
+                if (aired == 0) break;
+                after.Add((next, aired));
+                if (listed.Any(x => x.PremiereDate > now)) break;
+            }
+            if (after.Count == 0) continue;
+            var places = new Dictionary<string, (int, int)>();
+            foreach (var x in past)
+            {
+                (int, int)? At(int number)
+                {
+                    var rest = number - last;
+                    foreach (var (next, size) in after)
+                    {
+                        if (rest <= size) return (next, rest);
+                        rest -= size;
+                    }
+                    return null;
+                }
+                // A file of two episodes stays in one season: its end in the same season, right after its start.
+                if (At(x.IndexNumber!.Value) is not { } start || At(x.IndexNumberEnd ?? x.IndexNumber.Value) is not { } end || end.Item1 != start.Item1) { places.Clear(); break; }
+                places[x.Id] = start;
+            }
+            if (places.Count == 0) continue;
+            foreach (var (id, at) in places) { found[id] = at; filled.Add(at.Item1); }
+        }
     }
 
     /// <summary>
@@ -57,22 +111,22 @@ public static partial class AbsoluteNumbers
     private static partial Regex Digits();
 
     /// <summary>The held episodes, those numbered from the start under their season's number (« S02E26 » as S02E01).</summary>
-    public static List<MediaItem> Seasonal(IEnumerable<MediaItem> held, IEnumerable<MediaItem> virtuals)
+    public static List<MediaItem> Seasonal(IEnumerable<MediaItem> held, IEnumerable<MediaItem> virtuals, DateTimeOffset? now = null)
     {
         var own = held.ToList();
-        var read = Read(own, virtuals);
+        var read = Read(own, virtuals, now);
         return read.Count == 0 ? own : own.Select(x => read.TryGetValue(x.Id, out var at)
-            ? x with { IndexNumber = at.Episode, IndexNumberEnd = x.IndexNumberEnd - x.IndexNumber + at.Episode } : x).ToList();
+            ? x with { ParentIndexNumber = at.Season, IndexNumber = at.Episode, IndexNumberEnd = x.IndexNumberEnd - x.IndexNumber + at.Episode } : x).ToList();
     }
 
     /// <summary>The virtual episodes the library doesn't hold under another number: those still missing or to come.</summary>
-    public static List<MediaItem> Unheld(IEnumerable<MediaItem> virtuals, IEnumerable<MediaItem> held)
+    public static List<MediaItem> Unheld(IEnumerable<MediaItem> virtuals, IEnumerable<MediaItem> held, DateTimeOffset? now = null)
     {
         var own = held.ToList();
         // A double episode held (« S01E03-E04 ») holds both: never the second « missing ».
         var doubles = own.Where(x => x.ParentIndexNumber is { } && x.IndexNumber is { } n && x.IndexNumberEnd > n).ToList();
         var known = virtuals.Where(v => !doubles.Any(x => x.ParentIndexNumber == v.ParentIndexNumber && x.IndexNumber <= v.IndexNumber && v.IndexNumber <= x.IndexNumberEnd)).ToList();
-        var read = Read(own, known);
+        var read = Read(own, known, now);
         if (read.Count == 0) return known;
         var taken = new HashSet<(int, int)>();
         foreach (var x in own)
@@ -103,11 +157,22 @@ public static partial class AbsoluteNumbers
             var dot = path.LastIndexOf('.');
             var name = dot > start ? path[start..dot] : path[start..];
             var matches = Code().Matches(name);
-            if (matches.Count != 1 || matches[0] is not { } code || int.Parse(code.Groups[1].Value, CultureInfo.InvariantCulture) != at.Season || int.Parse(code.Groups[2].Value, CultureInfo.InvariantCulture) != episode.IndexNumber) continue;
+            if (matches.Count != 1 || matches[0] is not { } code || int.Parse(code.Groups[1].Value, CultureInfo.InvariantCulture) != episode.ParentIndexNumber || int.Parse(code.Groups[2].Value, CultureInfo.InvariantCulture) != episode.IndexNumber) continue;
             var span = code.Groups[3].Success ? int.Parse(code.Groups[3].Value, CultureInfo.InvariantCulture) - int.Parse(code.Groups[2].Value, CultureInfo.InvariantCulture) : 0;
             var fresh = $"S{at.Season:00}E{at.Episode:00}" + (span > 0 ? $"-E{at.Episode + span:00}" : "");
             var oldStem = path[..(start + name.Length)];
-            var newStem = path[..start] + name[..code.Index] + fresh + name[(code.Index + code.Length)..];
+            var folder = path[..start];
+            // Into another season (a pack of two seasons numbered 1 to 37 in season 1): its season's folder beside this one,
+            // named as this one is (« Season 01 » gives « Season 02 », « Saison 1 » « Saison 2 »).
+            if (at.Season != episode.ParentIndexNumber && start > 1)
+            {
+                var parentEnd = start - 1;
+                var parentStart = Math.Max(path.LastIndexOf('/', parentEnd - 1), path.LastIndexOf('\\', parentEnd - 1)) + 1;
+                var parent = path[parentStart..parentEnd];
+                if (ReleaseName.SeasonOfFolder(parent) == episode.ParentIndexNumber)
+                    folder = path[..parentStart] + MediaPlanner.SeasonName([parent], at.Season) + path[parentEnd];
+            }
+            var newStem = folder + name[..code.Index] + fresh + name[(code.Index + code.Length)..];
             // The episode's file and those beside it with its name: « .fr.srt », « .en.forced.ass ».
             foreach (var file in files.Where(f => f.StartsWith(oldStem + ".", StringComparison.OrdinalIgnoreCase)))
                 renames.Add((file, newStem + file[oldStem.Length..]));

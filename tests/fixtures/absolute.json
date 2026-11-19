@@ -1,5 +1,5 @@
 {
-  "about": "Episodes numbered from the series' start in their season (AbsoluteNumbers of Core, the iPhone's AbsoluteNumbers). « S2E26-37 » = S2E26 to S2E37. held: the library's episodes (heldNamed: with a title of their own from TheTVDB; heldDouble: one file for two episodes); virtual: TheTVDB's through Jellyfin; seasonal: the held ones under their season's number; unheld: the virtual ones still missing or to come.",
+  "about": "Episodes numbered from the series' start in their season (AbsoluteNumbers of Core, the iPhone's AbsoluteNumbers). « S2E26-37 » = S2E26 to S2E37. held: the library's episodes (heldNamed: with a title of their own from TheTVDB; heldDouble: one file for two episodes); virtual: TheTVDB's through Jellyfin (virtualComing: not aired yet); seasonal: the held ones under their season's number; unheld: the virtual ones still missing or to come.",
   "cases": [
     {
       "name": "Shingeki no Kyojin: four seasons numbered 1 to 89",
@@ -67,6 +67,47 @@
       "unheld": ["S1E6"]
     },
     {
+      "name": "A pack of two seasons numbered 1 to 37 in season 1 (« Season 1-2 »): the episodes past TheTVDB's season go to the next",
+      "heldNamed": ["S1E1-25"],
+      "held": ["S1E26-37"],
+      "virtual": ["S2E1-12", "S3E1-22"],
+      "seasonal": ["S1E1-25", "S2E1-12"],
+      "unheld": ["S3E1-22"]
+    },
+    {
+      "name": "Three seasons numbered 1 to 59 in season 1",
+      "heldNamed": ["S1E1-25"],
+      "held": ["S1E26-59"],
+      "virtual": ["S2E1-12", "S3E1-22"],
+      "seasonal": ["S1E1-25", "S2E1-12", "S3E1-22"],
+      "unheld": []
+    },
+    {
+      "name": "Past the season, the next one already held: nothing changes",
+      "heldNamed": ["S1E1-25", "S2E1-12"],
+      "held": ["S1E26-37"],
+      "virtual": ["S3E1-22"],
+      "seasonal": ["S1E1-25", "S1E26-37", "S2E1-12"],
+      "unheld": ["S3E1-22"]
+    },
+    {
+      "name": "Past the season, the next one only announced: nothing changes",
+      "heldNamed": ["S1E1-12"],
+      "held": ["S1E13"],
+      "virtual": [],
+      "virtualComing": ["S2E1-12"],
+      "seasonal": ["S1E1-13"],
+      "unheld": ["S2E1-12"]
+    },
+    {
+      "name": "More past the season than the next ones hold: nothing changes",
+      "heldNamed": ["S1E1-25"],
+      "held": ["S1E26-40"],
+      "virtual": ["S2E1-12"],
+      "seasonal": ["S1E1-40"],
+      "unheld": ["S2E1-12"]
+    },
+    {
       "name": "Without TheTVDB: nothing changes",
       "held": ["S1E1-25", "S2E26-37"],
       "virtual": [],
@@ -94,6 +135,26 @@
       "placed": ["C:\\Media\\Anime\\Show\\Season 02\\Show - S02E13-E14.mkv"],
       "exists": [],
       "renames": [["C:\\Media\\Anime\\Show\\Season 02\\Show - S02E13-E14.mkv", "C:\\Media\\Anime\\Show\\Season 02\\Show - S02E01-E02.mkv"]]
+    },
+    {
+      "name": "A pack of two seasons in season 1: the episodes past TheTVDB's season renamed into the next season's folder, named as this one",
+      "held": [["S1E25", "/media/Anime/Show/Season 01/Show - S01E25.mkv", "A title"], ["S1E26", "/media/Anime/Show/Season 01/Show - S01E26.mkv"], ["S1E27", "/media/Anime/Show/Season 01/Show - S01E27.mkv"]],
+      "virtual": ["S2E1-2"],
+      "placed": ["/media/Anime/Show/Season 01/Show - S01E25.mkv", "/media/Anime/Show/Season 01/Show - S01E26.mkv", "/media/Anime/Show/Season 01/Show - S01E26.en.srt", "/media/Anime/Show/Season 01/Show - S01E27.mkv"],
+      "exists": [],
+      "renames": [
+        ["/media/Anime/Show/Season 01/Show - S01E26.mkv", "/media/Anime/Show/Season 02/Show - S02E01.mkv"],
+        ["/media/Anime/Show/Season 01/Show - S01E26.en.srt", "/media/Anime/Show/Season 02/Show - S02E01.en.srt"],
+        ["/media/Anime/Show/Season 01/Show - S01E27.mkv", "/media/Anime/Show/Season 02/Show - S02E02.mkv"]
+      ]
+    },
+    {
+      "name": "The same in « Saison 1 » on Windows",
+      "held": [["S1E12", "C:\\Media\\Anime\\Show\\Saison 1\\Show - S01E12.mkv", "A title"], ["S1E13", "C:\\Media\\Anime\\Show\\Saison 1\\Show - S01E13.mkv"]],
+      "virtual": ["S2E1-12"],
+      "placed": ["C:\\Media\\Anime\\Show\\Saison 1\\Show - S01E13.mkv"],
+      "exists": [],
+      "renames": [["C:\\Media\\Anime\\Show\\Saison 1\\Show - S01E13.mkv", "C:\\Media\\Anime\\Show\\Saison 2\\Show - S02E01.mkv"]]
     },
     {
       "name": "A new name taken by a file of the library: nothing renamed",

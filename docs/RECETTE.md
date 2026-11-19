@@ -12,6 +12,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Mise à jour de Jellyfin au clic (quand une version sort) : service revenu, Jellyfin répond
 - [ ] Redémarrer le PC (ou après une mise à jour de Windows) puis ouvrir la session : Mira revient seul près de l’horloge, aucune fenêtre au premier plan ni dans la barre des tâches ; un téléchargement demandé depuis l’iPhone part sans ouvrir Mira ; clic sur l’icône = fenêtre à sa place habituelle (agrandie si elle l’était) ; Réglages → Serveur Jellyfin dit « Prêt »
 - [ ] Téléchargements : un magnet public par TorLink, rangé dans la bibliothèque
+- [ ] Un pack de deux saisons numéroté d’un bout à l’autre (« (Season 1-2) [Batch] », « - 01 » à « - 37 ») : d’abord tout en saison 1, puis dans les 10 à 20 minutes qui suivent (TheTVDB activé) les épisodes de la saison 2 renommés dans `Season 02`, et la saison 2 n’est plus « manquante »
 - [ ] Un `.torrent` de C411 par qBittorrent, rangé (lien physique), qBittorrent continue de partager
 - [ ] qBittorrent et un disque USB : débrancher le disque de son dossier de téléchargement pendant un téléchargement, la ligne dit « disque sans doute débranché » (la file reste) ; le rebrancher, il reprend seul en moins d’une minute (page Téléchargements ouverte)
 - [ ] qBittorrent et son port pris (rare, dur à provoquer à la main) : dans le Gestionnaire des tâches, jamais de qBittorrent qui redémarre en boucle ; si la page Téléchargements dit une panne de qBittorrent, la noter telle quelle

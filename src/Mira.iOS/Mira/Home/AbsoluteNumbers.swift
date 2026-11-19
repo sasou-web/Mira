@@ -11,18 +11,23 @@ enum AbsoluteNumbers {
     struct Place: Hashable { let season: Int; let episode: Int }
 
     /// The number in its season of each held episode numbered from the series' start: episode id → its place.
-    static func read(_ held: [Item], virtuals: [Item]) -> [String: Place] {
+    static func read(_ held: [Item], virtuals: [Item], now: Date = Date()) -> [String: Place] {
         let own = held.filter { $0.locationType != "Virtual" && ($0.parentIndexNumber ?? 0) >= 1 && ($0.indexNumber ?? 0) >= 1 }
         let known = virtuals.filter { ($0.parentIndexNumber ?? 0) >= 1 && ($0.indexNumber ?? 0) >= 1 }
         var found: [String: Place] = [:]
         guard !known.isEmpty else { return found }
+        let seasons = Set((own + known).compactMap(\.parentIndexNumber)).sorted()
+        // The season's last number at TheTVDB: its virtual episodes, and the held ones it describes (« S02E13 » to « S02E24 »
+        // held, S02E01–12 missing: the second half of a season of 24, never numbered from the start).
+        func last(_ season: Int) -> Int {
+            (known.filter { $0.parentIndexNumber == season }.compactMap(\.indexNumber)
+                + own.filter { $0.parentIndexNumber == season && described($0) }.map { $0.indexNumberEnd ?? $0.indexNumber ?? 0 }).max() ?? 0
+        }
+        spill(own, known: known, seasons: seasons, last: last, now: now, into: &found)
         var offset = 0
-        for season in Set((own + known).compactMap(\.parentIndexNumber)).sorted() {
-            let mine = own.filter { $0.parentIndexNumber == season }
-            // The season's last number at TheTVDB: its virtual episodes, and the held ones it describes (« S02E13 » to « S02E24 »
-            // held, S02E01–12 missing: the second half of a season of 24, never numbered from the start).
-            let last = (known.filter { $0.parentIndexNumber == season }.compactMap(\.indexNumber)
-                + mine.filter(described).map { $0.indexNumberEnd ?? $0.indexNumber ?? 0 }).max() ?? 0
+        for season in seasons {
+            let mine = own.filter { $0.parentIndexNumber == season && found[$0.id.lowercased()] == nil }
+            let last = last(season)
             func inside(_ x: Item) -> Bool {
                 let number = x.indexNumber ?? 0
                 return number > last && number > offset && (x.indexNumberEnd ?? number) - offset <= last
@@ -35,6 +40,55 @@ enum AbsoluteNumbers {
             }
         }
         return found
+    }
+
+    /// A pack of several seasons numbered from 1 to its end in one season (« Season 1-2 », « - 01 » to « - 37 », all in
+    /// season 1): the held episodes past the season's last number at TheTVDB belong to the seasons after it, when those
+    /// hold nothing, are known to TheTVDB and have aired. All of them land, or none (as Core's AbsoluteNumbers.Spill).
+    private static func spill(_ own: [Item], known: [Item], seasons: [Int], last lastOf: (Int) -> Int, now: Date, into found: inout [String: Place]) {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = formatter.string(from: now)
+        func coming(_ x: Item) -> Bool { x.premiereDate.map { String($0.prefix(10)) > today } ?? false }
+        var filled = Set<Int>()
+        for season in seasons where !filled.contains(season) {
+            let last = lastOf(season)
+            guard last > 0 else { continue }
+            let past = own.filter { $0.parentIndexNumber == season && ($0.indexNumber ?? 0) > last }
+            // Numbered on from the season's own episodes: never a season numbered from the series' start (« S02E26 », read).
+            guard !past.isEmpty, own.contains(where: { $0.parentIndexNumber == season && ($0.indexNumber ?? 0) <= last }) else { continue }
+            // The seasons right after it, held nothing: as many of their numbers as have aired.
+            var after: [(season: Int, size: Int)] = []
+            var next = season + 1
+            while !own.contains(where: { $0.parentIndexNumber == next }) {
+                let listed = known.filter { $0.parentIndexNumber == next }
+                let aired = listed.filter { !coming($0) }.compactMap(\.indexNumber).max() ?? 0
+                if aired == 0 { break }
+                after.append((next, aired))
+                if listed.contains(where: coming) { break }
+                next += 1
+            }
+            guard !after.isEmpty else { continue }
+            func at(_ number: Int) -> Place? {
+                var rest = number - last
+                for (next, size) in after {
+                    if rest <= size { return Place(season: next, episode: rest) }
+                    rest -= size
+                }
+                return nil
+            }
+            var places: [String: Place] = [:]
+            for x in past {
+                let number = x.indexNumber ?? 0
+                // A file of two episodes stays in one season.
+                guard let start = at(number), let end = at(x.indexNumberEnd ?? number), end.season == start.season else { places = [:]; break }
+                places[x.id.lowercased()] = start
+            }
+            for (id, place) in places { found[id] = place; filled.insert(place.season) }
+        }
     }
 
     /// A held episode TheTVDB knows under its number: Jellyfin gave it an overview, or a name that is not its number
@@ -57,6 +111,7 @@ enum AbsoluteNumbers {
         return held.map { x in
             guard let place = read[x.id.lowercased()], let number = x.indexNumber else { return x }
             var moved = x
+            moved.parentIndexNumber = place.season
             moved.indexNumber = place.episode
             moved.indexNumberEnd = x.indexNumberEnd.map { $0 - number + place.episode }
             return moved
