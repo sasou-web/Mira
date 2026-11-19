@@ -238,7 +238,7 @@ public partial class MainWindow
     /// <summary>From one face of TorLink to the other, remembered for the next time.</summary>
     private async void TorLinkView_Click(object sender, RoutedEventArgs e)
     {
-        _settings.TorLinkTerminal = _serverScreen && _serverLocal; _profile.SaveSettings(_settings);
+        _settings.TorLinkTerminal = _serverScreen && _serverLocal; SaveSettingsOrSay();
         await OpenTorLinkViewAsync(restart: true);
     }
 
@@ -330,14 +330,14 @@ public partial class MainWindow
             }
             finally { _torlinkInstalling = false; }
         }
-        _settings.TorLinkActive = true; _profile.SaveSettings(_settings);
+        _settings.TorLinkActive = true; SaveSettingsOrSay();
         await OpenTorLinkViewAsync(restart: true);
     }
 
     /// <summary>TorLink off: it quits (its downloads resume when it is turned on again) and stays installed.</summary>
     private async Task DeactivateTorLinkAsync()
     {
-        _settings.TorLinkActive = false; _profile.SaveSettings(_settings);
+        _settings.TorLinkActive = false; SaveSettingsOrSay();
         _torlinkStartWatch.Stop(); SetTorLinkBlocker(null);
         if (_torlinkTerminal is { } terminal) await terminal.StopAsync();
         await TakeBackFromHeadlessAsync();
@@ -497,7 +497,7 @@ public partial class MainWindow
             case "install": await ActivateTorLinkAsync(reinstall: true); break;
             // A TorLink too old for Mira's screen still has its own terminal, remembered as the chosen face.
             case "terminal":
-                _settings.TorLinkTerminal = true; _profile.SaveSettings(_settings);
+                _settings.TorLinkTerminal = true; SaveSettingsOrSay();
                 await OpenTorLinkViewAsync(restart: true);
                 break;
             case "reload":
@@ -506,11 +506,11 @@ public partial class MainWindow
                 await StartTorLinkAsync(restart: true);
                 break;
             case "browse":
-                if (ChooseTorLinkFolder() is { } root) { _settings.TorLinkPath = root; _profile.SaveSettings(_settings); await OpenTorLinkViewAsync(restart: true); }
+                if (ChooseTorLinkFolder() is { } root) { _settings.TorLinkPath = root; SaveSettingsOrSay(); await OpenTorLinkViewAsync(restart: true); }
                 break;
             // Confirmed: this folder is the chosen one from now on, asked about no more.
             case "trust" when _torlinkInstallation is { Detected: true } found:
-                _settings.TorLinkPath = found.Root; _profile.SaveSettings(_settings);
+                _settings.TorLinkPath = found.Root; SaveSettingsOrSay();
                 await OpenTorLinkViewAsync(restart: true);
                 break;
             case "window" when _torlinkInstallation is { Detected: true }:

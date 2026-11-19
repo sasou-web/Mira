@@ -37,6 +37,16 @@ public static class HomeLayout
         Collections => L("Tes collections et les sagas rangées par Jellyfin.", "Your collections, and the ones Jellyfin makes for movie series."),
         _ => L("Les derniers titres de cette bibliothèque.", "The latest titles in this library.")
     };
+    /// <summary>
+    /// <paramref name="value"/> with the libraries' rows of <paramref name="saved"/> kept while Mira knows no library (Jellyfin
+    /// silent at the start, libraries not read yet): a row moved or ticked then dropped every « New in … » from the settings.
+    /// </summary>
+    public static string KeepUnread(string value, string? saved, IEnumerable<LibrarySection> libraries)
+    {
+        if (libraries.Any(Offered)) return value;
+        var kept = (saved ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(x => x.TrimStart('-').StartsWith(LibraryPrefix, StringComparison.Ordinal));
+        return string.Join(",", value.Split(',', StringSplitOptions.RemoveEmptyEntries).Concat(kept));
+    }
     public static string Save(IEnumerable<Row> rows) => string.Join(",", rows.Select(x => (x.Shown ? "" : "-") + x.Key));
     /// <summary>The row <paramref name="key"/> moved up (−1) or down (+1); as it was at either end.</summary>
     public static string Move(string? saved, IEnumerable<LibrarySection> libraries, string key, int step)

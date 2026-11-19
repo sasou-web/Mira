@@ -126,6 +126,13 @@ internal static class ConnectionTests
             await Refused("http://nas:8096", Serve(_ => Info("4.8.10", "Emby Server")), "pas un serveur Jellyfin");
             await Refused("http://nas:8096", Serve(_ => new HttpResponseMessage(HttpStatusCode.NotFound)), "pas un serveur Jellyfin");
             await Refused("http://nas:8096", Serve(_ => Info("10.8.13")), "10.8.13");
+            // Jellyfin refusing this device's address (remote connections off, an address outside its local networks): an empty
+            // 503 to everything (12.4), never « not a Jellyfin server »; its 503 while it starts is a page.
+            await Refused("http://nas:8096", Serve(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)), "Autoriser les connexions à distance");
+            await Refused("http://nas:8096", Serve(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("<html>Jellyfin Server is loading</html>", System.Text.Encoding.UTF8, "text/html") }), "pas un serveur Jellyfin");
+            // A Jellyfin whose setup wizard was never finished: no account exists, the sign-in would only say « wrong password ».
+            await Refused("http://nas:8096", Serve(_ => JsonResponse(new { ServerName = "Salon", Version = "12.4.0", ProductName = "Jellyfin Server", Id = "server-1", StartupWizardCompleted = false })), "pas encore configuré");
+            Assert((await ServerAddress.DiscoverAsync("http://nas:8096", Serve(_ => JsonResponse(new { ServerName = "Salon", Version = "12.4.0", ProductName = "Jellyfin Server", Id = "server-1", StartupWizardCompleted = true })))).Configured, "A set up Jellyfin read as not set up");
             await Refused("https://nas", Serve(_ => throw new HttpRequestException("TLS", new System.Security.Authentication.AuthenticationException())), "certificat");
             await Refused("nas", Serve(_ => throw new HttpRequestException("refusé")), "Aucun serveur Jellyfin");
             // Every address fails at the same instant, while the search looks at them (Mira's Tailscale node refuses ports 443
@@ -410,6 +417,17 @@ internal static class ConnectionTests
             Assert(requests[1].Url.Contains("/jellyfin/Items?"), "Lost reverse-proxy path");
             Assert(!requests.Any(r => r.Url.Contains("test-secret") || r.Url.Contains("password-test")), "Credential in request URI");
             Assert(requests[1].Url.Contains("%26"), "Search not escaped");
+        });
+        await Test("Connexion : 401 = mot de passe faux, 403 = compte refusé par Jellyfin", async () =>
+        {
+            async Task<string> SignIn(HttpStatusCode status)
+            {
+                using var client = new JellyfinClient(new("http://nas:8096/", "", "", "", "device"), new Handler(_ => Task.FromResult(new HttpResponseMessage(status))));
+                try { await client.LoginAsync("Sam", "secret"); return "accepted"; } catch (UnauthorizedAccessException ex) { return ex.Message; }
+            }
+            Assert((await SignIn(HttpStatusCode.Unauthorized)).Contains("mot de passe incorrect"), "401 not a wrong password");
+            var refused = await SignIn(HttpStatusCode.Forbidden);
+            Assert(refused == JellyfinClient.AccountRefused && !refused.Contains("mot de passe"), "403 said as a wrong password: " + refused);
         });
         await Test("Hors de chez toi : adresse Tailscale de ce PC, et Jellyfin qui accepte ses appareils sans s’ouvrir à Internet", async () =>
         {

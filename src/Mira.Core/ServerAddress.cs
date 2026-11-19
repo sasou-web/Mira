@@ -8,7 +8,8 @@ using Mira.Core.Tailscale;
 namespace Mira.Core;
 
 /// <summary>A Jellyfin server found at an address, as its public information describes it (<paramref name="Id"/>: the same at every address).</summary>
-public sealed record ServerInfo(string Address, string Name, string Version, string Id = "");
+/// <param name="Configured">False while Jellyfin's setup wizard is not finished: no account exists yet.</param>
+public sealed record ServerInfo(string Address, string Name, string Version, string Id = "", bool Configured = true);
 
 /// <summary>An address that leads to no usable Jellyfin server; the message is written for the login screen.</summary>
 public sealed class ServerDiscoveryException(string message) : IOException(message);
@@ -103,7 +104,8 @@ public static partial class ServerAddress
         if (node is not null && TailnetText.Problem(node, TailnetNetwork.Default.Peer(new Uri(candidates[0]).IdnHost)) is { } problem)
             throw new ServerDiscoveryException(problem);
         throw new ServerDiscoveryException(
-            failures.Any(x => x.Failure == ProbeFailure.NotJellyfin) ? L("Cette adresse répond, mais ce n’est pas un serveur Jellyfin. Vérifie le port (8096 par défaut).", "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).")
+            failures.Any(x => x.Failure == ProbeFailure.Refused) ? JellyfinClient.DeviceRefused
+            : failures.Any(x => x.Failure == ProbeFailure.NotJellyfin) ? L("Cette adresse répond, mais ce n’est pas un serveur Jellyfin. Vérifie le port (8096 par défaut).", "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).")
             : failures.Any(x => x.Failure == ProbeFailure.Certificate) ? L($"Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://{new Uri(candidates[0]).Host}:8096 ; sinon, il lui faut un certificat valide.",
                 $"This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://{new Uri(candidates[0]).Host}:8096; otherwise, it needs a valid certificate.")
             // A home or Tailscale address that stays silent: most often a friend's, typed away from that home (FriendReach).
@@ -158,6 +160,9 @@ public static partial class ServerAddress
         ParseVersion(info.Version) is { } version && version < MinimumVersion
             ? throw new ServerDiscoveryException(L($"Mira a besoin de Jellyfin {MinimumVersion.Major}.{MinimumVersion.Minor} ou plus récent ; ce serveur est en {info.Version}. Mets Jellyfin à jour pour continuer.",
                 $"Mira needs Jellyfin {MinimumVersion.Major}.{MinimumVersion.Minor} or later; this server runs {info.Version}. Update Jellyfin to continue."))
+            // A Jellyfin whose setup wizard was never finished has no account: a sign-in would only say « wrong password ».
+            : !info.Configured ? throw new ServerDiscoveryException(L($"Ce Jellyfin n’est pas encore configuré : ouvre {info.Address}web dans un navigateur, termine son assistant de démarrage (langue, compte, bibliothèques), puis reviens ici.",
+                $"This Jellyfin isn’t set up yet: open {info.Address}web in a browser, finish its setup wizard (language, account, libraries), then come back here."))
             : info;
     /// <summary>"10.10.7" or "10.11.0-rc2" → the version; null when the server says something else.</summary>
     public static Version? ParseVersion(string? text) =>
@@ -175,7 +180,7 @@ public static partial class ServerAddress
         var web = path < 0 ? Match.Empty : WebPage().Match(url, path);
         return web.Success ? url[..web.Index] : url;
     }
-    internal enum ProbeFailure { None, Unreachable, Timeout, Certificate, NotJellyfin }
+    internal enum ProbeFailure { None, Unreachable, Timeout, Certificate, NotJellyfin, Refused }
     /// <param name="Tailnet">Why Mira's Tailscale node could not reach the address, when it went through it (<see cref="TailnetCodes"/>).</param>
     internal sealed record Probe(ServerInfo? Info, ProbeFailure Failure, string? Tailnet = null);
     /// <summary>Jellyfin's public information at <paramref name="address"/>, within <paramref name="wait"/> (<see cref="ProbeTimeout"/> by default).</summary>
@@ -186,6 +191,7 @@ public static partial class ServerAddress
         try
         {
             using var response = await http.GetAsync(new Uri(new Uri(address), "System/Info/Public"), HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            if (JellyfinClient.RefusesDevice(response)) return new(null, ProbeFailure.Refused);
             if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > 1_000_000) return new(null, ProbeFailure.NotJellyfin);
             using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false), default, timeout.Token).ConfigureAwait(false);
             var root = json.RootElement;
@@ -196,7 +202,8 @@ public static partial class ServerAddress
             // A proxy may redirect http:// to https://: keep the address that actually answered.
             var final = response.RequestMessage?.RequestUri?.AbsoluteUri is { } answered && answered.EndsWith("System/Info/Public", StringComparison.OrdinalIgnoreCase)
                 ? JellyfinClient.NormalizeServer(answered[..^"System/Info/Public".Length]) : address;
-            return new(new ServerInfo(final, Text("ServerName") ?? "Jellyfin", Text("Version") ?? "", Text("Id")!), ProbeFailure.None);
+            var configured = !(root.TryGetProperty("StartupWizardCompleted", out var wizard) && wizard.ValueKind == JsonValueKind.False);
+            return new(new ServerInfo(final, Text("ServerName") ?? "Jellyfin", Text("Version") ?? "", Text("Id")!, configured), ProbeFailure.None);
         }
         // Never throws: the caller reads every probe's result. Stopped because another address won, it simply lost.
         catch (OperationCanceledException ex)

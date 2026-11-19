@@ -221,7 +221,7 @@ public partial class MainWindow
             case Key.M: if (!e.IsRepeat) Mute_Click(this, new()); break;
             case Key.C: if (!e.IsRepeat) { ToggleSubtitles(); _pipTracksAt = 0; UpdatePipSubtitles(); } break;
             case Key.N: if (!NextButton.IsEnabled) return; if (!e.IsRepeat) Next_Click(this, new()); break;
-            case Key.I: if (!e.IsRepeat) ReturnFromPip(); break;
+            case Key.I or Key.Escape: if (!e.IsRepeat) ReturnFromPip(); break;
             default: return;
         }
         e.Handled = true;

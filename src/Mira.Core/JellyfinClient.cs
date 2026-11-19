@@ -52,8 +52,11 @@ public sealed class JellyfinClient : IDisposable
     public async Task<Connection> LoginAsync(string username, string password, CancellationToken ct = default)
     {
         using var response = await _http.PostAsJsonAsync("Users/AuthenticateByName", new { Username = username, Pw = password }, ct);
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
             throw new UnauthorizedAccessException(L("Nom d’utilisateur ou mot de passe incorrect.", "Wrong username or password."));
+        // 403 to a sign-in: the right password, an account Jellyfin won't let in now (checked on 12.4: « User is not allowed
+        // access at this time », « account is currently disabled »). Said as a wrong password, it left no way out.
+        if (response.StatusCode == HttpStatusCode.Forbidden) throw new UnauthorizedAccessException(AccountRefused);
         await CheckAsync(response);
         var result = await response.Content.ReadFromJsonAsync<AuthenticationResult>(Json.Options, ct)
             ?? throw new IOException(L("Réponse de connexion vide.", "Empty sign-in answer."));
@@ -2202,11 +2205,23 @@ public sealed class JellyfinClient : IDisposable
     private static Task CheckAsync(HttpResponseMessage response)
     {
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new UnauthorizedAccessException(L("Connexion refusée ou session expirée. Reconnecte ton compte Jellyfin.", "Sign-in refused or session expired. Sign in to your Jellyfin account again."));
+            throw new UnauthorizedAccessException(L("Connexion refusée ou session expirée. Reconnecte ton compte Jellyfin ; si Jellyfin refuse encore, son administrateur a peut-être limité ce compte (horaires, compte désactivé).", "Sign-in refused or session expired. Sign in to your Jellyfin account again; if Jellyfin still refuses, its administrator may have limited this account (allowed hours, account disabled)."));
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException(StatusMessage(response.StatusCode), null, response.StatusCode);
+            throw new HttpRequestException(RefusesDevice(response) ? DeviceRefused : StatusMessage(response.StatusCode), null, response.StatusCode);
         return Task.CompletedTask;
     }
+    /// <summary>The right password, an account Jellyfin won't let in at this time: allowed hours, disabled, too many sessions.</summary>
+    public static string AccountRefused => L("Jellyfin refuse ce compte pour l’instant (heures permises, compte désactivé ou trop de sessions ouvertes) : vois avec l’administrateur du serveur.",
+        "Jellyfin won’t let this account in right now (allowed hours, account disabled or too many sessions): check with the server’s administrator.");
+    /// <summary>
+    /// Jellyfin's 503 with nothing in it: it refuses this device's address (« Allow remote connections » off, or an address
+    /// outside its local networks, Tailscale's 100.x for one; checked on 12.4). While it starts, its 503 is a page (HTML).
+    /// </summary>
+    public static bool RefusesDevice(HttpResponseMessage response) =>
+        response.StatusCode == HttpStatusCode.ServiceUnavailable && response.Content.Headers.ContentType?.MediaType?.Contains("html", StringComparison.OrdinalIgnoreCase) != true
+        && response.Content.Headers.ContentLength is null or 0;
+    public static string DeviceRefused => L("Jellyfin refuse les connexions de cet appareil : dans son tableau de bord, Réseau, active « Autoriser les connexions à distance », ou ajoute l’adresse de cet appareil à ses réseaux locaux (100.64.0.0/10 pour Tailscale).",
+        "Jellyfin refuses connections from this device: in its dashboard, Networking, turn on “Allow remote connections”, or add this device’s address to its local networks (100.64.0.0/10 for Tailscale).");
     /// <summary>What an error answer of Jellyfin means, in words: it is starting, it failed, or it refused.</summary>
     public static string StatusMessage(HttpStatusCode status) => (int)status switch
     {

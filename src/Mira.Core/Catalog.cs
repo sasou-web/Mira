@@ -192,7 +192,8 @@ public sealed class Catalog
     public void Forget(string id)
     {
         bool Of(MediaItem x) => x.Id == id || x.SeriesId == id;
-        TotalCount -= Items.RemoveAll(Of);
+        // Out of Jellyfin's list too: the next page starts one place earlier, or a title would be skipped.
+        var removed = Items.RemoveAll(Of); TotalCount -= removed; Fetched = Math.Max(0, Fetched - removed);
         Resume.RemoveAll(Of); NextUp.RemoveAll(Of); RecentPlayback.RemoveAll(Of); Episodes.RemoveAll(Of);
         foreach (var shelf in Shelves.Values) shelf.RemoveAll(Of);
     }
@@ -201,7 +202,8 @@ public sealed class Catalog
     {
         foreach (var known in Items.Concat(Resume).Concat(NextUp).Concat(others).Where(x => x.Id == item.Id)) known.UserData.IsFavorite = favorite;
         if (!Favorites || favorite) return false;
-        Items.RemoveAll(x => x.Id == item.Id); TotalCount = Math.Max(0, TotalCount - 1);
+        var removed = Items.RemoveAll(x => x.Id == item.Id);
+        TotalCount = Math.Max(0, TotalCount - 1); Fetched = Math.Max(0, Fetched - removed);
         return true;
     }
 
