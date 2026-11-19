@@ -93,7 +93,7 @@ public static class QBittorrentSettings
         // The same as the Web API sets (Preferences), here so that a qBittorrent Mira starts reads them at once.
         ("BitTorrent", @"Session\DiskIOType", SimplePreadPwrite.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         ("BitTorrent", @"Session\PieceExtentAffinity", "true"),
-        ("BitTorrent", @"Session\Preallocation", "true"),
+        ("BitTorrent", @"Session\Preallocation", "false"),
     ];
 
     /// <summary>
@@ -162,13 +162,19 @@ public static class QBittorrentSettings
         // only, what qBittorrent advises on Windows. The disk I/O type is read at qBittorrent's next start.
         ["enable_piece_extent_affinity"] = true,
         ["disk_io_type"] = SimplePreadPwrite,
-        // Each file's room taken when it is added, not as its pieces come: written in the order peers send them into sparse
-        // files, three 50-100 GB packs at once came out in 5 000 to 11 000 fragments an episode on the Dell's USB disk
-        // (2026-11-18), and checking them read 115 KB per seek: 13 MB/s, hours at 100 % before Mira could sort them.
-        // Reserved first, each file lies in one piece; a full disk shows when it is added, not halfway.
-        ["preallocate_all"] = true,
+        // Never each file's room taken when it is added (tried 2026-11-18 against fragmented packs): qBittorrent runs without
+        // the right to set where a file's valid data ends (SeManageVolumePrivilege), so NTFS writes zeros from there to every
+        // piece written further on. On the Dell's USB disk (2026-11-19), a 65.8 GB pack had 55 GB of zeros written for 8.4 GB
+        // received, the drive busy 100 % of the time, and Jellyfin's reads of the film being watched took 140 ms (up to
+        // 0.5 s): playback stuck loading. Sparse files again; pieces stay grouped by the affinity above.
+        ["preallocate_all"] = false,
         // No second read of a whole download once it is done: each piece is already checked as it comes (off by default, kept so).
         ["recheck_completed_torrents"] = false,
+        // Watching first (<see cref="PlaybackFirst"/>): while something plays from this PC's Jellyfin, Mira turns on
+        // qBittorrent's other speed limits, these, and turns them off a minute after; never by qBittorrent's own schedule.
+        ["alt_dl_limit"] = PlaybackFirst.Download,
+        ["alt_up_limit"] = PlaybackFirst.Upload,
+        ["scheduler_enabled"] = false,
     };
 
     /// <summary>qBittorrent's DiskIOType « Simple pread/pwrite » (5.1 and later; before, an unknown value is its default).</summary>
@@ -537,6 +543,18 @@ public sealed class QBittorrentClient : IDisposable
                 .Select(x => (QBittorrentDownloads.Text(x, "hash")!.ToLowerInvariant(), DateTimeOffset.FromUnixTimeSeconds(Math.Max(0, QBittorrentDownloads.Whole(x, "added_on"))))).ToList();
         }
         catch (JsonException) { return []; }
+    }
+
+    /// <summary>
+    /// qBittorrent's other speed limits (<see cref="PlaybackFirst"/>) on or off; true when it changed. Read then toggled
+    /// (transfer/speedLimitsMode, toggleSpeedLimitsMode): what 4.x and 5.x both answer.
+    /// </summary>
+    public async Task<bool> SlowAsync(bool slow, CancellationToken ct)
+    {
+        var mode = (await TextAsync(HttpMethod.Get, "transfer/speedLimitsMode", null, ct))?.Trim();
+        if ((mode == "1") == slow) return false;
+        await TextAsync(HttpMethod.Post, "transfer/toggleSpeedLimitsMode", null, ct);
+        return true;
     }
 
     /// <summary>app/shutdown: qBittorrent saves its settings and list, then quits.</summary>

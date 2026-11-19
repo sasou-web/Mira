@@ -15,6 +15,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Un pack de deux saisons numéroté d’un bout à l’autre (« (Season 1-2) [Batch] », « - 01 » à « - 37 ») : d’abord tout en saison 1, puis dans les 10 à 20 minutes qui suivent (TheTVDB activé) les épisodes de la saison 2 renommés dans `Season 02`, et la saison 2 n’est plus « manquante »
 - [ ] Un `.torrent` de C411 par qBittorrent, rangé (lien physique), qBittorrent continue de partager
 - [ ] qBittorrent et un disque USB : débrancher le disque de son dossier de téléchargement pendant un téléchargement, la ligne dit « disque sans doute débranché » (la file reste) ; le rebrancher, il reprend seul en moins d’une minute (page Téléchargements ouverte)
+- [ ] La lecture passe avant qBittorrent : un gros téléchargement en cours sur le disque des films, lancer un film depuis un autre appareil, il démarre et ne s’arrête pas pour charger ; dans qBittorrent (icône près de l’horloge), la tortue des vitesses réduites s’allume pendant la lecture et s’éteint une minute après
 - [ ] qBittorrent et son port pris (rare, dur à provoquer à la main) : dans le Gestionnaire des tâches, jamais de qBittorrent qui redémarre en boucle ; si la page Téléchargements dit une panne de qBittorrent, la noter telle quelle
 - [ ] Téléchargement qui atterrit sur le disque USB de 6 To monté dans `MEDIAS` (dès qu'il est là)
 - [ ] Suivre une série : l'épisode suivant arrive tout seul (laisser tourner une semaine)
