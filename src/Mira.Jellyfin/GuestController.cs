@@ -398,45 +398,9 @@ public sealed partial class GuestController : ControllerBase
         return QueryString.Create(pairs).ToString();
     }
 
-    /// <summary>Every session token the request carries, in any of the places Jellyfin reads one.</summary>
-    internal static IEnumerable<string> Tokens(HttpRequest request)
-    {
-        foreach (var header in new[] { "Authorization", "X-Emby-Authorization" })
-        {
-            foreach (var value in request.Headers[header])
-            {
-                foreach (Match match in TokenParameter().Matches(value ?? ""))
-                {
-                    yield return match.Groups[1].Value;
-                }
-            }
-        }
-
-        foreach (var header in new[] { "X-Emby-Token", "X-MediaBrowser-Token" })
-        {
-            foreach (var value in request.Headers[header])
-            {
-                if (!string.IsNullOrEmpty(value))
-                {
-                    yield return value;
-                }
-            }
-        }
-
-        foreach (var pair in request.Query.Where(x => x.Key.Equals("ApiKey", StringComparison.OrdinalIgnoreCase) || x.Key.Equals("api_key", StringComparison.OrdinalIgnoreCase)))
-        {
-            foreach (var value in pair.Value)
-            {
-                if (!string.IsNullOrEmpty(value))
-                {
-                    yield return value;
-                }
-            }
-        }
-    }
-
-    [GeneratedRegex("Token=\"?([^\",\\s]*)\"?", RegexOptions.IgnoreCase)]
-    private static partial Regex TokenParameter();
+    /// <summary>Every session token the request carries, in any of the places and ways Jellyfin reads one (<see cref="SessionTokens"/>).</summary>
+    internal static IEnumerable<string> Tokens(HttpRequest request) =>
+        SessionTokens.Of(name => request.Headers[name].ToArray(), name => request.Query[name].ToArray());
 
     [GeneratedRegex("^[A-Za-z0-9_-]{16,64}$")]
     private static partial Regex DeviceRule();
