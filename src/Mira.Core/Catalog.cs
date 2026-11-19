@@ -133,6 +133,14 @@ public sealed class Catalog
     {
         Items = []; Resume = []; NextUp = []; RecentPlayback = []; HiddenResume = []; People = []; Studios = []; Episodes = []; Sagas = []; TotalCount = 0; Grouping = CollectionShelf.Index.None;
     }
+    /// <summary>
+    /// A page kept as it was left (<see cref="PageMemory"/>): its titles, and how many Jellyfin had sent and how many a
+    /// collection's card took the place of; else « 40 titles » counted again and a quiet refresh asking fewer than before.
+    /// </summary>
+    public void Recall(List<MediaItem> items, int total, int fetched, int absorbed)
+    {
+        _items = items; TotalCount = total; (Fetched, Absorbed) = (Math.Max(fetched, items.Count), Math.Max(0, absorbed)); Silent = false;
+    }
     /// <summary>A page from Jellyfin: the first replaces the list, the next ones (loaded as the grid scrolls) add what is new.</summary>
     /// <param name="search">The list's search: a collection's titles are grouped only where <see cref="Groups"/> says.</param>
     public void Receive(ItemsResult result, bool more, string search = "")

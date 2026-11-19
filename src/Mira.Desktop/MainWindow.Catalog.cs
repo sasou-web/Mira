@@ -336,8 +336,15 @@ public partial class MainWindow
         var cached = recalled is null && _store is { } store && !_catalog.AwaitsSearch(SearchBox.Text.Trim()) ? await Task.Run(() => TryCache(() => store.Load<ItemsResult>(page))) : null;
         // Another page was chosen meanwhile: it shows instead.
         if (navigation != _navigationVersion) { await closing; return; }
+        // Films, Séries, the library: the cached titles grouped as Jellyfin last said, not one by one before the grid shrinks.
+        if (recalled is null && cached is not null && !_demo && _client is { } client && _catalog.Groups(SearchBox.Text.Trim()))
+        {
+            _catalog.Grouping = await KnownGroupingAsync(client);
+            if (navigation != _navigationVersion) { await closing; return; }
+        }
         if (recalled is null && cached is not null) _catalog.Receive(cached, false, SearchBox.Text.Trim());
-        else { _catalog.Items = recalled?.Items ?? []; _catalog.TotalCount = recalled?.TotalCount ?? 0; }
+        else if (recalled is not null) _catalog.Recall(recalled.Items, recalled.TotalCount, recalled.Fetched, recalled.Absorbed);
+        else { _catalog.Items = []; _catalog.TotalCount = 0; }
         if (recalled is not null || cached is not null || _demo) _catalog.Loading = false;
         RenderLibrary();
         if (recalled is not null) ScrollBack(recalled.Offset); else SmoothScroll.Jump(LibraryScroll);

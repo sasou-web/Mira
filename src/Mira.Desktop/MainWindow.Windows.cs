@@ -43,15 +43,27 @@ public partial class MainWindow
     /// </summary>
     private bool KeptByTheClock() => _windows is not null && !IsCheckRun && (_servingRelay || _torlinkHeadless.Running || _torlinkTerminal?.Running == true || _offlineRunning);
     private bool IsCheckRun => _args.Any(x => x.EndsWith("-check", StringComparison.Ordinal) || x is "--ui-audit" or "--public-gallery" or "--readme-gallery" or "--visual-check");
-    /// <summary>Put away by the clock: a playback ends first (nothing plays in a hidden window), said the first time.</summary>
+    /// <summary>
+    /// Put away by the clock: a playback ends first (nothing plays in a hidden window), said the first time. Notifications
+    /// of Mira turned off in Windows, it is asked on Mira's card before the window goes (« Ranger » the safe answer).
+    /// </summary>
     private async void PutByTheClock()
     {
         try
         {
+            if (!_settings.CloseKeptTold && !Toasts.Enabled && _confirm is null && IsVisible && WindowState != WindowState.Minimized)
+            {
+                var quit = await ConfirmAsync(L("Mira continue près de l’horloge", "Mira keeps going by the clock"),
+                    L("Il travaille encore pour tes autres appareils ou tes téléchargements. Fermer la fenêtre le range près de l’horloge ; pour le fermer : clic droit sur son icône, « Quitter Mira ».",
+                        "It’s still working for your other devices or your downloads. Closing the window puts it by the clock; to close it: right-click its icon, then “Quit Mira”."),
+                    L("Quitter Mira", "Quit Mira"), L("Ranger près de l’horloge", "Put it by the clock"));
+                _settings.CloseKeptTold = true; TrySaveSettings();
+                if (quit) { Close(); return; }
+            }
             if (_playing) { _playerLeft++; await StopPlaybackAsync(); ReturnToLibrary(); }
             WindowsCommand(DesktopCommand.Hide, 0);
             if (_settings.CloseKeptTold) return;
-            // Told only once the notification did show: notifications of Mira turned off in Windows, it is said next time.
+            // Told only once the notification did show: notifications turned off or refused, it is said next time.
             if (!Toasts.Show(L("Mira continue près de l’horloge", "Mira keeps going by the clock"),
                 L("Il travaille encore pour tes autres appareils ou tes téléchargements. Pour le fermer : clic droit sur son icône, « Quitter Mira ».",
                     "It’s still working for your other devices or your downloads. To close it: right-click its icon, then “Quit Mira”."),

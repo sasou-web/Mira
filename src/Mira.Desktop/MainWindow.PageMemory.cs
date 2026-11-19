@@ -38,7 +38,7 @@ public partial class MainWindow
         var genre = GenreFilter.SelectedItem as ComboBoxItem;
         _pages.Keep(PageMemory.KeyOf(_catalog), new(Choice(GenreFilter), genre?.Content?.ToString() ?? "", Choice(YearFilter), Choice(WatchedFilter), Choice(SortFilter), Choice(LibraryFilter),
             _catalog.Favorites, _filtersOpen, SearchBox.Text, _catalog.Items, _catalog.TotalCount, LibraryScroll.VerticalOffset,
-            Choice(QualityFilter), Choice(RatingFilter), Choice(AudioFilter), Choice(SubtitleFilter)), _catalog.Loading);
+            Choice(QualityFilter), Choice(RatingFilter), Choice(AudioFilter), Choice(SubtitleFilter), _catalog.Fetched, _catalog.Absorbed), _catalog.Loading);
     }
     private void Restore(PageMemory.State state)
     {

@@ -75,6 +75,10 @@ internal static class CollectionShelfTests
             catalog.Receive(new ItemsResult { Items = [kizu1, kizu2], TotalRecordCount = 6 }, more: true);
             Assert(catalog.Fetched == 6 && !catalog.HasMore && catalog.Items.Count == 2, $"Envoyés {catalog.Fetched}, montrés {catalog.Items.Count}");
             Assert(catalog.CountLine == CollectionShelf.GridCount(0, 2), catalog.CountLine);
+            // Films left and come back to (PageMemory): the same count, and a quiet refresh asks every title sent, not the cards.
+            var back = new Catalog { View = "library", Grouping = index };
+            back.Recall([.. catalog.Items], catalog.TotalCount, catalog.Fetched, catalog.Absorbed);
+            Assert(back.CountLine == catalog.CountLine && back.Fetched == 6 && !back.HasMore, $"Retour : {back.CountLine}, envoyés {back.Fetched}");
             catalog.Receive(new ItemsResult { Items = [other, nise], TotalRecordCount = 2 }, more: false, search: "a");
             Assert(catalog.Items.Count == 2 && catalog.Items.All(x => x.Shelf is null), "Une recherche montre les titres.");
             return Task.CompletedTask;

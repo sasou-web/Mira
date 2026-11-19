@@ -164,7 +164,7 @@ public partial class MainWindow
     private void DescribeFollowButton()
     {
         var follow = _detailFollow;
-        var tip = follow is null ? L("Suivre les nouveaux épisodes : le PC serveur les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: the server PC looks for them and downloads them on its own, with TorLink")
+        var tip = follow is null ? JellyfinHere ? L("Suivre les nouveaux épisodes : ce PC les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: this PC looks for them and downloads them on its own, with TorLink") : L("Suivre les nouveaux épisodes : le PC serveur les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: the server PC looks for them and downloads them on its own, with TorLink")
             : string.Join(" · ", new[] { L("Suivie", "Following"), RemoteLines.FollowNote(follow.Note), RemoteLines.Follow(follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0));
         ShowState(FollowButton, "follow", follow is not null, follow is null ? L("Suivre…", "Follow…") : L("Suivie", "Following"), tip);
     }
@@ -179,7 +179,9 @@ public partial class MainWindow
         if (_detailFollow is not { } follow)
         {
             if (await ConfirmAsync(L($"Suivre « {item.Name} » ?", $"Follow “{item.Name}”?"),
-                L("Le PC serveur cherchera ses nouveaux épisodes toutes les 6 h et les téléchargera avec TorLink. Chacun attend 10 min dans Téléchargements, le temps de l’annuler.",
+                JellyfinHere ? L("Ce PC cherchera ses nouveaux épisodes toutes les 6 h et les téléchargera avec TorLink. Chacun attend 10 min dans Téléchargements, le temps de l’annuler.",
+                    "This PC will look for its new episodes every 6 hours and download them with TorLink. Each one waits 10 min in Downloads, time to cancel it.")
+                : L("Le PC serveur cherchera ses nouveaux épisodes toutes les 6 h et les téléchargera avec TorLink. Chacun attend 10 min dans Téléchargements, le temps de l’annuler.",
                     "The server PC will look for its new episodes every 6 hours and download them with TorLink. Each one waits 10 min in Downloads, time to cancel it."),
                 L("Suivre la série", "Follow the series"), L("Annuler", "Cancel")) && _detail?.Id == item.Id)
                 await FollowSeriesAsync(item);
@@ -195,11 +197,18 @@ public partial class MainWindow
     private async Task UnfollowAskedAsync(MediaItem item, RelayFollow follow)
     {
         if (!await ConfirmAsync(L($"Ne plus suivre « {item.Name} » ?", $"Stop following “{item.Name}”?"),
-            L("Le PC serveur ne cherchera plus ses nouveaux épisodes. Ceux déjà dans ta bibliothèque restent.", "The server PC will stop looking for its new episodes. Those already in your library stay."),
+            StopFollowingLine,
             L("Ne plus suivre", "Stop following"), L("Continuer à suivre", "Keep following"))) return;
         await UnfollowAsync(follow);
         if (_detail?.Id == item.Id) await ShowFollowButtonAsync(item);
     }
+
+    private string StopFollowingLine => JellyfinHere
+        ? L("Ce PC ne cherchera plus ses nouveaux épisodes. Ceux déjà dans ta bibliothèque restent.", "This PC will stop looking for its new episodes. Those already in your library stay.")
+        : L("Le PC serveur ne cherchera plus ses nouveaux épisodes. Ceux déjà dans ta bibliothèque restent.", "The server PC will stop looking for its new episodes. Those already in your library stay.");
+
+    /// <summary>The PC that searches and downloads, as a sentence starts with it: this one on the PC of Jellyfin.</summary>
+    private string ServerPcStart => JellyfinHere ? L("Ce PC", "This PC") : L("Le PC serveur", "The server PC");
 
     private async Task FollowSeriesAsync(MediaItem item)
     {
@@ -216,7 +225,7 @@ public partial class MainWindow
     private async Task CheckFollowNowAsync(RelayFollow follow)
     {
         if (_client is not { } client) return;
-        try { await client.TorLinkCheckFollowAsync(follow.Id, _connectionLifetime.Token); SetNotice(L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")); }
+        try { await client.TorLinkCheckFollowAsync(follow.Id, _connectionLifetime.Token); SetNotice(L($"{ServerPcStart} cherche les nouveaux épisodes de « {follow.Name} ».", $"{ServerPcStart} is looking for new episodes of “{follow.Name}”.")); }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); }
         if (_serverScreen) await LoadServerDownloadsAsync();
     }
@@ -232,7 +241,7 @@ public partial class MainWindow
     private async Task RenameFollowAsync(RelayFollow follow, string? query)
     {
         if (_client is not { } client) return;
-        try { await client.TorLinkFollowAsync(follow.SeriesId, follow.Name, query, _connectionLifetime.Token); SetNotice(L("Nom cherché changé : le PC serveur cherche de nouveau.", "Search name changed: the server PC is searching again.")); }
+        try { await client.TorLinkFollowAsync(follow.SeriesId, follow.Name, query, _connectionLifetime.Token); SetNotice(JellyfinHere ? L("Nom cherché changé : ce PC cherche de nouveau.", "Search name changed: this PC is searching again.") : L("Nom cherché changé : le PC serveur cherche de nouveau.", "Search name changed: the server PC is searching again.")); }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); }
         await LoadServerDownloadsAsync();
     }
@@ -246,7 +255,7 @@ public partial class MainWindow
             var said = await client.TorLinkCancelAsync(pick.Id, _connectionLifetime.Token) switch
             {
                 true => pick.State == "waiting" ? L($"{pick.Episode} annulé : ce fichier ne sera plus pris, un autre de l’épisode pourra l’être.", $"{pick.Episode} canceled: this file won’t be taken again, another one of the episode may be.") : null,
-                false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC has already taken it: cancel it in its list as soon as it shows up there."),
+                false => L($"{ServerPcStart} l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", $"{ServerPcStart} has already taken it: cancel it in its list as soon as it shows up there."),
                 null => L("Cet épisode n’est plus en attente.", "This episode is no longer waiting.")
             };
             if (said is not null) SetNotice(said);

@@ -153,6 +153,7 @@ public sealed partial class DetailPage : Page
         // A bare item (a series whose details could not be read before its page opened) names no picture yet: its name
         // waits for them too, rather than showing in text and giving way to its logo (audit 2026-11-19, M5).
         _logoPending = Shell.Session is not null && (!named || _item.ImageTags.ContainsKey("Logo"));
+        _nameShown = !_logoPending;
         RenderTop();
         if (named && Shell.Session is { } session) _ = LoadArtAsync(session);
         else if (_logoPending) _ = ShowTitleLaterAsync();
@@ -332,6 +333,8 @@ public sealed partial class DetailPage : Page
     private async Task LoadArtAsync(Session session)
     {
         _artStarted = true;
+        // Pictures of cards hovered before and not fetched yet: dropped, this page's backdrop and logo go first.
+        session.Images.DropWarming();
         if (_logoPending) _ = ShowTitleLaterAsync();
         await Task.WhenAll(LoadBackdropAsync(session), LoadLogoAsync(session));
     }
@@ -357,6 +360,8 @@ public sealed partial class DetailPage : Page
     {
         var logo = await session.Images.LogoAsync(_item);
         _logoPending = false;
+        // Its name already shown (the logo came after LogoWait): it stays, never replaced under the reader's eyes (as on Windows).
+        if (_nameShown && _logo is null) return;
         // After « Identifier… » the former logo stays until this one is known (M10): never the name in between.
         if (logo is null && _logo is null) { _title.Opacity = 1; return; }
         _logo = logo;
@@ -367,8 +372,10 @@ public sealed partial class DetailPage : Page
     {
         await Task.Delay(LogoWait);
         if (!_logoPending) return;
-        _logoPending = false; _title.Opacity = 1;
+        _logoPending = false; _nameShown = true; _title.Opacity = 1;
     }
+    /// <summary>The page shows its name in place of its logo: a logo that comes later is not put over it.</summary>
+    private bool _nameShown;
     /// <summary>Its name in large type, the page's heading; its logo instead once Jellyfin gave one.</summary>
     private TextBlock _title = new();
     /// <summary>What stands for the title in the page now: its logo or its name.</summary>
@@ -768,7 +775,7 @@ public sealed partial class DetailPage : Page
             await sheet.ShowAsync(Shell);
             if (sheet.Said is { } said) Shell.Notice(said);
             // The picture and the logo it had stay until the new ones come, each in place (M10: black, then the name, then the logo).
-            if (sheet.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _artStarted = false; _artChanged = true; _logoPending = false; await RefreshAsync(); }
+            if (sheet.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _artStarted = false; _artChanged = true; _logoPending = false; _nameShown = false; await RefreshAsync(); }
         }
         async Task RefreshMetadataAsync()
         {

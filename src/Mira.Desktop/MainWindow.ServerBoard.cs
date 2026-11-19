@@ -593,7 +593,7 @@ public partial class MainWindow
         menu.Items.Add(MenuAction(L("Ne plus suivre…", "Stop following…"), "close", async () =>
         {
             if (await ConfirmAsync(L($"Ne plus suivre « {follow.Name} » ?", $"Stop following “{follow.Name}”?"),
-                L("Le PC serveur ne cherchera plus ses nouveaux épisodes. Ceux déjà dans ta bibliothèque restent.", "The server PC will stop looking for its new episodes. Those already in your library stay."),
+                StopFollowingLine,
                 L("Ne plus suivre", "Stop following"), L("Continuer à suivre", "Keep following")))
                 await UnfollowAsync(follow);
         }));

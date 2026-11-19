@@ -65,7 +65,8 @@ public partial class MainWindow
             if (DetailOverlay.Visibility == Visibility.Visible && DetailOverlay.IsHitTestVisible && _detail is { } current) _detailTrail.Leave(current, DetailScroll.VerticalOffset, item);
             else _detailTrail.Clear();
         }
-        ClosePreview(); _detail = item; _detailSettled = null; DetailOverview.Text = ""; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
+        // Pictures of cards hovered before and not fetched yet: dropped, this page's backdrop and logo go first.
+        ClosePreview(); _images?.DropWarming(); _detail = item; _detailSettled = null; DetailOverview.Text = ""; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
         _detailArtDone = _similarDone = false; _detailSize = null; _episodeSizes = null; _episodeMeta.Clear();
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
         StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = SeasonMoreButton.Visibility = Visibility.Collapsed;
@@ -90,8 +91,9 @@ public partial class MainWindow
         EpisodesPanel.Margin = new Thickness(0, 0, 0, item.Type == "Series" ? 30 : 0);
         if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
         // From a page already there (a similar title, the saga, Retour): its content fades in over the page's black, not the
-        // whole page from 0, which let the library show through it for 300 ms (audit, 2026-11-19).
-        if (DetailOverlay.Visibility == Visibility.Visible && DetailOverlay.IsHitTestVisible && DetailOverlay.Opacity > .99) Motion.Reveal(DetailScroll, 300, 14);
+        // whole page from 0, which let the library show through it for 300 ms (audit, 2026-11-19). A page still fading in
+        // (a similar title clicked at once, Retour) goes on fading from where it is, never back to 0.
+        if (DetailOverlay.Visibility == Visibility.Visible && DetailOverlay.IsHitTestVisible) Motion.Reveal(DetailScroll, 300, 14);
         else Motion.Reveal(DetailOverlay, 300, 14);
         UpdateHeroClock();
         // Focus moves into the page: Enter plays, Tab stays inside, Escape goes back.
@@ -148,7 +150,8 @@ public partial class MainWindow
         // Already decoded (the card was hovered, or the page seen before): there at once, no fade.
         var ready = request.IsCompleted;
         var logo = await request;
-        if (version != _detailVersion || DetailLogo.Source is not null) return;
+        // Its name already shown (the logo came after DetailLogoWait): it stays, never replaced under the reader's eyes.
+        if (version != _detailVersion || DetailLogo.Source is not null || _detailNameShown) return;
         if (logo is null) { ShowDetailTitle(item.Id); return; }
         DetailLogo.Source = logo; AutomationProperties.SetName(DetailLogo, item.DisplayTitle);
         DetailLogo.Visibility = Visibility.Visible; DetailTitle.Visibility = Visibility.Collapsed;
@@ -164,6 +167,7 @@ public partial class MainWindow
     private void WaitForDetailLogo(MediaItem item)
     {
         var waits = _images is not null && item.ImageTags.ContainsKey("Logo");
+        _detailNameShown = !waits;
         DetailTitle.BeginAnimation(OpacityProperty, null); DetailTitle.Opacity = waits ? 0 : 1;
         if (waits) _ = ShowDetailTitleLaterAsync(item.Id);
     }
@@ -171,8 +175,11 @@ public partial class MainWindow
     private void ShowDetailTitle(string id)
     {
         if (_detail?.Id != id || DetailLogo.Source is not null || DetailTitle.Opacity >= 1) return;
+        _detailNameShown = true;
         Motion.Fade(DetailTitle, 1, 200);
     }
+    /// <summary>The open page shows its name in place of its logo: a logo that comes later is not put over it.</summary>
+    private bool _detailNameShown;
     /// <summary>Jellyfin's BlurHash of the page's backdrop, drawn at once: null without one.</summary>
     private static ImageSource? DetailBlur(MediaItem item) =>
         BlurHash.Of(item, Artwork.Backdrop(item, ownPage: true)) is { } hash ? MediaCard.Blur(hash, 16 / 9d) : null;

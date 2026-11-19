@@ -199,8 +199,8 @@ public partial class MainWindow
     {
         if (_upgrade is not { } item) { ServerUpgradeBanner.Visibility = Visibility.Collapsed; return; }
         ServerUpgradeTitle.Text = L($"Meilleure version de « {TitleUpgrade.Title(item)} »", $"Better version of “{TitleUpgrade.Title(item)}”");
-        ServerUpgradeLine.Text = L($"Actuellement : {TitleUpgrade.Line(TitleUpgrade.Current(item))}. Seules les versions meilleures sont montrées. Une fois téléchargée et vérifiée (même durée, lisible par Jellyfin), la nouvelle prend la place de l’ancienne, qui part à la Corbeille du PC serveur.",
-            $"Currently: {TitleUpgrade.Line(TitleUpgrade.Current(item))}. Only better versions are shown. Once downloaded and checked (same length, readable by Jellyfin), the new one takes the old one’s place, which goes to the server PC’s Recycle Bin.");
+        ServerUpgradeLine.Text = L($"Actuellement : {TitleUpgrade.Line(TitleUpgrade.Current(item))}. Seules les versions meilleures sont montrées. Une fois téléchargée et vérifiée (même durée, lisible par Jellyfin), la nouvelle prend la place de l’ancienne, qui part à la Corbeille {(_serverLocal ? "de ce PC" : "du PC serveur")}.",
+            $"Currently: {TitleUpgrade.Line(TitleUpgrade.Current(item))}. Only better versions are shown. Once downloaded and checked (same length, readable by Jellyfin), the new one takes the old one’s place, which goes to {(_serverLocal ? "this PC’s" : "the server PC’s")} Recycle Bin.");
         ServerUpgradeBanner.Visibility = Visibility.Visible;
     }
 
