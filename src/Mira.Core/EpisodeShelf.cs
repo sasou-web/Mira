@@ -104,6 +104,15 @@ public static class EpisodeShelf
         return L("É", "E") + (from == to ? $"{from}" : $"{from}–{to}");
     }
 
+    /// <summary>
+    /// The heading of a tile standing for a run: « É3–4 », or « É4 · Le nom » for a single episode, which then has nothing
+    /// more to open (ogsas, 2026-11-19: the tile « E4 » and, opened, a second tile « 04 Kizumonogatari » for the same episode).
+    /// </summary>
+    public static string Heading(IReadOnlyList<MediaItem> run) => run.Count == 1 && run[0].Name.Length > 0 ? $"{Code(run)} · {run[0].Name}" : Code(run);
+
+    /// <summary>Whether a tile standing for a run opens into one tile each: only for two episodes or more.</summary>
+    public static bool Opens(IReadOnlyList<MediaItem> run) => run.Count > 1;
+
     /// <summary>« É3–4 · pas dans ta bibliothèque · sortis du 25 oct. au 1 nov. », a thin line of missing episodes.</summary>
     public static string MissingText(IReadOnlyList<MediaItem> run, DateOnly today) =>
         $"{Code(run)} · {L("pas dans ta bibliothèque", "not in your library")} · {Aired(run, today)}";

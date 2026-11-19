@@ -1650,6 +1650,9 @@ internal static class LibraryTests
             var missing = EpisodeTiles.GapLines(new ShelfLine(ShelfKind.Missing, [Virtual(3, -9), Virtual(4, -2)]), today);
             var later = EpisodeTiles.GapLines(new ShelfLine(ShelfKind.Later, [Virtual(6, 17), Virtual(7, 24)]), today);
             Assert(missing.First == "Pas dans ta bibliothèque" && char.IsUpper(missing.Second[0]) && later.First == "À venir" && char.IsUpper(later.Second[0]), $"{missing} {later}");
+            var alone = Virtual(4, -300) with { Name = "Kizumonogatari -Koyomi Vamp-" };
+            Assert(EpisodeShelf.Heading([alone]) == "É4 · Kizumonogatari -Koyomi Vamp-" && !EpisodeShelf.Opens([alone]), "A single missing episode: its name on the tile, nothing to open (the same episode twice otherwise)");
+            Assert(EpisodeShelf.Heading([Virtual(3, -9), Virtual(4, -2)]) == "É3–4" && EpisodeShelf.Opens([Virtual(3, -9), Virtual(4, -2)]) && EpisodeShelf.Heading([Virtual(5, -2)]) == "É5", "A run opens; an unnamed episode keeps its code");
             Assert(EpisodeTiles.UpNext == "À SUIVRE", "Up next");
             return Task.CompletedTask;
         });

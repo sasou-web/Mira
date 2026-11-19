@@ -1107,22 +1107,23 @@ public sealed partial class DetailPage : Page
         var key = line.First.Id; var open = _shelfOpen.Contains(key);
         var (first, second) = EpisodeTiles.GapLines(line, today);
         var copy = Ui.Column(0,
-            new TextBlock { Text = EpisodeShelf.Code(line.Episodes), FontSize = 15.5, FontWeight = FontWeight.Bold, Foreground = Ui.TextTertiary },
+            new TextBlock { Text = EpisodeShelf.Heading(line.Episodes), FontSize = 15.5, FontWeight = FontWeight.Bold, Foreground = Ui.TextTertiary, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             new TextBlock { Text = first, FontSize = 13, Foreground = Ui.Muted, Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             new TextBlock { Text = second, FontSize = 13, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             Ui.Row(5, new TextBlock { Text = EpisodeShelf.Show(line.Episodes.Count, open), FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#C7C7CC"), VerticalAlignment = VerticalAlignment.Center }, new Icon(open ? "up" : "down", 12) { Foreground = Ui.Brush("#C7C7CC") }));
         var show = (Control)copy.Children[^1];
         show.Margin = new Thickness(0, 10, 0, 0);
+        // A single episode: its name is on the tile already, nothing to open.
+        if (!EpisodeShelf.Opens(line.Episodes)) copy.Children.Remove(show);
         copy.VerticalAlignment = VerticalAlignment.Center; copy.Margin = new Thickness(20, 0);
         // « Télécharger É6–9 » (DetailPage.Missing): its part above « Voir », its progress bar along the tile's foot.
         var inside = new Grid { Children = { copy } };
-        if (MissingTilePart(line) is var (part, bar)) { show.Margin = new Thickness(0, 8, 0, 0); copy.Children.Insert(copy.Children.IndexOf(show), part); inside.Children.Add(bar); }
+        if (MissingTilePart(line) is var (part, bar)) { show.Margin = new Thickness(0, 8, 0, 0); if (copy.Children.Contains(show)) copy.Children.Insert(copy.Children.IndexOf(show), part); else copy.Children.Add(part); inside.Children.Add(bar); }
         var picture = new Border { CornerRadius = new CornerRadius(10), BorderBrush = ShelfBorder, BorderThickness = new Thickness(1), ClipToBounds = true, Child = inside };
         var button = new Button { Content = picture, Classes = { "card" }, VerticalContentAlignment = VerticalAlignment.Top };
         var text = line.Kind == ShelfKind.Later ? EpisodeShelf.LaterText(line.Episodes, today) : EpisodeShelf.MissingText(line.Episodes, today);
         Avalonia.Automation.AutomationProperties.SetName(button, text);
-        Avalonia.Automation.AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open));
-        button.Click += (_, _) => Toggle(key);
+        if (EpisodeShelf.Opens(line.Episodes)) { Avalonia.Automation.AutomationProperties.SetHelpText(button, EpisodeShelf.Show(line.Episodes.Count, open)); button.Click += (_, _) => Toggle(key); }
         return Tile(button, picture);
     }
     // « La saison 1 n’est pas dans ta bibliothèque », how many and when, where they come from; its episodes on demand.
