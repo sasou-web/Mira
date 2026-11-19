@@ -176,7 +176,8 @@ struct EpisodeList: View {
         let absent = EpisodeShelf.absentSeasons(held: held, virtuals: virtuals, today: today, showMissing: showMissing)
         // In their order, those the library lacks among the others (« Season 1 · not in library » before Season 2, audit
         // I5); Specials first, as Jellyfin lists them; a season without a number last.
-        let library: [Chip] = seasons.map { Chip(id: $0.id, name: $0.name ?? "", season: $0.indexNumber) }
+        // A season's own name, or « Season 2 » for one that only says it (SeasonNames, as Windows and the Mac); Specials as Jellyfin names them.
+        let library: [Chip] = seasons.map { Chip(id: $0.id, name: ($0.indexNumber ?? 0) > 0 ? SeasonNames.label($0.indexNumber ?? 0, $0.name) : $0.name ?? "", season: $0.indexNumber) }
         let lacking: [Chip] = absent.map { Chip(id: Self.absentPrefix + "\($0)", name: EpisodeShelf.seasonLabel($0, virtuals: virtuals, today: today), season: $0) }
         let all: [Chip] = Self.ordered(library + lacking)
         // « Extras » after the last season, also after a single one (SeriesExtras).
