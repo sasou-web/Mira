@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Mira.Core;
+using Mira.Core.Family;
 using Mira.Core.TorLink;
 using Mira.Desktop.Views;
 
@@ -71,6 +72,35 @@ public partial class MainWindow
         finally { Close(); }
     }
     /// <summary>
+    /// « Who's watching? » (windows-family, 0.9.15): the home turned on by the gallery's administrator through Mira's
+    /// extension (gallery.yml puts it in Jellyfin's plugins), the four accounts setup.mjs made offered, one with a PIN,
+    /// joined by its password as a device of the home would, then the hall shown. Nothing saved in the profile.
+    /// </summary>
+    private async Task FamilyShotAsync(Func<string, Task> shot)
+    {
+        if (_client is not { } admin) throw new InvalidOperationException("Not signed in.");
+        const string password = "mira-gallery-home";
+        await admin.HomeSetPasswordAsync(password);
+        var settings = await admin.HomeSettingsAsync() ?? throw new InvalidOperationException("No home: is Mira's extension in Jellyfin's plugins?");
+        var accounts = settings.Profiles.Where(x => !x.Admin && !x.Disabled).OrderBy(x => x.Name, StringComparer.Ordinal).ToList();
+        if (accounts.Count < 4) throw new InvalidOperationException($"{accounts.Count} accounts for the home: did setup.mjs make them (MIRA_GALLERY_FAMILY)?");
+        foreach (var account in accounts) await admin.HomeOfferAsync(account.Id, true);
+        await admin.HomeSetPinAsync(accounts[^1].Id, "2468");
+        using var client = HomeClient(admin.Connection.Server);
+        var joined = await client.HomeJoinAsync(password, _profile.DeviceId, HomeText.DeviceName("Mira", Environment.MachineName));
+        var order = new[] { "Alex", "Sam", "Lou", "Noa" };
+        var profiles = joined.Profiles.OrderBy(x => Array.IndexOf(order, x.Name) is var i and >= 0 ? i : order.Length).ToList();
+        _home = new HomeMembership { Server = admin.Connection.Server, Name = admin.Connection.UserName, Token = joined.Token, DeviceId = joined.DeviceId, Profiles = profiles };
+        try
+        {
+            ShowHall(); await Task.Delay(2500);
+            Keyboard.ClearFocus(); await Task.Delay(300);
+            await shot("windows-family");
+        }
+        finally { FamilyOverlay.Visibility = Visibility.Collapsed; _home = null; _familyFaces.Clear(); }
+    }
+
+    /// <summary>
     /// The screens only a release's banner shows (tools/banner/plan.mjs): the films' filters open, a series' missing
     /// episodes at their place (Invincible's, from tools/web/fake-tvdb), a saga's page (windows-shelf), the mini-player out against the right edge over
     /// Home, its controls shown, playing a film whose video gallery.yml made of its backdrop (libmpv as Mira installs it),
@@ -100,6 +130,7 @@ public partial class MainWindow
         ShelfOverlay.Visibility = Visibility.Collapsed;
 
         await DownloadsShotAsync(shot);
+        await FamilyShotAsync(shot);
 
         // Settings: The essentials, Privacy, then Discord and its live preview of the card: before the player, which
         // would cover the window.

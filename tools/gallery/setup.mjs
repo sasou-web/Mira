@@ -119,6 +119,26 @@ if (portrait) {
   } catch (error) { console.log(`::warning::No photo for ${user}: ${error.message}`); }
 }
 
+// For a release's banner (MIRA_GALLERY_FAMILY=1): the home's profiles, four accounts with a photo each, a square from
+// the middle of a poster of the library. Mira for Windows turns the home on and offers them (windows-family).
+if (process.env.MIRA_GALLERY_FAMILY === '1') {
+  const users = await call('GET', 'Users', { token });
+  for (const [name, film] of [['Alex', /Kiki/i], ['Sam', /Coco/i], ['Lou', /Klaus/i], ['Noa', /^Flow/i]]) {
+    const account = users.find((x) => x.Name === name) ?? await call('POST', 'Users/New', { token, body: { Name: name, Password: 'mira-gallery-profile' } });
+    const poster = items.find((x) => x.Type === 'Movie' && film.test(x.Name ?? '') && x.ImageTags?.Primary);
+    if (!poster) { console.log(`::warning::No poster for ${name}`); continue; }
+    try {
+      const picture = await fetch(`${base}/Items/${poster.Id}/Images/Primary?fillWidth=400&fillHeight=400&quality=90`, { headers: { Authorization: authorization(token) } });
+      if (!picture.ok) throw new Error(`poster: ${picture.status}`);
+      const sent = await fetch(`${base}/Users/${account.Id}/Images/Primary`, {
+        method: 'POST', headers: { Authorization: authorization(token), 'Content-Type': 'image/jpeg' }, body: Buffer.from(await picture.arrayBuffer()).toString('base64'),
+      });
+      if (!sent.ok) throw new Error(`photo: ${sent.status} ${(await sent.text()).slice(0, 200)}`);
+      console.log(`Profile ${name}: « ${poster.Name} »`);
+    } catch (error) { console.log(`::warning::No photo for ${name}: ${error.message}`); }
+  }
+}
+
 if (repository) {
   const repositories = await call('GET', 'Repositories', { token });
   if (!repositories.some((r) => r.Url === repository)) await call('POST', 'Repositories', { token, body: [...repositories, { Name: 'Mira', Url: repository, Enabled: true }] });
