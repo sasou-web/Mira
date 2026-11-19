@@ -10,7 +10,8 @@ namespace Mira.Jellyfin;
 /// gateway, the relay of « Télécharger sur le PC serveur » and the rest under /Mira. It has no settings (Jellyfin's base class, which records the
 /// plugin's version, comes with an empty configuration). What it keeps on the server: the guests' links of « Inviter
 /// par lien » (<see cref="GuestInvites"/>), in one file beside the plugins' settings, and their accounts on Jellyfin;
-/// the series followed of « Suivre une série » (<see cref="TorLinkRelay"/>), in another file there.
+/// the series followed of « Suivre une série » (<see cref="TorLinkRelay"/>), in another file there; « Le foyer »
+/// (<see cref="HomeFamily"/>), in a third.
 /// </summary>
 public sealed class Plugin : BasePlugin<BasePluginConfiguration>
 {
@@ -31,10 +32,20 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         _queueFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles-queue.json");
         TvdbOrders.File = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.tvdb-orders.json");
         _proofFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.proof.key");
+        _homeFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.home.json");
     }
 
     private static string? _subtitlesFile, _journalFile, _queueFile;
     private static string? _proofFile;
+    private static string? _homeFile;
+    private static HomeFamily? _home;
+
+    /// <summary>« Le foyer »: its password, profiles and devices, read from their file the first time they are needed.</summary>
+    public static HomeFamily Home
+    {
+        get { lock (Gate) return _home ??= new HomeFamily(_homeFile, () => DateTimeOffset.UtcNow); }
+    }
+
     private static byte[]? _proofSecret;
 
     /// <summary>The secret behind each account's proof key (<see cref="ProofController"/>), made the first time it is needed; null when it cannot be kept.</summary>

@@ -95,3 +95,4 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] 20 min ensemble par Funnel sans pause ni lecture en boucle (sauts, changement de piste audio)
 - [ ] Toi dans la party de Sam (son Jellyfin), depuis Mira pour Windows
 - [ ] Lien refait : l'ancien ne marche plus
+- [ ] Le foyer : réglé sur le Dell (mot de passe, deux profils dont un à code), rejoint depuis un autre appareil, profil ouvert, changé, appareil retiré (quand les clients Windows, Mac, iPhone seront là)
