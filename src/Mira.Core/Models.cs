@@ -29,6 +29,9 @@ public sealed record MediaItem
     public string? SeriesName { get; init => field = TitleNames.CleanOrNull(value); }
     public string? SeriesId { get; init; }
     public string? SeasonId { get; init; }
+    /// <summary>An episode's season as Jellyfin names it (« Nisemonogatari », or « Season 2 » when it has no name of its own): <see cref="EpisodePages.Named"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SeasonName { get; init; }
     public string? Overview { get; init; }
     public int? ProductionYear { get; init; }
     public int? IndexNumber { get; init; }

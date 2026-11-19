@@ -676,6 +676,13 @@ internal static class LibraryTests
             var unnumbered = Enumerable.Range(1, 101).Select(i => new MediaItem { Id = $"u{i}", Name = "?", Type = "Episode" }).ToList();
             Assert(EpisodePages.From(unnumbered).Select(x => x.Label).SequenceEqual(["Saison 1 · 1–100", "Saison 1 · 101"]), "Without numbers, their position");
             Assert(EpisodePages.From(Enumerable.Range(1, 100).Select(i => Episode(1, i)).ToList()).Single().Label == "Saison 1", "100 episodes stay one page");
+            // Each season by its own name, as on the iPhone (« Le fondu », Dell 2026-11-19: Monogatari's pills said « Season 1 » to « Season 14 »).
+            MediaItem In(int season, int number, string? named) => Episode(season, number) with { SeasonName = named };
+            var monogatari = new[] { In(0, 1, "Specials"), In(1, 1, "Bakemonogatari"), In(2, 1, " Nisemonogatari "), In(3, 1, "Season 3"), In(4, 1, "Saison 04"), In(5, 1, null), In(6, 1, "Season 2"), In(7, 1, "Staffel 7") };
+            var named = EpisodePages.From(monogatari).Select(x => x.Label).ToList();
+            Assert(named.SequenceEqual(["Épisodes spéciaux", "Bakemonogatari", "Nisemonogatari", "Saison 3", "Saison 4", "Saison 5", "Season 2", "Saison 7"]), "Names, else Mira's own label: " + string.Join(" | ", named));
+            var long1 = Enumerable.Range(1, 120).Select(i => In(1, i, "One Piece")).ToList();
+            Assert(EpisodePages.From(long1).Select(x => x.Label).SequenceEqual(["One Piece · 1–100", "One Piece · 101–120"]), "A long named season in slices");
             return Task.CompletedTask;
         });
         await Test("Série : une saison marquée vue d’un coup, « À suivre » dans une autre saison, comme l’iPhone (tests/fixtures/seasons.json)", () =>

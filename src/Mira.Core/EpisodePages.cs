@@ -40,7 +40,7 @@ public static class EpisodePages
         var pages = new List<EpisodePage>();
         foreach (var season in episodes.GroupBy(Season).OrderBy(x => x.Key))
         {
-            var list = season.ToList(); var name = season.Key == 0 ? L("Épisodes spéciaux", "Specials") : L($"Saison {season.Key}", $"Season {season.Key}");
+            var list = season.ToList(); var name = season.Key == 0 ? L("Épisodes spéciaux", "Specials") : Named(season.Key, list.Select(x => x.SeasonName)) ?? L($"Saison {season.Key}", $"Season {season.Key}");
             if (list.Count <= Size) { pages.Add(new(season.Key, 0, list.Count, name)); continue; }
             for (var skip = 0; skip < list.Count; skip += Size)
             {
@@ -50,6 +50,20 @@ public static class EpisodePages
             }
         }
         return pages;
+    }
+
+    /// <summary>
+    /// A season's own name, as Jellyfin gives it with its episodes (« Bakemonogatari », « The Final Season », named by
+    /// TheTVDB or a season.nfo), the names of the pills as on the iPhone (maquette A « Le fondu », ogsas 2026-11-19); null
+    /// when it has none but its number in Jellyfin's language (« Season 2 », « Saison 02 », « Staffel 2 »): Mira's own
+    /// label then, in the app's language.
+    /// </summary>
+    public static string? Named(int season, IEnumerable<string?> names)
+    {
+        var name = names.Select(x => x?.Trim()).FirstOrDefault(x => !string.IsNullOrEmpty(x));
+        if (name is null) return null;
+        var number = System.Text.RegularExpressions.Regex.Match(name, @"^\p{L}+(?:\s\p{L}+)?\s*0*(\d+)$");
+        return number.Success && number.Groups[1].Value == season.ToString(System.Globalization.CultureInfo.InvariantCulture) ? null : name;
     }
 
     /// <summary>The episodes a page shows.</summary>
