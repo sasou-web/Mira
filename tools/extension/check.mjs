@@ -307,6 +307,10 @@ await part('party', async () => {
       && Object.values(direct).every((s) => s === 404),
     `film ${JSON.stringify(asFilm)} ; épisode ${JSON.stringify(asEpisode)} ; sans la passerelle ${JSON.stringify(direct)}`);
 
+  // « Cancel » on the countdown to the next episode: the whole group stays, said through its repeat mode (Together.StayModes).
+  const stays = [(await gateway('POST', 'SyncPlay/SetRepeatMode', { Mode: 'RepeatOne' })).status, (await gateway('POST', 'SyncPlay/SetRepeatMode', { Mode: 'RepeatNone' })).status];
+  check('party : l’invité qui annule l’épisode suivant le dit à tout le groupe (mode de répétition par la passerelle)', stays.every((s) => s === 204), `RepeatOne puis RepeatNone : ${stays.join(', ')}`);
+
   // The guest's session written as Jellyfin reads it but not as it is (a letter URL-encoded, a space before « = », an
   // empty value first), or in its other places: still the guest's for Jellyfin, so still a 404 outside the gateway.
   const encoded = `%${guest.charCodeAt(0).toString(16)}${guest.slice(1)}`;

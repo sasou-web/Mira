@@ -26,6 +26,10 @@ protocol GroupPlayer: AnyObject {
 final class Together {
     private(set) var group: SyncGroup?
     private(set) var queue: SyncQueue?
+    /// A member pressed « Cancel » on the countdown to the next episode of `queue` (its PlaylistItemId): the group stays on it.
+    private var staysOn: String?
+    /// The group stays on its title: the end of the episode does not put the next one on.
+    var stays: Bool { staysOn != nil && staysOn == queue?.playlistItemId }
     /// The groups open on Jellyfin, read with Home and a title's page while this iPhone is in none.
     private(set) var open: [SyncGroup] = []
     /// A line said over the app for a few seconds: someone came or went, the group ended.
@@ -511,6 +515,13 @@ final class Together {
     }
 
     private func playQueue(_ data: [String: Any]) {
+        // A member's « Cancel » (SyncRules.staysOn): the same title, which stays on.
+        if let stays = SyncRules.staysOn(data) {
+            guard stays == queue?.playlistItemId, staysOn != stays else { return }
+            staysOn = stays
+            if player != nil { member = (String(localized: "The group stays on this episode"), Date()) }
+            return
+        }
         guard let next = SyncRules.queueItem(data) else {
             queue = nil
             return

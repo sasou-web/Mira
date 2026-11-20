@@ -92,6 +92,8 @@ internal static class GuestTests
                 ("GET", "GetUtcTime", GuestRoutes.Access.Guest), ("GET", "SyncPlay/List", GuestRoutes.Access.Groups),
                 ("GET", $"SyncPlay/{Dashed}", GuestRoutes.Access.Group), ("POST", "SyncPlay/Join", GuestRoutes.Access.Join),
                 ("POST", "SyncPlay/Ready", GuestRoutes.Access.Guest), ("POST", "SyncPlay/SetIgnoreWait", GuestRoutes.Access.Guest),
+                // « Annuler » the countdown to the next episode: the whole group stays (Together.StayModes).
+                ("POST", "SyncPlay/SetRepeatMode", GuestRoutes.Access.Guest),
             };
             foreach (var (method, path, access) in open)
                 Assert(For(method, path) == access, $"{method} {path}: {For(method, path)}");

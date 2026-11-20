@@ -38,7 +38,7 @@ public sealed partial class PlayerPage
         };
         now.Click += (_, _) => PlayNextNow();
         var cancel = new Button { Classes = { "quiet" }, Content = L("Annuler", "Cancel"), Padding = new Thickness(14, 6), CornerRadius = new CornerRadius(17), FontSize = 14, FontWeight = FontWeight.SemiBold, BorderBrush = Ui.LineStrong, BorderThickness = new Thickness(1), Margin = new Thickness(8, 0, 0, 0) };
-        cancel.Click += (_, _) => { _skipText.Text = _skips.Cancel(); UpdateSkip(); };
+        cancel.Click += (_, _) => StayForAll();
         Avalonia.Automation.AutomationProperties.SetName(cancel, L("Annuler l’épisode suivant automatique", "Cancel the automatic next episode"));
         var buttons = Ui.Row(0, now, cancel); buttons.Margin = new Thickness(0, 9, 0, 0);
         var text = new StackPanel { Margin = new Thickness(18, 2, 4, 0), Children = { _nextCount, _nextTitle, _nextDetails, buttons } };

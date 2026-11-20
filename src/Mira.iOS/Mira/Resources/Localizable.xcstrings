@@ -3723,6 +3723,16 @@
         }
       }
     },
+    "The group stays on this episode": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le groupe reste sur cet épisode"
+          }
+        }
+      }
+    },
     "The group stopped playback.": {
       "localizations": {
         "fr": {

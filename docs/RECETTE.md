@@ -99,6 +99,7 @@ Key: 🖥 your PC · 🗄 Jellyfin’s PC · 📱 iPhone · 🍎 a friend’s Ma
 - [ ] Your party by the link (Funnel): Sam joins from Windows without an account
 - [ ] Same thing from an iPhone, then from the Mac
 - [ ] Pause, seek and next episode followed by everyone
+- [ ] “Cancel” on the next-episode countdown pressed by one member (Windows, then Mac): the card goes on every device, “The group stays on this episode” in the pill, and nobody starts the next one at the end (iPhone included)
 - [ ] Already playing, create the group then invite: the guest arrives at the same minute, without restarting
 - [ ] 20 min together through Funnel without a pause or playback looping (seeks, audio track change)
 - [ ] You in Sam’s party (his Jellyfin), from Mira for Windows

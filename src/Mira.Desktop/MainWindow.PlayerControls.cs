@@ -657,7 +657,7 @@ public partial class MainWindow
     {
         _sleep.Choose(minutes, DateTimeOffset.Now); ShowSleepStatus(); ShowPlayerControls();
         // A countdown to the next episode already running stops, as « Annuler » does.
-        if (_sleep.AtEnd && _skips.Counting) SkipCancel_Click(this, new RoutedEventArgs());
+        if (_sleep.AtEnd && _skips.Counting) StayOnEpisode();
     }
     private void ShowSleepStatus()
     {

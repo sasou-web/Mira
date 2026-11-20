@@ -43,6 +43,10 @@ internal static class PlayerTests
                 Assert(row[1].ValueKind == JsonValueKind.Null ? entry is null
                     : entry == new Together.Entry(row[1].GetProperty("itemId").GetString()!, row[1].GetProperty("playlistItemId").GetString()!, row[1].GetProperty("startTicks").GetInt64()), $"Queue: {entry}");
             }
+            // A member's « Annuler »: the group stays on its episode, said through its repeat mode.
+            foreach (var row in root.GetProperty("stays").EnumerateArray())
+                Assert(Together.StaysOn(row[0]) == (row[1].ValueKind == JsonValueKind.Null ? null : row[1].GetString()), $"Stays: {row[1]}");
+            Assert(Together.StayModes is ["RepeatOne", "RepeatNone"], "Stays: RepeatOne, then the group as it was");
             foreach (var row in root.GetProperty("groups").EnumerateArray())
                 Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupText(group) == row[1].GetString(), $"Group: {row[1]}");
             foreach (var row in root.GetProperty("names").EnumerateArray())

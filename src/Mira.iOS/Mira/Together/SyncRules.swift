@@ -93,6 +93,16 @@ enum SyncRules {
     /// Under half a second apart, a jump would be seen more than the gap.
     static func needsSeek(_ current: Double, _ target: Double) -> Bool { abs(current - target) >= 0.5 }
 
+    /// « Cancel » on the countdown to the next episode in a group (Windows, Mac): the whole group stays on its episode.
+    /// SyncPlay has no message of its own for it, so Mira says it through the group's repeat mode, which any member may
+    /// set and which Jellyfin sends to every device each time (checked on 12.1): RepeatOne, then RepeatNone straight after.
+    /// The PlaylistItemId the group stays on; nil for any other update. As Together.StaysOn of Core.
+    static func staysOn(_ data: [String: Any]) -> String? {
+        guard data["Reason"] as? String == "RepeatMode", data["RepeatMode"] as? String == "RepeatOne",
+              let entry = queueItem(data), !entry.playlistItemId.isEmpty else { return nil }
+        return entry.playlistItemId
+    }
+
     /// The title a PlayQueue update puts on; nil when it plays nothing.
     static func queueItem(_ data: [String: Any]) -> SyncQueue? {
         guard let list = data["Playlist"] as? [[String: Any]], let index = data["PlayingItemIndex"] as? Int, list.indices.contains(index),
