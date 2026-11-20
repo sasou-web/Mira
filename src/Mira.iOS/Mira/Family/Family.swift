@@ -299,14 +299,17 @@ final class Family {
         if through, !(await reach(trial, key: card.link?.key)) { return }
         guard let api = api(trial) else { return }
         // The Jellyfin the link names, and no other: its own id first.
-        let id = await api.serverId()
+        let info = await api.serverInfo()
+        let id = info?.id
         if let wanted = card.serverId, HomeLink.plain(id ?? "") != HomeLink.plain(wanted) {
             said = id == nil ? HomeText.unreachable(card.name) : HomeText.notThisServer(card.name)
             return
         }
         do {
             let joined = try await api.join(password: password, name: String(localized: "Mira on \(UIDevice.current.model)"))
-            save(HomeMembership(server: card.server, serverId: id ?? card.serverId, name: card.name, token: joined.token, deviceId: joined.deviceId,
+            // A short link names no server: its own name, read from it.
+            let named = card.serverId == nil ? info?.serverName.flatMap { $0.isEmpty ? nil : $0 } : nil
+            save(HomeMembership(server: card.server, serverId: id ?? card.serverId, name: named ?? card.name, token: joined.token, deviceId: joined.deviceId,
                                 throughTailnet: through, profiles: joined.profiles, current: nil))
             showHall()
         } catch let refused as HomeRefused {
