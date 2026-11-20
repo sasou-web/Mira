@@ -69,7 +69,7 @@ public static partial class GuestRoutes
         ("GET", Route("syncplay/list"), Access.Groups),
         ("GET", Route($"syncplay/(?:{Id})"), Access.Group),
         ("POST", Route("syncplay/join"), Access.Join),
-        ("POST", Route("syncplay/(?:leave|pause|unpause|seek|buffering|ready|ping|setignorewait)"), Access.Guest),
+        ("POST", Route("syncplay/(?:leave|pause|unpause|seek|buffering|ready|ping|setignorewait|setrepeatmode)"), Access.Guest),
     ];
 
     private static Regex Route(string path) => new("^" + path + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));

@@ -202,7 +202,7 @@ public sealed partial class PlayerPage : UserControl
         _skip.Click += (_, _) => Skip();
         _skipText.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) Avalonia.Automation.AutomationProperties.SetName(_skip, _skipText.Text); };
         _skipCancel = new Button { Classes = { "pill" }, Content = L("Annuler", "Cancel"), IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
-        _skipCancel.Click += (_, _) => { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; };
+        _skipCancel.Click += (_, _) => StayForAll();
         ToolTip.SetTip(_skipCancel, L("Rester sur cet épisode", "Stay on this episode"));
         _skipHost = Ui.Row(0, MakeNextCard(), _skipCancel, _skip);
         _skipHost.HorizontalAlignment = HorizontalAlignment.Right; _skipHost.VerticalAlignment = VerticalAlignment.Bottom; _skipHost.Margin = new Thickness(0, 0, 36, 36);
@@ -1289,6 +1289,26 @@ public sealed partial class PlayerPage : UserControl
         var text = said ?? status?.Text;
         if (text is not null) { _groupText.Text = text; _groupPill.IsVisible = true; }
         _groupPill.Opacity = !_mini && text is not null && (said is not null || status!.Alert || _controlsShown) ? 1 : 0;
+    }
+    /// <summary>
+    /// « Annuler »: this episode stays on, and in a group the whole group stays, since every device counts down and the
+    /// first one done puts the next episode on for all (Together.StayModes, heard by <see cref="GroupStays"/> on the others).
+    /// </summary>
+    private void StayForAll()
+    {
+        _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; UpdateSkip();
+        if (Group.PlaysFor(this)) foreach (var mode in Together.StayModes) Group.Send("SetRepeatMode", new JsonObject { ["Mode"] = mode });
+    }
+    /// <summary>
+    /// Someone in the group pressed « Annuler »: this Mac stays on the episode too, its countdown stopped (or never
+    /// started: the devices are a moment apart), and the pill says why the card went.
+    /// </summary>
+    public void GroupStays()
+    {
+        if (_skips.Stay) return;
+        if (_skips.Counting) { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; UpdateSkip(); }
+        else _skips.Stay = true;
+        ShowMember(Together.StayText);
     }
     public void ShowMember(string said) { _groupMember = said; _groupMemberUntil = DateTimeOffset.UtcNow.AddSeconds(4); ShowGroup(); }
     /// <summary>A command of the group, for the title playing here only: the Stop sent on joining names none.</summary>

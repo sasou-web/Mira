@@ -64,6 +64,10 @@ struct TogetherTests {
                 #expect(found == nil)
             }
         }
+        // A member's Cancel on the countdown: the group stays on its episode.
+        for case let entry as [Any] in try #require(fixture["stays"] as? [Any]) {
+            #expect(SyncRules.staysOn(entry[0] as? [String: Any] ?? [:]) == entry[1] as? String)
+        }
         for case let entry as [Any] in try #require(fixture["hosts"] as? [Any]) {
             #expect(SyncRules.groupHost(entry[0] as? String) == entry[1] as? String, "\(entry)")
         }

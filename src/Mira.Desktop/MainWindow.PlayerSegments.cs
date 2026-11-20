@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Media;
@@ -43,9 +44,28 @@ public partial class MainWindow
     }
     private void SkipCancel_Click(object sender, RoutedEventArgs e)
     {
-        // Stay on this episode: no countdown, and no automatic jump when it ends.
+        StayOnEpisode();
+        // In a group every device counts down, and the first one done puts the next episode on for all: the whole group
+        // stays (Together.StayModes, heard by GroupStays on the others).
+        if (PlayingForGroup) foreach (var mode in Together.StayModes) SendGroup("SetRepeatMode", new JsonObject { ["Mode"] = mode });
+    }
+    /// <summary>Stay on this episode: no countdown, and no automatic jump when it ends.</summary>
+    private void StayOnEpisode()
+    {
         SkipText.Text = _skips.Cancel();
         _ = Motion.HideAsync(SkipCancel, 140);
+    }
+    /// <summary>
+    /// Someone in the group pressed « Annuler »: this PC stays on the episode too, its countdown stopped (or never started:
+    /// the devices are a moment apart), and the pill says why the card went.
+    /// </summary>
+    private void GroupStays(string playlistItemId)
+    {
+        if (_groupQueue?.PlaylistItemId != playlistItemId || !PlayingForGroup || _skips.Stay) return;
+        if (_skips.Counting) { StayOnEpisode(); UpdateSkip(); }
+        else _skips.Stay = true;
+        _groupMember = Together.StayText; _groupMemberUntil = DateTimeOffset.UtcNow.AddSeconds(4);
+        UpdateGroupPill();
     }
     private async Task LoadServerMarkersAsync(MediaItem item, int generation)
     {

@@ -784,6 +784,11 @@ final class PlayerSession: NSObject {
         }
         // In a group, every device reaches the end: the next one is put on for the group once, and comes back here.
         if let together, together.group != nil {
+            // Someone pressed Cancel on the countdown (Windows, Mac): the group stays on this episode, which ends here.
+            if !asked, together.stays {
+                close()
+                return
+            }
             if together.queue?.itemId == item.id { await together.start(next.id, startTicks: 0) }
             return
         }

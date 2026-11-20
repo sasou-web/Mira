@@ -196,6 +196,12 @@ public sealed class WatchGroup
     /// <summary>The group's title: put on here too, paused where it starts until Jellyfin says when to play.</summary>
     private async Task QueueAsync(Session session, JsonElement data)
     {
+        // A member's « Annuler » (Together.StayModes): the same title, which stays on.
+        if (Together.StaysOn(data) is { } stays)
+        {
+            if (Queue?.PlaylistItemId == stays && _shell.Player is { } playing && PlaysFor(playing)) playing.GroupStays();
+            return;
+        }
         if (Together.QueueItem(data) is not { } next) { if (Queue is not null) { Queue = null; Changed?.Invoke(); } return; }
         var same = Queue?.PlaylistItemId == next.PlaylistItemId;
         // Shuffle, repeat or the list changed around the same title: nothing to load again. Unless this Mac is back in the

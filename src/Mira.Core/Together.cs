@@ -163,6 +163,21 @@ public static class Together
         };
     }
     /// <summary>« Marc a rejoint le groupe », « Marc a quitté le groupe ».</summary>
+    /// <summary>
+    /// « Annuler » the countdown to the next episode in a group: the whole group stays on its episode. SyncPlay has no
+    /// message of its own for it, so Mira says it through the group's repeat mode, which any member may set and which
+    /// Jellyfin sends to every device each time it is set (checked on 12.1): <see cref="StayModes"/>, RepeatOne then
+    /// RepeatNone straight after, so that the group is left as it was (another client would play the episode again).
+    /// </summary>
+    public static readonly string[] StayModes = ["RepeatOne", "RepeatNone"];
+    /// <summary>
+    /// The PlayQueue update of a member's « Annuler » (<see cref="StayModes"/>): the group stays on the title it names,
+    /// with its PlaylistItemId (a late one for the episode before is not this one). Null for any other update.
+    /// </summary>
+    public static string? StaysOn(JsonElement data) =>
+        Text(data, "Reason") == "RepeatMode" && Text(data, "RepeatMode") == StayModes[0] && QueueItem(data) is { PlaylistItemId.Length: > 0 } entry ? entry.PlaylistItemId : null;
+    /// <summary>What the player's pill says on the other devices.</summary>
+    public static string StayText => L("Le groupe reste sur cet épisode", "The group stays on this episode");
     public static string MemberText(string name, bool joined) => joined ? L($"{name} a rejoint le groupe", $"{name} joined the group") : L($"{name} a quitté le groupe", $"{name} left the group");
     /// <summary>
     /// Lecture of <paramref name="itemId"/> while the group has another title on, not over (Idle): asked first, rather

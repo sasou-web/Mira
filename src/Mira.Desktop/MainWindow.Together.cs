@@ -248,6 +248,8 @@ public partial class MainWindow
     /// <summary>The group's title: put on here too, paused where it starts until Jellyfin says when to play.</summary>
     private async Task GroupQueueAsync(JellyfinClient client, JsonElement data)
     {
+        // A member's « Annuler » (Together.StayModes): the same title, which stays on.
+        if (Together.StaysOn(data) is { } stays) { GroupStays(stays); return; }
         if (Together.QueueItem(data) is not { } next) { if (_groupQueue is not null) { _groupQueue = null; GroupChanged(); } return; }
         var same = _groupQueue?.PlaylistItemId == next.PlaylistItemId;
         // Shuffle, repeat or the list changed around the same title: nothing to load again. Unless this PC is back in the
