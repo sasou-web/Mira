@@ -17,7 +17,7 @@ namespace Mira.Mac.Views;
 /// </summary>
 public sealed partial class SettingsPage
 {
-    private bool _securityAllShown;
+    private bool _securityAllShown, _securityDevicesShown;
     private bool _fixing;
 
     /// <summary>The section, its dot in the list, drawn again each time the accounts and devices are read.</summary>
@@ -48,7 +48,7 @@ public sealed partial class SettingsPage
         {
             var problem = Shell.SecurityProblem;
             var column = Ui.Column(12, Description(problem.Length > 0 ? problem : SecurityText.Reading, 0));
-            if (problem.Length > 0) { var again = Ui.Action(L("Réessayer", "Try again"), null, "", () => _ = Shell.ReadSecurityAsync(again: true)); again.HorizontalAlignment = HorizontalAlignment.Left; column.Children.Add(again); }
+            if (problem.Length > 0) { var again = Ui.Action(L("Réessayer", "Try again"), null, "", async () => await Shell.ReadSecurityAsync(again: true)); again.HorizontalAlignment = HorizontalAlignment.Left; column.Children.Add(again); }
             page.Children.Add(Card(column));
             return;
         }
@@ -60,7 +60,7 @@ public sealed partial class SettingsPage
         if (report.Server?.Internet is { } internet)
         {
             page.Children.Add(Label(SecurityText.Server, null));
-            page.Children.Add(ServerRow("globe", SecurityText.InternetTitle(internet.Open), SecurityText.InternetLine(internet.Open), internet.Open, () => _ = CloseInternetAsync(null, 0)));
+            page.Children.Add(ServerRow("globe", SecurityText.InternetTitle(internet.Open), SecurityText.InternetLine(internet.Open), internet.Open, async () => await CloseInternetAsync(null, 0)));
         }
 
         page.Children.Add(Label(SecurityText.Accounts + " · " + report.Accounts.Count.ToString(Lang.Culture), null));
@@ -78,16 +78,27 @@ public sealed partial class SettingsPage
         }
 
         Button? others = null;
-        if (report.Devices.Any(x => !x.This)) { others = Ui.Action(SecurityText.SignOutAll, null, "quiet", () => _ = SignOutOthersAsync()); others.FontSize = 12.5; }
+        if (report.Devices.Any(x => !x.This)) { others = Ui.Action(SecurityText.SignOutAll, null, "quiet", async () => await SignOutOthersAsync()); others.FontSize = 12.5; }
         page.Children.Add(Label(SecurityText.Devices + " · " + report.Devices.Count.ToString(Lang.Culture), others));
-        foreach (var device in report.Devices) page.Children.Add(DeviceRow(device, report.Checked));
+        // Many devices (34 on ogsas's server): the first ones, then « Show all », as on Windows.
+        var foldDevices = report.Devices.Count > 8 && !_securityDevicesShown;
+        foreach (var device in foldDevices ? report.Devices.Take(6) : report.Devices) page.Children.Add(DeviceRow(device, report.Checked));
+        if (foldDevices)
+        {
+            var line = new DockPanel();
+            var all = Ui.Action(L("Tout afficher", "Show all"), null, "quiet", () => { _securityDevicesShown = true; DrawSecurity(); });
+            all.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(all, Dock.Right); line.Children.Add(all);
+            line.Children.Add(new TextBlock { Text = L($"{report.Devices.Count - 6} autres appareils", $"{report.Devices.Count - 6} more devices"), FontSize = 12, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center });
+            page.Children.Add(Small(line));
+        }
         page.Children.Add(Description(SecurityText.SignOutNote, 0));
 
         Control Banner()
         {
             var bad = issues.Count > 0;
             var line = new DockPanel();
-            var act = bad ? Ui.Action(SecurityText.FixAll, null, "primary", () => _ = FixAllAsync()) : Ui.Action(SecurityText.CheckAgain, null, "", () => _ = Shell.ReadSecurityAsync(again: true));
+            var act = bad ? Ui.Action(SecurityText.FixAll, null, "primary", async () => await FixAllAsync()) : Ui.Action(SecurityText.CheckAgain, null, "", async () => await Shell.ReadSecurityAsync(again: true));
             act.VerticalAlignment = VerticalAlignment.Center; act.Margin = new Thickness(14, 0, 0, 0);
             DockPanel.SetDock(act, Dock.Right); line.Children.Add(act);
             var icon = new Icon(bad ? "warning" : "check", 20) { Foreground = bad ? Ui.Warning : Ui.Success, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -114,8 +125,8 @@ public sealed partial class SettingsPage
     {
         var line = new DockPanel();
         Button? act = null;
-        if (account.You) act = Ui.Action(account.NoPassword ? SecurityText.ChooseOwn : SecurityText.Change, null, account.Weak ? "primary" : "", () => _ = ChangeOwnAsync(account, null, 0));
-        else if (account.Weak) act = Ui.Action(SecurityText.Protect, null, "primary", () => _ = ProtectAsync(account, null, 0));
+        if (account.You) act = Ui.Action(account.NoPassword ? SecurityText.ChooseOwn : SecurityText.Change, null, account.Weak ? "primary" : "", async () => await ChangeOwnAsync(account, null, 0));
+        else if (account.Weak) act = Ui.Action(SecurityText.Protect, null, "primary", async () => await ProtectAsync(account, null, 0));
         if (act is not null)
         {
             act.VerticalAlignment = VerticalAlignment.Center; act.Margin = new Thickness(12, 0, 0, 0);
@@ -224,7 +235,7 @@ public sealed partial class SettingsPage
         var line = new DockPanel();
         if (!device.This)
         {
-            var sign = Ui.Action(SecurityText.SignOut, null, "quiet", () => _ = SignOutAsync(device));
+            var sign = Ui.Action(SecurityText.SignOut, null, "", async () => await SignOutAsync(device));
             sign.VerticalAlignment = VerticalAlignment.Center; sign.Margin = new Thickness(12, 0, 0, 0);
             Avalonia.Automation.AutomationProperties.SetName(sign, SecurityText.SignOut + " · " + device.Name);
             DockPanel.SetDock(sign, Dock.Right); line.Children.Add(sign);
@@ -453,6 +464,7 @@ public sealed partial class SettingsPage
                 if (issues[i].Server == ServerOpening.Internet) go = await CloseInternetAsync(step, progress);
                 else if (issues[i].Server is not null) go = true;
                 else if (issues[i].Account is { You: true } you) go = await ChangeOwnAsync(you, step, progress);
+                else if (issues[i].Account is { Way: AccountWay.Password } plain) go = await ProtectAsync(plain, step, progress);
                 else if (issues[i].Account is { } account) go = await LockStepAsync(session, account, step, progress);
                 else go = await DeviceStepAsync(session, issues[i].Device!, report.Checked, step, progress);
                 if (!go) break;
@@ -464,7 +476,8 @@ public sealed partial class SettingsPage
 
     private async Task<bool> LockStepAsync(Session session, SecurityAccount account, string step, double progress)
     {
-        var who = Small(Ui.Column(2, new TextBlock { Text = account.Name, FontSize = 14, FontWeight = FontWeight.SemiBold }, Description(SecurityText.Line(account), 0)));
+        // The name alone: the card's note already says anyone can open it.
+        var who = Small(new TextBlock { Text = account.Name, FontSize = 14, FontWeight = FontWeight.SemiBold });
         who.Background = Ui.Raised; who.Margin = new Thickness(0, 0, 0, 14);
         var status = Status();
         var body = Ui.Column(0, who, new TextBlock { Text = SecurityText.LockAbout(account), FontSize = 13.5, Foreground = Ui.TextBody, TextWrapping = TextWrapping.Wrap },
