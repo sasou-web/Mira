@@ -29,6 +29,7 @@
     <Compile Include="../../src/Mira.Jellyfin/HomeFamily.cs" Link="Plugin/HomeFamily.cs" />
     <Compile Include="../../src/Mira.Jellyfin/HomeTailnet.cs" Link="Plugin/HomeTailnet.cs" />
     <Compile Include="../../src/Mira.Jellyfin/HomePolicyFix.cs" Link="Plugin/HomePolicyFix.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/FriendInvites.cs" Link="Plugin/FriendInvites.cs" />
     <Compile Include="../../src/Mira.Jellyfin/TailscaleApi.cs" Link="Plugin/TailscaleApi.cs" />
     <Compile Include="../../src/Mira.Jellyfin/PartyPage.cs" Link="Plugin/PartyPage.cs" />
     <Compile Include="../../src/Mira.Jellyfin/TunnelCheck.cs" Link="Plugin/TunnelCheck.cs" />

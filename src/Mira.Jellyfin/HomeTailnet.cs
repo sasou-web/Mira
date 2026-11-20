@@ -26,6 +26,11 @@ public sealed class HomeTailnet
     /// <summary>The tag of the family's devices on the tailnet: their keys carry it, the policy limits it to Jellyfin.</summary>
     public const string Tag = "tag:mira-home";
     /// <summary>
+    /// The tag of friends' devices, joined by an invitation (<see cref="FriendInvites"/>): owned by <see cref="Tag"/> so
+    /// the home's OAuth client makes their keys too, limited to Jellyfin like it, apart so friends can be listed and cut off.
+    /// </summary>
+    public const string FriendTag = "tag:mira-friend";
+    /// <summary>
     /// The OAuth client's scopes: keys of the tag, the tag's devices (listed, deleted), and the policy, which Mira reads
     /// before every link and puts right itself when the administrator asks (<see cref="HomePolicyFix"/>).
     /// </summary>
@@ -326,7 +331,7 @@ public sealed class HomeTailnet
     /// any address or range that may be one of the tailnet's, anything not understood) must lead only to that port of
     /// that address, through TCP; no SSH rule may hold it; a grant with an app capability or a « via » is refused.
     /// </summary>
-    public static (Verdict Verdict, IReadOnlyList<OpenRule> Open) CheckPolicy(JsonNode? policy, string server, int port)
+    public static (Verdict Verdict, IReadOnlyList<OpenRule> Open) CheckPolicy(JsonNode? policy, string server, int port, string tag = Tag)
     {
         if (policy is not JsonObject root)
         {
@@ -334,7 +339,7 @@ public sealed class HomeTailnet
         }
 
         var hosts = Section(root, "hosts") as JsonObject;
-        if (Section(root, "tagOwners") is not JsonObject owners || !owners.Any(x => string.Equals(x.Key, Tag, StringComparison.OrdinalIgnoreCase)))
+        if (Section(root, "tagOwners") is not JsonObject owners || !owners.Any(x => string.Equals(x.Key, tag, StringComparison.OrdinalIgnoreCase)))
         {
             return (Verdict.NoTag, []);
         }
@@ -353,7 +358,7 @@ public sealed class HomeTailnet
                 }
 
                 var sources = Strings(Field(row, "src") ?? Field(row, "users"));
-                if (!sources.Any(x => MayHold(x, hosts)))
+                if (!sources.Any(x => MayHold(x, hosts, tag)))
                 {
                     continue;
                 }
@@ -385,7 +390,7 @@ public sealed class HomeTailnet
                 }
 
                 var sources = Strings(Field(row, "src"));
-                if (!sources.Any(x => MayHold(x, hosts)))
+                if (!sources.Any(x => MayHold(x, hosts, tag)))
                 {
                     continue;
                 }
@@ -411,7 +416,7 @@ public sealed class HomeTailnet
             foreach (var rule in ssh)
             {
                 number++;
-                if (rule is JsonObject row && Strings(Field(row, "src")) is var sources && sources.Any(x => MayHold(x, hosts)))
+                if (rule is JsonObject row && Strings(Field(row, "src")) is var sources && sources.Any(x => MayHold(x, hosts, tag)))
                 {
                     open.Add(new OpenRule("ssh", number, sources));
                 }
@@ -426,10 +431,13 @@ public sealed class HomeTailnet
         return (reaches ? Verdict.Ok : Verdict.NoAccess, []);
     }
 
-    /// <summary>What to add to the policy, once, as the administrator pastes it: the tag's owners, and the one rule.</summary>
-    public static (string TagOwners, string Grant) Setup(string server, int port) =>
-        ($"\"{Tag}\": [\"autogroup:admin\"]",
-         $"{{\"src\": [\"{Tag}\"], \"dst\": [\"{server}\"], \"ip\": [\"tcp:{port.ToString(System.Globalization.CultureInfo.InvariantCulture)}\"]}}");
+    /// <summary>
+    /// What to add to the policy, once, as the administrator pastes it: the tag's owners, and the one rule. Friends' tag is
+    /// owned by the home's too: the home's OAuth client, made with the home's tag, makes friends' keys.
+    /// </summary>
+    public static (string TagOwners, string Grant) Setup(string server, int port, string tag = Tag) =>
+        (tag == FriendTag ? $"\"{tag}\": [\"autogroup:admin\", \"{Tag}\"]" : $"\"{tag}\": [\"autogroup:admin\"]",
+         $"{{\"src\": [\"{tag}\"], \"dst\": [\"{server}\"], \"ip\": [\"tcp:{port.ToString(System.Globalization.CultureInfo.InvariantCulture)}\"]}}");
 
     private static JsonNode? Section(JsonObject root, string name) =>
         root.FirstOrDefault(x => string.Equals(x.Key, name, StringComparison.OrdinalIgnoreCase)).Value;
@@ -453,10 +461,10 @@ public sealed class HomeTailnet
     };
 
     /// <summary>Whether a rule's source may hold a device of <see cref="Tag"/>.</summary>
-    private static bool MayHold(string source, JsonObject? hosts)
+    private static bool MayHold(string source, JsonObject? hosts, string tag)
     {
         var plain = source.Trim();
-        if (plain == "*" || string.Equals(plain, Tag, StringComparison.OrdinalIgnoreCase))
+        if (plain == "*" || string.Equals(plain, tag, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -623,5 +631,11 @@ public sealed class HomeTailnet
     }
 }
 
-/// <summary>A node of the tailnet as the extension reads it: its id for the API, its addresses, whether it has the home's tag.</summary>
-public sealed record TailnetDevice(string Id, string Name, IReadOnlyList<string> Addresses, bool Tagged, DateTimeOffset? Created, DateTimeOffset? LastSeen);
+/// <summary>
+/// A node of the tailnet as the extension reads it: its id for the API, its addresses, whether it has one of Mira's tags
+/// (the home's or friends'), and whether that is friends' (<see cref="HomeTailnet.FriendTag"/>).
+/// </summary>
+public sealed record TailnetDevice(string Id, string Name, IReadOnlyList<string> Addresses, bool Tagged, DateTimeOffset? Created, DateTimeOffset? LastSeen)
+{
+    public bool Friend { get; init; }
+}

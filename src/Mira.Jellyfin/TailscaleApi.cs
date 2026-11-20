@@ -112,8 +112,11 @@ public sealed class TailscaleApi
     public async Task SetPolicyAsync(string text, string? version, CancellationToken cancellationToken) =>
         await SendAsync(HttpMethod.Post, "/api/v2/tailnet/-/acl", text, cancellationToken, "application/hujson", version).ConfigureAwait(false);
 
-    /// <summary>A key for one device, preauthorized, of the home's tag, that ends after <paramref name="life"/>: its secret, its id, its end.</summary>
-    public async Task<(string Key, string Id, DateTimeOffset Expires)> CreateKeyAsync(TimeSpan life, CancellationToken cancellationToken)
+    /// <summary>
+    /// A key for one device, preauthorized, of the home's tag (or <paramref name="tag"/>, friends'), that ends after
+    /// <paramref name="life"/>: its secret, its id, its end.
+    /// </summary>
+    public async Task<(string Key, string Id, DateTimeOffset Expires)> CreateKeyAsync(TimeSpan life, CancellationToken cancellationToken, string tag = HomeTailnet.Tag)
     {
         var body = new JsonObject
         {
@@ -126,12 +129,12 @@ public sealed class TailscaleApi
                         ["reusable"] = false,
                         ["ephemeral"] = false,
                         ["preauthorized"] = true,
-                        ["tags"] = new JsonArray(HomeTailnet.Tag),
+                        ["tags"] = new JsonArray(tag),
                     },
                 },
             },
             ["expirySeconds"] = (long)life.TotalSeconds,
-            ["description"] = "Mira home link",
+            ["description"] = tag == HomeTailnet.FriendTag ? "Mira friend link" : "Mira home link",
         };
         var text = await SendAsync(HttpMethod.Post, "/api/v2/tailnet/-/keys", body.ToJsonString(), cancellationToken).ConfigureAwait(false);
         if (Parse(text) is not JsonObject key || Str(key["key"]) is not { Length: > 0 } secret)
@@ -158,21 +161,43 @@ public sealed class TailscaleApi
             return [];
         }
 
+        static bool Has(JsonObject device, string tag) =>
+            (device["tags"] as JsonArray)?.Any(t => string.Equals(Str(t), tag, StringComparison.OrdinalIgnoreCase)) == true;
         return devices.OfType<JsonObject>().Select(x => new TailnetDevice(
                 Str(x["id"]) ?? "",
                 Str(x["hostname"]) ?? Str(x["name"]) ?? "",
                 (x["addresses"] as JsonArray)?.Select(a => Str(a)).OfType<string>().ToList() ?? [],
-                (x["tags"] as JsonArray)?.Any(t => string.Equals(Str(t), HomeTailnet.Tag, StringComparison.OrdinalIgnoreCase)) == true,
+                Has(x, HomeTailnet.Tag) || Has(x, HomeTailnet.FriendTag),
                 Time(x["created"]),
-                Time(x["lastSeen"])))
+                Time(x["lastSeen"]))
+        { Friend = Has(x, HomeTailnet.FriendTag) })
             .Where(x => x.Id.Length > 0)
             .ToList();
+    }
+
+    /// <summary>A key not used yet revoked (an invitation cancelled): true when it is gone (or was already).</summary>
+    public async Task<bool> DeleteKeyAsync(string id, CancellationToken cancellationToken)
+    {
+        if (id.Length is 0 or > 128 || !id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+        {
+            return false;
+        }
+
+        try
+        {
+            await SendAsync(HttpMethod.Delete, "/api/v2/tailnet/-/keys/" + id, null, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (TailscaleException error) when (error.Failure == Failure.Gone)
+        {
+            return true;
+        }
     }
 
     /// <summary>A device deleted from the tailnet: true when it is gone (or was already).</summary>
     public async Task<bool> DeleteAsync(TailnetDevice device, CancellationToken cancellationToken)
     {
-        // Never a device without the home's tag, whatever the caller asks.
+        // Never a device without one of Mira's tags, whatever the caller asks.
         if (!device.Tagged)
         {
             return false;
