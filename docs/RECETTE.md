@@ -31,6 +31,7 @@ Key: 🖥 your PC · 🗄 Jellyfin’s PC · 📱 iPhone · 🍎 a friend’s Ma
 ## Your PC 🖥
 - [ ] Slow player opening (from 0.9.15): a heavy movie away from home (conversion); after a second, a spinner on black instead of a black screen; Esc during the wait brings back the title page (not Home); started again right away, it opens. During the end-of-episode countdown left to run, Esc while the next one is being prepared: the player doesn’t come back. C key on a converted movie with PGS subtitles: off then back; the next episode keeps the choice.
 - [ ] Extras kept out of “Continue watching” (from 0.9.15): start a Monogatari opening (Extras pill), stop it halfway; it isn’t in “Continue watching”, neither during the mini player nor after restarting Mira; same for a trailer before a movie stopped midway
+- [ ] Subtitles kept on Jellyfin at once (from the version after 0.9.16): in an episode, subtitles → “Keep on Jellyfin” on, “Load a file…” with a `.fr.srt`: “Sending…” then “Subtitles kept on Jellyfin, in French…” on the video; the next time the episode plays (or on the iPhone), the track is offered; switch off: nothing sent
 - [ ] Mira update offered and done (at the next version)
 - [ ] A series’ extras (“The pill”): on Monogatari Series, “Extras” pill after season 14; a click shows Openings and Endings, one row each, “Show all” expands them; a thumbnail plays the opening/ending; a movie keeps its “Extras” row (Mac and iPhone the same)
 - [ ] Player: “Cinema” picture without stutter on a 4K movie; Info says “Cinema”

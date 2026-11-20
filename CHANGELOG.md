@@ -6,6 +6,7 @@
 
 - **The PIN editor says what it wants, and its error shows under it (Windows, Mac)**: turning “In the home” on for an administrator opens the PIN box with a line that says why (an administrator joins the home only with a PIN); “A PIN is 4 digits.” and any refusal now show right under the box instead of below the whole list of profiles, out of sight; Enter saves on Windows too. Seen on the Dell in 0.9.16.
 - **The proof key is sealed as soon as Jellyfin starts (extension)**: a `Mira.proof.key` left in clear by 0.9.15 or older was only sealed once an app first asked for a proof; it now is at start, like the home's and the guests' files.
+- **Subtitles you load are kept on Jellyfin right away (Windows, Mac)**: “Keep on Jellyfin” used to be offered in a notice after “Load a file…”, which the video hid until you left the player. It is now a switch just under “Load a file…”, on by default: the file goes to Jellyfin as soon as you load it, and the player says so on the video, “kept” only once Jellyfin lists the new track. Checked on Jellyfin 12.1 in a container; never on the Dell or a real Mac.
 
 ## 0.9.16 — 2026-11-20
 

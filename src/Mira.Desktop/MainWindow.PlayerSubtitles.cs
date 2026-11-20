@@ -9,8 +9,8 @@ using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
-// « Sous-titres gardés sur Jellyfin » in the player (JellyfinSubtitles): a file loaded with « Charger un fichier… » can
-// be kept on Jellyfin, which every device then offers; « Chercher des sous-titres… », shown only when Jellyfin has a
+// « Sous-titres gardés sur Jellyfin » in the player (JellyfinSubtitles): a file loaded with « Charger un fichier… » is
+// kept on Jellyfin while « Garder sur Jellyfin », under it, is on, which every device then offers; « Chercher des sous-titres… », shown only when Jellyfin has a
 // subtitle extension, says what leaves the server, asks it, keeps the one picked and plays it.
 public partial class MainWindow
 {
@@ -119,12 +119,12 @@ public partial class MainWindow
             var kept = await client.KeepRemoteSubtitleAsync(item.Id, subtitle, ct);
             var said = JellyfinSubtitles.KeptText(kept, subtitle.Language);
             if (kept is SubtitleKept.Refused or SubtitleKept.NotWritten or SubtitleKept.Unavailable) { SubtitleSearchStatus.Text = said; return; }
-            SubtitleSearchStatus.Text = L("Jellyfin lit le nouveau fichier…", "Jellyfin is reading the new file…");
+            SubtitleSearchStatus.Text = JellyfinSubtitles.ReadingText;
             var arrived = await client.KeptSubtitleAsync(item.Id, sourceId, before, TimeSpan.FromSeconds(30), ct);
             if (generation != _playGeneration) return;
             PlayerOptionsPopup.IsOpen = false;
-            if (arrived is not null && sourceId is not null && PlayKeptSubtitle(client, item.Id, sourceId, arrived)) SetNotice(said);
-            else SetNotice(arrived is null ? said + L(" Jellyfin ne le montre pas encore : il sera proposé à la prochaine lecture.", " Jellyfin doesn’t list them yet: they’ll be offered the next time you play this.") : said + L(" Choisis-le à la prochaine lecture.", " Choose them the next time you play this."));
+            if (arrived is not null && sourceId is not null && PlayKeptSubtitle(client, item.Id, sourceId, arrived)) SaySubtitle(said, 8);
+            else SaySubtitle(arrived is null ? said + JellyfinSubtitles.NotListedText : said + L(" Choisis-le à la prochaine lecture.", " Choose them the next time you play this."), 8);
         }
         catch (Exception e) when (IsExpected(e)) { if (generation == _playGeneration) SubtitleSearchStatus.Text = SubtitleError(e); }
         finally { _keepingSubtitle = false; SubtitleResultList.IsEnabled = SubtitleLanguageList.IsEnabled = true; }
@@ -140,34 +140,58 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// After « Charger un fichier… »: the file plays here only, so Mira offers to keep it on Jellyfin, for an account
-    /// allowed to, when its format is one Jellyfin keeps. Its language comes from its name (« Film.fr.srt »), else from
-    /// the subtitle preferences, and is said once kept.
+    /// After « Charger un fichier… »: with « Garder sur Jellyfin » on (<see cref="PlayerSettings.KeepLoadedSubtitles"/>), for
+    /// an account allowed to and a format Jellyfin keeps, the file is sent at once, then looked for in Jellyfin's list;
+    /// each step is said on the video, where it is seen (the window's notice sits behind mpv). Its language comes from
+    /// its name (« Film.fr.srt »), else from the subtitle preferences. The same file is sent once per title.
     /// </summary>
-    private async Task OfferToKeepSubtitleAsync(string file)
+    private async Task KeepLoadedSubtitleAsync(string file)
     {
-        if (_demo || _client is not { } client || _session.Item is not { } item) return;
+        if (_demo || !_settings.KeepLoadedSubtitles || _client is not { } client || _session.Item is not { } item) return;
         if (JellyfinSubtitles.Guess(Path.GetFileName(file), _settings.SubtitleLanguage) is not { } guess) return;
-        var generation = _playGeneration;
-        bool? allowed;
-        try { allowed = await client.CanManageSubtitlesAsync(_connectionLifetime.Token); }
-        catch (Exception e) when (IsExpected(e)) { return; }
-        if (allowed == false || generation != _playGeneration || client != _client) return;
-        SetNotice(JellyfinSubtitles.LoadedText, L("Garder sur Jellyfin", "Keep on Jellyfin"),
-            () => _ = KeepLoadedSubtitleAsync(client, item.Id, file, guess), sticky: false);
-    }
-    private async Task KeepLoadedSubtitleAsync(JellyfinClient client, string itemId, string file, (string Format, string Language, bool Forced, bool HearingImpaired) guess)
-    {
-        SubtitleUpload? upload;
-        try { upload = await JellyfinSubtitles.ReadAsync(file, guess); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { SetNotice(JellyfinSubtitles.UnreadableText); return; }
-        if (upload is null) { SetNotice(JellyfinSubtitles.TooBigText); return; }
-        SetNotice(L("Envoi des sous-titres à Jellyfin…", "Sending the subtitles to Jellyfin…"));
+        var sent = (item.Id, Path.GetFullPath(file));
+        if (!_subtitlesSent.Add(sent)) return;
+        var generation = _playGeneration; var sourceId = _session.Source?.Id;
         try
         {
-            var kept = await client.KeepSubtitleAsync(itemId, upload, _connectionLifetime.Token);
-            SetNotice(JellyfinSubtitles.KeptText(kept, guess.Language));
+            if (await client.CanManageSubtitlesAsync(_connectionLifetime.Token) == false) { _subtitlesSent.Remove(sent); return; }
+            var (said, failed) = await JellyfinSubtitles.KeepLoadedAsync(client, item.Id, sourceId, file, guess,
+                step => { if (generation == _playGeneration) SaySubtitle(step, 0); }, TimeSpan.FromSeconds(30), _connectionLifetime.Token);
+            if (failed) _subtitlesSent.Remove(sent);
+            SaySubtitle(said, 8, failed, generation);
         }
-        catch (Exception e) when (IsExpected(e)) { SetNotice(L("Jellyfin n’a pas gardé ces sous-titres. ", "Jellyfin didn’t keep these subtitles. ") + Friendly(e)); }
+        catch (Exception e) when (IsExpected(e)) { _subtitlesSent.Remove(sent); SaySubtitle(JellyfinSubtitles.NotKeptText + Friendly(e), 8, true, generation); }
+    }
+    /// <summary>Files of this run already kept on Jellyfin, by title: loaded again, they are not sent twice.</summary>
+    private readonly HashSet<(string Item, string File)> _subtitlesSent = [];
+    /// <summary>
+    /// What became of subtitles sent to Jellyfin: on the video while it plays full size (the window's notice is hidden
+    /// behind mpv), else, or once that playback is over, as a notice.
+    /// </summary>
+    private void SaySubtitle(string text, double seconds, bool failed = false, int? generation = null)
+    {
+        if (_playing && !_miniPlayer && (generation is null || generation == _playGeneration)) { ShowPlayerStatus(text, seconds); return; }
+        if (seconds <= 0) return;
+        if (failed) SetError(text); else SetNotice(text);
+    }
+    /// <summary>« Garder sur Jellyfin » under « Charger un fichier… »: shown to an account allowed to add subtitles.</summary>
+    private async Task ShowKeepSubtitleAsync()
+    {
+        KeepSubtitleCheck.IsChecked = _settings.KeepLoadedSubtitles;
+        KeepSubtitleDetails.Text = JellyfinSubtitles.KeepDetails(_settings.KeepLoadedSubtitles);
+        AutomationProperties.SetName(KeepSubtitleCheck, JellyfinSubtitles.KeepName + " · " + KeepSubtitleDetails.Text);
+        if (_demo || _client is not { } client) { KeepSubtitleCheck.Visibility = Visibility.Collapsed; return; }
+        if (_subtitleRight is not { } known || known.Client != client) _subtitleRight = (client, client.CanManageSubtitlesAsync(_connectionLifetime.Token));
+        bool? allowed;
+        try { allowed = await _subtitleRight.Value.Allowed; }
+        catch (Exception e) when (IsExpected(e)) { _subtitleRight = null; allowed = null; }
+        KeepSubtitleCheck.Visibility = allowed == false || client != _client ? Visibility.Collapsed : Visibility.Visible;
+    }
+    private (JellyfinClient Client, Task<bool?> Allowed)? _subtitleRight;
+    private void KeepSubtitle_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.KeepLoadedSubtitles = KeepSubtitleCheck.IsChecked == true;
+        if (!TrySaveSettings()) SetNotice(SettingsNotSaved);
+        _ = ShowKeepSubtitleAsync(); ShowPlayerControls();
     }
 }

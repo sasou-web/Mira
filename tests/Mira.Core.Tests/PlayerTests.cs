@@ -721,8 +721,32 @@ internal static class PlayerTests
                 await File.WriteAllTextAsync(file, "1\n00:00:01,000 --> 00:00:02,000\nSalut\n");
                 var guess = JellyfinSubtitles.Guess(Path.GetFileName(file), null)!.Value;
                 Assert((await JellyfinSubtitles.ReadAsync(file, guess)) is { Language: "fre", Format: "srt", Data.Length: > 0 }, "Read");
+                // « Garder sur Jellyfin » on (by default): sent at once, and « gardés » said only once Jellyfin lists the file.
+                Assert(new PlayerSettings().KeepLoadedSubtitles, "Keep on Jellyfin: on by default");
+                var steps = new List<string>(); var posted = 0; var listed = 0;
+                using var keeper = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => Task.FromResult(request.RequestUri!.AbsolutePath switch
+                {
+                    "/Videos/ep/Subtitles" => new HttpResponseMessage(++posted > 0 ? HttpStatusCode.NoContent : HttpStatusCode.InternalServerError),
+                    "/Users/user-1/Items/ep" or "/Items/ep" => JsonResponse(new
+                    {
+                        Id = "ep", MediaSources = new[] { new { Id = "src", MediaStreams = ++listed > 2 && posted > 0
+                        ? new object[] { new { Index = 3, Type = "Subtitle", Codec = "subrip", IsExternal = true, Path = "/media/Ep.fr.srt" } } : [] } }
+                    }),
+                    _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+                })));
+                var (said, failed) = await JellyfinSubtitles.KeepLoadedAsync(keeper, "ep", "src", file, guess, steps.Add, TimeSpan.FromSeconds(10));
+                Assert(!failed && posted == 1 && said == JellyfinSubtitles.KeptText(SubtitleKept.Kept, "fre") && steps.SequenceEqual([JellyfinSubtitles.SendingText, JellyfinSubtitles.ReadingText]), $"Kept and listed: {said} · {string.Join(" / ", steps)} · {posted}");
+                // Sent, but never listed in the time given: said, not as a failure.
+                listed = -100;
+                (said, failed) = await JellyfinSubtitles.KeepLoadedAsync(keeper, "ep", "src", file, guess, _ => { }, TimeSpan.Zero);
+                Assert(!failed && said.EndsWith(JellyfinSubtitles.NotListedText, StringComparison.Ordinal), "Not listed yet: " + said);
+                using var refusing = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => Task.FromResult(request.RequestUri!.AbsolutePath == "/Videos/ep/Subtitles"
+                    ? new HttpResponseMessage(HttpStatusCode.Forbidden) : JsonResponse(new { Id = "ep", MediaSources = Array.Empty<object>() }))));
+                Assert(await JellyfinSubtitles.KeepLoadedAsync(refusing, "ep", "src", file, guess, _ => { }, TimeSpan.Zero) is { Failed: true } refusal && refusal.Text == JellyfinSubtitles.KeptText(SubtitleKept.Refused, "fre"), "Refused: a failure");
+                Assert(JellyfinSubtitles.KeepDetails(true) != JellyfinSubtitles.KeepDetails(false), "The switch's line says on and off");
                 using (var stream = File.OpenWrite(file)) stream.SetLength(JellyfinSubtitles.MaxSize + 1);
                 Assert(await JellyfinSubtitles.ReadAsync(file, guess) is null, "Too big");
+                Assert(await JellyfinSubtitles.KeepLoadedAsync(keeper, "ep", "src", file, guess, _ => throw new Exception("No step for a file too big"), TimeSpan.Zero) == (JellyfinSubtitles.TooBigText, true), "Too big: nothing sent");
             }
             finally { File.Delete(file); }
         });

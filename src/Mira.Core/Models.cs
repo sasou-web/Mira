@@ -375,6 +375,12 @@ public sealed class PlayerSettings
     public string AudioPassthrough { get; set; } = AudioOutput.Off;
     /// <summary>« Son de nuit » (<see cref="Mira.Core.NightSound"/>): loud passages brought down, quiet ones raised; kept for the next videos.</summary>
     public bool NightSound { get; set; }
+    /// <summary>
+    /// « Garder sur Jellyfin » under « Charger un fichier… » in the player's subtitles: a file loaded is sent to Jellyfin at
+    /// once, which every device then offers (<see cref="JellyfinSubtitles"/>). On by default: the switch is in sight of the
+    /// button, and an offer made after the file was chosen was never seen behind the video (ogsas, 2026-11-20).
+    /// </summary>
+    public bool KeepLoadedSubtitles { get; set; } = true;
     /// <summary>Told once that the window's cross keeps Mira by the clock while it works (Windows, <c>MainWindow.Windows.cs</c>).</summary>
     public bool CloseKeptTold { get; set; }
     /// <summary>« Ouvrir Mira à l’ouverture de session » (Windows, PC of Jellyfin, <see cref="SignInStart"/>): on by default.</summary>
