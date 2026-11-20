@@ -731,8 +731,11 @@ public sealed class HomeController : ControllerBase
             }
 
             var (key, _, expires) = await api.CreateKeyAsync(HomeTailnet.LinkLife, cancellationToken).ConfigureAwait(false);
-            var link = HomeTailnet.Link(new HomeTailnet.LinkData(
-                1, _host.FriendlyName ?? "Jellyfin", _host.SystemId ?? "", $"http://{server}:{_host.HttpPort}{Request.PathBase}", key, expires.ToUnixTimeSeconds()));
+            // The short link (miracinema.app/join#…, ogsas 2026-11-20 « moins effrayant »), as a friend's: the apps read
+            // the server's name and id once they reach it. An address it cannot hold (IPv6): the JSON link of before.
+            var link = (System.Net.IPAddress.TryParse(server, out var address) ? Mira.Core.Family.JoinLink.Make(Mira.Core.Family.JoinLink.HomeKind, address, _host.HttpPort, Request.PathBase, key) : null)
+                ?? HomeTailnet.Link(new HomeTailnet.LinkData(
+                    1, _host.FriendlyName ?? "Jellyfin", _host.SystemId ?? "", $"http://{server}:{_host.HttpPort}{Request.PathBase}", key, expires.ToUnixTimeSeconds()));
             Response.Headers.CacheControl = "no-store";
             return Ok(new { link, expires });
         }
