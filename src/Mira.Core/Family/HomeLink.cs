@@ -11,8 +11,14 @@ namespace Mira.Core.Family;
 /// JSON {v, name, id, url, key, until}. It says where the home's Jellyfin is on its administrator's tailnet and carries a
 /// single-use key for this device's node there; never the home's password. Anything else is not a home link (null).
 /// </summary>
+/// The short form (<see cref="JoinLink"/>, https://miracinema.app/join#…) is read here too: without the server's name
+/// (« Jellyfin » until Mira reaches it), its id (empty) nor its end (the key's own, which Tailscale checks); a friend's
+/// invitation (<see cref="Friend"/>) is let in by the key itself, without the home's password.
 public sealed record HomeLink(string Name, string ServerId, string Address, string Key, DateTimeOffset Until)
 {
+    /// <summary>A friend's invitation (the extension's /Mira/friend): traded for a session of their account, no password.</summary>
+    public bool Friend { get; init; }
+
     public const string Page = "https://miracinema.app/home#";
     public const string App = "mira://home#";
 
@@ -24,12 +30,18 @@ public sealed record HomeLink(string Name, string ServerId, string Address, stri
 
     /// <summary>Whether a text is a home link at all (its page or Mira's), read or not.</summary>
     public static bool IsHomeLink(string? text) =>
-        text is not null && (text.StartsWith(App, StringComparison.OrdinalIgnoreCase) || text.StartsWith("mira://home/#", StringComparison.OrdinalIgnoreCase)
+        JoinLink.IsJoinLink(text) || text is not null && (text.StartsWith(App, StringComparison.OrdinalIgnoreCase) || text.StartsWith("mira://home/#", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith(Page, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The link read, or null: another link, damaged data, an address outside Tailscale's, a key that is not one.</summary>
     public static HomeLink? Read(string? text)
     {
+        if (JoinLink.IsJoinLink(text))
+        {
+            if (JoinLink.Read(text) is not var (kind, at, secret) || !Uri.TryCreate(at, UriKind.Absolute, out var joined) || !TailnetRoute.IsTailnet(joined.Host)
+                || !secret.StartsWith("tskey-", StringComparison.Ordinal)) return null;
+            return new HomeLink("Jellyfin", "", joined.AbsoluteUri.TrimEnd('/') + "/", secret, DateTimeOffset.MaxValue) { Friend = kind == JoinLink.FriendKind };
+        }
         if (!IsHomeLink(text) || text!.Length > 4200) return null;
         var data = text[(text.IndexOf('#', StringComparison.Ordinal) + 1)..].Trim();
         if (data.Length == 0 || data.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '='))) return null;
@@ -51,7 +63,7 @@ public sealed record HomeLink(string Name, string ServerId, string Address, stri
 
     /// <summary>Whether a server's own id (System/Info/Public) is the link's: Jellyfin writes it with or without dashes.</summary>
     public bool Is(string? serverId) =>
-        serverId is { Length: > 0 } && string.Equals(serverId.Replace("-", ""), ServerId.Replace("-", ""), StringComparison.OrdinalIgnoreCase);
+        serverId is { Length: > 0 } && ServerId.Length > 0 && string.Equals(serverId.Replace("-", ""), ServerId.Replace("-", ""), StringComparison.OrdinalIgnoreCase);
 
     private sealed record Data(
         [property: JsonPropertyName("v")] int Version,

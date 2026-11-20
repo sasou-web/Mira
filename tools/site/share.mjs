@@ -1,4 +1,4 @@
-// The cards shown where a link to the site is shared (site/img/share.jpg and share-en.jpg, 1200 × 630), in the site's
+// The cards shown where a link to the site is shared (site/img/share.jpg, share-en.jpg and invite-en.jpg, 1200 × 630), in the site's
 // own style (« Le vidéoclub »): the wall of posters leaning back, the title over it, and the window of Mira coming up
 // from the bottom. Drawn from the site's own font, mark, posters and capture: run after tools/site/images.py.
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/site/share.mjs
@@ -13,6 +13,8 @@ const site = pathToFileURL(resolve('site')).href;
 const cards = {
   'share.jpg': '<b>Ta bibliothèque Jellyfin,</b> comme au cinéma.',
   'share-en.jpg': '<b>Your Jellyfin library,</b> like at the movies.',
+  // A friend's invite or a home link (site/join, site/home): the same card for every link, the link itself never sent.
+  'invite-en.jpg': '<b>You’re invited</b> to watch.',
 };
 // The wall as the English page lays it out (written there by images.py).
 const wall = [...readFileSync('site/index.html', 'utf8').matchAll(/<img src="img\/p\/([^"]+)"/g)].map(m => m[1]);
@@ -51,7 +53,7 @@ await browser.close();
 rmSync(scratch, { recursive: true, force: true });
 // Discord, Slack and the others keep a card by its address, for weeks: each page names its card with the card's own
 // fingerprint, a new address as soon as the card changes.
-for (const [page, file] of [['site/fr/index.html', 'share.jpg'], ['site/index.html', 'share-en.jpg']]) {
+for (const [page, file] of [['site/fr/index.html', 'share.jpg'], ['site/index.html', 'share-en.jpg'], ['site/join/index.html', 'invite-en.jpg'], ['site/home/index.html', 'invite-en.jpg']]) {
   const version = createHash('sha256').update(readFileSync(`site/img/${file}`)).digest('hex').slice(0, 10);
   const before = readFileSync(page, 'utf8');
   const after = before.replace(new RegExp(`/img/${file.replace('.', '\\.')}(\\?v=[0-9a-f]+)?"`), `/img/${file}?v=${version}"`);
