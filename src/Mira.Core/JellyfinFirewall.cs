@@ -121,6 +121,23 @@ public static class JellyfinFirewall
         && Judge(rules.Where(x => x.Name != miraRule), settings, program, port, origin.Profile, origin.Adapter, origin.Home) != Verdict.Open;
 
     /// <summary>
+    /// The allow rules that open Jellyfin to strangers on a public network (a café's or a hotel's Wi-Fi, where Jellyfin
+    /// counts their private addresses as local): enabled incoming allow rules for <paramref name="program"/> on
+    /// <paramref name="port"/> that apply to the public profile from more than Tailscale's range, when the firewall is on
+    /// there and no block rule keeps them out. Mira's own never applies there (<see cref="JellyfinStartup.RuleProfiles"/>);
+    /// an older version's, for every network, does. A rule naming no program is someone's own port rule, and counts too.
+    /// Empty: closed on public networks, or open by the firewall's own settings (off, allow by default), which are not a rule's.
+    /// </summary>
+    public static IReadOnlyList<Rule> OpenOnPublic(IEnumerable<Rule> rules, Profile settings, string program, int port)
+    {
+        if (!settings.Enabled || settings.BlockAll) return [];
+        var applying = rules.Where(x => Strangers.Any(home => Applies(x, program, port, Public, home: home))).ToList();
+        return applying.Any(x => !x.Allow) ? [] : [.. applying];
+    }
+    /// <summary>Devices on a public network, as <see cref="Applies"/> judges them: the private addresses hotspots give.</summary>
+    private static readonly string[] Strangers = ["192.168.1.42", "10.0.0.7", "172.20.0.7"];
+
+    /// <summary>
     /// The profile of Tailscale's adapter, from the profiles active on this PC (CurrentProfileTypes): Tailscale marks
     /// it Private, so a PC with no private network active is one where Tailscale could not.
     /// </summary>

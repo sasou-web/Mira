@@ -188,6 +188,43 @@ internal static class JellyfinAutostart
     }
 
     /// <summary>
+    /// The firewall's rules that open Jellyfin to strangers on a public network (<see cref="JellyfinFirewall.OpenOnPublic"/>):
+    /// « Open on public Wi-Fi » of « Security ». Empty when there are none, or when the firewall cannot be read.
+    /// </summary>
+    public static IReadOnlyList<JellyfinFirewall.Rule> PublicOpenings(string? program, int port)
+    {
+        if (program is null) return [];
+        try
+        {
+            var (found, settings, _) = ReadFirewall(Policy(), program);
+            return JellyfinFirewall.OpenOnPublic(found.Select(x => x.Rule), settings[JellyfinFirewall.Public], program, port);
+        }
+        catch (Exception ex) when (IsFirewallError(ex)) { return []; }
+    }
+
+    /// <summary>
+    /// « Close it » for public Wi-Fi: with Windows' consent, each rule that opens Jellyfin there stops applying to public
+    /// networks (turned off when it had no other), and Mira's own rule of an older version, for every network, is written
+    /// again as now (never public). Done once the firewall, read again, keeps strangers out.
+    /// </summary>
+    public static async Task<AutostartResult> ClosePublicAsync(int port)
+    {
+        var program = await Task.Run(() => Program());
+        if (program is null) return AutostartResult.Failed;
+        var open = await Task.Run(() => PublicOpenings(program, port));
+        if (open.Count == 0) return AutostartResult.Done;
+        var lifts = open.Where(x => x.Name != JellyfinStartup.RuleName)
+            .Select(x => new JellyfinStartup.Lift(x.Name, x.Program ?? "", x.Protocol, x.LocalPorts, x.RemoteAddresses, x.Profiles, JellyfinFirewall.WithoutProfile(x.Profiles, JellyfinFirewall.Public), Allow: true)).ToList();
+        IReadOnlyList<StartupCommand> commands = open.Any(x => x.Name == JellyfinStartup.RuleName) ? JellyfinStartup.FirewallCommands(program, port) : [];
+        JellyfinStartup.Plan plan;
+        try { plan = new([], lifts, commands); _ = JellyfinStartup.PowerShellArguments(plan); }
+        catch (ArgumentException) { return AutostartResult.Failed; }
+        var code = await ElevatedAsync(plan);
+        if (code is null) return AutostartResult.Refused;
+        return await Task.Run(() => PublicOpenings(program, port).Count == 0) ? AutostartResult.Done : AutostartResult.Failed;
+    }
+
+    /// <summary>
     /// What setting it all up does, decided here without administrator rights: when <paramref name="privateNetwork"/>,
     /// the networks phones come from that Windows counts as public and that keep them out are made private (a domain
     /// one is left as Windows set it); then <paramref name="program"/>'s own block rules that keep them out (Windows'
