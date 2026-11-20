@@ -529,7 +529,8 @@ final class MiraUITests: XCTestCase {
         capture("52-opening-away")
 
         mock("/Mock/Up")
-        retry.tap()
+        // Home may already have tried again on its own (Jellyfin back between the two lines): then nothing to tap.
+        if retry.exists { retry.tap() }
         XCTAssertTrue(retry.waitForNonExistence(timeout: 20), "Retry did not bring Home back from Jellyfin")
     }
 
@@ -598,7 +599,8 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(retry.waitForExistence(timeout: 30), "Home does not say Jellyfin can't be reached")
         Thread.sleep(forTimeInterval: 2.5)
         mock("/Mock/Up")
-        retry.tap()
+        // Home may already have tried again on its own (Jellyfin back between the two lines): then nothing to tap.
+        if retry.exists { retry.tap() }
         XCTAssertTrue(retry.waitForNonExistence(timeout: 20), "Retry did not bring Home back from Jellyfin")
         Thread.sleep(forTimeInterval: 2)
         mock("/Mock/Mark?name=film-end")
