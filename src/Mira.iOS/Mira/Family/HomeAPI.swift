@@ -111,9 +111,9 @@ struct HomeAPI: Sendable {
         return (try? Self.decoder.decode(HomeAnswer.self, from: data))?.home
     }
 
-    /// The server's own id (System/Info/Public), to be sure it is the Jellyfin the link names.
-    func serverId() async -> String? {
-        await Way.askJellyfin(base, 10)?.id
+    /// The server's own id and name (System/Info/Public): the Jellyfin the link names, and what to call it.
+    func serverInfo() async -> PublicInfo? {
+        await Way.askJellyfin(base, 10)
     }
 
     /// This iPhone joins the home with its password: its home token, the profiles, the device id of its sessions.
