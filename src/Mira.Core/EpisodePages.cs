@@ -56,8 +56,9 @@ public static class EpisodePages
     /// A season's own name, as Jellyfin gives it with its episodes (« Bakemonogatari », named by TheTVDB or a season.nfo),
     /// the names of the pills (maquette A « Le fondu », ogsas 2026-11-19); null when it says nothing but the season
     /// (« Season 2 », « Saison 02 », « L'attaque des Titans saison 2 »: Mira's own label then, in the app's language). A
-    /// name ending with its season and a part, or « Saison finale », in Mira's words: « Saison 3 · partie 1 », « Final
-    /// Season » (Attack on Titan on the Dell, 2026-11-19). The iPhone's SeasonNames, cases of tests/fixtures/season-names.json.
+    /// name ending with its own season and a part: Mira's label too, the season holds every part Jellyfin put in it
+    /// (Attack on Titan on the Dell: « Saison 3 Partie 1 » over 22 episodes, 2026-11-20); another season's part, or
+    /// « Saison finale », in Mira's words: « Saison 3 · partie 2 », « Final Season ». The iPhone's SeasonNames, cases of tests/fixtures/season-names.json.
     /// </summary>
     public static string? Named(int season, IEnumerable<string?> names) => Named(season, names.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)), IsFrench);
 
@@ -73,8 +74,11 @@ public static class EpisodePages
         name = name?.Trim();
         if (string.IsNullOrEmpty(name)) return null;
         var number = season.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (Part.Match(name) is { Success: true } part && part.Groups[1].Value == number)
-            return french ? $"Saison {season} · partie {part.Groups[2].Value}" : $"Season {season} · part {part.Groups[2].Value}";
+        // « Saison 3 Partie 1 » on Jellyfin's season 3 names where it came from (a folder, the provider), not what it holds:
+        // the season is all of Jellyfin's season 3, both parts on the Dell (2026-11-20), so Mira's « Saison 3 ». Another
+        // season's part (season 4 named « Season 3 Part 2 ») is that part, in Mira's words.
+        if (Part.Match(name) is { Success: true } part)
+            return part.Groups[1].Value == number ? null : french ? $"Saison {part.Groups[1].Value} · partie {part.Groups[2].Value}" : $"Season {part.Groups[1].Value} · part {part.Groups[2].Value}";
         if (Final.IsMatch(name)) return french ? "Saison finale" : "Final Season";
         if (Ending.Match(name) is { Success: true } ending && ending.Groups[1].Value == number) return null;
         return Bare.Match(name) is { Success: true } bare && bare.Groups[1].Value == number ? null : name;
