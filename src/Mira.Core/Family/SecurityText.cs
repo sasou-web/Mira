@@ -27,6 +27,9 @@ public static class SecurityText
     public static string Summary(IReadOnlyList<SecurityIssue> issues)
     {
         var parts = new List<string>();
+        var internet = issues.Any(x => x.Server == ServerOpening.Internet); var wifi = issues.Any(x => x.Server == ServerOpening.PublicWifi);
+        if (internet || wifi) parts.Add(internet && wifi ? L("Jellyfin est ouvert à Internet et aux Wi-Fi publics", "Jellyfin is open to the Internet and to public Wi-Fi")
+            : internet ? L("Jellyfin est ouvert à tout Internet", "Jellyfin is open to the whole Internet") : L("Jellyfin est ouvert aux Wi-Fi publics", "Jellyfin is open to public Wi-Fi"));
         var open = issues.Count(x => x.Account is { NoPassword: true, You: false });
         if (open > 0) parts.Add(open == 1 ? L("1 compte n’a pas de mot de passe", "1 account has no password") : L($"{open} comptes n’ont pas de mot de passe", $"{open} accounts have no password"));
         if (issues.Any(x => x.Account is { NoPassword: true, You: true })) parts.Add(L("ton propre compte n’a pas de mot de passe", "your own account has no password"));
@@ -46,6 +49,8 @@ public static class SecurityText
     public static string AlertLine(IReadOnlyList<SecurityIssue> issues)
     {
         var parts = new List<string>();
+        if (issues.Any(x => x.Server == ServerOpening.Internet)) parts.Add(L("Jellyfin est ouvert à tout Internet", "Jellyfin is open to the whole Internet"));
+        if (issues.Any(x => x.Server == ServerOpening.PublicWifi)) parts.Add(L("Jellyfin est ouvert aux Wi-Fi publics", "Jellyfin is open to public Wi-Fi"));
         var names = issues.Where(x => x.Account is { NoPassword: true, You: false }).Select(x => x.Account!.Name).ToList();
         if (names.Count > 0) parts.Add(Names(names) + (names.Count == 1 ? L(" n’a pas de mot de passe", " has no password") : L(" n’ont pas de mot de passe", " have no password")));
         if (issues.Any(x => x.Account is { NoPassword: true, You: true })) parts.Add(L("ton compte n’a pas de mot de passe", "your account has no password"));
@@ -54,6 +59,46 @@ public static class SecurityText
         if (stale > 0) parts.Add(Count(stale, "appareil inutilisé depuis des mois", "appareils inutilisés depuis des mois", "device unused for months", "devices unused for months"));
         return string.Join(" · ", parts);
     }
+
+    // ---- Your server ----
+
+    public static string Server => L("Ton serveur", "Your server");
+    public static string TooOpen => L("Trop ouvert", "Too open");
+    public static string CloseIt => L("Fermer…", "Close it…");
+    public static string CloseItNow => L("Fermer", "Close it");
+    public static string KeepOpen => L("Laisser ouvert", "Keep it open");
+    public static string InternetTitle(bool open) => open ? L("Ouvert à tout Internet", "Open to the whole Internet") : L("Ta maison et Tailscale seulement", "Your home and Tailscale only");
+    public static string InternetLine(bool open) => open
+        ? L("Jellyfin laisse entrer n’importe quelle adresse, pas seulement ta maison et Tailscale. Qui le trouve peut essayer des mots de passe.", "Jellyfin lets in any address, not just your home and Tailscale. Anyone who finds it can try passwords.")
+        : L("Le reste d’Internet est refusé. Les liens de party marchent toujours.", "The rest of the Internet is turned away. Party links still work.");
+    public static string PublicWifiTitle(bool open) => open ? L("Ouvert sur les Wi-Fi publics", "Open on public Wi-Fi") : L("Réseaux privés seulement", "Private networks only");
+    public static string PublicWifiLine(bool open) => open
+        ? L("Quand ce PC rejoint le Wi-Fi d’un café ou d’un hôtel, les gens qui y sont peuvent joindre Jellyfin.", "When this PC joins a café or hotel Wi-Fi, people on it can reach Jellyfin.")
+        : L("Les Wi-Fi publics ne peuvent pas joindre Jellyfin.", "Public Wi-Fi can’t reach Jellyfin.");
+
+    public static string CloseInternetTitle => L("Fermer Jellyfin à Internet ?", "Close Jellyfin to the Internet?");
+    public static string CloseInternetText => L("Tes appareils à la maison et sur Tailscale continuent de marcher, les liens de party et d’invitation aussi. Tout le reste est refusé.",
+        "Your devices at home and on Tailscale keep working, and so do party and invite links. Everything else is turned away.");
+    public static string WouldCut(int count) => count == 1 ? L("1 appareil s’est connecté de l’extérieur ces derniers temps et serait coupé :", "1 device connected from outside lately and would be cut:")
+        : L($"{count} appareils se sont connectés de l’extérieur ces derniers temps et seraient coupés :", $"{count} devices connected from outside lately and would be cut:");
+    public static string CutHint(int count) => count == 1 ? L("Installe Mira ou Tailscale dessus pour continuer à regarder depuis là-bas.", "Install Mira or Tailscale on it to keep watching from there.")
+        : L("Installe Mira ou Tailscale dessus pour continuer à regarder depuis là-bas.", "Install Mira or Tailscale on them to keep watching from there.");
+    /// <summary>« Jellyfin Android TV · Sam »: what it is and who used it, else its address.</summary>
+    public static string OutsideLine(OutsideDevice device) =>
+        string.Join(" · ", new[] { device.App, device.UserName }.Where(x => x is { Length: > 0 })) is { Length: > 0 } who ? who : device.Address;
+    public static string FromOutside => L("de l’extérieur", "from outside");
+    public static string FromHomeTitle => L("Fais-le depuis la maison", "Do this from home");
+    public static string FromHomeText => L("Cet appareil joint Jellyfin depuis l’extérieur en ce moment : fermer d’ici le couperait aussi. Fais-le à la maison, sur le PC de Jellyfin, ou passe d’abord par Tailscale.",
+        "This device is reaching Jellyfin from outside right now: closing it here would cut it too. Do it at home, on the PC where Jellyfin runs, or connect through Tailscale first.");
+    public static string ClosePublicTitle => L("Fermer Jellyfin aux Wi-Fi publics ?", "Close Jellyfin to public Wi-Fi?");
+    public static string ClosePublicText => L("La maison et Tailscale restent ouverts. Windows demande son autorisation, une fois.",
+        "Your home and Tailscale stay open. Windows asks for permission, once.");
+    public static string ClosePublicFailed => L("Le pare-feu n’a pas changé. Une règle de Jellyfin vient peut-être d’une suite de sécurité : regarde dans ses réglages.",
+        "The firewall didn’t change. A Jellyfin rule may come from a security suite: look in its settings.");
+    public static string Refused => L("Windows n’a pas eu l’autorisation : rien n’a changé.", "Windows didn’t get permission: nothing changed.");
+    public static string InternetStepTitle => L("Jellyfin répond à tout Internet", "Jellyfin answers the whole Internet");
+    public static string InternetStepText => L("Qui trouve ton serveur peut y essayer des mots de passe. Mira n’a besoin que de ta maison et de Tailscale, et les liens de party passent aussi par Tailscale.",
+        "Anyone who finds your server can try passwords on it. Mira only needs your home and Tailscale, and party links go through Tailscale too.");
 
     // ---- An account ----
 

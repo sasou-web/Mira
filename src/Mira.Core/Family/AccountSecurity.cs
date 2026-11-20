@@ -47,10 +47,28 @@ public sealed record SecurityDevice(string Id, string Name, string App, string? 
 }
 
 /// <summary>What « Security » read: the accounts, the devices; <see cref="Known"/> false when the extension could not say which accounts have no password.</summary>
-public sealed record SecurityReport(IReadOnlyList<SecurityAccount> Accounts, IReadOnlyList<SecurityDevice> Devices, bool Known, DateTimeOffset Checked);
+public sealed record SecurityReport(IReadOnlyList<SecurityAccount> Accounts, IReadOnlyList<SecurityDevice> Devices, bool Known, DateTimeOffset Checked)
+{
+    /// <summary>« Your server »: who reaches Jellyfin (<see cref="ServerReach"/>); null when it was not read.</summary>
+    public ServerReach? Server { get; init; }
+}
 
-/// <summary>Something to fix, one step of « Fix all… »: an account (no password, or your short one) or a device not used for months.</summary>
-public sealed record SecurityIssue(string Key, SecurityAccount? Account, SecurityDevice? Device);
+/// <summary>
+/// Who reaches Jellyfin, as « Your server » shows it (ogsas 2026-11-20, maquette A of « Jellyfin trop ouvert »):
+/// <paramref name="Internet"/>, its access from the whole Internet (null when its network settings cannot be read);
+/// <paramref name="PublicWifi"/>, whether a firewall rule opens it on public networks, known on Jellyfin's PC only (null
+/// elsewhere).
+/// </summary>
+public sealed record ServerReach(InternetOpening? Internet, bool? PublicWifi)
+{
+    public bool Known => Internet is not null || PublicWifi is not null;
+}
+
+/// <summary>An opening of the server, one step of « Fix all… »: to the whole Internet, or on public Wi-Fi.</summary>
+public enum ServerOpening { Internet, PublicWifi }
+
+/// <summary>Something to fix, one step of « Fix all… »: the server open, an account (no password, or your short one), or a device not used for months.</summary>
+public sealed record SecurityIssue(string Key, SecurityAccount? Account, SecurityDevice? Device, ServerOpening? Server = null);
 
 /// <summary>
 /// « Security » (ogsas, 2026-11-20, maquette A « La page Security » with the steps of C behind « Fix all… »): which
@@ -68,6 +86,7 @@ public static class AccountSecurity
     public static readonly TimeSpan QuietFor = TimeSpan.FromDays(30);
 
     public static string AccountKey(string id) => "account:" + id;
+    public const string InternetKey = "server:internet", PublicWifiKey = "server:public-wifi";
     public static string DeviceKey(string id) => "device:" + id;
 
     /// <summary>A long password nobody has to remember (« Let Mira lock it »): 32 signs, about 190 bits.</summary>
@@ -137,6 +156,9 @@ public static class AccountSecurity
     public static IReadOnlyList<SecurityIssue> Issues(SecurityReport report, Func<string, bool>? quiet = null)
     {
         var issues = new List<SecurityIssue>();
+        // The server open first: it lets anyone try every account.
+        if (report.Server?.Internet is { Open: true } && quiet?.Invoke(InternetKey) != true) issues.Add(new(InternetKey, null, null, ServerOpening.Internet));
+        if (report.Server?.PublicWifi == true && quiet?.Invoke(PublicWifiKey) != true) issues.Add(new(PublicWifiKey, null, null, ServerOpening.PublicWifi));
         foreach (var account in report.Accounts.Where(x => x.Weak).OrderBy(x => x.Short))
             if (quiet?.Invoke(AccountKey(account.Id)) != true) issues.Add(new(AccountKey(account.Id), account, null));
         foreach (var device in report.Devices.Where(x => x.Stale(report.Checked)))

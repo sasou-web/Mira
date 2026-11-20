@@ -5,6 +5,8 @@ Ce que la CI ne peut pas prouver : chaque case est une fonction qui n'a jamais t
 Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un ami · 👥 avec Sam
 
 ## PC de Jellyfin 🗄
+- [ ] Réglages → Sécurité → « Ton serveur » : sur le Dell, « Ta maison et Tailscale seulement » et « Réseaux privés seulement » ; si une ligne dit « Trop ouvert », « Fermer… » la passe au vert (Wi-Fi publics : une autorisation de Windows), le téléphone joint toujours Jellyfin à la maison et en 4G par Tailscale, une party par lien marche encore
+- [ ] Installer Jellyfin sur un PC neuf : « Installer » grisé sous 10 caractères, jauge verte au-delà
 - [ ] « Tout préparer » : une seule autorisation de Windows, puis toutes les étapes de la carte du téléphone cochées
 - [ ] Après « Tout préparer » : le téléphone joint Jellyfin à la maison (Wi-Fi) et en 4G par Tailscale
 - [ ] Avis « Jellyfin convertit maintenant avec ta … » (carte Intel), puis une conversion qui ne saccade pas

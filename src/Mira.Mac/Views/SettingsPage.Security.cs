@@ -56,6 +56,13 @@ public sealed partial class SettingsPage
         page.Children.Add(Banner());
         if (!report.Known) page.Children.Add(Description(SecurityText.Unknown, 0));
 
+        // Who reaches the server, before the accounts, as on Windows.
+        if (report.Server?.Internet is { } internet)
+        {
+            page.Children.Add(Label(SecurityText.Server, null));
+            page.Children.Add(ServerRow("globe", SecurityText.InternetTitle(internet.Open), SecurityText.InternetLine(internet.Open), internet.Open, () => _ = CloseInternetAsync(null, 0)));
+        }
+
         page.Children.Add(Label(SecurityText.Accounts + " · " + report.Accounts.Count.ToString(Lang.Culture), null));
         var folded = issues.Count == 0 && report.Accounts.Count > 3 && !_securityAllShown;
         foreach (var account in folded ? report.Accounts.Take(2) : report.Accounts) page.Children.Add(AccountRow(account));
@@ -132,6 +139,84 @@ public sealed partial class SettingsPage
         var row = Small(line);
         Avalonia.Automation.AutomationProperties.SetName(row, account.Name);
         return row;
+    }
+
+    /// <summary>An opening of the server: its sign, what it is, « Too open » and « Close it… », or « Protected ».</summary>
+    private Control ServerRow(string icon, string title, string about, bool open, Action close)
+    {
+        var line = new DockPanel();
+        if (open)
+        {
+            var act = Ui.Action(SecurityText.CloseIt, null, "primary", close);
+            act.VerticalAlignment = VerticalAlignment.Center; act.Margin = new Thickness(12, 0, 0, 0);
+            Avalonia.Automation.AutomationProperties.SetName(act, SecurityText.CloseIt + " · " + title);
+            DockPanel.SetDock(act, Dock.Right); line.Children.Add(act);
+        }
+        var pill = open ? Pill(SecurityText.TooOpen, "warning") : Pill(SecurityText.Protected, "success");
+        DockPanel.SetDock(pill, Dock.Right); line.Children.Add(pill);
+        var sign = new Border
+        {
+            Width = 36, Height = 36, CornerRadius = new CornerRadius(9), Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center,
+            Background = open ? Ui.Brush("#F21C1A16") : Ui.Raised2,
+            Child = new Icon(icon, 18) { Foreground = open ? Ui.Warning : Ui.TextSecondary, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+        };
+        DockPanel.SetDock(sign, Dock.Left); line.Children.Add(sign);
+        var words = Ui.Column(0, new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, Description(about, 2));
+        words.VerticalAlignment = VerticalAlignment.Center;
+        line.Children.Add(words);
+        var row = Small(line);
+        Avalonia.Automation.AutomationProperties.SetName(row, title);
+        return row;
+    }
+
+    /// <summary>
+    /// « Fermer… » (Internet), as on Windows: the devices seen lately from outside, which would be cut, named first;
+    /// never from a Mac that itself comes from outside. In « Tout régler… », « Laisser ouvert » quiets it for 30 days.
+    /// </summary>
+    private async Task<bool> CloseInternetAsync(string? step, double progress)
+    {
+        if (Shell.Session is not { } session) return false;
+        InternetOpening? opening;
+        try { opening = await session.Client.InternetOpeningAsync(session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return false; }
+        if (opening is not { Open: true }) { await Shell.ReadSecurityAsync(again: true); return opening is not null; }
+        if (opening.ThisOutside) return await Shell.CardAsync(SecurityText.FromHomeTitle, SecurityText.FromHomeText, null, [(L("OK", "OK"), null, "primary", 1)], null, step, progress) == 1;
+        var status = Status();
+        var body = new StackPanel();
+        if (opening.Outside.Count > 0)
+        {
+            body.Children.Add(new TextBlock { Text = SecurityText.WouldCut(opening.Outside.Count), FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextBody, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+            foreach (var device in opening.Outside.Take(6))
+            {
+                var line = new DockPanel();
+                var where = new TextBlock { Text = SecurityText.FromOutside, FontSize = 12.5, Foreground = Ui.TextSecondary, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+                DockPanel.SetDock(where, Dock.Right); line.Children.Add(where);
+                var icon = new Icon(DeviceIcon(new SecurityDevice(device.Id, device.Name, device.App, null, null, device.UserName, device.LastActive, false, false, false, DeviceWay.Other)), 16)
+                { Foreground = Ui.TextSecondary, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+                DockPanel.SetDock(icon, Dock.Left); line.Children.Add(icon);
+                line.Children.Add(Ui.Column(0, new TextBlock { Text = device.Name, FontSize = 14, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis }, Description(SecurityText.OutsideLine(device), 0)));
+                var card = Small(line);
+                card.Background = Ui.Raised; card.Padding = new Thickness(14, 9, 14, 9); card.Margin = new Thickness(0, 0, 0, 6);
+                body.Children.Add(card);
+            }
+            body.Children.Add(Description(SecurityText.CutHint(opening.Outside.Count), 6));
+        }
+        body.Children.Add(status);
+        var answer = await Shell.CardAsync(step is null ? SecurityText.CloseInternetTitle : SecurityText.InternetStepTitle,
+            step is null ? SecurityText.CloseInternetText : SecurityText.InternetStepText + " " + SecurityText.CloseInternetText, body,
+            [(SecurityText.KeepOpen, null, "quiet", 2), (SecurityText.CloseItNow, "lock", "primary", 1)], async pressed =>
+            {
+                if (pressed != 1) return true;
+                try
+                {
+                    if (await session.Client.CloseToInternetAsync(session.Lifetime)) return true;
+                    Say(status, SecurityText.FromHomeText); return false;
+                }
+                catch (Exception ex) when (Errors.Expected(ex)) { Say(status, Errors.Friendly(ex)); return false; }
+            }, step, progress);
+        if (answer == 2 && step is not null) Shell.QuietSecurity(AccountSecurity.InternetKey);
+        if (answer == 1) await Shell.ReadSecurityAsync(again: true);
+        return answer is 1 or 2;
     }
 
     private Control DeviceRow(SecurityDevice device, DateTimeOffset now)
@@ -365,7 +450,9 @@ public sealed partial class SettingsPage
                 var step = SecurityText.Step(i + 1, issues.Count);
                 var progress = (i + 1.0) / issues.Count;
                 bool go;
-                if (issues[i].Account is { You: true } you) go = await ChangeOwnAsync(you, step, progress);
+                if (issues[i].Server == ServerOpening.Internet) go = await CloseInternetAsync(step, progress);
+                else if (issues[i].Server is not null) go = true;
+                else if (issues[i].Account is { You: true } you) go = await ChangeOwnAsync(you, step, progress);
                 else if (issues[i].Account is { } account) go = await LockStepAsync(session, account, step, progress);
                 else go = await DeviceStepAsync(session, issues[i].Device!, report.Checked, step, progress);
                 if (!go) break;

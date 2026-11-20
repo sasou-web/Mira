@@ -243,14 +243,12 @@ public static partial class JellyfinSetup
     /// The administrator's password, at the setup: 10 signs at least (« Security » says shorter ones « Short password »,
     /// ogsas 2026-11-20). An administrator's account changes everything on the server, from wherever it is reached.
     /// </summary>
-    public const int MinPasswordLength = 10;
+    public const int MinPasswordLength = Family.AccountSecurity.MinLength;
     /// <summary>Signs as typed (a letter with its accent, an emoji: one each), not UTF-16 units.</summary>
     public static int Signs(string? password) => string.IsNullOrEmpty(password) ? 0 : new System.Globalization.StringInfo(password).LengthInTextElements;
     public static bool LongEnough(string? password) => Signs(password) >= MinPasswordLength;
     /// <summary>What the setup says under the password while it is typed: how far it is, then that it is enough.</summary>
-    public static string PasswordHint(string? password) => Signs(password) is var n && n >= MinPasswordLength
-        ? L($"{n} caractères · bien", $"{n} characters · good")
-        : L($"{n} sur {MinPasswordLength} caractères au moins. Trois mots que tu aimes, ça marche bien.", $"{n} of {MinPasswordLength} characters at least. Three words you like work well.");
+    public static string PasswordHint(string? password) => Family.SecurityText.Strength(Signs(password));
     /// <summary>Why the setup refuses <paramref name="password"/>; null when it is long enough.</summary>
     public static string? PasswordRefusal(string? password) => LongEnough(password) ? null : Signs(password) == 0
         ? L($"Choisis un mot de passe de {MinPasswordLength} caractères au moins pour ton compte Jellyfin.", $"Choose a password of {MinPasswordLength} characters or more for your Jellyfin account.")

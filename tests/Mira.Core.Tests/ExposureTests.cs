@@ -115,6 +115,20 @@ internal static class ExposureTests
             return Task.CompletedTask;
         });
 
+        await Test("Sécurité : le serveur ouvert passe avant les comptes, et « Laisser ouvert » le tait 30 jours", () =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            var account = new Mira.Core.Family.SecurityAccount("a", "Sam", null, false, false, true, false, Mira.Core.Family.AccountWay.Password, null);
+            var report = new Mira.Core.Family.SecurityReport([account], [], true, now) { Server = new(new InternetOpening(true, [], false), true) };
+            var issues = Mira.Core.Family.AccountSecurity.Issues(report);
+            Assert(issues.Count == 3 && issues[0].Server == Mira.Core.Family.ServerOpening.Internet && issues[1].Server == Mira.Core.Family.ServerOpening.PublicWifi && issues[2].Account == account, "Order");
+            Assert(Mira.Core.Family.SecurityText.Summary(issues).StartsWith(L("Jellyfin est ouvert à Internet et aux Wi-Fi publics", "Jellyfin is open to the Internet and to public Wi-Fi"), StringComparison.Ordinal), "Summary: " + Mira.Core.Family.SecurityText.Summary(issues));
+            var quiet = Mira.Core.Family.AccountSecurity.Issues(report, key => key == Mira.Core.Family.AccountSecurity.InternetKey);
+            Assert(quiet.Count == 2 && quiet[0].Server == Mira.Core.Family.ServerOpening.PublicWifi, "Kept open on purpose: quiet");
+            Assert(Mira.Core.Family.AccountSecurity.Issues(report with { Server = new(new InternetOpening(false, [], false), null) }).Count == 1, "Closed, and no firewall known: only the account");
+            return Task.CompletedTask;
+        });
+
         await Test("Installation : le mot de passe administrateur fait 10 caractères au moins", async () =>
         {
             Assert(JellyfinSetup.MinPasswordLength == 10 && !JellyfinSetup.LongEnough("123456789") && JellyfinSetup.LongEnough("1234567890") && !JellyfinSetup.LongEnough(null), "Ten characters");
