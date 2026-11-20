@@ -240,6 +240,22 @@ public static partial class JellyfinSetup
         }
     }
     /// <summary>
+    /// The administrator's password, at the setup: 10 signs at least (« Security » says shorter ones « Short password »,
+    /// ogsas 2026-11-20). An administrator's account changes everything on the server, from wherever it is reached.
+    /// </summary>
+    public const int MinPasswordLength = 10;
+    /// <summary>Signs as typed (a letter with its accent, an emoji: one each), not UTF-16 units.</summary>
+    public static int Signs(string? password) => string.IsNullOrEmpty(password) ? 0 : new System.Globalization.StringInfo(password).LengthInTextElements;
+    public static bool LongEnough(string? password) => Signs(password) >= MinPasswordLength;
+    /// <summary>What the setup says under the password while it is typed: how far it is, then that it is enough.</summary>
+    public static string PasswordHint(string? password) => Signs(password) is var n && n >= MinPasswordLength
+        ? L($"{n} caractères · bien", $"{n} characters · good")
+        : L($"{n} sur {MinPasswordLength} caractères au moins. Trois mots que tu aimes, ça marche bien.", $"{n} of {MinPasswordLength} characters at least. Three words you like work well.");
+    /// <summary>Why the setup refuses <paramref name="password"/>; null when it is long enough.</summary>
+    public static string? PasswordRefusal(string? password) => LongEnough(password) ? null : Signs(password) == 0
+        ? L($"Choisis un mot de passe de {MinPasswordLength} caractères au moins pour ton compte Jellyfin.", $"Choose a password of {MinPasswordLength} characters or more for your Jellyfin account.")
+        : L($"Ton mot de passe est trop court : {MinPasswordLength} caractères au moins. Ce compte peut tout changer sur le serveur.", $"Your password is too short: {MinPasswordLength} characters or more. This account can change everything on the server.");
+    /// <summary>
     /// Completes the first-run wizard: interface and metadata in Mira's language, the administrator account, the Films,
     /// Séries and Animes libraries (named as their folders), access from the local network only, then the end of the wizard. Steps already done are kept,
     /// so an attempt cut off halfway can simply be run again with the same account.
@@ -247,7 +263,7 @@ public static partial class JellyfinSetup
     public static async Task ConfigureAsync(Uri server, string user, string password, MediaFolders folders, HttpMessageHandler? handler = null, CancellationToken ct = default)
     {
         if (!IsValidUserName(user)) throw new UserInputException(L("Le nom d’utilisateur peut contenir des lettres, des chiffres, des espaces et - _ ' . @ +, sans espace au début ni à la fin.", "The username can contain letters, digits, spaces and - _ ' . @ +, with no space at the start or end."));
-        if (string.IsNullOrEmpty(password)) throw new UserInputException(L("Choisis un mot de passe pour ton compte Jellyfin.", "Choose a password for your Jellyfin account."));
+        if (PasswordRefusal(password) is { } refusal) throw new UserInputException(refusal);
         using var http = Client(server, handler, TimeSpan.FromSeconds(30));
         await Send(http, HttpMethod.Post, "Startup/Configuration", new { ServerName = Environment.MachineName, UICulture = L("fr", "en-US"), MetadataCountryCode = L("FR", "US"), PreferredMetadataLanguage = Code }, L("la langue", "the language"), ct).ConfigureAwait(false);
         // Reading the first user creates it.

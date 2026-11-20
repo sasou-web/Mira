@@ -108,8 +108,9 @@ public static class JellyfinStartup
     /// <summary>
     /// A block rule of jellyfin.exe that keeps phones out, as Mira read it (<paramref name="Program"/>: its
     /// ApplicationName as written), and the profiles it is left with: <paramref name="Keep"/>, or turned off when none.
+    /// <paramref name="Allow"/>: an allow rule instead, that opens Jellyfin on public networks (« Open on public Wi-Fi »).
     /// </summary>
-    public sealed record Lift(string Name, string Program, int Protocol, string? LocalPorts, string? RemoteAddresses, int Profiles, int Keep);
+    public sealed record Lift(string Name, string Program, int Protocol, string? LocalPorts, string? RemoteAddresses, int Profiles, int Keep, bool Allow = false);
     /// <summary>
     /// What the copy of Windows PowerShell started with administrator rights does, in order: the networks the person
     /// said are home's made private (never a domain one), the block rules lifted, Jellyfin's installer run
@@ -171,8 +172,9 @@ public static class JellyfinStartup
         static string Text(string? value) => "'" + Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? "")) + "'";
         static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
         var adapters = plan.PrivateAdapters.Select(adapter => adapter.Length > 0 ? Text(adapter) : throw new ArgumentException("An adapter without a name.", nameof(plan)));
-        var lifts = plan.Lifts.Select(x => (x.Keep & ~JellyfinFirewall.AllProfiles) == 0 && x.Profiles != 0 && x.Program.Length > 0
-            ? $"@{{ N = (T {Text(x.Name)}); A = (T {Text(x.Program)}); P = {Number(x.Protocol)}; L = (T {Text(x.LocalPorts)}); R = (T {Text(x.RemoteAddresses)}); F = {Number(x.Profiles)}; K = {Number(x.Keep)} }}"
+        // A block rule for any program is someone's own; an allow rule for Jellyfin's port alone may name none.
+        var lifts = plan.Lifts.Select(x => (x.Keep & ~JellyfinFirewall.AllProfiles) == 0 && x.Profiles != 0 && (x.Program.Length > 0 || x.Allow)
+            ? $"@{{ N = (T {Text(x.Name)}); A = (T {Text(x.Program)}); P = {Number(x.Protocol)}; L = (T {Text(x.LocalPorts)}); R = (T {Text(x.RemoteAddresses)}); F = {Number(x.Profiles)}; K = {Number(x.Keep)}; X = {(x.Allow ? 1 : 0)} }}"
             : throw new ArgumentException("Unexpected profiles for " + x.Name, nameof(plan)));
         var commands = plan.Commands.Select(x => x.File is "sc.exe" or "netsh.exe"
             ? $"@{{ F = '{x.File}'; A = (T {Text(x.Arguments)}); O = ${(x.Optional ? "true" : "false")} }}"
@@ -210,9 +212,9 @@ public static class JellyfinStartup
                 $policy = [Activator]::CreateInstance([Type]::GetTypeFromProgID('HNetCfg.FwPolicy2', $true))
                 $found = @()
                 foreach ($rule in $policy.Rules) {
-                  if ([int]$rule.Direction -ne 1 -or [int]$rule.Action -ne 0 -or -not [bool]$rule.Enabled) { continue }
+                  if ([int]$rule.Direction -ne 1 -or -not [bool]$rule.Enabled) { continue }
                   foreach ($lift in $lifts) {
-                    if ([string]$rule.Name -ceq $lift.N -and [string]$rule.ApplicationName -ceq $lift.A -and [int]$rule.Protocol -eq $lift.P -and [string]$rule.LocalPorts -ceq $lift.L -and [string]$rule.RemoteAddresses -ceq $lift.R -and [int]$rule.Profiles -eq $lift.F) {
+                    if ([int]$rule.Action -eq $lift.X -and [string]$rule.Name -ceq $lift.N -and [string]$rule.ApplicationName -ceq $lift.A -and [int]$rule.Protocol -eq $lift.P -and [string]$rule.LocalPorts -ceq $lift.L -and [string]$rule.RemoteAddresses -ceq $lift.R -and [int]$rule.Profiles -eq $lift.F) {
                       $found += ,@($rule, $lift.K)
                       break
                     }

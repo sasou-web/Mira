@@ -21,7 +21,7 @@ public partial class MainWindow
         {
             if (SetupFolderBox.Text.Trim().Length == 0) SetupFolderBox.Text = MediaFolders.DefaultRoot;
             if (SetupUserBox.Text.Trim().Length == 0 && JellyfinSetup.IsValidUserName(Environment.UserName)) SetupUserBox.Text = Environment.UserName;
-            SetupStatus.Text = "";
+            SetupStatus.Text = ""; ShowSetupPassword();
         }
         LoginPanel.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
         ServerSetupPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
@@ -54,7 +54,7 @@ public partial class MainWindow
         if (_serverSetupBusy) return;
         var user = SetupUserBox.Text.Trim(); var password = SetupPasswordBox.Password; var root = SetupFolderBox.Text.Trim();
         if (!JellyfinSetup.IsValidUserName(user)) { SetupStatus.Text = L("Nom d’utilisateur : lettres, chiffres, espaces et - _ ' . @ +.", "Username: letters, digits, spaces and - _ ' . @ +."); SetupUserBox.Focus(); return; }
-        if (password.Length == 0) { SetupStatus.Text = L("Choisis un mot de passe.", "Choose a password."); SetupPasswordBox.Focus(); return; }
+        if (JellyfinSetup.PasswordRefusal(password) is { } weak) { SetupStatus.Text = weak; SetupPasswordBox.Focus(); return; }
         if (MediaFolders.Refusal(root) is { } refusal) { SetupStatus.Text = refusal; SetupFolderBox.Focus(); return; }
         SetServerSetupBusy(true);
         var server = JellyfinSetup.LocalServer; var started = DateTimeOffset.Now.AddMinutes(-1); RunningInstaller? installer = null;
@@ -170,7 +170,23 @@ public partial class MainWindow
     private void SetServerSetupBusy(bool busy)
     {
         _serverSetupBusy = busy;
-        foreach (UIElement control in new UIElement[] { SetupFolderBox, SetupFolderBrowse, SetupUserBox, SetupPasswordBox, SetupStartButton, SetupBackButton }) control.IsEnabled = !busy;
+        foreach (UIElement control in new UIElement[] { SetupFolderBox, SetupFolderBrowse, SetupUserBox, SetupPasswordBox, SetupBackButton }) control.IsEnabled = !busy;
         SetupStartText.Text = busy ? L("Installation…", "Installing…") : L("Installer", "Install");
+        ShowSetupPassword();
+    }
+    private void SetupPassword_Changed(object sender, RoutedEventArgs e) => ShowSetupPassword();
+    /// <summary>
+    /// The administrator's password while it is typed: a step of the meter for each fifth of the 10 signs asked, amber
+    /// until there, green after; « Install » waits for it (ogsas 2026-11-20, maquette « mot de passe à l'installation »).
+    /// </summary>
+    private void ShowSetupPassword()
+    {
+        var password = SetupPasswordBox.Password; var enough = JellyfinSetup.LongEnough(password);
+        var steps = enough ? 5 : JellyfinSetup.Signs(password) * 5 / JellyfinSetup.MinPasswordLength;
+        var (on, off) = (Palette.Get(enough ? "Success" : "Warning"), Palette.Get("Line"));
+        for (var i = 0; i < SetupPasswordMeter.Children.Count; i++) ((System.Windows.Controls.Border)SetupPasswordMeter.Children[i]).Background = i < steps ? on : off;
+        SetupPasswordHint.Text = JellyfinSetup.PasswordHint(password);
+        SetupPasswordGood.Visibility = enough ? Visibility.Visible : Visibility.Collapsed;
+        SetupStartButton.IsEnabled = !_serverSetupBusy && enough;
     }
 }
