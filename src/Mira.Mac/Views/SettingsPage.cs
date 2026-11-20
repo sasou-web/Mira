@@ -126,7 +126,7 @@ public sealed partial class SettingsPage : Page
         Tab("family").Children.Add(Family.Section);
         // « Ajouter un ami »: an account of their own, as on Windows, for an administrator.
         Friend = new FriendsSection(shell, Section);
-        Tab("sharing").Children.Add(Friend.Section);
+        Tab("sharing").Children.Add(Friend.Lines); Tab("sharing").Children.Add(Friend.Section);
         // « Liens d'invités »: an administrator's links for guests without an account (shown once Jellyfin's extension answers).
         Tab("sharing").Children.Add(new GuestLinksSection(shell, Section).Section);
         // Quick Connect: shown once Jellyfin says it lets devices in by a code.

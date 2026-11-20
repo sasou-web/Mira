@@ -418,6 +418,8 @@ public sealed partial class MainWindow : Window
         // The black, the mark and « mira » until the Home page is drawn, then the mark glides to the rail (MainWindow.Opening.cs).
         // In a home: « Who's watching? » before anything of an account (the profile chosen opens its session).
         if (await OpenHomeAtStartAsync()) await OpenAsync();
+        // A friend's invite waiting to be let in, or a friend's session: its node first.
+        else if (await OpenFriendAtStartAsync()) { if (_friendWaiting is not null) await OpenAsync(); }
         else if (await Task.Run(Profile.LoadConnection) is { } connection) { var activating = ActivateAsync(connection); await OpenWhenReadyAsync(activating); await activating; }
         else { ShowLogin(); await OpenAsync(); }
         if (tailnetCheck is not null) { await tailnetCheck.RunAsync(); return; }
@@ -439,7 +441,10 @@ public sealed partial class MainWindow : Window
         var login = new LoginPage(this, error);
         // Opened from an invitation (a mira:// link) before any account: its Jellyfin, to sign in to.
         if (_invite is { } invite) login.Server = invite.Server;
+        // A home's or a friend's page opened by a link as Mira started stays over the sign-in (ogsas: « la page de connexion reste »).
+        var family = Family;
         _overlay.Children.Clear(); _overlay.Children.Add(login);
+        if (family is not null) { _overlay.Children.Add(family); _rail.IsVisible = false; }
         _history.Clear(); _forward.Clear(); _kept.Clear(); Host(null);
         // A party link opened while Mira was starting, before any account: its first name is asked now.
         if (_invite is { Party: not null }) _ = OfferInviteAsync();

@@ -31,6 +31,8 @@ public sealed class MockJellyfin : HttpMessageHandler
     /// <summary>What the administrator's side of the home was asked: « PUT Mira/home/password »…</summary>
     public List<string> HomeAdmin { get; } = [];
     private int _pinLeft = 5;
+    /// <summary>Marc's device at the door (« Laisser entrer »): until the check lets it in.</summary>
+    public bool FriendKnocking { get; set; } = true;
     /// <summary>A Jellyfin without Mira's extension (most of them): every Mira/… path answers 404.</summary>
     public bool NoExtension { get; set; }
     /// <summary>The account's session ended on Jellyfin: every request of it answered 401.</summary>
@@ -195,6 +197,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "QuickConnect/Enabled") return Json(true);
         if (path.StartsWith("Mira/") && NoExtension) return new HttpResponseMessage(HttpStatusCode.NotFound);
         if (path.StartsWith("Mira/home")) return await HomeAsync(request, path, cancellationToken);
+        if (path.StartsWith("Mira/friend")) return FriendLinks(request, path);
         if (path == "Mira/manifest.webmanifest") return Json(new { name = "Mira" });
         if (path.StartsWith("Mira/torlink")) return await RelayAsync(request, path, cancellationToken);
         // « Extension Mira sur Jellyfin »: its repositories, the plugin installed from Mira's, a restart.
@@ -510,6 +513,28 @@ public sealed class MockJellyfin : HttpMessageHandler
         {
             lock (HomeAdmin) HomeAdmin.Add(request.Method.Method + " " + path);
             if (path == "Mira/home/password") HomeOn = Field("password") is not null;
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// « Inviter un ami » by a link, the administrator's side (FriendController of Mira.Jellyfin): Marc's link used by a
+    /// device that waits at the door until « Let in », then in.
+    /// </summary>
+    private HttpResponseMessage FriendLinks(HttpRequestMessage request, string path)
+    {
+        if (path == "Mira/friend" && request.Method == HttpMethod.Get)
+            return Json(new
+            {
+                tailnet = "ok", tag = "tag:mira-friend",
+                invites = new object[] { new { id = "invite-1", user = "friend-1", name = "Marc", created = DateTimeOffset.UtcNow.AddHours(-1), until = DateTimeOffset.UtcNow.AddHours(47), used = DateTimeOffset.UtcNow.AddMinutes(-5), state = "used" } },
+                devices = new object[] { new { id = "friend-device-1", user = "friend-1", name = "Mira on Sam’s Mac", joined = DateTimeOffset.UtcNow.AddMinutes(-5), tailnet = true, lastSeen = (DateTimeOffset?)null, waiting = FriendKnocking } },
+            });
+        if (request.Method == HttpMethod.Post && path == "Mira/friend/devices/friend-device-1/approve")
+        {
+            lock (HomeAdmin) HomeAdmin.Add("POST " + path);
+            FriendKnocking = false;
             return new HttpResponseMessage(HttpStatusCode.NoContent);
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
