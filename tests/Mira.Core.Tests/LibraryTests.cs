@@ -692,7 +692,8 @@ internal static class LibraryTests
             foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
             {
                 var (what, season, name) = (row[0].GetString(), row[1].GetInt32(), row[2].GetString());
-                var (french, english) = (EpisodePages.Named(season, name, french: true), EpisodePages.Named(season, name, french: false));
+                var series = row.GetArrayLength() > 5 ? row[5].GetString() : null;
+                var (french, english) = (EpisodePages.Named(season, name, french: true, series), EpisodePages.Named(season, name, french: false, series));
                 Assert(french == row[3].GetString() && english == row[4].GetString(), $"{what}: « {french} », « {english} »");
             }
             return Task.CompletedTask;

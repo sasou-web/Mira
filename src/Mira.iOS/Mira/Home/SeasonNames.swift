@@ -9,13 +9,17 @@ enum SeasonNames {
     private static let before = "(?:^|[\\s\\-–—:·,(])"
 
     /// The pill of season `season` named `name` by Jellyfin.
-    static func label(_ season: Int, _ name: String?, french: Bool = EpisodeShelf.french) -> String {
-        own(season, name, french: french) ?? (french ? "Saison \(season)" : "Season \(season)")
+    static func label(_ season: Int, _ name: String?, series: String? = nil, french: Bool = EpisodeShelf.french) -> String {
+        own(season, name, series: series, french: french) ?? (french ? "Saison \(season)" : "Season \(season)")
     }
 
     /// Its own name, or nil for Mira's « Saison N ».
-    static func own(_ season: Int, _ name: String?, french: Bool) -> String? {
+    static func own(_ season: Int, _ name: String?, series: String? = nil, french: Bool) -> String? {
         guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+        // A title and its year (AniDB's entry for each season: « The Apothecary Diaries (2026) ») or the series' own
+        // name says nothing of the season.
+        if groups("\\s*\\((?:19|20)\\d\\d\\)$", name, ignoringCase: false) != nil { return nil }
+        if let series = series?.trimmingCharacters(in: .whitespacesAndNewlines), name.caseInsensitiveCompare(series) == .orderedSame { return nil }
         let number = String(season)
         if let part = groups(before + word + "\\s*0*(\\d+)\\s*[\\-–—:·,]?\\s*(?:part|partie|teil|parte|cour)\\s*0*(\\d+)\\s*\\)?$", name), !part.isEmpty {
             // Its own season and a part names where the name came from, not what the season holds (both parts of

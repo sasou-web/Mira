@@ -1,5 +1,5 @@
 {
-  "about": "The name of a season's pill from the name Jellyfin gives it (Windows and Mac EpisodePages.Named, iPhone SeasonNames.label). Each case: what it is, the season number, Jellyfin's name, then the pill in French and in English; null = Mira's own « Saison N » / « Season N ».",
+  "about": "The name of a season's pill from the name Jellyfin gives it (Windows and Mac EpisodePages.Named, iPhone SeasonNames.label). Each case: what it is, the season number, Jellyfin's name, then the pill in French and in English, and the series' name when the case needs it; null = Mira's own « Saison N » / « Season N ».",
   "cases": [
     ["its own name", 1, "Bakemonogatari", "Bakemonogatari", "Bakemonogatari"],
     ["its own name, spaces around", 3, " Nisemonogatari ", "Nisemonogatari", "Nisemonogatari"],
@@ -19,6 +19,10 @@
     ["The Final Season", 4, "The Final Season", "Saison finale", "Final Season"],
     ["a name with a number of its own", 9, "Monogatari Series Second Season", "Monogatari Series Second Season", "Monogatari Series Second Season"],
     ["a name ending with another season", 5, "Owari Season 2", "Owari Season 2", "Owari Season 2"],
-    ["a name with words after the number", 2, "Season 2: Rise", "Season 2: Rise", "Season 2: Rise"]
+    ["a name with words after the number", 2, "Season 2: Rise", "Season 2: Rise", "Season 2: Rise"],
+    ["a title and its year (AniDB, The Apothecary Diaries on the Dell)", 3, "The Apothecary Diaries (2026)", null, null, "The Apothecary Diaries"],
+    ["a title in another language and its year", 2, "Les Carnets de l'apothicaire (2025)", null, null, "The Apothecary Diaries"],
+    ["the series' own name", 2, "Invincible", null, null, "Invincible"],
+    ["a year inside a name, not at its end", 2, "1999 Arc", "1999 Arc", "1999 Arc"]
   ]
 }
