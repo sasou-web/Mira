@@ -79,7 +79,7 @@ public sealed class InvitesController : ControllerBase
             return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas répondu. Réessaie dans un instant.");
         }
 
-        var (made, userId, name, password) = await GuestAccounts.CreateAsync(client, Roots(), admin, body?.Name, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
+        var (made, userId, name) = await GuestAccounts.CreateAsync(client, Roots(), admin, body?.Name, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
         switch (made)
         {
             case GuestAccounts.Made.NoAnswer:
@@ -91,7 +91,7 @@ public sealed class InvitesController : ControllerBase
         }
 
         await GuestAccounts.KeepKeyAsync(client, Roots(), admin, cancellationToken).ConfigureAwait(false);
-        var invite = Invites.Add(name!, userId!, password!, GuestAccounts.Text(me["Id"])!, GuestAccounts.Text(me["Name"]) ?? "");
+        var invite = Invites.Add(name!, userId!, GuestAccounts.Text(me["Id"])!, GuestAccounts.Text(me["Name"]) ?? "");
         return Answer(View(invite, Invites.Address));
     }
 

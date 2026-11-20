@@ -43,23 +43,23 @@ internal static class GuestAccounts
     }
 
     /// <summary>
-    /// A guest's account: hidden, its policy a guest's (<see cref="GuestRoutes.Policy"/>), its password random and never
-    /// shown, its name <paramref name="wanted"/> made unique (or <paramref name="fallback"/> numbered). Deleted again
-    /// when its policy does not pass.
+    /// A guest's account: hidden, its policy a guest's (<see cref="GuestRoutes.Policy"/>), its password random, never
+    /// shown nor kept (Jellyfin opens its sessions itself: GuestController.Open), its name <paramref name="wanted"/>
+    /// made unique (or <paramref name="fallback"/> numbered). Deleted again when its policy does not pass.
     /// </summary>
-    public static async Task<(Made Result, string? UserId, string? Name, string? Password)> CreateAsync(HttpClient client, IEnumerable<string> roots,
+    public static async Task<(Made Result, string? UserId, string? Name)> CreateAsync(HttpClient client, IEnumerable<string> roots,
         IReadOnlyList<(string, string)> admin, string? wanted, string fallback, CancellationToken cancellationToken)
     {
         var (usersStatus, usersText) = await JellyfinLoopback.CallAsync(client, roots, HttpMethod.Get, "Users", admin, null, cancellationToken).ConfigureAwait(false);
         if (usersStatus != (int)HttpStatusCode.OK || Parse(usersText) is not JsonArray users)
         {
-            return (Made.NoAnswer, null, null, null);
+            return (Made.NoAnswer, null, null);
         }
 
         var name = GuestRoutes.GuestName(wanted, fallback, users.Select(x => Text(x?["Name"])).OfType<string>());
         if (name is null)
         {
-            return (Made.BadName, null, null, null);
+            return (Made.BadName, null, null);
         }
 
         var password = GuestRoutes.NewPassword();
@@ -67,7 +67,7 @@ internal static class GuestAccounts
         var userId = madeStatus == (int)HttpStatusCode.OK ? Text(Parse(madeText)?["Id"]) : null;
         if (userId is null)
         {
-            return (Made.Failed, null, null, null);
+            return (Made.Failed, null, null);
         }
 
         // Not an orphan for a sweep until its link holds it (GuestInvites.Add).
@@ -82,10 +82,10 @@ internal static class GuestAccounts
         {
             await JellyfinLoopback.CallAsync(client, roots, HttpMethod.Delete, $"Users/{userId}", admin, null, CancellationToken.None).ConfigureAwait(false);
             Plugin.Invites.Unmade(userId);
-            return (Made.Failed, null, null, null);
+            return (Made.Failed, null, null);
         }
 
-        return (Made.Done, userId, name, password);
+        return (Made.Done, userId, name);
     }
 
     /// <summary>

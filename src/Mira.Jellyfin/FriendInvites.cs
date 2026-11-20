@@ -419,6 +419,7 @@ public sealed class FriendInvites
 
         try
         {
+            ServerSecrets.Restrict(_file);
             _store = JsonSerializer.Deserialize<Store>(File.ReadAllText(_file), Json) ?? new Store();
             _store.Invites.RemoveAll(x => string.IsNullOrEmpty(x.Id) || string.IsNullOrEmpty(x.Token) || HomeFamily.Plain(x.User) is null);
             _store.Devices.RemoveAll(x => string.IsNullOrEmpty(x.Id) || HomeFamily.Plain(x.User) is null);
@@ -446,10 +447,8 @@ public sealed class FriendInvites
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
-            var next = _file + ".next";
-            File.WriteAllText(next, JsonSerializer.Serialize(_store, Json), Encoding.UTF8);
-            File.Move(next, _file, true);
+            // Hashes only (passwords, codes, tokens), but a code of 4 digits is soon found from its hash: Jellyfin's account's alone.
+            ServerSecrets.Write(_file, JsonSerializer.Serialize(_store, Json));
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {

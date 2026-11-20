@@ -285,7 +285,7 @@ internal static class GuestTests
                 Assert(!invites.SetAddress(bad) && invites.Address == "https://pc.tail1.ts.net", "Address refused: " + bad);
             Assert(GuestInvites.Link(invites.Address, "abc") == "https://pc.tail1.ts.net/Mira/#/invite/abc" && GuestInvites.Link(null, "abc") is null, "Link");
 
-            var lea = invites.Add("Léa", Item, "secret", "host-id", "ogsas");
+            var lea = invites.Add("Léa", Item, "host-id", "ogsas");
             Assert(invites.Open(lea.Code, "device-a", "1.2.3.4") is (GuestInvites.Opening.Opened, { Name: "Léa" }), "Opened");
             Assert(invites.ByToken("token-a") is null, "No session before Jellyfin gave one");
             Assert(invites.Opened(lea.Id, "device-a", "iPhone", "token-a") && invites.ByToken("token-a") is { Id: var found, Device: "device-a" } && found == lea.Id, "The device's session");
@@ -312,7 +312,7 @@ internal static class GuestTests
             Assert(invites.Sweep().Count == 0, "Deleted");
 
             // Taken back by the host: at once.
-            var marc = invites.Add("Marc", Dashed, "secret", "host-id", "ogsas");
+            var marc = invites.Add("Marc", Dashed, "host-id", "ogsas");
             invites.Opened(marc.Id, "device-m", "Android", "token-m");
             Assert(invites.Remove(marc.Id) is { Name: "Marc" } && invites.ByToken("token-m") is null && invites.Remove(marc.Id) is null && invites.Sweep().SequenceEqual([Dashed]), "Taken back");
 
@@ -327,7 +327,7 @@ internal static class GuestTests
 
             // A guest's session is known as one (what may reach Jellyfin only through the gateway), no use counted.
             var known = new GuestInvites(null, () => now);
-            var sam = known.Add("Sam", Item, "secret", "host-id", "ogsas");
+            var sam = known.Add("Sam", Item, "host-id", "ogsas");
             known.Opened(sam.Id, "device-s", "iPhone", "token-s");
             Assert(known.IsGuestToken("token-s") && !known.IsGuestToken("token-x") && !known.IsGuestToken(null), "A guest's session");
 
@@ -336,7 +336,7 @@ internal static class GuestTests
             known.Made(Making);
             Assert(known.Orphans([Item.ToUpperInvariant(), Lost, Making, "x"]) == 1 && known.Sweep().SequenceEqual([Lost]), "Only the lost one");
             Assert(known.Orphans([Lost]) == 0 && known.Sweep().Count == 1, "Counted once");
-            known.Add("Alex", Making, "secret", "host-id", "ogsas");
+            known.Add("Alex", Making, "host-id", "ogsas");
             now = now.AddMinutes(20);
             Assert(known.Orphans([Making]) == 0, "Held by its link now");
 
@@ -364,20 +364,20 @@ internal static class GuestTests
             Assert(invites.Party("x") is null && invites.Party(GuestRoutes.NewCode()) is null, "Any other code: none");
 
             Assert(invites.OpenParty(party.Code, "device-a", "1.2.3.4") is { Result: GuestInvites.Opening.Join, Invite: null, Party.HostId: "host-id" }, "A new device: a guest to make");
-            var lea = invites.Add("Léa", Item, "secret", "host-id", "ogsas", party.Code, "device-a");
+            var lea = invites.Add("Léa", Item, "host-id", "ogsas", party.Code, "device-a");
             Assert(invites.OpenParty(party.Code, "device-a", "1.2.3.4") is { Result: GuestInvites.Opening.Opened, Invite.Id: var id } && id == lea.Id, "The same device: its guest again");
             Assert(invites.OpenParty(party.Code, "device-b", "1.2.3.4").Result == GuestInvites.Opening.Join, "Another device: one more guest");
             Assert(invites.Opened(lea.Id, "device-b", "Chrome", "t") == false && invites.Opened(lea.Id, "device-a", "iPhone", "token-a"), "A guest stays its device's");
             Assert(invites.Guests(party.Code).Count == 1 && invites.Guests(invites.PartyOf("other", "Alex").Code).Count == 0, "Guests of each party");
             Assert(invites.OpenParty(GuestRoutes.NewCode(), "device-a", "1.2.3.4").Result == GuestInvites.Opening.Unknown, "Unknown party");
 
-            for (var i = 1; i < GuestInvites.MaxPartyGuests; i++) invites.Add($"G{i}", Guid.NewGuid().ToString("N"), "s", "host-id", "ogsas", party.Code, $"device-{i}");
+            for (var i = 1; i < GuestInvites.MaxPartyGuests; i++) invites.Add($"G{i}", Guid.NewGuid().ToString("N"), "host-id", "ogsas", party.Code, $"device-{i}");
             Assert(invites.OpenParty(party.Code, "device-z", "4.4.4.4").Result == GuestInvites.Opening.Full, "Full");
 
             // Checked again once the account is made: full, a second tap of the same device, a party made again.
-            Assert(invites.JoinParty("Late", "late-id", "s", party.Code, "device-z") is null && invites.Sweep().Contains("late-id"), "Full meanwhile: refused, account to delete");
-            Assert(invites.JoinParty("Twice", "twice-id", "s", party.Code, "device-a") is { Id: var twice } && twice == lea.Id && invites.Sweep().Contains("twice-id"), "Same device twice: its guest, the extra account to delete");
-            Assert(invites.JoinParty("Old", "old-id", "s", GuestRoutes.NewCode(), "device-y") is null && invites.Sweep().Contains("old-id"), "Party gone meanwhile: refused");
+            Assert(invites.JoinParty("Late", "late-id", party.Code, "device-z") is null && invites.Sweep().Contains("late-id"), "Full meanwhile: refused, account to delete");
+            Assert(invites.JoinParty("Twice", "twice-id", party.Code, "device-a") is { Id: var twice } && twice == lea.Id && invites.Sweep().Contains("twice-id"), "Same device twice: its guest, the extra account to delete");
+            Assert(invites.JoinParty("Old", "old-id", GuestRoutes.NewCode(), "device-y") is null && invites.Sweep().Contains("old-id"), "Party gone meanwhile: refused");
 
             // Made again: the old link stops, its guests' accounts go.
             var again = invites.NewParty("host-id", "ogsas");

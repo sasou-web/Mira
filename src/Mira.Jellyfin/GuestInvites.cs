@@ -12,7 +12,7 @@ namespace Mira.Jellyfin;
 /// own, for the tests (<see cref="GuestController"/> and <see cref="InvitesController"/> serve it, the plugin's own
 /// in Plugin.Invites).
 /// </summary>
-public sealed class GuestInvites
+public sealed partial class GuestInvites
 {
     /// <summary>A link that served nothing for this long stops working, and its account goes.</summary>
     public static readonly TimeSpan Unused = TimeSpan.FromDays(7);
@@ -119,10 +119,10 @@ public sealed class GuestInvites
     }
 
     /// <summary>
-    /// A new link, its account made (<paramref name="userId"/>, <paramref name="password"/>); for a guest come by a
+    /// A new link, its account made (<paramref name="userId"/>; its password is never kept); for a guest come by a
     /// party link, that link's code and the device it is for, from the start.
     /// </summary>
-    public GuestInvite Add(string name, string userId, string password, string hostId, string hostName, string? party = null, string? device = null)
+    public GuestInvite Add(string name, string userId, string hostId, string hostName, string? party = null, string? device = null)
     {
         lock (_gate)
         {
@@ -130,7 +130,7 @@ public sealed class GuestInvites
             var invite = new GuestInvite
             {
                 Id = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6)).ToLowerInvariant(),
-                Code = GuestRoutes.NewCode(), Name = name, UserId = userId, Password = password, HostId = hostId, HostName = hostName,
+                Code = GuestRoutes.NewCode(), Name = name, UserId = userId, HostId = hostId, HostName = hostName,
                 Created = now, Used = now, Party = party, Device = device,
             };
             _making.Remove(userId);
@@ -145,7 +145,7 @@ public sealed class GuestInvites
     /// account is made: the party may have been made again meanwhile, filled up, or the same device may have got a
     /// guest by a second tap. Then the account just made goes (to delete) and the device gets its guest, or null.
     /// </summary>
-    public GuestInvite? JoinParty(string name, string userId, string password, string partyCode, string device)
+    public GuestInvite? JoinParty(string name, string userId, string partyCode, string device)
     {
         lock (_gate)
         {
@@ -161,7 +161,7 @@ public sealed class GuestInvites
                 return mine?.Copy();
             }
 
-            return Add(name, userId, password, party.HostId, party.HostName, party.Code, device);
+            return Add(name, userId, party.HostId, party.HostName, party.Code, device);
         }
     }
 
@@ -543,10 +543,25 @@ public sealed class GuestInvites
 
         try
         {
-            _store = JsonSerializer.Deserialize<Store>(File.ReadAllText(_file), Json) ?? new Store();
+            ServerSecrets.Restrict(_file);
+            ServerSecrets.Plain();
+            var text = File.ReadAllText(_file);
+            _store = JsonSerializer.Deserialize<Store>(text, Json) ?? new Store();
             _store.Gone.RemoveAll(x => !GuestRoutes.IsId(x));
+            // A link whose code no longer opens (sealed by another Windows account) goes, its account with it.
+            foreach (var lost in _store.Invites.Where(x => !string.IsNullOrEmpty(x.Id) && GuestRoutes.IsId(x.UserId) && !GuestRoutes.IsCode(x.Code)))
+            {
+                _store.Gone.Add(lost.UserId);
+            }
+
             _store.Invites.RemoveAll(x => string.IsNullOrEmpty(x.Id) || !GuestRoutes.IsId(x.UserId) || !GuestRoutes.IsCode(x.Code));
             _store.Parties.RemoveAll(x => !GuestRoutes.IsCode(x.Code) || string.IsNullOrEmpty(x.HostId));
+            if ((ServerSecrets.Plain() && ServerSecrets.Sealing) || Passwords().IsMatch(text))
+            {
+                // Written by 0.9.15 or older: the codes and the API key in clear, each guest's password kept. Sealed
+                // now, and the passwords forgotten (a guest's session is opened without it: GuestController.Open).
+                Save();
+            }
         }
         catch (Exception error) when (error is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -594,8 +609,8 @@ public sealed class GuestInvites
         }
 
         store.Gone.AddRange(ids.Where(GuestRoutes.IsId));
-        var key = System.Text.RegularExpressions.Regex.Match(text, "\"key\"\\s*:\\s*\"([0-9a-fA-F]{32})\"", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
-        store.Key = key.Success ? key.Groups[1].Value : null;
+        var key = System.Text.RegularExpressions.Regex.Match(text, "\"key\"\\s*:\\s*\"((?:dpapi:)?[A-Za-z0-9+/=]{32,})\"", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+        store.Key = key.Success && ServerSecrets.Open(key.Groups[1].Value) is { } opened && System.Text.RegularExpressions.Regex.IsMatch(opened, "^[0-9a-fA-F]{32}$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)) ? opened : null;
         return store;
     }
 
@@ -608,10 +623,7 @@ public sealed class GuestInvites
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
-            var next = _file + ".next";
-            File.WriteAllText(next, JsonSerializer.Serialize(_store, Json));
-            File.Move(next, _file, true);
+            ServerSecrets.Write(_file, JsonSerializer.Serialize(_store, Json));
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -619,9 +631,15 @@ public sealed class GuestInvites
         }
     }
 
+    // A guest's password, as 0.9.15 and older kept it.
+    [System.Text.RegularExpressions.GeneratedRegex("\"password\"\\s*:", System.Text.RegularExpressions.RegexOptions.None, 1000)]
+    private static partial System.Text.RegularExpressions.Regex Passwords();
+
     internal sealed class Store
     {
         public string? Address { get; set; }
+        /// <summary>Sealed in the file (<see cref="ServerSecrets"/>).</summary>
+        [JsonConverter(typeof(ServerSecrets.Sealed))]
         public string? Key { get; set; }
         public List<GuestInvite> Invites { get; set; } = [];
         /// <summary>Each host's party link (<see cref="PartyOf"/>).</summary>
@@ -635,11 +653,12 @@ public sealed class GuestInvites
 public sealed class GuestInvite
 {
     public string Id { get; set; } = "";
+    /// <summary>What opens the link: sealed in the file (<see cref="ServerSecrets"/>).</summary>
+    [JsonConverter(typeof(ServerSecrets.Sealed))]
     public string Code { get; set; } = "";
     /// <summary>The guest's name, their account's on Jellyfin: what the group shows.</summary>
     public string Name { get; set; } = "";
     public string UserId { get; set; } = "";
-    public string Password { get; set; } = "";
     /// <summary>The administrator who made it: their groups are the only ones the guest sees and joins.</summary>
     public string HostId { get; set; } = "";
     public string HostName { get; set; } = "";
@@ -660,6 +679,8 @@ public sealed class GuestInvite
 /// <summary>A host's party link (see <see cref="GuestInvites.PartyOf"/>).</summary>
 public sealed class GuestParty
 {
+    /// <summary>What opens the party link: sealed in the file (<see cref="ServerSecrets"/>).</summary>
+    [JsonConverter(typeof(ServerSecrets.Sealed))]
     public string Code { get; set; } = "";
     /// <summary>The account that hosts: its groups are the ones the party's guests see and join.</summary>
     public string HostId { get; set; } = "";
