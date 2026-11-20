@@ -258,6 +258,11 @@ public sealed record Connection(string Server, string UserId, string UserName, s
     public string? Home { get; init; }
     /// <summary>This account's proof key from Mira's extension (<see cref="ServerProof"/>): what a server found at another address must sign with before the token goes there.</summary>
     public string? ServerProof { get; init; }
+    /// <summary>
+    /// How many characters the password typed at sign-in (or last changed in Mira) had: never the password itself. Jellyfin
+    /// keeps only its hash, so this is how « Security » knows an administrator's own password is short.
+    /// </summary>
+    public int? PasswordLength { get; init; }
     /// <summary>The address that names this account's cache, artwork and copies: the one signed in at, wherever Jellyfin went since.</summary>
     [JsonIgnore] public string Account => Origin ?? Server;
 }
@@ -511,6 +516,8 @@ public sealed class PlayerSettings
     public DateTimeOffset? EpisodesSeenUntil { get; set; }
     /// <summary>The episodes that look listed, dated up to a week before its mark (<see cref="NewEpisodes.Known"/>); null when it could not list them all.</summary>
     public List<string>? EpisodesKnown { get; set; }
+    /// <summary>« Sécurité »: what « Passer » or « Oui, je le garde » quieted, and when (« account:<id> », « device:<id> »), for 30 days (<see cref="Family.AccountSecurity.Quiet"/>).</summary>
+    public Dictionary<string, DateTimeOffset> SecurityQuiet { get; set; } = [];
     /// <summary>Windows: where « Garder sur ce PC » puts new copies (<see cref="OfflineCopies"/>); empty: « offline » in the profile.</summary>
     public string OfflineFolder { get; set; } = "";
     /// <summary>Every other folder copies were put in: choosing another leaves the earlier copies listed where they are.</summary>

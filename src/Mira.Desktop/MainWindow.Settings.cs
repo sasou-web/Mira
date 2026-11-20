@@ -127,7 +127,7 @@ public partial class MainWindow
         // What « Soin de la bibliothèque » holds, read now: its tab is listed only once one of them shows.
         _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync();
         DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _ = ShowFriendLinesAsync(); _ = ShowPhotoAsync(); _guestShowing = ShowGuestLinksAsync(); _approveShowing = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowSignInStart(); ShowOfflineSettings();
-        AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState(); _ = ShowJellyfinServerAsync(); _ = ReadAwayAsync(again: true);
+        AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState(); _ = ShowJellyfinServerAsync(); _ = ReadAwayAsync(again: true); _ = ReadSecurityAsync(again: true);
         MirrorEssentials(); ShowEssentials();
         SettingsSearchBox.Clear(); ShowSheet(SettingsOverlay); UpdateHeroClock();
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
@@ -190,8 +190,8 @@ public partial class MainWindow
     {
         if (_settingsNavDrawn) return; _settingsNavDrawn = true;
         foreach (var button in SettingsNavigation.Children.OfType<Button>())
-            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "family" => "home", "away" => "globe", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", "discord" => "status", _ => "play" });
-        ShowUpdateDots(); ShowAway();
+            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "family" => "home", "away" => "globe", "security" => "lock", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", "discord" => "status", _ => "play" });
+        ShowUpdateDots(); ShowAway(); ShowSecurity();
     }
     /// <param name="animate">False as Réglages opens: the page comes as one, its section with it.</param>
     private void SelectSettingsTab(string tab, bool animate = true)
@@ -211,7 +211,8 @@ public partial class MainWindow
         WatchViewers(tab == "jellyfin");
         if (tab == "home") ShowEssentials();
         if (tab == "away") { _ = ReadTailscaleAppAsync(); _ = ReadAwayAsync(again: true); if (FamilySettingsNav.Visibility == Visibility.Visible) _ = ShowFamilySettingsAsync(); }
-        if (tab == "home") _ = ReadAwayAsync();
+        if (tab == "home") { _ = ReadAwayAsync(); _ = ReadSecurityAsync(); }
+        if (tab == "security") _ = ReadSecurityAsync(again: true);
         if (tab == "care") { _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
         if (tab == "jellyfin") _ = ShowJellyfinServerAsync();
         ShowSettingsGroups();
