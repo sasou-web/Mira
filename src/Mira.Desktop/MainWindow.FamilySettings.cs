@@ -209,23 +209,27 @@ public partial class MainWindow
         FrameworkElement Row(HomeAccount account)
         {
             var row = new DockPanel { Margin = new Thickness(0, 8, 0, 8) };
-            var offered = new CheckBox { IsChecked = account.Offered && !account.Admin, IsEnabled = !account.Admin, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) };
-            AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
-            offered.Click += async (_, _) =>
-            {
-                try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true, _connectionLifetime.Token); }
-                catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { offered.IsChecked = !offered.IsChecked; FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
-            };
-            DockPanel.SetDock(offered, Dock.Right); row.Children.Add(offered);
+            // An administrator has no switch and no PIN: never offered, so the home password can never run the server.
             if (!account.Admin)
             {
-                var pin = FamilyButton(account.Pin ? L("Changer le code", "Change PIN") : L("Ajouter un code", "Add a PIN"), () => AskProfilePin(account), quiet: true);
-                pin.VerticalAlignment = VerticalAlignment.Center;
+                var offered = new CheckBox { IsChecked = account.Offered, VerticalAlignment = VerticalAlignment.Center };
+                AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
+                offered.Click += async (_, _) =>
+                {
+                    try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true, _connectionLifetime.Token); }
+                    catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { offered.IsChecked = !offered.IsChecked; FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
+                };
+                var inHome = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) };
+                inHome.Children.Add(new TextBlock { Text = HomeText.InHome, Foreground = Palette.Get("TextSecondary"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+                inHome.Children.Add(offered);
+                DockPanel.SetDock(inHome, Dock.Right); row.Children.Add(inHome);
+                var pin = FamilyButton(account.Pin ? L("Changer le code", "Change PIN") : L("Ajouter un code", "Add a PIN"), () => AskProfilePin(account));
+                pin.VerticalAlignment = VerticalAlignment.Center; pin.Margin = new Thickness(10, 0, 0, 0);
                 DockPanel.SetDock(pin, Dock.Right); row.Children.Add(pin);
                 if (account.Pin)
                 {
                     var remove = FamilyButton(L("Retirer le code", "Remove PIN"), () => _ = PinAsync(account, null), quiet: true);
-                    remove.VerticalAlignment = VerticalAlignment.Center;
+                    remove.VerticalAlignment = VerticalAlignment.Center; remove.Margin = new Thickness(10, 0, 0, 0);
                     DockPanel.SetDock(remove, Dock.Right); row.Children.Add(remove);
                 }
             }
@@ -234,7 +238,7 @@ public partial class MainWindow
             name.Children.Add(new TextBlock { Text = account.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
             if (account.Pin) name.Children.Add(new Icon { Kind = "lock", Width = 13, Height = 13, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Palette.Get("TextSecondary") });
             text.Children.Add(name);
-            text.Children.Add(new TextBlock { Style = (Style)FindResource("SettingDescription"), Text = account.Admin ? L("Administrateur : jamais dans le foyer.", "Administrator: never in the home.") : AccountReach(account) });
+            text.Children.Add(new TextBlock { Style = (Style)FindResource("SettingDescription"), Text = account.Admin ? HomeText.AdminKeptOut : AccountReach(account) });
             row.Children.Add(text);
             return row;
         }
