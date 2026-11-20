@@ -64,6 +64,10 @@ struct RootView: View {
             if app.family.shown {
                 FamilyView().transition(.opacity).zIndex(0.5)
             }
+            // A friend's invite (mira://join#…): its page, then the wait for the friend's « Let in ».
+            if app.friend.shown {
+                FriendView().transition(.opacity).zIndex(0.6)
+            }
             if app.opening.phase != .gone {
                 OpeningView().zIndex(1)
             }
@@ -71,6 +75,7 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: app.session?.userId)
         .animation(.easeInOut(duration: 0.25), value: app.party.shown)
         .animation(.easeInOut(duration: 0.25), value: app.family.shown)
+        .animation(.easeInOut(duration: 0.25), value: app.friend.shown)
         // A party link (mira://party/…): into the host's group, or as its guest when it is another Jellyfin's. The QR
         // code of « Mira on your iPhone » (mira://connect): the sign-in screen filled in.
         .onOpenURL { url in

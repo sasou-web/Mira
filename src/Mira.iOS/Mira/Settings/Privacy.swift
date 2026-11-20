@@ -29,11 +29,11 @@ struct PrivacyView: View {
                                stop: "The switch here.")
                 }
                 .accessibilityIdentifier("privacy.tailscale")
-                PrivacyRow(title: "The home, away from home",
-                           to: "Tailscale’s coordination server and its relays, your router (as Built-in Tailscale), then the home’s Jellyfin alone, on its administrator’s Tailscale network.",
-                           when: "Only after a home link opened in Mira, each time Mira opens, until you leave the home.",
-                           sends: "As Built-in Tailscale, without your Tailscale account: the device’s name, its system, its IP addresses and its public key; the link’s single-use key, once. Videos stay end-to-end encrypted, no log is sent.",
-                           stop: "“Leave this home”, in Settings → Switch profile.")
+                PrivacyRow(title: "The home away from home, a friend’s server",
+                           to: "Tailscale’s coordination server and its relays, your router (as Built-in Tailscale), then the home’s or the friend’s Jellyfin alone, on its administrator’s Tailscale network.",
+                           when: "Only after a home link or a friend’s invite opened in Mira, each time Mira opens, until you leave the home or your friend removes this iPhone.",
+                           sends: "As Built-in Tailscale, without your Tailscale account: the device’s name, its system, its IP addresses and its public key; the link’s single-use key, once. The host so sees this iPhone’s name, its system, its public IP address and when it last connected. Videos stay end-to-end encrypted, no log is sent.",
+                           stop: "“Leave this home”, in Settings → Switch profile. At a friend’s: they remove this iPhone, or another invite takes it elsewhere.")
                 PrivacyRow(title: "Trailers from the web",
                            to: "The trailer’s site (often YouTube), in Safari, never in Mira.",
                            when: "Only when you touch “Trailer on …” on a title that has none on your server.",

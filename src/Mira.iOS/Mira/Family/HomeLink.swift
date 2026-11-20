@@ -44,6 +44,11 @@ struct HomeLink: Sendable, Hashable {
 
     /// The link read, or nil: another link, damaged data, an address outside Tailscale's, a key that is not one.
     static func read(_ text: String?) -> HomeLink? {
+        // The short link (JoinLink) of a home: no name or id in it, both read from the server once reached.
+        if JoinLink.isJoinLink(text) {
+            guard let join = JoinLink.read(text), join.kind == .home else { return nil }
+            return HomeLink(name: "Jellyfin", serverId: "", address: join.address, key: join.key, until: .distantFuture)
+        }
         guard let text, isHomeLink(text), text.count <= 4200, let hash = text.firstIndex(of: "#") else { return nil }
         let data = text[text.index(after: hash)...].trimmingCharacters(in: .whitespacesAndNewlines)
         guard !data.isEmpty, data.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-_=".contains($0)) }) else { return nil }
