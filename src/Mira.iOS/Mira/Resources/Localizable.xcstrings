@@ -9774,6 +9774,96 @@
           }
         }
       }
+    },
+    "Add a rule: the friends you share this PC with reach Jellyfin and Mira’s links, nothing else.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter une règle : les amis avec qui tu partages ce PC joignent Jellyfin et les liens de Mira, rien d’autre."
+          }
+        }
+      }
+    },
+    "Allow Funnel on this PC only, for guest links: Mira opens only /Mira to the Internet.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser Funnel sur ce PC seulement, pour les liens d’invité : Mira n’ouvre que /Mira à Internet."
+          }
+        }
+      }
+    },
+    "Home devices reach only Jellyfin. Mira can still protect this PC with %lld change(s), shown before you tap.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les appareils du foyer n’atteignent que Jellyfin. Mira peut encore protéger ce PC en %lld changement(s), que tu vois avant de toucher."
+          }
+        }
+      }
+    },
+    "Keep this PC on Tailscale for good: its key no longer expires (otherwise Tailscale signs it out after 180 days).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder ce PC sur Tailscale pour de bon : sa clé n’expire plus (sinon Tailscale le déconnecte au bout de 180 jours)."
+          }
+        }
+      }
+    },
+    "Mira can protect this PC better": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira peut mieux protéger ce PC"
+          }
+        }
+      }
+    },
+    "Mira checked your key with Tailscale. Home devices already reach only Jellyfin; Mira can protect this PC better with %lld change(s). Your comments stay.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira a vérifié ta clé avec Tailscale. Les appareils du foyer n’atteignent déjà que Jellyfin ; Mira peut encore mieux protéger ce PC en %lld changement(s). Tes commentaires restent."
+          }
+        }
+      }
+    },
+    "Remove rule %lld: it let the friends you share this PC with go further than Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer la règle %lld : elle laissait les amis avec qui tu partages ce PC aller plus loin que Jellyfin."
+          }
+        }
+      }
+    },
+    "Rule %lld let everyone go everywhere: it now covers only your own devices.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La règle %lld laissait tout le monde aller partout : elle ne couvre plus que tes propres appareils."
+          }
+        }
+      }
+    },
+    "Rule %lld no longer covers the friends you share this PC with: they went further than Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La règle %lld ne couvre plus les amis avec qui tu partages ce PC : ils allaient plus loin que Jellyfin."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

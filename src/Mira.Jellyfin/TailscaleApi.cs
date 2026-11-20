@@ -11,7 +11,7 @@ namespace Mira.Jellyfin;
 /// <summary>
 /// Tailscale's API (api.tailscale.com), with the home's OAuth client (<see cref="HomeTailnet"/>): an access token
 /// (an hour), the tailnet's policy as JSON, a single-use key of <see cref="HomeTailnet.Tag"/>, the tailnet's devices,
-/// one deleted. Called only when the administrator connects the home, opens its settings, makes a link or takes a
+/// one deleted, this PC's key made to never expire. Called only when the administrator connects the home, opens its settings, makes a link or takes a
 /// device out. What it sends: the client's id and secret (for the token), then that token; nothing of Jellyfin, its
 /// library nor its accounts. The tailnet is « - »: the client's own.
 /// </summary>
@@ -170,9 +170,23 @@ public sealed class TailscaleApi
                 Has(x, HomeTailnet.Tag) || Has(x, HomeTailnet.FriendTag),
                 Time(x["created"]),
                 Time(x["lastSeen"]))
-        { Friend = Has(x, HomeTailnet.FriendTag) })
+        { Friend = Has(x, HomeTailnet.FriendTag), KeyExpiryDisabled = x["keyExpiryDisabled"] is JsonValue k && k.TryGetValue<bool>(out var off) ? off : null })
             .Where(x => x.Id.Length > 0)
             .ToList();
+    }
+
+    /// <summary>
+    /// A device's key made to never expire (this PC, Jellyfin's: it would otherwise leave the tailnet after Tailscale's
+    /// 180 days, and the home and friends with it). Needs devices:core.
+    /// </summary>
+    public async Task DisableKeyExpiryAsync(string id, CancellationToken cancellationToken)
+    {
+        if (id.Length is 0 or > 128 || !id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+        {
+            throw new TailscaleException(Failure.Gone, "Not a device.");
+        }
+
+        await SendAsync(HttpMethod.Post, "/api/v2/device/" + id + "/key", "{\"keyExpiryDisabled\": true}", cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>A key not used yet revoked (an invitation cancelled): true when it is gone (or was already).</summary>

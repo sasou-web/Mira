@@ -42,7 +42,7 @@ public static class AwayFromHome
             if (!home.Connected)
                 return new(AwayLevel.Off, L("À régler", "Set up"), L("Laisse les tiens regarder d’ailleurs", "Let your people watch from elsewhere"),
                     L("Une seule fois : ensuite, les liens du foyer et les invitations marchent loin de chez toi.", "Once only: then home links and friend invites work away from home."));
-            if (home.Policy != "ok" || home.Broad)
+            if (home.Policy is not ("ok" or "harden") || home.Broad)
                 return new(AwayLevel.Attention, L("À vérifier", "Check"), L("Ta politique Tailscale est à corriger", "Your Tailscale policy needs fixing"),
                     L("Les liens attendent qu’elle soit juste : Mira te dit quoi changer, plus bas.", "Links wait until it’s right: Mira tells you what to change, below."));
             return new(AwayLevel.Ready, L("Prêt", "Ready"), L("Prêt : les tiens regardent de partout", "Ready: your people can watch from anywhere"),

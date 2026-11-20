@@ -83,7 +83,7 @@ struct HomeGuideView: View {
         case 1: HomeGuide.tag
         case 2: HomeGuide.key
         case 3: HomeGuide.secret
-        default: HomeGuide.rules(state?.fix?.count ?? 0)
+        default: HomeGuide.rules(state?.fix?.count ?? 0, harden: state?.policy == "harden")
         }
     }
 

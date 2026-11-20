@@ -82,7 +82,7 @@ public sealed partial class FamilySection
             first = false;
         }
         actions.Children.Add(Button(HomeGuide.Disconnect, () => _ = DisconnectAsync(), "quiet"));
-        var title = new TextBlock { Text = trouble.Title, FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Ui.Danger, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 30, 0) };
+        var title = new TextBlock { Text = trouble.Title, FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = trouble.Warn ? Ui.Warning : Ui.Danger, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 30, 0) };
         return Card(HomeGuide.EntryTitle, trouble.Text, title, actions, lines, status);
 
         async Task UndoAsync()
@@ -140,7 +140,7 @@ public sealed partial class FamilySection
         body.Children.Add(bars);
 
         var status = Note("");
-        var page = step switch { 1 => HomeGuide.Tag, 2 => HomeGuide.Key, 3 => HomeGuide.Secret, _ => HomeGuide.Rules(state.Fix?.Count ?? 0) };
+        var page = step switch { 1 => HomeGuide.Tag, 2 => HomeGuide.Key, 3 => HomeGuide.Secret, _ => HomeGuide.Rules(state.Fix?.Count ?? 0, state.Policy == "harden") };
         var heading = Ui.Heading(page.Title, 20, 3, FontWeight.SemiBold);
         heading.Margin = new Thickness(0, 22, 30, 0); heading.TextWrapping = TextWrapping.Wrap;
         body.Children.Add(heading);

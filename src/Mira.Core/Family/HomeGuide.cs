@@ -80,9 +80,12 @@ public static class HomeGuide
         L("Une seule case, pas deux : l’identifiant du client est dans le secret.", "One box, not two: the client ID is inside the secret."),
         L("Vérifier", "Check it"));
 
-    public static Step Rules(int changes) => new(4,
+    public static Step Rules(int changes, bool harden = false) => new(4,
         changes > 0 ? L("Une dernière chose : les règles de ton réseau", "One thing left: your network’s rules") : L("Tout est prêt", "All set"),
-        changes > 0
+        changes > 0 && harden
+            ? L($"Mira a vérifié ta clé avec Tailscale. Les appareils du foyer n’atteignent déjà que Jellyfin ; Mira peut encore mieux protéger ce PC en {Lang.Count(changes, "changement", "changements", "change", "changes")}. Tes commentaires restent.",
+                $"Mira checked your key with Tailscale. Home devices already reach only Jellyfin; Mira can protect this PC better with {Lang.Count(changes, "changement", "changements", "change", "changes")}. Your comments stay.")
+            : changes > 0
             ? L($"Mira a vérifié ta clé avec Tailscale. Tes règles laisseraient un appareil du foyer voir tout ton réseau : Mira va y faire {Lang.Count(changes, "changement", "changements", "change", "changes")}. Tes commentaires restent.",
                 $"Mira checked your key with Tailscale. Your rules would let a home device see your whole network, so Mira will make {Lang.Count(changes, "changement", "changements", "change", "changes")}. Your comments stay.")
             : L("Mira a vérifié ta clé et tes règles avec Tailscale : les appareils du foyer n’atteignent que Jellyfin.", "Mira checked your key and your rules with Tailscale: home devices reach only Jellyfin."),
@@ -144,8 +147,16 @@ public static class HomeGuide
     {
         "tag" => L($"Ajouter l’étiquette {TagName}.", $"Add the {TagName} tag."),
         "grant" => L("Ajouter une règle : les appareils du foyer joignent Jellyfin, rien d’autre.", "Add a rule: the home’s devices reach Jellyfin, nothing else."),
-        "narrow" => L($"La règle {change.Number} laissait tout le monde aller partout : elle couvre maintenant tes propres appareils et les amis avec qui tu partages, pas ceux du foyer.",
+        "narrow" when change.Sources?.Contains("autogroup:shared", StringComparer.OrdinalIgnoreCase) == true => L($"La règle {change.Number} laissait tout le monde aller partout : elle couvre maintenant tes propres appareils et les amis avec qui tu partages, pas ceux du foyer.",
             $"Rule {change.Number} let everyone go everywhere: it now covers your own devices and the friends you share with, not the home’s."),
+        "narrow" => L($"La règle {change.Number} laissait tout le monde aller partout : elle ne couvre plus que tes propres appareils.",
+            $"Rule {change.Number} let everyone go everywhere: it now covers only your own devices."),
+        "unshare" => change.Sources is { Count: 0 }
+            ? L($"Retirer la règle {change.Number} : elle laissait les amis avec qui tu partages ce PC aller plus loin que Jellyfin.", $"Remove rule {change.Number}: it let the friends you share this PC with go further than Jellyfin.")
+            : L($"La règle {change.Number} ne couvre plus les amis avec qui tu partages ce PC : ils allaient plus loin que Jellyfin.", $"Rule {change.Number} no longer covers the friends you share this PC with: they went further than Jellyfin."),
+        "shared" => L("Ajouter une règle : les amis avec qui tu partages ce PC joignent Jellyfin et les liens de Mira, rien d’autre.", "Add a rule: the friends you share this PC with reach Jellyfin and Mira’s links, nothing else."),
+        "funnel" => L("Autoriser Funnel sur ce PC seulement, pour les liens d’invité : Mira n’ouvre que /Mira à Internet.", "Allow Funnel on this PC only, for guest links: Mira opens only /Mira to the Internet."),
+        "key" => L("Garder ce PC sur Tailscale pour de bon : sa clé n’expire plus (sinon Tailscale le déconnecte au bout de 180 jours).", "Keep this PC on Tailscale for good: its key no longer expires (otherwise Tailscale signs it out after 180 days)."),
         _ => change.Kind,
     };
 
@@ -155,7 +166,8 @@ public static class HomeGuide
     public enum Remedy { RedoKey, OpenCredentials, Fix, SeeLines, SetUpAgain, CheckAgain, OpenPolicy }
 
     /// <summary>Something off with the home's Tailscale, said plainly, and what fixes it.</summary>
-    public sealed record Problem(string Title, string Text, IReadOnlyList<Remedy> Remedies);
+    /// <summary>Warn: a protection to add, nothing broken (its title in Warning, not Danger).</summary>
+    public sealed record Problem(string Title, string Text, IReadOnlyList<Remedy> Remedies, bool Warn = false);
 
     /// <summary>
     /// The trouble in the extension's verdict (<see cref="HomeTailnetState.Policy"/> or a refusal's code), with the scopes
@@ -175,6 +187,10 @@ public static class HomeGuide
                 [Remedy.RedoKey]);
         return code switch
         {
+            "harden" when changes > 0 => new(L("Mira peut mieux protéger ce PC", "Mira can protect this PC better"),
+                L($"Les appareils du foyer n’atteignent que Jellyfin. Mira peut encore protéger ce PC en {Lang.Count(changes, "changement", "changements", "change", "changes")}, que tu vois avant de cliquer.",
+                    $"Home devices reach only Jellyfin. Mira can still protect this PC with {Lang.Count(changes, "changement", "changements", "change", "changes")}, shown before you click."),
+                [Remedy.Fix, Remedy.SeeLines], Warn: true),
             "too-open" or "no-access" or "no-tag" when changes > 0 => new(L("Tes règles laissent les appareils du foyer voir tout ton réseau", "Your rules let home devices see your whole network"),
                 L($"Mira peut corriger cela en {Lang.Count(changes, "changement", "changements", "change", "changes")}, sans toucher à tes commentaires.", $"Mira can fix that in {Lang.Count(changes, "changement", "changements", "change", "changes")}, keeping your comments."),
                 [Remedy.Fix, Remedy.SeeLines]),
