@@ -644,6 +644,36 @@ internal static class PlayerTests
             }
             return Task.CompletedTask;
         });
+        await Test("Sous-titres d’une saison : numéro lu dans le nom, épisode trouvé, .zip lu", async () =>
+        {
+            (int?, int)? N(string name) => SeasonSubtitles.Number(name);
+            Assert(N("Monogatari.S10E03.Tsubasa.Tiger.fr.srt") == (10, 3) && N("Show 10x04.srt") == (10, 4) && N("Show.2013.E07.1080p.x264.fr.srt") == (null, 7), "S10E03, 10x04, E07 past a year");
+            Assert(N("[Subs] Monogatari - 06 [FR].ass") == (null, 6) && N("86 Eighty Six - 03 [1080p].srt") == (null, 3) && N("Show - 03v2 [720p].srt") == (null, 3), "« - 06 », before the title's own number");
+            Assert(N("Monogatari.06.srt") == (null, 6) && N("Shingeki no Kyojin - 27 (1080p) [ABCD1234].fr.ass") == (null, 27) && N("Ep 12 - Title.vtt") == (null, 12), "Bare, absolute, Ep");
+            Assert(N("Show.S10.NCOP.fr.srt") is null && N("Show.H.264.AAC.5.1.srt") is null, "No episode: an opening, codecs and channels");
+            List<MediaItem> season = [.. Enumerable.Range(1, 12).Select(i => new MediaItem { Id = "s2e" + i, Type = "Episode", ParentIndexNumber = 2, IndexNumber = i })];
+            var matches = SeasonSubtitles.Match([new("Show.S02E03.fr.srt", [1]), new("Show - 27.en.ass", [1]), new("Show.S03E01.srt", [1]), new("Show.NCOP.srt", [1])], season, 2, 25, "fr");
+            Assert(matches[0].Episode?.Id == "s2e2" && matches[0].Guess.Language == "eng" && matches[1].Episode?.Id == "s2e3" && matches[1].Guess.Language == "fre",
+                "Absolute 27 (25 before) = E02, S02E03 = E03: " + string.Join(", ", matches.Select(x => x.File.Name + "→" + x.Episode?.Id)));
+            Assert(matches.Skip(2).All(x => x.Episode is null), "Another season's, and an opening: left for a choice by hand");
+            var folder = Path.Combine(Path.GetTempPath(), $"mira-pack-{Guid.NewGuid():N}"); Directory.CreateDirectory(folder);
+            try
+            {
+                var zip = Path.Combine(folder, "pack.zip");
+                using (var archive = System.IO.Compression.ZipFile.Open(zip, System.IO.Compression.ZipArchiveMode.Create))
+                {
+                    foreach (var name in new[] { "Season 2/Show.S02E01.fr.srt", "__MACOSX/Season 2/._Show.S02E01.fr.srt", "readme.txt", "Show.S02E02.fr.ass" })
+                    {
+                        using var writer = new StreamWriter(archive.CreateEntry(name).Open());
+                        writer.Write("1\n00:00:01,000 --> 00:00:02,000\nSalut\n");
+                    }
+                }
+                var loose = Path.Combine(folder, "Show.S02E03.fr.srt"); await File.WriteAllTextAsync(loose, "1\n00:00:01,000 --> 00:00:02,000\nSalut\n");
+                var read = await SeasonSubtitles.ReadAsync([zip, loose, Path.Combine(folder, "missing.nfo")]);
+                Assert(read.Select(x => x.Name).SequenceEqual(["Show.S02E01.fr.srt", "Show.S02E02.fr.ass", "Show.S02E03.fr.srt"]) && read.All(x => x.Data.Length > 0), "Read: " + string.Join(", ", read.Select(x => x.Name)));
+            }
+            finally { Directory.Delete(folder, true); }
+        });
         await Test("Sous-titres automatiques : lignes du journal et attente, comme Mira web (tests/fixtures/subtitles-auto.json)", () =>
         {
             var repository = TestSupport.Repository() ?? throw new Exception("Repository not found");
