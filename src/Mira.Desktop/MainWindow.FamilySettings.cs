@@ -36,6 +36,7 @@ public partial class MainWindow
         if (!ReferenceEquals(client, _client)) return;
         FamilySettingsNav.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
         ShowSettingsGroups();
+        if (shown && _settingsTab == "away") _ = ShowFamilySettingsAsync();
     }
 
     private async Task ShowFamilySettingsAsync()
@@ -62,12 +63,37 @@ public partial class MainWindow
         if (draw != _familyDraw || !ReferenceEquals(client, _client)) return;
         FamilySettings.Children.Clear();
         if (settings is null) { FamilySettings.Children.Add(FamilyNote(HomeText.NoExtension, problem: true)); return; }
-        if (_familyGuide > 0 && tailnet is not null) { FamilySettings.Children.Add(FamilyGuide(client, tailnet)); return; }
         FamilySettings.Children.Add(FamilyPasswordRow(client, settings));
         if (settings.Home) FamilySettings.Children.Add(FamilyLinkRow(client, tailnet));
         FamilySettings.Children.Add(FamilyProfilesRow(client, settings));
         if (settings.Home) FamilySettings.Children.Add(FamilyDevicesRow(client, settings));
-        FamilySettings.Children.Add(FamilyTailnetRow(client, tailnet));
+        // The home's Tailscale lives in « Loin de chez toi » with the other ways in (ogsas, 2026-11-20, maquette A);
+        // here, only where it stands and the way there. Its guide opens there too.
+        AwayFamilyCard.Children.Clear();
+        AwayFamilyCard.Children.Add(_familyGuide > 0 && tailnet is not null ? FamilyGuide(client, tailnet) : FamilyTailnetRow(client, tailnet));
+        _awayFamily = settings; _awayHome = tailnet; _awayKnown = true;
+        ShowAway();
+        FamilySettings.Children.Add(FamilyAwayLine());
+    }
+
+    /// <summary>« Loin de chez toi · Prêt · Ouvrir › »: the home's Tailscale, set up on its own page.</summary>
+    private Border FamilyAwayLine()
+    {
+        var away = AwayNow;
+        var line = new DockPanel();
+        var open = FamilyButton(away.Level == AwayLevel.Ready ? L("Ouvrir", "Open") : L("Régler…", "Set up…"), () => SelectSettingsTab("away"), quiet: away.Level == AwayLevel.Ready, primary: away.Level != AwayLevel.Ready);
+        open.Margin = new Thickness(14, 0, 0, 0); open.VerticalAlignment = VerticalAlignment.Center;
+        DockPanel.SetDock(open, Dock.Right); line.Children.Add(open);
+        var icon = new Icon { Kind = "globe", Width = 18, Height = 18, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(icon, Dock.Left); line.Children.Add(icon);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var title = new TextBlock { Text = L("Loin de chez toi", "Away from home") + " · " + away.Word, FontSize = 15, FontWeight = FontWeights.SemiBold };
+        if (away.Level == AwayLevel.Attention) title.Foreground = Palette.Get("Warning");
+        words.Children.Add(title);
+        words.Children.Add(new TextBlock { Text = AwayFromHome.Short(away.Level), Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0, 3, 0, 0) });
+        line.Children.Add(words);
+        var body = new StackPanel(); body.Children.Add(line);
+        return FamilyRow(body);
     }
 
     // ---- The password ----

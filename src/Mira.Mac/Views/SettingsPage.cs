@@ -133,6 +133,7 @@ public sealed partial class SettingsPage : Page
         // « Liens d'invités »: an administrator's links for guests without an account (shown once Jellyfin's extension answers).
         var guests = new GuestLinksSection(shell, Section);
         Tab("sharing").Children.Add(guests.Section);
+        Tab("away").Children.Add(Family.Away);
         Tab("away").Children.Add(guests.Funnel);
         // Quick Connect: shown once Jellyfin says it lets devices in by a code.
         var devices = Section(L("Autoriser un appareil", "Allow a device"), ApproveDevice());

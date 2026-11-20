@@ -32,8 +32,11 @@ public sealed partial class FamilySection
     public bool LinkShown => _link is not null;
 
     public Control Section => _body;
-    /// <summary>What the cards say, for the self-check: each card's title, then the words of its lines.</summary>
-    public string Said => string.Join(" | ", Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(_body).OfType<TextBlock>().Select(x => x.Text).Where(x => !string.IsNullOrEmpty(x)));
+    /// <summary>The home's Tailscale and its guide, in « Loin de chez toi » with the other ways in (ogsas, 2026-11-20, maquette A).</summary>
+    public Control Away => _away;
+    private readonly StackPanel _away = new() { Spacing = 10, IsVisible = false };
+    /// <summary>What the cards say, for the self-check: each card's title, then the words of its lines (both pages).</summary>
+    public string Said => string.Join(" | ", new Control[] { _body, _away }.SelectMany(Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants).OfType<TextBlock>().Select(x => x.Text).Where(x => !string.IsNullOrEmpty(x)));
 
     public FamilySection(MainWindow shell, Func<string, Control[], Control> section)
     {
@@ -58,11 +61,11 @@ public sealed partial class FamilySection
     public async Task LoadAsync()
     {
         var draw = ++_draw;
-        if (_shell.Session is not { } session || _shell.InParty) { _body.IsVisible = false; return; }
+        if (_shell.Session is not { } session || _shell.InParty) { _body.IsVisible = _away.IsVisible = false; return; }
         HomeSettings? settings; HomeTailnetState? tailnet = null;
         try
         {
-            if (await session.Client.IsAdministratorAsync(session.Lifetime) != true) { if (draw == _draw) _body.IsVisible = false; return; }
+            if (await session.Client.IsAdministratorAsync(session.Lifetime) != true) { if (draw == _draw) _body.IsVisible = _away.IsVisible = false; return; }
             settings = await session.Client.HomeSettingsAsync(session.Lifetime);
             if (settings is not null)
                 try { tailnet = await session.Client.HomeTailnetAsync(session.Lifetime); }
@@ -77,15 +80,34 @@ public sealed partial class FamilySection
             return;
         }
         if (draw != _draw || !ReferenceEquals(session, _shell.Session)) return;
-        _body.Children.Clear();
-        _body.IsVisible = settings is not null;
+        _body.Children.Clear(); _away.Children.Clear();
+        _body.IsVisible = _away.IsVisible = settings is not null;
         if (settings is null) return;
-        if (_guide > 0 && tailnet is not null) { _body.Children.Add(Guide(session.Client, tailnet)); return; }
         _body.Children.Add(PasswordCard(session.Client, settings));
         if (settings.Home) _body.Children.Add(LinkCard(session.Client, tailnet));
         _body.Children.Add(ProfilesCard(session.Client, settings));
         if (settings.Home) _body.Children.Add(DevicesCard(session.Client, settings));
-        _body.Children.Add(TailnetCard(session.Client, tailnet));
+        // The home's Tailscale (and its guide) in « Loin de chez toi »; here, where it stands and the way there.
+        _away.Children.Add(_guide > 0 && tailnet is not null ? Guide(session.Client, tailnet) : TailnetCard(session.Client, tailnet));
+        _shell.TellAway(settings, tailnet);
+        _body.Children.Add(AwayLine());
+    }
+
+    /// <summary>« Loin de chez toi · Prêt · Ouvrir »: the home's Tailscale, set up on its own page.</summary>
+    private Control AwayLine()
+    {
+        var away = _shell.AwayNow;
+        var ready = away.Level == AwayLevel.Ready;
+        var open = Button(ready ? L("Ouvrir", "Open") : L("Régler…", "Set up…"), () => _shell.OpenSettingsAt("away"), ready ? "" : "primary");
+        open.VerticalAlignment = VerticalAlignment.Center; open.Margin = new Thickness(14, 0, 0, 0);
+        var title = new TextBlock { Text = L("Loin de chez toi", "Away from home") + " · " + away.Word, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
+        if (away.Level == AwayLevel.Attention) title.Foreground = Ui.Warning;
+        var line = new DockPanel();
+        DockPanel.SetDock(open, Dock.Right); line.Children.Add(open);
+        var icon = new Icon("globe", 18) { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        DockPanel.SetDock(icon, Dock.Left); line.Children.Add(icon);
+        line.Children.Add(Ui.Column(3, title, Note(AwayFromHome.Short(away.Level), top: 0)));
+        return _section(null!, [line]);
     }
 
     private Control Card(string title, string about, params Control[] rows) =>
