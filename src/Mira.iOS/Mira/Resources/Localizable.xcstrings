@@ -535,42 +535,12 @@
         }
       }
     },
-    "1. In Tailscale, Access controls → Tags → Create tag: name it mira-home, then Save tag.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1. Dans Tailscale, Access controls → Tags → Create tag : nomme-la mira-home, puis Save tag."
-          }
-        }
-      }
-    },
     "10 seconds into the end credits when they are marked, otherwise at the end of the episode. A button offers it sooner.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "10 secondes après le début du générique de fin quand il est repéré, sinon à la fin de l’épisode. Un bouton le propose plus tôt."
-          }
-        }
-      }
-    },
-    "2. Create an OAuth client with “Custom scopes”, not “All”: Policy File, Devices → Core and Keys → Auth Keys, read and write, with the tag %@ (%@). Mira refuses a client with more rights.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "2. Crée un client OAuth en « Custom scopes », pas « All » : Policy File, Devices → Core et Keys → Auth Keys, en lecture et écriture, avec l’étiquette %@ (%@). Mira refuse un client qui a plus de droits."
-          }
-        }
-      }
-    },
-    "3. Paste its ID and secret. Mira keeps the secret on the server, never on this iPhone, then offers to fix the policy.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "3. Colle son identifiant et son secret. Mira garde le secret sur le serveur, jamais sur cet iPhone, puis te propose de corriger la politique."
           }
         }
       }
@@ -601,16 +571,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ajouter une règle : les appareils du foyer joignent Jellyfin, rien d’autre."
-          }
-        }
-      }
-    },
-    "Add the tag:mira-home tag to “tagOwners”.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajouter l’étiquette tag:mira-home à « tagOwners »."
           }
         }
       }
@@ -1372,16 +1332,6 @@
         }
       }
     },
-    "Fix my policy": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Corriger ma politique"
-          }
-        }
-      }
-    },
     "From this device": {
       "localizations": {
         "fr": {
@@ -1609,16 +1559,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recherche de Jellyfin sur ton réseau Tailscale…"
-          }
-        }
-      }
-    },
-    "Mira can fix your policy itself, keeping your comments:": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mira peut corriger ta politique elle-même, sans toucher à tes commentaires :"
           }
         }
       }
@@ -2059,16 +1999,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réinitialiser le décalage des sous-titres"
-          }
-        }
-      }
-    },
-    "Rule %lld of “%@”: its sources become %@ (your devices, your shared friends, your other tags).": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Règle %lld de « %@ » : ses sources deviennent %@ (tes appareils, tes amis partagés, tes autres étiquettes)."
           }
         }
       }
@@ -2859,16 +2789,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Le client OAuth du foyer ne peut pas écrire la politique : crée-en un avec le droit policy_file, puis relie de nouveau le foyer."
-          }
-        }
-      }
-    },
-    "The home’s OAuth client has every right on your Tailscale network, and its secret is kept on the server: replace it with one limited to Policy File, Devices → Core and Keys → Auth Keys (Disconnect, then the steps).": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le client OAuth du foyer a tous les droits sur ton réseau Tailscale, et son secret est gardé sur le serveur : remplace-le par un client limité à Policy File, Devices → Core et Keys → Auth Keys (Déconnecter, puis les étapes)."
           }
         }
       }
@@ -8255,16 +8175,6 @@
         }
       }
     },
-    "Open the Tailscale policy": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ouvrir la politique Tailscale"
-          }
-        }
-      }
-    },
     "Opened from %@’s link": {
       "localizations": {
         "fr": {
@@ -8351,16 +8261,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retirer…"
-          }
-        }
-      }
-    },
-    "Rule %lld of “%@”: %@ goes further than Jellyfin.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Règle %lld de « %@ » : %@ va plus loin que Jellyfin."
           }
         }
       }
@@ -8851,6 +8751,836 @@
           "stringUnit": {
             "state": "translated",
             "value": "« Quitter ce foyer », dans Réglages → Changer de profil."
+          }
+        }
+      }
+    },
+    "A key that can do three things only: make the home links, remove a device, and keep your rules right. Tick exactly what the picture shows.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une clé qui ne sait faire que trois choses : les liens du foyer, retirer un appareil, et garder tes règles justes. Coche exactement ce que montre le dessin."
+          }
+        }
+      }
+    },
+    "A rule lets home devices go further than Jellyfin in a way Mira won’t change without you. Open your rules in Tailscale, or ask for help on Mira’s Discord.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une règle laisse les appareils du foyer aller plus loin que Jellyfin d’une façon que Mira ne change pas sans toi. Ouvre tes règles dans Tailscale, ou demande de l’aide sur le Discord de Mira."
+          }
+        }
+      }
+    },
+    "Add the %@ tag.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter l’étiquette %@."
+          }
+        }
+      }
+    },
+    "All set": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout est prêt"
+          }
+        }
+      }
+    },
+    "Away from home · Step %lld of %lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loin de la maison · Étape %1$lld sur %2$lld"
+          }
+        }
+      }
+    },
+    "Check it": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier"
+          }
+        }
+      }
+    },
+    "Checking with Tailscale…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérification avec Tailscale…"
+          }
+        }
+      }
+    },
+    "Client secret · shown once": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Client secret · montré une fois"
+          }
+        }
+      }
+    },
+    "Client secret": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Secret du client"
+          }
+        }
+      }
+    },
+    "Copied.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copié."
+          }
+        }
+      }
+    },
+    "Copy the secret, Mira does the rest": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copie le secret, Mira fait le reste"
+          }
+        }
+      }
+    },
+    "Copy “%@”": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier « %@ »"
+          }
+        }
+      }
+    },
+    "Drawing of Tailscale’s page": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dessin de la page de Tailscale"
+          }
+        }
+      }
+    },
+    "Found a Tailscale secret you just copied": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un secret Tailscale que tu viens de copier"
+          }
+        }
+      }
+    },
+    "Give Mira a key to your network": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Donne à Mira une clé de ton réseau"
+          }
+        }
+      }
+    },
+    "Hide the lines": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cacher les lignes"
+          }
+        }
+      }
+    },
+    "Home devices reach only Jellyfin on your Tailscale network. Checked just now.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les appareils du foyer n’atteignent que Jellyfin sur ton réseau Tailscale. Vérifié à l’instant."
+          }
+        }
+      }
+    },
+    "I see the secret": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Je vois le secret"
+          }
+        }
+      }
+    },
+    "It can do what the home needs, and no more": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elle fait ce qu’il faut au foyer, et rien de plus"
+          }
+        }
+      }
+    },
+    "It was deleted or revoked in Tailscale. Home links can’t be made until you give Mira a new one. Devices already in the home keep working.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elle a été supprimée ou révoquée dans Tailscale. Plus de nouveaux liens du foyer tant que tu n’en donnes pas une autre à Mira. Les appareils déjà dans le foyer continuent de marcher."
+          }
+        }
+      }
+    },
+    "It was made with “All - Read & Write”: it could change anything on your network, and it would sit on your server. Mira won’t use it. Delete it in Tailscale and make one with Custom scopes.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elle a été faite avec « All - Read & Write » : elle pourrait tout changer sur ton réseau, et elle serait gardée sur ton serveur. Mira ne s’en sert pas. Supprime-la dans Tailscale et fais-en une avec Custom scopes."
+          }
+        }
+      }
+    },
+    "I’ve saved the tag": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "J’ai enregistré l’étiquette"
+          }
+        }
+      }
+    },
+    "Jellyfin’s PC couldn’t reach Tailscale. Try again in a moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le PC de Jellyfin n’a pas pu joindre Tailscale. Réessaie dans un instant."
+          }
+        }
+      }
+    },
+    "Leave as it is": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laisse tel quel"
+          }
+        }
+      }
+    },
+    "Let the family watch away from home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laisser la famille regarder loin de la maison"
+          }
+        }
+      }
+    },
+    "Make a label for the family’s devices": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crée une étiquette pour les appareils de la famille"
+          }
+        }
+      }
+    },
+    "Make the changes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faire les changements"
+          }
+        }
+      }
+    },
+    "Make these %lld changes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faire ces %lld changements"
+          }
+        }
+      }
+    },
+    "Make this change": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faire ce changement"
+          }
+        }
+      }
+    },
+    "Mira can fix that in %lld change(s), keeping your comments.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira peut corriger cela en %lld changement(s), sans toucher à tes commentaires."
+          }
+        }
+      }
+    },
+    "Mira can’t do this step for you: Tailscale asks for it first.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne peut pas faire cette étape à ta place : Tailscale la demande d’abord."
+          }
+        }
+      }
+    },
+    "Mira changed your rules. You can undo it until %@.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira a changé tes règles. Tu peux annuler jusqu’à %@."
+          }
+        }
+      }
+    },
+    "Mira checked your key and your rules with Tailscale: home devices reach only Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira a vérifié ta clé et tes règles avec Tailscale : les appareils du foyer n’atteignent que Jellyfin."
+          }
+        }
+      }
+    },
+    "Mira checked your key with Tailscale. Your rules would let a home device see your whole network, so Mira will make %lld change(s). Your comments stay.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira a vérifié ta clé avec Tailscale. Tes règles laisseraient un appareil du foyer voir tout ton réseau : Mira va y faire %lld changement(s). Tes commentaires restent."
+          }
+        }
+      }
+    },
+    "Name it %@ (Copy button below).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nomme-la %@ (bouton Copier ci-dessous)."
+          }
+        }
+      }
+    },
+    "Not now": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus tard"
+          }
+        }
+      }
+    },
+    "Not set up": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas réglé"
+          }
+        }
+      }
+    },
+    "Nothing is written until you tap. You can undo it for 10 minutes.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien n’est écrit avant que tu touches. Tu peux annuler pendant 10 minutes."
+          }
+        }
+      }
+    },
+    "One box, not two: the client ID is inside the secret.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une seule case, pas deux : l’identifiant du client est dans le secret."
+          }
+        }
+      }
+    },
+    "One thing left: your network’s rules": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une dernière chose : les règles de ton réseau"
+          }
+        }
+      }
+    },
+    "Only the secret is needed: the client ID is already inside it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seul le secret compte : l’identifiant est dedans."
+          }
+        }
+      }
+    },
+    "Open my rules in Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir mes règles dans Tailscale"
+          }
+        }
+      }
+    },
+    "Ready": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prêt"
+          }
+        }
+      }
+    },
+    "Redo step 2": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refaire l’étape 2"
+          }
+        }
+      }
+    },
+    "Rule %lld let everyone go everywhere: it now covers your own devices and the friends you share with, not the home’s.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La règle %lld laissait tout le monde aller partout : elle couvre maintenant tes propres appareils et les amis avec qui tu partages, pas ceux du foyer."
+          }
+        }
+      }
+    },
+    "Rules Mira can’t fix by itself": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des règles que Mira ne sait pas corriger seule"
+          }
+        }
+      }
+    },
+    "Rules: %lld change(s) to make": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Règles : %lld changement(s) à faire"
+          }
+        }
+      }
+    },
+    "See the exact lines": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voir les lignes exactes"
+          }
+        }
+      }
+    },
+    "Send it to someone in the family: it opens Mira on your home, wherever they are. Works once, ends after 48 hours.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoie-le à quelqu’un de la famille : il ouvre Mira sur ton foyer, où qu’il soit. Il sert une fois et finit au bout de 48 heures."
+          }
+        }
+      }
+    },
+    "Set up again": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Régler de nouveau"
+          }
+        }
+      }
+    },
+    "Set up…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Régler…"
+          }
+        }
+      }
+    },
+    "Someone changed them while Mira was reading them. Check again, then fix them.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quelqu’un les a modifiées pendant que Mira les lisait. Vérifie de nouveau, puis corrige."
+          }
+        }
+      }
+    },
+    "Tailscale accepts the key": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale accepte la clé"
+          }
+        }
+      }
+    },
+    "Tailscale calls it a tag. It’s how your network tells the home’s devices apart, so they can reach Jellyfin and nothing else.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale l’appelle « tag ». C’est ainsi que ton réseau reconnaît les appareils du foyer : ils atteignent Jellyfin, et rien d’autre."
+          }
+        }
+      }
+    },
+    "Tailscale didn’t take the ID read from the secret: paste the Client ID shown just above the secret too.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale n’a pas reconnu l’identifiant tiré du secret : colle aussi le Client ID affiché juste au-dessus du secret."
+          }
+        }
+      }
+    },
+    "Tailscale is off on Jellyfin’s PC": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale est éteint sur le PC de Jellyfin"
+          }
+        }
+      }
+    },
+    "Tailscale isn’t answering": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale ne répond pas"
+          }
+        }
+      }
+    },
+    "Tailscale no longer knows this key": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale ne reconnaît plus cette clé"
+          }
+        }
+      }
+    },
+    "Tailscale shows it once. Mira sends it to your Jellyfin, which keeps it; this iPhone never stores it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale ne le montre qu’une fois. Mira l’envoie à ton Jellyfin, qui le garde ; cet iPhone ne le garde jamais."
+          }
+        }
+      }
+    },
+    "Tap Credential, choose OAuth, then Custom scopes. Not “All”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touche Credential, choisis OAuth, puis Custom scopes. Pas « All »."
+          }
+        }
+      }
+    },
+    "Tap Generate credential.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touche Generate credential."
+          }
+        }
+      }
+    },
+    "Tap Save tag, then come back here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touche Save tag, puis reviens ici."
+          }
+        }
+      }
+    },
+    "Tap Tags, then Create tag.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touche Tags, puis Create tag."
+          }
+        }
+      }
+    },
+    "The %@ tag is missing: Mira adds it": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’étiquette %@ manque : Mira l’ajoute"
+          }
+        }
+      }
+    },
+    "The %@ tag is there": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’étiquette %@ est là"
+          }
+        }
+      }
+    },
+    "The family can watch away from home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La famille peut regarder loin de la maison"
+          }
+        }
+      }
+    },
+    "The tag isn’t in the list? Step 1 wasn’t saved.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’étiquette n’est pas dans la liste ? L’étape 1 n’a pas été enregistrée."
+          }
+        }
+      }
+    },
+    "This key can do too much": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette clé peut trop de choses"
+          }
+        }
+      }
+    },
+    "This key is missing one tick: Policy File": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il manque une coche à cette clé : Policy File"
+          }
+        }
+      }
+    },
+    "This key is missing one tick: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il manque une coche à cette clé : %@"
+          }
+        }
+      }
+    },
+    "This key is missing some ticks": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il manque des coches à cette clé"
+          }
+        }
+      }
+    },
+    "This key is missing some ticks: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il manque des coches à cette clé : %@"
+          }
+        }
+      }
+    },
+    "Tick Read and Write on Policy File, Devices › Core and Keys › Auth Keys. On the last two, pick the tag %@.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coche Read et Write sur Policy File, Devices › Core et Keys › Auth Keys. Sur les deux derniers, choisis l’étiquette %@."
+          }
+        }
+      }
+    },
+    "Today the home works on your Wi-Fi only. Mira walks you through Tailscale once, about 3 minutes. After that, a home link is all the family needs: no address, no Tailscale account.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aujourd’hui le foyer ne marche que sur ton Wi-Fi. Mira te guide une fois dans Tailscale, environ 3 minutes. Ensuite, un lien du foyer suffit à la famille : ni adresse, ni compte Tailscale."
+          }
+        }
+      }
+    },
+    "Turn it on on Jellyfin’s PC, then check again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allume-le sur le PC de Jellyfin, puis vérifie de nouveau."
+          }
+        }
+      }
+    },
+    "Undo": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler"
+          }
+        }
+      }
+    },
+    "Without it Mira can’t do its job. Tailscale can’t change a key once made: make a new one, with the three lines ticked.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans elle, Mira ne peut pas faire son travail. Tailscale ne modifie pas une clé déjà faite : fais-en une nouvelle, avec les trois lignes cochées."
+          }
+        }
+      }
+    },
+    "Without it Mira can’t fix your rules. Tailscale can’t change a key once made: make a new one, with the three lines ticked.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans elle, Mira ne peut pas corriger tes règles. Tailscale ne modifie pas une clé déjà faite : fais-en une nouvelle, avec les trois lignes cochées."
+          }
+        }
+      }
+    },
+    "Your previous rules are back.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les règles d’avant sont revenues."
+          }
+        }
+      }
+    },
+    "Your rules are right": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tes règles sont justes"
+          }
+        }
+      }
+    },
+    "Your rules just changed": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tes règles viennent de changer"
+          }
+        }
+      }
+    },
+    "Your rules let home devices see your whole network": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tes règles laissent les appareils du foyer voir tout ton réseau"
+          }
+        }
+      }
+    },
+    "not this one": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pas celle-ci"
           }
         }
       }

@@ -87,7 +87,7 @@ public sealed record HomeTailnetSetup(string Tag, string TagOwners, string Grant
 public sealed record HomeOpenRule(string Section, int Number, IReadOnlyList<string> Sources);
 
 /// <summary>
-/// What Mira would change in the tailnet's policy (<see cref="HomeText.Change"/>): « tag » (added to tagOwners), « grant »
+/// What Mira would change in the tailnet's policy (<see cref="HomeGuide.Change"/>): « tag » (added to tagOwners), « grant »
 /// (the rule to Jellyfin), « narrow » (a rule's sources, as they become).
 /// </summary>
 public sealed record HomePolicyChange(string Kind, string? Section, int Number, IReadOnlyList<string>? Sources);
@@ -113,7 +113,27 @@ public sealed record HomeTailnetState
     public IReadOnlyList<HomePolicyChange>? Fix { get; init; }
     /// <summary>The OAuth client can do more than the home needs (« All »): its secret, kept on the server, is worth too much.</summary>
     public bool Broad { get; init; }
+    /// <summary>The scopes the home needs that the client lacks (auth_keys, devices:core, policy_file).</summary>
+    public IReadOnlyList<string> Missing { get; init; } = [];
+    /// <summary>Whether the tailnet's policy has the home's tag (unknown, so true, when it could not be read).</summary>
+    public bool Tag { get; init; } = true;
+    /// <summary>The policy's lines Mira's fix adds or changes (« See the exact lines »).</summary>
+    public IReadOnlyList<string>? Lines { get; init; }
+    /// <summary>Until when Mira's fix of the policy can be undone; null when it can't.</summary>
+    public DateTimeOffset? UndoUntil { get; init; }
     public IReadOnlyList<HomeTailnetNode> Devices { get; init; } = [];
+}
+
+/// <summary>
+/// The administrator's side refused something of the tailnet (connect, fix, undo): the extension's words, its code
+/// (« too-broad », « missing », « refused », « no-write »…, read by <see cref="HomeGuide.Trouble"/>), the scopes missing,
+/// and whether the client's id is to be typed apart (the secret did not carry it, or Tailscale refused it).
+/// </summary>
+public sealed class HomeTailnetRefusedException(string message, HttpStatusCode status, string? policy, IReadOnlyList<string> missing, bool needsId) : RelayRefusedException(message, status)
+{
+    public string? Policy { get; } = policy;
+    public IReadOnlyList<string> Missing { get; } = missing;
+    public bool NeedsId { get; } = needsId;
 }
 
 /// <summary>A home link made (POST Mira/home/link), and when its key ends.</summary>
@@ -144,5 +164,7 @@ internal sealed record HomeAnswer
     [JsonPropertyName("policy")] public string? Policy { get; init; }
     [JsonPropertyName("open")] public List<HomeOpenRule>? Open { get; init; }
     [JsonPropertyName("link")] public string? Link { get; init; }
+    [JsonPropertyName("missing")] public List<string>? Missing { get; init; }
+    [JsonPropertyName("needsId")] public bool NeedsId { get; init; }
     [JsonPropertyName("expires")] public DateTimeOffset? Expires { get; init; }
 }

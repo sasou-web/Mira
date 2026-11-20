@@ -35,22 +35,6 @@ enum HomeText {
     static var thisDevice: String { String(localized: "On this iPhone") }
     static var offline: String { String(localized: "No Internet connection right now.") }
 
-    /// One change Mira would make to the policy, in a line.
-    static func change(_ change: HomeTailnetState.Change) -> String {
-        switch change.kind {
-        case "tag": String(localized: "Add the tag:mira-home tag to “tagOwners”.")
-        case "grant": String(localized: "Add a rule: the home’s devices reach Jellyfin, nothing else.")
-        case "narrow":
-            String(localized: "Rule \(change.number ?? 0) of “\(change.section ?? "")”: its sources become \((change.sources ?? []).joined(separator: ", ")) (your devices, your shared friends, your other tags).")
-        default: change.kind
-        }
-    }
-
-    /// The OAuth client connected has more rights than the home needs.
-    static var broad: String {
-        String(localized: "The home’s OAuth client has every right on your Tailscale network, and its secret is kept on the server: replace it with one limited to Policy File, Devices → Core and Keys → Auth Keys (Disconnect, then the steps).")
-    }
-
     /// What the policy's verdict means for the administrator (GET Mira/home/tailnet), in a line.
     static func policy(_ policy: String?) -> String {
         switch policy {

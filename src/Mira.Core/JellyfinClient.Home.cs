@@ -125,13 +125,35 @@ public sealed partial class JellyfinClient
         return await response.Content.ReadFromJsonAsync<HomeTailnetState>(HomeJson, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
     }
 
-    /// <summary>The home connected to the tailnet with an OAuth client (Tailscale checks it first), or disconnected (both empty).</summary>
+    /// <summary>
+    /// The home connected to the tailnet with an OAuth client (Tailscale checks it first: <see cref="HomeTailnetRefusedException"/>
+    /// otherwise), or disconnected (both empty). <paramref name="clientId"/> may be null: the secret carries it.
+    /// </summary>
     public Task HomeConnectTailnetAsync(string? clientId, string? clientSecret, CancellationToken ct = default) =>
-        HomeAdminAsync(HttpMethod.Put, "Mira/home/tailnet", new JsonObject { ["clientId"] = clientId, ["clientSecret"] = clientSecret }, ct);
+        HomeTailnetCallAsync(HttpMethod.Put, "Mira/home/tailnet", new JsonObject { ["clientId"] = clientId, ["clientSecret"] = clientSecret }, ct);
 
     /// <summary>The tailnet's policy put right by the extension, as <see cref="HomeTailnetState.Fix"/> said (needs the client's policy_file scope).</summary>
     public Task HomeFixPolicyAsync(CancellationToken ct = default) =>
-        HomeAdminAsync(HttpMethod.Post, "Mira/home/tailnet/fix", null, ct);
+        HomeTailnetCallAsync(HttpMethod.Post, "Mira/home/tailnet/fix", null, ct);
+
+    /// <summary>Mira's fix of the policy taken back (<see cref="HomeTailnetState.UndoUntil"/>).</summary>
+    public Task HomeUndoPolicyAsync(CancellationToken ct = default) =>
+        HomeTailnetCallAsync(HttpMethod.Post, "Mira/home/tailnet/undo", null, ct);
+
+    private async Task HomeTailnetCallAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(method, path);
+        if (body is not null) request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType == "application/json")
+        {
+            HomeAnswer? refused = null;
+            try { refused = await response.Content.ReadFromJsonAsync<HomeAnswer>(HomeJson, ct); }
+            catch (JsonException) { }
+            if (refused?.Error is { Length: > 0 } error) throw new HomeTailnetRefusedException(error, response.StatusCode, refused.Policy, refused.Missing ?? [], refused.NeedsId);
+        }
+        await CheckInvitesAsync(response, ct);
+    }
 
     /// <summary>
     /// A home link: a key of the home's tag for one device, for 48 hours. Refused while the tailnet's policy lets the

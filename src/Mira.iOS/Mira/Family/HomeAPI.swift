@@ -84,6 +84,8 @@ struct HomeAnswer: Decodable, Sendable {
     var policy: String?
     var link: String?
     var expires: Date?
+    var missing: [String]?
+    var needsId: Bool?
 }
 
 /// « Le foyer », the family's side of /Mira/home: no Jellyfin session, the home token in X-Mira-Home. `base` is where the
@@ -303,12 +305,26 @@ struct HomeTailnetState: Decodable, Sendable, Hashable {
     var fix: [Change]?
     /// The OAuth client can do more than the home needs (« All »).
     var broad: Bool?
+    /// The scopes the home needs that the client lacks.
+    var missing: [String]?
+    /// Whether the policy has the home's tag (unknown, so true, when it couldn't be read).
+    var tag: Bool?
+    /// The policy's lines Mira's fix adds or changes (« See the exact lines »).
+    var lines: [String]?
+    /// Until when Mira's fix of the policy can be undone.
+    var undoUntil: Date?
+    struct Node: Decodable, Sendable, Hashable { var id: String? }
+    var devices: [Node]?
 }
 
 /// What the administrator's side says when it refuses: the extension's words, the policy's verdict for a link.
 struct HomeAdminRefused: Error, Sendable {
     var message: String
     var policy: String?
+    /// The scopes the OAuth client lacks (policy « missing »).
+    var missing: [String] = []
+    /// Tailscale didn't take the ID read from the secret: the client's ID is asked too.
+    var needsId = false
 }
 
 extension JellyfinClient {
@@ -363,6 +379,12 @@ extension JellyfinClient {
         try Self.homeCheck(status, data)
     }
 
+    /// Mira's fix of the policy taken back, within 10 minutes and while nobody changed the policy since.
+    func homeUndoPolicy() async throws {
+        let (status, data, _) = try await homeAdmin("POST", "Mira/home/tailnet/undo", body: nil)
+        try Self.homeCheck(status, data)
+    }
+
     /// A home link: a key of the home's tag for one device, for 48 hours; refused with the policy's verdict otherwise.
     func homeLink() async throws -> (link: String, expires: Date) {
         let (status, data, _) = try await homeAdmin("POST", "Mira/home/link", body: nil)
@@ -375,7 +397,9 @@ extension JellyfinClient {
     private static func homeCheck(_ status: Int, _ data: Data) throws {
         guard !(200..<300).contains(status) else { return }
         let answer = try? HomeAPI.decoder.decode(HomeAnswer.self, from: data)
-        if let words = answer?.error?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty { throw HomeAdminRefused(message: words, policy: answer?.policy) }
+        if let words = answer?.error?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty {
+            throw HomeAdminRefused(message: words, policy: answer?.policy, missing: answer?.missing ?? [], needsId: answer?.needsId ?? false)
+        }
         switch status {
         case 401: throw JellyfinError.unauthorized
         case 403: throw JellyfinError.forbidden

@@ -18,7 +18,7 @@ namespace Mira.Mac.Views;
 /// two lines, the OAuth client, the verdict on the policy as the extension reads it). Drawn from what the extension says
 /// each time it is read; hidden for anyone else, and on a Jellyfin whose extension has no home.
 /// </summary>
-public sealed class FamilySection
+public sealed partial class FamilySection
 {
     private readonly MainWindow _shell;
     private readonly Func<string, Control[], Control> _section;
@@ -28,9 +28,6 @@ public sealed class FamilySection
     private Func<Task>? _makeLink;
     /// <summary>« Send the home link » pressed, as a click does (the self-check).</summary>
     public Task MakeLinkForCheck() => _makeLink?.Invoke() ?? Task.CompletedTask;
-    private Func<Task>? _fixPolicy;
-    /// <summary>« Fix my policy », as its button does, for the self-check.</summary>
-    public Task FixPolicyForCheck() => _fixPolicy?.Invoke() ?? Task.CompletedTask;
     /// <summary>A home link shown, with its QR code.</summary>
     public bool LinkShown => _link is not null;
 
@@ -83,6 +80,7 @@ public sealed class FamilySection
         _body.Children.Clear();
         _body.IsVisible = settings is not null;
         if (settings is null) return;
+        if (_guide > 0 && tailnet is not null) { _body.Children.Add(Guide(session.Client, tailnet)); return; }
         _body.Children.Add(PasswordCard(session.Client, settings));
         if (settings.Home) _body.Children.Add(LinkCard(session.Client, tailnet));
         _body.Children.Add(ProfilesCard(session.Client, settings));
@@ -284,84 +282,6 @@ public sealed class FamilySection
             catch (Exception ex) when (Expected(ex)) { Say(status, Words(ex), true); }
         }
     }
-
-    // —— Away from home: Tailscale, once ——
-
-    private Control TailnetCard(JellyfinClient client, HomeTailnetState? state)
-    {
-        var title = L("Loin de chez toi", "Away from home");
-        var about = L("Une seule fois : Mira crée lui-même les clés des liens du foyer sur ton réseau Tailscale. Les appareils du foyer n’y voient que Jellyfin.", "Once only: Mira makes the home links’ keys on your Tailscale network itself. The home’s devices see only Jellyfin there.");
-        var status = Note("");
-        if (state is null) return Card(title, about, Note(L("Le serveur ne dit rien de Tailscale : mets à jour l’extension Mira.", "The server says nothing about Tailscale: update the Mira extension."), problem: true, top: 12));
-        if (state.Connected)
-        {
-            var ok = state.Policy == "ok";
-            var lines = new List<Control> { Note(HomeText.Policy(state.Policy), problem: !ok, top: 12) };
-            if (state.Broad) lines.Add(Note(HomeText.Broad, problem: true));
-            foreach (var rule in state.Open)
-                lines.Add(Note(L($"Règle {rule.Number} de « {rule.Section} » : {string.Join(", ", rule.Sources)} va plus loin que Jellyfin.", $"Rule {rule.Number} of “{rule.Section}”: {string.Join(", ", rule.Sources)} goes further than Jellyfin."), problem: true));
-            if (state.Server is { } server) lines.Add(Note(L($"Jellyfin joint à {server}:{state.Port}.", $"Jellyfin reached at {server}:{state.Port}.")));
-            if (state.Devices.Count > 0) lines.Add(Note(Count(state.Devices.Count, "appareil du foyer sur ton réseau", "appareils du foyer sur ton réseau", "home device on your network", "home devices on your network")));
-            var buttons = new WrapPanel { Margin = new Thickness(0, 14, 0, 0), ItemSpacing = 10, LineSpacing = 8 };
-            var fixable = !ok && state.Fix is { Count: > 0 };
-            if (fixable)
-            {
-                // What Mira will write, said before the one click that writes it.
-                lines.Add(Note(HomeText.FixAbout, top: 12));
-                foreach (var change in state.Fix!) { var line = Note("•  " + HomeText.Change(change), top: 4); line.Margin = new Thickness(12, 4, 30, 0); lines.Add(line); }
-                buttons.Children.Add(Button(HomeText.FixButton, () => _ = FixAsync(), "primary"));
-                _fixPolicy = FixAsync;
-            }
-            buttons.Children.Add(Button(L("Vérifier à nouveau", "Check again"), () => _ = LoadAsync(), fixable ? "quiet" : ""));
-            if (!ok) buttons.Children.Add(Button(TailnetText.OpenPolicy, () => Updates.Open(new Uri(TailscaleNode.Policy)), "quiet"));
-            buttons.Children.Add(Button(L("Déconnecter…", "Disconnect…"), () => _ = DisconnectAsync(), "quiet"));
-            lines.Add(buttons); lines.Add(status);
-            return Card(title, about, [.. lines]);
-        }
-        var tag = state.Setup?.Tag ?? "tag:mira-home";
-        var scopes = string.Join(", ", state.Setup?.Scopes is { Count: > 0 } given ? given : ["auth_keys", "devices:core", "policy_file"]);
-        var steps = new List<Control> { Step(1, HomeText.StepTag) };
-        var tags = Button(HomeText.OpenTags, () => Updates.Open(new Uri(HomeText.TagsPage)), "quiet");
-        tags.Margin = new Thickness(32, 6, 0, 0); tags.HorizontalAlignment = HorizontalAlignment.Left;
-        steps.Add(tags);
-        steps.Add(Step(2, HomeText.StepClient(scopes, tag)));
-        var trust = Button(L("Ouvrir les identifiants de Tailscale", "Open Tailscale’s credentials"), () => Updates.Open(new Uri(Credentials)), "quiet");
-        trust.Margin = new Thickness(32, 6, 0, 0); trust.HorizontalAlignment = HorizontalAlignment.Left;
-        steps.Add(trust);
-        steps.Add(Step(3, HomeText.StepPaste));
-        var id = new TextBox { Width = 260 };
-        Avalonia.Automation.AutomationProperties.SetName(id, L("Identifiant du client", "Client ID"));
-        var secret = new TextBox { Width = 260, PasswordChar = '•' };
-        Avalonia.Automation.AutomationProperties.SetName(secret, L("Secret du client", "Client secret"));
-        var connect = Button(L("Connecter", "Connect"), () => _ = ConnectAsync(), "primary");
-        connect.VerticalAlignment = VerticalAlignment.Bottom;
-        var fields = new WrapPanel { Margin = new Thickness(32, 10, 0, 0), ItemSpacing = 10, LineSpacing = 8, Children = { Labeled(L("Identifiant", "Client ID"), id), Labeled(L("Secret", "Secret"), secret), connect } };
-        steps.Add(fields); steps.Add(status);
-        return Card(title, about, [.. steps]);
-
-        static Control Labeled(string label, Control field) => Ui.Column(4, new TextBlock { Text = label, FontSize = 12, Foreground = Ui.Muted, Margin = new Thickness(2, 0, 0, 0) }, field);
-        async Task FixAsync()
-        {
-            Say(status, HomeText.Fixing, false);
-            try { await client.HomeFixPolicyAsync(); await LoadAsync(); }
-            catch (Exception ex) when (Expected(ex)) { Say(status, Words(ex), true); }
-        }
-        async Task ConnectAsync()
-        {
-            if ((id.Text ?? "").Trim().Length == 0 || (secret.Text ?? "").Length == 0) { Say(status, L("Colle l’identifiant et le secret.", "Paste the ID and the secret."), true); return; }
-            Say(status, L("Connexion à Tailscale…", "Connecting to Tailscale…"), false);
-            try { await client.HomeConnectTailnetAsync(id.Text!.Trim(), secret.Text); secret.Text = ""; await LoadAsync(); }
-            catch (Exception ex) when (Expected(ex)) { Say(status, Words(ex), true); }
-        }
-        async Task DisconnectAsync()
-        {
-            if (!await _shell.ConfirmAsync(L("Déconnecter Tailscale du foyer ?", "Disconnect Tailscale from the home?"), L("Plus aucun lien du foyer. Les appareils déjà loin de chez toi gardent leur accès tant que tu ne les retires pas.", "No more home links. Devices already away from home keep their access until you remove them."), L("Déconnecter", "Disconnect"), L("Annuler", "Cancel"))) return;
-            try { await client.HomeConnectTailnetAsync(null, null); _link = null; await LoadAsync(); }
-            catch (Exception ex) when (Expected(ex)) { Say(status, Words(ex), true); }
-        }
-    }
-
-    private const string Credentials = "https://login.tailscale.com/admin/settings/trust-credentials";
 
     private static Control Step(int number, string text)
     {
