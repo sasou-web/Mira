@@ -71,8 +71,13 @@ enum HomeGuide {
              next: String(localized: "Check it"))
     }
 
-    static func rules(_ changes: Int) -> Step {
-        changes > 0
+    static func rules(_ changes: Int, harden: Bool = false) -> Step {
+        changes > 0 && harden
+            ? Step(title: String(localized: "One thing left: your network’s rules"),
+                   why: String(localized: "Mira checked your key with Tailscale. Home devices already reach only Jellyfin; Mira can protect this PC better with \(changes) change(s). Your comments stay."),
+                   foot: String(localized: "Nothing is written until you tap. You can undo it for 10 minutes."),
+                   next: makeChanges(changes))
+            : changes > 0
             ? Step(title: String(localized: "One thing left: your network’s rules"),
                    why: String(localized: "Mira checked your key with Tailscale. Your rules would let a home device see your whole network, so Mira will make \(changes) change(s). Your comments stay."),
                    foot: String(localized: "Nothing is written until you tap. You can undo it for 10 minutes."),
@@ -129,7 +134,15 @@ enum HomeGuide {
         switch change.kind {
         case "tag": String(localized: "Add the \(tagName) tag.")
         case "grant": String(localized: "Add a rule: the home’s devices reach Jellyfin, nothing else.")
-        case "narrow": String(localized: "Rule \(change.number ?? 0) let everyone go everywhere: it now covers your own devices and the friends you share with, not the home’s.")
+        case "narrow" where (change.sources ?? []).contains { $0.caseInsensitiveCompare("autogroup:shared") == .orderedSame }:
+            String(localized: "Rule \(change.number ?? 0) let everyone go everywhere: it now covers your own devices and the friends you share with, not the home’s.")
+        case "narrow": String(localized: "Rule \(change.number ?? 0) let everyone go everywhere: it now covers only your own devices.")
+        case "unshare" where change.sources?.isEmpty == true:
+            String(localized: "Remove rule \(change.number ?? 0): it let the friends you share this PC with go further than Jellyfin.")
+        case "unshare": String(localized: "Rule \(change.number ?? 0) no longer covers the friends you share this PC with: they went further than Jellyfin.")
+        case "shared": String(localized: "Add a rule: the friends you share this PC with reach Jellyfin and Mira’s links, nothing else.")
+        case "funnel": String(localized: "Allow Funnel on this PC only, for guest links: Mira opens only /Mira to the Internet.")
+        case "key": String(localized: "Keep this PC on Tailscale for good: its key no longer expires (otherwise Tailscale signs it out after 180 days).")
         default: change.kind
         }
     }
@@ -142,6 +155,8 @@ enum HomeGuide {
         var title: String
         var text: String
         var remedies: [Remedy]
+        /// A protection to add, nothing broken: its title in warning, not danger.
+        var warn = false
     }
 
     static func trouble(_ code: String?, missing: [String] = [], broad: Bool = false, changes: Int = 0) -> Problem? {
@@ -154,6 +169,11 @@ enum HomeGuide {
             return Problem(title: missingTitle(missing),
                            text: String(localized: "Without it Mira can’t do its job. Tailscale can’t change a key once made: make a new one, with the three lines ticked."),
                            remedies: [.redoKey])
+        }
+        if code == "harden", changes > 0 {
+            return Problem(title: String(localized: "Mira can protect this PC better"),
+                           text: String(localized: "Home devices reach only Jellyfin. Mira can still protect this PC with \(changes) change(s), shown before you tap."),
+                           remedies: [.fix, .seeLines], warn: true)
         }
         if ["too-open", "no-access", "no-tag"].contains(code ?? ""), changes > 0 {
             return Problem(title: String(localized: "Your rules let home devices see your whole network"),

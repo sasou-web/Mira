@@ -14,7 +14,12 @@ namespace Mira.Jellyfin;
 /// </summary>
 public static class HomePolicyFix
 {
-    /// <summary>One change: « tag » (tagOwners), « grant » (the rule to Jellyfin), « narrow » (a rule's sources, as they become).</summary>
+    /// <summary>
+    /// One change: « tag » (tagOwners), « grant » (the rule to Jellyfin), « narrow » (a rule's sources, as they become),
+    /// « unshare » (a rule the people this PC is shared with leave: its sources as they become, none when it goes),
+    /// « shared » (their one rule to Jellyfin), « funnel » (Funnel allowed on this PC), « key » (this PC's key no longer
+    /// expires: not in the policy, see <see cref="HomeController"/>).
+    /// </summary>
     public sealed record Change(string Kind, string? Section = null, int Number = 0, IReadOnlyList<string>? Sources = null);
 
     /// <summary>The policy as it becomes, and what changed in it.</summary>
@@ -26,92 +31,46 @@ public static class HomePolicyFix
 
     /// <summary>
     /// What to change in <paramref name="text"/> (the policy as HuJSON) for the home's devices to reach this PC's
-    /// Jellyfin and nothing else; null when it already does, or when Mira cannot get there safely.
+    /// Jellyfin and nothing else; null when it already does, or when Mira cannot get there safely. With
+    /// <paramref name="harden"/> (« Fix my policy »), also: the people this PC is shared with limited to its Jellyfin
+    /// (and Mira through Funnel's port, <see cref="Shared"/>), and Funnel allowed on this PC only (<see cref="Funnel"/>);
+    /// a plan is then given for those alone, when the home's devices already reach only Jellyfin.
     /// </summary>
-    public static Plan? Make(string text, string server, int port, string tag = HomeTailnet.Tag)
+    public static Plan? Make(string text, string server, int port, string tag = HomeTailnet.Tag, bool harden = false, bool funnel = true)
     {
-        if (Parse(text) is not JsonObject policy || HomeTailnet.CheckPolicy(policy, server, port, tag).Verdict == HomeTailnet.Verdict.Ok)
+        if (Parse(text) is not JsonObject policy)
+        {
+            return null;
+        }
+
+        var homeOk = HomeTailnet.CheckPolicy(policy, server, port, tag).Verdict == HomeTailnet.Verdict.Ok;
+        if (homeOk && !harden)
         {
             return null;
         }
 
         var changes = new List<Change>();
         var original = text;
+        var everyoneNarrowed = false;
         try
         {
-            // 1. The tag, then every open rule that only « * » or autogroup:tagged opens.
-            var root = Read(text);
-            var edits = new List<(int At, int Remove, string Insert)>();
-            var owners = Member(root, "tagOwners");
-            // Never Mira's own tags: a wide rule narrowed to them would let the home's or friends' devices out again.
-            var tags = (owners as HuObject)?.Members.Select(x => x.Key).Where(x => x.StartsWith("tag:", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(x, HomeTailnet.Tag, StringComparison.OrdinalIgnoreCase) && !string.Equals(x, HomeTailnet.FriendTag, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
-            if (owners is not HuObject ownersObject || !ownersObject.Members.Any(x => string.Equals(x.Key, tag, StringComparison.OrdinalIgnoreCase)))
+            if (!homeOk)
             {
-                var line = HomeTailnet.Setup(server, port, tag).TagOwners + ",";
-                edits.Add(owners is HuObject o ? First(text, o, line) : Section(text, root, $"\"tagOwners\": {{{Line(Inner(text, root))}{line}{Line(Indent(text, root))}}},"));
-                changes.Add(new Change("tag"));
-            }
-
-            // The tag first: until it is there, the policy says nothing of the rules that would let its devices through.
-            text = Apply(text, edits);
-            edits.Clear();
-            root = Read(text);
-            if (Parse(text) is not JsonObject tagged)
-            {
-                return null;
-            }
-
-            var (_, open) = HomeTailnet.CheckPolicy(tagged, server, port, tag);
-            foreach (var rule in open)
-            {
-                if (rule.Section is not ("acls" or "grants") || Member(root, rule.Section) is not HuArray rules || rule.Number > rules.Items.Count
-                    || rules.Items[rule.Number - 1] is not HuObject row || (Member(row, "src") ?? Member(row, "users")) is not HuArray sources)
+                if (Home(text, server, port, tag, harden, changes, out everyoneNarrowed) is not { } home)
                 {
                     return null;
                 }
 
-                var kept = sources.Items.OfType<HuString>().Select(x => x.Value).Where(x => x != "*" && !string.Equals(x, "autogroup:tagged", StringComparison.OrdinalIgnoreCase)).ToList();
-                var wide = sources.Items.OfType<HuString>().Where(x => x.Value == "*" || string.Equals(x.Value, "autogroup:tagged", StringComparison.OrdinalIgnoreCase)).ToList();
-                if (wide.Count == 0 || sources.Items.Count != sources.Items.OfType<HuString>().Count())
-                {
-                    return null;
-                }
-
-                var everyone = wide.Any(x => x.Value == "*");
-                var instead = (everyone ? new[] { "autogroup:member", "autogroup:shared" } : []).Concat(tags)
-                    .Where(x => !kept.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                if (instead.Count == 0 && kept.Count == 0)
-                {
-                    return null;
-                }
-
-                // The first wide source becomes the narrower list (or goes, when nothing replaces it); the others go.
-                edits.Add(instead.Count > 0 ? (wide[0].Start, wide[0].End - wide[0].Start, string.Join(", ", instead.Select(Quote))) : Drop(text, wide[0]));
-                foreach (var other in wide.Skip(1))
-                {
-                    edits.Add(Drop(text, other));
-                }
-
-                changes.Add(new Change("narrow", rule.Section, rule.Number, kept.Concat(instead).ToList()));
+                text = home;
             }
 
-            text = Apply(text, edits);
-            if (Parse(text) is not JsonObject narrowed)
+            if (harden)
             {
-                return null;
-            }
-
-            // 2. The rule to Jellyfin, when nothing lets the home's devices reach it.
-            if (HomeTailnet.CheckPolicy(narrowed, server, port, tag).Verdict == HomeTailnet.Verdict.NoAccess)
-            {
-                root = Read(text);
-                var (_, grant) = HomeTailnet.Setup(server, port, tag);
-                var line = grant + ",";
-                text = Apply(text, [Member(root, "grants") is HuArray grants
-                    ? First(text, grants, line)
-                    : Section(text, root, $"\"grants\": [{Line(Inner(text, root))}{line}{Line(Indent(text, root))}],")]);
-                changes.Add(new Change("grant"));
+                text = Shared(text, server, port, changes, everyoneNarrowed);
+                if (funnel)
+                {
+                    text = Funnel(text, server, changes);
+                }
             }
         }
         catch (FormatException)
@@ -123,6 +82,181 @@ public static class HomePolicyFix
             ? new Plan(text, changes) { Lines = Added(original, text) }
             : null;
     }
+
+    /// <summary>The home's part: its tag, every open rule narrowed, the rule to Jellyfin; null when Mira can't.</summary>
+    private static string? Home(string text, string server, int port, string tag, bool harden, List<Change> changes, out bool everyoneNarrowed)
+    {
+        everyoneNarrowed = false;
+
+        // 1. The tag, then every open rule that only « * » or autogroup:tagged opens.
+        var root = Read(text);
+        var edits = new List<(int At, int Remove, string Insert)>();
+        var owners = Member(root, "tagOwners");
+        // Never Mira's own tags: a wide rule narrowed to them would let the home's or friends' devices out again.
+        var tags = (owners as HuObject)?.Members.Select(x => x.Key).Where(x => x.StartsWith("tag:", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(x, HomeTailnet.Tag, StringComparison.OrdinalIgnoreCase) && !string.Equals(x, HomeTailnet.FriendTag, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
+        if (owners is not HuObject ownersObject || !ownersObject.Members.Any(x => string.Equals(x.Key, tag, StringComparison.OrdinalIgnoreCase)))
+        {
+            var line = HomeTailnet.Setup(server, port, tag).TagOwners + ",";
+            edits.Add(owners is HuObject o ? First(text, o, line) : Section(text, root, $"\"tagOwners\": {{{Line(Inner(text, root))}{line}{Line(Indent(text, root))}}},"));
+            changes.Add(new Change("tag"));
+        }
+
+        // The tag first: until it is there, the policy says nothing of the rules that would let its devices through.
+        text = Apply(text, edits);
+        edits.Clear();
+        root = Read(text);
+        if (Parse(text) is not JsonObject tagged)
+        {
+            return null;
+        }
+
+        var (_, open) = HomeTailnet.CheckPolicy(tagged, server, port, tag);
+        foreach (var rule in open)
+        {
+            if (rule.Section is not ("acls" or "grants") || Member(root, rule.Section) is not HuArray rules || rule.Number > rules.Items.Count
+                || rules.Items[rule.Number - 1] is not HuObject row || (Member(row, "src") ?? Member(row, "users")) is not HuArray sources)
+            {
+                return null;
+            }
+
+            var kept = sources.Items.OfType<HuString>().Select(x => x.Value).Where(x => x != "*" && !string.Equals(x, "autogroup:tagged", StringComparison.OrdinalIgnoreCase)).ToList();
+            var wide = sources.Items.OfType<HuString>().Where(x => x.Value == "*" || string.Equals(x.Value, "autogroup:tagged", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (wide.Count == 0 || sources.Items.Count != sources.Items.OfType<HuString>().Count())
+            {
+                return null;
+            }
+
+            var everyone = wide.Any(x => x.Value == "*");
+            // « * » held the people this PC is shared with: hardened, they get their own rule to Jellyfin instead (Shared).
+            everyoneNarrowed |= everyone && harden;
+            var instead = (everyone ? harden ? new[] { "autogroup:member" } : new[] { "autogroup:member", HomeTailnet.Shared } : []).Concat(tags)
+                .Where(x => !kept.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (instead.Count == 0 && kept.Count == 0)
+            {
+                return null;
+            }
+
+            // The first wide source becomes the narrower list (or goes, when nothing replaces it); the others go.
+            edits.Add(instead.Count > 0 ? (wide[0].Start, wide[0].End - wide[0].Start, string.Join(", ", instead.Select(Quote))) : Drop(text, wide[0]));
+            foreach (var other in wide.Skip(1))
+            {
+                edits.Add(Drop(text, other));
+            }
+
+            changes.Add(new Change("narrow", rule.Section, rule.Number, kept.Concat(instead).ToList()));
+        }
+
+        text = Apply(text, edits);
+        if (Parse(text) is not JsonObject narrowed)
+        {
+            return null;
+        }
+
+        // 2. The rule to Jellyfin, when nothing lets the home's devices reach it.
+        if (HomeTailnet.CheckPolicy(narrowed, server, port, tag).Verdict == HomeTailnet.Verdict.NoAccess)
+        {
+            root = Read(text);
+            var (_, grant) = HomeTailnet.Setup(server, port, tag);
+            text = Apply(text, [Rule(text, root, grant)]);
+            changes.Add(new Change("grant"));
+        }
+
+        return text;
+    }
+
+    /// <summary>
+    /// The people this PC is shared with (autogroup:shared) taken out of every rule that lets them reach more than its
+    /// Jellyfin (a rule they alone were in goes), then given the one rule to Jellyfin and Funnel's port, when they had
+    /// any access before. Anything Mira can't change safely (« * » still wide, a source it can't read) is left as it is.
+    /// </summary>
+    private static string Shared(string text, string server, int port, List<Change> changes, bool everyoneNarrowed)
+    {
+        if (Parse(text) is not JsonObject policy)
+        {
+            return text;
+        }
+
+        var (reaches, open) = HomeTailnet.CheckShared(policy, server, port);
+        var root = Read(text);
+        var edits = new List<(int At, int Remove, string Insert)>();
+        var found = new List<Change>();
+        foreach (var rule in open)
+        {
+            if (Member(root, rule.Section) is not HuArray rules || rule.Number > rules.Items.Count || rules.Items[rule.Number - 1] is not HuObject row
+                || (Member(row, "src") ?? Member(row, "users")) is not HuArray sources || sources.Items.Count != sources.Items.OfType<HuString>().Count()
+                || sources.Items.OfType<HuString>().Any(x => x.Value.Trim() == "*"))
+            {
+                // « * » there: the home's part would have narrowed it, unless Mira couldn't. Left to the administrator.
+                return text;
+            }
+
+            var shared = sources.Items.OfType<HuString>().Where(x => string.Equals(x.Value.Trim(), HomeTailnet.Shared, StringComparison.OrdinalIgnoreCase)).ToList();
+            var others = sources.Items.Count - shared.Count;
+            if (others == 0)
+            {
+                edits.Add(Drop(text, row));
+                found.Add(new Change("unshare", rule.Section, rule.Number, []));
+            }
+            else
+            {
+                edits.AddRange(shared.Select(x => Drop(text, x)));
+                found.Add(new Change("unshare", rule.Section, rule.Number, sources.Items.OfType<HuString>().Select(x => x.Value).Where(x => !shared.Any(s => s.Value == x)).ToList()));
+            }
+        }
+
+        string after;
+        try
+        {
+            after = Apply(text, edits, strict: true);
+        }
+        catch (FormatException)
+        {
+            return text;
+        }
+
+        if (Parse(after) is not JsonObject made)
+        {
+            return text;
+        }
+
+        // A rule of their own, to Jellyfin only, when they reached anything before (no sharing at all: nothing added).
+        if ((found.Count > 0 || everyoneNarrowed) && !HomeTailnet.CheckShared(made, server, port).Reaches)
+        {
+            after = Apply(after, [Rule(after, Read(after), HomeTailnet.SharedGrant(server, port))]);
+            found.Add(new Change("shared"));
+        }
+
+        changes.AddRange(found);
+        return after;
+    }
+
+    /// <summary>
+    /// Funnel allowed for this PC alone (a node attribute « funnel » targeting its Tailscale address), so Mira can open
+    /// /Mira to the Internet without Tailscale's consent page; nothing when some attribute already gives Funnel. Which
+    /// paths Funnel serves is Mira's command (/Mira only), never the policy.
+    /// </summary>
+    private static string Funnel(string text, string server, List<Change> changes)
+    {
+        if (HomeTailnet.FunnelAllowed(Parse(text)))
+        {
+            return text;
+        }
+
+        var root = Read(text);
+        var line = HomeTailnet.FunnelAttribute(server) + ",";
+        text = Apply(text, [Member(root, "nodeAttrs") is HuArray attrs
+            ? First(text, attrs, line)
+            : Section(text, root, $"\"nodeAttrs\": [{Line(Inner(text, root))}{line}{Line(Indent(text, root))}],")]);
+        changes.Add(new Change("funnel"));
+        return text;
+    }
+
+    /// <summary>A rule put first in grants (the section made when there is none).</summary>
+    private static (int, int, string) Rule(string text, HuObject root, string rule) =>
+        Member(root, "grants") is HuArray grants
+            ? First(text, grants, rule + ",")
+            : Section(text, root, $"\"grants\": [{Line(Inner(text, root))}{rule},{Line(Indent(text, root))}],");
 
     /// <summary>The lines of <paramref name="after"/> that <paramref name="before"/> does not have, trimmed.</summary>
     private static List<string> Added(string before, string after)
@@ -150,8 +284,15 @@ public static class HomePolicyFix
 
     private static string Line(string indent) => "\n" + indent;
 
-    private static string Apply(string text, List<(int At, int Remove, string Insert)> edits)
+    private static string Apply(string text, List<(int At, int Remove, string Insert)> edits, bool strict = false)
     {
+        // Strict: two edits that overlap (two neighbours dropped with the same comma) are refused, never half made.
+        var sorted = edits.OrderBy(x => x.At).ToList();
+        if (strict && sorted.Zip(sorted.Skip(1)).Any(x => x.First.At + x.First.Remove > x.Second.At))
+        {
+            throw new FormatException("Edits overlap.");
+        }
+
         var result = new StringBuilder(text);
         foreach (var (at, remove, insert) in edits.OrderByDescending(x => x.At))
         {

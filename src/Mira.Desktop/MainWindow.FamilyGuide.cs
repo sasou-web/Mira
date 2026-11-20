@@ -72,7 +72,7 @@ public partial class MainWindow
             return FamilyRow(body);
         }
         var problem = FamilyCard(trouble.Title, trouble.Text);
-        ((TextBlock)problem.Children[0]).Foreground = Palette.Get("Danger");
+        ((TextBlock)problem.Children[0]).Foreground = Palette.Get(trouble.Warn ? "Warning" : "Danger");
         var lines = FamilyGuideLines(state);
         var actions = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
         var first = true;
@@ -148,7 +148,7 @@ public partial class MainWindow
         body.Children.Add(bars);
 
         var status = FamilyNote("");
-        HomeGuide.Step page = step switch { 1 => HomeGuide.Tag, 2 => HomeGuide.Key, 3 => HomeGuide.Secret, _ => HomeGuide.Rules(state.Fix?.Count ?? 0) };
+        HomeGuide.Step page = step switch { 1 => HomeGuide.Tag, 2 => HomeGuide.Key, 3 => HomeGuide.Secret, _ => HomeGuide.Rules(state.Fix?.Count ?? 0, state.Policy == "harden") };
         var heading = new TextBlock { Text = page.Title, FontSize = 20, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 22, 30, 0) };
         AutomationProperties.SetHeadingLevel(heading, AutomationHeadingLevel.Level3);
         body.Children.Add(heading);

@@ -508,10 +508,17 @@ public sealed class HomeController : ControllerBase
         IReadOnlyList<HomeTailnet.OpenRule> open = [];
         IReadOnlyList<TailnetDevice> nodes = [];
         HomePolicyFix.Plan? fix = null;
+        var key = false;
         try
         {
             (policy, open, fix) = await PolicyAsync(api, server, port, cancellationToken).ConfigureAwait(false);
             nodes = await SweepAsync(api, cancellationToken).ConfigureAwait(false);
+            // This PC's key, made to never expire by the same click: offered while Tailscale says it still expires.
+            key = KeyToDisable(nodes, server) is not null;
+            if (key && policy == "ok")
+            {
+                policy = "harden";
+            }
         }
         catch (TailscaleApi.TailscaleException error)
         {
@@ -536,7 +543,8 @@ public sealed class HomeController : ControllerBase
             setup,
             policy,
             open = open.Select(x => new { section = x.Section, number = x.Number, sources = x.Sources }),
-            fix = fix?.Changes.Select(x => new { kind = x.Kind, section = x.Section, number = x.Number, sources = x.Sources }),
+            fix = fix is null && !key ? null : (fix?.Changes ?? []).Concat(key ? [new HomePolicyFix.Change("key")] : [])
+                .Select(x => new { kind = x.Kind, section = x.Section, number = x.Number, sources = x.Sources }),
             broad = TailscaleApi.TooBroad(api.Scopes),
             missing = HomeTailnet.Missing(api.Scopes),
             tag = policy is not ("no-tag" or "refused" or "scope" or "unreachable"),
@@ -570,19 +578,39 @@ public sealed class HomeController : ControllerBase
         {
             var (text, version) = await api.PolicyTextAsync(cancellationToken).ConfigureAwait(false);
             var verdict = HomeTailnet.CheckPolicy(HomePolicyFix.Parse(text), server, _host.HttpPort).Verdict;
-            if (verdict == HomeTailnet.Verdict.Ok)
-            {
-                return NoContent();
-            }
-
-            if (HomePolicyFix.Make(text, server, _host.HttpPort) is not { } plan)
+            var plan = HomePolicyFix.Make(text, server, _host.HttpPort, harden: true, funnel: !Plugin.HomeTailnet.FunnelRefused);
+            if (plan is null && verdict != HomeTailnet.Verdict.Ok)
             {
                 return Answer(StatusCodes.Status409Conflict, new { error = Text("Mira ne sait pas corriger ces règles seule : restreins-les dans la politique Tailscale."), policy = "too-open" });
             }
 
-            await api.SetPolicyAsync(plan.Text, version, cancellationToken).ConfigureAwait(false);
-            Plugin.HomeTailnet.Fixed(text, plan.Text);
-            _logger.LogInformation("Mira: the tailnet's policy was put right for the home ({Changes})", string.Join(", ", plan.Changes.Select(x => x.Kind)));
+            if (plan is not null)
+            {
+                try
+                {
+                    await api.SetPolicyAsync(plan.Text, version, cancellationToken).ConfigureAwait(false);
+                }
+                catch (TailscaleApi.TailscaleException error) when (error.Failure == TailscaleApi.Failure.Invalid && plan.Changes.Any(x => x.Kind == "funnel")
+                    && HomePolicyFix.Make(text, server, _host.HttpPort, harden: true, funnel: false) is var without)
+                {
+                    // Funnel's node attribute refused (this tailnet's plan, or a target Tailscale won't take): the rest still goes.
+                    _logger.LogWarning("Mira: Tailscale refused Funnel's node attribute ({Message}); the policy is put right without it", error.Message);
+                    Plugin.HomeTailnet.FunnelRefused = true;
+                    plan = without;
+                    if (plan is not null)
+                    {
+                        await api.SetPolicyAsync(plan.Text, version, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+
+                if (plan is not null)
+                {
+                    Plugin.HomeTailnet.Fixed(text, plan.Text);
+                    _logger.LogInformation("Mira: the tailnet's policy was put right for the home ({Changes})", string.Join(", ", plan.Changes.Select(x => x.Kind)));
+                }
+            }
+
+            await DisableKeyExpiryAsync(api, server, cancellationToken).ConfigureAwait(false);
             return NoContent();
         }
         catch (TailscaleApi.TailscaleException error)
@@ -720,7 +748,7 @@ public sealed class HomeController : ControllerBase
         try
         {
             var (policy, open, _) = await PolicyAsync(api, server, _host.HttpPort, cancellationToken).ConfigureAwait(false);
-            if (policy != "ok")
+            if (policy is not ("ok" or "harden"))
             {
                 return Answer(StatusCodes.Status409Conflict, new
                 {
@@ -799,6 +827,36 @@ public sealed class HomeController : ControllerBase
         return left;
     }
 
+    /// <summary>This PC's node when Tailscale says its key still expires (and has not refused to change it): null otherwise.</summary>
+    private static TailnetDevice? KeyToDisable(IEnumerable<TailnetDevice> nodes, string? server) =>
+        server is null || Plugin.HomeTailnet.KeyRefused ? null
+            : nodes.FirstOrDefault(x => x.KeyExpiryDisabled == false && x.Addresses.Contains(server, StringComparer.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// This PC's key made to never expire, with « Fix my policy »: without it, Jellyfin's PC leaves the tailnet after
+    /// Tailscale's 180 days, and every home device and friend with it. A refusal is logged, never the fix's failure.
+    /// </summary>
+    private async Task DisableKeyExpiryAsync(TailscaleApi api, string server, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (KeyToDisable(await api.DevicesAsync(cancellationToken).ConfigureAwait(false), server) is { } self)
+            {
+                await api.DisableKeyExpiryAsync(self.Id, cancellationToken).ConfigureAwait(false);
+                _logger.LogInformation("Mira: this PC's Tailscale key no longer expires");
+            }
+        }
+        catch (TailscaleApi.TailscaleException error) when (error.Failure is not TailscaleApi.Failure.Unreachable)
+        {
+            Plugin.HomeTailnet.KeyRefused = true;
+            _logger.LogWarning("Mira: Tailscale refused to stop this PC's key from expiring ({Failure}: {Message})", error.Failure, error.Message);
+        }
+        catch (TailscaleApi.TailscaleException error)
+        {
+            _logger.LogWarning("Mira: this PC's Tailscale key could not be changed yet ({Message})", error.Message);
+        }
+    }
+
     private static async Task<(string Policy, IReadOnlyList<HomeTailnet.OpenRule> Open, HomePolicyFix.Plan? Fix)> PolicyAsync(TailscaleApi api, string? server, int port, CancellationToken cancellationToken)
     {
         if (server is null)
@@ -809,9 +867,11 @@ public sealed class HomeController : ControllerBase
         // As the administrator wrote it: what Mira would change is planned on the same text.
         var (text, _) = await api.PolicyTextAsync(cancellationToken).ConfigureAwait(false);
         var (verdict, open) = HomeTailnet.CheckPolicy(HomePolicyFix.Parse(text), server, port);
-        var fix = verdict == HomeTailnet.Verdict.Ok ? null : HomePolicyFix.Make(text, server, port);
+        // Hardened (« Fix my policy »): also the people this PC is shared with, and Funnel; « harden » when only those are left.
+        var fix = HomePolicyFix.Make(text, server, port, harden: true, funnel: !Plugin.HomeTailnet.FunnelRefused);
         return (verdict switch
         {
+            HomeTailnet.Verdict.Ok when fix is not null => "harden",
             HomeTailnet.Verdict.Ok => "ok",
             HomeTailnet.Verdict.NoTag => "no-tag",
             HomeTailnet.Verdict.TooOpen => "too-open",

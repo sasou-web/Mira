@@ -281,7 +281,7 @@ struct HomeSettingsView: View {
                     Text(verbatim: HomeGuide.entryText).font(MiraFont.footnote).foregroundStyle(Palette.muted)
                     Button(HomeGuide.setUp) { guide = 1 }.accessibilityIdentifier("home.guide.open")
                 } else if let trouble {
-                    Text(verbatim: trouble.title).font(MiraFont.headline).foregroundStyle(Palette.danger)
+                    Text(verbatim: trouble.title).font(MiraFont.headline).foregroundStyle(trouble.warn ? Palette.warning : Palette.danger)
                     Text(verbatim: trouble.text).font(MiraFont.footnote).foregroundStyle(Palette.muted)
                     ForEach(trouble.remedies, id: \.self) { remedy in
                         Button(remedy == .fix ? HomeGuide.makeChanges(tailnet.fix?.count ?? 0) : HomeGuide.label(remedy)) { Task { await act(remedy) } }

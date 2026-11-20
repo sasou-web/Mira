@@ -137,6 +137,15 @@ public sealed class HomeTailnet
         }
     }
 
+    /// <summary>
+    /// Tailscale refused to make this PC's key never expire (the client's devices:core may not reach a device that is
+    /// not of its tags): not offered again until the extension restarts.
+    /// </summary>
+    public bool KeyRefused { get; set; }
+
+    /// <summary>Tailscale refused the policy with Funnel's node attribute: the fix is made without it until the extension restarts.</summary>
+    public bool FunnelRefused { get; set; }
+
     /// <summary>An OAuth client's id and secret as Tailscale gives them: printable, without spaces.</summary>
     public static bool GoodClient(string? id, string? secret) =>
         id is { Length: >= 4 and <= 128 } && secret is { Length: >= 8 and <= 256 }
@@ -363,11 +372,7 @@ public sealed class HomeTailnet
                     continue;
                 }
 
-                var proto = Text(Field(row, "proto"));
-                var targets = Strings(Field(row, "dst") ?? Field(row, "ports"));
-                var only = targets.Count > 0 && (proto is null || string.Equals(proto, "tcp", StringComparison.OrdinalIgnoreCase) || proto == "6")
-                    && targets.All(x => AclTarget(x, hosts, server, port));
-                if (!only)
+                if (!Limited(row, "acls", hosts, server, [port]))
                 {
                     open.Add(new OpenRule("acls", number, sources));
                 }
@@ -395,11 +400,7 @@ public sealed class HomeTailnet
                     continue;
                 }
 
-                var targets = Strings(Field(row, "dst"));
-                var ip = Strings(Field(row, "ip"));
-                var only = Field(row, "app") is null && Field(row, "via") is null && targets.Count > 0 && ip.Count > 0
-                    && targets.All(x => Resolves(x, hosts, server)) && ip.All(x => GrantPort(x, port));
-                if (!only)
+                if (!Limited(row, "grants", hosts, server, [port]))
                 {
                     open.Add(new OpenRule("grants", number, sources));
                 }
@@ -429,6 +430,99 @@ public sealed class HomeTailnet
         }
 
         return (reaches ? Verdict.Ok : Verdict.NoAccess, []);
+    }
+
+    /// <summary>
+    /// The port Tailscale Funnel serves Mira on (<c>tailscale funnel --set-path=/Mira</c>): friends a PC is shared with
+    /// reach it there too when their own Tailscale resolves its public name to its tailnet address. Only /Mira is served
+    /// on it, never the rest of Jellyfin.
+    /// </summary>
+    public const int FunnelPort = 443;
+
+    /// <summary>
+    /// What the policy lets the people this PC is shared with do (autogroup:shared, and « * » that holds them): whether a
+    /// rule lets them reach Jellyfin, and the rules of acls or grants that let them reach more than this PC's Jellyfin
+    /// port and <see cref="FunnelPort"/>. SSH rules are left to the administrator.
+    /// </summary>
+    public static (bool Reaches, IReadOnlyList<OpenRule> Open) CheckShared(JsonNode? policy, string server, int port)
+    {
+        if (policy is not JsonObject root)
+        {
+            return (false, []);
+        }
+
+        var hosts = Section(root, "hosts") as JsonObject;
+        var open = new List<OpenRule>();
+        var reaches = false;
+        foreach (var section in new[] { "acls", "grants" })
+        {
+            if (Section(root, section) is not JsonArray rules)
+            {
+                continue;
+            }
+
+            var number = 0;
+            foreach (var rule in rules)
+            {
+                number++;
+                if (rule is not JsonObject row)
+                {
+                    continue;
+                }
+
+                var sources = Strings(Field(row, "src") ?? (section == "acls" ? Field(row, "users") : null));
+                if (!sources.Any(x => x.Trim() == "*" || string.Equals(x.Trim(), Shared, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                if (!Limited(row, section, hosts, server, [port, FunnelPort]))
+                {
+                    open.Add(new OpenRule(section, number, sources));
+                }
+                else if (section == "grants" || string.Equals(Text(Field(row, "action")), "accept", StringComparison.OrdinalIgnoreCase))
+                {
+                    reaches |= Strings(Field(row, "dst") ?? Field(row, "ports")).Count > 0;
+                }
+            }
+        }
+
+        return (reaches, open);
+    }
+
+    /// <summary>The people a device of this tailnet was shared with.</summary>
+    public const string Shared = "autogroup:shared";
+
+    /// <summary>The rule that lets the people this PC is shared with reach its Jellyfin, and Mira through Funnel's port.</summary>
+    public static string SharedGrant(string server, int port) =>
+        $"{{\"src\": [\"{Shared}\"], \"dst\": [\"{server}\"], \"ip\": [\"tcp:{port.ToString(System.Globalization.CultureInfo.InvariantCulture)}\", \"tcp:{FunnelPort.ToString(System.Globalization.CultureInfo.InvariantCulture)}\"]}}";
+
+    /// <summary>The node attribute that lets this PC (only) open Mira to the Internet with Funnel.</summary>
+    public static string FunnelAttribute(string server) => $"{{\"target\": [\"{server}\"], \"attr\": [\"funnel\"]}}";
+
+    /// <summary>Whether some node attribute of the policy already gives Funnel (to this PC or to anyone: Mira does not guess whom).</summary>
+    public static bool FunnelAllowed(JsonNode? policy) =>
+        policy is JsonObject root && Section(root, "nodeAttrs") is JsonArray attrs
+        && attrs.OfType<JsonObject>().Any(x => Strings(Field(x, "attr")).Any(a => string.Equals(a.Trim(), "funnel", StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>
+    /// Whether a rule of acls or grants leads only to <paramref name="ports"/> of this PC, through TCP: no app capability,
+    /// no « via », at least one destination.
+    /// </summary>
+    private static bool Limited(JsonObject row, string section, JsonObject? hosts, string server, IReadOnlyCollection<int> ports)
+    {
+        if (section == "acls")
+        {
+            var proto = Text(Field(row, "proto"));
+            var targets = Strings(Field(row, "dst") ?? Field(row, "ports"));
+            return targets.Count > 0 && (proto is null || string.Equals(proto, "tcp", StringComparison.OrdinalIgnoreCase) || proto == "6")
+                && targets.All(x => AclTarget(x, hosts, server, ports));
+        }
+
+        var destinations = Strings(Field(row, "dst"));
+        var ip = Strings(Field(row, "ip"));
+        return Field(row, "app") is null && Field(row, "via") is null && destinations.Count > 0 && ip.Count > 0
+            && destinations.All(x => Resolves(x, hosts, server)) && ip.All(x => ports.Any(p => GrantPort(x, p)));
     }
 
     /// <summary>
@@ -517,7 +611,7 @@ public sealed class HomeTailnet
     }
 
     /// <summary>An ACL destination « host:ports » that is only this PC's Jellyfin port.</summary>
-    private static bool AclTarget(string target, JsonObject? hosts, string server, int port)
+    private static bool AclTarget(string target, JsonObject? hosts, string server, IReadOnlyCollection<int> allowed)
     {
         var colon = target.LastIndexOf(':');
         if (colon <= 0)
@@ -527,7 +621,7 @@ public sealed class HomeTailnet
 
         var host = target[..colon].Trim('[', ']');
         var ports = target[(colon + 1)..];
-        return Resolves(host, hosts, server) && ports.Split(',').All(x => x.Trim() == port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return Resolves(host, hosts, server) && ports.Split(',').All(x => allowed.Any(p => x.Trim() == p.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     /// <summary>A grant's « ip » that is only the Jellyfin port, through TCP.</summary>
@@ -644,4 +738,7 @@ public sealed class HomeTailnet
 public sealed record TailnetDevice(string Id, string Name, IReadOnlyList<string> Addresses, bool Tagged, DateTimeOffset? Created, DateTimeOffset? LastSeen)
 {
     public bool Friend { get; init; }
+
+    /// <summary>Whether its key never expires, as Tailscale says (null when it doesn't).</summary>
+    public bool? KeyExpiryDisabled { get; init; }
 }

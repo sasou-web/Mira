@@ -154,6 +154,76 @@ internal static class HomeTailnetTests
             }
         });
 
+        await Test("Foyer loin de chez soi : « Fix my policy » limite les amis partagés à Jellyfin, autorise Funnel sur ce PC, garde la clé du PC", async () =>
+        {
+            static HomePolicyFix.Plan? Harden(string text, bool funnel = true) => HomePolicyFix.Make(text, Server, 8096, harden: true, funnel: funnel);
+            static bool SharedOk(string text) => HomeTailnet.CheckShared(HomePolicyFix.Parse(text), Server, 8096) is (true, []);
+            static HomeTailnet.Verdict Verdict(string text) => HomeTailnet.CheckPolicy(HomePolicyFix.Parse(text), Server, 8096).Verdict;
+            const string Home = "{\"src\": [\"tag:mira-home\"], \"dst\": [\"100.88.12.34\"], \"ip\": [\"tcp:8096\"]}";
+            const string Shared = "{\"src\": [\"autogroup:shared\"], \"dst\": [\"100.88.12.34\"], \"ip\": [\"tcp:8096\", \"tcp:443\"]}";
+
+            // A policy put right by hand on 2026-11-19 (home and friends' tags, people everywhere): the home is right, the
+            // people this PC is shared with still reach every port of it.
+            const string ByHand = "{\n\t\"tagOwners\": {\n\t\t\"tag:mira-home\": [\"autogroup:admin\"],\n\t\t\"tag:mira-friend\": [\"autogroup:admin\", \"tag:mira-home\"],\n\t},\n\n\t\"grants\": [\n"
+                + "\t\t// People.\n\t\t{\"src\": [\"autogroup:member\", \"autogroup:shared\"], \"dst\": [\"*\"], \"ip\": [\"*\"]},\n\t\t" + Home + ",\n"
+                + "\t\t{\"src\": [\"tag:mira-friend\"], \"dst\": [\"100.88.12.34\"], \"ip\": [\"tcp:8096\"]},\n\t],\n}\n";
+            Assert(Verdict(ByHand) == HomeTailnet.Verdict.Ok && HomeTailnet.CheckShared(HomePolicyFix.Parse(ByHand), Server, 8096) is (false, [{ Section: "grants", Number: 1 }]), "The home right, friends shared too far");
+            Assert(HomePolicyFix.Make(ByHand, Server, 8096) is null, "Not hardened (a friend's first link): nothing more than before");
+            var plan = Harden(ByHand);
+            Assert(plan is not null && plan.Changes.Select(x => x.Kind).SequenceEqual(["unshare", "shared", "funnel"]) && plan.Changes[0] is { Section: "grants", Number: 1, Sources: ["autogroup:member"] },
+                "Shared friends out of the wide rule, their own rule, Funnel: " + string.Join(", ", plan?.Changes.Select(x => x.Kind) ?? []));
+            Assert(Verdict(plan!.Text) == HomeTailnet.Verdict.Ok && HomeTailnet.CheckPolicy(HomePolicyFix.Parse(plan.Text), Server, 8096, HomeTailnet.FriendTag).Verdict == HomeTailnet.Verdict.Ok && SharedOk(plan.Text), "Home, friends' tag and shared friends each on Jellyfin");
+            Assert(plan.Text.Contains("\t\t// People.\n\t\t{\"src\": [\"autogroup:member\"], \"dst\": [\"*\"]", StringComparison.Ordinal) && plan.Text.Contains("\t\t" + Shared + ",\n", StringComparison.Ordinal)
+                && plan.Text.Contains("\"tag:mira-friend\": [\"autogroup:admin\", \"tag:mira-home\"]", StringComparison.Ordinal), "Comments and both tags kept, the rule at the same indent");
+            Assert(HomePolicyFix.Parse(plan.Text)!["nodeAttrs"] is JsonArray { Count: 1 } attrs && attrs[0]!.ToJsonString() == "{\"target\":[\"100.88.12.34\"],\"attr\":[\"funnel\"]}", "Funnel for this PC only");
+            Assert(plan.Lines.Any(x => x.Contains("autogroup:shared", StringComparison.Ordinal)) && plan.Lines.Any(x => x.Contains("funnel", StringComparison.Ordinal)), "Its lines shown before the click");
+            Assert(Harden(plan.Text) is null, "Nothing more once hardened");
+            Assert(Harden(ByHand, funnel: false) is { Changes: [{ Kind: "unshare" }, { Kind: "shared" }] }, "Funnel refused by Tailscale once: the rest without it");
+
+            // A new tailnet's « * »: people only, shared friends their own rule, the home's rule, Funnel.
+            const string Fresh = "{\"tagOwners\": {\"tag:mira-home\": [], \"tag:nas\": []}, \"grants\": [{\"src\": [\"*\"], \"dst\": [\"*\"], \"ip\": [\"*\"]}]}";
+            var fresh = Harden(Fresh);
+            Assert(fresh is not null && fresh.Changes.Select(x => x.Kind).SequenceEqual(["narrow", "grant", "shared", "funnel"]) && fresh.Changes[0].Sources is ["autogroup:member", "tag:nas"]
+                && Verdict(fresh.Text) == HomeTailnet.Verdict.Ok && SharedOk(fresh.Text), "« * » hardened: " + string.Join(", ", fresh?.Changes.Select(x => x.Kind) ?? []));
+            Assert(Mira.Core.Family.HomeGuide.Change(new("narrow", "grants", 1, ["autogroup:member"])).Contains("only your own", StringComparison.Ordinal)
+                || Mira.Core.Family.HomeGuide.Change(new("narrow", "grants", 1, ["autogroup:member"])).Contains("tes propres appareils.", StringComparison.Ordinal), "Narrowed to people only, said so");
+
+            // A rule for shared friends alone goes; one already limited to Jellyfin stays; no sharing at all, nothing added.
+            var alone = Harden("{\"tagOwners\": {\"tag:mira-home\": []}, \"grants\": [" + Home + ", {\"src\": [\"autogroup:shared\"], \"dst\": [\"*\"], \"ip\": [\"*\"]},], \"nodeAttrs\": [{\"target\": [\"autogroup:member\"], \"attr\": [\"funnel\"]}]}");
+            Assert(alone is { Changes: [{ Kind: "unshare", Number: 2, Sources: [] }, { Kind: "shared" }] } && SharedOk(alone.Text) && Verdict(alone.Text) == HomeTailnet.Verdict.Ok, "Their rule removed, Funnel already given");
+            Assert(Harden("{\"tagOwners\": {\"tag:mira-home\": []}, \"grants\": [" + Home + ", " + Shared + ", {\"src\": [\"autogroup:member\"], \"dst\": [\"*\"], \"ip\": [\"*\"]}], \"nodeAttrs\": [{\"target\": [\"100.88.12.34\"], \"attr\": [\"funnel\"]}]}") is null, "Already hardened");
+            Assert(Harden("{\"tagOwners\": {\"tag:mira-home\": []}, \"acls\": [{\"action\": \"accept\", \"src\": [\"autogroup:member\"], \"dst\": [\"*:*\"]}], \"grants\": [" + Home + "], \"nodeAttrs\": [{\"target\": [\"autogroup:member\"], \"attr\": [\"funnel\"]}]}") is null, "Nobody shared with: no rule for them");
+            var acl = Harden("{\"tagOwners\": {\"tag:mira-home\": []}, \"acls\": [{\"action\": \"accept\", \"src\": [\"autogroup:shared\", \"group:famille\"], \"dst\": [\"*:*\"]}], \"grants\": [" + Home + "]}", funnel: false);
+            Assert(acl is { Changes: [{ Kind: "unshare", Section: "acls", Sources: ["group:famille"] }, { Kind: "shared" }] } && SharedOk(acl.Text), "Old ACLs too");
+            Assert(Harden("{\"tagOwners\": {\"tag:mira-home\": []}, \"acls\": [{\"action\": \"accept\", \"src\": [\"autogroup:shared\"], \"dst\": [\"100.88.12.34:8096,443\"]}], \"grants\": [" + Home + "]}", funnel: false) is null, "An ACL to Jellyfin and Funnel's port is enough");
+
+            // This PC's key: read from the devices' list, made to never expire.
+            var devices = TailscaleApi.ReadDevices(System.Text.Json.Nodes.JsonNode.Parse("{\"devices\": [{\"id\": \"n1\", \"addresses\": [\"100.88.12.34\"], \"keyExpiryDisabled\": false}, {\"id\": \"n2\", \"addresses\": [\"100.88.12.35\"], \"keyExpiryDisabled\": true}, {\"id\": \"n3\", \"addresses\": []}]}"));
+            Assert(devices is [{ KeyExpiryDisabled: false }, { KeyExpiryDisabled: true }, { KeyExpiryDisabled: null }], "keyExpiryDisabled read, or unknown");
+            var calls = new List<string>();
+            using var http = new HttpClient(new Handler(async request =>
+            {
+                calls.Add($"{request.Method} {request.RequestUri!.AbsolutePath} {(request.Content is null ? "" : await request.Content.ReadAsStringAsync())}");
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(request.RequestUri.AbsolutePath.EndsWith("/token", StringComparison.Ordinal) ? "{\"access_token\": \"t\", \"expires_in\": 3600}" : "{}", Encoding.UTF8, "application/json") };
+            }));
+            var api = new TailscaleApi(http, "kKey" + Guid.NewGuid().ToString("N"), "tskey-client-secret", "https://api.example.test");
+            await api.DisableKeyExpiryAsync("n1", CancellationToken.None);
+            Assert(calls[^1] == "POST /api/v2/device/n1/key {\"keyExpiryDisabled\": true}", "POST /device/:id/key: " + calls[^1]);
+            try
+            {
+                await api.DisableKeyExpiryAsync("../acl", CancellationToken.None);
+                Assert(false, "Not a device's id");
+            }
+            catch (TailscaleApi.TailscaleException) { }
+
+            // What the apps say: a protection to add, in warning; the policy right for home links.
+            var harden = Mira.Core.Family.HomeGuide.Trouble("harden", changes: 3);
+            Assert(harden is { Warn: true, Remedies: [Mira.Core.Family.HomeGuide.Remedy.Fix, Mira.Core.Family.HomeGuide.Remedy.SeeLines] } && Mira.Core.Family.HomeGuide.Trouble("too-open", changes: 2) is { Warn: false }, "Warning, not danger");
+            foreach (var kind in new[] { "unshare", "shared", "funnel", "key" })
+                Assert(Mira.Core.Family.HomeGuide.Change(new(kind, "grants", 1, kind == "unshare" ? [] : null)) is var said && said != kind && said.Length > 20, "Said in words: " + kind);
+            Assert(Mira.Core.Family.AwayFromHome.For(new Mira.Core.Family.HomeTailnetState { Connected = true, Policy = "harden" }, true, false).Level == Mira.Core.Family.AwayLevel.Ready, "Hardening left: links still work");
+        });
+
         await Test("Foyer loin de chez soi : le guide (secret seul, droits manquants, lignes changées, annuler 10 min, pannes en clair)", () =>
         {
             // One box: the client's id read from its secret; anything else asks the ID too.
