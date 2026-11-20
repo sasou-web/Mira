@@ -103,6 +103,18 @@ public sealed class LocalProfile
         if (File.Exists(path)) File.Delete(path);
         if (Directory.Exists(HomeNodeDirectory)) Directory.Delete(HomeNodeDirectory, recursive: true);
     }
+    /// <summary>A friend's invite used, its device waiting to be let in (<see cref="Mira.Core.Family.FriendWait"/>); null when none.</summary>
+    public Mira.Core.Family.FriendWait? LoadFriendWait()
+    {
+        var path = Path.Combine(DirectoryPath, "friend-wait.protected");
+        if (!File.Exists(path)) return null;
+        try { return JsonSerializer.Deserialize<Mira.Core.Family.FriendWait>(ProtectedData.Unprotect(File.ReadAllBytes(path), FriendEntropy, DataProtectionScope.CurrentUser), Json.Options); }
+        catch (Exception ex) when (ex is CryptographicException or JsonException or IOException or UnauthorizedAccessException or NotSupportedException) { return null; }
+    }
+    public void SaveFriendWait(Mira.Core.Family.FriendWait wait) => AtomicWrite("friend-wait.protected",
+        ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(wait, Json.Options), FriendEntropy, DataProtectionScope.CurrentUser));
+    public void ClearFriendWait() { var path = Path.Combine(DirectoryPath, "friend-wait.protected"); if (File.Exists(path)) File.Delete(path); }
+    private static readonly byte[] FriendEntropy = Encoding.UTF8.GetBytes("Mira friend wait v1");
     private static readonly byte[] HomeEntropy = Encoding.UTF8.GetBytes("Mira home membership v1");
     private static readonly byte[] HomeNodeEntropy = Encoding.UTF8.GetBytes("Mira home tailnet state key v1");
     /// <summary>True when settings.json exists but could not be read: the defaults are used instead, and replace it on the next save.</summary>

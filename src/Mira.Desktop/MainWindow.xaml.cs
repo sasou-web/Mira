@@ -190,6 +190,8 @@ public partial class MainWindow : Window
         if (_args.Contains("--demo")) await ShowDemoAsync();
         // In a home: « Who's watching? » before anything of an account (the profile chosen opens its session).
         else if (OpenHomeAtStart()) { }
+        // A friend's invite waiting to be let in, or a friend's session: its node first.
+        else if (await OpenFriendAtStartAsync()) { }
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
         else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); if (_invite is not null) _ = OfferInviteAsync(); else FindServer(); }
         RenderTailnet(); _ = ReadTailscaleAppAsync();
