@@ -23,6 +23,7 @@ struct HomeSettingsView: View {
     @State private var link: (link: String, expires: Date)?
     @State private var pinFor: HomeAccount?
     @State private var pin = ""
+    @State private var pinOffers = false
     @State private var removing: HomeDeviceInfo?
     @State private var askDisconnect = false
     /// The guide's step on screen (nil: closed).
@@ -93,7 +94,7 @@ struct HomeSettingsView: View {
         }
         .alert(pinFor.map { HomeText.pinOf($0.name) } ?? "", isPresented: Binding(get: { pinFor != nil }, set: { if !$0 { pinFor = nil } })) {
             TextField("4 digits", text: $pin).keyboardType(.numberPad).accessibilityIdentifier("home.pin")
-            Button("Save PIN") { if let account = pinFor { Task { await setPin(account, pin) } } }
+            Button("Save PIN") { if let account = pinFor { Task { await setPin(account, pin, offering: pinOffers) } } }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("A PIN is 4 digits.")
@@ -175,33 +176,38 @@ struct HomeSettingsView: View {
         Section {
             ForEach(settings.profiles) { account in
                 VStack(alignment: .leading, spacing: 8) {
-                    // An administrator has no switch and no PIN: never offered, so the home password can never run the server.
-                    if account.admin {
+                    // An administrator's profile only with a PIN, which it keeps: turned on, the PIN is asked first.
+                    Toggle(isOn: Binding(get: { account.offered }, set: { on in
+                        if on && account.admin && !account.pin {
+                            pin = ""
+                            pinOffers = true
+                            pinFor = account
+                        } else {
+                            Task { await offer(account, on) }
+                        }
+                    })) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(verbatim: account.name).font(MiraFont.body).foregroundStyle(Palette.ink)
-                            Text("Administrator: kept out, so the home password never opens your server.")
-                                .font(MiraFont.footnote).foregroundStyle(Palette.muted)
-                        }
-                        .accessibilityElement(children: .combine)
-                    } else {
-                        Toggle(isOn: Binding(get: { account.offered }, set: { on in Task { await offer(account, on) } })) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(verbatim: account.name).font(MiraFont.body).foregroundStyle(Palette.ink)
+                            if account.admin {
+                                Text("Administrator: in the home only with a PIN, so the home password alone never opens your server.")
+                                    .font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                            } else {
                                 Text(verbatim: reach(account))
                                     .font(MiraFont.footnote).foregroundStyle(Palette.muted)
                             }
                         }
-                        .disabled(account.disabled)
-                        .accessibilityIdentifier("home.offer.\(account.name)")
                     }
-                    if account.offered && !account.admin {
+                    .disabled(account.disabled)
+                    .accessibilityIdentifier("home.offer.\(account.name)")
+                    if account.offered {
                         HStack(spacing: 16) {
                             Button(account.pin ? String(localized: "Change PIN") : String(localized: "Add a PIN")) {
                                 pin = ""
+                                pinOffers = false
                                 pinFor = account
                             }
                             .accessibilityIdentifier("home.pinButton.\(account.name)")
-                            if account.pin {
+                            if account.pin && !account.admin {
                                 Button("Remove PIN", role: .destructive) { Task { await setPin(account, nil) } }
                             }
                         }
@@ -213,7 +219,7 @@ struct HomeSettingsView: View {
         } header: {
             Text("Profiles")
         } footer: {
-            Text("The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; administrators are never part of it.")
+            Text("The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one.")
         }
         .listRowBackground(Palette.surface)
     }
@@ -353,12 +359,16 @@ struct HomeSettingsView: View {
 
     private func offer(_ account: HomeAccount, _ on: Bool) async { await change { try await $0.homeOffer(account.id, on) } }
 
-    private func setPin(_ account: HomeAccount, _ value: String?) async {
+    private func setPin(_ account: HomeAccount, _ value: String?, offering: Bool = false) async {
         if let value, value.count != 4 || !value.allSatisfy({ $0.isASCII && $0.isNumber }) {
             said = String(localized: "A PIN is 4 digits.")
             return
         }
-        await change { try await $0.homeSetPin(account.id, value) }
+        if offering, let value {
+            await change { try await $0.homeOffer(account.id, true, pin: value) }
+        } else {
+            await change { try await $0.homeSetPin(account.id, value) }
+        }
     }
 
     private func remove(_ device: HomeDeviceInfo) async { await change { try await $0.homeRemoveDevice(device.id) } }

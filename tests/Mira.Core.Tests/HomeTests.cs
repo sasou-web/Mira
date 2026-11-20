@@ -48,6 +48,10 @@ internal static class HomeTests
             Assert(home.CheckPin(Sam, "2468").Result == HomeFamily.Pin.Wait && home.CheckPin(Lina, null).Result == HomeFamily.Pin.Open, "Even the right one waits; another profile not");
             now += HomeFamily.PinWait;
             Assert(home.CheckPin(Sam, "0000") is (HomeFamily.Pin.Wrong, 4, _) && home.CheckPin(Sam, "2468").Result == HomeFamily.Pin.Open, "After the wait, five tries again");
+            for (var i = 1; i <= 4; i++) home.CheckPin(Sam, "0000", admin: true);
+            Assert(home.CheckPin(Sam, "0000", admin: true) is (HomeFamily.Pin.Wait, 0, var adminWait) && adminWait == HomeFamily.AdminPinWait && adminWait > HomeFamily.PinWait, "An administrator's profile: a far longer wait");
+            now += HomeFamily.AdminPinWait;
+            Assert(home.HasPin(Sam) && !home.HasPin(Lina) && home.CheckPin(Sam, "2468", admin: true).Result == HomeFamily.Pin.Open, "HasPin; after the administrator's wait, open");
 
             // The profile a device has open; taken out of the home, the device loses it.
             var id = home.Devices().Single().Id;

@@ -218,57 +218,63 @@ public sealed partial class FamilySection
         var list = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
         foreach (var account in settings.Profiles.Where(x => !x.Disabled).OrderBy(x => x.Admin).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)) list.Children.Add(Row(account));
         if (list.Children.Count == 0) list.Children.Add(Note(HomeText.NoProfiles));
-        return Card(L("Profils", "Profiles"), L("Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; les administrateurs n’en font jamais partie.", "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; administrators are never part of it."), list, status);
+        return Card(L("Profils", "Profiles"), L("Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un.", "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one."), list, status);
 
         Control Row(HomeAccount account)
         {
             var row = new DockPanel { Margin = new Thickness(0, 10, 0, 0), Tag = account.Id };
-            // An administrator has no switch and no PIN: never offered, so the home password can never run the server.
-            if (!account.Admin)
+            // An administrator's profile only with a PIN, which it keeps: turned on, the PIN is asked first.
+            var offered = new ToggleSwitch { IsChecked = account.Offered, OnContent = null, OffContent = null, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center };
+            Avalonia.Automation.AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
+            var busy = false;
+            offered.IsCheckedChanged += async (_, _) =>
             {
-                var offered = new ToggleSwitch { IsChecked = account.Offered, OnContent = null, OffContent = null, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center };
-                Avalonia.Automation.AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
-                var busy = false;
-                offered.IsCheckedChanged += async (_, _) =>
-                {
-                    if (busy) return;
-                    try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true); Say(status, "", false); }
-                    catch (Exception ex) when (Expected(ex)) { busy = true; offered.IsChecked = !offered.IsChecked; busy = false; Say(status, Words(ex), true); }
-                };
-                var inHome = Ui.Row(10, Ui.Text(HomeText.InHome, 13, color: Ui.TextSecondary), offered);
-                inHome.VerticalAlignment = VerticalAlignment.Center; inHome.Margin = new Thickness(16, 0, 0, 0);
-                DockPanel.SetDock(inHome, Dock.Right); row.Children.Add(inHome);
+                if (busy) return;
+                if (account.Admin && !account.Pin && offered.IsChecked == true) { busy = true; offered.IsChecked = false; busy = false; AskPin(account, row, offer: true); return; }
+                try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true); Say(status, "", false); }
+                catch (Exception ex) when (Expected(ex)) { busy = true; offered.IsChecked = !offered.IsChecked; busy = false; Say(status, Words(ex), true); }
+            };
+            var inHome = Ui.Row(10, Ui.Text(HomeText.InHome, 13, color: Ui.TextSecondary), offered);
+            inHome.VerticalAlignment = VerticalAlignment.Center; inHome.Margin = new Thickness(16, 0, 0, 0);
+            DockPanel.SetDock(inHome, Dock.Right); row.Children.Add(inHome);
+            if (!account.Admin || account.Offered)
+            {
                 var actions = Ui.Row(6);
-                if (account.Pin) actions.Children.Add(Button(L("Retirer le code", "Remove PIN"), () => _ = PinAsync(account, null), "quiet"));
+                if (account.Pin && !account.Admin) actions.Children.Add(Button(L("Retirer le code", "Remove PIN"), () => _ = PinAsync(account, null), "quiet"));
                 actions.Children.Add(Button(account.Pin ? L("Changer le code", "Change PIN") : L("Ajouter un code", "Add a PIN"), () => AskPin(account, row)));
                 actions.VerticalAlignment = VerticalAlignment.Center;
                 DockPanel.SetDock(actions, Dock.Right); row.Children.Add(actions);
             }
             var name = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { new TextBlock { Text = account.Name, FontSize = 14, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis } } };
             if (account.Pin) name.Children.Add(new Icon("lock", 13) { Foreground = Ui.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
-            var text = Ui.Column(2, name, Note(account.Admin ? HomeText.AdminKeptOut : Reach(account), top: 0));
+            var text = Ui.Column(2, name, Note(account.Admin ? HomeText.AdminNeedsPin : Reach(account), top: 0));
             text.VerticalAlignment = VerticalAlignment.Center;
             row.Children.Add(text);
             return row;
         }
-        void AskPin(HomeAccount account, Control row)
+        void AskPin(HomeAccount account, Control row, bool offer = false)
         {
             foreach (var other in list.Children.OfType<WrapPanel>().ToList()) list.Children.Remove(other);
             var box = new TextBox { Width = 90, MaxLength = 4, FontSize = 16, HorizontalContentAlignment = HorizontalAlignment.Center };
             Avalonia.Automation.AutomationProperties.SetName(box, HomeText.PinOf(account.Name));
             box.AddHandler(Avalonia.Input.InputElement.TextInputEvent, (_, e) => { if (e.Text is { } typed && !typed.All(char.IsAsciiDigit)) e.Handled = true; }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
             var line = new WrapPanel { Margin = new Thickness(0, 8, 0, 0), ItemSpacing = 10, LineSpacing = 8 };
-            box.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; _ = PinAsync(account, box.Text); } };
+            box.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; _ = PinAsync(account, box.Text, offer); } };
             line.Children.Add(box);
-            line.Children.Add(Button(L("Enregistrer le code", "Save PIN"), () => _ = PinAsync(account, box.Text), "primary"));
+            line.Children.Add(Button(L("Enregistrer le code", "Save PIN"), () => _ = PinAsync(account, box.Text, offer), "primary"));
             line.Children.Add(Button(L("Annuler", "Cancel"), () => list.Children.Remove(line), "quiet"));
             list.Children.Insert(list.Children.IndexOf(row) + 1, line);
             box.Focus();
         }
-        async Task PinAsync(HomeAccount account, string? pin)
+        async Task PinAsync(HomeAccount account, string? pin, bool offer = false)
         {
             if (pin is not null && (pin.Length != 4 || !pin.All(char.IsAsciiDigit))) { Say(status, L("Un code fait 4 chiffres.", "A PIN is 4 digits."), true); return; }
-            try { await client.HomeSetPinAsync(account.Id, pin); await LoadAsync(); }
+            try
+            {
+                if (offer) await client.HomeOfferAsync(account.Id, true, pin);
+                else await client.HomeSetPinAsync(account.Id, pin);
+                await LoadAsync();
+            }
             catch (Exception ex) when (Expected(ex)) { Say(status, Words(ex), true); }
         }
     }

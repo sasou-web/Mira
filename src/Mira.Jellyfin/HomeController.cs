@@ -16,7 +16,8 @@ namespace Mira.Jellyfin;
 /// header after), the profiles, a profile opened (its PIN checked here), closed, the home left. The opened profile is a
 /// real session of that Jellyfin account, made by Jellyfin itself (<see cref="ISessionManager.AuthenticateDirect"/>),
 /// under a device id of the home's (<see cref="HomeFamily.JellyfinDevice"/>): its history, favourites, parental rating
-/// and libraries stay Jellyfin's. An administrator's account is never offered nor opened by the home. The
+/// and libraries stay Jellyfin's. An administrator's account is offered and opened only with a PIN (the home's
+/// password alone must never open the server), and its PIN is guessed far slower (<see cref="HomeFamily.AdminPinWait"/>). The
 /// administrator's side, with their own session: the password, the accounts offered, their PIN, the devices and
 /// « remove ». A profile's own session may set its PIN. Never through Tailscale Funnel: <see cref="TunnelGuard"/>
 /// lets nothing of /Mira/home in from the Internet.
@@ -142,12 +143,12 @@ public sealed class HomeController : ControllerBase
             return Refuse(StatusCodes.Status502BadGateway, "Un administrateur de ce Jellyfin doit d’abord ouvrir les réglages du foyer dans Mira.");
         }
 
-        if (!account.Found || account.Admin || account.Disabled)
+        if (!account.Found || account.Disabled || (account.Admin && !Home.HasPin(userId)))
         {
             return Refuse(StatusCodes.Status404NotFound, "Ce profil n’est pas dans le foyer.");
         }
 
-        var (pin, left, wait) = Home.CheckPin(userId, body!.Pin);
+        var (pin, left, wait) = Home.CheckPin(userId, body!.Pin, account.Admin);
         switch (pin)
         {
             case HomeFamily.Pin.Asked:
@@ -255,6 +256,13 @@ public sealed class HomeController : ControllerBase
             return Refuse(StatusCodes.Status400BadRequest, "Le code fait quatre chiffres.");
         }
 
+        using var client = _clients.CreateClient();
+        if (body?.Pin is null && (await AccountAsync(client, userId, cancellationToken).ConfigureAwait(false))?.Admin != false)
+        {
+            // An administrator's profile keeps its PIN (and an account Mira cannot read is treated as one).
+            return Refuse(StatusCodes.Status409Conflict, "Un profil administrateur garde toujours son code.");
+        }
+
         if (profile.Pin is not null)
         {
             var (pin, left, wait) = Home.CheckPin(userId, body?.Current);
@@ -298,7 +306,7 @@ public sealed class HomeController : ControllerBase
                 imageTag = x.ImageTag,
                 admin = x.Admin,
                 disabled = x.Disabled,
-                offered = !x.Admin && offered.ContainsKey(x.Id!),
+                offered = offered.ContainsKey(x.Id!),
                 pin = offered.TryGetValue(x.Id!, out var p) && p.Pin is not null,
                 allLibraries = x.AllLibraries,
                 maxRating = x.MaxRating,
@@ -348,7 +356,10 @@ public sealed class HomeController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>An account offered as a profile, or no longer (the devices that had it open lose it). Never an administrator's.</summary>
+    /// <summary>
+    /// An account offered as a profile, or no longer (the devices that had it open lose it). An administrator's only with
+    /// a PIN: the one it has, or the one sent with it.
+    /// </summary>
     [HttpPut("profiles/{user}")]
     [Authorize(Policy = "RequiresElevation")]
     [RequestSizeLimit(1_024)]
@@ -370,9 +381,14 @@ public sealed class HomeController : ControllerBase
                 return Refuse(StatusCodes.Status404NotFound, "Ce compte n’existe pas sur ce Jellyfin.");
             }
 
-            if (account.Admin)
+            if (body.Pin is { } wanted && !HomeFamily.IsPin(wanted))
             {
-                return Refuse(StatusCodes.Status409Conflict, "Un compte administrateur n’est jamais ouvert par le mot de passe du foyer.");
+                return Refuse(StatusCodes.Status400BadRequest, "Le code fait quatre chiffres.");
+            }
+
+            if (account.Admin && body.Pin is null && !Home.HasPin(userId))
+            {
+                return Refuse(StatusCodes.Status409Conflict, "Un profil administrateur a besoin d’un code à quatre chiffres.");
             }
         }
 
@@ -380,6 +396,11 @@ public sealed class HomeController : ControllerBase
         if (!done)
         {
             return Refuse(StatusCodes.Status409Conflict, "Le foyer a déjà trop de profils.");
+        }
+
+        if (offered && body.Pin is { } pin)
+        {
+            Home.SetPin(userId, pin);
         }
 
         foreach (var device in closed)
@@ -400,6 +421,16 @@ public sealed class HomeController : ControllerBase
         if (body?.Pin is { } wanted && !HomeFamily.IsPin(wanted))
         {
             return Refuse(StatusCodes.Status400BadRequest, "Le code fait quatre chiffres.");
+        }
+
+        if (body?.Pin is null && HomeFamily.Plain(user) is { } userId)
+        {
+            using var client = _clients.CreateClient();
+            var (status, text) = await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Get, $"Users/{userId}", Admin(), null, cancellationToken).ConfigureAwait(false);
+            if (status != (int)HttpStatusCode.OK || GuestAccounts.Parse(text) is not JsonObject found || Account.Of(found).Admin)
+            {
+                return Refuse(StatusCodes.Status409Conflict, "Un profil administrateur garde toujours son code.");
+            }
         }
 
         return Home.SetPin(user, body?.Pin) ? NoContent() : Refuse(StatusCodes.Status404NotFound, "Ce profil n’est pas dans le foyer.");
@@ -819,7 +850,7 @@ public sealed class HomeController : ControllerBase
         var accounts = users.OfType<JsonObject>().Select(Account.Of).Where(x => x.Id is not null).ToDictionary(x => x.Id!, StringComparer.Ordinal);
         return Home.Profiles()
             .Select(p => (Profile: p, Account: accounts.GetValueOrDefault(p.User)))
-            .Where(x => x.Account is { Admin: false, Disabled: false })
+            .Where(x => x.Account is { Disabled: false } && (!x.Account.Admin || x.Profile.Pin is not null))
             .OrderBy(x => x.Account!.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(x => (object)new { id = x.Profile.User, name = x.Account!.Name, imageTag = x.Account.ImageTag, pin = x.Profile.Pin is not null })
             .ToList();
@@ -901,7 +932,7 @@ public sealed class HomeController : ControllerBase
 
     private sealed record PasswordBody(string? Password);
 
-    private sealed record OfferBody(bool? Offered);
+    private sealed record OfferBody(bool? Offered, string? Pin);
 
     private sealed record TailnetBody(string? ClientId, string? ClientSecret);
 
