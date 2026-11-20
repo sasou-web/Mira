@@ -27,6 +27,8 @@ public sealed class HomeFamily
     /// <summary>Wrong PINs of a profile in a row, then the wait before the next try.</summary>
     public const int PinTries = 5;
     public static readonly TimeSpan PinWait = TimeSpan.FromMinutes(5);
+    /// <summary>The wait for an administrator's profile: its PIN opens the server, so guessing it is made far slower.</summary>
+    public static readonly TimeSpan AdminPinWait = TimeSpan.FromHours(1);
     /// <summary>The prefix of the Jellyfin device id of a profile opened by the home: one per device of the home.</summary>
     public const string DevicePrefix = "mira-home-";
     // OWASP's count for PBKDF2-HMAC-SHA256 (2023): about a third of a second on a small PC, once per try.
@@ -307,6 +309,9 @@ public sealed class HomeFamily
         }
     }
 
+    /// <summary>Whether an offered profile has a PIN.</summary>
+    public bool HasPin(string user) => Plain(user) is { } id && Profile(id)?.Pin is not null;
+
     /// <summary>A profile's PIN set (four digits) or taken off (null); false for a profile not offered or no PIN.</summary>
     public bool SetPin(string user, string? pin)
     {
@@ -333,10 +338,12 @@ public sealed class HomeFamily
 
     /// <summary>
     /// Whether a profile may be opened with <paramref name="pin"/>: open without a PIN, asked when it has one and none
-    /// came, wrong (with the tries left), or to wait after <see cref="PinTries"/> wrong ones in a row.
+    /// came, wrong (with the tries left), or to wait after <see cref="PinTries"/> wrong ones in a row
+    /// (<see cref="AdminPinWait"/> for an administrator's profile).
     /// </summary>
-    public (Pin Result, int Left, TimeSpan Wait) CheckPin(string user, string? pin)
+    public (Pin Result, int Left, TimeSpan Wait) CheckPin(string user, string? pin, bool admin = false)
     {
+        var lockout = admin ? AdminPinWait : PinWait;
         if (Plain(user) is not { } id)
         {
             return (Pin.Wrong, 0, TimeSpan.Zero);
@@ -376,8 +383,8 @@ public sealed class HomeFamily
             var wrong = (_pins.TryGetValue(id, out var state) && state.Until <= now ? state.Wrong : 0) + 1;
             if (wrong >= PinTries)
             {
-                _pins[id] = (0, now + PinWait);
-                return (Pin.Wait, 0, PinWait);
+                _pins[id] = (0, now + lockout);
+                return (Pin.Wait, 0, lockout);
             }
 
             _pins[id] = (wrong, DateTimeOffset.MinValue);

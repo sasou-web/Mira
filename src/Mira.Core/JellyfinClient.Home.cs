@@ -105,9 +105,9 @@ public sealed partial class JellyfinClient
     public Task HomeSetPasswordAsync(string? password, CancellationToken ct = default) =>
         HomeAdminAsync(HttpMethod.Put, "Mira/home/password", new JsonObject { ["password"] = password }, ct);
 
-    /// <summary>An account offered as a profile of the home, or no longer.</summary>
-    public Task HomeOfferAsync(string userId, bool offered, CancellationToken ct = default) =>
-        HomeAdminAsync(HttpMethod.Put, $"Mira/home/profiles/{Uri.EscapeDataString(userId)}", new JsonObject { ["offered"] = offered }, ct);
+    /// <summary>An account offered as a profile of the home, or no longer; an administrator's with its PIN.</summary>
+    public Task HomeOfferAsync(string userId, bool offered, string? pin = null, CancellationToken ct = default) =>
+        HomeAdminAsync(HttpMethod.Put, $"Mira/home/profiles/{Uri.EscapeDataString(userId)}", pin is null ? new JsonObject { ["offered"] = offered } : new JsonObject { ["offered"] = offered, ["pin"] = pin }, ct);
 
     /// <summary>A profile's PIN (four digits) set, or taken off (null), by the administrator.</summary>
     public Task HomeSetPinAsync(string userId, string? pin, CancellationToken ct = default) =>

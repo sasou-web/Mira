@@ -7665,12 +7665,12 @@
         }
       }
     },
-    "Administrator: kept out, so the home password never opens your server.": {
+    "Administrator: in the home only with a PIN, so the home password alone never opens your server.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Administrateur : hors du foyer, pour que son mot de passe n’ouvre jamais ton serveur."
+            "value": "Administrateur : dans le foyer seulement avec un code, pour que son mot de passe seul n’ouvre jamais ton serveur."
           }
         }
       }
@@ -8435,12 +8435,12 @@
         }
       }
     },
-    "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; administrators are never part of it.": {
+    "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; les administrateurs n’en font jamais partie."
+            "value": "Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un."
           }
         }
       }

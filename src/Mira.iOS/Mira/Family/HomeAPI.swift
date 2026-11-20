@@ -342,9 +342,11 @@ extension JellyfinClient {
         try Self.homeCheck(status, data)
     }
 
-    /// An account offered as a profile of the home, or no longer.
-    func homeOffer(_ userId: String, _ offered: Bool) async throws {
-        let (status, data, _) = try await homeAdmin("PUT", "Mira/home/profiles/\(userId)", body: ["offered": offered])
+    /// An account offered as a profile of the home, or no longer; an administrator's with its PIN.
+    func homeOffer(_ userId: String, _ offered: Bool, pin: String? = nil) async throws {
+        var body: [String: Any] = ["offered": offered]
+        if let pin { body["pin"] = pin }
+        let (status, data, _) = try await homeAdmin("PUT", "Mira/home/profiles/\(userId)", body: body)
         try Self.homeCheck(status, data)
     }
 

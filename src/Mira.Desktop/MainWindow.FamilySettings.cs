@@ -205,7 +205,7 @@ public partial class MainWindow
 
     private Border FamilyProfilesRow(JellyfinClient client, HomeSettings settings)
     {
-        var body = FamilyCard(L("Profils", "Profiles"), L("Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; les administrateurs n’en font jamais partie.", "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; administrators are never part of it."));
+        var body = FamilyCard(L("Profils", "Profiles"), L("Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un.", "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one."));
         var status = FamilyNote("");
         var list = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
         foreach (var account in settings.Profiles.Where(x => !x.Disabled).OrderBy(x => x.Admin).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)) list.Children.Add(Row(account));
@@ -216,57 +216,63 @@ public partial class MainWindow
         FrameworkElement Row(HomeAccount account)
         {
             var row = new DockPanel { Margin = new Thickness(0, 8, 0, 8) };
-            // An administrator has no switch and no PIN: never offered, so the home password can never run the server.
-            if (!account.Admin)
+            // An administrator's profile only with a PIN, which it keeps: turned on, the PIN is asked first.
+            var offered = new CheckBox { IsChecked = account.Offered, VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
+            offered.Click += async (_, _) =>
             {
-                var offered = new CheckBox { IsChecked = account.Offered, VerticalAlignment = VerticalAlignment.Center };
-                AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
-                offered.Click += async (_, _) =>
-                {
-                    try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true, _connectionLifetime.Token); }
-                    catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { offered.IsChecked = !offered.IsChecked; FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
-                };
-                var inHome = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) };
-                inHome.Children.Add(new TextBlock { Text = HomeText.InHome, Foreground = Palette.Get("TextSecondary"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
-                inHome.Children.Add(offered);
-                DockPanel.SetDock(inHome, Dock.Right); row.Children.Add(inHome);
+                if (account.Admin && !account.Pin && offered.IsChecked == true) { offered.IsChecked = false; AskProfilePin(account, offer: true); return; }
+                try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true, ct: _connectionLifetime.Token); }
+                catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { offered.IsChecked = !offered.IsChecked; FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
+            };
+            var inHome = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) };
+            inHome.Children.Add(new TextBlock { Text = HomeText.InHome, Foreground = Palette.Get("TextSecondary"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+            inHome.Children.Add(offered);
+            DockPanel.SetDock(inHome, Dock.Right); row.Children.Add(inHome);
+            if (!account.Admin || account.Offered)
+            {
                 var pin = FamilyButton(account.Pin ? L("Changer le code", "Change PIN") : L("Ajouter un code", "Add a PIN"), () => AskProfilePin(account));
                 pin.VerticalAlignment = VerticalAlignment.Center; pin.Margin = new Thickness(10, 0, 0, 0);
                 DockPanel.SetDock(pin, Dock.Right); row.Children.Add(pin);
-                if (account.Pin)
-                {
-                    var remove = FamilyButton(L("Retirer le code", "Remove PIN"), () => _ = PinAsync(account, null), quiet: true);
-                    remove.VerticalAlignment = VerticalAlignment.Center; remove.Margin = new Thickness(10, 0, 0, 0);
-                    DockPanel.SetDock(remove, Dock.Right); row.Children.Add(remove);
-                }
+            }
+            if (account.Pin && !account.Admin)
+            {
+                var remove = FamilyButton(L("Retirer le code", "Remove PIN"), () => _ = PinAsync(account, null), quiet: true);
+                remove.VerticalAlignment = VerticalAlignment.Center; remove.Margin = new Thickness(10, 0, 0, 0);
+                DockPanel.SetDock(remove, Dock.Right); row.Children.Add(remove);
             }
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             var name = new StackPanel { Orientation = Orientation.Horizontal };
             name.Children.Add(new TextBlock { Text = account.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
             if (account.Pin) name.Children.Add(new Icon { Kind = "lock", Width = 13, Height = 13, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Palette.Get("TextSecondary") });
             text.Children.Add(name);
-            text.Children.Add(new TextBlock { Style = (Style)FindResource("SettingDescription"), Text = account.Admin ? HomeText.AdminKeptOut : AccountReach(account) });
+            text.Children.Add(new TextBlock { Style = (Style)FindResource("SettingDescription"), Text = account.Admin ? HomeText.AdminNeedsPin : AccountReach(account) });
             row.Children.Add(text);
             return row;
         }
-        void AskProfilePin(HomeAccount account)
+        void AskProfilePin(HomeAccount account, bool offer = false)
         {
             var box = new TextBox { Width = 90, MaxLength = 4, FontSize = 16, Margin = new Thickness(0, 0, 10, 0), HorizontalContentAlignment = HorizontalAlignment.Center };
             AutomationProperties.SetName(box, L($"Code de {account.Name}", $"{account.Name}’s PIN"));
             box.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
             var line = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
             line.Children.Add(box);
-            line.Children.Add(FamilyButton(L("Enregistrer le code", "Save PIN"), () => _ = PinAsync(account, box.Text), primary: true));
+            line.Children.Add(FamilyButton(L("Enregistrer le code", "Save PIN"), () => _ = PinAsync(account, box.Text, offer), primary: true));
             line.Children.Add(FamilyButton(L("Annuler", "Cancel"), () => list.Children.Remove(line), quiet: true));
             var at = list.Children.IndexOf(list.Children.OfType<DockPanel>().FirstOrDefault(x => x.Children.OfType<StackPanel>().Any(t => t.Children.OfType<StackPanel>().Any(n => n.Children.OfType<TextBlock>().Any(b => b.Text == account.Name)))));
             foreach (var other in list.Children.OfType<WrapPanel>().ToList()) list.Children.Remove(other);
             list.Children.Insert(at < 0 ? list.Children.Count : at + 1, line);
             box.Focus();
         }
-        async Task PinAsync(HomeAccount account, string? pin)
+        async Task PinAsync(HomeAccount account, string? pin, bool offer = false)
         {
             if (pin is not null && (pin.Length != 4 || !pin.All(char.IsAsciiDigit))) { FamilySay(status, L("Un code fait 4 chiffres.", "A PIN is 4 digits."), true); return; }
-            try { await client.HomeSetPinAsync(account.Id, pin, _connectionLifetime.Token); await ShowFamilySettingsAsync(); }
+            try
+            {
+                if (offer) await client.HomeOfferAsync(account.Id, true, pin, _connectionLifetime.Token);
+                else await client.HomeSetPinAsync(account.Id, pin, _connectionLifetime.Token);
+                await ShowFamilySettingsAsync();
+            }
             catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
         }
     }
