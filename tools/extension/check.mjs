@@ -68,9 +68,9 @@ await part('extension', async () => {
 // a new link and the old one no longer opens.
 const FUNNEL = { 'Tailscale-Funnel-Request': '?1' };
 // One request as Tailscale Funnel hands it on, its path as written: its status, 101 for a WebSocket opened (closed at once).
-const throughFunnel = (path, headers = {}) => new Promise((resolve) => {
+const throughFunnel = (path, headers = {}, method = 'GET') => new Promise((resolve) => {
   const origin = new URL(base);
-  const request = http.request({ host: origin.hostname, port: origin.port, path, headers: { ...FUNNEL, ...headers } });
+  const request = http.request({ host: origin.hostname, port: origin.port, path, method, headers: { ...FUNNEL, ...headers } });
   request.on('upgrade', (_, socket) => { socket.destroy(); resolve(101); });
   request.on('response', (response) => { response.resume(); resolve(response.statusCode); });
   request.on('error', () => resolve(0));
@@ -202,6 +202,19 @@ await part('foyer', async () => {
       && tailnetFriend.status === 403 && badClient.status === 400 && linkBefore.status === 409 && linkBefore.json?.policy === 'disconnected' && tailnetFunnel === 404,
     `réglages ${tailnet.status} ${tailnet.text.slice(0, 160)} ; autre compte ${tailnetFriend.status} ; client ${badClient.status} ; lien ${linkBefore.status} ${linkBefore.json?.policy} ; Funnel ${tailnetFunnel}`);
   await call('PUT', 'Mira/home/password', { token: host, body: { password: null } });
+
+  // « Inviter un ami » by a link (/Mira/friend): never connected to Tailscale here, so what it says before; the
+  // friend's side refuses what is not an invitation, counts wrong tries, and nothing goes through Funnel.
+  const [friends, friendsOther, inviteBefore, inviteAdmin] = [await call('GET', 'Mira/friend', { token: host }), await call('GET', 'Mira/friend', { token: friend, device: 'check-friend' }),
+    await call('POST', 'Mira/friend/invite', { token: host, body: { user: lina } }), await call('POST', 'Mira/friend/invite', { token: host, body: { user: admin } })];
+  const redeems = [];
+  for (let i = 0; i < 11; i++) redeems.push((await call('POST', 'Mira/friend/redeem', { device: 'check-friend-redeem', body: { invite: `pas-une-invitation-${i}`, device: 'check-friend-phone', name: 'Téléphone' } })).status);
+  const [noDevice, friendFunnel, redeemFunnel] = [await call('POST', 'Mira/friend/redeem', { body: { invite: 'x' } }), await throughFunnel(`${root}/Mira/friend`), await throughFunnel(`${root}/Mira/friend/redeem`, {}, 'POST')];
+  check('ami par lien : rien sans Tailscale relié, administrateur seulement, invitation fausse refusée puis essais comptés, rien par Funnel',
+    friends.status === 200 && friends.json?.tailnet === 'disconnected' && Array.isArray(friends.json?.invites) && friendsOther.status === 403
+      && inviteBefore.status === 409 && inviteBefore.json?.state === 'disconnected' && inviteAdmin.status === 409
+      && redeems.slice(0, 10).every((s) => s === 404) && redeems[10] === 429 && noDevice.status === 400 && friendFunnel === 404 && redeemFunnel === 404,
+    `état ${friends.status} ${friends.json?.tailnet} ; autre compte ${friendsOther.status} ; invitation ${inviteBefore.status} ${inviteBefore.json?.state} ; administrateur ${inviteAdmin.status} ${inviteAdmin.json?.state} ; essais ${redeems.join(',')} ; sans appareil ${noDevice.status} ; Funnel ${friendFunnel}/${redeemFunnel}`);
 });
 
 await part('party', async () => {

@@ -28,9 +28,9 @@ public static class HomePolicyFix
     /// What to change in <paramref name="text"/> (the policy as HuJSON) for the home's devices to reach this PC's
     /// Jellyfin and nothing else; null when it already does, or when Mira cannot get there safely.
     /// </summary>
-    public static Plan? Make(string text, string server, int port)
+    public static Plan? Make(string text, string server, int port, string tag = HomeTailnet.Tag)
     {
-        if (Parse(text) is not JsonObject policy || HomeTailnet.CheckPolicy(policy, server, port).Verdict == HomeTailnet.Verdict.Ok)
+        if (Parse(text) is not JsonObject policy || HomeTailnet.CheckPolicy(policy, server, port, tag).Verdict == HomeTailnet.Verdict.Ok)
         {
             return null;
         }
@@ -43,11 +43,12 @@ public static class HomePolicyFix
             var root = Read(text);
             var edits = new List<(int At, int Remove, string Insert)>();
             var owners = Member(root, "tagOwners");
+            // Never Mira's own tags: a wide rule narrowed to them would let the home's or friends' devices out again.
             var tags = (owners as HuObject)?.Members.Select(x => x.Key).Where(x => x.StartsWith("tag:", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(x, HomeTailnet.Tag, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
-            if (owners is not HuObject ownersObject || !ownersObject.Members.Any(x => string.Equals(x.Key, HomeTailnet.Tag, StringComparison.OrdinalIgnoreCase)))
+                && !string.Equals(x, HomeTailnet.Tag, StringComparison.OrdinalIgnoreCase) && !string.Equals(x, HomeTailnet.FriendTag, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
+            if (owners is not HuObject ownersObject || !ownersObject.Members.Any(x => string.Equals(x.Key, tag, StringComparison.OrdinalIgnoreCase)))
             {
-                var line = $"\"{HomeTailnet.Tag}\": [\"autogroup:admin\"],";
+                var line = HomeTailnet.Setup(server, port, tag).TagOwners + ",";
                 edits.Add(owners is HuObject o ? First(text, o, line) : Section(text, root, $"\"tagOwners\": {{{Line(Inner(text, root))}{line}{Line(Indent(text, root))}}},"));
                 changes.Add(new Change("tag"));
             }
@@ -61,7 +62,7 @@ public static class HomePolicyFix
                 return null;
             }
 
-            var (_, open) = HomeTailnet.CheckPolicy(tagged, server, port);
+            var (_, open) = HomeTailnet.CheckPolicy(tagged, server, port, tag);
             foreach (var rule in open)
             {
                 if (rule.Section is not ("acls" or "grants") || Member(root, rule.Section) is not HuArray rules || rule.Number > rules.Items.Count
@@ -102,10 +103,10 @@ public static class HomePolicyFix
             }
 
             // 2. The rule to Jellyfin, when nothing lets the home's devices reach it.
-            if (HomeTailnet.CheckPolicy(narrowed, server, port).Verdict == HomeTailnet.Verdict.NoAccess)
+            if (HomeTailnet.CheckPolicy(narrowed, server, port, tag).Verdict == HomeTailnet.Verdict.NoAccess)
             {
                 root = Read(text);
-                var (_, grant) = HomeTailnet.Setup(server, port);
+                var (_, grant) = HomeTailnet.Setup(server, port, tag);
                 var line = grant + ",";
                 text = Apply(text, [Member(root, "grants") is HuArray grants
                     ? First(text, grants, line)
@@ -118,7 +119,7 @@ public static class HomePolicyFix
             return null;
         }
 
-        return Parse(text) is JsonObject made && HomeTailnet.CheckPolicy(made, server, port).Verdict == HomeTailnet.Verdict.Ok && changes.Count > 0
+        return Parse(text) is JsonObject made && HomeTailnet.CheckPolicy(made, server, port, tag).Verdict == HomeTailnet.Verdict.Ok && changes.Count > 0
             ? new Plan(text, changes) { Lines = Added(original, text) }
             : null;
     }

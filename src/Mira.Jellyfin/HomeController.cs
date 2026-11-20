@@ -458,7 +458,9 @@ public sealed class HomeController : ControllerBase
         }
 
         var home = Home.Devices().Where(x => x.Tailnet is not null).ToDictionary(x => x.Tailnet!, StringComparer.OrdinalIgnoreCase);
-        var devices = nodes.Where(x => x.Tagged).Select(x =>
+        // Friends' devices are listed with each friend (FriendController), not as the home's.
+        var friends = Plugin.Friends.Devices().Select(x => x.Tailnet).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var devices = nodes.Where(x => x.Tagged && !x.Friend && !x.Addresses.Any(friends.Contains)).Select(x =>
         {
             var inHome = x.Addresses.Select(a => home.GetValueOrDefault(a)).FirstOrDefault(d => d is not null);
             return new { id = x.Id, name = x.Name, addresses = x.Addresses, created = x.Created, lastSeen = x.LastSeen, device = inHome?.Id, deviceName = inHome?.Name };
@@ -711,12 +713,14 @@ public sealed class HomeController : ControllerBase
     }
 
     /// <summary>The nodes of the home's tag to delete deleted (<see cref="HomeTailnet.ToDelete"/>); the tailnet's devices that remain.</summary>
-    private static async Task<IReadOnlyList<TailnetDevice>> SweepAsync(TailscaleApi api, CancellationToken cancellationToken)
+    internal static async Task<IReadOnlyList<TailnetDevice>> SweepAsync(TailscaleApi api, CancellationToken cancellationToken)
     {
         var tailnet = Plugin.HomeTailnet;
         var nodes = await api.DevicesAsync(cancellationToken).ConfigureAwait(false);
         var gone = new List<TailnetDevice>();
-        foreach (var node in tailnet.ToDelete(nodes, Home.Devices().Select(x => x.Tailnet).OfType<string>()))
+        // Friends' devices (FriendInvites) joined too: their nodes stay.
+        var joined = Home.Devices().Select(x => x.Tailnet).Concat(Plugin.Friends.Devices().Select(x => x.Tailnet)).OfType<string>();
+        foreach (var node in tailnet.ToDelete(nodes, joined))
         {
             if (await api.DeleteAsync(node, cancellationToken).ConfigureAwait(false))
             {

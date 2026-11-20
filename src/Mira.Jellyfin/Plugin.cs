@@ -34,6 +34,16 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         _proofFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.proof.key");
         _homeFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.home.json");
         _homeTailnetFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.home-tailnet.json");
+        _friendsFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.friends.json");
+    }
+
+    private static string? _friendsFile;
+    private static FriendInvites? _friends;
+
+    /// <summary>« Inviter un ami » by a link: the invitations and the devices of friends that came in by one.</summary>
+    public static FriendInvites Friends
+    {
+        get { lock (Gate) return _friends ??= new FriendInvites(_friendsFile, () => DateTimeOffset.UtcNow); }
     }
 
     private static string? _subtitlesFile, _journalFile, _queueFile;
