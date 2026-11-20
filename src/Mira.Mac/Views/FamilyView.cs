@@ -19,7 +19,7 @@ namespace Mira.Mac.Views;
 /// </summary>
 public sealed class FamilyView : UserControl
 {
-    public enum Stage { Join, Hall, Pin }
+    public enum Stage { Join, Hall, Pin, Friend }
 
     // —— Joining ——
     private readonly TextBlock _joinHeading = Ui.Heading("", 24, 1, FontWeight.Bold);
@@ -52,6 +52,15 @@ public sealed class FamilyView : UserControl
     private readonly TextBlock _pinForgot = new() { FontSize = 13, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private readonly Control _pinPage;
 
+    // —— A friend's invite (maquette A « Le lien ») ——
+    private readonly TextBlock _friendHeading = Ui.Heading("", 24, 1, FontWeight.Bold);
+    private readonly TextBlock _friendLine = new() { FontSize = 14, LineHeight = 21, Foreground = Ui.TextBody, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _friendSeen = new() { FontSize = 12.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+    private readonly Border _friendPrivacy;
+    private readonly TextBlock _friendError = new() { Foreground = Ui.Danger, FontSize = 13.5, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly Button _friendStart, _friendNotNow, _friendAddress;
+    private readonly Control _friendPage;
+
     private readonly StackPanel _busy;
     private readonly TextBlock _busyText = new() { FontSize = 13, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center };
     private readonly MainWindow _shell;
@@ -60,7 +69,7 @@ public sealed class FamilyView : UserControl
     public event Action<HomeProfile>? Chosen;
     /// <summary>Four digits typed.</summary>
     public event Action<string>? PinTyped;
-    public event Action? Join, OwnAccount, Leave, Retry, PinBack, Escape;
+    public event Action? Join, OwnAccount, Leave, Retry, PinBack, Escape, FriendStart, FriendNotNow, FriendAddress;
 
     public FamilyView(MainWindow shell)
     {
@@ -140,11 +149,33 @@ public sealed class FamilyView : UserControl
         // A click anywhere on the PIN page gives the digits back to its field.
         _pinPage.PointerPressed += (_, _) => Dispatcher.UIThread.Post(() => _pin.Focus());
 
+        // —— A friend's invite: what it is, what the friend sees of this Mac, then the wait for them to let it in ——
+        Avalonia.Automation.AutomationProperties.SetLiveSetting(_friendError, Avalonia.Automation.AutomationLiveSetting.Assertive);
+        Avalonia.Automation.AutomationProperties.SetLiveSetting(_friendLine, Avalonia.Automation.AutomationLiveSetting.Polite);
+        _friendStart = new Button { Content = FriendText.Start, Classes = { "primary" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(18, 13) };
+        _friendStart.Click += (_, _) => FriendStart?.Invoke();
+        _friendNotNow = new Button { Content = FriendText.NotNow, Classes = { "quiet" }, Padding = new Thickness(12, 8), HorizontalAlignment = HorizontalAlignment.Center };
+        _friendNotNow.Click += (_, _) => FriendNotNow?.Invoke();
+        _friendAddress = new Button { Content = FriendText.HaveAddress, Classes = { "quiet" }, Padding = new Thickness(12, 6), HorizontalAlignment = HorizontalAlignment.Center, Foreground = Ui.Muted };
+        _friendAddress.Click += (_, _) => FriendAddress?.Invoke();
+        var friendBrand = new Icon("brand", 30) { Foreground = Ui.Ink, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        var friendHead = new DockPanel();
+        DockPanel.SetDock(friendBrand, Dock.Left); friendHead.Children.Add(friendBrand);
+        _friendHeading.TextWrapping = TextWrapping.Wrap; _friendHeading.VerticalAlignment = VerticalAlignment.Center;
+        friendHead.Children.Add(_friendHeading);
+        var seen = new DockPanel();
+        var eye = new Icon("eye", 16) { Foreground = Ui.TextSecondary, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 10, 0) };
+        DockPanel.SetDock(eye, Dock.Left); seen.Children.Add(eye); seen.Children.Add(_friendSeen);
+        _friendPrivacy = new Border { Padding = new Thickness(14, 12), CornerRadius = new CornerRadius(10), Background = Ui.Surface, BorderBrush = Ui.MenuLine, BorderThickness = new Thickness(1), Child = seen };
+        var friendCard = Ui.Column(14, friendHead, _friendLine, _friendPrivacy, _friendError, _friendStart, _friendNotNow, _friendAddress);
+        friendCard.Width = 440;
+        _friendPage = Centered(new Border { Child = friendCard, Padding = new Thickness(36, 32), CornerRadius = new CornerRadius(18), Background = Ui.Surface, BorderBrush = Ui.MenuLine, BorderThickness = new Thickness(1) });
+
         _busy = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 48), IsVisible = false, IsHitTestVisible = false, Children = { new Icon("refresh", 15) { Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center }, _busyText } };
         Content = new Grid
         {
             Background = Brushes.Black,
-            Children = { _joinPage, _hallPage, _pinPage, _busy },
+            Children = { _joinPage, _hallPage, _pinPage, _friendPage, _busy },
         };
         Show(Stage.Join);
         AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Escape?.Invoke(); } }, Avalonia.Interactivity.RoutingStrategies.Bubble);
@@ -161,7 +192,7 @@ public sealed class FamilyView : UserControl
     public void Show(Stage stage)
     {
         Shown = stage;
-        _joinPage.IsVisible = stage == Stage.Join; _hallPage.IsVisible = stage == Stage.Hall; _pinPage.IsVisible = stage == Stage.Pin;
+        _joinPage.IsVisible = stage == Stage.Join; _hallPage.IsVisible = stage == Stage.Hall; _pinPage.IsVisible = stage == Stage.Pin; _friendPage.IsVisible = stage == Stage.Friend;
     }
 
     // —— Joining ——
@@ -302,6 +333,27 @@ public sealed class FamilyView : UserControl
             }
     }
 
+    // —— A friend's invite ——
+    /// <summary>The friend's page: <paramref name="asking"/> shows the privacy line and « Start watching ».</summary>
+    public void ShowFriend(string heading, string line, string? error, bool asking, bool address, string close)
+    {
+        _friendHeading.Text = heading; _friendLine.Text = line;
+        _friendSeen.Text = FriendText.Visible;
+        _friendPrivacy.IsVisible = asking;
+        FriendError(error);
+        _friendStart.IsVisible = asking && error is null; _friendStart.IsEnabled = true;
+        _friendNotNow.Content = close; Avalonia.Automation.AutomationProperties.SetName(_friendNotNow, close);
+        _friendAddress.IsVisible = address;
+        Show(Stage.Friend);
+        Dispatcher.UIThread.Post(() => (_friendStart.IsVisible ? _friendStart : _friendNotNow).Focus(), DispatcherPriority.Loaded);
+    }
+    public void FriendError(string? text) { _friendError.Text = text; _friendError.IsVisible = !string.IsNullOrEmpty(text); }
+    public void FriendLine(string text) => _friendLine.Text = text;
+    public void SetFriendBusy(bool busy) => _friendStart.IsEnabled = !busy;
+    public string FriendHeading => _friendHeading.Text ?? "";
+    public string? FriendErrorText => _friendError.IsVisible ? _friendError.Text : null;
+    public bool FriendStartShown => _friendStart.IsVisible;
+
     // —— What Mira is doing ——
     /// <summary>A button of the page pressed, as a click does (the self-check): join, retry, leave, escape, own.</summary>
     public void PressForCheck(string what)
@@ -313,6 +365,8 @@ public sealed class FamilyView : UserControl
             case "leave": Leave?.Invoke(); break;
             case "escape": Escape?.Invoke(); break;
             case "own": OwnAccount?.Invoke(); break;
+            case "friend-start": FriendStart?.Invoke(); break;
+            case "friend-close": FriendNotNow?.Invoke(); break;
         }
     }
     public void Busy(string? text) { _busyText.Text = text ?? ""; _busy.IsVisible = text is not null; }

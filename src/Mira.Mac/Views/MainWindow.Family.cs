@@ -92,6 +92,9 @@ public sealed partial class MainWindow
             view.Retry += () => _ = RefreshHallAsync();
             view.PinBack += PinBack;
             view.Escape += FamilyEscape;
+            view.FriendStart += () => _ = FriendStartAsync();
+            view.FriendNotNow += () => _ = LeaveFriendPageAsync();
+            view.FriendAddress += () => _ = FriendAddressAsync();
         }
         if (!_overlay.Children.Contains(_family))
         {
@@ -299,6 +302,7 @@ public sealed partial class MainWindow
         if (_family is not { } view || _familyBusy) return;
         switch (view.Shown)
         {
+            case FamilyView.Stage.Friend: _ = LeaveFriendPageAsync(); break;
             case FamilyView.Stage.Pin: PinBack(); break;
             case FamilyView.Stage.Hall when Session is not null: HideFamily(); break;
             case FamilyView.Stage.Join: OwnAccount(); break;
@@ -311,6 +315,7 @@ public sealed partial class MainWindow
     private void OpenHomeLink(string text)
     {
         if (HomeLink.Read(text) is not { } link) { Notice(HomeText.LinkBroken, tone: NoticeTone.Error); return; }
+        if (link.Friend) { OpenFriendLink(link); return; }
         // Already in this home: its hall.
         if (_home is { } home && link.Is(home.ServerId)) { ShowHall(); _ = RefreshHallAsync(); return; }
         _homeLink = link; _homeFound = null;
@@ -324,7 +329,7 @@ public sealed partial class MainWindow
     /// </summary>
     internal async Task OfferHomeAsync(ServerSearch.Found found)
     {
-        if (_homeDeclined || _home is not null || _homeLink is not null || Session is not null || InParty || Login is not { } login) return;
+        if (_homeDeclined || _home is not null || _homeLink is not null || _friendLink is not null || _friendWaiting is not null || Session is not null || InParty || Login is not { } login) return;
         if (await Task.Run(Profile.LoadConnection) is not null) return;
         bool? on;
         using (var client = HomeClient(found.Address))
@@ -361,7 +366,7 @@ public sealed partial class MainWindow
             using var client = HomeClient(server);
             // The Jellyfin the link names, and no other: its own id first.
             var id = await client.LearnServerIdAsync();
-            if (serverId is not null && !string.Equals(id?.Replace("-", ""), serverId.Replace("-", ""), StringComparison.OrdinalIgnoreCase)) { view.JoinError(HomeText.NotThisServer(name)); return; }
+            if (serverId is { Length: > 0 } && !string.Equals(id?.Replace("-", ""), serverId.Replace("-", ""), StringComparison.OrdinalIgnoreCase)) { view.JoinError(HomeText.NotThisServer(name)); return; }
             var joined = await client.HomeJoinAsync(password, Profile.DeviceId, HomeText.DeviceName("Mira", MacName()));
             Home = trial with { Server = client.Connection.Server, ServerId = id ?? serverId, Token = joined.Token, DeviceId = joined.DeviceId, Profiles = joined.Profiles, Current = null };
             _homeLink = null; _homeFound = null;

@@ -241,6 +241,32 @@ public sealed class Profile
         _tokens?.Delete(HomeAccount);
         var path = Path.Combine(DirectoryPath, HomeFile); if (File.Exists(path)) File.Delete(path);
     }
+    /// <summary>
+    /// A friend's invite used, this Mac waiting to be let in (where, and the wait token, in the keychain when it takes it):
+    /// the wait goes on after Mira restarts. Null when none. Not on the UI thread.
+    /// </summary>
+    public Mira.Core.Family.FriendWait? LoadFriendWait()
+    {
+        var path = Path.Combine(DirectoryPath, FriendWaitFile);
+        if (!File.Exists(path)) return null;
+        Mira.Core.Family.FriendWait? saved;
+        try { saved = JsonSerializer.Deserialize<Mira.Core.Family.FriendWait>(File.ReadAllBytes(path), Json.Options); }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or NotSupportedException) { return null; }
+        if (saved is null || saved.Wait.Length > 0) return saved;
+        return _tokens?.Read(FriendWaitAccount) is { Length: > 0 } wait ? saved with { Wait = wait } : null;
+    }
+    public void SaveFriendWait(Mira.Core.Family.FriendWait wait)
+    {
+        var stored = _tokens?.Store(FriendWaitAccount, wait.Wait) == true;
+        Write(FriendWaitFile, JsonSerializer.SerializeToUtf8Bytes(stored ? wait with { Wait = "" } : wait, Json.Options));
+    }
+    public void ClearFriendWait()
+    {
+        _tokens?.Delete(FriendWaitAccount);
+        var path = Path.Combine(DirectoryPath, FriendWaitFile); if (File.Exists(path)) File.Delete(path);
+    }
+    private string FriendWaitAccount => Path.Combine(DirectoryPath, "friend-wait");
+    private const string FriendWaitFile = "friend-wait.json";
     /// <summary>The folder of the home's own Tailscale node (a home link's), apart from « Tailscale intégré »'s.</summary>
     public string HomeNodeDirectory => Path.Combine(DirectoryPath, "home-tailscale");
     /// <summary>The key of the home's node's state, kept as <see cref="TailnetKey"/> is for « Tailscale intégré ». Never on the UI thread.</summary>

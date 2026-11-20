@@ -889,6 +889,18 @@ public static class SelfCheck
                 Check(helpGuide && withFriend.HelpTopic == "friend", "aide : inviter un ami", $"{withFriend.Friend.HelpSteps} étapes");
                 await Task.Delay(500); Capture(window, output, "07c3-help-friend");
                 withFriend.ShowSettingsSide();
+                // A device that opened Marc's link knocks (maquette A « Le lien »): « Let in » tells the extension, then it is in.
+                withFriend.Show("sharing");
+                var knocking = await Until(() => withFriend.Friend.Lines.IsVisible && withFriend.Friend.LinesText.Any(x => x.Contains(Mira.Core.Family.FriendText.LetIn)), 10);
+                Check(knocking, "réglages : un appareil d’ami attend d’entrer", string.Join(" / ", withFriend.Friend.LinesText));
+                if (knocking)
+                {
+                    withFriend.Friend.Lines.BringIntoView(); await Task.Delay(500); Capture(window, output, "07c4-settings-friend-knocking");
+                    await withFriend.Friend.LetInForCheck();
+                    bool approved; lock (mock.HomeAdmin) approved = mock.HomeAdmin.Contains("POST Mira/friend/devices/friend-device-1/approve");
+                    var inside = await Until(() => withFriend.Friend.LinesText.Any(x => x.Contains(Mira.Core.Family.FriendText.In)) && !withFriend.Friend.LinesText.Any(x => x.Contains(Mira.Core.Family.FriendText.LetIn)), 10);
+                    Check(approved && inside, "réglages : « Laisser entrer » l’appareil de l’ami", string.Join(" / ", withFriend.Friend.LinesText));
+                }
             }
             else if (mock is not null) Check(false, "réglages : ajouter un ami", "section absente");
             // « Foyer », as on Windows: off at first (its password asked), then on: the link and its QR code, the profiles, the devices.
@@ -1649,6 +1661,20 @@ public static class SelfCheck
                 await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
                 await Until(() => window.Current is HomePage, 10);
                 await window.SignOutAsync();
+            }
+
+            // —— A friend's invite (maquette A « Le lien ») ——
+            // Opened signed out (a fresh install, ogsas 2026-11-20): its page over the sign-in, which never covers it;
+            // nothing done before « Start watching »; « Not now » gives the sign-in back.
+            if (mock is not null && window.Session is null)
+            {
+                var invite = Mira.Core.Family.JoinLink.Make(Mira.Core.Family.JoinLink.FriendKind, System.Net.IPAddress.Parse("100.88.12.34"), 8096, null, "tskey-auth-kcheck-friend0123456789")!;
+                window.OpenLink(Mira.Core.Family.JoinLink.App + invite[Mira.Core.Family.JoinLink.Page.Length..]);
+                var page = await Until(() => window.Family is { Shown: FamilyView.Stage.Friend, FriendStartShown: true } friend && friend.FriendHeading == Mira.Core.Family.FriendText.Invited, 5);
+                Check(page, "invitation d’un ami : sa page, rien fait avant « Commencer »", window.Family?.FriendHeading ?? "pas de page");
+                if (page) { await Task.Delay(500); Capture(window, output, "21g-friend-invite"); }
+                window.Family?.PressForCheck("friend-close");
+                Check(await Until(() => window.Family is null && window.Login is not null && window.Session is null, 5), "invitation d’un ami : « Pas maintenant » rend la connexion", window.Session?.Connection.UserName ?? "");
             }
 
             // —— Keychain ——

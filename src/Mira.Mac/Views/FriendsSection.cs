@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Mira.Core;
+using Mira.Core.Family;
 using Mira.Mac.Services;
 using static Mira.Core.Lang;
 
@@ -23,6 +24,14 @@ public sealed class FriendsSection
     private bool _busy;
 
     public Control Section { get; }
+    /// <summary>« Friends »: a line per friend invited by a link (maquette A « Le lien »), shown when there is one.</summary>
+    public Control Lines { get; }
+    private readonly StackPanel _lines = new() { Spacing = 8 };
+    private readonly TextBlock _linesStatus = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+    private Avalonia.Threading.DispatcherTimer? _linesWatch;
+    private bool _linesReading;
+    /// <summary>For the self-check: the friends' lines as shown (name, then each device or wait).</summary>
+    public IReadOnlyList<string> LinesText => [.. _lines.Children.OfType<Border>().Select(x => string.Join(" | ", Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(x).OfType<TextBlock>().Select(t => t.Text)))];
     /// <summary>For the self-check: the libraries offered.</summary>
     public int Libraries => Friends.Choices(_folders).Count;
     /// <summary>For the self-check: the account made, once Mira shows how their phone signs in.</summary>
@@ -40,7 +49,10 @@ public sealed class FriendsSection
         _shell = shell;
         Section = section(L("Ajouter un ami", "Add a friend"), [Ui.Column(14, _body, _status)]);
         Section.IsVisible = false;
+        Lines = section(L("Amis", "Friends"), [Ui.Column(10, Note(L("Chaque ami invité par un lien, avec ses appareils. Un appareil qui ouvre un lien attend que tu le laisses entrer.", "Each friend invited by a link, with their devices. A device that opens a link waits for you to let it in.")), _lines, _linesStatus)]);
+        Lines.IsVisible = false;
         _ = LoadAsync();
+        _ = ShowLinesAsync();
     }
     private static TextBlock Note(string text) => new() { Text = text, FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
 
@@ -127,6 +139,7 @@ public sealed class FriendsSection
         _body.Children.Add(again);
         Render(guide);
         _ = PartyAsync(session);
+        _ = OfferLinkAsync(session, guide);
         if (guide.WatchesShares) _ = WatchSharesAsync(guide);
     }
     /// <summary>« At your home | Somewhere else », the jelly switch of Quality; a click draws the guide's steps again.</summary>
@@ -177,6 +190,9 @@ public sealed class FriendsSection
         public bool LetIn { get; set; }
         public string Code { get; set; } = "";
         public bool WatchesShares => Here && Away is not null;
+        /// <summary>The home is on Tailscale: « Somewhere else » is one link (maquette A « Le lien »).</summary>
+        public bool Links { get; set; }
+        public FriendLinkMade? Link { get; set; }
     }
     private Guide? _guide, _helpGuide;
     private bool Current(Guide guide) => ReferenceEquals(guide, _guide) || ReferenceEquals(guide, _helpGuide);
@@ -238,6 +254,20 @@ public sealed class FriendsSection
                 ? (FriendReach.Account, FriendReach.AccountLine(guide.Admin), guide.Admin ? Ui.Action(FriendReach.CreateAccount, "plus", "", () => guide.OpenSettings?.Invoke(false)) : null, null, false)
                 : (FriendReach.Created, FriendReach.CreatedLine(name, guide.Shared), null, null, true),
         };
+        if (guide.Elsewhere && guide.Links && !guide.Help)
+        {
+            // One link, from anywhere: no Tailscale to open, no address, no code.
+            Control action = guide.Link is { } made ? CopyField(guide, made.Link, FriendText.CopyLink) : Ui.Action(FriendText.Invite(name), "link", "primary", () => _ = MakeLinkAsync(guide));
+            steps.Add((FriendText.SendTo(name), FriendText.SendLine, action, guide.Link is { } shown ? LinkQr(guide, shown.Link) : null, guide.Link is not null));
+            steps.Add((L("Laisse entrer son appareil", "Let their device in"), L($"Quand {name} ouvre le lien, « Laisser entrer » apparaît sous Amis. Rien ne s’ouvre sans toi.", $"When {name} opens the link, “Let in” shows under Friends. Nothing opens without you."), null, null, false));
+            var first = steps.FindIndex(x => !x.Done);
+            for (var i = 0; i < steps.Count; i++)
+            {
+                if (i > 0) panel.Children.Add(new Border { Height = 1, Background = Ui.MenuLine });
+                panel.Children.Add(Step(i + 1, steps[i].Done, i == first, steps[i].Title, steps[i].Text, steps[i].Action, steps[i].Note));
+            }
+            return;
+        }
         if (guide.Elsewhere)
         {
             var shared = guide.Sharees is { Count: > 0 };
@@ -361,6 +391,171 @@ public sealed class FriendsSection
         _party.Children.Add(new TextBlock { Text = FriendReach.Party, FontSize = 12.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
         _party.IsVisible = true;
     }
+    // —— A friend's link (maquette A « Le lien ») ——
+
+    /// <summary>The guide of an account just made: one link instead of Tailscale's sharing, when the extension can make them.</summary>
+    private async Task OfferLinkAsync(Session session, Guide guide)
+    {
+        FriendsState? state;
+        try { state = await session.Client.FriendsAsync(session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { return; }
+        if (!Current(guide) || state is not { Ready: true }) return;
+        guide.Links = true;
+        Render(guide);
+    }
+    private async Task MakeLinkAsync(Guide guide)
+    {
+        if (_busy || _shell.Session is not { } session || guide.FriendId.Length == 0) return;
+        _busy = true; guide.Status.Text = L("Création du lien…", "Making the link…");
+        try
+        {
+            guide.Link = await session.Client.FriendInviteAsync(guide.FriendId, session.Lifetime);
+            guide.Status.Text = "";
+            Render(guide);
+            await ShowLinesAsync();
+        }
+        catch (FriendRefusedException ex) { guide.Status.Text = ex.Message; }
+        catch (Exception ex) when (Errors.Expected(ex)) { guide.Status.Text = Errors.Friendly(ex); }
+        finally { _busy = false; }
+    }
+    /// <summary>For the self-check: « Make {name}'s invite » pressed.</summary>
+    public Task MakeLinkForCheck() => _guide is { } guide ? MakeLinkAsync(guide) : Task.CompletedTask;
+    /// <summary>For the self-check: the link shown in the guide.</summary>
+    public string? LinkMade => _guide?.Link?.Link;
+    private StackPanel LinkQr(Guide guide, string link)
+    {
+        var (size, path) = PhoneLink.Qr(link);
+        var module = Math.Max(2, Math.Round(120.0 / size));
+        var code = new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse(path), Fill = Ui.Black, Stretch = Stretch.Uniform, Width = module * size, Height = module * size };
+        RenderOptions.SetEdgeMode(code, EdgeMode.Aliased);
+        var frame = new Border { Background = Ui.Ink, CornerRadius = new CornerRadius(10), Padding = new Thickness(8), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Child = code };
+        Avalonia.Automation.AutomationProperties.SetName(frame, L("QR code du lien, à scanner avec un téléphone", "QR code of the link, to scan with a phone"));
+        var again = Ui.Action(FriendText.NewLink, "refresh", "quiet", () => { guide.Link = null; _ = MakeLinkAsync(guide); });
+        again.HorizontalAlignment = HorizontalAlignment.Left;
+        return Ui.Column(8, frame, again);
+    }
+
+    // —— Friends: a line each ——
+
+    /// <summary>The friends' lines, read again every 5 s while a link or a device waits and they show.</summary>
+    public async Task ShowLinesAsync()
+    {
+        if (_linesReading || _shell.Session is not { } session) return;
+        _linesReading = true;
+        try
+        {
+            FriendsState? state;
+            try { state = await session.Client.FriendsAsync(session.Lifetime); }
+            catch (Exception ex) when (Errors.Expected(ex)) { state = null; }
+            if (!ReferenceEquals(session, _shell.Session)) return;
+            var any = state is { } s && ((s.Devices?.Count ?? 0) > 0 || (s.Invites ?? []).Any(x => x.State == "open"));
+            Lines.IsVisible = any;
+            if (any) RenderLines(state!);
+            var waits = state is { } w && ((w.Devices ?? []).Any(x => x.Waiting) || (w.Invites ?? []).Any(x => x.State == "open"));
+            if (!waits) { _linesWatch?.Stop(); return; }
+            if (_linesWatch is null)
+            {
+                _linesWatch = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+                _linesWatch.Tick += (_, _) =>
+                {
+                    if (!Lines.IsEffectivelyVisible && _guide is null) { _linesWatch.Stop(); return; }
+                    _ = ShowLinesAsync();
+                };
+            }
+            if (!_linesWatch.IsEnabled) _linesWatch.Start();
+        }
+        finally { _linesReading = false; }
+    }
+
+    private void RenderLines(FriendsState state)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var names = (state.Invites ?? []).GroupBy(x => x.User).ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.Created).First().Name);
+        var users = (state.Devices ?? []).Select(x => x.User).Concat((state.Invites ?? []).Where(x => x.State == "open").Select(x => x.User)).Distinct().ToList();
+        _lines.Children.Clear(); _lastWaiting = null;
+        foreach (var user in users)
+        {
+            var name = names.TryGetValue(user, out var known) ? known : L("Ton ami", "Your friend");
+            var (devices, waiting) = state.Of(user, now);
+            _lastWaiting = devices.FirstOrDefault(x => x.Waiting) ?? _lastWaiting;
+            var letter = new Border
+            {
+                Width = 34, Height = 34, CornerRadius = new CornerRadius(9), Background = Ui.Raised2, Margin = new Thickness(0, 0, 12, 0),
+                Child = new TextBlock { Text = name[..1].ToUpper(Lang.Culture), FontSize = 15, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            };
+            var add = Ui.Action(FriendText.AddDevice, "plus", "quiet", () => _ = AddDeviceAsync(user));
+            var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { new TextBlock { Text = name, FontSize = 14, FontWeight = FontWeight.SemiBold } } };
+            if (devices.Any(x => !x.Waiting)) title.Children.Add(new TextBlock { Text = "✓ " + FriendText.In, FontSize = 12, Foreground = Ui.Success, VerticalAlignment = VerticalAlignment.Center });
+            var head = new DockPanel();
+            DockPanel.SetDock(letter, Dock.Left); head.Children.Add(letter);
+            DockPanel.SetDock(add, Dock.Right); head.Children.Add(add);
+            head.Children.Add(title);
+            var stack = Ui.Column(10, head);
+            foreach (var device in devices) stack.Children.Add(DeviceLine(device, now));
+            if (waiting is not null)
+                stack.Children.Add(Line(Ui.Action(FriendText.Cancel, "close", "quiet", () => _ = CancelAsync(waiting)), new TextBlock { Text = FriendText.Waiting(name), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }));
+            _lines.Children.Add(new Border { Background = Ui.Inset, BorderBrush = Ui.MenuLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(11), Padding = new Thickness(16, 12), Child = stack });
+        }
+    }
+    private static DockPanel Line(Control action, Control text, Control? second = null)
+    {
+        var line = new DockPanel { Margin = new Thickness(46, 0, 0, 0) };
+        if (second is not null) { DockPanel.SetDock(second, Dock.Right); second.Margin = new Thickness(8, 0, 0, 0); line.Children.Add(second); }
+        DockPanel.SetDock(action, Dock.Right); line.Children.Add(action);
+        line.Children.Add(text);
+        return line;
+    }
+    private DockPanel DeviceLine(FriendDeviceRow device, DateTimeOffset now)
+    {
+        if (device.Waiting)
+            return Line(Ui.Action(FriendText.LetIn, "check", "primary", () => _ = LetInAsync(device)),
+                new TextBlock { Text = FriendText.Knocking(device.Name), FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = Ui.Warning, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center },
+                Ui.Action(FriendText.Refuse, "close", "quiet", () => _ = RemoveAsync(device, refusing: true)));
+        var seen = device.LastSeen is { } at ? " · " + FriendText.Seen(at, now) : "";
+        return Line(Ui.Action(FriendText.RemoveDevice, "trash", "quiet", () => _ = RemoveAsync(device, refusing: false)),
+            new TextBlock { Text = FriendText.Joined(device.Name, device.Joined, now) + seen, FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+    }
+    /// <summary>For the self-check: « Let in » pressed on the first device waiting.</summary>
+    public Task LetInForCheck() => _shell.Session is { } session && _lastWaiting is { } device ? LetInAsync(device) : Task.CompletedTask;
+    private FriendDeviceRow? _lastWaiting;
+    private async Task LetInAsync(FriendDeviceRow device)
+    {
+        if (_shell.Session is not { } session) return;
+        try { await session.Client.FriendApproveAsync(device.Id, session.Lifetime); _linesStatus.Text = L($"{device.Name} peut entrer.", $"{device.Name} can come in."); }
+        catch (Exception ex) when (Errors.Expected(ex)) { _linesStatus.Text = Errors.Friendly(ex); }
+        await ShowLinesAsync();
+    }
+    private async Task RemoveAsync(FriendDeviceRow device, bool refusing)
+    {
+        if (_shell.Session is not { } session) return;
+        if (!refusing && !await _shell.ConfirmAsync(FriendText.RemoveDevice + " ?", L($"{device.Name} perd aussitôt sa ligne vers ce serveur. Pour revenir, il faudra une nouvelle invitation.", $"{device.Name} loses its line to this server at once. Coming back will take a new invite."), FriendText.RemoveDevice, L("Annuler", "Cancel"))) return;
+        try { await session.Client.FriendRemoveDeviceAsync(device.Id, session.Lifetime); _linesStatus.Text = ""; }
+        catch (Exception ex) when (Errors.Expected(ex)) { _linesStatus.Text = Errors.Friendly(ex); }
+        await ShowLinesAsync();
+    }
+    private async Task CancelAsync(FriendInviteRow invite)
+    {
+        if (_shell.Session is not { } session) return;
+        try { await session.Client.FriendCancelAsync(invite.Id, session.Lifetime); _linesStatus.Text = ""; }
+        catch (Exception ex) when (Errors.Expected(ex)) { _linesStatus.Text = Errors.Friendly(ex); }
+        if (_guide is { Link: { } made } guide && made.Id == invite.Id) { guide.Link = null; Render(guide); }
+        await ShowLinesAsync();
+    }
+    /// <summary>« Add a device »: a new link for the same account, copied at once.</summary>
+    private async Task AddDeviceAsync(string user)
+    {
+        if (_shell.Session is not { } session) return;
+        try
+        {
+            var made = await session.Client.FriendInviteAsync(user, session.Lifetime);
+            await CopyAsync(made.Link, _linesStatus);
+            _linesStatus.Text = FriendText.Copied;
+        }
+        catch (FriendRefusedException ex) { _linesStatus.Text = ex.Message; }
+        catch (Exception ex) when (Errors.Expected(ex)) { _linesStatus.Text = Errors.Friendly(ex); }
+        await ShowLinesAsync();
+    }
+
     private async Task CopyAsync(string text, TextBlock status)
     {
         if (TopLevel.GetTopLevel(_shell)?.Clipboard is not { } clipboard) { status.Text = L("Copie impossible ici : sélectionne le texte.", "Can’t copy here: select the text."); return; }
