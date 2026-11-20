@@ -2,7 +2,7 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 
-/// Settings → Home, for an administrator (FamilySection of Mira for Mac, Réglages → Foyer of Windows): the home's
+/// Settings → Family & profiles, for an administrator (FamilySection of Mira for Mac, Réglages → Famille & profils of Windows): the home's
 /// password (turned on, changed, turned off), the home link for a device away from home (QR code, share), the profiles
 /// offered and their PINs, the devices in the home, and Tailscale set up once for the links.
 struct HomeSettingsView: View {
@@ -62,7 +62,7 @@ struct HomeSettingsView: View {
         .font(MiraFont.body)
         .scrollContentBackground(.hidden)
         .background(Palette.bg)
-        .navigationTitle(Text("Home"))
+        .navigationTitle(Text("Family & profiles"))
         .disabled(working)
         .task { await load() }
         .refreshable { await load() }

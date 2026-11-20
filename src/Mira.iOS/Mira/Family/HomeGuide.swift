@@ -11,7 +11,7 @@ enum HomeGuide {
     static let policyPage = URL(string: "https://login.tailscale.com/admin/acls/file")!
     static let tagName = "mira-home"
 
-    // MARK: Settings → Home
+    // MARK: Settings → Family & profiles
 
     static var entryTitle: String { String(localized: "Let the family watch away from home") }
     static var notSetUp: String { String(localized: "Not set up") }

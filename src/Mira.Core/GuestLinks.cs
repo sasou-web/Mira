@@ -123,7 +123,6 @@ public sealed record GuestLink(
     [property: JsonPropertyName("ends")] DateTimeOffset Ends,
     [property: JsonPropertyName("opened")] bool Opened,
     [property: JsonPropertyName("device")] string? Device,
-    [property: JsonPropertyName("link")] string? Link,
     [property: JsonPropertyName("party")] bool Party = false);
 
 /// <summary>

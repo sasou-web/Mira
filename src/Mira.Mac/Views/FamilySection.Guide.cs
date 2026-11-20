@@ -13,7 +13,7 @@ using static Mira.Core.Lang;
 namespace Mira.Mac.Views;
 
 /// <summary>
-/// Réglages → Foyer → « Away from home », as on Windows (MainWindow.FamilyGuide.cs there): its card (not set up, ready,
+/// Réglages → Loin de chez toi, the home's Tailscale card and its guide, as on Windows (MainWindow.FamilyGuide.cs there): its card (not set up, ready,
 /// or what is off with one button that fixes it) and the guide that sets it up once (maquette A « Le guide »): one step
 /// per screen in place of the section, Tailscale's page one click away with a drawing of what to click, the secret found
 /// on the clipboard, then Mira's check and the rules put right on a click, undone for 10 minutes.
@@ -177,7 +177,7 @@ public sealed partial class FamilySection
         if (step < 4 || state.Policy == "ok" || state.Fix is { Count: > 0 }) buttons.Children.Add(forward);
         body.Children.Add(buttons); body.Children.Add(status);
         if (step == 4 && state.Fix is { Count: > 0 }) _fixPolicy = ForwardAsync;
-        return _section(L("Foyer", "Home"), [body]);
+        return _section(HomeGuide.EntryTitle, [body]);
 
         async Task ForwardAsync()
         {

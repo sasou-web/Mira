@@ -833,7 +833,7 @@ public sealed class HomeController : ControllerBase
             : nodes.FirstOrDefault(x => x.KeyExpiryDisabled == false && x.Addresses.Contains(server, StringComparer.OrdinalIgnoreCase));
 
     /// <summary>
-    /// This PC's key made to never expire, with « Fix my policy »: without it, Jellyfin's PC leaves the tailnet after
+    /// This PC's key made to never expire, with « Make the changes »: without it, Jellyfin's PC leaves the tailnet after
     /// Tailscale's 180 days, and every home device and friend with it. A refusal is logged, never the fix's failure.
     /// </summary>
     private async Task DisableKeyExpiryAsync(TailscaleApi api, string server, CancellationToken cancellationToken)
@@ -867,7 +867,7 @@ public sealed class HomeController : ControllerBase
         // As the administrator wrote it: what Mira would change is planned on the same text.
         var (text, _) = await api.PolicyTextAsync(cancellationToken).ConfigureAwait(false);
         var (verdict, open) = HomeTailnet.CheckPolicy(HomePolicyFix.Parse(text), server, port);
-        // Hardened (« Fix my policy »): also the people this PC is shared with, and Funnel; « harden » when only those are left.
+        // Hardened (« Make the changes »): also the people this PC is shared with, and Funnel; « harden » when only those are left.
         var fix = HomePolicyFix.Make(text, server, port, harden: true, funnel: !Plugin.HomeTailnet.FunnelRefused);
         return (verdict switch
         {

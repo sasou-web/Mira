@@ -154,7 +154,7 @@ internal static class HomeTailnetTests
             }
         });
 
-        await Test("Foyer loin de chez soi : « Fix my policy » limite les amis partagés à Jellyfin, autorise Funnel sur ce PC, garde la clé du PC", async () =>
+        await Test("Foyer loin de chez soi : « Make the changes » limite les amis partagés à Jellyfin, autorise Funnel sur ce PC, garde la clé du PC", async () =>
         {
             static HomePolicyFix.Plan? Harden(string text, bool funnel = true) => HomePolicyFix.Make(text, Server, 8096, harden: true, funnel: funnel);
             static bool SharedOk(string text) => HomeTailnet.CheckShared(HomePolicyFix.Parse(text), Server, 8096) is (true, []);

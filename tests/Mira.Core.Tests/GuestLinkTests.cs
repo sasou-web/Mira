@@ -32,7 +32,7 @@ internal static class GuestLinkTests
         await Test("Inviter par lien : la ligne d’un lien et les refus de l’extension", () =>
         {
             var now = new DateTimeOffset(2026, 10, 23, 12, 0, 0, TimeSpan.Zero);
-            var waiting = new GuestLink("a1", "Léa", now, now, now.AddDays(7), false, null, "https://pc.ts.net/Mira/#/invite/x");
+            var waiting = new GuestLink("a1", "Léa", now, now, now.AddDays(7), false, null);
             Assert(GuestLinks.State(waiting, now).StartsWith("Pas encore ouvert · s’efface seul le 30 octobre", StringComparison.Ordinal), GuestLinks.State(waiting, now));
             var used = waiting with { Opened = true, Device = "iPhone", Used = now.AddHours(-2) };
             Assert(GuestLinks.State(used, now).StartsWith("Ouvert sur iPhone · a servi à ", StringComparison.Ordinal), GuestLinks.State(used, now));

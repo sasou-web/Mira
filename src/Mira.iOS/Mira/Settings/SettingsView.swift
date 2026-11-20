@@ -76,7 +76,7 @@ struct SettingsView: View {
                         NavigationLink {
                             HomeSettingsView()
                         } label: {
-                            row("Home", "One password for the family, then “Who’s watching?”: profiles, PINs, devices, the home link.", symbol: "house")
+                            row("Family & profiles", "One password for the family, then “Who’s watching?”: profiles, PINs, devices, the home link.", symbol: "house")
                         }
                         .accessibilityIdentifier("settings.home")
                         NavigationLink {

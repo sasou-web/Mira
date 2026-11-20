@@ -245,7 +245,7 @@ public sealed class FriendController : ControllerBase
 
         if (Plugin.HomeTailnet.Client is not { } owner)
         {
-            return Refuse(StatusCodes.Status409Conflict, "disconnected", L("Relie d’abord Mira à ton réseau Tailscale (Réglages → Foyer).", "First connect Mira to your Tailscale network (Settings → Home)."));
+            return Refuse(StatusCodes.Status409Conflict, "disconnected", L("Relie d’abord Mira à ton réseau Tailscale (Réglages → Loin de chez toi).", "First connect Mira to your Tailscale network (Settings → Away from home)."));
         }
 
         if (HomeTailnet.OwnAddress() is not { } server)
@@ -277,7 +277,7 @@ public sealed class FriendController : ControllerBase
             var tag = await TagAsync(api, server, port, cancellationToken).ConfigureAwait(false);
             if (tag is null)
             {
-                return Refuse(StatusCodes.Status409Conflict, "policy", L("Ta politique Tailscale laisse ces appareils aller ailleurs que sur Jellyfin : corrige-la d’abord dans Réglages → Foyer.", "Your Tailscale policy lets these devices go beyond Jellyfin: fix it first in Settings → Home."));
+                return Refuse(StatusCodes.Status409Conflict, "policy", L("Ta politique Tailscale laisse ces appareils aller ailleurs que sur Jellyfin : corrige-la d’abord dans Réglages → Loin de chez toi.", "Your Tailscale policy lets these devices go beyond Jellyfin: fix it first in Settings → Away from home."));
             }
 
             (string Key, string Id, DateTimeOffset Expires) key;
@@ -293,7 +293,7 @@ public sealed class FriendController : ControllerBase
                 tag = await TagAsync(api, server, port, cancellationToken).ConfigureAwait(false);
                 if (tag is null)
                 {
-                    return Refuse(StatusCodes.Status409Conflict, "policy", L("Ta politique Tailscale laisse ces appareils aller ailleurs que sur Jellyfin : corrige-la d’abord dans Réglages → Foyer.", "Your Tailscale policy lets these devices go beyond Jellyfin: fix it first in Settings → Home."));
+                    return Refuse(StatusCodes.Status409Conflict, "policy", L("Ta politique Tailscale laisse ces appareils aller ailleurs que sur Jellyfin : corrige-la d’abord dans Réglages → Loin de chez toi.", "Your Tailscale policy lets these devices go beyond Jellyfin: fix it first in Settings → Away from home."));
                 }
 
                 key = await api.CreateKeyAsync(FriendInvites.Life, cancellationToken, tag).ConfigureAwait(false);
@@ -314,7 +314,7 @@ public sealed class FriendController : ControllerBase
         {
             var (state, message) = error.Failure switch
             {
-                TailscaleApi.Failure.Refused => ("refused", L("Tailscale refuse le client OAuth de Mira : il a été supprimé ou révoqué. Relie de nouveau Mira dans Réglages → Foyer.", "Tailscale refuses Mira’s OAuth client: it was deleted or revoked. Connect Mira again in Settings → Home.")),
+                TailscaleApi.Failure.Refused => ("refused", L("Tailscale refuse le client OAuth de Mira : il a été supprimé ou révoqué. Relie de nouveau Mira dans Réglages → Loin de chez toi.", "Tailscale refuses Mira’s OAuth client: it was deleted or revoked. Connect Mira again in Settings → Away from home.")),
                 TailscaleApi.Failure.Scope => ("scope", L("Le client OAuth de Mira n’a pas les droits qu’il faut (auth_keys, devices:core, policy_file et l’étiquette tag:mira-home).", "Mira’s OAuth client lacks the rights it needs (auth_keys, devices:core, policy_file and the tag tag:mira-home).")),
                 TailscaleApi.Failure.Changed => ("changed", L("Ta politique Tailscale vient de changer : réessaie.", "Your Tailscale policy just changed: try again.")),
                 _ => ("unreachable", L("Tailscale n’a pas répondu. Réessaie dans un instant.", "Tailscale didn’t answer. Try again in a moment.")),

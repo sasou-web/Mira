@@ -12,7 +12,7 @@ using Mira.Desktop.Views;
 namespace Mira.Desktop;
 
 /// <summary>
-/// Réglages → Foyer → « Away from home »: its row (not set up, ready, or what is off with one button that fixes it) and
+/// Réglages → Loin de chez toi, the home's Tailscale card: its row (not set up, ready, or what is off with one button that fixes it) and
 /// the guide that sets it up once (maquette A « Le guide », ogsas 2026-11-20): one step per screen in place of the
 /// section, the console's page one click away with a drawing of what to click there, the secret found on the clipboard,
 /// then Mira's check and the rules put right on a click, undone for 10 minutes. Words and drawings: <see cref="HomeGuide"/>.

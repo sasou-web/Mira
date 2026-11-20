@@ -32,7 +32,7 @@ public static class HomePolicyFix
     /// <summary>
     /// What to change in <paramref name="text"/> (the policy as HuJSON) for the home's devices to reach this PC's
     /// Jellyfin and nothing else; null when it already does, or when Mira cannot get there safely. With
-    /// <paramref name="harden"/> (« Fix my policy »), also: the people this PC is shared with limited to its Jellyfin
+    /// <paramref name="harden"/> (« Make the changes »), also: the people this PC is shared with limited to its Jellyfin
     /// (and Mira through Funnel's port, <see cref="Shared"/>), and Funnel allowed on this PC only (<see cref="Funnel"/>);
     /// a plan is then given for those alone, when the home's devices already reach only Jellyfin.
     /// </summary>

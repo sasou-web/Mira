@@ -65,20 +65,17 @@ public sealed class GuestLinksSection
         if (_party is { } party) _body.Children.Add(PartyBox(party));
         if (list is null) return;
         if (list.Address is null || _editing) _funnel.Children.Add(AddressForm(list.Address));
-        var invites = list.Invites ?? [];
-        var guests = invites.Where(x => x.Party).ToList();
+        // Only the party's guests: the older one-device links went with Mira web, swept by the extension after 7 days unused.
+        var guests = (list.Invites ?? []).Where(x => x.Party).ToList();
         _body.Children.Add(Label(guests.Count > 0 ? Lang.Count(guests.Count, "invité", "invités", "guest", "guests") : L("Invités", "Guests")));
         if (guests.Count == 0) _body.Children.Add(Note(L("Personne pour l’instant. Chaque appareil qui ouvre ton lien sans compte ici y apparaît, avec le prénom donné.", "Nobody yet. Each device that opens your link without an account here shows up, with the first name given.")));
-        var single = invites.Where(x => !x.Party).ToList();
-        foreach (var invite in guests.Concat(single))
+        foreach (var invite in guests)
         {
-            if (single.Count > 0 && ReferenceEquals(invite, single[0])) _body.Children.Add(Label(L("Anciens liens", "Older links")));
             var row = new DockPanel();
             var actions = Ui.Row(8);
-            if (invite.Link is { } link && !invite.Opened) actions.Children.Add(Ui.Action(L("Copier", "Copy"), "link", "", () => _ = CopyAsync(link, invite.Name)));
             var text = Ui.Column(3, new TextBlock { Text = invite.Name, FontSize = 15, FontWeight = FontWeight.SemiBold }, Note(GuestLinks.State(invite, DateTimeOffset.Now)));
             actions.Children.Add(Ui.Action(L("Retirer", "Take back"), null, "", () => ConfirmRemove(actions, text, invite)));
-            Avalonia.Automation.AutomationProperties.SetName(actions.Children[^1], invite.Party ? L($"Retirer {invite.Name}", $"Remove {invite.Name}") : L($"Retirer le lien de {invite.Name}", $"Take back {invite.Name}’s link"));
+            Avalonia.Automation.AutomationProperties.SetName(actions.Children[^1], L($"Retirer {invite.Name}", $"Remove {invite.Name}"));
             DockPanel.SetDock(actions, Dock.Right); actions.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(actions);
             text.Margin = new Thickness(0, 0, 24, 0);
             row.Children.Add(text);
@@ -186,15 +183,11 @@ public sealed class GuestLinksSection
     private void ConfirmRemove(StackPanel actions, StackPanel text, GuestLink invite)
     {
         var kept = actions.Children.ToList();
-        var said = Note(invite.Party
-            ? L($"{invite.Name} sort du groupe tout de suite. Son compte est supprimé de Jellyfin ; s’il rouvre ton lien, il entre de nouveau.", $"{invite.Name} leaves the group right away. Their account is deleted from Jellyfin; if they open your link again, they come back in.")
-            : invite.Opened
-            ? L($"{invite.Name} sort du groupe tout de suite et ne pourra plus revenir avec ce lien. Son compte est supprimé de Jellyfin.", $"{invite.Name} leaves the group right away and can’t come back with this link. Their account is deleted from Jellyfin.")
-            : L($"Le lien de {invite.Name} ne marchera plus. Son compte est supprimé de Jellyfin.", $"{invite.Name}’s link will stop working. Their account is deleted from Jellyfin."));
+        var said = Note(L($"{invite.Name} sort du groupe tout de suite. Son compte est supprimé de Jellyfin ; s’il rouvre ton lien, il entre de nouveau.", $"{invite.Name} leaves the group right away. Their account is deleted from Jellyfin; if they open your link again, they come back in."));
         text.Children.Add(said);
         actions.Children.Clear();
-        var confirm = Ui.Action(invite.Party ? L($"Retirer {invite.Name}", $"Remove {invite.Name}") : L("Retirer le lien", "Take back the link"), "close", "", () => _ = RemoveAsync(invite));
-        Avalonia.Automation.AutomationProperties.SetName(confirm, invite.Party ? L($"Retirer {invite.Name}", $"Remove {invite.Name}") : L($"Retirer le lien de {invite.Name}", $"Take back {invite.Name}’s link"));
+        var confirm = Ui.Action(L($"Retirer {invite.Name}", $"Remove {invite.Name}"), "close", "", () => _ = RemoveAsync(invite));
+        Avalonia.Automation.AutomationProperties.SetName(confirm, L($"Retirer {invite.Name}", $"Remove {invite.Name}"));
         actions.Children.Add(confirm);
         actions.Children.Add(Ui.Action(L("Garder", "Keep"), null, "quiet", () => { text.Children.Remove(said); actions.Children.Clear(); actions.Children.AddRange(kept); }));
         Avalonia.Threading.Dispatcher.UIThread.Post(() => confirm.Focus(), Avalonia.Threading.DispatcherPriority.Input);
@@ -207,7 +200,7 @@ public sealed class GuestLinksSection
         try
         {
             await client.RemoveGuestLinkAsync(invite.Id);
-            _status.Text = invite.Party ? L($"{invite.Name} retiré.", $"{invite.Name} removed.") : L($"Lien de {invite.Name} retiré.", $"{invite.Name}’s link taken back.");
+            _status.Text = L($"{invite.Name} retiré.", $"{invite.Name} removed.");
         }
         catch (Exception ex) when (Errors.Expected(ex)) { _status.Text = Errors.Friendly(ex); }
         finally { _busy = false; }

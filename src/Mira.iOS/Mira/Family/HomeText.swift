@@ -19,7 +19,7 @@ enum HomeText {
         left <= 0 ? String(localized: "That’s not the right PIN.") : String(localized: "That’s not the right PIN. \(left) tries left.")
     }
     static func pinWait(_ seconds: Int) -> String { String(localized: "Too many tries: try again in \(max(1, (seconds + 59) / 60)) min.") }
-    static var noProfiles: String { String(localized: "No profiles in this home yet: ask its administrator to turn one on in Settings → Home.") }
+    static var noProfiles: String { String(localized: "No profiles in this home yet: ask its administrator to turn one on in Settings → Family & profiles.") }
     static func unreachable(_ name: String) -> String { String(localized: "\(name)’s home isn’t answering right now. Try again in a moment.") }
     static func notThisServer(_ name: String) -> String { String(localized: "This isn’t \(name)’s Jellyfin: the link no longer matches. Ask for a new link.") }
     static func linkExpired(_ name: String) -> String { String(localized: "This link has expired (48 h). Ask \(name) for a new home link.") }
@@ -30,7 +30,7 @@ enum HomeText {
     static func removed(_ name: String) -> String { String(localized: "This iPhone is no longer in \(name)’s home. To come back, ask for a new home link.") }
     static func left(_ name: String) -> String { String(localized: "This iPhone left \(name)’s home.") }
     static func leftHere(_ name: String) -> String {
-        String(localized: "This iPhone left \(name)’s home here; the server didn’t hear it: its administrator can remove it in Settings → Home.")
+        String(localized: "This iPhone left \(name)’s home here; the server didn’t hear it: its administrator can remove it in Settings → Family & profiles.")
     }
     static var thisDevice: String { String(localized: "On this iPhone") }
     static var offline: String { String(localized: "No Internet connection right now.") }
