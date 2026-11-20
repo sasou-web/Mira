@@ -190,7 +190,10 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "Users/Me") return Json(new { Id = UserId, Name = "Contrôle", Policy = new { IsAdministrator = true } });
         // « Ajouter un ami »: two libraries to share, an account made and limited, codes allowed.
         if (path == "Library/VirtualFolders") return Json(new object[] { new { Name = "Films", CollectionType = "movies", Locations = new[] { "/media/films" }, ItemId = "view-movies" }, new { Name = "Séries", CollectionType = "tvshows", Locations = new[] { "/media/series" }, ItemId = "view-series" } });
-        if (path == "Users" && request.Method == HttpMethod.Get) return Json(new object[] { new { Id = UserId, Name = "Contrôle" } });
+        // « Sécurité »: an administrator, an account without a password (the extension's word), the devices.
+        if (path == "Users" && request.Method == HttpMethod.Get) return Json(new object[] { new { Id = UserId, Name = "Contrôle", Policy = new { IsAdministrator = true } }, new { Id = "noa-1", Name = "Noa", Policy = new { IsAdministrator = false } } });
+        if (path == "Devices") return Json(new { Items = new object[] { new { Id = "check-mac", Name = "Mac du contrôle", AppName = "Mira for Mac", AppVersion = "0.9.16", LastUserId = UserId, LastUserName = "Contrôle", DateLastActivity = DateTimeOffset.UtcNow }, new { Id = "old-tv", Name = "Télé du salon", AppName = "Jellyfin Android TV", LastUserId = "noa-1", LastUserName = "Noa", DateLastActivity = DateTimeOffset.UtcNow.AddDays(-130) } } });
+        if (path == "Mira/home/security" && !NoExtension) return Json(new { known = true, open = new[] { "noa-1" }, guests = Array.Empty<string>() });
         if (request.Method == HttpMethod.Post && path == "Users/New") return Json(new { Id = "friend-1", Name = "Marc" });
         if (path == "Users/friend-1") return Json(new { Id = "friend-1", Name = "Marc", Policy = new { IsAdministrator = false, EnableAllFolders = true, EnableContentDownloading = true } });
         if (request.Method == HttpMethod.Post && path == "Users/friend-1/Policy") { FriendPolicy = await request.Content!.ReadAsStringAsync(cancellationToken); return new HttpResponseMessage(HttpStatusCode.NoContent); }

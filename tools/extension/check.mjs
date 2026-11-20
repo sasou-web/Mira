@@ -223,6 +223,21 @@ await part('foyer', async () => {
     `état ${friends.status} ${friends.json?.tailnet} ; autre compte ${friendsOther.status} ; invitation ${inviteBefore.status} ${inviteBefore.json?.state} ; administrateur ${inviteAdmin.status} ${inviteAdmin.json?.state} ; essais ${redeems.join(',')} ; sans appareil ${noDevice.status} ; attente ${waitWrong.status} ${waitWrong.json?.state} ; Funnel ${friendFunnel}/${redeemFunnel}/${waitFunnel}`);
 });
 
+// « Security »: which accounts open without a password, said by the extension (Jellyfin's HasPassword says yes for an
+// account made without one, 12.1); an administrator only; nothing through Funnel.
+await part('sécurité', async () => {
+  const name = 'Sans Mot De Passe';
+  let open = (await call('GET', 'Users', { token: host })).json?.find((u) => u.Name === name);
+  if (!open) open = (await call('POST', 'Users/New', { token: host, body: { Name: name } })).json;
+  const id = String(open?.Id ?? '').replace(/-/g, '').toLowerCase();
+  const [asked, other, funnel] = [await call('GET', 'Mira/home/security', { token: host }),
+    friend ? await call('GET', 'Mira/home/security', { token: friend, device: 'check-friend' }) : { status: 0 }, await throughFunnel(`${root}/Mira/home/security`)];
+  const ids = asked.json?.open ?? [];
+  check('sécurité : un compte sans mot de passe dit par l’extension, pas un compte qui en a un, pour un administrateur seulement, rien par Funnel',
+    asked.status === 200 && asked.json?.known === true && !!id && ids.includes(id) && !ids.includes(String(me.Id).replace(/-/g, '').toLowerCase()) && other.status === 403 && funnel === 404,
+    `réponse ${asked.status} connu ${asked.json?.known} ; sans mot de passe ${ids.includes(id)} ; autre compte ${other.status} ; Funnel ${funnel}`);
+});
+
 await part('party', async () => {
   for (const old of (await call('GET', 'Mira/invites', { token: host })).json?.invites ?? []) await call('DELETE', `Mira/invites/${old.id}`, { token: host });
   const address = await call('PUT', 'Mira/invites/address', { token: host, body: { address: 'https://mira-check.tail0000.ts.net' } });

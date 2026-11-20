@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Media.Transformation;
 using Avalonia.Threading;
 using Mira.Core;
+using Mira.Core.Family;
 using Mira.Mac.Services;
 using static Mira.Core.Lang;
 
@@ -26,6 +27,7 @@ public sealed partial class SettingsPage
         ("family", L("Famille & profils", "Family & profiles"), "home", L("Un mot de passe pour ta famille, puis « Qui regarde ? » : ses profils, leurs codes, ses appareils.", "One password for your family, then “Who’s watching?”: its profiles, their PINs, its devices.")),
         ("sharing", L("Amis & invités", "Friends & guests"), "users", L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
         ("away", L("Loin de chez toi", "Away from home"), "globe", L("Regarder quand tu n’es pas sur le réseau de la maison : toi, ta famille, tes amis.", "Watching when you’re not on the home network: you, your family, your friends.")),
+        ("security", SecurityText.Title, "lock", SecurityText.About),
         ("playback", L("Lecture", "Playback"), "play", L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")),
         ("audio", L("Audio & sous-titres", "Audio & subtitles"), "subtitles", L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles.")),
         ("library", L("Accueil & bibliothèque", "Home & library"), "library", L("Ce que montrent l’accueil et les pages : rangées, spoilers, épisodes manquants, titres gardés sur ce Mac.", "What Home and the pages show: rows, spoilers, missing episodes, titles kept on this Mac.")),
@@ -109,6 +111,8 @@ public sealed partial class SettingsPage
         // Away from home's state, and the home's profiles, beside their names (SettingsPage.Away.cs).
         MarkNav("away", () => (null, Dot(Shell.AwayNow)));
         MarkNav("family", () => (Shell.AwayFamily is { } family ? family.Profiles.Count(x => x.Offered).ToString(Lang.Culture) : null, null));
+        // « Sécurité »: an administrator's, its dot amber while something is to fix (SettingsPage.Security.cs).
+        _tabButtons["security"].IsVisible = false; SecuritySection();
         var moreLabel = new TextBlock { Text = L("Plus", "More"), FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(14, 16, 0, 4) };
         foreach (var (key, title, icon, outside) in HelpTopics)
         {

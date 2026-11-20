@@ -97,6 +97,7 @@ public sealed partial class SettingsPage
 
         var list = new StackPanel { Spacing = 10 };
         list.Children.Add(top);
+        list.Children.Add(EssentialsSecurity());
         list.Children.Add(EssentialsPeople());
         list.Children.Add(label);
         list.Children.Add(Card(Row(L("Qualité", "Quality"), "", quality)));

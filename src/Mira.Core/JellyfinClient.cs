@@ -60,7 +60,7 @@ public sealed partial class JellyfinClient : IDisposable
         await CheckAsync(response);
         var result = await response.Content.ReadFromJsonAsync<AuthenticationResult>(Json.Options, ct)
             ?? throw new IOException(L("Réponse de connexion vide.", "Empty sign-in answer."));
-        Connection = Connection with { Token = result.AccessToken, UserId = result.User.Id, UserName = result.User.Name, ServerId = result.ServerId is { Length: > 0 } id ? id : Connection.ServerId };
+        Connection = Connection with { Token = result.AccessToken, UserId = result.User.Id, UserName = result.User.Name, ServerId = result.ServerId is { Length: > 0 } id ? id : Connection.ServerId, PasswordLength = password.Length };
         SetAuthorization();
         return Connection;
     }

@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Shapes;
 using Mira.Core;
+using Mira.Core.Family;
 using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
@@ -26,6 +27,7 @@ public partial class MainWindow
         ("family", FamilySettings, L("Famille & profils", "Family & profiles"), L("Un mot de passe pour ta famille, puis « Qui regarde ? » : ses profils, leurs codes, ses appareils.", "One password for your family, then “Who’s watching?”: its profiles, their PINs, its devices.")),
         ("sharing", SharingSettings, L("Amis & invités", "Friends & guests"), L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
         ("away", AwaySettings, L("Loin de chez toi", "Away from home"), L("Regarder quand tu n’es pas sur le réseau de la maison : toi, ta famille, tes amis.", "Watching when you’re not on the home network: you, your family, your friends.")),
+        ("security", SecuritySettings, SecurityText.Title, SecurityText.About),
         ("playback", PlaybackSettings, L("Lecture", "Playback"), L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")),
         ("subtitles", SubtitleSettings, L("Audio & sous-titres", "Audio & subtitles"), L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles.")),
         ("library", LibrarySettings, L("Accueil & bibliothèque", "Home & library"), L("Ce que montrent l’accueil et les pages : rangées, affiches, spoilers, épisodes manquants, titres gardés sur ce PC.", "What Home and the pages show: rows, posters, spoilers, missing episodes, titles kept on this PC.")),
