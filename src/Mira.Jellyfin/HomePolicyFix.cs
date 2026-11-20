@@ -18,7 +18,11 @@ public static class HomePolicyFix
     public sealed record Change(string Kind, string? Section = null, int Number = 0, IReadOnlyList<string>? Sources = null);
 
     /// <summary>The policy as it becomes, and what changed in it.</summary>
-    public sealed record Plan(string Text, IReadOnlyList<Change> Changes);
+    public sealed record Plan(string Text, IReadOnlyList<Change> Changes)
+    {
+        /// <summary>The lines of the policy that are new or changed, as « See the exact lines » shows them.</summary>
+        public IReadOnlyList<string> Lines { get; init; } = [];
+    }
 
     /// <summary>
     /// What to change in <paramref name="text"/> (the policy as HuJSON) for the home's devices to reach this PC's
@@ -32,6 +36,7 @@ public static class HomePolicyFix
         }
 
         var changes = new List<Change>();
+        var original = text;
         try
         {
             // 1. The tag, then every open rule that only « * » or autogroup:tagged opens.
@@ -114,8 +119,15 @@ public static class HomePolicyFix
         }
 
         return Parse(text) is JsonObject made && HomeTailnet.CheckPolicy(made, server, port).Verdict == HomeTailnet.Verdict.Ok && changes.Count > 0
-            ? new Plan(text, changes)
+            ? new Plan(text, changes) { Lines = Added(original, text) }
             : null;
+    }
+
+    /// <summary>The lines of <paramref name="after"/> that <paramref name="before"/> does not have, trimmed.</summary>
+    private static List<string> Added(string before, string after)
+    {
+        var had = before.Split('\n').Select(x => x.Trim()).ToHashSet(StringComparer.Ordinal);
+        return after.Split('\n').Select(x => x.Trim()).Where(x => x.Length > 0 && !had.Contains(x)).ToList();
     }
 
     /// <summary>A policy read as Tailscale reads it (HuJSON: comments, trailing commas).</summary>

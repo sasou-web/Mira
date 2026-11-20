@@ -24,13 +24,10 @@ struct HomeSettingsView: View {
     @State private var pinFor: HomeAccount?
     @State private var pin = ""
     @State private var removing: HomeDeviceInfo?
-    @State private var clientId = ""
-    @State private var clientSecret = ""
     @State private var askDisconnect = false
-
-    static let credentials = URL(string: "https://login.tailscale.com/admin/settings/trust-credentials")!
-    static let policy = URL(string: "https://login.tailscale.com/admin/acls/file")!
-    static let tags = URL(string: "https://login.tailscale.com/admin/acls/visual")!
+    /// The guide's step on screen (nil: closed).
+    @State private var guide: Int?
+    @State private var showLines = false
 
     var body: some View {
         List {
@@ -89,6 +86,10 @@ struct HomeSettingsView: View {
             Button("Disconnect", role: .destructive) { Task { await connect(nil, nil) } }
         } message: {
             Text("No more home links. Devices already away from home keep their access until you remove them.")
+        }
+        .sheet(isPresented: Binding(get: { guide != nil }, set: { if !$0 { guide = nil } })) {
+            HomeGuideView(step: guide ?? 1) { Task { await load() } }
+                .environment(app)
         }
         .alert(pinFor.map { HomeText.pinOf($0.name) } ?? "", isPresented: Binding(get: { pinFor != nil }, set: { if !$0 { pinFor = nil } })) {
             TextField("4 digits", text: $pin).keyboardType(.numberPad).accessibilityIdentifier("home.pin")
@@ -246,48 +247,59 @@ struct HomeSettingsView: View {
     @ViewBuilder private var tailnetSection: some View {
         Section {
             if let tailnet {
-                if tailnet.connected {
-                    Text(verbatim: HomeText.policy(tailnet.policy)).font(MiraFont.footnote)
-                        .foregroundStyle(tailnet.policy == "ok" ? Palette.muted : Palette.warning)
-                    if tailnet.broad == true {
-                        Text(verbatim: HomeText.broad).font(MiraFont.footnote).foregroundStyle(Palette.warning)
+                let trouble = tailnet.connected
+                    ? HomeGuide.trouble(tailnet.policy == "ok" ? nil : tailnet.policy, missing: tailnet.missing ?? [], broad: tailnet.broad == true, changes: tailnet.fix?.count ?? 0)
+                    : nil
+                if !tailnet.connected {
+                    HStack {
+                        Text(verbatim: HomeGuide.entryTitle).font(MiraFont.headline).foregroundStyle(Palette.ink)
+                        Spacer()
+                        Text(verbatim: HomeGuide.notSetUp).font(MiraFont.footnote).foregroundStyle(Palette.muted)
                     }
-                    ForEach(tailnet.open ?? [], id: \.self) { rule in
-                        Text("Rule \(rule.number) of “\(rule.section)”: \(rule.sources.joined(separator: ", ")) goes further than Jellyfin.")
-                            .font(MiraFont.footnote).foregroundStyle(Palette.warning)
+                    Text(verbatim: HomeGuide.entryText).font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                    Button(HomeGuide.setUp) { guide = 1 }.accessibilityIdentifier("home.guide.open")
+                } else if let trouble {
+                    Text(verbatim: trouble.title).font(MiraFont.headline).foregroundStyle(Palette.danger)
+                    Text(verbatim: trouble.text).font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                    ForEach(trouble.remedies, id: \.self) { remedy in
+                        Button(remedy == .fix ? HomeGuide.makeChanges(tailnet.fix?.count ?? 0) : HomeGuide.label(remedy)) { Task { await act(remedy) } }
                     }
-                    if tailnet.policy != "ok", let fix = tailnet.fix, !fix.isEmpty {
-                        // What Mira will write, said before the one tap that writes it.
-                        Text("Mira can fix your policy itself, keeping your comments:").font(MiraFont.footnote).foregroundStyle(Palette.ink)
-                        ForEach(fix, id: \.self) { change in
-                            Text(verbatim: "•  " + HomeText.change(change)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
-                        }
-                        Button("Fix my policy") { Task { await fixPolicy() } }.disabled(working)
+                    if showLines {
+                        Text(verbatim: (tailnet.lines ?? []).joined(separator: "\n")).font(.system(size: 12, design: .monospaced)).foregroundStyle(Palette.ink).textSelection(.enabled)
                     }
-                    Button("Check again") { Task { await load() } }
-                    if tailnet.policy != "ok" { Button("Open the Tailscale policy") { openURL(Self.policy) } }
                     Button("Disconnect…", role: .destructive) { askDisconnect = true }
                 } else {
-                    Text("1. In Tailscale, Access controls → Tags → Create tag: name it mira-home, then Save tag.").font(MiraFont.footnote).foregroundStyle(Palette.ink)
-                    Button("Open Tailscale’s tags") { openURL(Self.tags) }
-                    let scopes = tailnet.setup?.scopes.joined(separator: ", ") ?? "auth_keys, devices:core, policy_file"
-                    Text("2. Create an OAuth client with “Custom scopes”, not “All”: Policy File, Devices → Core and Keys → Auth Keys, read and write, with the tag \(tailnet.setup?.tag ?? "tag:mira-home") (\(scopes)). Mira refuses a client with more rights.").font(MiraFont.footnote).foregroundStyle(Palette.ink)
-                    Button("Open Tailscale’s credentials") { openURL(Self.credentials) }
-                    Text("3. Paste its ID and secret. Mira keeps the secret on the server, never on this iPhone, then offers to fix the policy.").font(MiraFont.footnote).foregroundStyle(Palette.ink)
-                    TextField("Client ID", text: $clientId).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("Secret", text: $clientSecret)
-                    Button("Connect") { Task { await connect(clientId.trimmingCharacters(in: .whitespaces), clientSecret) } }
-                        .disabled(clientId.trimmingCharacters(in: .whitespaces).isEmpty || clientSecret.isEmpty)
+                    Text(verbatim: HomeGuide.readyTitle).font(MiraFont.headline).foregroundStyle(Palette.ink)
+                    Text(verbatim: HomeGuide.readyText).font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                    if (tailnet.devices ?? []).isEmpty { Text(verbatim: HomeGuide.firstLinkText).font(MiraFont.footnote).foregroundStyle(Palette.muted) }
+                    if let until = tailnet.undoUntil, until > .now {
+                        Text(verbatim: HomeGuide.changed(until)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                        Button(String(localized: "Undo")) { Task { await undo() } }
+                    }
+                    Button("Disconnect…", role: .destructive) { askDisconnect = true }
                 }
             } else {
                 Text("The server says nothing about Tailscale: update the Mira extension.").font(MiraFont.footnote).foregroundStyle(Palette.muted)
             }
         } header: {
             Text("Away from home")
-        } footer: {
-            Text("Once only: Mira makes the home links’ keys on your Tailscale network itself. The home’s devices see only Jellyfin there.")
         }
         .listRowBackground(Palette.surface)
+    }
+
+    private func act(_ remedy: HomeGuide.Remedy) async {
+        switch remedy {
+        case .redoKey, .setUpAgain: guide = 2
+        case .openCredentials: openURL(HomeGuide.credentialsPage)
+        case .openPolicy: openURL(HomeGuide.policyPage)
+        case .seeLines: showLines.toggle()
+        case .checkAgain: await load()
+        case .fix: await fixPolicy()
+        }
+    }
+
+    private func undo() async {
+        await change(HomeGuide.undone) { try await $0.homeUndoPolicy() }
     }
 
     // MARK: Asking the extension
@@ -341,9 +353,9 @@ struct HomeSettingsView: View {
 
     private func remove(_ device: HomeDeviceInfo) async { await change { try await $0.homeRemoveDevice(device.id) } }
 
+    /// Tailscale disconnected from the home (the guide connects it).
     private func connect(_ id: String?, _ secret: String?) async {
-        await change(id == nil ? nil : String(localized: "Connected to Tailscale.")) { try await $0.homeConnectTailnet(id: id, secret: secret) }
-        clientSecret = ""
+        await change { try await $0.homeConnectTailnet(id: id, secret: secret) }
     }
 
     private func fixPolicy() async {
@@ -355,7 +367,7 @@ struct HomeSettingsView: View {
             said = nil
             await load()
         } catch let refused as HomeAdminRefused {
-            said = refused.policy.map(HomeText.policy) ?? refused.message
+            said = HomeGuide.trouble(refused.policy, missing: refused.missing).map { $0.title + ". " + $0.text } ?? refused.message
         } catch {
             said = words(error)
         }

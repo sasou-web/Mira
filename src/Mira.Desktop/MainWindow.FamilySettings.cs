@@ -62,6 +62,7 @@ public partial class MainWindow
         if (draw != _familyDraw || !ReferenceEquals(client, _client)) return;
         FamilySettings.Children.Clear();
         if (settings is null) { FamilySettings.Children.Add(FamilyNote(HomeText.NoExtension, problem: true)); return; }
+        if (_familyGuide > 0 && tailnet is not null) { FamilySettings.Children.Add(FamilyGuide(client, tailnet)); return; }
         FamilySettings.Children.Add(FamilyPasswordRow(client, settings));
         if (settings.Home) FamilySettings.Children.Add(FamilyLinkRow(client, tailnet));
         FamilySettings.Children.Add(FamilyProfilesRow(client, settings));
@@ -106,7 +107,7 @@ public partial class MainWindow
 
     private Border FamilyLinkRow(JellyfinClient client, HomeTailnetState? tailnet)
     {
-        var body = FamilyCard(L("Lien du foyer", "Home link"), L("Pour un appareil loin de chez toi : le lien emmène Mira jusqu’à ton Jellyfin par Tailscale, sans adresse ni compte Tailscale à créer. Il sert une seule fois et finit au bout de 24 heures ; le mot de passe reste demandé.", "For a device away from home: the link takes Mira to your Jellyfin through Tailscale, with no address to type and no Tailscale account to make. It works once and ends after 24 hours; the password is still asked."));
+        var body = FamilyCard(L("Lien du foyer", "Home link"), L("Pour un appareil loin de chez toi : le lien emmène Mira jusqu’à ton Jellyfin par Tailscale, sans adresse ni compte Tailscale à créer. Il sert une seule fois et finit au bout de 48 heures ; le mot de passe reste demandé.", "For a device away from home: the link takes Mira to your Jellyfin through Tailscale, with no address to type and no Tailscale account to make. It works once and ends after 48 hours; the password is still asked."));
         var status = FamilyNote("");
         var result = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
         if (tailnet is not { Connected: true })
@@ -273,90 +274,6 @@ public partial class MainWindow
             catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
         }
     }
-
-    // ---- Away from home: Tailscale, once ----
-
-    private Border FamilyTailnetRow(JellyfinClient client, HomeTailnetState? state)
-    {
-        var body = FamilyCard(L("Loin de chez toi", "Away from home"), L("Une seule fois : Mira crée lui-même les clés des liens du foyer sur ton réseau Tailscale. Les appareils du foyer n’y voient que Jellyfin.", "Once only: Mira makes the home links’ keys on your Tailscale network itself. The home’s devices see only Jellyfin there."));
-        var status = FamilyNote("");
-        if (state is null) { body.Children.Add(FamilyNote(L("Le serveur ne dit rien de Tailscale : mets à jour l’extension Mira.", "The server says nothing about Tailscale: update the Mira extension."), problem: true, margin: new Thickness(0, 10, 0, 0))); return FamilyRow(body); }
-        if (state.Connected)
-        {
-            var ok = state.Policy == "ok";
-            body.Children.Add(FamilyNote(HomeText.Policy(state.Policy), problem: !ok, margin: new Thickness(0, 12, 0, 0)));
-            if (state.Broad) body.Children.Add(FamilyNote(HomeText.Broad, problem: true));
-            foreach (var rule in state.Open)
-                body.Children.Add(FamilyNote(L($"Règle {rule.Number} de « {rule.Section} » : {string.Join(", ", rule.Sources)} va plus loin que Jellyfin.", $"Rule {rule.Number} of “{rule.Section}”: {string.Join(", ", rule.Sources)} goes further than Jellyfin."), problem: true));
-            if (state.Server is { } server) body.Children.Add(FamilyNote(L($"Jellyfin joint à {server}:{state.Port}.", $"Jellyfin reached at {server}:{state.Port}.")));
-            if (state.Devices.Count > 0) body.Children.Add(FamilyNote(Count(state.Devices.Count, "appareil du foyer sur ton réseau", "appareils du foyer sur ton réseau", "home device on your network", "home devices on your network")));
-            var buttons = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
-            if (!ok && state.Fix is { Count: > 0 } fix)
-            {
-                // What Mira will write, said before the one click that writes it.
-                body.Children.Add(FamilyNote(HomeText.FixAbout, margin: new Thickness(0, 12, 30, 0)));
-                foreach (var change in fix) body.Children.Add(FamilyNote("•  " + HomeText.Change(change), margin: new Thickness(12, 4, 30, 0)));
-                buttons.Children.Add(FamilyButton(HomeText.FixButton, () => _ = FixAsync(), primary: true));
-            }
-            buttons.Children.Add(FamilyButton(L("Vérifier à nouveau", "Check again"), () => _ = ShowFamilySettingsAsync(), quiet: !ok && state.Fix is { Count: > 0 }));
-            if (!ok) buttons.Children.Add(FamilyButton(TailnetText.OpenPolicy, () => OpenWebPage(TailscaleNode.Policy), quiet: true));
-            buttons.Children.Add(FamilyButton(L("Déconnecter…", "Disconnect…"), () => _ = DisconnectAsync(), quiet: true));
-            body.Children.Add(buttons); body.Children.Add(status);
-            return FamilyRow(body);
-        }
-        var setup = state.Setup;
-        var tag = setup?.Tag ?? "tag:mira-home";
-        var scopes = string.Join(", ", setup?.Scopes is { Count: > 0 } given ? given : ["auth_keys", "devices:core", "policy_file"]);
-        body.Children.Add(FamilyStep(1, HomeText.StepTag));
-        var tags = FamilyButton(HomeText.OpenTags, () => OpenWebPage(HomeText.TagsPage), quiet: true);
-        tags.Margin = new Thickness(30, 6, 0, 0); tags.HorizontalAlignment = HorizontalAlignment.Left;
-        body.Children.Add(tags);
-        body.Children.Add(FamilyStep(2, HomeText.StepClient(scopes, tag)));
-        var trust = FamilyButton(L("Ouvrir les identifiants de Tailscale", "Open Tailscale’s credentials"), () => OpenWebPage(TailscaleCredentials), quiet: true);
-        trust.Margin = new Thickness(30, 6, 0, 0); trust.HorizontalAlignment = HorizontalAlignment.Left;
-        body.Children.Add(trust);
-        body.Children.Add(FamilyStep(3, HomeText.StepPaste));
-        var id = new TextBox { Width = 260, Margin = new Thickness(0, 0, 10, 8) };
-        AutomationProperties.SetName(id, L("Identifiant du client", "Client ID"));
-        var secret = new PasswordBox { Width = 260, Margin = new Thickness(0, 0, 10, 8) };
-        AutomationProperties.SetName(secret, L("Secret du client", "Client secret"));
-        var fields = new WrapPanel { Margin = new Thickness(30, 8, 0, 0) };
-        fields.Children.Add(Labeled(L("Identifiant", "Client ID"), id)); fields.Children.Add(Labeled(L("Secret", "Secret"), secret));
-        var connect = FamilyButton(L("Connecter", "Connect"), () => _ = ConnectAsync(), primary: true);
-        connect.VerticalAlignment = VerticalAlignment.Bottom; connect.Margin = new Thickness(0, 0, 0, 8);
-        fields.Children.Add(connect);
-        body.Children.Add(fields); body.Children.Add(status);
-        return FamilyRow(body);
-
-        StackPanel Labeled(string label, Control field)
-        {
-            var stack = new StackPanel();
-            stack.Children.Add(new TextBlock { Text = label, Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(2, 0, 0, 4) });
-            stack.Children.Add(field);
-            return stack;
-        }
-        async Task ConnectAsync()
-        {
-            if (id.Text.Trim().Length == 0 || secret.Password.Length == 0) { FamilySay(status, L("Colle l’identifiant et le secret.", "Paste the ID and the secret."), true); return; }
-            FamilySay(status, L("Connexion à Tailscale…", "Connecting to Tailscale…"), false);
-            try { await client.HomeConnectTailnetAsync(id.Text.Trim(), secret.Password, _connectionLifetime.Token); secret.Clear(); await ShowFamilySettingsAsync(); }
-            catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
-        }
-        async Task FixAsync()
-        {
-            FamilySay(status, HomeText.Fixing, false);
-            try { await client.HomeFixPolicyAsync(_connectionLifetime.Token); await ShowFamilySettingsAsync(); }
-            catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
-        }
-        async Task DisconnectAsync()
-        {
-            if (!await ConfirmAsync(L("Déconnecter Tailscale du foyer ?", "Disconnect Tailscale from the home?"), L("Plus aucun lien du foyer. Les appareils déjà loin de chez toi gardent leur accès tant que tu ne les retires pas.", "No more home links. Devices already away from home keep their access until you remove them."), L("Déconnecter", "Disconnect"), L("Annuler", "Cancel"))) return;
-            try { await client.HomeConnectTailnetAsync(null, null, _connectionLifetime.Token); _familyLink = null; await ShowFamilySettingsAsync(); }
-            catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
-        }
-    }
-
-    private const string TailscaleCredentials = "https://login.tailscale.com/admin/settings/trust-credentials";
 
     // ---- Pieces ----
 

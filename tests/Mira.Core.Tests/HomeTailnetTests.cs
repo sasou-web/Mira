@@ -154,6 +154,46 @@ internal static class HomeTailnetTests
             }
         });
 
+        await Test("Foyer loin de chez soi : le guide (secret seul, droits manquants, lignes changées, annuler 10 min, pannes en clair)", () =>
+        {
+            // One box: the client's id read from its secret; anything else asks the ID too.
+            Assert(HomeTailnet.IdOfSecret("tskey-client-kAbC12DeFG11CNTRL-9fQ2abcdefghijklmnop") == "kAbC12DeFG11CNTRL" && HomeTailnet.IdOfSecret(" tskey-client-kAbC12DeFG11CNTRL-x ") == "kAbC12DeFG11CNTRL", "The id inside the secret");
+            Assert(HomeTailnet.IdOfSecret(null) is null && HomeTailnet.IdOfSecret("tskey-auth-kAbC-x") is null && HomeTailnet.IdOfSecret("tskey-client-abc") is null && HomeTailnet.IdOfSecret("tskey-client-k-x") is null, "Not a client's secret");
+            Assert(HomeTailnet.Missing(["auth_keys", "devices:core", "policy_file"]).Count == 0 && HomeTailnet.Missing(null).Count == 0 && HomeTailnet.Missing(["all"]).Count == 0, "Nothing missing (or unknown, or « All »: refused as too broad)");
+            Assert(HomeTailnet.Missing(["auth_keys", "devices:core:read"]).SequenceEqual(["devices:core", "policy_file"]), "Read only is missing too");
+
+            // The lines Mira adds or changes, shown before the click.
+            var plan = HomePolicyFix.Make("{\n\t\"tagOwners\": {\n\t\t\"tag:mira-home\": [\"autogroup:admin\"],\n\t},\n\t\"grants\": [\n\t\t{\"src\": [\"*\"], \"dst\": [\"*\"], \"ip\": [\"*\"]},\n\t],\n}", Server, 8096);
+            Assert(plan is { Lines: [_, _] } && plan.Lines.Any(x => x.Contains("autogroup:member", StringComparison.Ordinal)) && plan.Lines.Any(x => x.Contains("tcp:8096", StringComparison.Ordinal)), "The two lines changed: " + string.Join(" | ", plan?.Lines ?? []));
+
+            // Undo: 10 minutes, in memory.
+            var now = DateTimeOffset.Parse("2026-11-20T01:00:00Z");
+            var tailnet = new HomeTailnet(null, () => now);
+            Assert(tailnet.Undo is null, "Nothing to undo");
+            tailnet.Fixed("avant", "après");
+            Assert(tailnet.Undo is ("avant", "après", var until) && until == now + HomeTailnet.UndoFor, "Undo offered for 10 minutes");
+            now += TimeSpan.FromMinutes(11);
+            Assert(tailnet.Undo is null, "Too late");
+            tailnet.Fixed("avant", "après");
+            tailnet.Undone();
+            Assert(tailnet.Undo is null, "Undone once");
+
+            // What the apps say: one sentence and the button that fixes it.
+            Assert(Mira.Core.Family.HomeGuide.LooksLikeSecret("tskey-client-kAbC12DeFG11CNTRL-9fQ2abcdef") && !Mira.Core.Family.HomeGuide.LooksLikeSecret("tskey-auth-kAbC12DeFG11CNTRL-9fQ2abcdef")
+                && !Mira.Core.Family.HomeGuide.LooksLikeSecret("tskey-client-k x") && !Mira.Core.Family.HomeGuide.LooksLikeSecret(null), "A secret on the clipboard");
+            Assert(Mira.Core.Family.HomeGuide.Masked("tskey-client-kAbC12DeFG11CNTRL-9fQ2abcdef") == "tskey-client-kAbC12…••••••••", "Shown without its secret part");
+            static IReadOnlyList<Mira.Core.Family.HomeGuide.Remedy>? Remedies(string? code, IReadOnlyList<string>? missing = null, bool broad = false, int changes = 0) => Mira.Core.Family.HomeGuide.Trouble(code, missing, broad, changes)?.Remedies;
+            Assert(Remedies("ok") is null && Remedies(null) is null, "Nothing wrong");
+            Assert(Remedies("ok", broad: true) is [Mira.Core.Family.HomeGuide.Remedy.RedoKey, Mira.Core.Family.HomeGuide.Remedy.OpenCredentials] && Remedies("too-broad") is [Mira.Core.Family.HomeGuide.Remedy.RedoKey, _], "« All »: redo step 2");
+            Assert(Remedies("missing", ["policy_file"]) is [Mira.Core.Family.HomeGuide.Remedy.RedoKey] && Mira.Core.Family.HomeGuide.Trouble("missing", ["auth_keys"])!.Title.Contains("Keys › Auth Keys", StringComparison.Ordinal), "A tick missing, named as the console names it");
+            Assert(Remedies("too-open", changes: 2) is [Mira.Core.Family.HomeGuide.Remedy.Fix, Mira.Core.Family.HomeGuide.Remedy.SeeLines] && Remedies("too-open") is [Mira.Core.Family.HomeGuide.Remedy.OpenPolicy, _], "Rules: fixed by Mira, or not");
+            Assert(Remedies("refused") is [Mira.Core.Family.HomeGuide.Remedy.SetUpAgain] && Remedies("no-tailscale") is [Mira.Core.Family.HomeGuide.Remedy.CheckAgain] && Remedies("no-write") is [Mira.Core.Family.HomeGuide.Remedy.RedoKey], "Each trouble its button");
+            var checks = Mira.Core.Family.HomeGuide.Checks(new Mira.Core.Family.HomeTailnetState { Connected = true, Policy = "too-open", Tag = false, Fix = [new("tag", null, 0, null), new("narrow", "grants", 1, ["autogroup:member"])] });
+            Assert(checks.Select(x => x.Mark).SequenceEqual([Mira.Core.Family.HomeGuide.Mark.Ok, Mira.Core.Family.HomeGuide.Mark.Ok, Mira.Core.Family.HomeGuide.Mark.Warn, Mira.Core.Family.HomeGuide.Mark.Warn]), "Step 4: the key, its rights, the tag, the rules");
+            Assert(Mira.Core.Family.HomeGuide.Drawing(2).Lines.Count(x => x.On && x.Kind == Mira.Core.Family.HomeGuide.SketchKind.Scope) == 3, "The three ticks drawn");
+            return Task.CompletedTask;
+        });
+
         await Test("Foyer loin de chez soi : le lien du foyer et les appareils retirés du réseau Tailscale", async () =>
         {
             var data = new HomeTailnet.LinkData(1, "Maison", "f0a1b2c3d4e5f60718293a4b5c6d7e8f", "http://100.88.12.34:8096", "tskey-auth-kAbC123-xyz", 1_800_000_000);

@@ -904,11 +904,17 @@ public static class SelfCheck
                 Check(on && withHome.Family.LinkShown && withHome.Family.Said.Contains(Lang.L("Administrateur : jamais dans le foyer.", "Administrator: never in the home.")),
                     "réglages : foyer (lien et QR code, profils, appareils)", withHome.Family.Said);
                 await Task.Delay(500); Capture(window, output, "07c4-settings-family");
-                // Away from home: the default « * » of the tailnet, what Mira would change, then « Fix my policy ».
-                var told = withHome.Family.Said.Contains(Mira.Core.Family.HomeText.FixAbout) && withHome.Family.Said.Contains("autogroup:member, autogroup:shared");
+                // Away from home: the default « * » of the tailnet said as a trouble, then « Make these changes » and « Ready ».
+                var told = withHome.Family.Said.Contains(Mira.Core.Family.HomeGuide.Trouble("too-open", changes: 1)!.Title);
                 await withHome.Family.FixPolicyForCheck();
-                var fixedSaid = await Until(() => withHome.Family.Said.Contains(Mira.Core.Family.HomeText.Policy("ok")), 10);
+                var fixedSaid = await Until(() => withHome.Family.Said.Contains(Mira.Core.Family.HomeGuide.ReadyTitle), 10);
                 Check(told && fixedSaid && mock.HomeAdmin.Contains("POST Mira/home/tailnet/fix"), "réglages : foyer, politique Tailscale corrigée par Mira", withHome.Family.Said);
+                // The guide, step 2: the key's page, its drawing (« Custom scopes »), then closed.
+                withHome.Family.GuideForCheck(2);
+                var guided = await Until(() => withHome.Family.Said.Contains(Mira.Core.Family.HomeGuide.Key.Title) && withHome.Family.Said.Contains("Custom scopes"), 10);
+                await Task.Delay(400); Capture(window, output, "07c5-settings-family-guide");
+                withHome.Family.GuideForCheck(0);
+                Check(guided && await Until(() => withHome.Family.Said.Contains(Mira.Core.Family.HomeGuide.ReadyTitle), 10), "réglages : foyer, guide « Loin de la maison »", withHome.Family.Said);
                 mock.PolicyFixed = false;
                 mock.HomeOn = false;
                 withHome.ShowSettingsSide();

@@ -56,36 +56,7 @@ public static class HomeText
         _ => L("Le foyer n’est pas relié à ton réseau Tailscale : il ne marche qu’à la maison.", "The home isn’t connected to your Tailscale network: it works only at home."),
     };
 
-    /// <summary>The client connected has more rights than the home needs (<see cref="HomeTailnetState.Broad"/>).</summary>
-    public static string Broad => L("Le client OAuth du foyer a tous les droits sur ton réseau Tailscale, et son secret est gardé sur le serveur : remplace-le par un client limité à Policy File, Devices → Core et Keys → Auth Keys (Déconnecter, puis les étapes).",
-        "The home’s OAuth client has every right on your Tailscale network, and its secret is kept on the server: replace it with one limited to Policy File, Devices → Core and Keys → Auth Keys (Disconnect, then the steps).");
-
-    /// <summary>Above the changes Mira can make to the policy itself.</summary>
-    public static string FixAbout => L("Mira peut corriger ta politique elle-même, sans toucher à tes commentaires :", "Mira can fix your policy itself, keeping your comments:");
-    public static string FixButton => L("Corriger ma politique", "Fix my policy");
-    public static string Fixing => L("Correction de la politique…", "Fixing the policy…");
-
-    /// <summary>One change Mira would make to the policy (<see cref="HomePolicyChange"/>), in a line.</summary>
-    public static string Change(HomePolicyChange change) => change.Kind switch
-    {
-        "tag" => L("Ajouter l’étiquette tag:mira-home à « tagOwners ».", "Add the tag:mira-home tag to “tagOwners”."),
-        "grant" => L("Ajouter une règle : les appareils du foyer joignent Jellyfin, rien d’autre.", "Add a rule: the home’s devices reach Jellyfin, nothing else."),
-        "narrow" => L($"Règle {change.Number} de « {change.Section} » : ses sources deviennent {string.Join(", ", change.Sources ?? [])} (tes appareils, tes amis partagés, tes autres étiquettes).",
-            $"Rule {change.Number} of “{change.Section}”: its sources become {string.Join(", ", change.Sources ?? [])} (your devices, your shared friends, your other tags)."),
-        _ => change.Kind,
-    };
-
-    /// <summary>Step 1 of the setup: the tag, made in Tailscale's visual editor.</summary>
-    public static string StepTag => L("Dans Tailscale, Access controls → Tags → Create tag : nomme-la mira-home, puis Save tag.", "In Tailscale, Access controls → Tags → Create tag: name it mira-home, then Save tag.");
-    /// <summary>Step 2 of the setup: the OAuth client.</summary>
-    public static string StepClient(string scopes, string tag) => L(
-        $"Crée un client OAuth en « Custom scopes », pas « All » : Policy File, Devices → Core et Keys → Auth Keys, en lecture et écriture, avec l’étiquette {tag} ({scopes}). Mira refuse un client qui a plus de droits.",
-        $"Create an OAuth client with “Custom scopes”, not “All”: Policy File, Devices → Core and Keys → Auth Keys, read and write, with the tag {tag} ({scopes}). Mira refuses a client with more rights.");
-    /// <summary>Step 3 of the setup: the client pasted; Mira puts the policy right after.</summary>
-    public static string StepPaste => L("Colle son identifiant et son secret. Mira garde le secret sur le serveur, jamais sur cet appareil, puis te propose de corriger la politique.", "Paste its ID and secret. Mira keeps the secret on the server, never on this device, then offers to fix the policy.");
-    public static string OpenTags => L("Ouvrir les étiquettes de Tailscale", "Open Tailscale’s tags");
-    /// <summary>The visual editor's tags, where step 1 is done.</summary>
-    public const string TagsPage = "https://login.tailscale.com/admin/acls/visual";
+    // The guide « Away from home » and its troubles: HomeGuide.
 
     /// <summary>Why the home's node cannot take this device in, from its state (<see cref="TailnetCodes"/>).</summary>
     public static string Node(string code, string name) => code switch

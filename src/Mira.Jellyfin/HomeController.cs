@@ -475,6 +475,10 @@ public sealed class HomeController : ControllerBase
             open = open.Select(x => new { section = x.Section, number = x.Number, sources = x.Sources }),
             fix = fix?.Changes.Select(x => new { kind = x.Kind, section = x.Section, number = x.Number, sources = x.Sources }),
             broad = TailscaleApi.TooBroad(api.Scopes),
+            missing = HomeTailnet.Missing(api.Scopes),
+            tag = policy is not ("no-tag" or "refused" or "scope" or "unreachable"),
+            lines = fix?.Lines,
+            undoUntil = Plugin.HomeTailnet.Undo?.Until,
             devices,
         });
     }
@@ -514,6 +518,7 @@ public sealed class HomeController : ControllerBase
             }
 
             await api.SetPolicyAsync(plan.Text, version, cancellationToken).ConfigureAwait(false);
+            Plugin.HomeTailnet.Fixed(text, plan.Text);
             _logger.LogInformation("Mira: the tailnet's policy was put right for the home ({Changes})", string.Join(", ", plan.Changes.Select(x => x.Kind)));
             return NoContent();
         }
@@ -535,6 +540,41 @@ public sealed class HomeController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Mira's fix of the policy taken back, within <see cref="HomeTailnet.UndoFor"/>, and only while the policy is still
+    /// exactly what Mira wrote (nobody changed it since): the policy as it was before.
+    /// </summary>
+    [HttpPost("tailnet/undo")]
+    [Authorize(Policy = "RequiresElevation")]
+    public async Task<IActionResult> UndoFix(CancellationToken cancellationToken)
+    {
+        if (Plugin.HomeTailnet.Client is not { } owner || Plugin.HomeTailnet.Undo is not { } undo)
+        {
+            return Answer(StatusCodes.Status409Conflict, new { error = Text("Il est trop tard pour annuler : change ta politique dans la console de Tailscale."), policy = "no-undo" });
+        }
+
+        using var client = _clients.CreateClient();
+        var api = new TailscaleApi(client, owner.Id, owner.Secret);
+        try
+        {
+            var (text, version) = await api.PolicyTextAsync(cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(text.Trim(), undo.Written.Trim(), StringComparison.Ordinal))
+            {
+                Plugin.HomeTailnet.Undone();
+                return Answer(StatusCodes.Status409Conflict, new { error = Text("Ta politique a changé depuis : Mira ne l’annule pas. Change-la dans la console de Tailscale."), policy = "no-undo" });
+            }
+
+            await api.SetPolicyAsync(undo.Before, version, cancellationToken).ConfigureAwait(false);
+            Plugin.HomeTailnet.Undone();
+            _logger.LogInformation("Mira: the home's fix of the tailnet's policy was undone");
+            return NoContent();
+        }
+        catch (TailscaleApi.TailscaleException error)
+        {
+            return Answer(error.Failure == TailscaleApi.Failure.Unreachable ? StatusCodes.Status502BadGateway : StatusCodes.Status409Conflict, new { error = Text(FailureText(error)), policy = Failure(error) });
+        }
+    }
+
     /// <summary>The home connected to the tailnet with an OAuth client (checked with Tailscale first), or disconnected (both null).</summary>
     [HttpPut("tailnet")]
     [Authorize(Policy = "RequiresElevation")]
@@ -553,26 +593,35 @@ public sealed class HomeController : ControllerBase
             return NoContent();
         }
 
-        var id = body.ClientId?.Trim();
         var secret = body.ClientSecret?.Trim();
+        // One box: the secret carries the client's id.
+        var id = string.IsNullOrWhiteSpace(body.ClientId) ? HomeTailnet.IdOfSecret(secret) : body.ClientId.Trim();
         if (!HomeTailnet.GoodClient(id, secret))
         {
-            return Refuse(StatusCodes.Status400BadRequest, "Colle l’identifiant et le secret du client OAuth que Tailscale vient de te donner.");
+            // A secret the id can't be read from: the client's ID asked too.
+            return Answer(StatusCodes.Status400BadRequest, new { error = Text("Colle l’identifiant et le secret du client OAuth que Tailscale vient de te donner."), needsId = string.IsNullOrWhiteSpace(body.ClientId) && !string.IsNullOrWhiteSpace(secret) });
         }
 
         using var client = _clients.CreateClient();
         try
         {
             // A client that can do everything is refused: its secret stays on this server, in the clear.
-            if (TailscaleApi.TooBroad(await new TailscaleApi(client, id!, secret!).CheckAsync(cancellationToken).ConfigureAwait(false)))
+            var granted = await new TailscaleApi(client, id!, secret!).CheckAsync(cancellationToken).ConfigureAwait(false);
+            if (TailscaleApi.TooBroad(granted))
             {
                 return Answer(StatusCodes.Status400BadRequest, new { error = Text("Ce client OAuth a plus de droits qu’il n’en faut : supprime-le, puis crée-en un avec seulement Policy File, Devices Core et Auth Keys (étiquette tag:mira-home)."), policy = "too-broad" });
+            }
+
+            // Tailscale can't change a client once made: one without a scope the home needs is of no use.
+            if (HomeTailnet.Missing(granted) is { Count: > 0 } missing)
+            {
+                return Answer(StatusCodes.Status400BadRequest, new { error = Text("Il manque un droit à ce client OAuth : crée-en un autre avec Policy File, Devices Core et Auth Keys (étiquette tag:mira-home)."), policy = "missing", missing });
             }
         }
         catch (TailscaleApi.TailscaleException error)
         {
             return error.Failure == TailscaleApi.Failure.Refused
-                ? Refuse(StatusCodes.Status400BadRequest, "Tailscale refuse ce client OAuth : vérifie l’identifiant et le secret.")
+                ? Answer(StatusCodes.Status400BadRequest, new { error = Text("Tailscale refuse ce client OAuth : vérifie l’identifiant et le secret."), policy = "refused", needsId = string.IsNullOrWhiteSpace(body.ClientId) })
                 : Refuse(StatusCodes.Status502BadGateway, "Tailscale n’a pas répondu. Réessaie dans un instant.");
         }
 

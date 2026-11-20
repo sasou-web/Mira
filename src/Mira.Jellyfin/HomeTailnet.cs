@@ -74,6 +74,64 @@ public sealed class HomeTailnet
         get { lock (_gate) return _store.ClientId is null ? null : _store.Connected; }
     }
 
+    /// <summary>
+    /// The client's id as its secret carries it (« tskey-client-&lt;id&gt;-&lt;secret&gt; »), so the administrator pastes
+    /// one thing; null when the secret is not of that shape (the id is then asked for).
+    /// </summary>
+    public static string? IdOfSecret(string? secret)
+    {
+        const string Prefix = "tskey-client-";
+        if (secret is null || !secret.Trim().StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var rest = secret.Trim()[Prefix.Length..];
+        var dash = rest.IndexOf('-', StringComparison.Ordinal);
+        return dash >= 4 && dash < rest.Length - 1 ? rest[..dash] : null;
+    }
+
+    /// <summary>The scopes the home needs that <paramref name="granted"/> lacks (none when Tailscale did not say, or for « all »).</summary>
+    public static IReadOnlyList<string> Missing(IReadOnlyList<string>? granted) =>
+        granted is null || granted.Any(x => string.Equals(x, "all", StringComparison.OrdinalIgnoreCase))
+            ? []
+            : Scopes.Where(s => !granted.Any(x => string.Equals(x, s, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    /// <summary>How long « Undo » stays offered once Mira has fixed the policy.</summary>
+    public static readonly TimeSpan UndoFor = TimeSpan.FromMinutes(10);
+
+    /// <summary>The policy as it was before Mira's fix, the policy Mira wrote, and until when it can be put back.</summary>
+    public (string Before, string Written, DateTimeOffset Until)? Undo
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _undo is { } undo && undo.Until > _now() ? undo : null;
+            }
+        }
+    }
+
+    private (string Before, string Written, DateTimeOffset Until)? _undo;
+
+    /// <summary>Mira's fix written: what was there before, for <see cref="UndoFor"/> (in memory only).</summary>
+    public void Fixed(string before, string written)
+    {
+        lock (_gate)
+        {
+            _undo = (before, written, _now() + UndoFor);
+        }
+    }
+
+    /// <summary>« Undo » used, or no longer possible.</summary>
+    public void Undone()
+    {
+        lock (_gate)
+        {
+            _undo = null;
+        }
+    }
+
     /// <summary>An OAuth client's id and secret as Tailscale gives them: printable, without spaces.</summary>
     public static bool GoodClient(string? id, string? secret) =>
         id is { Length: >= 4 and <= 128 } && secret is { Length: >= 8 and <= 256 }
