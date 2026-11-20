@@ -1,115 +1,115 @@
-# Installer Mira sur Mac
+# Install Mira on Mac
 
-Mira pour Mac lit ta bibliothèque Jellyfin avec le même lecteur mpv que la version Windows : reprise, épisode suivant, pistes audio et sous-titres, opening à passer, volume jusqu’à 200 %.
+Mira for Mac plays your Jellyfin library with the same mpv player as the Windows version: resume, next episode, audio and subtitle tracks, skippable intros, volume up to 200%.
 
-## Prérequis
+## Requirements
 
-- Un Mac à puce Apple (M1, M2, M3, M4…) sous **macOS 15 Sequoia** ou plus récent (macOS 14 Sonoma : jusqu’à la 0.7.4).
-- Un serveur **Jellyfin 10.9** ou plus récent, sur ton réseau ou joignable avec Tailscale. Mira pour Mac ne l’installe pas : il se connecte à celui que tu as déjà, par exemple celui du PC Windows où tourne Mira.
+- A Mac with Apple silicon (M1, M2, M3, M4…) running **macOS 15 Sequoia** or later (macOS 14 Sonoma: up to 0.7.4).
+- A **Jellyfin 10.9** or later server, on your network or reachable with Tailscale. Mira for Mac doesn’t install it: it connects to the one you already have, for example the one on the Windows PC where Mira runs.
 
 ## Installation
 
-1. Télécharge **Mira-x.y.z-mac-arm64.dmg** sur la [page des versions](https://github.com/sasou-web/Mira/releases/latest).
-2. Ouvre l’image disque et fais glisser **Mira** sur **Applications**.
-3. Ouvre Mira depuis Applications. macOS l’arrête la première fois (voir ci-dessous) ; c’est normal.
+1. Download **Mira-x.y.z-mac-arm64.dmg** from the [releases page](https://github.com/sasou-web/Mira/releases/latest).
+2. Open the disk image and drag **Mira** onto **Applications**.
+3. Open Mira from Applications. macOS stops it the first time (see below); that’s normal.
 
-### Ou avec Homebrew
+### Or with Homebrew
 
-Si tu as [Homebrew](https://brew.sh), une commande dans le **Terminal** remplace les étapes 1 et 2 :
+If you have [Homebrew](https://brew.sh), one command in **Terminal** replaces steps 1 and 2:
 
 ```
 brew install --cask sasou-web/mira/mira
 ```
 
-Elle vient du tap de Mira ([sasou-web/homebrew-mira](https://github.com/sasou-web/homebrew-mira)), pas du catalogue officiel de Homebrew, qui n’accepte que les apps notarisées par Apple. Homebrew vérifie l’empreinte de l’image (la même que son `.sha256`) et garde la protection de macOS : la première ouverture se fait comme ci-dessous. Mira se met ensuite à jour toute seule ; `brew uninstall --cask --zap mira` la retire avec ses réglages.
+It comes from Mira’s tap ([sasou-web/homebrew-mira](https://github.com/sasou-web/homebrew-mira)), not from Homebrew’s official catalog, which only accepts apps notarized by Apple. Homebrew checks the image’s hash (the same as its `.sha256`) and keeps macOS’s protection: the first launch goes as below. Mira then updates itself; `brew uninstall --cask --zap mira` removes it along with its settings.
 
-### Autoriser Mira la première fois
+### Allow Mira the first time
 
-Mira n’est pas signée par un compte développeur Apple payant : macOS ne peut pas la vérifier et refuse de l’ouvrir au premier lancement. À faire une seule fois :
+Mira isn’t signed by a paid Apple developer account: macOS can’t check it and refuses to open it on first launch. To do once only:
 
-1. Ouvre Mira une première fois, puis ferme le message.
-2. Va dans **Réglages Système → Confidentialité et sécurité**.
-3. En bas, à côté de « Mira a été bloquée », clique sur **Ouvrir quand même**, puis confirme.
+1. Open Mira once, then close the message.
+2. Go to **System Settings → Privacy & Security**.
+3. At the bottom, next to “Mira was blocked”, click **Open Anyway**, then confirm.
 
-Si macOS dit que Mira est « endommagée » ou si le bouton n’apparaît pas, ouvre le **Terminal** et tape :
+If macOS says Mira is “damaged” or the button doesn’t appear, open **Terminal** and type:
 
 ```
 xattr -dr com.apple.quarantine /Applications/Mira.app
 ```
 
-Cette commande retire seulement la marque « téléchargé depuis Internet » de Mira ; elle ne change aucun réglage de sécurité du Mac.
+This command only removes Mira’s “downloaded from the Internet” mark; it doesn’t change any of the Mac’s security settings.
 
-## Première connexion
+## First sign-in
 
-Saisis l’adresse de ton serveur Jellyfin (par exemple `192.168.1.20` ou `nas:8096`), ton nom d’utilisateur et ton mot de passe. Mira trouve seule le bon port et le bon protocole. Hors de chez toi, utilise l’adresse Tailscale du serveur (`100.x.y.z`) ou son nom sur Tailscale ; sans l’app Tailscale sur ce Mac, **Tailscale intégré** (ci-dessous) le joint quand même.
+Enter your Jellyfin server’s address (for example `192.168.1.20` or `nas:8096`), your username and your password. Mira finds the right port and protocol by itself. Away from home, use the server’s Tailscale address (`100.x.y.z`) or its name on Tailscale; without the Tailscale app on this Mac, **Built-in Tailscale** (below) reaches it anyway.
 
-Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin. Son code d’accès va dans le trousseau de ton Mac (élément « Mira »), le reste dans `~/Library/Application Support/Mira`, lisible par ton compte macOS uniquement. **Se déconnecter** (Réglages → Compte) efface les deux et ferme aussi la session sur Jellyfin ; avec **Effacer aussi les données de ce compte sur ce Mac**, le cache et les affiches de ce compte quittent le Mac.
+Your password is never saved: Mira only keeps the session Jellyfin opened. Its access token goes into your Mac’s keychain (the “Mira” item), the rest into `~/Library/Application Support/Mira`, readable by your macOS account only. **Sign out** (Settings → Account) erases both and also closes the session on Jellyfin; with **Also erase this account’s data on this Mac**, this account’s cache and posters leave the Mac.
 
-## Tailscale intégré : ton Jellyfin loin de chez toi, sans l’app Tailscale
+## Built-in Tailscale: your Jellyfin away from home, without the Tailscale app
 
-Si ton Jellyfin est sur Tailscale (le PC où il tourne a l’app Tailscale) et que ce Mac ne l’a pas, Mira rejoint ton réseau Tailscale elle-même, comme un appareil de plus, seulement quand elle est ouverte. Rien à installer : le nœud Tailscale de Mira (`mira-tailscale`) est dans Mira.app.
+If your Jellyfin is on Tailscale (the PC it runs on has the Tailscale app) and this Mac doesn’t have it, Mira joins your Tailscale network itself, as one more device, only while it’s open. Nothing to install: Mira’s Tailscale node (`mira-tailscale`) is inside Mira.app.
 
-1. Sur l’écran de connexion, tape l’adresse Tailscale du serveur (`100.x.y.z`) ou son nom, ou laisse Mira chercher : sous le champ, Mira propose **Se connecter à Tailscale** (« Ce serveur est sur Tailscale », ou « Pas chez toi ? » quand elle ne trouve rien).
-2. Clique sur **Se connecter à Tailscale** : ton navigateur ouvre la page de connexion de Tailscale. Connecte-toi avec le compte de ton réseau Tailscale, celui du PC de Jellyfin.
-3. De retour dans Mira, la ligne dit « Tailscale intégré · Connecté » : connecte-toi à Jellyfin comme d’habitude. Sans adresse tapée, Mira cherche à nouveau ton serveur parmi tes appareils Tailscale et le propose.
+1. On the sign-in screen, type the server’s Tailscale address (`100.x.y.z`) or its name, or let Mira search: under the field, Mira offers **Sign in to Tailscale** (“This server is on Tailscale”, or “Not at home?” when it finds nothing).
+2. Click **Sign in to Tailscale**: your browser opens Tailscale’s sign-in page. Sign in with your Tailscale network’s account, the one of Jellyfin’s PC.
+3. Back in Mira, the line says “Built-in Tailscale · Connected”: sign in to Jellyfin as usual. With no address typed, Mira searches again for your server among your Tailscale devices and offers it.
 
-Ensuite, le nœud démarre avec Mira et s’arrête avec elle. **Réglages → Tailscale intégré** dit son état et par où Mira joint Jellyfin (en direct à la maison, par l’app Tailscale, ou par Tailscale intégré). Quand Jellyfin ne répond pas, Mira dit pourquoi : PC de Jellyfin éteint ou en veille (par son nom sur Tailscale), connexion à Tailscale expirée…, avec le bouton qui aide. Si l’app Tailscale est connectée sur ce Mac, Mira passe par elle et ne propose pas Tailscale intégré.
+After that, the node starts with Mira and stops with it. **Settings → Away from home** shows its state and which way Mira reaches Jellyfin (directly at home, through the Tailscale app, or through Built-in Tailscale). When Jellyfin doesn’t answer, Mira says why: Jellyfin’s PC off or asleep (by its name on Tailscale), Tailscale sign-in expired…, with the button that helps. If the Tailscale app is connected on this Mac, Mira goes through it and doesn’t offer Built-in Tailscale.
 
-- **Dans ta console Tailscale**, l’appareil s’appelle « Mira-<nom de ce Mac> ». Sa connexion expire après 180 jours (réglage par défaut de Tailscale) : Mira te prévient deux semaines avant. Pour ne plus avoir à te reconnecter, choisis **Disable key expiry** dans le menu ⋯ de cet appareil, dans la [console](https://login.tailscale.com/admin/machines).
-- **Pare-feu de macOS** : s’il est activé, macOS peut demander d’autoriser « mira-tailscale » à accepter des connexions entrantes. Accepte : la connexion directe est plus rapide. Refuser marche aussi, par un relais de Tailscale.
-- **« macOS bloque mira-tailscale »** : la marque « téléchargé depuis Internet » est restée sur Mira.app. Dans **Réglages → Tailscale intégré**, clique sur **Copier la commande**, colle-la dans le Terminal, puis relance Mira : c’est la commande `xattr` de l’installation, avec l’emplacement de ton Mira. Mira ne retire jamais cette marque elle-même.
-- **Ce que voit Tailscale** : rien avant **Se connecter à Tailscale**. Ensuite, comme pour l’app Tailscale, le compte choisi dans le navigateur, le nom de l’appareil, son système et ses adresses IP (publique et locales, pour la connexion directe) vont aux serveurs de Tailscale. Tes vidéos restent chiffrées de bout en bout, en direct ou par un relais de Tailscale. Mira n’envoie aucun journal à Tailscale.
-- **Où c’est gardé** : l’identité du nœud est dans `~/Library/Application Support/Mira/tailscale`, chiffrée par une clé rangée dans le trousseau, avec la session (élément « Mira » ; « Mira (Tailscale) » avant la 0.8.8). **Se déconnecter de Tailscale** le dit à Tailscale (l’appareil reste dans ta console, « Logged out », jusqu’à ce que tu l’y supprimes), puis efface la clé et le dossier.
+- **In your Tailscale console**, the device is called “Mira-<this Mac’s name>”. Its sign-in expires after 180 days (Tailscale’s default setting): Mira warns you two weeks before. So you don’t have to sign in again, choose **Disable key expiry** in this device’s ⋯ menu, in the [console](https://login.tailscale.com/admin/machines).
+- **macOS firewall**: if it’s on, macOS may ask you to allow “mira-tailscale” to accept incoming connections. Accept: a direct connection is faster. Refusing works too, through a Tailscale relay.
+- **“macOS blocks mira-tailscale”**: the “downloaded from the Internet” mark stayed on Mira.app. In **Settings → Away from home**, click **Copy the command**, paste it into Terminal, then restart Mira: it’s the `xattr` command from the installation, with your Mira’s location. Mira never removes this mark itself.
+- **What Tailscale sees**: nothing before **Sign in to Tailscale**. After that, as with the Tailscale app, the account chosen in the browser, the device’s name, its system and its IP addresses (public and local, for the direct connection) go to Tailscale’s servers. Your videos stay encrypted end to end, directly or through a Tailscale relay. Mira sends no log to Tailscale.
+- **Where it’s kept**: the node’s identity is in `~/Library/Application Support/Mira/tailscale`, encrypted with a key stored in the keychain, alongside the session (the “Mira” item; “Mira (Tailscale)” before 0.8.8). **Sign out of Tailscale** tells Tailscale (the device stays in your console, “Logged out”, until you delete it there), then erases the key and the folder.
 
-## Raccourcis
+## Shortcuts
 
-| Action | Raccourci |
+| Action | Shortcut |
 | --- | --- |
-| Rechercher | ⌘F |
-| Réglages | ⌘, |
-| Retour | Échap, ⌘[, bouton arrière de la souris, ou deux doigts vers la droite sur le trackpad |
-| Avant (la page quittée par Retour) | ⌘], bouton avant de la souris, ou deux doigts vers la gauche |
-| Affiches plus grandes / plus petites dans les grilles | ⌘+ / ⌘−, ou pincer sur le trackpad ; ⌘0 revient à la taille d’origine |
-| Lecture / pause | Espace / K, ou un clic sur la vidéo |
-| Reculer / avancer de 10 secondes | ← / → |
-| Volume (jusqu’à 200 %) | ↑ / ↓, ou la molette sur le haut-parleur |
-| Couper le son | M |
-| Plein écran | F, ou un double-clic sur la vidéo |
-| Passer l’opening ou l’ending | S |
-| Épisode suivant | N |
+| Search | ⌘F |
+| Settings | ⌘, |
+| Back | Esc, ⌘[, the mouse’s back button, or two fingers to the right on the trackpad |
+| Forward (the page left with Back) | ⌘], the mouse’s forward button, or two fingers to the left |
+| Bigger / smaller posters in grids | ⌘+ / ⌘−, or pinch on the trackpad; ⌘0 goes back to the original size |
+| Play / pause | Space / K, or a click on the video |
+| Back / forward 10 seconds | ← / → |
+| Volume (up to 200%) | ↑ / ↓, or the scroll wheel on the speaker |
+| Mute | M |
+| Full screen | F, or a double-click on the video |
+| Skip the intro or the credits | S |
+| Next episode | N |
 
 ### Trackpad
 
-Mira suit les réglages du trackpad de ton Mac (**Réglages Système → Trackpad**) : le sens du défilement (**Défilement naturel** ou non) et **Plus de gestes → Balayer entre les pages**, relus chaque fois que tu reviens dans Mira.
+Mira follows your Mac’s trackpad settings (**System Settings → Trackpad**): the scroll direction (**Natural scrolling** or not) and **More Gestures → Swipe between pages**, read again each time you come back to Mira.
 
-- **Dans la bibliothèque** : deux doigts vers la droite = Retour, vers la gauche = Avant comme dans Safari : la page suit tes doigts, celle d’avant arrive dessous ; lâchée avant d’avoir glissé assez loin, elle revient, et un geste vif suffit. Au-dessus d’une rangée d’affiches, le geste fait d’abord défiler la rangée, puis change de page une fois au bout. Si ton Mac balaie entre les pages à trois doigts, c’est à trois doigts dans Mira aussi. **Pincer** change la taille des affiches des grilles (Films, Séries, Ajoutés récemment), qui glissent à leur nouvelle place, gardée pour la suite. **Clic forcé** (appuyer plus fort, trackpad Force Touch) sur une affiche ou un épisode ouvre son menu, comme un clic droit.
-- **Dans le lecteur** : deux doigts vers la droite ou la gauche avancent ou reculent dans le film (environ 6 secondes pour un geste moyen, la barre suit tout de suite), vers le haut ou le bas changent le volume (la molette d’une souris aussi). Écarter deux doigts passe en plein écran ; les rapprocher en sort, puis réduit le lecteur en mini-lecteur. Écarter sur le mini-lecteur le rouvre en grand.
+- **In the library**: two fingers to the right = Back, to the left = Forward, as in Safari: the page follows your fingers, the previous one arrives underneath; let go before sliding far enough and it comes back, and a quick flick is enough. Over a row of posters, the gesture first scrolls the row, then changes page once at the end. If your Mac swipes between pages with three fingers, it’s three fingers in Mira too. **Pinch** changes the size of posters in grids (Movies, Shows, Recently added), which slide to their new place, kept from then on. **Force click** (press harder, Force Touch trackpad) on a poster or an episode opens its menu, like a right-click.
+- **In the player**: two fingers to the right or left skip forward or back in the film (about 6 seconds for an average gesture, the bar follows right away), up or down change the volume (a mouse wheel too). Spreading two fingers goes full screen; pinching them leaves it, then shrinks the player into the mini player. Spreading on the mini player opens it full size again.
 
-## Mises à jour
+## Updates
 
-Depuis la 0.8.8, Mira se met à jour seule. À l’ouverture puis toutes les six heures, elle demande à GitHub s’il existe une nouvelle version, télécharge son image disque et la garde seulement si sa taille et son empreinte SHA-256 sont celles du manifeste signé de la release (la même vérification que sous Windows). Elle prépare la nouvelle Mira à côté d’elle, puis l’installe quand tu quittes Mira ; **Redémarrer**, dans l’avis « Mira x.y.z est prête », l’installe tout de suite et la rouvre. Tes réglages et ta session restent en place, et macOS ne redemande pas l’autorisation de la première fois : c’est Mira qui a téléchargé et vérifié la nouvelle version, pas le navigateur.
+Since 0.8.8, Mira updates itself. When it opens and then every six hours, it asks GitHub whether there’s a new version, downloads its disk image and keeps it only if its size and SHA-256 hash are those of the release’s signed manifest (the same check as on Windows). It prepares the new Mira next to itself, then installs it when you quit Mira; **Restart**, in the “Mira x.y.z is ready” notice, installs it right away and reopens it. Your settings and your session stay in place, and macOS doesn’t ask for the first-time permission again: Mira downloaded and checked the new version, not the browser.
 
-Mira ne peut pas se remplacer elle-même quand elle tourne depuis son image disque, depuis la copie protégée que macOS fait d’une app ouverte directement dans Téléchargements, ou depuis un dossier que ton compte ne peut pas modifier (Applications d’un compte administrateur, vu depuis un compte standard). Elle télécharge et vérifie quand même la nouvelle version, et **Ouvrir l’image disque** te laisse la glisser dans Applications, comme à l’installation. C’est aussi ce qu’elle propose si un remplacement a échoué. La 0.8.7 et les versions d’avant n’ont pas ce code : pour passer à la 0.8.8, remplace Mira à la main une dernière fois.
+Mira can’t replace itself when it runs from its disk image, from the protected copy macOS makes of an app opened straight from Downloads, or from a folder your account can’t change (an administrator account’s Applications, seen from a standard account). It still downloads and checks the new version, and **Open the disk image** lets you drag it into Applications, as at installation. That’s also what it offers if a replacement failed. 0.8.7 and earlier versions don’t have this code: to move to 0.8.8, replace Mira by hand one last time.
 
-Mira n’étant pas signée par un compte Apple Developer, macOS ne reconnaît pas la nouvelle version comme la même app : il demanderait ton mot de passe de session avant de la laisser lire la session et la clé de Tailscale intégré rangées dans le trousseau. Depuis la version d’après la 0.9.4, quand Mira s’installe elle-même, l’ancienne version les passe à la nouvelle en quittant (dans un fichier de `~/Library/Application Support/Mira` lisible par ton seul compte, le temps que la nouvelle s’ouvre), et la nouvelle les range dans un élément du trousseau à elle : plus de question. Après une mise à jour faite autrement (Homebrew, image disque glissée à la main), et celle qui mène à cette version, macOS pose encore la question une fois (« Mira veut utiliser vos informations confidentielles gardées dans « Mira » de votre trousseau ») : choisis **Toujours autoriser**, c’est l’élément de Mira elle-même. Si tu refuses, Mira te demande simplement de te reconnecter à Jellyfin, et Tailscale intégré attend : **Réessayer** dans ses Réglages repose la question.
+Since Mira isn’t signed by an Apple Developer account, macOS doesn’t recognize the new version as the same app: it would ask for your login password before letting it read the session and the Built-in Tailscale key stored in the keychain. Since the version after 0.9.4, when Mira installs itself, the old version hands them to the new one as it quits (in a file in `~/Library/Application Support/Mira` readable by your account only, while the new one opens), and the new one stores them in a keychain item of its own: no more question. After an update done another way (Homebrew, disk image dragged by hand), and the one that leads to this version, macOS still asks once (“Mira wants to use your confidential information stored in “Mira” in your keychain”): choose **Always Allow**, it’s Mira’s own item. If you refuse, Mira simply asks you to sign in to Jellyfin again, and Built-in Tailscale waits: **Try again** in its Settings asks again.
 
-Pour que Mira ne contacte plus GitHub d’elle-même, désactive **Réglages → Mises à jour → Rechercher les nouvelles versions** ; le bouton **Rechercher une mise à jour** reste disponible.
+So that Mira no longer contacts GitHub on its own, turn off **Settings → Updates → Update automatically**; the **Check for updates** button stays available.
 
-Chaque image disque est publiée avec son empreinte SHA-256 (fichier `.sha256`). Pour vérifier celle que tu as téléchargée, télécharge aussi son fichier `.sha256` dans le même dossier (ici Téléchargements), puis dans le Terminal :
+Each disk image is published with its SHA-256 hash (a `.sha256` file). To check the one you downloaded, also download its `.sha256` file into the same folder (here Downloads), then in Terminal:
 
 ```
 cd ~/Downloads
 shasum -a 256 -c Mira-x.y.z-mac-arm64.dmg.sha256
 ```
 
-`OK` : le fichier est identique à celui de la release.
+`OK`: the file is identical to the release’s.
 
-## Ce qui reste propre à Windows
+## What stays Windows-only
 
-TorLink tourne sur le PC Windows de Jellyfin : depuis le Mac, la page **Téléchargements** (compte administrateur de Jellyfin) lui envoie tes recherches et tes téléchargements, et montre leur progression. L’installation de Jellyfin depuis Mira, le mini-lecteur et l’intégration à la barre des tâches n’existent que sur Windows.
+TorLink runs on Jellyfin’s Windows PC: from the Mac, the **Downloads** page (Jellyfin administrator account) sends it your searches and downloads, and shows their progress. Installing Jellyfin from Mira and the taskbar integration only exist on Windows.
 
-## Si quelque chose ne fonctionne pas
+## If something doesn’t work
 
-- **Pas d’image, mais le son** : dans le Terminal, `MIRA_SOFTWARE_VIDEO=1 /Applications/Mira.app/Contents/MacOS/Mira` lance Mira avec l’affichage vidéo logiciel. S’il fonctionne, signale-le dans une [issue](https://github.com/sasou-web/Mira/issues).
-- **Pour un rapport détaillé** : `MIRA_MPV_LOG=$HOME/Desktop/mpv.log /Applications/Mira.app/Contents/MacOS/Mira` écrit le journal du lecteur sur le bureau ; joins-le à l’issue.
-- **Repartir de zéro** : déconnecte-toi d’abord (Réglages → Compte), puis quitte Mira et supprime le dossier `~/Library/Application Support/Mira`. Sans déconnexion, supprime aussi l’élément « Mira » (et « Mira (Tailscale) » d’une version d’avant la 0.8.8) dans Trousseaux d’accès, et l’appareil « Mira-<nom de ce Mac> » dans la console de Tailscale.
+- **No picture, but sound**: in Terminal, `MIRA_SOFTWARE_VIDEO=1 /Applications/Mira.app/Contents/MacOS/Mira` starts Mira with software video output. If it works, report it in an [issue](https://github.com/sasou-web/Mira/issues).
+- **For a detailed report**: `MIRA_MPV_LOG=$HOME/Desktop/mpv.log /Applications/Mira.app/Contents/MacOS/Mira` writes the player’s log to the desktop; attach it to the issue.
+- **Start from scratch**: sign out first (Settings → Account), then quit Mira and delete the `~/Library/Application Support/Mira` folder. Without signing out, also delete the “Mira” item (and “Mira (Tailscale)” from a version before 0.8.8) in Keychain Access, and the “Mira-<this Mac’s name>” device in the Tailscale console.

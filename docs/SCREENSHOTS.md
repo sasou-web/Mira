@@ -1,55 +1,55 @@
-# Galerie de Mira 0.7.5
+# Mira 0.7.5 gallery
 
-Ces **14 captures** sont rendues par l’application WPF réelle à partir de son catalogue fictif intégré. Elles ne contiennent ni compte personnel, ni historique réel, ni médias fournis par Jellyfin. Les illustrations vectorielles appartiennent à la démonstration ; avec un serveur connecté, les affiches et les fonds viennent de ta bibliothèque.
+These **14 screenshots** are rendered by the real WPF app from its built-in made-up catalog. They contain no personal account, no real history and no media served by Jellyfin. The vector illustrations belong to the demo; with a connected server, posters and backdrops come from your library.
 
-Les captures montrent les vues de navigation et de réglages. Elles ne montrent pas la vidéo native mpv ni les panneaux système Windows. Les comportements de ces composants sont documentés dans [VALIDATION.md](VALIDATION.md).
+The screenshots show the browsing and settings views. They don’t show mpv’s native video or Windows’ system panels. How these components behave is documented in [VALIDATION.md](VALIDATION.md).
 
-## Accueil et bibliothèque
+## Home and library
 
-![Accueil, bandeau et reprise](screenshots/01-home.png)
+![Home, banner and resume](screenshots/01-home.png)
 
-*Bandeau panoramique, indicateurs de durée et reprise de lecture.*
+*Panoramic banner, duration indicators and resume playback.*
 
-![Bibliothèque et filtres](screenshots/02-library.png)
+![Library and filters](screenshots/02-library.png)
 
-*Recherche, genres, année, progression et tri.*
+*Search, genres, year, progress and sorting.*
 
-| Films | Séries |
+| Movies | Shows |
 | --- | --- |
-| ![Films](screenshots/03-films.png) | ![Séries](screenshots/04-series.png) |
+| ![Movies](screenshots/03-films.png) | ![Shows](screenshots/04-series.png) |
 
-## Choisir une séance
+## Choose what to watch
 
-| Favoris | Fiche d’un film |
+| Favorites | A movie’s title page |
 | --- | --- |
-| ![Favoris](screenshots/05-favorites.png) | ![Fiche](screenshots/06-film-details.png) |
+| ![Favorites](screenshots/05-favorites.png) | ![Title page](screenshots/06-film-details.png) |
 
-| Survol intégré | Recherche |
+| Built-in hover | Search |
 | --- | --- |
-| ![Survol](screenshots/11-hover.png) | ![Recherche](screenshots/12-search.png) |
+| ![Hover](screenshots/11-hover.png) | ![Search](screenshots/12-search.png) |
 
-## Réglages
+## Settings
 
-![Réglages de lecture](screenshots/07-playback-settings.png)
+![Playback settings](screenshots/07-playback-settings.png)
 
-![Audio et sous-titres](screenshots/08-subtitles-settings.png)
+![Audio and subtitles](screenshots/08-subtitles-settings.png)
 
-| Apparence | Jellyfin et synchronisation |
+| Appearance | Jellyfin and sync |
 | --- | --- |
-| ![Apparence](screenshots/09-appearance-settings.png) | ![Serveur](screenshots/10-server-settings.png) |
+| ![Appearance](screenshots/09-appearance-settings.png) | ![Server](screenshots/10-server-settings.png) |
 
-## Fenêtre compacte et connexion
+## Compact window and sign-in
 
-| Fenêtre 1024 × 720 | Connexion |
+| 1024 × 720 window | Sign-in |
 | --- | --- |
-| ![Fenêtre compacte](screenshots/13-compact-window.png) | ![Connexion](screenshots/14-login.png) |
+| ![Compact window](screenshots/13-compact-window.png) | ![Sign-in](screenshots/14-login.png) |
 
-Les captures ordinaires utilisent une fenêtre de 1440 × 960 unités WPF. L’export suit le DPI de Windows : la résolution PNG peut être supérieure à ces dimensions logiques.
+Regular screenshots use a window of 1440 × 960 WPF units. The export follows Windows’ DPI: the PNG resolution can be higher than these logical dimensions.
 
-Pour les reproduire sur Windows avec le SDK .NET 10 :
+To reproduce them on Windows with the .NET 10 SDK:
 
 ```powershell
 ./tools/capture-gallery.ps1
 ```
 
-Le script crée un nouveau profil sous `.artifacts`, utilise `--demo` et ne contacte pas de serveur. Il copie seulement les captures numérotées dans `docs/screenshots`.
+The script creates a new profile under `.artifacts`, uses `--demo` and contacts no server. It only copies the numbered screenshots to `docs/screenshots`.
