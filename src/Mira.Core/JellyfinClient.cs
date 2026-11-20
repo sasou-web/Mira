@@ -1137,6 +1137,13 @@ public sealed partial class JellyfinClient : IDisposable
         Connection = Connection with { ServerId = text };
         return text;
     }
+    /// <summary>The server's name (ServerName of its public information), for a short home link that has none; null when it does not say.</summary>
+    public async Task<string?> ServerNameAsync(CancellationToken ct = default)
+    {
+        var info = await GetAsync<JsonElement>("System/Info/Public", ct);
+        if (info.ValueKind != JsonValueKind.Object || !(info.TryGetProperty("ServerName", out var name) || info.TryGetProperty("serverName", out name)) || name.ValueKind != JsonValueKind.String) return null;
+        return name.GetString() is { Length: > 0 } text ? text.Trim() : null;
+    }
     /// <summary>
     /// This account's proof key (<see cref="Connection.ServerProof"/>, <see cref="ServerProof"/>), given by Mira's
     /// extension to its session, then kept in <see cref="Connection"/>: without it, Jellyfin found at another address is

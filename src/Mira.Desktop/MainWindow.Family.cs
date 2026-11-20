@@ -468,8 +468,10 @@ public partial class MainWindow
             // The Jellyfin the link names, and no other: its own id first.
             var id = await client.LearnServerIdAsync();
             if (serverId is { Length: > 0 } && !string.Equals(id?.Replace("-", ""), serverId.Replace("-", ""), StringComparison.OrdinalIgnoreCase)) { FamilyJoinError.Text = HomeText.NotThisServer(name); return; }
+            // A short home link has no name: the server's own.
+            var learned = serverId is { Length: > 0 } ? null : await client.ServerNameAsync();
             var joined = await client.HomeJoinAsync(password, _profile.DeviceId, HomeText.DeviceName("Mira", Environment.MachineName));
-            _home = trial with { Server = client.Connection.Server, ServerId = id ?? serverId, Token = joined.Token, DeviceId = joined.DeviceId, Profiles = joined.Profiles, Current = null };
+            _home = trial with { Server = client.Connection.Server, ServerId = id ?? serverId, Name = learned ?? name, Token = joined.Token, DeviceId = joined.DeviceId, Profiles = joined.Profiles, Current = null };
             _homeLink = null; _homeFound = null;
             SaveHome();
             if (LoginOverlay.Visibility == Visibility.Visible) LoginOverlay.Visibility = Visibility.Collapsed;
