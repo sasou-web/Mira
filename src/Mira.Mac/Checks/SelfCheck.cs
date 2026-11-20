@@ -951,13 +951,14 @@ public static class SelfCheck
             if (window.Current is SettingsPage others)
                 foreach (var (tab, shot) in new[] { ("server", "07e-settings-server"), ("away", "07e2-settings-away"), ("updates", "07f-settings-updates"), ("library", "07g-settings-library"), ("general", "07m-settings-general"), ("audio", "07h-settings-subtitles") })
                 { others.Show(tab); await Task.Delay(500); Capture(window, output, shot); }
-            // « Sécurité »: Noa without a password, the old TV not used for months, as the mock's extension and Jellyfin say.
+            // « Sécurité »: Jellyfin open to the Internet, Noa without a password, the old TV not used for months, as the mock's extension and Jellyfin say.
             if (window.Current is SettingsPage security && mock is not null)
             {
                 var read = await Until(() => window.Security is { Accounts.Count: 2 }, 10);
                 var issues = window.Security is { } report ? AccountSecurity.Issues(report) : [];
-                Check(read && issues.Count == 2 && issues[0].Account?.Name == "Noa" && issues[1].Device?.Name == "Télé du salon", "réglages : sécurité, un compte sans mot de passe et un appareil oublié",
-                    string.Join(", ", issues.Select(x => x.Account?.Name ?? x.Device?.Name)));
+                Check(read && issues.Count == 3 && issues[0].Server == ServerOpening.Internet && issues[1].Account?.Name == "Noa" && issues[2].Device?.Name == "Télé du salon",
+                    "réglages : sécurité, Jellyfin ouvert à Internet, un compte sans mot de passe et un appareil oublié",
+                    string.Join(", ", issues.Select(x => x.Account?.Name ?? x.Device?.Name ?? x.Server?.ToString())));
                 security.Show("security"); await Task.Delay(500); Capture(window, output, "07e3-settings-security");
             }
             // Confidentialité: every connection, and the update check's switch the same as the one of « Mises à jour ».

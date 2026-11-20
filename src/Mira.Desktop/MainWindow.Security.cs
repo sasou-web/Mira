@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using Mira.Core;
 using Mira.Core.Family;
+using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
@@ -37,6 +38,7 @@ public partial class MainWindow
         try
         {
             var report = await IsAdministratorAsync(client) ? await client.SecurityAsync(_connectionLifetime.Token) : null;
+            if (report is not null) report = report with { Server = await ReadServerReachAsync(client) };
             if (draw != _securityDraw || !ReferenceEquals(client, _client)) return;
             _security = report; _securityRead = client; _securityProblem = "";
         }
@@ -106,6 +108,17 @@ public partial class MainWindow
         var issues = AccountSecurity.Issues(report);
         page.Children.Add(SecurityBanner(report, issues));
         if (!report.Known) page.Children.Add(FamilyNote(SecurityText.Unknown, margin: new Thickness(4, 0, 30, 12)));
+
+        // Who reaches the server, before the accounts: what is open lets anyone try them all.
+        if (report.Server is { Known: true } server)
+        {
+            page.Children.Add(SecurityLabel(SecurityText.Server, null));
+            if (server.Internet is { } internet)
+                page.Children.Add(SecurityServerRow("globe", SecurityText.InternetTitle(internet.Open), SecurityText.InternetLine(internet.Open), internet.Open, () => _ = CloseInternetAsync()));
+            if (server.PublicWifi is { } wifi)
+                page.Children.Add(SecurityServerRow("wifi", SecurityText.PublicWifiTitle(wifi), SecurityText.PublicWifiLine(wifi), wifi, () => _ = ClosePublicWifiAsync()));
+            page.Children.Add(new Border { Height = 8 });
+        }
 
         // The accounts, the most urgent first. All safe and many: the first ones, then « Show all ».
         page.Children.Add(SecurityLabel(SecurityText.Accounts + " · " + report.Accounts.Count.ToString(Lang.Culture), null));
@@ -257,6 +270,35 @@ public partial class MainWindow
     {
         Style = (Style)FindResource("SettingRow"), Child = content, Padding = new Thickness(18, 12, 14, 12), Margin = new Thickness(0, 0, 0, 6),
     };
+
+    /// <summary>An opening of the server: its sign, what it is, « Too open » and « Close it… », or « Protected ».</summary>
+    private Border SecurityServerRow(string icon, string title, string about, bool open, Action close)
+    {
+        var line = SecurityLine();
+        if (open)
+        {
+            var button = FamilyButton(SecurityText.CloseIt, close, primary: true);
+            button.Margin = new Thickness(12, 0, 0, 0); button.VerticalAlignment = VerticalAlignment.Center; button.Padding = new Thickness(14, 6, 14, 6);
+            AutomationProperties.SetName(button, SecurityText.CloseIt + " · " + title);
+            DockPanel.SetDock(button, Dock.Right); line.Children.Add(button);
+        }
+        var state = open ? SecurityPill(SecurityText.TooOpen, "Warning") : SecurityPill(SecurityText.Protected, "Success");
+        DockPanel.SetDock(state, Dock.Right); line.Children.Add(state);
+        var sign = new Border
+        {
+            Width = 36, Height = 36, CornerRadius = new CornerRadius(9), Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center,
+            Background = Palette.Get(open ? "WarningSurface" : "Raised2"),
+            Child = new Icon { Kind = icon, Width = 18, Height = 18, Foreground = Palette.Get(open ? "Warning" : "TextSecondary"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+        };
+        DockPanel.SetDock(sign, Dock.Left); line.Children.Add(sign);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        words.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        words.Children.Add(new TextBlock { Text = about, Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0, 2, 0, 0) });
+        line.Children.Add(words);
+        var row = SecurityCard(line);
+        AutomationProperties.SetName(row, title);
+        return row;
+    }
 
     private DockPanel SecurityLabel(string text, Button? right)
     {
@@ -431,6 +473,102 @@ public partial class MainWindow
         SaveSettingsOrSay();
     }
 
+    // ---- « Ton serveur »: closing Jellyfin to the Internet, to public Wi-Fi ----
+
+    /// <summary>
+    /// Who reaches Jellyfin: its access from the whole Internet (any administrator), and, on Jellyfin's PC only, the
+    /// firewall's rules that open it on public networks.
+    /// </summary>
+    private async Task<ServerReach> ReadServerReachAsync(JellyfinClient client)
+    {
+        InternetOpening? internet = null; bool? wifi = null;
+        try { internet = await client.InternetOpeningAsync(_connectionLifetime.Token); }
+        catch (Exception ex) when (IsExpected(ex)) { }
+        if (await JellyfinOnThisPcAsync(client) && Uri.TryCreate(client.Connection.Server, UriKind.Absolute, out var uri))
+            wifi = await Task.Run(() => JellyfinAutostart.Program() is { } program ? JellyfinAutostart.PublicOpenings(program, uri.Port).Count > 0 : (bool?)null);
+        return new(internet, wifi);
+    }
+
+    /// <summary>
+    /// « Fermer… » (Internet): the devices seen lately from outside, which would be cut, named first; never from a device
+    /// that itself comes from outside. In « Tout régler… », « Laisser ouvert » quiets it for 30 days.
+    /// </summary>
+    private async Task<bool> CloseInternetAsync(string? step = null, double progress = 0)
+    {
+        if (_client is not { } client) return false;
+        InternetOpening? opening;
+        try { opening = await client.InternetOpeningAsync(_connectionLifetime.Token); }
+        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return false; }
+        if (opening is not { Open: true })
+        {
+            await ReadSecurityAsync(again: true);
+            return opening is not null;
+        }
+        if (opening.ThisOutside)
+        {
+            var ok = await CardAsync(SecurityText.FromHomeTitle, SecurityText.FromHomeText, null, [(L("OK", "OK"), "Primary", 1)], step: step, progress: progress);
+            return ok == 1;
+        }
+        var body = new StackPanel();
+        if (opening.Outside.Count > 0)
+        {
+            body.Children.Add(new TextBlock { Text = SecurityText.WouldCut(opening.Outside.Count), TextWrapping = TextWrapping.Wrap, FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextBody") });
+            var list = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+            foreach (var device in opening.Outside.Take(6))
+            {
+                var line = SecurityLine();
+                var where = new TextBlock { Text = SecurityText.FromOutside, FontSize = 12.5, Foreground = Palette.Get("TextSecondary"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+                DockPanel.SetDock(where, Dock.Right); line.Children.Add(where);
+                var icon = new Icon { Kind = OutsideIcon(device), Width = 16, Height = 16, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+                DockPanel.SetDock(icon, Dock.Left); line.Children.Add(icon);
+                var words = new StackPanel();
+                words.Children.Add(new TextBlock { Text = device.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+                words.Children.Add(new TextBlock { Text = SecurityText.OutsideLine(device), Style = (Style)FindResource("SettingDescription") });
+                line.Children.Add(words);
+                var card = SecurityCard(line);
+                card.Background = Palette.Get("Raised"); card.Padding = new Thickness(14, 9, 14, 9);
+                list.Children.Add(card);
+            }
+            body.Children.Add(list);
+            body.Children.Add(FamilyNote(SecurityText.CutHint(opening.Outside.Count), margin: new Thickness(0, 6, 0, 0)));
+        }
+        var status = FamilyNote("");
+        body.Children.Add(status);
+        var answer = await CardAsync(step is null ? SecurityText.CloseInternetTitle : SecurityText.InternetStepTitle, step is null ? SecurityText.CloseInternetText : SecurityText.InternetStepText + " " + SecurityText.CloseInternetText,
+            body.Children.Count > 1 ? body : null, [(SecurityText.KeepOpen, "Quiet", 2), (ActionLabel("lock", SecurityText.CloseItNow), "Primary", 1)], async pressed =>
+            {
+                if (pressed != 1) return true;
+                try
+                {
+                    if (await client.CloseToInternetAsync(_connectionLifetime.Token)) return true;
+                    FamilySay(status, SecurityText.FromHomeText, true); return false;
+                }
+                catch (Exception ex) when (IsExpected(ex)) { FamilySay(status, Friendly(ex), true); return false; }
+            }, step, progress);
+        if (answer == 2 && step is not null) QuietSecurity(AccountSecurity.InternetKey);
+        if (answer == 1) await ReadSecurityAsync(again: true);
+        return answer is 1 or 2;
+    }
+
+    private static string OutsideIcon(OutsideDevice device) => DeviceIcon(new SecurityDevice(device.Id, device.Name, device.App, null, null, device.UserName, device.LastActive, false, false, false, DeviceWay.Other));
+
+    /// <summary>« Fermer… » (Wi-Fi publics): the firewall's rules that open Jellyfin there no longer apply to public networks, with Windows' consent.</summary>
+    private async Task<bool> ClosePublicWifiAsync(string? step = null, double progress = 0)
+    {
+        if (_client is not { } client || !Uri.TryCreate(client.Connection.Server, UriKind.Absolute, out var uri)) return false;
+        var answer = await CardAsync(SecurityText.ClosePublicTitle, SecurityText.PublicWifiLine(true) + " " + SecurityText.ClosePublicText, null,
+            [(SecurityText.KeepOpen, "Quiet", 2), (ActionLabel("lock", SecurityText.CloseItNow), "Primary", 1)], step: step, progress: progress);
+        if (answer == 2 && step is not null) QuietSecurity(AccountSecurity.PublicWifiKey);
+        if (answer != 1) return answer == 2;
+        switch (await JellyfinAutostart.ClosePublicAsync(uri.Port))
+        {
+            case AutostartResult.Refused: SetNotice(SecurityText.Refused); break;
+            case AutostartResult.Failed: SetNotice(SecurityText.ClosePublicFailed); break;
+        }
+        await ReadSecurityAsync(again: true);
+        return true;
+    }
+
     // ---- « Tout régler… »: one question at a time ----
 
     private bool _fixing;
@@ -453,7 +591,9 @@ public partial class MainWindow
                 var progress = (i + 1.0) / issues.Count;
                 var issue = issues[i];
                 bool go;
-                if (issue.Account is { You: true } you) go = await ChangeOwnPasswordAsync(you, step, progress);
+                if (issue.Server == ServerOpening.Internet) go = await CloseInternetAsync(step, progress);
+                else if (issue.Server == ServerOpening.PublicWifi) go = await ClosePublicWifiAsync(step, progress);
+                else if (issue.Account is { You: true } you) go = await ChangeOwnPasswordAsync(you, step, progress);
                 else if (issue.Account is { } account) go = await LockStepAsync(client, account, step, progress);
                 else go = await DeviceStepAsync(client, issue.Device!, report.Checked, step, progress);
                 if (!go) break;

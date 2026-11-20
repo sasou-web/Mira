@@ -37,6 +37,14 @@ public sealed partial class MainWindow
         try
         {
             var report = await session.Client.IsAdministratorAsync(session.Lifetime) == true ? await session.Client.SecurityAsync(session.Lifetime) : null;
+            // « Your server »: Jellyfin's access from the whole Internet (the firewall's public Wi-Fi is Windows' only).
+            if (report is not null)
+            {
+                InternetOpening? internet = null;
+                try { internet = await session.Client.InternetOpeningAsync(session.Lifetime); }
+                catch (Exception ex) when (Errors.Expected(ex)) { }
+                report = report with { Server = new(internet, null) };
+            }
             if (draw != _securityDraw || !ReferenceEquals(session, Session)) return;
             _security = report; _securityRead = session; SecurityProblem = "";
         }
