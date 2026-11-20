@@ -15,7 +15,7 @@ namespace Mira.Mac.Views;
 public sealed partial class PlayerPage
 {
     private static (JellyfinClient Client, Task<IReadOnlyList<string>> Providers)? _subtitleProviders;
-    private bool _canSearchSubtitles, _subtitleView, _keepingSubtitle;
+    private bool _canSearchSubtitles, _canKeepSubtitles, _subtitleView, _keepingSubtitle;
     private string _subtitleLanguage = "";
     private int _subtitleSearch;
     private IReadOnlyList<RemoteSubtitle>? _subtitlesFound;
@@ -37,7 +37,9 @@ public sealed partial class PlayerPage
     /// <summary>At each title: whether the menu offers the search.</summary>
     private async Task LoadSubtitleSearchAsync(Session session, int generation)
     {
-        _canSearchSubtitles = false; _subtitleView = false;
+        _canSearchSubtitles = false; _canKeepSubtitles = false; _subtitleView = false;
+        try { if (await session.Client.CanManageSubtitlesAsync(session.Lifetime) != false && generation == _generation) _canKeepSubtitles = true; }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
         try { var providers = await SubtitleProvidersAsync(session); if (generation == _generation) _canSearchSubtitles = providers.Count > 0; }
         catch (Exception ex) when (Errors.Expected(ex)) { }
     }
@@ -120,12 +122,12 @@ public sealed partial class PlayerPage
             var kept = await client.KeepRemoteSubtitleAsync(item.Id, subtitle, ct);
             var said = JellyfinSubtitles.KeptText(kept, subtitle.Language);
             if (kept is SubtitleKept.Refused or SubtitleKept.NotWritten or SubtitleKept.Unavailable) { _subtitleStatus = said; return; }
-            _subtitleStatus = L("Jellyfin lit le nouveau fichier…", "Jellyfin is reading the new file…"); RefreshMenus();
+            _subtitleStatus = JellyfinSubtitles.ReadingText; RefreshMenus();
             var arrived = await client.KeptSubtitleAsync(item.Id, sourceId, before, TimeSpan.FromSeconds(30), ct);
             if (generation != _generation) return;
             _subtitleView = false; (_tracks.Flyout as Flyout)?.Hide();
-            if (arrived is not null && sourceId is not null && PlayKeptSubtitle(client, item.Id, sourceId, arrived)) _shell.Notice(said);
-            else _shell.Notice(arrived is null ? said + L(" Jellyfin ne le montre pas encore : il sera proposé à la prochaine lecture.", " Jellyfin doesn’t list them yet: they’ll be offered the next time you play this.") : said + L(" Choisis-le à la prochaine lecture.", " Choose them the next time you play this."));
+            if (arrived is not null && sourceId is not null && PlayKeptSubtitle(client, item.Id, sourceId, arrived)) SaySubtitle(said, 8);
+            else SaySubtitle(arrived is null ? said + JellyfinSubtitles.NotListedText : said + L(" Choisis-le à la prochaine lecture.", " Choose them the next time you play this."), 8);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { if (generation == _generation) _subtitleStatus = SubtitleError(ex); }
         finally { _keepingSubtitle = false; RefreshMenus(); }

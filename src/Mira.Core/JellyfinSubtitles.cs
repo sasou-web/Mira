@@ -158,9 +158,36 @@ public static class JellyfinSubtitles
             _ => L("Jellyfin n’a pas pu enregistrer ces sous-titres : il n’a pas le droit d’écrire dans le dossier de ce titre.", "Jellyfin couldn’t save these subtitles: it isn’t allowed to write in this title’s folder."),
         };
     }
-    /// <summary>Said once a file is loaded during playback, with « Garder sur Jellyfin ».</summary>
-    public static string LoadedText => L("Ces sous-titres ne valent que pour cette lecture. Gardés sur Jellyfin, tes autres appareils les proposent aussi.",
-        "These subtitles are only for this playback. Kept on Jellyfin, your other devices offer them too.");
+    /// <summary>« Garder sur Jellyfin », the switch under « Charger un fichier… » (<see cref="PlayerSettings.KeepLoadedSubtitles"/>).</summary>
+    public static string KeepName => L("Garder sur Jellyfin", "Keep on Jellyfin");
+    /// <summary>The switch's line: what a file loaded becomes, on or off.</summary>
+    public static string KeepDetails(bool on) => on
+        ? L("Un fichier chargé part aussi sur Jellyfin : tes autres appareils le proposent.", "A file you load goes to Jellyfin too: your other devices offer it.")
+        : L("Un fichier chargé ne vaut que pour cette lecture.", "A file you load is only for this playback.");
+    public static string SendingText => L("Envoi des sous-titres à Jellyfin…", "Sending the subtitles to Jellyfin…");
+    public static string ReadingText => L("Jellyfin lit le nouveau fichier…", "Jellyfin is reading the new file…");
+    public static string NotListedText => L(" Jellyfin ne les montre pas encore : ils seront proposés à la prochaine lecture.", " Jellyfin doesn’t list them yet: they’ll be offered the next time you play this.");
+    public static string NotKeptText => L("Jellyfin n’a pas gardé ces sous-titres. ", "Jellyfin didn’t keep these subtitles. ");
+    /// <summary>
+    /// A file loaded during playback, kept on Jellyfin: read, sent (<see cref="JellyfinClient.KeepSubtitleAsync"/>), then
+    /// looked for in what Jellyfin lists, so that « gardés » is only said of a file Jellyfin really has. The sentence to
+    /// say, and whether it is a failure; <paramref name="progress"/> hears each step. Jellyfin's errors are thrown.
+    /// </summary>
+    public static async Task<(string Text, bool Failed)> KeepLoadedAsync(JellyfinClient client, string itemId, string? sourceId, string file,
+        (string Format, string Language, bool Forced, bool HearingImpaired) guess, Action<string> progress, TimeSpan wait, CancellationToken ct = default)
+    {
+        SubtitleUpload? upload;
+        try { upload = await ReadAsync(file, guess, ct); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return (UnreadableText, true); }
+        if (upload is null) return (TooBigText, true);
+        progress(SendingText);
+        var before = await client.StreamsAsync(itemId, sourceId, ct);
+        var kept = await client.KeepSubtitleAsync(itemId, upload, ct);
+        var said = KeptText(kept, guess.Language);
+        if (kept is not (SubtitleKept.Kept or SubtitleKept.KeptInJellyfinData)) return (said, true);
+        progress(ReadingText);
+        return await client.KeptSubtitleAsync(itemId, sourceId, before, wait, ct) is null ? (said + NotListedText, false) : (said, false);
+    }
     public static string TooBigText => L("Ce fichier est trop gros pour des sous-titres : Mira ne l’envoie pas à Jellyfin.", "This file is too big to be subtitles: Mira doesn’t send it to Jellyfin.");
     public static string UnreadableText => L("Mira n’a pas pu relire ce fichier de sous-titres : il a peut-être été déplacé.", "Mira couldn’t read this subtitle file again: it may have been moved.");
     /// <summary>A file loaded during playback, read to be sent (<see cref="Guess"/> for what it is); null when it is too big to be subtitles.</summary>
