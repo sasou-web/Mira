@@ -187,8 +187,8 @@ public partial class MainWindow
         if (EssentialsPhoto.Visibility == Visibility.Visible) face.Children.Add(new Ellipse { Width = 44, Height = 44, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Fill = EssentialsPhoto.Fill });
         if (_client is not null)
         {
-            var camera = new Button { Style = (Style)FindResource("IconButton"), Width = 22, Height = 22, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Background = Palette.Get("Raised2"), BorderBrush = Palette.Get("Bg"), BorderThickness = new Thickness(2), Content = new Icon { Kind = "camera", Width = 12, Height = 12 }, ToolTip = L("Changer ta photo", "Change your photo") };
-            Motion.SetRadius(camera, new CornerRadius(11));
+            var camera = new Button { Style = (Style)FindResource("IconButton"), Width = 24, Height = 24, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Background = Palette.Get("Raised2"), BorderBrush = Palette.Get("Bg"), BorderThickness = new Thickness(2), Content = new Icon { Kind = "camera", Width = 12, Height = 12 }, ToolTip = L("Changer ta photo", "Change your photo") };
+            Motion.SetRadius(camera, new CornerRadius(12));
             AutomationProperties.SetName(camera, L("Changer ta photo", "Change your photo"));
             camera.Click += (_, _) => { CloseFamilyMenu(); ChoosePhoto_Click(this, new()); };
             face.Children.Add(camera);
