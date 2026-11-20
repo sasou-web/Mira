@@ -1,112 +1,112 @@
-# Recette sur vrais appareils
+# Real-device checklist
 
-Ce que la CI ne peut pas prouver : chaque case est une fonction qui n'a jamais tourné sur un vrai appareil. Coche quand tu l'as vue marcher ; si ça rate, dis-le au fil avec une capture (et, dès qu'il existe, le rapport de Réglages → « Exporter un rapport »). Chaque échec devient une PR. Pas besoin de tout faire d'un coup.
+What CI can’t prove: each box is a feature that has never run on a real device. Tick it once you’ve seen it work; if it fails, say so in the thread with a screenshot (and, once it exists, the report from Settings → “Export a report”). Each failure becomes a PR. No need to do everything at once.
 
-Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un ami · 👥 avec Sam
+Key: 🖥 your PC · 🗄 Jellyfin’s PC · 📱 iPhone · 🍎 a friend’s Mac · 👥 with Sam
 
-## PC de Jellyfin 🗄
-- [ ] Réglages → Sécurité → « Ton serveur » : sur le Dell, « Ta maison et Tailscale seulement » et « Réseaux privés seulement » ; si une ligne dit « Trop ouvert », « Fermer… » la passe au vert (Wi-Fi publics : une autorisation de Windows), le téléphone joint toujours Jellyfin à la maison et en 4G par Tailscale, une party par lien marche encore
-- [ ] Installer Jellyfin sur un PC neuf : « Installer » grisé sous 10 caractères, jauge verte au-delà
-- [ ] « Tout préparer » : une seule autorisation de Windows, puis toutes les étapes de la carte du téléphone cochées
-- [ ] Après « Tout préparer » : le téléphone joint Jellyfin à la maison (Wi-Fi) et en 4G par Tailscale
-- [ ] Avis « Jellyfin convertit maintenant avec ta … » (carte Intel), puis une conversion qui ne saccade pas
-- [ ] Sauvegarde de Jellyfin faite toute seule (Réglages → Serveur Jellyfin : date de la dernière)
-- [ ] Mise à jour de Jellyfin au clic (quand une version sort) : service revenu, Jellyfin répond
-- [ ] Redémarrer le PC (ou après une mise à jour de Windows) puis ouvrir la session : Mira revient seul près de l’horloge, aucune fenêtre au premier plan ni dans la barre des tâches ; un téléchargement demandé depuis l’iPhone part sans ouvrir Mira ; clic sur l’icône = fenêtre à sa place habituelle (agrandie si elle l’était) ; Réglages → Serveur Jellyfin dit « Prêt »
-- [ ] Téléchargements : un magnet public par TorLink, rangé dans la bibliothèque
-- [ ] Un pack de deux saisons numéroté d’un bout à l’autre (« (Season 1-2) [Batch] », « - 01 » à « - 37 ») : d’abord tout en saison 1, puis dans les 10 à 20 minutes qui suivent (TheTVDB activé) les épisodes de la saison 2 renommés dans `Season 02`, et la saison 2 n’est plus « manquante »
-- [ ] Un `.torrent` de C411 par qBittorrent, rangé (lien physique), qBittorrent continue de partager
-- [ ] qBittorrent et un disque USB : débrancher le disque de son dossier de téléchargement pendant un téléchargement, la ligne dit « disque sans doute débranché » (la file reste) ; le rebrancher, il reprend seul en moins d’une minute (page Téléchargements ouverte)
-- [ ] La lecture passe avant qBittorrent : un gros téléchargement en cours sur le disque des films, lancer un film depuis un autre appareil, il démarre et ne s’arrête pas pour charger ; dans qBittorrent (icône près de l’horloge), la tortue des vitesses réduites s’allume pendant la lecture et s’éteint une minute après
-- [ ] qBittorrent et son port pris (rare, dur à provoquer à la main) : dans le Gestionnaire des tâches, jamais de qBittorrent qui redémarre en boucle ; si la page Téléchargements dit une panne de qBittorrent, la noter telle quelle
-- [ ] Téléchargement qui atterrit sur le disque USB de 6 To monté dans `MEDIAS` (dès qu'il est là)
-- [ ] Suivre une série : l'épisode suivant arrive tout seul (laisser tourner une semaine)
-- [ ] Sous-titres automatiques activés : un film sans sous-titres en reçoit, bien calés
-- [ ] Épisodes à venir (TheTVDB) activés : sur une série, une ligne fine « É3–4 · pas dans ta bibliothèque » entre les épisodes, ou le prochain en ligne vide au bout de sa saison ; une saison absente dans la liste des saisons
-- [ ] Métadonnées à côté des fichiers : quelques heures après l’ouverture de Mira, un `movie.nfo` et un `folder.jpg` dans le dossier d’un film, un `tvshow.nfo` dans celui d’une série ; un titre corrigé par « Identifier… » garde sa correction dans son NFO
-- [ ] Secrets scellés (0.9.16) : après la mise à jour de l’extension, `Mira.home-tailnet.json`, `Mira.invites.json`, `Mira.subtitles.json` et `Mira.proof.key` de `plugins\configurations` ne contiennent plus de secret en clair (`dpapi:…`), plus de `"password"` dans `Mira.invites.json` ; le foyer loin de la maison, un lien de party et un lien d’invité déjà donnés marchent encore, les sous-titres automatiques aussi
-- [ ] « Chercher une meilleure version » : l'ancien fichier part à la Corbeille, le titre garde sa progression
-- [ ] Corbeille sur le PC de Jellyfin : un épisode (clic droit) avec ses sous-titres, une saison (« … » de la ligne Épisodes), sur un fichier de test ; la fenêtre dit ce qui part ; tout revient depuis la Corbeille de Windows ; sur le WD monté dans un dossier
+## Jellyfin’s PC 🗄
+- [ ] Settings → Security → “Your server”: on the Dell, “Your home and Tailscale only” and “Private networks only”; if a line says “Too open”, “Close it…” turns it green (public Wi-Fi: one Windows permission prompt), the phone still reaches Jellyfin at home and over 4G through Tailscale, a party by link still works
+- [ ] Install Jellyfin on a new PC: “Install” greyed out under 10 characters, green gauge beyond
+- [ ] “Set everything up”: a single Windows permission prompt, then every step of the phone card ticked
+- [ ] After “Set everything up”: the phone reaches Jellyfin at home (Wi-Fi) and over 4G through Tailscale
+- [ ] Notice “Jellyfin now converts with your …” (Intel card), then a conversion that doesn’t stutter
+- [ ] Jellyfin backup made on its own (Settings → Jellyfin server: date of the last one)
+- [ ] Jellyfin update in one click (when a version comes out): service back, Jellyfin answers
+- [ ] Restart the PC (or after a Windows update) then sign in: Mira comes back on its own near the clock, no window in front nor in the taskbar; a download asked from the iPhone starts without opening Mira; click on the icon = window in its usual place (maximized if it was); Settings → Jellyfin server says “Ready”
+- [ ] Downloads: a public magnet through TorLink, sorted into the library
+- [ ] A two-season pack numbered end to end (“(Season 1-2) [Batch]”, “- 01” to “- 37”): first everything in season 1, then within the next 10 to 20 minutes (TheTVDB on) the season 2 episodes renamed into `Season 02`, and season 2 is no longer “missing”
+- [ ] A `.torrent` from C411 through qBittorrent, sorted (hard link), qBittorrent keeps seeding
+- [ ] qBittorrent and a USB drive: unplug the drive of its download folder during a download, the line says “disk probably unplugged” (the queue stays); plug it back, it resumes on its own in under a minute (Downloads page open)
+- [ ] Playback comes before qBittorrent: a big download running on the movies drive, start a movie from another device, it starts and doesn’t stop to load; in qBittorrent (icon near the clock), the reduced-speed turtle lights up during playback and goes off a minute after
+- [ ] qBittorrent with its port taken (rare, hard to cause by hand): in Task Manager, never a qBittorrent restarting in a loop; if the Downloads page reports a qBittorrent failure, write it down as is
+- [ ] A download that lands on the 6 TB USB drive mounted in `MEDIAS` (as soon as it’s there)
+- [ ] Follow a series: the next episode arrives on its own (let it run for a week)
+- [ ] Automatic subtitles on: a movie without subtitles gets some, well synced
+- [ ] Upcoming episodes (TheTVDB) on: on a series, a thin line “E3–4 · not in your library” between the episodes, or the next one as an empty line at the end of its season; a missing season in the season list
+- [ ] Metadata beside the files: a few hours after opening Mira, a `movie.nfo` and a `folder.jpg` in a movie’s folder, a `tvshow.nfo` in a series’ folder; a title corrected with “Identify…” keeps its correction in its NFO
+- [ ] Sealed secrets (0.9.16): after the extension update, `Mira.home-tailnet.json`, `Mira.invites.json`, `Mira.subtitles.json` and `Mira.proof.key` in `plugins\configurations` no longer hold a secret in clear (`dpapi:…`), no more `"password"` in `Mira.invites.json`; the home away from the house, a party link and a guest link already given still work, automatic subtitles too
+- [ ] “Find a better version”: the old file goes to the Recycle Bin, the title keeps its progress
+- [ ] Recycle Bin on Jellyfin’s PC: an episode (right-click) with its subtitles, a season (“…” of the Episodes line), on a test file; the window says what goes; everything comes back from the Windows Recycle Bin; on the WD mounted in a folder
 
-## Ton PC 🖥
-- [ ] Ouverture lente du lecteur (dès la 0.9.15) : un film lourd hors de chez toi (conversion) ; au bout d’une seconde, roue sur fond noir au lieu d’un écran noir ; Échap pendant l’attente ramène la fiche (pas l’Accueil) ; relancé tout de suite, il s’ouvre. Pendant le compte à rebours de fin d’épisode laissé aller, Échap pendant la préparation du suivant : le lecteur ne revient pas. Touche C sur un film converti avec sous-titres PGS : coupés puis revenus ; l’épisode suivant garde le choix.
-- [ ] Bonus hors de « Continuer à regarder » (dès la 0.9.15) : lancer un générique de Monogatari (pastille Bonus), l’arrêter à mi-chemin ; il n’est pas dans « Continuer à regarder », ni pendant le mini-lecteur ni après avoir relancé Mira ; pareil pour une bande-annonce avant un film arrêtée en cours
-- [ ] Mise à jour de Mira proposée et faite (à la prochaine version)
-- [ ] Bonus d’une série (« La pastille ») : sur Monogatari Series, pastille « Extras » après la saison 14 ; un clic montre Openings et Endings, une ligne chacun, « Tout afficher » les déplie ; une vignette lance le générique ; un film garde sa rangée « Bonus » (Mac et iPhone pareil)
-- [ ] Lecteur : image « Cinéma » sans saccade sur un film 4K ; Informations dit « Cinéma »
-- [ ] Un film HDR10 avec le HDR de Windows allumé, puis éteint : couleurs justes les deux fois ; ⋮ → Informations, ligne « Couleurs » : « envoyé en HDR à l’écran » puis « converti en SDR »
-- [ ] Un film Dolby Vision (profil 5 ou 8) : pas de vert ni de violet ; « Couleurs » dit « Dolby Vision profil 5 » ou « 8 »
-- [ ] Sortie audio : « Tester » joue chaque haut-parleur ; passthrough vers un ampli si tu en as un
-- [ ] Image dans l'image : la petite fenêtre reste au-dessus, sous-titres lisibles, retour sans image noire
-- [ ] Réduire et agrandir le lecteur : fluide, pas de noir aux deux bouts
-- [ ] Défilement des Films et changement de page : fluide à 240 Hz
-- [ ] Narrateur : Accueil, fiche et lecteur lus avec des noms (pas « bouton »)
-- [ ] Snap Layouts au survol du bouton agrandir
-- [ ] Tailscale intégré (sans l'app Tailscale, depuis un autre réseau) : se connecter, lire un film, se déconnecter
-- [ ] Mode canapé sur la télé (HDMI) : Réglages → Général → Mode canapé, plein écran lisible depuis le canapé ; flèches partout (rail compris), Entrée, Retour arrière ; une manette Xbox (A, B, Y, LB/RB, dans le lecteur A, X, LB/RB) ; la télécommande de la télé si un adaptateur HDMI-CEC est là
-- [ ] Filtres de Films : Filtrer → Image 4K + Langue audio Français + Non vus : seulement tes films 4K pas vus avec une piste française ; « Filtres · 3 » ; Réinitialiser rend tout ; « Plus courts d'abord »
-- [ ] Bandes-annonces : un film avec un dossier `trailers` (ou `…-trailer.mkv`) : bouton « Bande-annonce » de la fiche, lue dans Mira ; un film sans : le bouton dit « sur YouTube, dans ton navigateur » et ouvre le navigateur ; Réglages → Lecture → « Bande-annonce avant le film » : elle passe d'abord, « Passer la bande-annonce » mène au film, rien en reprise ; « Depuis le début » d'un film laissé en cours : la bande-annonce, puis le film depuis son début
-- [ ] Menu de la zone de notification (clic droit sur l’icône de Mira) : pendant un épisode, la carte (image, titre, progression, boutons) au-dessus de l’icône ; pause, ±10 s, épisode suivant et arrêter répondent sans fermer le menu ; hors lecture, seulement « Ouvrir Mira », « Réduire… » et « Quitter Mira » ; Mira rangée, plus de « Réduire… » ; barre des tâches en haut ou sur un côté, deuxième écran à une autre échelle : le menu reste dans l’écran du clic ; Échap, un clic ailleurs, et la touche Menu (Maj+F10) sur l’icône
-- [ ] Télécommande : depuis l'iPhone, « … » d'un film → « Lire sur… » → ce PC : Mira s'ouvre et le lit (fenêtre réduite ou dans la zone de notification comprise) ; la télécommande de l'iPhone met en pause, ±10 s, volume, muet, Arrêter ; Jellyfin web (« Lire sur ») aussi ; Réglages → En ce moment sur Jellyfin d'un autre appareil : « Arrêter » arrête ce PC
-- [ ] Film en deux fichiers (`Film - cd1.mkv` et `Film - cd2.mkv` dans le même dossier) : la 2e partie suit la 1re sans fermer le lecteur, « Partie 2 sur 2 » sous le titre ; arrêté dans la 2e, « Lecture » de la fiche y reprend
-- [ ] Réglages → Sécurité (administrateur) : un compte de test créé sans mot de passe y est dit « No password » ; « Protect » → « Let Mira lock it » le ferme ; l'appareil d'un compte de test déconnecté par « Sign out » doit se reconnecter ; « Fix all… » pose une question à la fois. Jamais sur les vrais comptes de la famille sans l'accord d'ogsas
+## Your PC 🖥
+- [ ] Slow player opening (from 0.9.15): a heavy movie away from home (conversion); after a second, a spinner on black instead of a black screen; Esc during the wait brings back the title page (not Home); started again right away, it opens. During the end-of-episode countdown left to run, Esc while the next one is being prepared: the player doesn’t come back. C key on a converted movie with PGS subtitles: off then back; the next episode keeps the choice.
+- [ ] Extras kept out of “Continue watching” (from 0.9.15): start a Monogatari opening (Extras pill), stop it halfway; it isn’t in “Continue watching”, neither during the mini player nor after restarting Mira; same for a trailer before a movie stopped midway
+- [ ] Mira update offered and done (at the next version)
+- [ ] A series’ extras (“The pill”): on Monogatari Series, “Extras” pill after season 14; a click shows Openings and Endings, one row each, “Show all” expands them; a thumbnail plays the opening/ending; a movie keeps its “Extras” row (Mac and iPhone the same)
+- [ ] Player: “Cinema” picture without stutter on a 4K movie; Info says “Cinema”
+- [ ] An HDR10 movie with Windows HDR on, then off: right colors both times; ⋮ → Info, “Colors” line: “sent to the screen in HDR” then “converted to SDR”
+- [ ] A Dolby Vision movie (profile 5 or 8): no green or purple; “Colors” says “Dolby Vision profile 5” or “8”
+- [ ] Audio output: “Test” plays each speaker; passthrough to an amplifier if you have one
+- [ ] Picture in picture: the small window stays on top, subtitles readable, back without a black picture
+- [ ] Shrink and enlarge the player: smooth, no black at either end
+- [ ] Scrolling Movies and changing page: smooth at 240 Hz
+- [ ] Narrator: Home, title page and player read with names (not “button”)
+- [ ] Snap Layouts when hovering the maximize button
+- [ ] Built-in Tailscale (without the Tailscale app, from another network): sign in, play a movie, sign out
+- [ ] Couch mode on the TV (HDMI): Settings → General → Couch mode, full screen readable from the couch; arrows everywhere (rail included), Enter, Backspace; an Xbox controller (A, B, Y, LB/RB, in the player A, X, LB/RB); the TV remote if an HDMI-CEC adapter is there
+- [ ] Movies filters: Filter → Picture 4K + Audio language French + Unwatched: only your unwatched 4K movies with a French track; “Filters · 3”; Reset brings everything back; “Shortest first”
+- [ ] Trailers: a movie with a `trailers` folder (or `…-trailer.mkv`): the title page’s “Trailer” button, played in Mira; a movie without one: the button says “on YouTube, in your browser” and opens the browser; Settings → Playback → “Trailer before the film”: it plays first, “Skip trailer” goes to the movie, nothing on resume; “From the beginning” on a movie left midway: the trailer, then the movie from its start
+- [ ] Notification area menu (right-click on Mira’s icon): during an episode, the card (picture, title, progress, buttons) above the icon; pause, ±10 s, next episode and stop respond without closing the menu; outside playback, only “Open Mira”, “Minimize…” and “Quit Mira”; Mira tucked away, no more “Minimize…”; taskbar at the top or on a side, second screen at another scale: the menu stays on the screen of the click; Esc, a click elsewhere, and the Menu key (Shift+F10) on the icon
+- [ ] Remote control: from the iPhone, “…” of a movie → “Play on…” → this PC: Mira opens and plays it (window minimized or in the notification area included); the iPhone’s remote pauses, ±10 s, volume, mute, Stop; Jellyfin web (“Play on”) too; Settings → On Jellyfin right now from another device: “Stop” stops this PC
+- [ ] Movie in two files (`Film - cd1.mkv` and `Film - cd2.mkv` in the same folder): part 2 follows part 1 without closing the player, “Part 2 of 2” under the title; stopped in part 2, the title page’s “Play” resumes there
+- [ ] Settings → Security (administrator): a test account created without a password is shown there as “No password”; “Protect” → “Let Mira lock it” closes it; the device of a test account disconnected with “Sign out” must sign in again; “Fix all…” asks one question at a time. Never on the family’s real accounts without ogsas’s agreement
 
 ## iPhone 📱
-- [ ] Installation par AltStore, rafraîchie après 7 jours sans rien faire
-- [ ] Installation d’AltStore depuis un Mac (guide du wiki « iPhone and iPad », étapes Mac : AltServer pour macOS, Wi-Fi du Finder, ouverture à la connexion, Mac sans veille), puis rafraîchissement en Wi-Fi par le Mac
-- [ ] Filtres de Films : pastilles Image, Note, Audio, Sous-titres ; « 4K » + « Audio · Français » ensemble, puis Réinitialiser
-- [ ] Le même film en deux fichiers : la 2e partie suit la 1re, « Partie 2 sur 2 » sous le titre, « Lecture » reprend dans la bonne partie
-- [ ] QR code de « Mira sur ton iPhone » (Guide de Mira pour Windows, ou Réglages → serveur sur Mac) scanné par l'appareil photo : Mira s'ouvre, serveur rempli, puis code ou mot de passe ; ensuite Jellyfin joint à la maison et en 4G
-- [ ] Ouverture : le « m » puis l'Accueil, sans écran blanc
-- [ ] Un film et un épisode lus du début à la fin ; épisode suivant tout seul
-- [ ] Page d'une personne : sur la fiche d'un film, « Distribution et équipe » (réalisation d'abord, photos), toucher un acteur ouvre sa page (photo, naissance, biographie, ses films et séries de ta bibliothèque) ; Recherche trouve aussi un acteur par son nom
-- [ ] « Tu regardes toujours ? » : 3 épisodes courts enchaînés sans toucher l'iPhone, le 4e ne part pas et la carte le demande ; « Continuer » le lance (même essai sur ton PC et le Mac d’un ami, sans toucher clavier, souris ni manette)
-- [ ] Lecteur : double toucher ±10 s, glisser luminosité et volume, pincer, réduire vers le bas
-- [ ] PiP d'Apple et AirPlay vers une télé
-- [ ] Sous-titres d'un vrai animé (ASS) lisibles et calés
-- [ ] Un film Dolby Vision profil 8 (Jellyfin 12.2 ou plus) puis HDR10 : lus sans conversion, couleurs justes
-- [ ] Tailscale intégré en 4G (sans l'app Tailscale) : lecture, puis arrière-plan et retour
-- [ ] Données mobiles : un film en 4G, ⋮ → Qualité dit « Données mobiles · 2 Mb/s » et l'image reste correcte ; quitter le Wi-Fi en pleine lecture : le film reprend au même endroit en 2 Mb/s, puis revient en qualité normale au retour du Wi-Fi
-- [ ] Épisodes manquants et à venir (extension TheTVDB installée par Mira pour Windows) : sur une série suivie, rien au-dessus des saisons ; les manquants en ligne fine à leur place (Voir = la liste avec les jours), le prochain à sortir en ligne vide avec son jour, une saison absente (« Saison 1 · absente ») = une carte ; Réglages → Lecture → « Montrer les épisodes manquants » coupé = seulement ceux à venir
-- [ ] Épisodes numérotés depuis le début de la série (Shingeki no Kyojin sur le Dell, S02E26–S04E89) : plus de « E1–12 · Not in your library » ni de « Get E1–12 » sur Windows, Mac et iPhone ; sur le Dell, les fichiers rangés par Mira renommés en S02E01… (sous-titres compris), Jellyfin montre leurs noms et images
-- [ ] Collections : « … » d'un film → « Ajouter à une collection… » : coché dans une collection existante, puis une nouvelle nommée avec lui ; vues dans Mira pour Windows ; même chose par l'appui long sur une affiche
-- [ ] Bandes-annonces : « … » → « Bande-annonce » d'un film qui en a une sur le serveur, lue dans Mira ; « Bande-annonce sur YouTube » ouvre Safari
-- [ ] Ouverture avec le PC de Jellyfin éteint : message clair, puis l'Accueil quand il revient
-- [ ] Un titre qui échouait avant : noter l'erreur et les infos du média
-- [ ] « Garder sur cet iPhone » : un film MP4 et un MKV (converti), puis une saison ; Mira en arrière-plan pendant la copie (progression d'iOS, reprise au retour) ; en mode Avion, lus depuis Réglages → Sur cet iPhone et l'Accueil (pistes, sous-titres, épisode suivant, avance rapide dans le MKV converti) ; de retour à la maison, la reprise est la même sur le PC ; déconnexion = copies retirées ; copie lancée en Wi-Fi puis Wi-Fi coupé (4G/5G) : « En attente du Wi-Fi », rien ne passe sur les données mobiles, reprise seule au retour du Wi-Fi ; « Garder avec les données mobiles » allumé : elle continue en 4G/5G
+- [ ] Install through AltStore, refreshed after 7 days of doing nothing
+- [ ] Install AltStore from a Mac (wiki guide “iPhone and iPad”, Mac steps: AltServer for macOS, Finder Wi-Fi sync, open at login, Mac without sleep), then refresh over Wi-Fi through the Mac
+- [ ] Movies filters: Picture, Rating, Audio, Subtitles pills; “4K” + “Audio · French” together, then Reset
+- [ ] The same movie in two files: part 2 follows part 1, “Part 2 of 2” under the title, “Play” resumes in the right part
+- [ ] QR code of “Mira on your iPhone” (Mira for Windows’ Guide, or Settings → Account on the Mac) scanned by the camera: Mira opens, server filled in, then code or password; then Jellyfin reached at home and over 4G
+- [ ] Opening: the “m” then Home, without a white screen
+- [ ] A movie and an episode played from start to end; next episode on its own
+- [ ] A person’s page: on a movie’s title page, “Cast & crew” (directing first, photos), tapping an actor opens their page (photo, birth, biography, their movies and shows from your library); Search also finds an actor by name
+- [ ] “Are you still watching?”: 3 short episodes in a row without touching the iPhone, the 4th doesn’t start and the card asks; “Keep watching” starts it (same test on your PC and a friend’s Mac, without touching keyboard, mouse or controller)
+- [ ] Player: double tap ±10 s, swipe for brightness and volume, pinch, swipe down to shrink
+- [ ] Apple’s PiP and AirPlay to a TV
+- [ ] Subtitles of a real anime (ASS) readable and synced
+- [ ] A Dolby Vision profile 8 movie (Jellyfin 12.2 or later) then HDR10: played without conversion, right colors
+- [ ] Built-in Tailscale over 4G (without the Tailscale app): playback, then background and back
+- [ ] Mobile data: a movie over 4G, ⋮ → Quality says “Mobile data · 2 Mb/s” and the picture stays decent; leave Wi-Fi mid-playback: the movie resumes at the same spot at 2 Mb/s, then goes back to normal quality when Wi-Fi returns
+- [ ] Missing and upcoming episodes (TheTVDB extension installed by Mira for Windows): on a followed series, nothing above the seasons; the missing ones as a thin line in their place (See = the list with the days), the next to come out as an empty line with its day, a missing season (“Season 1 · not in library”) = a card; Settings → Playback → “Show missing episodes” off = only the upcoming ones
+- [ ] Episodes numbered from the start of the series (Shingeki no Kyojin on the Dell, S02E26–S04E89): no more “E1–12 · Not in your library” nor “Get E1–12” on Windows, Mac and iPhone; on the Dell, the files sorted by Mira renamed to S02E01… (subtitles included), Jellyfin shows their names and pictures
+- [ ] Collections: “…” of a movie → “Add to a collection…”: ticked in an existing collection, then a new one named with it; seen in Mira for Windows; same thing with a long press on a poster
+- [ ] Trailers: “…” → “Trailer” of a movie that has one on the server, played in Mira; “Trailer on YouTube” opens Safari
+- [ ] Opening with Jellyfin’s PC off: a clear message, then Home when it comes back
+- [ ] A title that used to fail: write down the error and the media info
+- [ ] “Keep on this iPhone”: an MP4 movie and an MKV (converted), then a season; Mira in the background during the copy (iOS progress, resumes on return); in Airplane mode, played from Settings → On this iPhone and Home (tracks, subtitles, next episode, fast-forward in the converted MKV); back home, the resume point is the same on the PC; sign-out = copies removed; copy started on Wi-Fi then Wi-Fi cut (4G/5G): “Waiting for Wi-Fi”, nothing goes over mobile data, resumes on its own when Wi-Fi returns; “Keep over mobile data” on: it continues over 4G/5G
 
-## Mac d’un ami 🍎
-- [ ] Installation du `.dmg` (« Ouvrir quand même ») et premier lancement
-- [ ] Mise à jour automatique vers la version suivante (« Redémarrer »)
-- [ ] Image ni grise ni noire ; sinon ⋮ → Informations, ligne « Réparé »
-- [ ] Un film HDR10 (ou Dolby Vision) : couleurs justes, pas délavées ; ⋮ → Informations, ligne « Couleurs » : « HDR10 → SDR (limite du rendu) »
-- [ ] Trackpad : défiler (Accueil : un geste = la page ou la rangée), glisser à deux doigts entre les pages (la page suit les doigts, revient si lâchée tôt), pincer dans les grilles (affiches qui glissent), balayage à trois doigts, pincer dans le lecteur
-- [ ] Image dans l'image (petite fenêtre flottante)
-- [ ] Sortie audio : Réglages → Audio & sous-titres → « Tester » joue chaque haut-parleur (casque, puis enceintes ou AirPods) ; ⋮ → Informations dit la sortie ; Dolby Digital vers un ampli si Alex en a un
-- [ ] Mode canapé : plein écran agrandi, flèches et Retour arrière, une manette appairée (PlayStation ou Xbox) : A ouvre, B revient
-- [ ] Tailscale intégré : connexion, trousseau gardé après une mise à jour
-- [ ] Touches multimédias, Mira derrière une autre fenêtre pendant un épisode : F8 met en pause et reprend, F7 recule de 10 s, F9 passe à l'épisode suivant ; le bouton des AirPods met en pause ; centre de contrôle et barre des menus → « À l'écoute » : titre, affiche, barre qui avance, ±10 s ; le lecteur fermé, F8 revient à Musique
-- [ ] Notifications : un nouvel épisode d'une série suivie (favori ou commencée) ajouté à Jellyfin, Mira ouvert ou dans le Dock : macOS demande d'abord « Mira souhaite envoyer des notifications » (Autoriser), puis la notification « Nouvel épisode » avec son image ; un clic ouvre la série ; dans un groupe Regarder ensemble, Mira derrière une autre fenêtre, « X a rejoint le groupe » ; refusé, plus rien ni plus de question
-- [ ] Télécommande : depuis l'iPhone, « Lire sur… » → le Mac : le film part, pause, ±10 s, volume, Arrêter depuis la télécommande de l'iPhone
-- [ ] Pomme → Redémarrer avec Mira ouverte, puis Mira dans le Dock (fenêtre fermée par ⌘W), puis pendant un film (et en image dans l'image) : le Mac redémarre sans « Mira a interrompu le redémarrage » ; au retour, le film reprend là où il était (« Continuer à regarder »)
-- [ ] ⌘Q le PC de Jellyfin éteint : Mira disparaît du Dock en 5 s au plus
-- [ ] Mise à jour depuis le Dock : une nouvelle version prête (avis « elle s’installera… »), fenêtre fermée par ⌘W ; quelques minutes après, Mira se relance seule, cachée (le point sous l'icône reste) ; un clic sur l'icône montre la nouvelle version (« Nouveautés »)
-- [ ] Veille en plein film (depuis Jellyfin, pas une copie gardée) : capot refermé quelques minutes, puis rouvert : le film est en pause là où il était, Lecture le relance sans roue sans fin (Jellyfin injoignable au réveil : « Lecture impossible » et « Réessayer », le lecteur reste) ; Wi-Fi coupé en pleine lecture : « Connexion au serveur perdue », puis le film reprend quand le Wi-Fi revient
-- [ ] Photo du compte depuis une photo d’iPhone (HEIC, prise en portrait, par AirDrop ou Photos) : Réglages → Compte & serveur → « Choisir une photo… » ; elle apparaît droite (pas couchée) dans la barre, puis sur l’iPhone
+## A friend’s Mac 🍎
+- [ ] Install from the `.dmg` (“Open Anyway”) and first launch
+- [ ] Automatic update to the next version (“Restart”)
+- [ ] Picture neither gray nor black; otherwise ⋮ → Info, “Repaired” line
+- [ ] An HDR10 (or Dolby Vision) movie: right colors, not washed out; ⋮ → Info, “Colors” line: “HDR10 → SDR (rendering limit)”
+- [ ] Trackpad: scroll (Home: one gesture = the page or the row), two-finger swipe between pages (the page follows the fingers, comes back if let go early), pinch in the grids (posters that slide), three-finger swipe, pinch in the player
+- [ ] Picture in picture (small floating window)
+- [ ] Audio output: Settings → Audio & subtitles → “Test” plays each speaker (headphones, then speakers or AirPods); ⋮ → Info gives the output; Dolby Digital to an amplifier if Alex has one
+- [ ] Couch mode: enlarged full screen, arrows and Backspace, a paired controller (PlayStation or Xbox): A opens, B goes back
+- [ ] Built-in Tailscale: sign-in, keychain kept after an update
+- [ ] Media keys, Mira behind another window during an episode: F8 pauses and resumes, F7 goes back 10 s, F9 skips to the next episode; the AirPods button pauses; Control Center and menu bar → “Now Playing”: title, poster, moving bar, ±10 s; with the player closed, F8 goes back to Music
+- [ ] Notifications: a new episode of a followed series (favorite or started) added to Jellyfin, Mira open or in the Dock: macOS first asks “Mira would like to send you notifications” (Allow), then the “New episode” notification with its picture; a click opens the series; in a Watch together group, Mira behind another window, “X joined the group”; refused, nothing more and no more asking
+- [ ] Remote control: from the iPhone, “Play on…” → the Mac: the movie starts, pause, ±10 s, volume, Stop from the iPhone’s remote
+- [ ] Apple → Restart with Mira open, then Mira in the Dock (window closed with ⌘W), then during a movie (and in picture in picture): the Mac restarts without “Mira interrupted the restart”; on return, the movie resumes where it was (“Continue watching”)
+- [ ] ⌘Q with Jellyfin’s PC off: Mira leaves the Dock in 5 s at most
+- [ ] Update from the Dock: a new version ready (notice “it’ll install…”), window closed with ⌘W; a few minutes later, Mira restarts on its own, hidden (the dot under the icon stays); a click on the icon shows the new version (“What’s new”)
+- [ ] Sleep mid-movie (from Jellyfin, not a kept copy): lid closed for a few minutes, then opened: the movie is paused where it was, Play starts it again without an endless spinner (Jellyfin unreachable on wake: “Can’t play this” and “Try again”, the player stays); Wi-Fi cut mid-playback: “Lost the connection to the server”, then the movie resumes when Wi-Fi comes back
+- [ ] Account photo from an iPhone photo (HEIC, taken in portrait, through AirDrop or Photos): Settings → Account → “Choose a photo…”; it appears upright (not lying down) in the bar, then on the iPhone
 
-## Regarder ensemble 👥
-- [ ] Ta party par le lien (Funnel) : Sam rejoint depuis Windows sans compte
-- [ ] Même chose depuis un iPhone, puis depuis le Mac
-- [ ] Pause, saut et épisode suivant suivis par tout le monde
-- [ ] Déjà en lecture, créer le groupe puis inviter : l'invité arrive à la même minute, sans relancer
-- [ ] 20 min ensemble par Funnel sans pause ni lecture en boucle (sauts, changement de piste audio)
-- [ ] Toi dans la party de Sam (son Jellyfin), depuis Mira pour Windows
-- [ ] Lien refait : l'ancien ne marche plus
-- [ ] Le foyer : réglé sur le Dell (mot de passe, deux profils dont un à code), rejoint depuis un autre appareil, profil ouvert, changé, appareil retiré (Windows prêt ; Mac et iPhone quand leurs clients seront là)
-- [ ] Le foyer sur Windows : PC sans compte à la maison → carte « Home of … » trouvée sur le réseau, mot de passe, « Who's watching? », code faux puis bon, Ctrl+P, « Leave this home »
-- [ ] Le foyer loin de chez soi (Windows) : Réglages → Foyer, client OAuth et politique sur le vrai Tailscale, lien du foyer ouvert sur un PC hors de la maison, profil ouvert par le nœud du foyer, appareil retiré = nœud parti du tailnet
-- [ ] Le guide « Loin de la maison » (Windows, puis Mac et iPhone) sur le vrai Tailscale : le client « All » d’ogsas signalé, « Refaire l’étape 2 », étiquette et clé faites d’après les dessins (libellés de la console justes ?), secret seul accepté (identifiant bien dans le secret ?) et trouvé dans le presse-papiers, « Voir les lignes exactes », « Faire ces changements », « Annuler » dans les 10 minutes
-- [ ] « Fix my policy » durci sur le vrai Tailscale (avec l’accord d’ogsas) : changements listés (amis partagés limités à Jellyfin + 443, Funnel sur le PC, clé du PC), écrits, Rayan/Jad/Zaed regardent encore (et une party par le nom Funnel), plus d’accès aux autres ports du Dell, `keyExpiryDisabled` vrai dans la console (ou refus noté dans le journal), « Undo »
-- [ ] Le foyer sur le Mac (ami Mac) : carte trouvée sur le réseau, mot de passe, « Who's watching? », code faux puis bon, ⌘P, macOS qui demande le trousseau au premier lancement après une mise à jour, « Leave this home » ; puis un lien du foyer ouvert hors de la maison
-- [ ] Le foyer : lien du foyer ouvert depuis miracinema.app/home (le navigateur passe `mira://home#…` à Mira, fragment compris)
-- [ ] Le foyer sur l'iPhone : à la maison, connexion → carte du foyer trouvée, mot de passe, « Who's watching? », code faux puis bon, appui long sur l'onglet Réglages, « Leave this home » ; puis un lien du foyer ouvert en 4G (nœud du foyer, avec et sans Tailscale intégré à soi)
+## Watch together 👥
+- [ ] Your party by the link (Funnel): Sam joins from Windows without an account
+- [ ] Same thing from an iPhone, then from the Mac
+- [ ] Pause, seek and next episode followed by everyone
+- [ ] Already playing, create the group then invite: the guest arrives at the same minute, without restarting
+- [ ] 20 min together through Funnel without a pause or playback looping (seeks, audio track change)
+- [ ] You in Sam’s party (his Jellyfin), from Mira for Windows
+- [ ] Link remade: the old one no longer works
+- [ ] The home: set up on the Dell (password, two profiles, one with a PIN), joined from another device, profile opened, switched, device removed (Windows ready; Mac and iPhone when their clients are there)
+- [ ] The home on Windows: PC without an account at home → “…’s home” card found on the network, password, “Who’s watching?”, wrong PIN then right one, Ctrl+P, “Leave this home”
+- [ ] The home away from home (Windows): Settings → Family & profiles, OAuth client and policy on the real Tailscale, home link opened on a PC outside the house, profile opened through the home’s node, device removed = node gone from the tailnet
+- [ ] The “Away from home” guide (Windows, then Mac and iPhone) on the real Tailscale: ogsas’s “All” client flagged, “Redo step 2”, tag and key made from the drawings (console labels right?), secret alone accepted (ID really in the secret?) and found in the clipboard, “See the exact lines”, “Make these changes”, “Undo” within the 10 minutes
+- [ ] Hardened “Fix my policy” on the real Tailscale (with ogsas’s agreement): changes listed (shared friends limited to Jellyfin + 443, Funnel on the PC, the PC’s key), written, the friends the PC is shared with still watch (and a party by the Funnel name), no more access to the Dell’s other ports, `keyExpiryDisabled` true in the console (or the refusal noted in the log), “Undo”
+- [ ] The home on the Mac (Mac friend): card found on the network, password, “Who’s watching?”, wrong PIN then right one, ⌘P, macOS asking for the keychain at first launch after an update, “Leave this home”; then a home link opened outside the house
+- [ ] The home: home link opened from miracinema.app/home (the browser passes `mira://home#…` to Mira, fragment included)
+- [ ] The home on the iPhone: at home, sign-in → home card found, password, “Who’s watching?”, wrong PIN then right one, long press on the Settings tab, “Leave this home”; then a home link opened over 4G (the home’s node, with and without your own Built-in Tailscale)

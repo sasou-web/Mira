@@ -83,7 +83,7 @@ struct PrivacyView: View {
             .listRowBackground(Palette.surface)
 
             Section {
-                Link(destination: URL(string: "https://github.com/sasou-web/Mira/blob/main/SECURITY.md#ce-qui-part-sur-le-r%C3%A9seau")!) {
+                Link(destination: URL(string: "https://github.com/sasou-web/Mira/blob/main/SECURITY.md#what-goes-out-on-the-network")!) {
                     Label("Every detail (SECURITY.md)", systemImage: "doc.text")
                 }
             }

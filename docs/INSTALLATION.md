@@ -1,115 +1,115 @@
-# Installer Mira sur Windows
+# Install Mira on Windows
 
-## Prérequis
+## Requirements
 
-- Windows 10 version 2004 ou plus récent, ou Windows 11, **x64**. Les coins natifs arrondis dépendent de Windows 11.
-- Un serveur Jellyfin accessible, sur le même PC ou le réseau, et un compte sur ce serveur. Sans serveur, Mira peut [installer Jellyfin sur ce PC](#installer-jellyfin-depuis-mira).
-- Le moteur vidéo **libmpv x64**. Mira l’installe à la demande (31 Mo) et le tient à jour ; un moteur déjà présent est réutilisé tel quel. `mpv.exe` seul ne suffit pas.
+- Windows 10 version 2004 or later, or Windows 11, **x64**. Native rounded corners need Windows 11.
+- A Jellyfin server you can reach, on the same PC or on the network, and an account on that server. With no server, Mira can [install Jellyfin on this PC](#install-jellyfin-from-mira).
+- The **libmpv x64** video engine. Mira installs it when needed (31 MB) and keeps it up to date; an engine already on the PC is reused as is. `mpv.exe` alone isn’t enough.
 
-L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. Mira est une préversion de développement.
+The installer, the portable executable and the archive include the .NET runtime: you don’t need to install the SDK or .NET. The interface is in English and French. Mira is a development pre-release.
 
-Facultatif : [TorLink](#torlink), que Mira installe quand tu l’actives, et le runtime Microsoft Edge WebView2 (présent sur Windows 11 et la plupart des Windows 10) pour afficher son terminal dans Mira.
+Optional: [TorLink](#torlink), which Mira installs when you turn it on, and the Microsoft Edge WebView2 runtime (already on Windows 11 and most Windows 10 PCs) to show its terminal inside Mira.
 
 ## Installation
 
-La [dernière release](https://github.com/sasou-web/Mira/releases) propose trois fichiers, où `<version>` est son numéro ; un seul suffit.
+The [latest release](https://github.com/sasou-web/Mira/releases) offers three files, where `<version>` is its number; you only need one.
 
-- **`Mira-<version>-win-x64-setup.exe`, recommandé.** L’installateur place Mira dans `%LOCALAPPDATA%\Programs\Mira`, pour ton compte uniquement et sans droits administrateur. Il ajoute le raccourci Démarrer, un raccourci Bureau si tu le coches, et une entrée de désinstallation dans **Paramètres → Applications**.
-- **`Mira-<version>-win-x64-portable.exe`.** Mira en un seul fichier, sans installation. Range-le dans un dossier à lui où ton compte peut écrire, par exemple `Documents\Mira` : il y crée son dossier `data`. Au premier lancement, .NET extrait quelques bibliothèques natives dans `%TEMP%\.net`.
-- **`Mira-<version>-win-x64.zip`.** Le dossier complet de l’application. Extraire **tout** le dossier `Mira` dans un emplacement accessible en écriture, sans lancer l’exécutable depuis l’archive ni copier uniquement `Mira.exe`.
+- **`Mira-<version>-win-x64-setup.exe`, recommended.** The installer puts Mira in `%LOCALAPPDATA%\Programs\Mira`, for your account only and without administrator rights. It adds the Start menu shortcut, a desktop shortcut if you tick it, and an uninstall entry in **Settings → Apps**.
+- **`Mira-<version>-win-x64-portable.exe`.** Mira in a single file, with nothing to install. Put it in a folder of its own that your account can write to, for example `Documents\Mira`: it creates its `data` folder there. On first launch, .NET extracts a few native libraries to `%TEMP%\.net`.
+- **`Mira-<version>-win-x64.zip`.** The app’s full folder. Extract the **whole** `Mira` folder to a place you can write to; don’t run the executable from inside the archive, and don’t copy `Mira.exe` alone.
 
-Tant que les fichiers ne sont pas signés (politique de signature du code dans le README du dépôt), Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Vérifier l’empreinte du fichier (plus bas), puis choisir **Informations complémentaires → Exécuter quand même**.
+As long as the files aren’t signed (code signing policy in the repository’s README), Windows SmartScreen may show “Windows protected your PC”. Check the file’s hash (further down), then choose **More info → Run anyway**.
 
-1. Ouvrir Mira. Un raccourci Mira est ajouté au menu Démarrer au premier lancement du profil principal, ou dès l’installation.
-2. Entrer le nom d’utilisateur et le mot de passe. Mira cherche Jellyfin et remplit son adresse : sur ce PC, sur le réseau de la maison, ou sur tes appareils Tailscale (une ligne sous l’adresse dit où il l’a trouvé, les autres serveurs trouvés sont proposés à côté). S’il ne trouve rien, tape l’adresse : l’adresse IP ou le nom du PC suffit (`192.168.1.20`, `nas:8096`), comme l’adresse Tailscale (`100.x.y.z`) ou l’adresse copiée depuis la page web de Jellyfin. Un Jellyfin sur un PC Windows n’est trouvé sur le réseau de la maison qu’une fois **Tout préparer** refait sur ce PC avec une version de Mira postérieure à la 0.8.0 (avant, seulement par Tailscale). Jellyfin 10.9 ou plus récent est nécessaire.
-3. Le moteur vidéo : avec l’installateur, laisser cochée la case **Télécharger le moteur vidéo mpv**. Sinon, **Réglages → Lecture → Installer le moteur mpv**, proposé aussi à la première lecture.
+1. Open Mira. A Mira shortcut is added to the Start menu the first time the main profile starts, or right at installation.
+2. Enter your username and password. Mira looks for Jellyfin and fills in its address: on this PC, on your home network, or on your Tailscale devices (a line under the address says where it found it, and other servers it found are offered next to it). If it finds nothing, type the address: the PC’s IP address or name is enough (`192.168.1.20`, `nas:8096`), as is the Tailscale address (`100.x.y.z`) or the address copied from Jellyfin’s web page. A Jellyfin on a Windows PC is only found on the home network once **Set everything up** has been run again on that PC with a version of Mira later than 0.8.0 (before that, only through Tailscale). Jellyfin 10.9 or later is required.
+3. The video engine: with the installer, leave **Download the mpv video engine** ticked. Otherwise, **Settings → Playback → Install the mpv engine**, also offered the first time you play something.
 
-Le bouton **Essayer sans se connecter** ouvre un catalogue fictif pour explorer l’interface. Sans serveur Jellyfin, **Pas encore de serveur ? Installer Jellyfin sur ce PC** l’installe et le prépare (section suivante).
+Without a Jellyfin server, **No server yet: Mira installs Jellyfin on this PC** installs it and sets it up (next section).
 
-## Installer Jellyfin depuis Mira
+## Install Jellyfin from Mira
 
-Sous le formulaire de connexion, choisir **Pas encore de serveur ? Installer Jellyfin sur ce PC**, puis :
+Under the sign-in form, choose **No server yet: Mira installs Jellyfin on this PC**, then:
 
-1. **Dossier de tes vidéos** : `Vidéos\Jellyfin` par défaut, ou un autre avec **Parcourir** (un disque de stockage, par exemple). Mira y crée `Films`, `Séries` et `Animes`.
-2. **Nom d’utilisateur** et **mot de passe** : ils deviennent le compte administrateur de Jellyfin.
-3. **Installer et configurer**. Mira télécharge l’installateur officiel de Jellyfin 12.1 depuis `repo.jellyfin.org` et vérifie son empreinte SHA-256, celle du manifeste winget de Jellyfin, puis la vérifie de nouveau en gardant le fichier ouvert jusqu’à son lancement : un fichier différent n’est jamais lancé. Windows demande ensuite une autorisation : Jellyfin s’installe pour tout le PC, comme un service qui démarre avec Windows.
+1. **Videos folder**: `Videos\Jellyfin` by default, or another one with **Browse** (a storage drive, for example). Mira creates `Movies`, `Shows` and `Anime` in it.
+2. **Username** and **Password**: they become Jellyfin’s administrator account.
+3. **Install**. Mira downloads the official Jellyfin 12.1 installer from `repo.jellyfin.org` and checks its SHA-256 hash, the one in Jellyfin’s winget manifest, then checks it again while keeping the file open until it starts: a different file is never run. Windows then asks for permission: Jellyfin installs for the whole PC, as a service that starts with Windows.
 
-Mira remplit alors l’assistant de premier démarrage de Jellyfin :
+Mira then fills in Jellyfin’s first-run wizard:
 
-- interface et métadonnées en français ;
-- ton compte administrateur ;
-- trois bibliothèques : **Films** (type films), **Séries** et **Animes** (type séries) ;
-- accès depuis Internet désactivé ; les appareils du réseau local se connectent.
+- interface and metadata in Mira’s language;
+- your administrator account;
+- three libraries: **Movies** (movies type), **Shows** and **Anime** (shows type);
+- access from the Internet turned off; devices on the local network can connect.
 
-Puis il se connecte. Il reste à ranger les vidéos dans ces dossiers, sous les noms attendus par Jellyfin (`Titre (Année)\Titre (Année).mkv`, `Série\Season 01\Série - S01E02.mkv`), ou à laisser TorLink le faire : il retrouve les trois bibliothèques sans réglage.
+Then it signs in. All that’s left is to put your videos in these folders, under the names Jellyfin expects (`Title (Year)\Title (Year).mkv`, `Show\Season 01\Show - S01E02.mkv`), or to let TorLink do it: it finds the three libraries with nothing to set.
 
-Le service de Jellyfin tourne sous le compte Windows **Network Service**, qui ne lit pas les dossiers personnels. Mira lui donne le droit de lire, sans modifier, `Films`, `Séries` et `Animes` et tout ce qui y est ajouté, pas le reste du dossier choisi. Il peut aussi y créer ses propres fichiers (le NFO et les images de chaque titre, pour qu’un Jellyfin réinstallé retrouve tout) et changer ceux-là seulement, jamais une vidéo. Une vidéo copiée ou déplacée avec l’Explorateur prend ce droit. Un fichier rangé par TorLink, par lien physique ou par déplacement, le reçoit aussi. Le dossier choisi ne peut pas être un disque entier, ton dossier personnel (ni celui d’un autre compte), Documents, le Bureau ou OneDrive lui-même. Pour retirer ce droit (Jellyfin ne voit alors plus ces vidéos), dans un terminal : `icacls "<dossier>\Films" /remove:g *S-1-5-20 /t`, de même pour `Séries` et `Animes`. Jusqu’à la 0.7.4, Mira le donnait au dossier choisi entier : `icacls "<dossier>" /remove:g *S-1-5-20 /t` le retire, puis `icacls "<dossier>\Films" /grant *S-1-5-20:(OI)(CI)RX` (de même pour `Séries` et `Animes`) le redonne aux trois dossiers seulement.
+Jellyfin’s service runs under the Windows **Network Service** account, which can’t read personal folders. Mira gives it the right to read, but not change, `Movies`, `Shows` and `Anime` and everything added to them, not the rest of the folder you chose. It may also create its own files there (each title’s NFO and images, so that a reinstalled Jellyfin finds everything again) and change those only, never a video. A video copied or moved with File Explorer gets this right. A file sorted by TorLink, by hard link or by a move, gets it too. The chosen folder can’t be a whole drive, your personal folder (or another account’s), Documents, the Desktop or OneDrive itself. To take this right away (Jellyfin then no longer sees these videos), in a terminal: `icacls "<folder>\Movies" /remove:g *S-1-5-20 /t`, and the same for `Shows` and `Anime`. Up to 0.7.4, Mira gave it to the whole chosen folder: `icacls "<folder>" /remove:g *S-1-5-20 /t` removes it, then `icacls "<folder>\Movies" /grant *S-1-5-20:(OI)(CI)RX` (the same for `Shows` and `Anime`) gives it back to the three folders only.
 
-Si Jellyfin est déjà installé et configuré sur ce PC, Mira le signale et propose de se connecter avec son compte. Une installation interrompue se relance avec le même compte : les étapes déjà faites sont gardées. Jellyfin se désinstalle depuis **Paramètres → Applications → Jellyfin Server** ; ses données sont dans `%ProgramData%\Jellyfin\Server`. Ses autres réglages, dont l’accès depuis Internet, se font sur sa page web, `http://127.0.0.1:8096`.
+If Jellyfin is already installed and set up on this PC, Mira says so and offers to sign in with its account. An interrupted installation starts again with the same account: steps already done are kept. Jellyfin is uninstalled from **Settings → Apps → Jellyfin Server**; its data is in `%ProgramData%\Jellyfin\Server`. Its other settings, including access from the Internet, are on its web page, `http://127.0.0.1:8096`.
 
-## Sauvegarder et mettre à jour Jellyfin
+## Back up and update Jellyfin
 
-Sur le PC de Jellyfin, connecté avec un compte administrateur, **Réglages → Serveur Jellyfin → Jellyfin sur ce PC** montre sa version et sa dernière sauvegarde (Jellyfin 10.11 ou plus).
+On Jellyfin’s PC, signed in with an administrator account, **Settings → Jellyfin server → Jellyfin on this PC** shows its version and its latest backup (Jellyfin 10.11 or later).
 
-- **Sauvegarder maintenant** demande à Jellyfin sa sauvegarde intégrée : ses comptes, la progression de chacun, les bibliothèques, leurs images, les sous-titres extraits et ses réglages, pas tes vidéos ni ses extensions. Elle est rangée dans `%ProgramData%\Jellyfin\Server\data\backups` (Jellyfin exige 5 Go libres sur ce disque). **Copier aussi dans…** choisit un dossier sur une clé USB ou un autre disque : chaque sauvegarde y est copiée, et Mira y garde les trois plus récentes. Elle contient les jetons de connexion de tes appareils : ne la copie pas dans un dossier partagé.
-- Après 30 jours sans sauvegarde, Mira te le rappelle par un avis (**Sauvegarder**), puis chaque semaine.
-- Quand une version plus récente de Jellyfin existe (lue une fois par jour dans le catalogue winget de Microsoft, quelques jours après sa sortie), Mira le dit une fois par un avis. **Mettre à jour Jellyfin** sauvegarde d’abord Jellyfin, télécharge son installateur officiel, vérifie son empreinte, puis Windows demande une autorisation ; Jellyfin s’arrête une minute environ. Refusé pendant que quelqu’un regarde. Une nouvelle version majeure (13 après 12) est annoncée comme telle, avec ses **Nouveautés** : lis-les avant, une majeure peut ne plus charger l’extension de Mira. Si l’installateur affiche « Could not start the Jellyfin Server service », choisis **Ignorer** : Jellyfin démarre juste après.
+- **Back up now** asks Jellyfin for its built-in backup: its accounts, everyone’s progress, the libraries, their images, extracted subtitles and its settings, not your videos or its plugins. It goes in `%ProgramData%\Jellyfin\Server\data\backups` (Jellyfin needs 5 GB free on that drive). **Also copy to…** picks a folder on a USB stick or another drive: each backup is copied there, and Mira keeps the three most recent. It contains your devices’ sign-in tokens: don’t copy it to a shared folder.
+- After 30 days without a backup, Mira reminds you with a notice (**Back up**), then every week.
+- When a newer version of Jellyfin is out (read once a day from Microsoft’s winget catalog, a few days after its release), Mira says so once with a notice. **Update Jellyfin** first backs Jellyfin up, downloads its official installer, checks its hash, then Windows asks for permission; Jellyfin stops for about a minute. Refused while someone is watching. A new major version (13 after 12) is announced as such, with its **What’s new**: read it first, a major version may no longer load Mira’s extension. If the installer shows “Could not start the Jellyfin Server service”, choose **Ignore**: Jellyfin starts right after.
 
-Mira ne met à jour que le Jellyfin installé en service par son installateur (celui que Mira installe). Une nouvelle version change la base de Jellyfin sans retour en arrière possible : revenir à l’ancienne demande la sauvegarde.
+Mira only updates a Jellyfin installed as a service by its own installer (the one Mira installs). A new version changes Jellyfin’s database with no way back: going back to the old version needs the backup.
 
-**Remettre une sauvegarde** (PC neuf, disque changé, retour à l’ancienne version) :
+**Restore a backup** (new PC, replaced drive, back to the old version):
 
-1. Installe Jellyfin, de la même version que la sauvegarde ou plus récente (depuis Mira ou `jellyfin.org`), et termine son assistant avec un compte quelconque.
-2. Copie l’archive `jellyfin-backup-<date>.zip` dans `C:\ProgramData\Jellyfin\Server\data\backups`.
-3. Ouvre `http://127.0.0.1:8096`, **Tableau de bord → Sauvegardes**, et restaure-la : Jellyfin redémarre avec ses anciens comptes, ta progression et tes bibliothèques.
-4. Remets tes vidéos aux mêmes chemins (ou corrige les dossiers des bibliothèques dans le tableau de bord), puis, dans Mira, **Guide → Mira sur ton iPhone → Tout préparer**.
+1. Install Jellyfin, the same version as the backup or newer (from Mira or `jellyfin.org`), and finish its wizard with any account.
+2. Copy the `jellyfin-backup-<date>.zip` archive to `C:\ProgramData\Jellyfin\Server\data\backups`.
+3. Open `http://127.0.0.1:8096`, **Dashboard → Backups**, and restore it: Jellyfin restarts with its old accounts, your progress and your libraries.
+4. Put your videos back at the same paths (or fix the libraries’ folders in the dashboard), then, in Mira, **Help → Mira on your iPhone → Set everything up**.
 
-## Obtenir le moteur vidéo
+## Get the video engine
 
-**Automatiquement.** La case **Télécharger le moteur vidéo mpv** de l’installateur (cochée par défaut), le bouton **Installer le moteur mpv** de **Réglages → Lecture** ou le bouton **Installer** proposé à la première lecture font la même chose : Mira télécharge une build précise des [builds Windows de mpv](https://mpv.io/installation/) (shinchiro, publiée sur SourceForge, 31 Mo), vérifie son empreinte SHA-256, extrait `libmpv-2.dll` et vérifie aussi la sienne, puis la range dans `data\mpv`. Ce moteur suit la build que fige Mira : une build plus récente, figée par une nouvelle version de Mira, est téléchargée en arrière-plan, vérifiée de la même façon et utilisée au démarrage suivant ; un moteur choisi dans les réglages ou trouvé sur le PC n’est jamais touché. Un fichier différent de celui attendu n’est jamais installé. Avec l’installateur, un échec du téléchargement (pas de connexion) n’empêche pas l’installation : Mira le propose de nouveau à la première lecture.
+**Automatically.** The installer’s **Download the mpv video engine** box (ticked by default), the **Install the mpv engine** button in **Settings → Playback**, or the **Install** button offered the first time you play something all do the same thing: Mira downloads a specific build from the [Windows builds of mpv](https://mpv.io/installation/) (shinchiro, published on SourceForge, 31 MB), checks its SHA-256 hash, extracts `libmpv-2.dll` and checks that one’s hash too, then puts it in `data\mpv`. This engine follows the build Mira pins: a newer build, pinned by a new version of Mira, is downloaded in the background, checked the same way and used at the next start; an engine chosen in the settings or found on the PC is never touched. A file other than the expected one is never installed. With the installer, a failed download (no connection) doesn’t stop the installation: Mira offers it again the first time you play something.
 
-**Avec un moteur déjà présent.** Si mpv.net ou Jellyfin MPV Shim est installé à un emplacement connu de Mira, sa bibliothèque est réutilisée et rien n’est téléchargé. Une autre `libmpv-2.dll` ou `mpv-2.dll` x64 peut être choisie dans **Réglages → Lecture → Emplacement du moteur** ; elle passe avant celle de Mira.
+**With an engine already on the PC.** If mpv.net or Jellyfin MPV Shim is installed in a place Mira knows, its library is reused and nothing is downloaded. Another x64 `libmpv-2.dll` or `mpv-2.dll` can be chosen in **Settings → Playback → Engine location**; it comes before Mira’s.
 
-Le moteur n’est pas inclus dans les fichiers de Mira : il est téléchargé depuis son distributeur, et ses licences (GPL pour mpv et FFmpeg) restent les siennes. `data\mpv\SOURCE.txt` indique sa provenance et ses empreintes.
+The engine isn’t included in Mira’s files: it’s downloaded from its distributor, and its licenses (GPL for mpv and FFmpeg) remain its own. `data\mpv\SOURCE.txt` gives its origin and its hashes.
 
-## Utilisation
+## Usage
 
-Le serveur Jellyfin reste lancé : il gère la bibliothèque, les affiches, les métadonnées et la progression. Mira fournit l’interface et la lecture. Un fichier local est lu directement si le serveur est local et le fichier accessible ; sinon Mira utilise le flux original du serveur. Cette version ne transcode pas.
+The Jellyfin server keeps running: it handles the library, posters, metadata and progress. Mira provides the interface and playback. A local file is played directly if the server is local and the file can be reached; otherwise Mira uses the server’s original stream. When your connection needs it, Jellyfin converts the video (**Settings → Playback → Quality**).
 
-| Action | Raccourci |
+| Action | Shortcut |
 | --- | --- |
-| Recherche | Ctrl + K / Ctrl + F |
-| Accueil, Films, Séries, Toute la bibliothèque, Téléchargements | Ctrl + 1 à Ctrl + 5 |
-| Passer d’une affiche à sa voisine | Flèches, sur une rangée ou une grille d’affiches |
-| Lecture / pause | Espace / K |
-| Reculer / avancer de 10 secondes | ← / →, J / L |
-| Reculer / avancer d’une minute | Maj + ← / Maj + → |
-| Aller à 0, 10 … 90 % du titre | 0 à 9 (rangée du haut ou pavé numérique) |
-| Sous-titres : couper / remettre | C |
-| Volume (jusqu’à 200 %) | ↑ / ↓, molette sur l’image ou sur le haut-parleur |
-| Couper le son | M |
-| Plein écran | F / F11 / double-clic sur la vidéo |
-| Mini-lecteur / agrandir | I |
-| Passage disponible : opening, ending, suivant | S |
-| Épisode suivant | N |
-| Retour / fermer un panneau / sortir du plein écran | Échap |
+| Search | Ctrl + K / Ctrl + F |
+| Home, Movies, Shows & anime, Whole library, Downloads | Ctrl + 1 to Ctrl + 5 |
+| Move from a poster to the next one | Arrow keys, on a row or a grid of posters |
+| Play / pause | Space / K |
+| Back / forward 10 seconds | ← / →, J / L |
+| Back / forward one minute | Shift + ← / Shift + → |
+| Go to 0, 10 … 90% of the title | 0 to 9 (top row or numeric keypad) |
+| Subtitles: off / back on | C |
+| Volume (up to 200%) | ↑ / ↓, mouse wheel on the picture or on the speaker |
+| Mute | M |
+| Full screen | F / F11 / double-click on the video |
+| Mini player / enlarge | I |
+| Available skip: intro, credits, next | S |
+| Next episode | N |
+| Back / close a panel / leave full screen | Esc |
 
-La zone de notification permet de masquer puis de retrouver Mira sans arrêter la lecture. Le bouton × de la fenêtre quitte l’application. Les commandes de la barre des tâches et la fiche multimédia Windows apparaissent pendant la lecture ; leur présentation dépend de Windows.
+The notification area lets you hide Mira and bring it back without stopping playback. The window’s × button quits the app. Taskbar controls and Windows’ media overlay appear during playback; how they look depends on Windows.
 
-## Loin de chez toi, sans l’app Tailscale
+## Away from home, without the Tailscale app
 
-Sur un PC où l’app Tailscale n’est pas installée (un portable que tu emportes, le PC d’un proche), **Tailscale intégré** fait entrer Mira dans ton réseau Tailscale, comme un appareil de plus, pour joindre ton Jellyfin hors de chez toi. Le PC de Jellyfin garde la vraie app Tailscale : sur lui, comme sur tout PC où l’app Tailscale est connectée, Mira ne s’en sert pas.
+On a PC where the Tailscale app isn’t installed (a laptop you take with you, a relative’s PC), **Built-in Tailscale** brings Mira into your Tailscale network, as one more device, to reach your Jellyfin away from home. Jellyfin’s PC keeps the real Tailscale app: on it, as on any PC where the Tailscale app is connected, Mira doesn’t use it.
 
-1. À l’écran de connexion, tape l’adresse Tailscale du PC de Jellyfin (`100.x.y.z`, ou son nom dans Tailscale). Mira propose **Tailscale intégré** ; il le propose aussi quand il ne trouve aucun serveur. Tant qu’il n’est pas connecté, **Se connecter** à Jellyfin est refusé avec la raison.
-2. **Se connecter à Tailscale** : la page de connexion de Tailscale s’ouvre dans ton navigateur. Connecte-toi avec le compte Tailscale du PC de Jellyfin. Si ton réseau Tailscale fait approuver chaque nouvel appareil, approuve `mira-<nom du PC>` dans sa console (**Ouvrir la console de Tailscale**).
-3. Si Windows demande d’autoriser « Mira (Tailscale) » sur ses réseaux, accepte : la connexion directe est plus rapide. Refuser marche aussi, par un relais de Tailscale.
-4. Connecte-toi à Jellyfin comme d’habitude.
+1. On the sign-in screen, type the Tailscale address of Jellyfin’s PC (`100.x.y.z`, or its name in Tailscale). Mira offers **Built-in Tailscale**; it also offers it when it finds no server. As long as it isn’t connected, **Sign in** to Jellyfin is refused, with the reason.
+2. **Sign in to Tailscale**: Tailscale’s sign-in page opens in your browser. Sign in with the Tailscale account of Jellyfin’s PC. If your Tailscale network makes you approve each new device, approve `mira-<PC name>` in its console (**Open Tailscale’s admin console**).
+3. If Windows asks you to allow “Mira (Tailscale)” on its networks, accept: a direct connection is faster. Refusing works too, through a Tailscale relay.
+4. Sign in to Jellyfin as usual.
 
-Ensuite, Mira rejoint ton réseau Tailscale à chaque ouverture, avant de demander quoi que ce soit à Jellyfin, et le quitte à sa fermeture (même arrêté par le Gestionnaire des tâches). **Réglages → Jellyfin** dit son état, par où passe Mira (**À la maison (direct)**, **Par l’app Tailscale** ou **Par Tailscale intégré**) et ce que Tailscale en voit. À la maison, Mira joint Jellyfin en direct.
+After that, Mira joins your Tailscale network each time it opens, before asking Jellyfin anything, and leaves it when it closes (even when ended from Task Manager). **Settings → Away from home** shows its state, which way Mira goes (**At home (direct)**, **Through the Tailscale app** or **Through Built-in Tailscale**) and what Tailscale sees of it. At home, Mira reaches Jellyfin directly.
 
-- **Se déconnecter de Tailscale** (même endroit) le dit à Tailscale, puis efface de ce PC la clé et l’état de Tailscale intégré. L’appareil reste dans la [console de Tailscale](https://login.tailscale.com/admin/machines), « Logged out », jusqu’à ce que tu l’y supprimes.
-- Sa connexion expire comme celle de tout appareil Tailscale (180 jours par défaut) : Mira prévient deux semaines avant ; dans la console, **Disable key expiry** (menu `⋯` de l’appareil) l’évite.
-- Facultatif : pendant une panne du serveur de coordination de Tailscale (comme le 30 octobre 2026 au soir), Tailscale intégré peut redémarrer depuis la liste des appareils gardée sur l’appareil. Tant que Tailscale essaie cette fonction, il ne l’accorde que si la politique du réseau le dit (« During the trial phase, client-side netmap caching is opt-in ») ; Mira demande déjà à Tailscale de l’activer par défaut à la fin de l’essai (version de protocole 149), mais ça ne suffit pas encore. Sous **Tailscale intégré** (Réglages, sur Windows, Mac et iPhone), Mira le propose avec **Copier la ligne**, **Ouvrir la politique du réseau** et **Masquer** ; l’avis disparaît tout seul une fois le réglage enregistré. Dans la [politique de ton réseau](https://login.tailscale.com/admin/acls/file) (éditeur JSON), colle la ligne juste sous `"nodeAttrs": [` (il y en a souvent déjà un, celui de Funnel : un second `"nodeAttrs"` est refusé, « duplicate name ») ; s’il n’y en a pas, écris-le juste après la première `{` :
+- **Sign out of Tailscale** (same place) tells Tailscale, then erases Built-in Tailscale’s key and state from this PC. The device stays in the [Tailscale console](https://login.tailscale.com/admin/machines), “Logged out”, until you delete it there.
+- Its connection expires like any Tailscale device’s (180 days by default): Mira warns you two weeks before; in the console, **Disable key expiry** (the device’s `⋯` menu) prevents it.
+- Optional: during an outage of Tailscale’s coordination server (like on the evening of 30 October 2026), Built-in Tailscale can start again from the device list kept on the device. While Tailscale is trialling this feature, it only grants it if the network’s policy says so (“During the trial phase, client-side netmap caching is opt-in”); Mira already asks Tailscale to turn it on by default at the end of the trial (protocol version 149), but that isn’t enough yet. Under **Built-in Tailscale** (Settings, on Windows, Mac and iPhone), Mira offers it with **Copy the line**, **Open the network’s policy** and **Hide**; the notice goes away by itself once the setting is saved. In your [network’s policy](https://login.tailscale.com/admin/acls/file) (JSON editor), paste the line right under `"nodeAttrs": [` (there’s often one already, Funnel’s: a second `"nodeAttrs"` is refused, “duplicate name”); if there isn’t one, write it right after the first `{`:
 
   ```json
   "nodeAttrs": [
@@ -117,85 +117,85 @@ Ensuite, Mira rejoint ton réseau Tailscale à chaque ouverture, avant de demand
   ],
   ```
 
-  Un appareil déjà connecté une fois redémarre alors depuis la liste gardée sur lui et joint ton Jellyfin malgré la panne ; une toute première connexion attend que Tailscale revienne. La liste (noms, adresses et clés publiques des appareils) reste dans le dossier de Tailscale intégré, sur l’appareil. Détails : [Client-side netmap caching](https://tailscale.com/docs/reference/client-side-netmap-caching).
-- Vie privée : rien ne part vers Tailscale avant **Se connecter à Tailscale**. Ensuite, comme pour l’app Tailscale, ses serveurs voient le compte choisi, le nom de l’appareil, son système et ses adresses IP (publique et locales, pour la connexion directe) ; tes vidéos restent chiffrées de bout en bout, en direct ou par un relais de Tailscale. Mira n’envoie aucun journal à Tailscale ; le sien, `data\tailscale\mira-tailscale.log`, ne garde aucune page de connexion. Détails dans [SECURITY.md](SECURITY.fr.md#tailscale-intégré-windows).
+  A device that has already connected once then starts again from the list kept on it and reaches your Jellyfin despite the outage; a very first connection waits for Tailscale to come back. The list (device names, addresses and public keys) stays in Built-in Tailscale’s folder, on the device. Details: [Client-side netmap caching](https://tailscale.com/docs/reference/client-side-netmap-caching).
+- Privacy: nothing goes to Tailscale before **Sign in to Tailscale**. After that, as with the Tailscale app, its servers see the chosen account, the device’s name, its system and its IP addresses (public and local, for the direct connection); your videos stay encrypted end to end, directly or through a Tailscale relay. Mira sends no log to Tailscale; its own, `data\tailscale\mira-tailscale.log`, keeps no sign-in page. Details in [SECURITY.md](../SECURITY.md#built-in-tailscale-windows).
 
 ## TorLink
 
-TorLink est un client de téléchargement en terminal ([projet indépendant](https://github.com/baairon/torlink), licence MIT), publié sur npm (`npx torlnk`). Sur le PC de Jellyfin, la page **Téléchargements** du rail s’en sert avec l’écran de Télécharger sur le PC serveur : cherche un titre, Mira met en avant la meilleure version de chaque film ou épisode, **Télécharger** le confie à TorLink, et la colonne de droite montre la progression, le débit et le temps restant (**Pause**, **Reprendre**, **Annuler**), puis ce qui part vers Jellyfin (**Dossier**, **Réessayer**, **Classer**). Le bouton **Terminal** affiche l’interface de TorLink elle-même (et **Écran de Mira** y revient) ; Mira se souvient du choix.
+TorLink is a terminal download client ([independent project](https://github.com/baairon/torlink), MIT license), published on npm (`npx torlnk`). On Jellyfin’s PC, the rail’s **Downloads** page uses it with the Download to the server PC screen: search for a title, Mira puts forward the best version of each movie or episode, **Download** hands it to TorLink, and the right-hand column shows progress, speed and time left (**Pause**, **Resume**, **Cancel**), then what is heading to Jellyfin (**Folder**, **Retry**, **File as**). The **Terminal** button shows TorLink’s own interface (and **Mira’s screen** goes back); Mira remembers your choice.
 
-1. Ouvrir **Téléchargements** (flèche du rail), puis activer **TorLink** dans la liste des téléchargeurs.
-2. Si TorLink est déjà sur ce PC (installation npm globale, raccourci), Mira te montre son dossier et sa version, et ne le lance qu’une fois que tu as confirmé que c’est le tien ; il s’en souvient ensuite. Sinon, il l’installe pour ce compte Windows, sans droits administrateur et sans modifier le PATH :
-   - **Node.js 24.21.0** : le zip officiel de nodejs.org (38 Mo), vérifié par sa taille et son SHA-256, et rangé dans `data\node` ;
-   - **TorLink 1.9.0**, installé par ce npm dans `data\torlink`, avec chacune de ses dépendances à la version fixée par Mira et vérifiée par son empreinte.
-   Compter une minute environ.
-3. Dans **Réglages → TorLink**, vérifier les dossiers Films, Séries et Animes. Laissés vides, ils sont lus dans Jellyfin : il faut un compte administrateur et un serveur sur ce PC.
+1. Open **Downloads** (arrow on the rail), then turn on **TorLink** in the list of downloaders.
+2. If TorLink is already on this PC (global npm install, shortcut), Mira shows you its folder and version, and only runs it once you’ve confirmed it’s yours; it remembers that afterwards. Otherwise, it installs it for this Windows account, without administrator rights and without changing the PATH:
+   - **Node.js 24.21.0**: the official zip from nodejs.org (38 MB), checked by its size and SHA-256, and put in `data\node`;
+   - **TorLink 1.9.0**, installed by that npm in `data\torlink`, with each of its dependencies at the version pinned by Mira and checked by its hash.
+   Allow about a minute.
+3. In **Settings → Downloads**, check the Movies, Shows and Anime folders. Left empty, they’re read from Jellyfin: that takes an administrator account and a server on this PC.
 
-Désactiver TorLink le ferme ; il reste installé. Le TorLink installé par Mira suit Mira : quand une nouvelle version de Mira fixe un Node.js ou un TorLink plus récent, il est préparé à côté pendant que TorLink tourne, puis utilisé à son ouverture suivante. Il tourne sans son module WebRTC facultatif, qui demande des outils de compilation : les pairs TCP, uTP et DHT suffisent.
+Turning TorLink off closes it; it stays installed. The TorLink installed by Mira follows Mira: when a new version of Mira pins a newer Node.js or TorLink, it’s prepared alongside while TorLink runs, then used the next time it opens. It runs without its optional WebRTC module, which needs build tools: TCP, uTP and DHT peers are enough.
 
-Chaque téléchargement terminé est **déplacé** dans la bibliothèque, sous les noms attendus par Jellyfin, par exemple `Titre (Année)\Titre (Année).mkv` ou `Série\Season 01\Série - S01E02.mkv`. Il n’existe jamais en double :
-- sur le même disque, le déplacement est instantané : le fichier change seulement de dossier ;
-- sur un autre disque, chaque fichier est copié puis aussitôt supprimé du dossier de TorLink. Pour éviter ce cas, Mira fait télécharger TorLink sur le disque de la bibliothèque, dans « Téléchargements TorLink », quand TorLink n’a pas encore de dossier. Sinon, choisir ce dossier dans le terminal de TorLink avec la touche **o**.
+Each finished download is **moved** into the library, under the names Jellyfin expects, for example `Title (Year)\Title (Year).mkv` or `Show\Season 01\Show - S01E02.mkv`. It never exists twice:
+- on the same drive, the move is instant: the file only changes folder;
+- on another drive, each file is copied then deleted right away from TorLink’s folder. To avoid this, Mira has TorLink download onto the library’s drive, in “TorLink downloads”, when TorLink doesn’t have a folder yet. Otherwise, choose that folder in TorLink’s terminal with the **o** key.
 
-TorLink arrête de partager un téléchargement déplacé. Pour qu’il continue, activer **Réglages → TorLink → Continuer à partager** : sur le même disque, un lien physique met aussi le fichier dans la bibliothèque, sans prendre plus de place. Il apparaît alors dans les deux dossiers. Jellyfin est prévenu, puis le titre apparaît dans Mira.
+TorLink stops sharing a download once it’s moved. To keep it sharing, turn on **Settings → Downloads → Keep sharing in TorLink**: on the same drive, a hard link also puts the file in the library, without taking more space. It then shows in both folders. Jellyfin is told, then the title shows up in Mira.
 
-Quitter Mira ferme aussi TorLink ; ses téléchargements reprennent à la prochaine ouverture. TorLink ne peut pas tourner en même temps dans Mira et dans une autre fenêtre. Avec Jellyfin dans Docker ou sur un autre PC, choisir les dossiers locaux que le serveur partage : les nouveaux titres apparaissent alors à sa prochaine analyse de la bibliothèque.
+Quitting Mira closes TorLink too; its downloads resume the next time it opens. TorLink can’t run in Mira and in another window at the same time. With Jellyfin in Docker or on another PC, choose the local folders the server shares: new titles then show up at its next library scan.
 
-Mira ne vérifie pas ce qui est téléchargé. Les sources intégrées à TorLink indexent surtout des copies dont la diffusion n’est pas autorisée : ne télécharger que des contenus que tu as le droit d’obtenir.
+Mira doesn’t check what is downloaded. The sources built into TorLink mostly index copies whose distribution isn’t authorized: only download content you have the right to get.
 
-## Mise à jour et données
+## Updates and data
 
-Le dossier `data`, à côté de `Mira.exe`, contient la session protégée, les préférences, la progression en attente, le cache et le journal des rangements TorLink. Ne jamais le publier ou le joindre à une issue. La session protégée n’est pas portable vers un autre compte Windows.
+The `data` folder, next to `Mira.exe`, holds the protected session, preferences, pending progress, the cache and the log of TorLink sorting. Never publish it or attach it to an issue. The protected session can’t be carried over to another Windows account.
 
-**Mises à jour automatiques, à partir de la 0.5.2.** Quelques secondes après son ouverture, puis toutes les 6 heures, Mira cherche une nouvelle version sur GitHub. Il télécharge en arrière-plan le fichier de sa forme d’installation (installateur, exécutable portable ou archive), vérifie qu’il est signé par Mira, avec la taille et l’empreinte SHA-256 annoncées, et l’installe quand tu fermes Mira. **Redémarrer**, dans le message qui s’affiche ou dans **Réglages → Mises à jour**, l’installe tout de suite et rouvre Mira. Le dossier `data` reste en place ; les préversions sont proposées, comme toutes les versions publiées jusqu’ici. L’interrupteur de **Réglages → Mises à jour** arrête la recherche automatique ; **Rechercher** reste disponible. Le détail de chaque vérification est noté dans `data\updates\update.log`.
+**Automatic updates, from 0.5.2 on.** A few seconds after it opens, then every 6 hours, Mira looks for a new version on GitHub. It downloads in the background the file for its install type (installer, portable executable or archive), checks that it’s signed by Mira, with the announced size and SHA-256 hash, and installs it when you close Mira. **Restart**, in the message that appears or in **Settings → Updates**, installs it right away and reopens Mira. The `data` folder stays where it is; pre-releases are offered, like every version published so far. The switch in **Settings → Updates** stops the automatic check; **Check for updates** stays available. The details of each check are written to `data\updates\update.log`.
 
-Une copie en 0.5.1 ou plus ancienne ne se met pas à jour seule : installer une fois à la main la 0.5.2 ou une version plus récente suffit. Pour mettre à jour à la main :
+A copy at 0.5.1 or older doesn’t update by itself: installing 0.5.2 or a later version by hand once is enough. To update by hand:
 
-- **Installateur** : lancer celui de la nouvelle version ; il ferme Mira s’il est ouvert, remplace l’application et garde `data`. La désinstallation demande avant de supprimer ces données (non par défaut), en donnant leur taille, puis dit ce qui reste sur le PC et comment le retirer : la règle « Mira - Jellyfin » du pare-feu (aussi retirée par **Guide → Mira sur ton iPhone → Ne plus ouvrir Jellyfin au réseau**), Jellyfin et le réglage de son service, le droit de lecture de Jellyfin sur tes dossiers, les fichiers de TorLink, et les bibliothèques extraites par la version portable dans `%TEMP%\.net`. Mira portable efface lui-même celles de ses versions précédentes au démarrage suivant, quand aucun autre Mira n’est ouvert.
-- **Exécutable portable** : fermer Mira et remplacer le fichier `.exe`, dans le même dossier que son `data`.
-- **Archive** : fermer Mira, sauvegarder `data`, puis remplacer les fichiers de l’application par ceux de la nouvelle archive, **en conservant `data`**.
+- **Installer**: run the new version’s installer; it closes Mira if it’s open, replaces the app and keeps `data`. Uninstalling asks before deleting this data (no by default), giving its size, then says what stays on the PC and how to remove it: the “Mira - Jellyfin” firewall rule (also removed by **Help → Mira on your iPhone → Close Jellyfin to the network**), Jellyfin and its service setting, Jellyfin’s read access to your folders, TorLink’s files, and the libraries extracted by the portable version in `%TEMP%\.net`. The portable Mira itself erases those of its earlier versions at the next start, when no other Mira is open.
+- **Portable executable**: close Mira and replace the `.exe` file, in the same folder as its `data`.
+- **Archive**: close Mira, back up `data`, then replace the app’s files with those from the new archive, **keeping `data`**.
 
-Chaque fichier de la release est accompagné de son empreinte SHA-256 (fichier `.sha256`). Pour vérifier un fichier téléchargé :
+Each file in the release comes with its SHA-256 hash (a `.sha256` file). To check a downloaded file:
 
 ```powershell
 Get-FileHash .\Mira-<version>-win-x64-setup.exe -Algorithm SHA256
 ```
 
-Pour passer d’une copie portable à l’installateur en gardant sa session : installer, fermer toutes les fenêtres Mira, puis copier le dossier `data` de l’ancienne copie dans `%LOCALAPPDATA%\Programs\Mira`, en remplaçant celui qui s’y trouve.
+To move from a portable copy to the installer and keep its session: install, close every Mira window, then copy the old copy’s `data` folder into `%LOCALAPPDATA%\Programs\Mira`, replacing the one there.
 
-## Si quelque chose ne fonctionne pas
+## If something doesn’t work
 
-| Symptôme | Vérification |
+| Symptom | What to check |
 | --- | --- |
-| Jellyfin injoignable hors de chez soi | L’adresse du guide (192.168…) ne marche que sur le réseau de la maison. Installer Tailscale sur ce PC et sur l’appareil, avec le même compte, puis **Guide** (**?** à gauche) **→ Mira sur ton iPhone → Tout préparer**, et taper l’adresse Tailscale qu’il donne dans Mira (ou dans l’application Jellyfin). Sur l’iPhone, Tailscale intégré à Mira évite l’app Tailscale. Ouvrir la box (redirection de port) exposerait Jellyfin à tout Internet : c’est déconseillé. |
-| Jellyfin injoignable depuis un PC sans l’app Tailscale | **Tailscale intégré** (section [Loin de chez toi, sans l’app Tailscale](#loin-de-chez-toi-sans-lapp-tailscale)) : à l’écran de connexion, avec l’adresse Tailscale du PC de Jellyfin, ou **Réglages → Jellyfin → Se connecter à Tailscale**. |
-| « … n’est pas connecté à Tailscale : il est éteint, en veille ou sans Internet » | Le PC de Jellyfin a quitté Tailscale : l’allumer ou le réveiller (lignes suivantes : veille, session, connexion expirée). Mira rejoue l’Accueil dès qu’il revient. |
-| « En attente d’approbation dans la console de Tailscale » | Ton réseau Tailscale fait approuver chaque nouvel appareil : **Ouvrir la console de Tailscale**, puis approuver `mira-<nom du PC>`. |
-| « Sécurité Windows bloque mira-tailscale.exe » ou « Tailscale intégré s’arrête dès son lancement » | Un antivirus bloque le Tailscale intégré de Mira (**Sécurité Windows → Historique de protection**). L’app Tailscale fait la même chose : l’installer sur ce PC ([tailscale.com/download](https://tailscale.com/download)) ; Mira passe alors par elle. |
-| Injoignable hors de chez soi après un redémarrage du PC serveur, jusqu’à l’ouverture de ta session | Tailscale attend ta session : **Tout préparer** sur la carte « Mira sur ton iPhone » du guide le règle, ou clic droit sur l’icône de Tailscale → **Preferences** → **Run unattended**. |
-| Injoignable après un moment sans utiliser le PC serveur | Il s’est mis en veille : Tailscale ne sait pas le réveiller. **Tout préparer** sur la carte « Mira sur ton iPhone » du guide le garde éveillé sur secteur, ou Paramètres → Système → Alimentation, mise en veille sur secteur : **Jamais** (pour un portable, fermer l’écran : **Ne rien faire** sur secteur). Pendant une lecture sur un autre appareil, Mira garde le PC éveillé tant qu’il est ouvert. |
-| Injoignable hors de chez soi, Tailscale demande de te reconnecter sur le PC serveur | Sa connexion à Tailscale a expiré (tous les 180 jours, par défaut) : se reconnecter dans le menu de Tailscale, puis sur https://login.tailscale.com/admin/machines, menu `⋯` de ce PC → **Disable key expiry**. Mira prévient deux semaines avant. |
-| « Jellyfin est arrêté sur ce PC » | **Démarrer Jellyfin**, dans l’avis ou sur la carte « Mira sur ton iPhone » du guide. Pour son service, Windows demande une autorisation. S’il s’arrête encore après deux démarrages, Mira affiche la cause écrite dans son journal (`%ProgramData%\Jellyfin\Server\log`) et **Ouvrir son journal** : corriger la cause (port 8096 pris, disque plein, dossier de données illisible), puis le démarrer. |
-| Serveur inaccessible | Jellyfin doit être lancé ; vérifier l’adresse, le port et l’accès réseau. Pour un serveur distant, utiliser HTTPS. |
-| « Ce n’est pas un serveur Jellyfin » | L’adresse répond, mais pas Jellyfin (routeur, NAS, Emby…) : vérifier le port, 8096 par défaut. |
-| « Mira a besoin de Jellyfin 10.9 » | Mettre Jellyfin à jour ; Mira utilise des routes introduites par cette version. |
-| Fenêtre « Could not start the Jellyfin Server service » de l’installateur de Jellyfin | Choisir **Ignorer** (pas Réessayer, qui la rouvre). Ce message peut apparaître alors que le service démarre bien : il a été vu sur un vrai PC, où Jellyfin tournait juste après. Mira met cette fenêtre devant lui et n’attend pas ta réponse : dès que Jellyfin répond, il continue la configuration. S’il ne répond pas, Mira affiche la cause écrite dans le journal de Jellyfin (`%ProgramData%\Jellyfin\Server\log`), par exemple le port 8096 déjà pris. |
-| « Jellyfin s’est installé mais ne démarre pas » ou « … déjà installé sur ce PC mais ne répond pas » | Lire la cause indiquée, la corriger, puis démarrer **Jellyfin Server** (menu Démarrer, ou **Services** de Windows) ou redémarrer le PC. **Installer et configurer** reprend ensuite où il s’était arrêté, sans réinstaller. |
-| « Un autre programme répond déjà sur le port 8096 » | Ce n’est pas Jellyfin : fermer ce programme, ou installer Jellyfin sur un autre PC. |
-| « Ce Jellyfin a déjà un compte administrateur » | Sa configuration a été commencée avec un autre compte : la terminer sur `http://127.0.0.1:8096`, puis se connecter. |
-| Vidéo rangée mais absente de Jellyfin | Vérifier qu’elle est dans `Films`, `Séries` ou `Animes`. Un fichier déplacé par un autre programme peut garder les droits de son ancien dossier : le copier avec l’Explorateur à la place. |
-| « Certificat HTTPS non reconnu » | Le certificat du serveur n’est pas approuvé par Windows, et Mira n’essaie pas `http://` à sa place : pour un serveur chez toi, taper son adresse complète en `http://` (celle que Mira propose, par exemple `http://nas:8096`) ; sinon, installer un certificat valide. |
-| « Cette adresse passe par Internet, en http:// » | Le mot de passe passerait en clair sur Internet : utiliser l’adresse `https://` du serveur, ou son adresse Tailscale. **Se connecter quand même** l’envoie malgré tout. |
-| Bibliothèque visible mais lecture impossible | **Réglages → Lecture** : installer le moteur mpv, ou choisir une DLL libmpv **64 bits** avec ses dépendances. |
-| « Le moteur vidéo n’a pas pu être téléchargé » | Vérifier la connexion Internet puis réessayer depuis **Réglages → Lecture**. Le téléchargement passe par `downloads.sourceforge.net` et ses miroirs. |
-| Progression qui tarde à remonter | Consulter **Réglages → Jellyfin & synchronisation** ; les envois restent en attente quand le serveur est indisponible. |
-| Icône de notification absente | Regarder les icônes masquées près de l’horloge. |
-| Mira est déjà ouvert | Relancer le raccourci doit restaurer la fenêtre existante. |
-| TorLink introuvable | Dans la page **Téléchargements**, choisir **Réinstaller**. |
-| « TorLink n’a pas pu s’installer » | Vérifier la connexion à Internet (nodejs.org et registry.npmjs.org), puis réactiver TorLink. |
-| « TorLink est déjà ouvert » | Quitter l’autre fenêtre TorLink (q ou Ctrl + C), puis choisir **Réessayer**. |
-| Terminal intégré indisponible | Installer le runtime Microsoft Edge WebView2. En attendant, **Ouvrir dans une fenêtre** lance TorLink à part ; ses téléchargements terminés sont quand même rangés, au plus tard à la prochaine ouverture de Mira. |
-| Téléchargement non rangé | Lire son état dans **Vers Jellyfin**, sur la page Téléchargements. Choisir les dossiers manquants dans les réglages, puis **Réessayer**. |
-| Mise à jour qui ne s’installe pas | **Réglages → Mises à jour** donne la dernière erreur, `data\updates\update.log` le détail. Le dossier de Mira doit rester accessible en écriture ; une copie lancée depuis un dossier de développement (`bin\Release`) ne se met jamais à jour. |
+| Can’t reach Jellyfin away from home | The address in the guide (192.168…) only works on your home network. Install Tailscale on this PC and on the device, with the same account, then **Help** (**?** on the left) **→ Mira on your iPhone → Set everything up**, and type the Tailscale address it gives into Mira (or into the Jellyfin app). On iPhone, Mira’s Built-in Tailscale saves you the Tailscale app. Opening your router (port forwarding) would expose Jellyfin to the whole Internet: not recommended. |
+| Can’t reach Jellyfin from a PC without the Tailscale app | **Built-in Tailscale** (section [Away from home, without the Tailscale app](#away-from-home-without-the-tailscale-app)): on the sign-in screen, with the Tailscale address of Jellyfin’s PC, or **Settings → Away from home → Sign in to Tailscale**. |
+| “… isn’t connected to Tailscale: it’s off, asleep or without Internet” | Jellyfin’s PC has left Tailscale: turn it on or wake it (next rows: sleep, session, expired connection). Mira reloads Home as soon as it’s back. |
+| “Waiting for approval in Tailscale’s admin console” | Your Tailscale network makes you approve each new device: **Open Tailscale’s admin console**, then approve `mira-<PC name>`. |
+| “Windows Security blocks mira-tailscale.exe” or “Built-in Tailscale stops as soon as it starts” | An antivirus is blocking Mira’s Built-in Tailscale (**Windows Security → Protection history**). The Tailscale app does the same thing: install it on this PC ([tailscale.com/download](https://tailscale.com/download)); Mira then goes through it. |
+| Can’t reach it away from home after the server PC restarts, until you sign in to Windows | Tailscale is waiting for your session: **Set everything up** on the “Mira on your iPhone” card in Help fixes it, or right-click Tailscale’s icon → **Preferences** → **Run unattended**. |
+| Can’t reach it after the server PC has been idle for a while | It went to sleep: Tailscale can’t wake it. **Set everything up** on the “Mira on your iPhone” card in Help keeps it awake when plugged in, or Settings → System → Power, sleep when plugged in: **Never** (for a laptop, closing the lid: **Do nothing** when plugged in). While something plays on another device, Mira keeps the PC awake as long as Mira is open. |
+| Can’t reach it away from home, Tailscale asks you to sign in again on the server PC | Its Tailscale connection expired (every 180 days by default): sign in again from Tailscale’s menu, then on https://login.tailscale.com/admin/machines, this PC’s `⋯` menu → **Disable key expiry**. Mira warns you two weeks before. |
+| “Jellyfin is stopped on this PC” | **Start Jellyfin**, in the notice or on the “Mira on your iPhone” card in Help. For its service, Windows asks for permission. If it stops again after two starts, Mira shows the cause written in its log (`%ProgramData%\Jellyfin\Server\log`) and **Open its log**: fix the cause (port 8096 taken, full drive, unreadable data folder), then start it. |
+| Server can’t be reached | Jellyfin must be running; check the address, the port and network access. For a remote server, use HTTPS. |
+| “This address answers, but it isn’t a Jellyfin server” | The address answers, but it isn’t Jellyfin (router, NAS, Emby…): check the port, 8096 by default. |
+| “Mira needs Jellyfin 10.9 or later” | Update Jellyfin; Mira uses routes introduced in that version. |
+| “Could not start the Jellyfin Server service” window from Jellyfin’s installer | Choose **Ignore** (not Retry, which opens it again). This message can appear while the service is starting fine: it was seen on a real PC, where Jellyfin was running right after. Mira puts this window in front of itself and doesn’t wait for your answer: as soon as Jellyfin answers, it carries on with the setup. If it doesn’t answer, Mira shows the cause written in Jellyfin’s log (`%ProgramData%\Jellyfin\Server\log`), for example port 8096 already taken. |
+| “Jellyfin is installed but doesn’t start” or “… already installed on this PC but isn’t answering” | Read the cause given, fix it, then start **Jellyfin Server** (Start menu, or Windows **Services**) or restart the PC. **Install** then picks up where it stopped, without reinstalling. |
+| “Another program is already answering on port 8096” | It isn’t Jellyfin: close that program, or install Jellyfin on another PC. |
+| “This Jellyfin already has an administrator account” | Its setup was started with another account: finish it at `http://127.0.0.1:8096`, then sign in. |
+| Video sorted but missing from Jellyfin | Check that it’s in `Movies`, `Shows` or `Anime`. A file moved by another program can keep the permissions of its old folder: copy it with File Explorer instead. |
+| “This server’s HTTPS certificate isn’t recognized” | The server’s certificate isn’t trusted by Windows, and Mira doesn’t try `http://` instead: for a server at your home, type its full address with `http://` (the one Mira suggests, for example `http://nas:8096`); otherwise, install a valid certificate. |
+| “This address goes over the Internet with http://” | The password would cross the Internet in clear text: use the server’s `https://` address, or its Tailscale address. **Sign in anyway** sends it regardless. |
+| Library visible but nothing plays | **Settings → Playback**: install the mpv engine, or choose a **64-bit** libmpv DLL with its dependencies. |
+| “The video engine couldn’t be downloaded” | Check the Internet connection, then try again from **Settings → Playback**. The download goes through `downloads.sourceforge.net` and its mirrors. |
+| Progress slow to reach the server | Look in **Settings → Account**; uploads wait when the server is unavailable. |
+| Notification icon missing | Look in the hidden icons near the clock. |
+| Mira is already open | Opening the shortcut again should bring back the existing window. |
+| TorLink not found | On the **Downloads** page, choose **Reinstall**. |
+| “TorLink couldn’t install” | Check the Internet connection (nodejs.org and registry.npmjs.org), then turn TorLink back on. |
+| “TorLink is already open” | Quit the other TorLink window (q or Ctrl + C), then choose **Retry**. |
+| Built-in terminal unavailable | Install the Microsoft Edge WebView2 runtime. Meanwhile, **Open in a window** runs TorLink separately; its finished downloads are still sorted, at the latest the next time Mira opens. |
+| Download not sorted | Read its state under **To Jellyfin**, on the Downloads page. Choose the missing folders in the settings, then **Retry**. |
+| Update that won’t install | **Settings → Updates** gives the last error, `data\updates\update.log` the details. Mira’s folder must stay writable; a copy run from a development folder (`bin\Release`) never updates. |
 
-Pour un problème reproductible, [ouvrir une issue](https://github.com/sasou-web/Mira/issues/new/choose) avec les versions de Mira, Windows, Jellyfin et du moteur. Ne joindre aucun identifiant ni média personnel.
+For a problem you can reproduce, [open an issue](https://github.com/sasou-web/Mira/issues/new/choose) with the versions of Mira, Windows, Jellyfin and the engine. Don’t attach any credentials or personal media.

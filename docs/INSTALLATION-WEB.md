@@ -1,49 +1,49 @@
-# L’extension Mira sur Jellyfin (et la fin de Mira web)
+# Mira’s extension on Jellyfin (and the end of Mira web)
 
-**Mira web est terminée.** Jusqu’à la 0.9.3, ton serveur Jellyfin servait Mira aux téléphones, dans Safari ou Chrome, à `http://<serveur>:8096/Mira`. Mira se concentre maintenant sur ses apps : [Windows](INSTALLATION.md), [Mac](INSTALLATION-MAC.md) et [iPhone](INSTALLATION-IOS.md). Sur Android, pas de Mira pour l’instant. Une icône de Mira web gardée sur l’écran d’accueil d’un téléphone ouvre maintenant une page qui le dit et mène à <https://miracinema.app> : tu peux la retirer.
+**Mira web is over.** Up to 0.9.3, your Jellyfin server served Mira to phones, in Safari or Chrome, at `http://<server>:8096/Mira`. Mira now focuses on its apps: [Windows](INSTALLATION.md), [Mac](INSTALLATION-MAC.md) and [iPhone](INSTALLATION-IOS.md). On Android, there’s no Mira for now. A Mira web icon kept on a phone’s home screen now opens a page that says so and leads to <https://miracinema.app>: you can remove it.
 
-L’extension, elle, reste sur Jellyfin. Elle sert :
+The extension, on the other hand, stays on Jellyfin. It serves:
 
-- **ta party** : ton lien pour regarder ensemble, sa page (avec l’aperçu dans Discord ou Messages) et les invités sans compte, qui passent par sa passerelle ;
-- **Télécharger sur le PC serveur** depuis ton iPhone, ton Mac ou un autre PC (son relais vers Mira pour Windows sur le PC de Jellyfin) ;
-- **les sous-titres automatiques** et l’**Identifier…** des titres mal reconnus ;
-- les sous-titres à l’heure d’une conversion pour l’app iPhone.
+- **your party**: your link to watch together, its page (with the preview in Discord or Messages) and guests without an account, who go through its gateway;
+- **Download to the server PC** from your iPhone, your Mac or another PC (its relay to Mira for Windows on Jellyfin’s PC);
+- **automatic subtitles** and **Identify…** for titles that were recognized wrong;
+- subtitles in time with a conversion, for the iPhone app.
 
-## Avec Mira pour Windows : tout en un clic
+## With Mira for Windows: everything in one click
 
-Sur le PC où tourne Jellyfin :
+On the PC where Jellyfin runs:
 
-1. Ouvre le **Guide** (bouton **?** à gauche, ou F1).
-2. La carte **Mira sur ton iPhone** coche ce qui est prêt et numérote ce qui reste :
-   - **l’extension Mira sur Jellyfin** ;
-   - **le pare-feu de Windows** : il laisse passer ton iPhone, sur le port de Jellyfin seulement, depuis ton Wi-Fi et Tailscale, jamais sur un réseau public : si Windows compte le Wi-Fi de ta box comme public, **Passer en privé** le change, avec une autorisation de Windows (seulement chez toi : le réseau d’un café doit rester public) ;
-   - **hors de chez toi (facultatif)** : Tailscale, gratuit, sur ce PC ; sur l’iPhone, Tailscale intégré à Mira suffit ;
-   - **dès l’allumage du PC** : Jellyfin démarre avec Windows, avant ta session (un démarrage différé choisi dans Windows est gardé), et repart après une erreur, trois fois au plus avant une journée sans erreur (avec son service Windows).
-3. Clique sur **Tout préparer**. Windows demande une seule autorisation, au nom de **Windows PowerShell** (Microsoft), qui règle le pare-feu et le service ; puis Jellyfin redémarre quelques secondes.
-4. La carte donne l’adresse à taper dans Mira sur l’iPhone ; **Installer Mira sur l’iPhone** ouvre [le guide d’installation](INSTALLATION-IOS.md).
+1. Open **Help** (the **?** button on the left, or F1).
+2. The **Mira on your iPhone** card ticks what’s ready and numbers what’s left:
+   - **Mira’s extension on Jellyfin**;
+   - **Windows’ firewall**: it lets your iPhone in, on Jellyfin’s port only, from your Wi-Fi and Tailscale, never on a public network: if Windows counts your router’s Wi-Fi as public, **Make it private** changes that, with Windows’ permission (only at home: a café’s network must stay public);
+   - **away from home (optional)**: Tailscale, free, on this PC; on the iPhone, the Tailscale built into Mira is enough;
+   - **as soon as the PC turns on**: Jellyfin starts with Windows, before your session (a delayed start chosen in Windows is kept), and starts again after an error, three times at most before a day without errors (with its Windows service).
+3. Click **Set everything up**. Windows asks for a single permission, in the name of **Windows PowerShell** (Microsoft), which sets up the firewall and the service; then Jellyfin restarts for a few seconds.
+4. The card gives the address to type into Mira on the iPhone; **Install Mira on iPhone** opens [the installation guide](INSTALLATION-IOS.md).
 
-**Ne plus ouvrir Jellyfin au réseau**, sous les étapes, retire la règle « Mira - Jellyfin » du pare-feu (une autorisation de Windows) ; **Tout préparer** la remet.
+**Close Jellyfin to the network**, under the steps, removes the “Mira - Jellyfin” rule from the firewall (one Windows permission); **Set everything up** puts it back.
 
-Il faut être connecté avec le compte administrateur de Jellyfin, ce qui est le cas si Mira a installé Jellyfin.
+You need to be signed in with Jellyfin’s administrator account, which is the case if Mira installed Jellyfin.
 
-Avant d’installer l’extension, Mira vérifie sur GitHub qu’elle est bien celle de sa version, signée comme ses propres mises à jour, dans une release que plus personne ne peut modifier ; sinon, il n’installe rien et le guide dit pourquoi. Le dépôt qu’il ajoute à Jellyfin ne propose que cette version vérifiée (et remplace un dépôt de Mira ajouté à la main). Ensuite, l’extension suit la version de Mira pour Windows : quand Mira se met à jour, ouvre-le une fois avec le compte administrateur de Jellyfin ; il fait passer Jellyfin à la nouvelle version et le redémarre dès que personne ne regarde.
+Before installing the extension, Mira checks on GitHub that it really is the one for its version, signed like its own updates, in a release that no one can change anymore; otherwise, it installs nothing and the guide says why. The repository it adds to Jellyfin only offers this checked version (and replaces a Mira repository added by hand). After that, the extension follows the version of Mira for Windows: when Mira updates, open it once with Jellyfin’s administrator account; it moves Jellyfin to the new version and restarts it as soon as no one is watching.
 
-## Sans Mira pour Windows
+## Without Mira for Windows
 
-Depuis la page web de Jellyfin :
+From Jellyfin’s web page:
 
-1. **☰ → Tableau de bord → Extensions → Dépôts**, puis **+** :
-   - nom : `Mira` ;
-   - URL : `https://github.com/sasou-web/Mira/releases/latest/download/jellyfin-manifest.json`.
-2. **Catalogue** : choisis **Mira**, puis **Installer**.
-3. Redémarre Jellyfin (**Tableau de bord → Redémarrer**).
+1. **☰ → Dashboard → Plugins → Repositories**, then **+**:
+   - name: `Mira`;
+   - URL: `https://github.com/sasou-web/Mira/releases/latest/download/jellyfin-manifest.json`.
+2. **Catalog**: choose **Mira**, then **Install**.
+3. Restart Jellyfin (**Dashboard → Restart**).
 
-Jellyfin met ensuite l’extension à jour tout seul à chaque nouvelle version de Mira. Il ne vérifie que l’empreinte donnée par la même release de GitHub : il fait confiance à GitHub et au compte qui publie Mira. Avec un PC Windows, Mira pour Windows (ci-dessus) fait plus sûr.
+Jellyfin then updates the extension by itself with each new version of Mira. It only checks the hash given by the same GitHub release: it trusts GitHub and the account that publishes Mira. With a Windows PC, Mira for Windows (above) is safer.
 
-**Hors de chez toi** : installe Tailscale sur le serveur. Dans Jellyfin, **Tableau de bord → Réseau → LAN networks**, ajoute `100.64.0.0/10` (avec, si la liste était vide, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12` et `192.168.0.0/16`). Sous Windows, le pare-feu doit laisser entrer `jellyfin.exe` sur son port depuis `100.64.0.0/10`.
+**Away from home**: install Tailscale on the server. In Jellyfin, **Dashboard → Networking → LAN networks**, add `100.64.0.0/10` (along with, if the list was empty, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16`). On Windows, the firewall must let `jellyfin.exe` in on its port from `100.64.0.0/10`.
 
-## Si quelque chose ne va pas
+## If something goes wrong
 
-- **Mira sur l’iPhone ne trouve pas le serveur** : ouvre le **Guide** de Mira pour Windows : la carte **Mira sur ton iPhone** dit ce qui manque (le plus souvent le pare-feu : **Tout préparer**).
-- **Ta party ou Télécharger sur le PC serveur disent que l’extension manque** : regarde dans **Tableau de bord → Extensions → Mes extensions** que **Mira** y figure, « Actif », puis redémarre Jellyfin.
-- **L’extension garde l’ancienne version après une mise à jour** : ouvre d’abord Mira pour Windows à jour, avec le compte administrateur de Jellyfin. Pour l’avoir tout de suite : **Tableau de bord → Tâches planifiées → Mettre à jour les extensions** (▶), puis **Tableau de bord → Redémarrer**.
+- **Mira on the iPhone can’t find the server**: open **Help** in Mira for Windows: the **Mira on your iPhone** card says what’s missing (most often the firewall: **Set everything up**).
+- **Your party or Download to the server PC says the extension is missing**: check in **Dashboard → Plugins → My Plugins** that **Mira** is there, “Active”, then restart Jellyfin.
+- **The extension keeps the old version after an update**: first open the updated Mira for Windows, with Jellyfin’s administrator account. To get it right away: **Dashboard → Scheduled Tasks → Update Plugins** (▶), then **Dashboard → Restart**.
