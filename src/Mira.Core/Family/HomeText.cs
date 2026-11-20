@@ -21,6 +21,8 @@ public static class HomeText
     public static string PinLeft(int left) => left <= 0 ? L("Ce n’est pas le bon code.", "That’s not the right PIN.")
         : L($"Ce n’est pas le bon code. Encore {Lang.Count(left, "essai", "essais", "try", "tries")}.", $"That’s not the right PIN. {Lang.Count(left, "essai", "essais", "try", "tries")} left.");
     public static string PinWait(int seconds) => L($"Trop d’essais : réessaie dans {Math.Max(1, (seconds + 59) / 60)} min.", $"Too many tries: try again in {Math.Max(1, (seconds + 59) / 60)} min.");
+    public static string PinDigits => L("Un code fait 4 chiffres.", "A PIN is 4 digits.");
+    public static string AdminPinFirst(string name) => L($"Choisis le code à 4 chiffres de {name} : un administrateur n’entre dans le foyer qu’avec un code.", $"Choose {name}’s 4-digit PIN: an administrator joins the home only with one.");
     public static string InHome => L("Dans le foyer", "In the home");
     public static string CanDownload => L("Peut télécharger", "Can download");
     public static string AdminNeedsPin => L("Administrateur : dans le foyer seulement avec un code, pour que son mot de passe seul n’ouvre jamais ton serveur.", "Administrator: in the home only with a PIN, so the home password alone never opens your server.");

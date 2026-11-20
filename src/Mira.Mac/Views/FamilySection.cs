@@ -278,28 +278,34 @@ public sealed partial class FamilySection
         }
         void AskPin(HomeAccount account, Control row, bool offer = false)
         {
-            foreach (var other in list.Children.OfType<WrapPanel>().ToList()) list.Children.Remove(other);
+            // The PIN editor right under its profile: what it asks, the box, and its own error line (never under the whole list).
+            foreach (var other in list.Children.OfType<StackPanel>().Where(x => "pin".Equals(x.Tag)).ToList()) list.Children.Remove(other);
             var box = new TextBox { Width = 90, MaxLength = 4, FontSize = 16, HorizontalContentAlignment = HorizontalAlignment.Center };
             Avalonia.Automation.AutomationProperties.SetName(box, HomeText.PinOf(account.Name));
             box.AddHandler(Avalonia.Input.InputElement.TextInputEvent, (_, e) => { if (e.Text is { } typed && !typed.All(char.IsAsciiDigit)) e.Handled = true; }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-            var line = new WrapPanel { Margin = new Thickness(0, 8, 0, 0), ItemSpacing = 10, LineSpacing = 8 };
-            box.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; _ = PinAsync(account, box.Text, offer); } };
+            var said = Note("");
+            var editor = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Tag = "pin" };
+            if (offer) editor.Children.Add(Note(HomeText.AdminPinFirst(account.Name), top: 0));
+            var line = new WrapPanel { Margin = new Thickness(0, offer ? 8 : 0, 0, 0), ItemSpacing = 10, LineSpacing = 8 };
+            box.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; _ = PinAsync(account, box.Text, said, offer); } };
             line.Children.Add(box);
-            line.Children.Add(Button(L("Enregistrer le code", "Save PIN"), () => _ = PinAsync(account, box.Text, offer), "primary"));
-            line.Children.Add(Button(L("Annuler", "Cancel"), () => list.Children.Remove(line), "quiet"));
-            list.Children.Insert(list.Children.IndexOf(row) + 1, line);
+            line.Children.Add(Button(L("Enregistrer le code", "Save PIN"), () => _ = PinAsync(account, box.Text, said, offer), "primary"));
+            line.Children.Add(Button(L("Annuler", "Cancel"), () => list.Children.Remove(editor), "quiet"));
+            editor.Children.Add(line); editor.Children.Add(said);
+            list.Children.Insert(list.Children.IndexOf(row) + 1, editor);
             box.Focus();
         }
-        async Task PinAsync(HomeAccount account, string? pin, bool offer = false)
+        async Task PinAsync(HomeAccount account, string? pin, TextBlock? said = null, bool offer = false)
         {
-            if (pin is not null && (pin.Length != 4 || !pin.All(char.IsAsciiDigit))) { Say(status, L("Un code fait 4 chiffres.", "A PIN is 4 digits."), true); return; }
+            var note = said ?? status;
+            if (pin is not null && (pin.Length != 4 || !pin.All(char.IsAsciiDigit))) { Say(note, HomeText.PinDigits, true); return; }
             try
             {
                 if (offer) await client.HomeOfferAsync(account.Id, true, pin);
                 else await client.HomeSetPinAsync(account.Id, pin);
                 await LoadAsync();
             }
-            catch (Exception ex) when (Expected(ex)) { Say(status, Words(ex), true); }
+            catch (Exception ex) when (Expected(ex)) { Say(note, Words(ex), true); }
         }
     }
 
