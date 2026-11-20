@@ -62,6 +62,15 @@ public sealed partial class MainWindow
         AwayChanged?.Invoke();
     }
 
+    /// <summary>The home and its Tailscale as « Famille & profils » just read them (an administrator's): told everywhere.</summary>
+    internal void TellAway(HomeSettings family, HomeTailnetState? home)
+    {
+        if (Session is not { } session) return;
+        ++_awayDraw; _awayReading = null; _awayRead = session;
+        Administrator = true; AwayFamily = family; AwayHome = home; AwayKnown = true;
+        AwayChanged?.Invoke();
+    }
+
     /// <summary>Réglages opened on a section, from outside them (the rail's menu).</summary>
     internal void OpenSettingsAt(string key)
     {

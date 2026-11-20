@@ -210,7 +210,7 @@ public partial class MainWindow
         SmoothScroll.Jump(SettingsScroll); if (animate) Motion.Reveal(shown.Panel, 230, 7);
         WatchViewers(tab == "jellyfin");
         if (tab == "home") ShowEssentials();
-        if (tab == "away") { _ = ReadTailscaleAppAsync(); _ = ReadAwayAsync(again: true); }
+        if (tab == "away") { _ = ReadTailscaleAppAsync(); _ = ReadAwayAsync(again: true); if (FamilySettingsNav.Visibility == Visibility.Visible) _ = ShowFamilySettingsAsync(); }
         if (tab == "home") _ = ReadAwayAsync();
         if (tab == "care") { _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
         if (tab == "jellyfin") _ = ShowJellyfinServerAsync();
