@@ -47,7 +47,8 @@ struct LoginView: View {
             .ignoresSafeArea()
         }
         .onAppear {
-            if address.isEmpty { address = app.lastServer }
+            // In a home (« I have my own account »): its Jellyfin, most likely the one of this account.
+            if address.isEmpty { address = app.family.membership?.server.absoluteString ?? app.lastServer }
             message = app.notice
             focus = address.isEmpty ? .address : nil
             if let link = app.connectLink { Task { await connect(link) } }

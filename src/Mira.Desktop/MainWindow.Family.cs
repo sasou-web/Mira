@@ -68,14 +68,24 @@ public partial class MainWindow
 
     // ---- Opening Mira, and the hall ----
 
-    /// <summary>At Mira's start, in a home: « Who's watching? », its profiles as last read, then as the home says now.</summary>
-    private bool OpenHomeAtStart()
+    /// <summary>
+    /// At Mira's start, in a home: « Who's watching? », its profiles as last read, then as the home says now. Signed in
+    /// last time with an account of its own (« I have my own account »): that account opens, as it would without a
+    /// home, and the hall stays in the rail's menu (false: the saved connection opens).
+    /// </summary>
+    private async Task<bool> OpenHomeAtStartAsync()
     {
         HomeMembership? home;
         try { home = _profile.LoadHome(); }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException) { home = null; }
         if (home is null) return false;
         _home = home;
+        if (_profile.LoadConnection() is { } own && !own.DeviceId.StartsWith(FamilyNodePrefix, StringComparison.Ordinal))
+        {
+            // Its account on the home's Jellyfin, away from home: reached through the home's node, as a profile would be.
+            if (own.Server == home.Server) await ReachHomeAsync(home, null);
+            return false;
+        }
         ShowHall();
         _ = RefreshHallAsync();
         return true;
@@ -476,6 +486,8 @@ public partial class MainWindow
         _homeDeclined = true; _homeLink = null;
         FamilyOverlay.Visibility = Visibility.Collapsed;
         if (_client is not null) { Account_Click(this, new()); return; }
+        // The home's Jellyfin, most likely the one of this account: written in, still free to change.
+        if (_home is { } home && ServerBox.Text.Trim().Length == 0) ServerBox.Text = home.Server;
         if (LoginOverlay.Visibility != Visibility.Visible) Motion.Reveal(LoginOverlay);
         ShowSignInForm(); FocusLogin();
     }

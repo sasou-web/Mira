@@ -63,7 +63,11 @@ public sealed partial class MainWindow
 
     // —— Opening Mira, and the hall ——
 
-    /// <summary>At Mira's start, in a home: « Who's watching? », its profiles as last read, then as the home says now.</summary>
+    /// <summary>
+    /// At Mira's start, in a home: « Who's watching? », its profiles as last read, then as the home says now. Signed in
+    /// last time with an account of its own (« I have my own account »): that account opens, as it would without a
+    /// home, and the hall stays in the rail's menu (false: the saved connection opens).
+    /// </summary>
     private async Task<bool> OpenHomeAtStartAsync()
     {
         HomeMembership? home;
@@ -72,6 +76,12 @@ public sealed partial class MainWindow
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { home = null; }
         if (home is null) return false;
         Home = home;
+        if (await Task.Run(Profile.LoadConnection) is { } own && !own.DeviceId.StartsWith(FamilyDevicePrefix, StringComparison.Ordinal))
+        {
+            // Its account on the home's Jellyfin, away from home: reached through the home's node, as a profile would be.
+            if (own.Server == home.Server) await ReachHomeAsync(home, null);
+            return false;
+        }
         ShowHall();
         _ = RefreshHallAsync();
         return true;
@@ -394,6 +404,8 @@ public sealed partial class MainWindow
         if (Session is not null) { _rail.IsVisible = true; OpenAccount(); return; }
         if (Login is null) ShowLogin();
         else Login.FocusServer();
+        // The home's Jellyfin, most likely the one of this account: written in, still free to change.
+        if (Home is { } home && Login is { } login && login.Server.Trim().Length == 0) login.Server = home.Server;
     }
 
     // —— Leaving ——
