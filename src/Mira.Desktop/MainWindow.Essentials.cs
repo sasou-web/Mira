@@ -23,7 +23,7 @@ public partial class MainWindow
     [
         ("home", EssentialsSettings, L("L’essentiel", "Essentials"), L("Mira en un coup d’œil, et les réglages qu’on change le plus.", "Mira at a glance, and the settings people change most.")),
         ("server", ServerSettings, L("Compte", "Account"), L("Ta photo, ton serveur Jellyfin, tes bibliothèques, et changer de compte.", "Your photo, your Jellyfin server, your libraries, and switching accounts.")),
-        ("family", FamilySettings, L("Famille & profils", "Family & profiles"), L("Un mot de passe pour ta famille, puis « Qui regarde ? » : ses profils, leurs codes, ses appareils.", "One password for your family, then « Who’s watching? »: its profiles, their PINs, its devices.")),
+        ("family", FamilySettings, L("Famille & profils", "Family & profiles"), L("Un mot de passe pour ta famille, puis « Qui regarde ? » : ses profils, leurs codes, ses appareils.", "One password for your family, then “Who’s watching?”: its profiles, their PINs, its devices.")),
         ("sharing", SharingSettings, L("Amis & invités", "Friends & guests"), L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
         ("away", AwaySettings, L("Loin de chez toi", "Away from home"), L("Regarder quand tu n’es pas sur le réseau de la maison : toi, ta famille, tes amis.", "Watching when you’re not on the home network: you, your family, your friends.")),
         ("playback", PlaybackSettings, L("Lecture", "Playback"), L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")),

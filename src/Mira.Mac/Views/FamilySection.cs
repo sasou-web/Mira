@@ -130,7 +130,7 @@ public sealed partial class FamilySection
         var since = settings.Home && settings.Changed is { } changed ? Note(L($"Activé depuis le {Date(changed.ToLocalTime())}.", $"On since {Date(changed.ToLocalTime())}.")) : Note("");
         return Card(HomeText.Password, settings.Home
             ? L("Ta famille l’utilise une fois par appareil, puis choisit son profil. Le changer fait sortir tous les appareils du foyer.", "Your family types it once per device, then picks their profile. Changing it signs every device out of the home.")
-            : L("Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Aucun administrateur n’en fait partie.", "One password for the whole family: on a device, it opens « Who’s watching? » with the profiles you pick below. No administrator is ever one of them."),
+            : L("Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Aucun administrateur n’en fait partie.", "One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. No administrator is ever one of them."),
             since, line, status);
 
         async Task SetAsync()
@@ -156,7 +156,11 @@ public sealed partial class FamilySection
         var about = L("Pour un appareil loin de chez toi : le lien emmène Mira jusqu’à ton Jellyfin par Tailscale, sans adresse ni compte Tailscale à créer. Il sert une seule fois et finit au bout de 48 heures ; le mot de passe reste demandé.",
             "For a device away from home: the link takes Mira to your Jellyfin through Tailscale, with no address to type and no Tailscale account to make. It works once and ends after 48 hours; the password is still asked.");
         if (tailnet is not { Connected: true })
-            return Card(L("Lien du foyer", "Home link"), about, Note(L("Termine d’abord « Loin de chez toi » plus bas : une seule fois.", "First finish « Away from home » below: it’s once only."), top: 12));
+        {
+            var go = Button(L("Régler…", "Set up…"), () => _shell.OpenSettingsAt("away"));
+            go.HorizontalAlignment = HorizontalAlignment.Left; go.Margin = new Thickness(0, 12, 0, 0);
+            return Card(L("Lien du foyer", "Home link"), about, Note(L("Règle d’abord « Loin de chez toi », une seule fois.", "First set up “Away from home”, once only."), top: 12), go);
+        }
         var status = Note("");
         var result = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
         Button make = null!;

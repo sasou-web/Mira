@@ -102,13 +102,17 @@ public partial class MainWindow
     {
         var body = FamilyCard(L("Mot de passe du foyer", "Home password"), settings.Home
             ? L("Ta famille l’utilise une fois par appareil, puis choisit son profil. Le changer fait sortir tous les appareils du foyer.", "Your family types it once per device, then picks their profile. Changing it signs every device out of the home.")
-            : L("Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Aucun administrateur n’en fait partie.", "One password for the whole family: on a device, it opens « Who’s watching? » with the profiles you pick below. No administrator is ever one of them."));
+            : L("Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Aucun administrateur n’en fait partie.", "One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. No administrator is ever one of them."));
         if (settings.Home && settings.Changed is { } changed) body.Children.Add(FamilyNote(L($"Activé depuis le {Date(changed.ToLocalTime())}.", $"On since {Date(changed.ToLocalTime())}.")));
-        var password = new PasswordBox { Width = 260, Margin = new Thickness(0, 0, 10, 8) };
+        var password = new PasswordBox { Width = 260 };
+        // What to type, while the box is empty (as the Mac's watermark).
+        var hint = new TextBlock { Text = settings.Home ? L("Nouveau mot de passe", "New password") : L($"Au moins {settings.MinPassword} caractères", $"At least {settings.MinPassword} characters"), Foreground = Palette.Get("Faint"), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
+        password.PasswordChanged += (_, _) => hint.Visibility = password.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var box = new Grid { Margin = new Thickness(0, 0, 10, 8), Children = { password, hint } };
         AutomationProperties.SetName(password, settings.Home ? L("Nouveau mot de passe du foyer", "New home password") : L("Mot de passe du foyer", "Home password"));
         var status = FamilyNote("");
         var line = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
-        line.Children.Add(password);
+        line.Children.Add(box);
         line.Children.Add(FamilyButton(settings.Home ? L("Changer", "Change") : L("Activer le foyer", "Turn on the home"), () => _ = SetAsync(), primary: !settings.Home));
         if (settings.Home) line.Children.Add(FamilyButton(L("Désactiver le foyer…", "Turn off the home…"), () => _ = OffAsync(), quiet: true));
         body.Children.Add(line); body.Children.Add(status);
@@ -138,7 +142,10 @@ public partial class MainWindow
         var result = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
         if (tailnet is not { Connected: true })
         {
-            body.Children.Add(FamilyNote(L("Termine d’abord « Loin de chez toi » plus bas : une seule fois.", "First finish « Away from home » below: it’s once only."), margin: new Thickness(0, 12, 0, 0)));
+            body.Children.Add(FamilyNote(L("Règle d’abord « Loin de chez toi », une seule fois.", "First set up “Away from home”, once only."), margin: new Thickness(0, 12, 0, 0)));
+            var go = FamilyButton(L("Régler…", "Set up…"), () => SelectSettingsTab("away"));
+            go.Margin = new Thickness(0, 12, 0, 0); go.HorizontalAlignment = HorizontalAlignment.Left;
+            body.Children.Add(go);
             return FamilyRow(body);
         }
         Button make = null!;
@@ -313,7 +320,8 @@ public partial class MainWindow
         return body;
     }
 
-    private Border FamilyRow(StackPanel body) => new() { Style = (Style)FindResource("SettingRow"), Child = body, Margin = new Thickness(0, 0, 0, 12) };
+    // Réglages' own row (SheetSettingRow, set on its grid): the window's SettingRow is the sheet's colour, so no card.
+    private Border FamilyRow(StackPanel body) => new() { Style = (Style)FamilySettings.FindResource("SettingRow"), Child = body, Margin = new Thickness(0, 0, 0, 12) };
 
     private TextBlock FamilyNote(string text, bool problem = false, Thickness? margin = null)
     {
