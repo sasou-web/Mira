@@ -8,13 +8,14 @@ namespace Mira.Jellyfin;
 
 /// <summary>
 /// « Inviter un ami » by a link (ogsas, 2026-11-20, maquette A « Le lien »): the administrator makes a link for a
-/// friend's account; it carries a Tailscale key for one device (<see cref="HomeTailnet.FriendTag"/>, or the home's when
+/// friend's account; it carries a Tailscale key for one device, which is also the invitation, (<see cref="HomeTailnet.FriendTag"/>, or the home's when
 /// Tailscale refuses friends' own) and an invitation, single-use, that ends with the key (<see cref="Life"/>). The
 /// friend's Mira joins the administrator's tailnet with the key, reaches Jellyfin, and trades the invitation for a
 /// session of that account (<see cref="FriendController"/>): no address, password nor code to type. Never an
 /// administrator's account. What it keeps, in one file beside the plugins' settings: each invitation by the hash of its
 /// token (used ones a while, so a second try reads « already used »), and each device that came in, with its address on
-/// the tailnet to delete its node when it is taken out. Wrong invitations are counted here, in memory, per address and
+/// the tailnet to delete its node when it is taken out. A device that used a link waits for the administrator to let it in
+/// (ogsas, 2026-11-20: « securiser ce lien »): a link forwarded or stolen opens nothing without that click. Wrong invitations are counted here, in memory, per address and
 /// in all. Free of ASP.NET, on a clock of its own, for the tests.
 /// </summary>
 public sealed class FriendInvites
@@ -29,8 +30,6 @@ public sealed class FriendInvites
     public const int TriesPerAddress = 10, TriesInAll = 30;
     /// <summary>The prefix of the Jellyfin device id of a friend's session opened by an invitation: one per device.</summary>
     public const string DevicePrefix = "mira-friend-";
-    /// <summary>Where a friend's link opens: the site, which never sees what follows the « # ».</summary>
-    public const string LinkBase = "https://miracinema.app/friend#";
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -74,10 +73,10 @@ public sealed class FriendInvites
     }
 
     /// <summary>
-    /// A new invitation for an account: its token (returned once, kept only by its hash) and its entry. Null when too
-    /// many are still open.
+    /// A new invitation for an account, whose token is <paramref name="token"/> (the link's Tailscale key: the link carries
+    /// nothing else secret), kept only by its hash; or a new token when none is given. Null when too many are still open.
     /// </summary>
-    public (string Token, FriendInvite Invite)? Invite(string user, string name, string keyId, string tag, DateTimeOffset until)
+    public (string Token, FriendInvite Invite)? Invite(string user, string name, string keyId, string tag, DateTimeOffset until, string? token = null)
     {
         lock (_gate)
         {
@@ -87,7 +86,7 @@ public sealed class FriendInvites
                 return null;
             }
 
-            var token = GuestRoutes.NewPassword().Replace('+', '-').Replace('/', '_').TrimEnd('=');
+            token ??= GuestRoutes.NewPassword().Replace('+', '-').Replace('/', '_').TrimEnd('=');
             var invite = new FriendInvite
             {
                 Id = NewId(),
@@ -110,8 +109,16 @@ public sealed class FriendInvites
     /// now, and the device written down for its account. The same device coming again for the same account takes the
     /// place of its earlier entry, returned to end its session.
     /// </summary>
-    public (Redeeming Result, FriendInvite? Invite, FriendDevice? Device, FriendDevice? Replaced) Redeem(string? token, string device, string name, string from)
+    public (Redeeming Result, FriendInvite? Invite, FriendDevice? Device, FriendDevice? Replaced) Redeem(string? token, string device, string name, string from) =>
+        Redeem(token, device, name, from, out _);
+
+    /// <summary>
+    /// As <see cref="Redeem(string?, string, string, string)"/>, the device waiting for the administrator to let it in
+    /// (« Laisser entrer »): <paramref name="wait"/> is the token it asks with (kept only by its hash) until then.
+    /// </summary>
+    public (Redeeming Result, FriendInvite? Invite, FriendDevice? Device, FriendDevice? Replaced) Redeem(string? token, string device, string name, string from, out string? wait)
     {
+        wait = null;
         lock (_gate)
         {
             var now = _now();
@@ -166,6 +173,8 @@ public sealed class FriendInvites
                 // Joined through the tailnet (the link's key): the node to delete from it when the device is taken out.
                 Tailnet = HomeTailnet.TailnetAddress(from),
             };
+            wait = GuestRoutes.NewPassword().Replace('+', '-').Replace('/', '_').TrimEnd('=');
+            entry.Wait = GuestRoutes.TokenHash(wait);
             _store.Devices.Add(entry);
             invite.Used = now;
             invite.Device = entry.Id;
@@ -187,6 +196,69 @@ public sealed class FriendInvites
 
             _store.Devices.RemoveAll(x => x.Id == device.Id);
             Save();
+        }
+    }
+
+    /// <summary>
+    /// The device that asks with this wait token, and whether it may come in: null when it was refused, taken out, or the
+    /// token is not one. A device left waiting past its invitation's end goes.
+    /// </summary>
+    public FriendDevice? Waiting(string? wait)
+    {
+        if (string.IsNullOrEmpty(wait) || wait.Length > 128)
+        {
+            return null;
+        }
+
+        var hash = GuestRoutes.TokenHash(wait);
+        lock (_gate)
+        {
+            var device = _store.Devices.FirstOrDefault(x => x.Wait is { } kept && Same(kept, hash));
+            if (device is null)
+            {
+                return null;
+            }
+
+            var invite = _store.Invites.FirstOrDefault(x => x.Id == device.Invite);
+            if (!device.Approved && (invite is null || _now() >= invite.Until))
+            {
+                _store.Devices.Remove(device);
+                Save();
+                return null;
+            }
+
+            return device.Copy();
+        }
+    }
+
+    /// <summary>A waiting device let in by the administrator: its entry; null when it is not there.</summary>
+    public FriendDevice? Approve(string id)
+    {
+        lock (_gate)
+        {
+            var device = _store.Devices.FirstOrDefault(x => x.Id == id);
+            if (device is null)
+            {
+                return null;
+            }
+
+            device.Approved = true;
+            device.Approval = _now();
+            Save();
+            return device.Copy();
+        }
+    }
+
+    /// <summary>The session of a device let in was handed over: its wait token stops working.</summary>
+    public void Delivered(string id)
+    {
+        lock (_gate)
+        {
+            if (_store.Devices.FirstOrDefault(x => x.Id == id) is { } device)
+            {
+                device.Wait = null;
+                Save();
+            }
         }
     }
 
@@ -264,22 +336,11 @@ public sealed class FriendInvites
     // ---- The link ----
 
     /// <summary>
-    /// What a friend's link carries: the home link's data (the server's name, its id, its address on the tailnet, the key,
-    /// its end), the invitation, and the friend's name for the page's greeting.
+    /// A friend's link, short (<see cref="Mira.Core.Family.JoinLink"/>): this PC's Tailscale address and port, Jellyfin's
+    /// path, and the key, which is the invitation too. Null when the address is not one Mira can write.
     /// </summary>
-    public sealed record LinkData(
-        [property: JsonPropertyName("v")] int Version,
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("id")] string ServerId,
-        [property: JsonPropertyName("url")] string Address,
-        [property: JsonPropertyName("key")] string Key,
-        [property: JsonPropertyName("until")] long Until,
-        [property: JsonPropertyName("invite")] string Invite,
-        [property: JsonPropertyName("friend")] string Friend);
-
-    /// <summary>A friend's link: <see cref="LinkBase"/> then its data in base64url JSON.</summary>
-    public static string Link(LinkData data) =>
-        LinkBase + Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(data)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    public static string? Link(string server, int port, string? path, string key) =>
+        System.Net.IPAddress.TryParse(server, out var address) ? Mira.Core.Family.JoinLink.Make(Mira.Core.Family.JoinLink.FriendKind, address, port, path, key) : null;
 
     // ---- Inside ----
 
@@ -442,6 +503,11 @@ public sealed class FriendDevice
     public string? Invite { get; set; }
     /// <summary>Its address on the tailnet, when it came through it: its node, deleted when it is taken out.</summary>
     public string? Tailnet { get; set; }
+    /// <summary>Let in by the administrator (« Laisser entrer »): only then is its session opened.</summary>
+    public bool Approved { get; set; }
+    public DateTimeOffset? Approval { get; set; }
+    /// <summary>The hash of the token it asks with while it waits, until its session is handed over.</summary>
+    public string? Wait { get; set; }
 
     public FriendDevice Copy() => (FriendDevice)MemberwiseClone();
 }

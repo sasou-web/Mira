@@ -210,11 +210,13 @@ await part('foyer', async () => {
   const redeems = [];
   for (let i = 0; i < 11; i++) redeems.push((await call('POST', 'Mira/friend/redeem', { device: 'check-friend-redeem', body: { invite: `pas-une-invitation-${i}`, device: 'check-friend-phone', name: 'Téléphone' } })).status);
   const [noDevice, friendFunnel, redeemFunnel] = [await call('POST', 'Mira/friend/redeem', { body: { invite: 'x' } }), await throughFunnel(`${root}/Mira/friend`), await throughFunnel(`${root}/Mira/friend/redeem`, {}, 'POST')];
+  const [waitWrong, waitFunnel] = [await call('POST', 'Mira/friend/wait', { body: { wait: 'pas-une-attente' } }), await throughFunnel(`${root}/Mira/friend/wait`, {}, 'POST')];
   check('ami par lien : rien sans Tailscale relié, administrateur seulement, invitation fausse refusée puis essais comptés, rien par Funnel',
     friends.status === 200 && friends.json?.tailnet === 'disconnected' && Array.isArray(friends.json?.invites) && friendsOther.status === 403
       && inviteBefore.status === 409 && inviteBefore.json?.state === 'disconnected' && inviteAdmin.status === 409
-      && redeems.slice(0, 10).every((s) => s === 404) && redeems[10] === 429 && noDevice.status === 400 && friendFunnel === 404 && redeemFunnel === 404,
-    `état ${friends.status} ${friends.json?.tailnet} ; autre compte ${friendsOther.status} ; invitation ${inviteBefore.status} ${inviteBefore.json?.state} ; administrateur ${inviteAdmin.status} ${inviteAdmin.json?.state} ; essais ${redeems.join(',')} ; sans appareil ${noDevice.status} ; Funnel ${friendFunnel}/${redeemFunnel}`);
+      && redeems.slice(0, 10).every((s) => s === 404) && redeems[10] === 429 && noDevice.status === 400 && friendFunnel === 404 && redeemFunnel === 404
+      && waitWrong.status === 410 && waitWrong.json?.state === 'refused' && waitFunnel === 404,
+    `état ${friends.status} ${friends.json?.tailnet} ; autre compte ${friendsOther.status} ; invitation ${inviteBefore.status} ${inviteBefore.json?.state} ; administrateur ${inviteAdmin.status} ${inviteAdmin.json?.state} ; essais ${redeems.join(',')} ; sans appareil ${noDevice.status} ; attente ${waitWrong.status} ${waitWrong.json?.state} ; Funnel ${friendFunnel}/${redeemFunnel}/${waitFunnel}`);
 });
 
 await part('party', async () => {

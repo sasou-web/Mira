@@ -12,10 +12,10 @@ namespace Mira.Jellyfin;
 
 /// <summary>
 /// « Inviter un ami » by a link, at /Mira/friend (<see cref="FriendInvites"/>). The administrator's side, with their own
-/// session: a link for a friend's account (a key of <see cref="HomeTailnet.FriendTag"/> made with the home's OAuth client,
+/// session: a short link for a friend's account (a key of <see cref="HomeTailnet.FriendTag"/> made with the home's OAuth client,
 /// the policy given friends' tag first when it lacks it, or the home's tag when Tailscale refuses friends' own), the
-/// invitations and devices, one cancelled or taken out, a friend forgotten. The friend's side, without a session: the
-/// invitation traded for a session of the account, made by Jellyfin itself (<see cref="ISessionManager.AuthenticateDirect"/>)
+/// invitations and devices, one let in, cancelled or taken out, a friend forgotten. The friend's side, without a session:
+/// the invitation used, then, once the administrator let the device in, a session of the account, made by Jellyfin itself (<see cref="ISessionManager.AuthenticateDirect"/>)
 /// under a device id of its own (<see cref="FriendInvites.JellyfinDevice"/>). Never an administrator's account. Never
 /// through Tailscale Funnel: <see cref="TunnelGuard"/> lets nothing of /Mira/friend in from the Internet.
 /// </summary>
@@ -42,7 +42,10 @@ public sealed class FriendController : ControllerBase
 
     // ---- The friend's side ----
 
-    /// <summary>An invitation traded for a session of its account, once.</summary>
+    /// <summary>
+    /// An invitation used, once: the device waits for the administrator to let it in (202 and a wait token), then asks
+    /// with that token at /Mira/friend/wait for its session.
+    /// </summary>
     [HttpPost("redeem")]
     [AllowAnonymous]
     [RequestSizeLimit(4_096)]
@@ -54,7 +57,7 @@ public sealed class FriendController : ControllerBase
             return BadRequest();
         }
 
-        var (result, invite, entry, replaced) = Friends.Redeem(body.Invite, device, DeviceName(body.Name), ClientAddress());
+        var (result, invite, entry, replaced) = Friends.Redeem(body.Invite, device, DeviceName(body.Name), ClientAddress(), out var wait);
         switch (result)
         {
             case FriendInvites.Redeeming.TooMany:
@@ -62,7 +65,7 @@ public sealed class FriendController : ControllerBase
             case FriendInvites.Redeeming.Wrong:
                 return Refuse(StatusCodes.Status404NotFound, "wrong", L("Ce lien n’est pas une invitation de ce Jellyfin.", "This link isn’t an invitation from this Jellyfin."));
             case FriendInvites.Redeeming.Used:
-                return Refuse(StatusCodes.Status410Gone, "used", L($"Ce lien a déjà servi. Demande-en un nouveau à qui te l’a envoyé.", "This link has already been used. Ask whoever sent it for a new one."));
+                return Refuse(StatusCodes.Status410Gone, "used", L("Ce lien a déjà servi. Demande-en un nouveau à qui te l’a envoyé.", "This link has already been used. Ask whoever sent it for a new one."));
             case FriendInvites.Redeeming.Ended:
                 return Refuse(StatusCodes.Status410Gone, "ended", L("Ce lien a expiré. Demande-en un nouveau à qui te l’a envoyé.", "This link has ended. Ask whoever sent it for a new one."));
             case FriendInvites.Redeeming.Full:
@@ -89,18 +92,55 @@ public sealed class FriendController : ControllerBase
             await EndSessionsAsync(client, FriendInvites.JellyfinDevice(replaced), null, cancellationToken).ConfigureAwait(false);
         }
 
+        _logger.LogInformation("Mira: a friend's invitation was used ({Device}); waiting for an administrator to let it in", entry!.Name);
+        return Answer(StatusCodes.Status202Accepted, new { state = "waiting", wait, userName = account.Name });
+    }
+
+    /// <summary>
+    /// A device that used an invitation asks whether it may come in: 202 while it waits, its session once the
+    /// administrator let it in (once), 410 when it was refused or taken out.
+    /// </summary>
+    [HttpPost("wait")]
+    [AllowAnonymous]
+    [RequestSizeLimit(4_096)]
+    public async Task<IActionResult> Wait(CancellationToken cancellationToken)
+    {
+        var body = await ReadAsync<WaitBody>(cancellationToken).ConfigureAwait(false);
+        if (Friends.Waiting(body?.Wait) is not { } entry)
+        {
+            return Refuse(StatusCodes.Status410Gone, "refused", L("Ton ami n’a pas laissé entrer cet appareil. Demande-lui une nouvelle invitation.", "Your friend didn’t let this device in. Ask them for a new invite."));
+        }
+
+        if (!entry.Approved)
+        {
+            return Answer(StatusCodes.Status202Accepted, new { state = "waiting" });
+        }
+
+        using var client = _clients.CreateClient();
+        var account = await AccountAsync(client, entry.User, null, cancellationToken).ConfigureAwait(false);
+        if (account is null)
+        {
+            return Refuse(StatusCodes.Status502BadGateway, "unreachable", L("Jellyfin n’a pas répondu. Réessaie dans un instant.", "Jellyfin didn’t answer. Try again in a moment."));
+        }
+
+        if (!account.Found || account.Admin || account.Disabled)
+        {
+            Friends.RemoveDevice(entry.Id);
+            return Refuse(StatusCodes.Status410Gone, "ended", L("Ce compte n’existe plus sur ce Jellyfin.", "This account no longer exists on this Jellyfin."));
+        }
+
         string? token;
         string? serverId;
         try
         {
             var opened = await _sessions.AuthenticateDirect(new AuthenticationRequest
             {
-                UserId = Guid.ParseExact(invite.User, "N"),
+                UserId = Guid.ParseExact(entry.User, "N"),
                 Username = account.Name,
-                App = Short(body.Client, "Mira"),
+                App = Short(body!.Client, "Mira"),
                 AppVersion = Short(body.Version, "0"),
-                DeviceId = FriendInvites.JellyfinDevice(entry!),
-                DeviceName = entry!.Name,
+                DeviceId = FriendInvites.JellyfinDevice(entry),
+                DeviceName = entry.Name,
                 RemoteEndPoint = ClientAddress(),
             }).ConfigureAwait(false);
             token = opened.AccessToken;
@@ -108,20 +148,19 @@ public sealed class FriendController : ControllerBase
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _logger.LogWarning(error, "Mira: Jellyfin did not open the session of a friend's invitation");
+            _logger.LogWarning(error, "Mira: Jellyfin did not open the session of a friend's device");
             token = null;
             serverId = null;
         }
 
         if (string.IsNullOrEmpty(token))
         {
-            // The same link works again: nothing was opened.
-            Friends.Undo(invite, entry!);
+            // The same wait token works again.
             return Refuse(StatusCodes.Status502BadGateway, "unreachable", L("Jellyfin n’a pas ouvert la séance. Réessaie dans un instant.", "Jellyfin didn’t open the session. Try again in a moment."));
         }
 
-        _logger.LogInformation("Mira: a friend's invitation was used ({Device})", entry!.Name);
-        return Answer(StatusCodes.Status200OK, new { accessToken = token, userId = invite.User, userName = account.Name, serverId, deviceId = FriendInvites.JellyfinDevice(entry!) });
+        Friends.Delivered(entry.Id);
+        return Answer(StatusCodes.Status200OK, new { accessToken = token, userId = entry.User, userName = account.Name, serverId, deviceId = FriendInvites.JellyfinDevice(entry) });
     }
 
     // ---- The administrator's side ----
@@ -175,6 +214,7 @@ public sealed class FriendController : ControllerBase
                 name = x.Name,
                 joined = x.Joined,
                 tailnet = x.Tailnet is not null,
+                waiting = !x.Approved,
                 lastSeen = x.Tailnet is { } a && seen.TryGetValue(a, out var node) ? node.LastSeen : null,
             }),
         });
@@ -253,14 +293,14 @@ public sealed class FriendController : ControllerBase
                 key = await api.CreateKeyAsync(FriendInvites.Life, cancellationToken, tag).ConfigureAwait(false);
             }
 
-            if (Friends.Invite(user, account.Name, key.Id, tag, key.Expires) is not var (token, invite))
+            // The key is the invitation too: the link carries nothing else secret, and stays short.
+            var link = FriendInvites.Link(server, port, Request.PathBase, key.Key);
+            if (link is null || Friends.Invite(user, account.Name, key.Id, tag, key.Expires, key.Key) is not var (_, invite))
             {
                 await api.DeleteKeyAsync(key.Id, CancellationToken.None).ConfigureAwait(false);
                 return Refuse(StatusCodes.Status409Conflict, "full", L("Trop d’invitations attendent déjà : annules-en une.", "Too many invitations are already waiting: cancel one."));
             }
 
-            var link = FriendInvites.Link(new FriendInvites.LinkData(
-                1, _host.FriendlyName ?? "Jellyfin", _host.SystemId ?? "", $"http://{server}:{port}{Request.PathBase}", key.Key, key.Expires.ToUnixTimeSeconds(), token, account.Name));
             Response.Headers.CacheControl = "no-store";
             return Ok(new { link, expires = key.Expires, id = invite.Id, tag });
         }
@@ -292,7 +332,12 @@ public sealed class FriendController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>A friend's device taken out: its session ended, its node deleted from the tailnet.</summary>
+    /// <summary>A device that used a friend's link let in (« Laisser entrer »): it gets its session at its next ask.</summary>
+    [HttpPost("devices/{id}/approve")]
+    [Authorize(Policy = "RequiresElevation")]
+    public IActionResult Approve(string id) => Friends.Approve(id) is null ? NotFound() : NoContent();
+
+    /// <summary>A friend's device taken out, or one waiting refused: its session ended, its node deleted from the tailnet.</summary>
     [HttpDelete("devices/{id}")]
     [Authorize(Policy = "RequiresElevation")]
     public async Task<IActionResult> RemoveDevice(string id, CancellationToken cancellationToken)
@@ -330,7 +375,7 @@ public sealed class FriendController : ControllerBase
     // ---- Inside ----
 
     /// <summary>
-    /// The tag a friend's key gets, the policy given friends' tag first when it only lacks it (its owners, its rule to
+    /// The tag a friend's key gets that is also the invitation, the policy given friends' tag first when it only lacks it (its owners, its rule to
     /// Jellyfin); null when neither tag is limited to Jellyfin.
     /// </summary>
     private async Task<string?> TagAsync(TailscaleApi api, string server, int port, CancellationToken cancellationToken)
@@ -503,6 +548,8 @@ public sealed class FriendController : ControllerBase
     private static readonly JsonSerializerOptions JsonWeb = new(JsonSerializerDefaults.Web);
 
     private sealed record RedeemBody(string? Invite, string? Device, string? Name, string? Client, string? Version);
+
+    private sealed record WaitBody(string? Wait, string? Client, string? Version);
 
     private sealed record InviteBody(string? User);
 

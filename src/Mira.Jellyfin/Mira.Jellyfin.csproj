@@ -28,6 +28,7 @@
     <Compile Include="../Mira.Core/TorLink/RemoteProtocol.cs" Link="RemoteProtocol.cs" />
     <!-- The proof that the server found at another address is the account's own: the apps check what it signs. -->
     <Compile Include="../Mira.Core/ServerProof.cs" Link="Core/ServerProof.cs" />
+    <Compile Include="../Mira.Core/Family/JoinLink.cs" Link="Core/JoinLink.cs" />
     <!-- A title's name without the code a download tool put before its file's name (TitleNameRepair, the party's card). -->
     <Compile Include="../Mira.Core/TitleNames.cs" Link="Core/TitleNames.cs" />
     <Compile Include="../Mira.Core/TorLink/Bencode.cs" Link="Core/Bencode.cs" />

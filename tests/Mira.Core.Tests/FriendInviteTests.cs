@@ -27,8 +27,8 @@ internal static class FriendInviteTests
             var now = DateTimeOffset.Parse("2026-11-20T10:00:00Z");
             var file = Path.Combine(run.Root, "friends", "Mira.friends.json");
             var friends = new FriendInvites(file, () => now);
-            var (token, invite) = friends.Invite(Alex, "Alex", "kKey1", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;
-            Assert(token.Length >= 20 && invite.Token != token && !File.ReadAllText(file).Contains(token, StringComparison.Ordinal), "Only the token's hash is kept");
+            var (token, invite) = friends.Invite(Alex, "Alex", "kKey1", HomeTailnet.FriendTag, now + FriendInvites.Life, "tskey-auth-kKey1CNTRL-secret0123456789")!.Value;
+            Assert(token == "tskey-auth-kKey1CNTRL-secret0123456789" && invite.Token != token && !File.ReadAllText(file).Contains(token, StringComparison.Ordinal), "Only the token's hash is kept");
 
             var (result, used, device, replaced) = friends.Redeem(token, "device-alex-phone", "iPhone d’Alex", "100.101.8.8");
             Assert(result == FriendInvites.Redeeming.Done && used!.User == Alex && device is { Tailnet: "100.101.8.8", User: Alex } && replaced is null, "Used once, from the tailnet");
@@ -36,6 +36,20 @@ internal static class FriendInviteTests
             Assert(friends.Redeem(token, "device-other", "Autre", "100.101.9.9").Result == FriendInvites.Redeeming.Used, "Never twice: « already used »");
             Assert(new FriendInvites(file, () => now).Redeem(token, "device-other", "Autre", "100.101.9.9").Result == FriendInvites.Redeeming.Used, "Still after a restart");
 
+            // The administrator lets the device in: until then, no session; after it, once.
+            var (tokenSam, _) = friends.Invite(Sam, "Sam", "kKey9", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;
+            var knock = friends.Redeem(tokenSam, "device-sam-pc", "PC de Sam", "100.101.4.4", out var wait);
+            Assert(knock.Result == FriendInvites.Redeeming.Done && wait is { Length: >= 32 } && !File.ReadAllText(file).Contains(wait, StringComparison.Ordinal), "A wait token, only its hash kept");
+            Assert(friends.Waiting(wait) is { Approved: false } && friends.Waiting("autre-attente") is null && friends.Waiting(null) is null, "Waiting, not in yet");
+            Assert(friends.Approve(knock.Device!.Id) is { Approved: true } && friends.Approve("inconnu") is null, "Let in");
+            Assert(new FriendInvites(file, () => now).Waiting(wait) is { Approved: true }, "Let in, after a restart too");
+            friends.Delivered(knock.Device!.Id);
+            Assert(friends.Waiting(wait) is null && friends.Devices().Any(x => x.Id == knock.Device!.Id), "The session given once, the device stays");
+            var (tokenLate, _) = friends.Invite(Sam, "Sam", "kKey8", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;
+            var nobody = friends.Redeem(tokenLate, "device-sam-tab", "Tablette", "100.101.4.5", out var waitLate);
+            Assert(new FriendInvites(file, () => now + FriendInvites.Life + TimeSpan.FromMinutes(1)).Waiting(waitLate) is null, "Never let in before the link's end: gone");
+            friends = new FriendInvites(file, () => now);
+            Assert(friends.Devices().All(x => x.Id != nobody.Device!.Id), "Its entry gone too");
             // Ended, cancelled, wrong.
             var (late, _) = friends.Invite(Sam, "Sam", "kKey2", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;
             var (cancelled, entry) = friends.Invite(Sam, "Sam", "kKey3", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;
@@ -82,16 +96,27 @@ internal static class FriendInviteTests
             return Task.CompletedTask;
         });
 
-        await Test("Inviter un ami par lien : le lien porte la clé, l’invitation et le prénom", () =>
+        await Test("Inviter un ami par lien : un lien court, sans adresse ni clé lisibles", () =>
         {
-            var data = new FriendInvites.LinkData(1, "Maison", "f0a1b2c3d4e5f60718293a4b5c6d7e8f", "http://100.88.12.34:8096", "tskey-auth-kAbC123-xyz", 1_800_000_000, "jeton-invitation", "Alex");
-            var link = FriendInvites.Link(data);
-            Assert(link.StartsWith("https://miracinema.app/friend#", StringComparison.Ordinal) && !link.Contains('+') && !link[(link.IndexOf('#') + 1)..].Contains('/'), "A link to the site, its data after the « # »");
-            var hash = link[(link.IndexOf('#') + 1)..].Replace('-', '+').Replace('_', '/');
-            hash += new string('=', (4 - (hash.Length % 4)) % 4);
-            var read = JsonNode.Parse(Convert.FromBase64String(hash))!;
-            Assert(read["v"]!.GetValue<int>() == 1 && read["invite"]!.GetValue<string>() == "jeton-invitation" && read["friend"]!.GetValue<string>() == "Alex" && read["key"]!.GetValue<string>() == "tskey-auth-kAbC123-xyz", "Read back");
-            Assert(HomeTailnet.ReadLink(link) is { } asHome && asHome.Key == data.Key && asHome.Address == data.Address, "The home link's data, and more");
+            const string Key = "tskey-auth-kbW5Wd3CNTRL-NJ5ny7KD3XpN8U8hmWtfD5pWNVVDvXRQ";
+            var link = FriendInvites.Link(Server, 8096, "", Key)!;
+            Assert(link.StartsWith("https://miracinema.app/join#", StringComparison.Ordinal) && link.Length <= 100, "Short: " + link.Length + " characters");
+            Assert(!link.Contains("tskey", StringComparison.Ordinal) && !link.Contains("100.88", StringComparison.Ordinal) && !link.Contains("CNTRL", StringComparison.Ordinal), "Neither the address nor the key to read");
+            var read = Mira.Core.Family.HomeLink.Read(link);
+            Assert(read is { Friend: true, Key: Key, Address: "http://100.88.12.34:8096/", Name: "Jellyfin", ServerId: "" } && !read.Expired(DateTimeOffset.UtcNow), "Read back by the apps: a friend's invitation");
+            Assert(Mira.Core.Family.HomeLink.Read("mira://join#" + link[(link.IndexOf('#') + 1)..])?.Key == Key, "As Mira gets it from the page");
+
+            // The home's link, under a path, a key of another shape.
+            var home = Mira.Core.Family.JoinLink.Make(Mira.Core.Family.JoinLink.HomeKind, System.Net.IPAddress.Parse(Server), 8920, "/jellyfin", "tskey-other-abc")!;
+            Assert(Mira.Core.Family.HomeLink.Read(home) is { Friend: false, Address: "http://100.88.12.34:8920/jellyfin/", Key: "tskey-other-abc" }, "A home link under a path");
+
+            // Never anything else.
+            Assert(FriendInvites.Link("192.168.1.42", 8096, "", Key) is { } local && Mira.Core.Family.HomeLink.Read(local) is null, "An address outside Tailscale's: refused by the apps");
+            Assert(FriendInvites.Link("fd7a:115c:a1e0::1", 8096, "", Key) is null, "IPv6: not written");
+            foreach (var (text, why) in new[] { (link[..^10], "Cut short"), (link + "<script>", "Something after it"), ("https://miracinema.app/join#AQ", "Too short"), ("https://miracinema.app/join#", "Empty") })
+                Assert(Mira.Core.Family.HomeLink.Read(text) is null, why);
+            var bytes = Convert.FromBase64String("AWRYDCIfoAMAAAA="); // kind 1, a key of « \0\0\0 »
+            Assert(Mira.Core.Family.JoinLink.Read("https://miracinema.app/join#" + Convert.ToBase64String(bytes).TrimEnd('=')) is null, "A key that is not printable");
             return Task.CompletedTask;
         });
 
@@ -170,7 +195,7 @@ internal static class FriendInviteTests
             Assert(tailnet.ToDelete(nodes, new[] { "100.101.1.2" }).Select(x => x.Id).SequenceEqual(["n1", "n3"]), "A friend's device taken out leaves the tailnet");
 
             // Never through Funnel.
-            foreach (var path in new[] { "/Mira/friend/redeem", "/Mira/friend", "/Mira/friend/invite" })
+            foreach (var path in new[] { "/Mira/friend/redeem", "/Mira/friend/wait", "/Mira/friend", "/Mira/friend/invite" })
                 Assert(GuestRoutes.ThroughTunnel("POST", path, "", false) == GuestRoutes.Tunnel.None && GuestRoutes.ThroughTunnel("GET", path, "", false) == GuestRoutes.Tunnel.None, "Closed to Funnel: " + path);
         });
     }

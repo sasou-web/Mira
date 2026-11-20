@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- A join link (a friend's invite or a home link): what follows the « # » never leaves this browser, so the card
+       below is the same for every link and says nothing of it; this page only hands the link to Mira. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>You’re invited · Mira</title>
+  <meta name="description" content="A friend invites you to watch their Jellyfin library with Mira, free, on Windows, Mac and iPhone. Nothing to sign up for.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Mira">
+  <meta property="og:title" content="You’re invited to watch on Mira">
+  <meta property="og:description" content="A friend invites you to their library. Open this link with Mira on Windows, Mac or iPhone: free, nothing to sign up for.">
+  <meta property="og:url" content="https://miracinema.app/join">
+  <meta property="og:image" content="https://miracinema.app/img/invite-en.jpg?v=2515cf1270">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="You’re invited to watch on Mira">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="/img/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/site.css">
+  <script src="/js/join.js" defer></script>
+</head>
+<body>
+  <main class="lost home-link">
+    <img src="/img/mark.svg" alt="" width="56" height="56">
+    <div data-state="friend" hidden>
+      <h1 data-en="You’re invited to watch." data-fr="Tu es invité à regarder.">You’re invited to watch.</h1>
+      <p data-en="A friend opens their Jellyfin library to you in Mira. Nothing to sign up for, no address, no password." data-fr="Un ami t’ouvre sa bibliothèque Jellyfin dans Mira. Rien à créer, ni adresse, ni mot de passe.">A friend opens their Jellyfin library to you in Mira. Nothing to sign up for, no address, no password.</p>
+    </div>
+    <div data-state="home" hidden>
+      <h1 data-en="You’re invited home." data-fr="Le foyer t’attend.">You’re invited home.</h1>
+      <p data-en="Mira opens your home’s Jellyfin, then asks for the home’s password." data-fr="Mira ouvre le Jellyfin de ton foyer, puis te demande le mot de passe du foyer.">Mira opens your home’s Jellyfin, then asks for the home’s password.</p>
+    </div>
+    <div data-state="open" class="actions" hidden>
+      <a class="btn primary" data-open href="#" data-en="Open in Mira" data-fr="Ouvrir dans Mira">Open in Mira</a>
+      <a class="btn quiet" href="/#download" data-get data-en="Get Mira first" data-fr="Installer Mira d’abord">Get Mira first</a>
+    </div>
+    <p data-state="open" class="note" hidden data-en="No Mira yet? Install it, then open this link again. It works once, for 48 hours." data-fr="Pas encore Mira ? Installe-le, puis rouvre ce lien. Il sert une fois, pendant 48 heures.">No Mira yet? Install it, then open this link again. It works once, for 48 hours.</p>
+    <div data-state="broken" hidden>
+      <h1 data-en="This link is incomplete." data-fr="Ce lien est incomplet.">This link is incomplete.</h1>
+      <p data-en="Copy the whole link, up to its end, or ask for a new one." data-fr="Copie le lien en entier, jusqu’au bout, ou demandes-en un nouveau.">Copy the whole link, up to its end, or ask for a new one.</p>
+      <div class="actions">
+        <a class="btn quiet" href="/" data-get data-en="What’s Mira?" data-fr="C’est quoi Mira ?">What’s Mira?</a>
+      </div>
+    </div>
+    <noscript><p>Mira’s invite links need JavaScript, which reads the link here, in your browser. · Les liens d’invitation de Mira ont besoin de JavaScript, qui lit le lien ici, dans ton navigateur.</p></noscript>
+  </main>
+</body>
+</html>
