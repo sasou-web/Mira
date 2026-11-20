@@ -189,7 +189,7 @@ public partial class MainWindow : Window
         if (!ValidationRun) WatchNetwork();
         if (_args.Contains("--demo")) await ShowDemoAsync();
         // In a home: « Who's watching? » before anything of an account (the profile chosen opens its session).
-        else if (OpenHomeAtStart()) { }
+        else if (await OpenHomeAtStartAsync()) { }
         // A friend's invite waiting to be let in, or a friend's session: its node first.
         else if (await OpenFriendAtStartAsync()) { }
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);

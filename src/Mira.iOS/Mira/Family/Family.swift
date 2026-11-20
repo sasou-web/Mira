@@ -84,9 +84,14 @@ final class Family {
     // MARK: Opening Mira, and the hall
 
     /// At Mira's start, in a home: « Who's watching? », its profiles as last read, then as the home says now. The home's
-    /// node carries the profile's Jellyfin when it was joined from a link.
+    /// node carries the profile's Jellyfin when it was joined from a link. Signed in last time with an account of its own
+    /// (« I have my own account »): that account opens, as it would without a home; the hall stays in the switch sheet.
     func start() {
         guard let membership else { return }
+        if let session = app?.session, !isHomeSession(session) {
+            if membership.throughTailnet, WayPlan.same(session.server, membership.server) { node.route(membership.name) }
+            return
+        }
         if membership.throughTailnet, isHomeSession(app?.session) { node.route(membership.name) }
         showHall()
         Task { await refresh() }
