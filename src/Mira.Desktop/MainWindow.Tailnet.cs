@@ -158,6 +158,8 @@ public partial class MainWindow
     {
         RenderTailnetLogin();
         RenderTailnetRow();
+        // Signed in or out here: « Loin de chez toi » says so at once, in Réglages and on the rail's menu.
+        ShowAway();
     }
 
     /// <summary>

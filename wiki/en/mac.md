@@ -82,4 +82,4 @@ This is a limit of how Mira draws the video on a Mac (an 8-bit OpenGL view, with
 
 ## Start over
 
-Sign out first (**Settings → Account & server**), quit Mira, then delete `~/Library/Application Support/Mira`.
+Sign out first (**Settings → Account**), quit Mira, then delete `~/Library/Application Support/Mira`.

@@ -82,4 +82,4 @@ C’est une limite de la façon dont Mira dessine la vidéo sur Mac (une vue Ope
 
 ## Repartir de zéro
 
-Déconnecte-toi d’abord (**Réglages → Compte & serveur**), quitte Mira, puis supprime `~/Library/Application Support/Mira`.
+Déconnecte-toi d’abord (**Réglages → Compte**), quitte Mira, puis supprime `~/Library/Application Support/Mira`.

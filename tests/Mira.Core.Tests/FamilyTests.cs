@@ -121,6 +121,19 @@ internal static class FamilyTests
             Assert(HomeText.Policy("too-open") != HomeText.Policy("ok") && HomeText.Policy(null).Length > 0, "Each verdict said");
         });
 
+        await Test("Loin de chez toi : un seul état, celui du foyer pour son administrateur, sinon celui de cet appareil", () =>
+        {
+            var set = new HomeTailnetState { Connected = true, Policy = "ok" };
+            Assert(AwayFromHome.For(set, true, youReach: false).Level == AwayLevel.Ready, "The home's Tailscale set up: ready, whatever this PC does");
+            Assert(AwayFromHome.For(new HomeTailnetState(), true, youReach: true).Level == AwayLevel.Off, "Not set up: to set up, even signed in here");
+            Assert(AwayFromHome.For(set with { Policy = "open" }, true, false).Level == AwayLevel.Attention, "A policy to fix");
+            Assert(AwayFromHome.For(set with { Broad = true }, true, false).Level == AwayLevel.Attention, "A client that can do too much");
+            Assert(AwayFromHome.For(null, true, youReach: true) is { Level: AwayLevel.Ready, Word: "Prêt" }, "No home: this device's own way");
+            Assert(AwayFromHome.For(null, true, youReach: false).Level == AwayLevel.Off, "Neither");
+            Assert(AwayFromHome.For(null, false, youReach: false) is { Level: AwayLevel.Unknown, Word: "" }, "Still reading: nothing said");
+            return Task.CompletedTask;
+        });
+
         await Test("Foyer : seul le Jellyfin du foyer passe par le nœud du foyer", () =>
         {
             var network = new TailnetNetwork(() => [], computer: null);

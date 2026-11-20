@@ -785,7 +785,11 @@ public static class SelfCheck
                 sheetPage.ClickTab("playback"); sheetPage.ClickTab("playback");
                 Check(sheetPage.CurrentTab == "playback" && sheetPage.Drawn == drawn, "réglages : l’onglet ouvert recliqué ne refait rien", $"{sheetPage.CurrentTab}, {sheetPage.Drawn - drawn} dessins de plus");
                 // The rail's avatar and « ? », as on Windows: the account (« Compte et serveur ») and Aide, in the same window.
+                // The avatar opens the profile menu (D « Le menu du profil », 2026-11-20); its « Compte » the account.
                 window.ClickRailForCheck("account");
+                var menuShown = window.FamilyMenu is { IsOpen: true };
+                window.FamilyMenu?.Close();
+                window.OpenAccount();
                 var account = sheetPage.CurrentTab;
                 window.ClickRailForCheck("help");
                 var topic = sheetPage.HelpTopic;
@@ -804,7 +808,7 @@ public static class SelfCheck
                 var onSettings = await Until(() => turn.Selected == 0 && Math.Abs(turn.PillAt) < .5, 3);
                 Check(onHelp && onSettings && (between || MacMotion.Reduced), "réglages : la pastille de Réglages | Aide coulisse d’un côté à l’autre",
                     $"{helpAt:0.#} px, vue entre les deux : {between}, sans animation : {MacMotion.Reduced}, retour {turn.PillAt:0.#} px");
-                Check(account == "server" && topic == "keys" && window.Current == sheetPage && window.LitRail == litBefore, "rail : l’avatar ouvre le compte, « ? » l’aide, comme sous Windows", $"{account}, {topic}, {window.LitRail}");
+                Check(menuShown && account == "server" && topic == "keys" && window.Current == sheetPage && window.LitRail == litBefore, "rail : l’avatar ouvre le menu du profil, son compte, « ? » l’aide, comme sous Windows", $"menu {menuShown}, {account}, {topic}, {window.LitRail}");
             }
             // « L’essentiel », the front page (maquette A, 2026-11-14): its shortcuts are the switches of their sections, and
             // « mettre à jour » finds « Mises à jour » while « L’essentiel » itself is never a result.
@@ -944,7 +948,7 @@ public static class SelfCheck
             if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Show("care"); withFix.Fix.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
             // The other sections, as on Windows: the account and the way to Jellyfin, this Mac's version and kept titles, Home's rows.
             if (window.Current is SettingsPage others)
-                foreach (var (tab, shot) in new[] { ("server", "07e-settings-server"), ("updates", "07f-settings-updates"), ("library", "07g-settings-library"), ("general", "07m-settings-general"), ("audio", "07h-settings-subtitles") })
+                foreach (var (tab, shot) in new[] { ("server", "07e-settings-server"), ("away", "07e2-settings-away"), ("updates", "07f-settings-updates"), ("library", "07g-settings-library"), ("general", "07m-settings-general"), ("audio", "07h-settings-subtitles") })
                 { others.Show(tab); await Task.Delay(500); Capture(window, output, shot); }
             // Confidentialité: every connection, and the update check's switch the same as the one of « Mises à jour ».
             if (window.Current is SettingsPage privacy)

@@ -17,7 +17,7 @@ public enum PrivacyControl
     Updates,
     /// <summary>PlayerSettings.JellyfinReleaseCheck: a switch on the page (Windows, on the PC of Jellyfin).</summary>
     JellyfinReleases,
-    /// <summary>« Tailscale intégré », in Compte & serveur: signing out is its own step.</summary>
+    /// <summary>« Tailscale intégré », in Loin de chez toi: signing out is its own step.</summary>
     Tailscale,
     /// <summary>TorLink and qBittorrent, in Téléchargements.</summary>
     Downloads,
@@ -61,7 +61,7 @@ public static class Privacy
                 L("Tant que tu es connecté : bibliothèque, images, lecture.", "While you’re signed in: library, pictures, playback."),
                 L("Ton jeton de session dans un en-tête (jamais dans une adresse), ce que tu regardes et où tu t’es arrêté. Les affiches viennent aussi de lui.",
                     "Your session token in a header (never in an address), what you watch and where you stopped. Posters come from it too."),
-                L("Se déconnecter, dans Compte & serveur.", "Sign out, in Account & server."), PrivacyControl.None, false, ["Jellyfin"]),
+                L("Se déconnecter, dans Compte.", "Sign out, in Account."), PrivacyControl.None, false, ["Jellyfin"]),
             new("discovery", L("Trouver Jellyfin", "Finding Jellyfin"),
                 L("Cet ordinateur, ton réseau local (UDP 7359) et tes appareils Tailscale en ligne (port 8096).", "This computer, your home network (UDP 7359) and your online Tailscale devices (port 8096)."),
                 L("À l’écran de connexion, tant qu’aucune adresse n’est connue ; et quand ton serveur ne répond plus à son adresse de la maison, toutes les 2 min au plus, puis de moins en moins souvent (30 min au plus) : ce PC, la découverte, puis chaque adresse de ce réseau sur son port (ta box a pu lui en donner une autre), puis tes appareils Tailscale sur 8096 (loin de chez toi, Mira passe par Tailscale et revient à l’adresse de la maison dès qu’elle répond).",
@@ -89,7 +89,7 @@ public static class Privacy
             L("Seulement après « Se connecter à Tailscale », à chaque ouverture de Mira.", "Only after “Sign in to Tailscale”, each time Mira opens."),
             L("Comme l’app Tailscale : ton compte, le nom de l’appareil, son système, ses adresses IP et sa clé publique. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé.",
                 "Like the Tailscale app: your account, the device’s name, its system, its IP addresses and its public key. Videos stay end-to-end encrypted, no log is sent."),
-            L("Se déconnecter de Tailscale, dans Compte & serveur.", "Sign out of Tailscale, in Account & server."), PrivacyControl.Tailscale, false, ["DERP"]));
+            L("Se déconnecter de Tailscale, dans Loin de chez toi.", "Sign out of Tailscale, in Away from home."), PrivacyControl.Tailscale, false, ["DERP"]));
         if (app is PrivacyApp.Windows or PrivacyApp.Mac)
             list.Add(new("home-node", L("Le foyer loin de la maison, le serveur d’un ami", "The home away from home, a friend’s server"),
                 L("Le serveur de coordination de Tailscale et ses relais, puis le seul Jellyfin du foyer ou de l’ami, sur le réseau Tailscale de son administrateur.",

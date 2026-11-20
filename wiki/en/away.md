@@ -32,7 +32,7 @@ Each device can either have the Tailscale app, or use **Built-in Tailscale**, wh
 4. If the firewall asks to allow Mira's Tailscale, accept: the direct connection is faster. Refusing works too, through a Tailscale relay.
 5. Sign in to Jellyfin as usual.
 
-Mira then joins your Tailscale network each time it opens and leaves when it closes. **Settings → Account & server → Built-in Tailscale** shows its state and the path Mira takes: **At home (direct)**, **Through the Tailscale app** or **Through Built-in Tailscale**.
+Mira then joins your Tailscale network each time it opens and leaves when it closes. **Settings → Away from home → You, on this computer** shows its state and the path Mira takes: **At home (direct)**, **Through the Tailscale app** or **Through Built-in Tailscale**.
 
 ### On iPhone and iPad
 

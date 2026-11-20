@@ -127,7 +127,7 @@ public partial class MainWindow
         // What « Soin de la bibliothèque » holds, read now: its tab is listed only once one of them shows.
         _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync();
         DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _ = ShowFriendLinesAsync(); _ = ShowPhotoAsync(); _guestShowing = ShowGuestLinksAsync(); _approveShowing = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowSignInStart(); ShowOfflineSettings();
-        AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState(); _ = ShowJellyfinServerAsync();
+        AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState(); _ = ShowJellyfinServerAsync(); _ = ReadAwayAsync(again: true);
         MirrorEssentials(); ShowEssentials();
         SettingsSearchBox.Clear(); ShowSheet(SettingsOverlay); UpdateHeroClock();
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
@@ -165,7 +165,7 @@ public partial class MainWindow
         // Jellyfin's updates are told from « Mises à jour » too, while there is a Jellyfin on this PC to update.
         JellyfinUpdatesLink.Visibility = JellyfinHereRow.Visibility;
         // « Ton serveur » heads what only its owner sees, under what everyone uses.
-        ServerToolsLabel.Visibility = new[] { FamilySettingsNav, SharingSettingsNav, CareSettingsNav, JellyfinSettingsNav, TorLinkSettingsNav }.Any(x => x.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
+        ServerToolsLabel.Visibility = new[] { CareSettingsNav, JellyfinSettingsNav, TorLinkSettingsNav }.Any(x => x.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
     }
     private bool _settingsGroupsWatched;
     private void WatchSettingsGroups()
@@ -174,6 +174,8 @@ public partial class MainWindow
         _settingsGroupsWatched = true;
         var visibility = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(VisibilityProperty, typeof(UIElement));
         foreach (var row in SharingSettings.Children.OfType<FrameworkElement>().Concat(CareSettings.Children.OfType<FrameworkElement>()).Concat(JellyfinSettings.Children.OfType<FrameworkElement>()).Where(x => x is Border or Squircle)) visibility.AddValueChanged(row, (_, _) => ShowSettingsGroups());
+        // « Loin de chez toi » follows its three ways in: built-in Tailscale, the home's card, the party's Funnel.
+        foreach (var way in new FrameworkElement[] { TailnetRow, GuestFunnelPanel, GuestAddressPanel, GuestAddressLine, SharingSettingsNav, FamilySettingsNav }) visibility.AddValueChanged(way, (_, _) => ShowAway());
     }
     /// <summary>A section's lines at most 940 wide, beside its list: a description across a whole screen is hard to follow.</summary>
     /// <summary>
@@ -188,8 +190,8 @@ public partial class MainWindow
     {
         if (_settingsNavDrawn) return; _settingsNavDrawn = true;
         foreach (var button in SettingsNavigation.Children.OfType<Button>())
-            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "family" => "tv", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", "discord" => "status", _ => "play" });
-        ShowUpdateDots();
+            DrawSheetNav(button, button.Tag?.ToString() switch { "home" => "home", "subtitles" => "subtitles", "library" => "library", "general" => "sliders", "server" => "user", "family" => "home", "away" => "globe", "sharing" => "users", "care" => "pencil", "jellyfin" => "server", "report" => "clock", "torlink" => "download", "updates" => "refresh", "privacy" => "shield", "discord" => "status", _ => "play" });
+        ShowUpdateDots(); ShowAway();
     }
     /// <param name="animate">False as Réglages opens: the page comes as one, its section with it.</param>
     private void SelectSettingsTab(string tab, bool animate = true)
@@ -208,7 +210,8 @@ public partial class MainWindow
         SmoothScroll.Jump(SettingsScroll); if (animate) Motion.Reveal(shown.Panel, 230, 7);
         WatchViewers(tab == "jellyfin");
         if (tab == "home") ShowEssentials();
-        if (tab == "server") _ = ReadTailscaleAppAsync();
+        if (tab == "away") { _ = ReadTailscaleAppAsync(); _ = ReadAwayAsync(again: true); }
+        if (tab == "home") _ = ReadAwayAsync();
         if (tab == "care") { _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
         if (tab == "jellyfin") _ = ShowJellyfinServerAsync();
         ShowSettingsGroups();

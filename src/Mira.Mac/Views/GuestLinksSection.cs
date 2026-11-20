@@ -23,6 +23,9 @@ public sealed class GuestLinksSection
     private bool _editing, _busy;
 
     public Control Section { get; }
+    /// <summary>Funnel's address, on « Loin de chez toi » (ogsas, 2026-11-20): the way in from the Internet, for a party's guests.</summary>
+    public Control Funnel { get; }
+    private readonly StackPanel _funnel = new() { Spacing = 10 };
 
     public GuestLinksSection(MainWindow shell, Func<string, Control[], Control> section)
     {
@@ -30,6 +33,8 @@ public sealed class GuestLinksSection
         Section = section(L("Ta party", "Your party"), [Ui.Column(14, Note(L("Un seul lien pour regarder ensemble, le même à chaque fois : envoie-le à qui tu veux. Qui l’ouvre te rejoint, sans compte ni rien à régler.",
             "One link to watch together, always the same: send it to whoever you like. Whoever opens it joins you, with no account and nothing to set up.")), _body, _status)]);
         Section.IsVisible = false;
+        Funnel = section(L("Les invités d’une party, depuis Internet", "Party guests, from the Internet"), [Ui.Column(10, Note(L("Pour une soirée, sans compte : n’ouvre que la page de la party, par Tailscale Funnel.", "For one evening, no account: opens only the party page, with Tailscale Funnel.")), _funnel)]);
+        Funnel.IsVisible = false;
         _ = LoadAsync();
     }
 
@@ -42,7 +47,7 @@ public sealed class GuestLinksSection
         {
             var party = await client.PartyAsync();
             var list = await client.IsAdministratorAsync() == true ? await client.GuestLinksAsync() : null;
-            if (party is null && list is null) { Section.IsVisible = false; return; }
+            if (party is null && list is null) { Section.IsVisible = Funnel.IsVisible = false; return; }
             _party = party;
             Render(list);
             Section.IsVisible = true;
@@ -56,10 +61,10 @@ public sealed class GuestLinksSection
     private void Render(GuestLinkList? list)
     {
         _list = list;
-        _body.Children.Clear();
+        _body.Children.Clear(); _funnel.Children.Clear(); Funnel.IsVisible = false;
         if (_party is { } party) _body.Children.Add(PartyBox(party));
         if (list is null) return;
-        if (list.Address is null || _editing) _body.Children.Add(AddressForm(list.Address));
+        if (list.Address is null || _editing) _funnel.Children.Add(AddressForm(list.Address));
         var invites = list.Invites ?? [];
         var guests = invites.Where(x => x.Party).ToList();
         _body.Children.Add(Label(guests.Count > 0 ? Lang.Count(guests.Count, "invité", "invités", "guest", "guests") : L("Invités", "Guests")));
@@ -86,8 +91,9 @@ public sealed class GuestLinksSection
             Avalonia.Automation.AutomationProperties.SetName(change, L("Changer l’adresse des liens", "Change the address of the links"));
             DockPanel.SetDock(change, Dock.Right); line.Children.Add(change);
             line.Children.Add(Note(addressLine));
-            _body.Children.Add(line);
+            _funnel.Children.Add(line);
         }
+        Funnel.IsVisible = _funnel.Children.Count > 0;
     }
 
     /// <summary>The address of the links: what to run on the PC of Jellyfin, and the field for what it shows.</summary>

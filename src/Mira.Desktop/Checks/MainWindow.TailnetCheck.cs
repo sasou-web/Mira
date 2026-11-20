@@ -105,7 +105,7 @@ public partial class MainWindow
             Require(tailnet.State == TailnetStates.Running && TailnetNetwork.Default.Choose(ip).Path == TailnetPath.Node,
                 again ? "the node started with Mira, before Jellyfin was asked anything: Home loads through it at once" : $"Home shows the server's titles ({_catalog.Items.Count}) through the node");
             await Shot(again ? "tailnet-home-again" : "tailnet-home");
-            Settings_Click(this, new()); SelectSettingsTab("server");
+            Settings_Click(this, new()); SelectSettingsTab("away");
             await Until("Réglages → Jellyfin", () => TailnetRow.Visibility == Visibility.Visible, 10);
             RenderTailnetRow();
             Require(TailnetWayText.Text == TailnetText.Path(TailnetText.ThroughNode) && TailnetSignOutButton.Visibility == Visibility.Visible && TailnetSignInButton.Visibility == Visibility.Collapsed,

@@ -54,7 +54,16 @@ public sealed partial class SettingsPage
 
         // —— The account: who, on which Jellyfin, and whether it answers ——
         var face = new Grid { Width = 44, Height = 44, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Top, Children = { new Ellipse { Fill = Ui.Brush("#3F3F3F") }, _essentialsLetter, _essentialsPhoto } };
-        var account = Ui.Action(L("Compte & serveur", "Account & server"), "user", "", () => Go("server"));
+        // Its photo changed from here (ogsas, 2026-11-20): a fixed little camera on the picture, « Choisir une photo… » of « Compte ».
+        if (Shell.Session is not null && !Shell.InParty)
+        {
+            var camera = new Button { Width = 22, Height = 22, Padding = new Thickness(0), CornerRadius = new CornerRadius(11), Background = Ui.Brush("#242424"), BorderBrush = Ui.Brush("#000000"), BorderThickness = new Thickness(2), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, -4, -4), Content = new Icon("camera", 12) { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+            ToolTip.SetTip(camera, L("Changer ta photo", "Change your photo"));
+            Avalonia.Automation.AutomationProperties.SetName(camera, L("Changer ta photo", "Change your photo"));
+            camera.Click += async (_, _) => { if (await Shell.ChoosePhotoAsync() is { } said && said != L("Photo changée.", "Photo changed.")) Shell.Notice(said, tone: NoticeTone.Info); };
+            face.Children.Add(camera);
+        }
+        var account = Ui.Action(L("Compte", "Account"), "user", "", () => Go("server"));
         _essentialsRecap = Ui.Action(L("Ton bilan", "Your recap"), null, "quiet", () => Go("report"));
         var signOut = Ui.Action(L("Se déconnecter…", "Sign out…"), null, "quiet", () =>
         {
@@ -88,6 +97,7 @@ public sealed partial class SettingsPage
 
         var list = new StackPanel { Spacing = 10 };
         list.Children.Add(top);
+        list.Children.Add(EssentialsPeople());
         list.Children.Add(label);
         list.Children.Add(Card(Row(L("Qualité", "Quality"), "", quality)));
         list.Children.Add(Card(Row(L("Langues de l’audio et des sous-titres", "Audio and subtitle languages"), "", languages)));
