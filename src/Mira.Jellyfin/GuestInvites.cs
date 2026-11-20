@@ -609,8 +609,12 @@ public sealed partial class GuestInvites
         }
 
         store.Gone.AddRange(ids.Where(GuestRoutes.IsId));
-        var key = System.Text.RegularExpressions.Regex.Match(text, "\"key\"\\s*:\\s*\"((?:dpapi:)?[A-Za-z0-9+/=]{32,})\"", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
-        store.Key = key.Success && ServerSecrets.Open(key.Groups[1].Value) is { } opened && System.Text.RegularExpressions.Regex.IsMatch(opened, "^[0-9a-fA-F]{32}$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)) ? opened : null;
+        // Sealed, the key is base64 that the file writes escaped (« + » as « \u002B »): read as the JSON string it is.
+        var key = System.Text.RegularExpressions.Regex.Match(text, "\"key\"\\s*:\\s*(\"[^\"]{32,2048}\")", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+        string? written = null;
+        try { written = key.Success ? JsonSerializer.Deserialize<string>(key.Groups[1].Value) : null; }
+        catch (JsonException) { }
+        store.Key = written is not null && ServerSecrets.Open(written) is { } opened && System.Text.RegularExpressions.Regex.IsMatch(opened, "^[0-9a-fA-F]{32}$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)) ? opened : null;
         return store;
     }
 

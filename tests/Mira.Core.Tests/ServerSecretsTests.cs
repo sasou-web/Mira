@@ -71,6 +71,7 @@ internal static class ServerSecretsTests
             var again = new GuestInvites(invitesFile, () => now);
             Assert(again.Key == key && again.Open(code, "device-a", "1.2.3.4").Result == GuestInvites.Opening.Opened, "And from the sealed one");
             Assert(GuestInvites.Salvage(File.ReadAllText(invitesFile)) is { Key: var salvaged, Gone: var ids } && salvaged == key && ids.Contains(Item), "A damaged file still gives its key and accounts");
+            Assert(GuestInvites.Salvage("{ \"key\": \"0123456789abcdef0123456789abcde\\u0066\" }").Key == key, "The key read as JSON writes it, escaped");
 
             // A code sealed by another account: the link goes, its account to delete.
             var lostFile = Old("Mira.invites-lost.json", $$"""
