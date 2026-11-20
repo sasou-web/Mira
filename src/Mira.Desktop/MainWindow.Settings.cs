@@ -567,6 +567,7 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { GpuStatus.Text = Friendly(ex); }
         finally { _gpuBusy = false; GpuOffButton.IsEnabled = true; }
     }
+    private void ApproveCode_TextChanged(object sender, TextChangedEventArgs e) => ApproveCodePlaceholder.Visibility = ApproveCodeBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     private void ApproveCode_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     { if (e.Key == System.Windows.Input.Key.Enter) { e.Handled = true; ApproveDevice_Click(sender, e); } }
     /// <summary>The code another device shows (Mira web on a phone), approved for this account or the one chosen.</summary>
