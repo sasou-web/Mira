@@ -17,6 +17,9 @@ public sealed record FriendInviteRow(string Id, string User, string Name, DateTi
 
 public sealed record FriendDeviceRow(string Id, string User, string Name, DateTimeOffset Joined, bool Tailnet, DateTimeOffset? LastSeen, bool Waiting = false);
 
+/// <summary>A device waiting at a friend's server to be let in: kept (encrypted) so the wait goes on after Mira restarts.</summary>
+public sealed record FriendWait(string Server, string Wait);
+
 /// <summary>A friend's link made: the link, its end, its id (to cancel it).</summary>
 public sealed record FriendLinkMade(string Link, DateTimeOffset Expires, string Id);
 

@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Mira.Core;
+using Mira.Core.Family;
 using Mira.Core.TorLink;
 using Mira.Desktop.Services;
 using Mira.Desktop.Views;
@@ -112,6 +113,11 @@ public partial class MainWindow
         public bool WatchesShares => Elsewhere && Here && Away is not null;
         public DispatcherTimer? Watch { get; set; }
         public bool Reading { get; set; }
+        /// <summary>Réglages' guide of an account just made: its id, for a friend's link.</summary>
+        public string? UserId { get; init; }
+        /// <summary>The home is on Tailscale: « Somewhere else » is one link (maquette A « Le lien »), not Tailscale's sharing.</summary>
+        public bool Links { get; set; }
+        public Mira.Core.Family.FriendLinkMade? Link { get; set; }
     }
     private FriendGuide? _friendGuide, _helpFriendGuide;
     private TextBox? _friendCodeBox;
@@ -124,7 +130,7 @@ public partial class MainWindow
         _friendGuide?.Watch?.Stop();
         _friendGuide = new FriendGuide
         {
-            Name = friend.Name, Steps = FriendSteps, Shared = shared, Codes = codes, Here = here,
+            Name = friend.Name, Steps = FriendSteps, Shared = shared, Codes = codes, Here = here, UserId = friend.Id,
             Home = FriendReach.HomeAddress(server, here, here ? LocalNetwork.ThisPc() : null),
             Away = FriendReach.AwayAddress(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null),
         };
@@ -134,6 +140,7 @@ public partial class MainWindow
         FriendWhere.Selected = 1;
         RenderFriendGuide();
         _ = ShowFriendPartyAsync(client);
+        _ = OfferFriendLinkAsync(client, _friendGuide);
         _ = Dispatcher.BeginInvoke(() => FriendElsewhere.Focus(), DispatcherPriority.Input);
     }
     private void FriendWhere_Checked(object sender, RoutedEventArgs e)
@@ -164,6 +171,22 @@ public partial class MainWindow
                 ? (FriendReach.Account, FriendReach.AccountLine(guide.Admin), guide.Admin ? FriendButton(FriendReach.CreateAccount, "plus", (_, _) => _ = OpenFriendSettingsAsync(device: false), primary: false) : null, null, false)
                 : (FriendReach.Created, FriendReach.CreatedLine(guide.Name, guide.Shared), null, null, true),
         };
+        if (guide.Elsewhere && guide.Links && !guide.Help)
+        {
+            // One link, from anywhere (maquette A « Le lien »): no Tailscale to open, no address, no code.
+            FrameworkElement action = guide.Link is { } made2 ? FriendCopyField(made2.Link, FriendText.CopyLink)
+                : FriendButton(FriendText.Invite(guide.Name), "link", (_, _) => _ = MakeFriendLinkAsync(guide), primary: true);
+            steps.Add((FriendText.SendTo(guide.Name), FriendText.SendLine, action, guide.Link is { } shown ? FriendLinkQr(shown.Link) : null, guide.Link is not null));
+            steps.Add((L($"Laisse entrer son appareil", "Let their device in"), L($"Quand {guide.Name} ouvre le lien, « Laisser entrer » apparaît sous Amis, juste au-dessus. Rien ne s’ouvre sans toi.", $"When {guide.Name} opens the link, “Let in” shows under Friends, just above. Nothing opens without you."), null, null, false));
+            var first = steps.FindIndex(x => !x.Done);
+            for (var i = 0; i < steps.Count; i++)
+            {
+                if (i > 0) guide.Steps.Children.Add(new Border { Height = 1, Background = Palette.Get("Line") });
+                guide.Steps.Children.Add(FriendStep(i + 1, steps[i].Done, i == first, steps[i].Title, steps[i].Text, steps[i].Action, steps[i].Note));
+            }
+            guide.Watch?.Stop();
+            return;
+        }
         if (guide.Elsewhere)
         {
             var shared = guide.Sharees is { Count: > 0 };

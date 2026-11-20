@@ -42,7 +42,8 @@ public partial class MainWindow
         var screen = WhatsNew.Decide(_settings.SeenVersion, current, knownProfile: !_profile.IsNew);
         // Not written now (file held by another program, full disk): the opening goes on, and closing Mira writes it again.
         if (_settings.SeenVersion != current.ToString(3)) { _settings.SeenVersion = current.ToString(3); TrySaveSettings(); }
-        if (screen == StartupScreen.Welcome && LoginOverlay.Visibility == Visibility.Visible) ShowWelcome();
+        // A link opened Mira (a home's, a friend's invite, a party): its page, never the welcome over it.
+        if (screen == StartupScreen.Welcome && LoginOverlay.Visibility == Visibility.Visible && FamilyOverlay.Visibility != Visibility.Visible && PartyOverlay.Visibility != Visibility.Visible) ShowWelcome();
         else if (screen == StartupScreen.WhatsNew) ShowWhatsNew(WhatsNew.Recent(current));
         AnnounceUpdateResult(whatsNewShown: screen == StartupScreen.WhatsNew);
     }

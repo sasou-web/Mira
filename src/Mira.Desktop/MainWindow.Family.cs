@@ -97,7 +97,7 @@ public partial class MainWindow
     private void ShowFamilyPage(FrameworkElement page)
     {
         AttachFamily();
-        foreach (var other in new FrameworkElement[] { FamilyJoin, FamilyHall, FamilyPin }) other.Visibility = other == page ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var other in new FrameworkElement[] { FamilyJoin, FamilyHall, FamilyPin, FamilyFriend }) other.Visibility = other == page ? Visibility.Visible : Visibility.Collapsed;
         if (FamilyOverlay.Visibility != Visibility.Visible) { FamilyOverlay.Visibility = Visibility.Visible; Motion.Reveal(FamilyOverlay, 220, 0); }
         else Motion.Reveal(page, 200, 6);
     }
@@ -371,6 +371,7 @@ public partial class MainWindow
     private void FamilyOverlay_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape) return;
+        if (FamilyFriend.Visibility == Visibility.Visible) { _ = LeaveFriendPageAsync(); e.Handled = true; return; }
         if (FamilyPin.Visibility == Visibility.Visible) { PinBack(); e.Handled = true; return; }
         // The hall over the library (opened from the rail): Escape goes back to what was playing.
         if (FamilyHall.Visibility == Visibility.Visible && _client is not null) { _ = HideFamilyAsync(); e.Handled = true; return; }
@@ -383,7 +384,10 @@ public partial class MainWindow
     private void OpenHomeLink(string text)
     {
         if (HomeLink.Read(text) is not { } link) { SetNotice(HomeText.LinkBroken); return; }
+        if (link.Friend) { OpenFriendLink(link); return; }
         RestoreFromWindows();
+        // A link opened on a new install: the home's card, never the welcome over it.
+        WelcomeOverlay.Visibility = Visibility.Collapsed;
         // Already in this home: its hall.
         if (_home is { } home && link.Is(home.ServerId)) { ShowHall(); _ = RefreshHallAsync(); return; }
         _homeLink = link; _homeFound = null;
@@ -396,7 +400,7 @@ public partial class MainWindow
     /// </summary>
     private async Task OfferHomeAsync(ServerSearch.Found found)
     {
-        if (_homeDeclined || _home is not null || _homeLink is not null || _client is not null || _demo || _profile.LoadConnection() is not null) return;
+        if (_homeDeclined || _home is not null || _homeLink is not null || _friendLink is not null || _friendWaiting is not null || _client is not null || _demo || _profile.LoadConnection() is not null) return;
         bool? on;
         using (var client = HomeClient(found.Address))
             try { on = await client.HomeOnAsync(); }
@@ -453,7 +457,7 @@ public partial class MainWindow
             using var client = HomeClient(server);
             // The Jellyfin the link names, and no other: its own id first.
             var id = await client.LearnServerIdAsync();
-            if (serverId is not null && !string.Equals(id?.Replace("-", ""), serverId.Replace("-", ""), StringComparison.OrdinalIgnoreCase)) { FamilyJoinError.Text = HomeText.NotThisServer(name); return; }
+            if (serverId is { Length: > 0 } && !string.Equals(id?.Replace("-", ""), serverId.Replace("-", ""), StringComparison.OrdinalIgnoreCase)) { FamilyJoinError.Text = HomeText.NotThisServer(name); return; }
             var joined = await client.HomeJoinAsync(password, _profile.DeviceId, HomeText.DeviceName("Mira", Environment.MachineName));
             _home = trial with { Server = client.Connection.Server, ServerId = id ?? serverId, Token = joined.Token, DeviceId = joined.DeviceId, Profiles = joined.Profiles, Current = null };
             _homeLink = null; _homeFound = null;

@@ -529,6 +529,9 @@
        <!-- What an administrator shares: friends' accounts, guest links, devices let in by a code. -->
        <StackPanel x:Name="SharingSettings" Visibility="Collapsed">
        <!-- « Ajouter un ami »: shown to an administrator (MainWindow.Friends.cs): an account that sees only the libraries chosen. -->
+       <!-- Friends invited by a link (maquette A « Le lien »): a line per friend, their devices, a device waiting to be let in, the link still waiting. -->
+       <Border x:Name="FriendLinesRow" Style="{StaticResource SettingRow}" Visibility="Collapsed"><StackPanel><TextBlock Text="{v:L 'Amis', 'Friends'}" FontWeight="SemiBold"/><TextBlock Text="{v:L 'Chaque ami invité par un lien, avec ses appareils. Un appareil qui ouvre un lien attend que tu le laisses entrer.', 'Each friend invited by a link, with their devices. A device that opens a link waits for you to let it in.'}" Style="{StaticResource SettingDescription}"/>
+        <StackPanel x:Name="FriendLines" Margin="0,8,0,0"/><TextBlock x:Name="FriendLinesStatus" Style="{StaticResource SettingDescription}" v:Accessible.Announce="Polite"/></StackPanel></Border>
        <Border x:Name="FriendRow" Style="{StaticResource SettingRow}" Visibility="Collapsed"><StackPanel><TextBlock Text="{v:L 'Ajouter un ami', 'Add a friend'}" FontWeight="SemiBold"/><TextBlock Text="{v:L 'Son propre compte sur ton Jellyfin, pour regarder ensemble ou de son côté. Il ne voit que les bibliothèques choisies et ne peut rien changer.', 'Their own account on your Jellyfin, to watch together or on their own. They only see the libraries you choose and can’t change anything.'}" Style="{StaticResource SettingDescription}"/>
         <StackPanel x:Name="FriendForm"><TextBlock Text="{v:L 'Son prénom', 'Their first name'}" FontSize="12" Foreground="{StaticResource TextTertiary}" Margin="0,16,0,7"/><TextBox x:Name="FriendNameBox" Width="260" HorizontalAlignment="Left" MaxLength="40" KeyDown="FriendName_KeyDown" AutomationProperties.Name="{v:L 'Prénom de ton ami', 'Your friend’s first name'}"/><TextBlock Text="{v:L 'Ce qu’il pourra regarder', 'What they can watch'}" FontSize="12" Foreground="{StaticResource TextTertiary}" Margin="0,16,0,3"/><StackPanel x:Name="FriendLibraries" MaxWidth="460" HorizontalAlignment="Left"/><Button x:Name="FriendCreateButton" Content="{v:L 'Créer son compte', 'Create their account'}" Click="FriendCreate_Click" HorizontalAlignment="Left" Margin="0,14,0,0"/></StackPanel>
         <!-- After « Create their account »: where the friend watches from, then the steps with the address to copy (FriendReach of Core; ogsas, maquette B « Le guide », 2026-11-18). -->
@@ -879,6 +882,23 @@
       <TextBlock x:Name="FamilyPinForgot" FontSize="12.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="16,0,0,0"/>
      </StackPanel>
     </StackPanel>
+   </Viewbox>
+   <!-- A friend's invite (mira://join#…, maquette A « Le lien »): what it is, what the friend sees of this device, then waiting for the friend to let it in. -->
+   <Viewbox x:Name="FamilyFriend" Visibility="Collapsed" Margin="24,60,24,20" Stretch="Uniform" StretchDirection="DownOnly" TextOptions.TextFormattingMode="Ideal">
+    <v:Squircle Width="460" Padding="34,30" Background="{StaticResource Sheet}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="{StaticResource RadiusSheet}">
+     <StackPanel>
+      <DockPanel><v:Icon Kind="brand" Width="30" Height="30" DockPanel.Dock="Left" Foreground="{StaticResource Text}" Margin="0,0,12,0" VerticalAlignment="Center"/><TextBlock x:Name="FriendHeading" FontSize="22" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level1"/></DockPanel>
+      <TextBlock x:Name="FriendLine" FontSize="13.5" LineHeight="20" TextWrapping="Wrap" Foreground="{StaticResource TextBody}" Margin="0,16,0,0"/>
+      <v:Squircle x:Name="FriendPrivacy" Margin="0,18,0,0" Padding="14,12" CornerRadius="{StaticResource RadiusControl}" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1">
+       <DockPanel><v:Icon Kind="eye" Width="16" Height="16" DockPanel.Dock="Left" VerticalAlignment="Top" Margin="0,2,10,0" Foreground="{StaticResource TextSecondary}"/>
+        <TextBlock x:Name="FriendSeen" FontSize="12" LineHeight="17" TextWrapping="Wrap" Foreground="{DynamicResource Muted}"/></DockPanel>
+      </v:Squircle>
+      <TextBlock x:Name="FriendError" Foreground="{StaticResource Danger}" FontSize="12.5" TextWrapping="Wrap" Margin="0,14,0,0" v:Accessible.Announce="Assertive"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+      <WrapPanel Margin="0,22,0,0"><Button x:Name="FriendStart" Style="{StaticResource Primary}" v:Motion.Radius="{StaticResource RadiusControl}" Click="FriendStart_Click" Height="42" Padding="22,0" Margin="0,0,14,0" AutomationProperties.Name="{Binding Text, ElementName=FriendStartText}"><TextBlock x:Name="FriendStartText" FontSize="13"/></Button>
+       <Button x:Name="FriendNotNow" Style="{StaticResource Quiet}" Click="FriendNotNow_Click" FontSize="12.5" Height="42" Padding="12,0"/></WrapPanel>
+      <Button x:Name="FriendAddress" Style="{StaticResource Quiet}" Click="FriendAddress_Click" FontSize="12" Padding="2,6" Margin="0,14,0,0" HorizontalAlignment="Left" Foreground="{DynamicResource Muted}"/>
+     </StackPanel>
+    </v:Squircle>
    </Viewbox>
    <!-- Joining, opening a profile: what Mira is doing. -->
    <StackPanel x:Name="FamilyBusy" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,48" Orientation="Horizontal" IsHitTestVisible="False"><v:Icon Kind="refresh" Width="15" Height="15" Foreground="{DynamicResource Muted}" Margin="0,0,9,0"/><TextBlock x:Name="FamilyBusyText" FontSize="12.5" Foreground="{DynamicResource Muted}" v:Accessible.Announce="Polite"/></StackPanel>
