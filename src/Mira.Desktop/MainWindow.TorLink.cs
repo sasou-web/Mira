@@ -83,6 +83,8 @@ public partial class MainWindow
         {
             here = await JellyfinOnThisPcAsync(client);
             if (!here && (admin = await client.IsAdministratorAsync(_connectionLifetime.Token)) == true) extension = await client.HasExtensionAsync(_connectionLifetime.Token);
+            // Not an administrator: « Can download » lets it use the relay all the same (the relay answers it).
+            else if (!here && admin == false && await client.CanUseRelayAsync(_connectionLifetime.Token) is true) (admin, extension) = (true, true);
         }
         catch (Exception ex) when (IsExpected(ex)) { }
         if (!ReferenceEquals(client, _client)) return;

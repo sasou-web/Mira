@@ -150,7 +150,7 @@ struct DownloadsView: View {
         if agent != nil {
             Section {
             } footer: {
-                Text("TorLink downloads on the PC that runs Jellyfin, without you having to touch it, then Mira adds the title to your library. Mira must be open there, even minimized. Only Jellyfin administrator accounts see this screen.")
+                Text("TorLink downloads on the PC that runs Jellyfin, without you having to touch it, then Mira adds the title to your library. Mira must be open there, even minimized. Only Jellyfin administrators and the accounts they let download see this screen.")
             }
         }
     }
@@ -400,7 +400,7 @@ struct DownloadsView: View {
 
     private func explain(_ error: Error) -> String {
         switch error as? JellyfinError {
-        case .forbidden: String(localized: "Only Jellyfin administrator accounts can download to the server PC.")
+        case .forbidden: String(localized: "Your account can’t download on the server PC: ask an administrator to turn on Can download for you in Settings → Home.")
         case .http(404): String(localized: "The Mira extension on your server doesn’t know this screen yet. Update Mira on the server PC, then restart Jellyfin.")
         default: Messages.text(error)
         }

@@ -403,6 +403,18 @@ await part('relais', async () => {
       `« ${english.json?.error ?? english.text.slice(0, 80)} » / « ${french.json?.error ?? french.text.slice(0, 80)} »`);
     const other = friend ? [await call('GET', 'Mira/torlink', { token: friend, device: 'check-friend' }), await call('POST', 'Mira/torlink/agent', { token: friend, device: 'check-friend', body: { name: 'X', accepting: true } })] : [];
     check('relais : refusé à un compte qui n’est pas administrateur, comme agent aussi', other.length === 2 && other.every((r) => r.status === 403), other.map((r) => r.status).join(', ') || 'pas d’autre compte');
+    // « Can download »: that account let in by an administrator (TorLink, never as the agent), then out again.
+    const friendId = friend ? String((await call('GET', 'Users/Me', { token: friend, device: 'check-friend' })).json?.Id).replace(/-/g, '') : null;
+    const [refusedByFriend, allowed] = friendId ? [await call('PUT', `Mira/home/profiles/${friendId}/download`, { token: friend, device: 'check-friend', body: { download: true } }),
+      await call('PUT', `Mira/home/profiles/${friendId}/download`, { token: host, body: { download: true } })] : [];
+    const listedDownload = friendId ? (await call('GET', 'Mira/home/settings', { token: host })).json?.profiles?.find((p) => p.id === friendId)?.download : null;
+    const downloader = friendId ? [await call('GET', 'Mira/torlink', { token: friend, device: 'check-friend' }),
+      await call('POST', 'Mira/torlink/agent', { token: friend, device: 'check-friend', body: { name: 'X', accepting: true } })] : [];
+    if (friendId) await call('PUT', `Mira/home/profiles/${friendId}/download`, { token: host, body: { download: false } });
+    const after = friendId ? await call('GET', 'Mira/torlink', { token: friend, device: 'check-friend' }) : null;
+    check('relais : « Can download » laisse un compte non administrateur utiliser TorLink, jamais comme agent, et se retire',
+      refusedByFriend?.status === 403 && allowed?.status === 204 && listedDownload === true && downloader[0]?.status === 200 && downloader[1]?.status === 403 && after?.status === 403,
+      `par lui-même ${refusedByFriend?.status} ; par l’administrateur ${allowed?.status} ; réglages ${listedDownload} ; TorLink ${downloader[0]?.status}, agent ${downloader[1]?.status} ; retiré ${after?.status}`);
   } finally {
     fake.stop = true; await loop;
   }

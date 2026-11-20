@@ -169,7 +169,7 @@ internal static class RemoteDownloadTests
             Assert(RemoteLines.Controllable(download with { Status = "queued" }) && RemoteLines.Paused(download) && !RemoteLines.Controllable(download with { Status = "completed" }), "Controllable");
             var status = new RelayStatus(null, [new("1", "Dune", 0, Hash, "sent", null, now), new("2", "Alien", 0, Other, "sent", null, now)], [], [download], []);
             Assert(RemoteLines.Pending(status).Select(x => x.Id).SequenceEqual(["2"]), "A request TorLink lists shows as its download");
-            Assert(RemoteLines.Refused(HttpStatusCode.Forbidden)!.Contains("administrateurs", StringComparison.Ordinal) && RemoteLines.Refused(HttpStatusCode.InternalServerError) is null, "Refusals");
+            Assert(RemoteLines.Refused(HttpStatusCode.Forbidden)!.Contains("« Can download »", StringComparison.Ordinal) && RemoteLines.Refused(HttpStatusCode.InternalServerError) is null, "Refusals");
             return Task.CompletedTask;
         });
         await Test("Télécharger sur le PC serveur : le relais de l'extension, de la recherche au téléchargement", () =>

@@ -507,7 +507,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>
     /// « Téléchargements »: searches and downloads sent to the PC of Jellyfin, where TorLink runs (Mira for Windows), by
-    /// its administrators only, through the relay of Mira's extension. A Jellyfin without the extension (most of them, on
+    /// its administrators and the accounts let download (« Can download »), through the relay of Mira's extension. A Jellyfin without the extension (most of them, on
     /// Linux, a NAS or in Docker) never gets the entry: the page could not work there (<see cref="Mira.Core.TorLink.RemoteDownloads.Offered"/>).
     /// </summary>
     private async Task OfferDownloadsAsync(Session session)
@@ -518,6 +518,8 @@ public sealed partial class MainWindow : Window
         {
             admin = await session.Client.IsAdministratorAsync(session.Lifetime);
             if (admin == true) extension = await session.Client.HasExtensionAsync(session.Lifetime);
+            // Not an administrator: « Can download » lets it use the relay all the same (the relay answers it).
+            else if (admin == false && await session.Client.CanUseRelayAsync(session.Lifetime) is true) (admin, extension) = (true, true);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { }
         // Unreachable or unread: the entry stays as it was, asked again the next time Mira comes in front.

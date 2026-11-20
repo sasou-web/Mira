@@ -308,6 +308,7 @@ public sealed class HomeController : ControllerBase
                 disabled = x.Disabled,
                 offered = offered.ContainsKey(x.Id!),
                 pin = offered.TryGetValue(x.Id!, out var p) && p.Pin is not null,
+                download = x.Admin || Home.CanDownload(x.Id),
                 allLibraries = x.AllLibraries,
                 maxRating = x.MaxRating,
             }).ToList();
@@ -409,6 +410,35 @@ public sealed class HomeController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// « Can download »: an account let use TorLink without administering Jellyfin, or no longer
+    /// (<see cref="TorLinkAccessAttribute"/>). Never a guest's; an administrator always may.
+    /// </summary>
+    [HttpPut("profiles/{user}/download")]
+    [Authorize(Policy = "RequiresElevation")]
+    [RequestSizeLimit(1_024)]
+    public async Task<IActionResult> Download(string user, CancellationToken cancellationToken)
+    {
+        var body = await ReadAsync<DownloadBody>(cancellationToken).ConfigureAwait(false);
+        if (HomeFamily.Plain(user) is not { } userId || body?.Download is not { } allowed)
+        {
+            return BadRequest();
+        }
+
+        if (allowed)
+        {
+            using var client = _clients.CreateClient();
+            var (status, text) = await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Get, $"Users/{userId}", Admin(), null, cancellationToken).ConfigureAwait(false);
+            var account = status == (int)HttpStatusCode.OK && GuestAccounts.Parse(text) is JsonObject found ? Account.Of(found) : null;
+            if (account?.Id is null || Plugin.Invites.IsGuestAccount(account.Id))
+            {
+                return Refuse(StatusCodes.Status404NotFound, "Ce compte n’existe pas sur ce Jellyfin.");
+            }
+        }
+
+        return Home.SetDownload(userId, allowed) ? NoContent() : BadRequest();
     }
 
     /// <summary>A profile's PIN set or taken off by the administrator, without the current one.</summary>
@@ -933,6 +963,8 @@ public sealed class HomeController : ControllerBase
     private sealed record PasswordBody(string? Password);
 
     private sealed record OfferBody(bool? Offered, string? Pin);
+
+    private sealed record DownloadBody(bool? Download);
 
     private sealed record TailnetBody(string? ClientId, string? ClientSecret);
 

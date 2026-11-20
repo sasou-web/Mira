@@ -1459,6 +1459,15 @@ public sealed partial class JellyfinClient : IDisposable
         using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         return body.RootElement.TryGetProperty("id", out var id) && id.GetString() is { Length: > 0 } text ? text : throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
     }
+    /// <summary>
+    /// Whether this account reaches TorLink's relay (GET Mira/torlink): an administrator, or an account an administrator
+    /// let download (« Can download »). False when Jellyfin refuses it (403) or has no relay (404); null otherwise.
+    /// </summary>
+    public async Task<bool?> CanUseRelayAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Mira/torlink", ct);
+        return response.IsSuccessStatusCode ? true : response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound ? false : null;
+    }
     /// <summary>A 404 of a request is the request gone, not the relay missing, when the relay itself answers.</summary>
     private async Task<bool> HasRelayAsync(CancellationToken ct)
     {

@@ -7,12 +7,14 @@ using Mira.Core.TorLink;
 namespace Mira.Jellyfin;
 
 /// <summary>
-/// « Télécharger sur le PC serveur » (see <see cref="TorLinkRelay"/>), for Jellyfin's administrators only: Jellyfin
-/// checks the account of each request (its policy « RequiresElevation »), Mira web's and Mira for Windows' alike. An
-/// administrator can already run any program through a plugin; nobody else reaches these addresses.
+/// « Télécharger sur le PC serveur » (see <see cref="TorLinkRelay"/>), for Jellyfin's administrators and the accounts
+/// an administrator let download (« Can download », <see cref="HomeFamily.CanDownload"/>): Jellyfin checks the account
+/// of each request, then <see cref="TorLinkAccessAttribute"/> its role or that list. The agent's exchange (Mira for
+/// Windows on the PC of Jellyfin, which runs the work) stays an administrator's only. Nobody else reaches these addresses.
 /// </summary>
 [ApiController]
-[Authorize(Policy = "RequiresElevation")]
+[Authorize]
+[TorLinkAccess]
 [Route("Mira/torlink")]
 public sealed class TorLinkController : ControllerBase
 {
@@ -100,6 +102,7 @@ public sealed class TorLinkController : ControllerBase
 
     /// <summary>Mira for Windows on the PC of Jellyfin: its report, and the work it leaves with.</summary>
     [HttpPost("agent")]
+    [Authorize(Policy = "RequiresElevation")]
     [RequestSizeLimit(2_000_000)]
     public async Task<IActionResult> Agent(CancellationToken cancellationToken)
     {

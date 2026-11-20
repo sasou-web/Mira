@@ -254,6 +254,8 @@ struct HomeAccount: Decodable, Sendable, Hashable, Identifiable {
     var pin: Bool
     var allLibraries: Bool
     var maxRating: String?
+    /// « Can download »: it may use TorLink (an administrator always); missing from an older extension.
+    var download: Bool?
 }
 
 /// A device in the home: its name, when it joined and was last seen, the profile it has open.
@@ -347,6 +349,12 @@ extension JellyfinClient {
         var body: [String: Any] = ["offered": offered]
         if let pin { body["pin"] = pin }
         let (status, data, _) = try await homeAdmin("PUT", "Mira/home/profiles/\(userId)", body: body)
+        try Self.homeCheck(status, data)
+    }
+
+    /// « Can download »: an account let use TorLink without administering Jellyfin, or no longer.
+    func homeSetDownload(_ userId: String, _ download: Bool) async throws {
+        let (status, data, _) = try await homeAdmin("PUT", "Mira/home/profiles/\(userId)/download", body: ["download": download])
         try Self.homeCheck(status, data)
     }
 

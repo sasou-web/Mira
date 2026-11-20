@@ -71,8 +71,8 @@ public sealed record HomeMembership
 
 // ---- The administrator's side ----
 
-/// <summary>An account of the server as the home's settings show it.</summary>
-public sealed record HomeAccount(string Id, string Name, string? ImageTag, bool Admin, bool Disabled, bool Offered, bool Pin, bool AllLibraries, string? MaxRating);
+/// <summary>An account of the server as the home's settings show it; <see cref="Download"/>: it may use TorLink (an administrator always).</summary>
+public sealed record HomeAccount(string Id, string Name, string? ImageTag, bool Admin, bool Disabled, bool Offered, bool Pin, bool AllLibraries, string? MaxRating, bool Download = false);
 
 /// <summary>A device in the home: its name, when it joined and was last seen, the profile it has open.</summary>
 public sealed record HomeDeviceInfo(string Id, string Name, DateTimeOffset Joined, DateTimeOffset Seen, string? Profile, string? ProfileName);

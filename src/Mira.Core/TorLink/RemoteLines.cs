@@ -45,7 +45,7 @@ public static class RemoteLines
     /// <summary>What the relay refuses, in Mira's words: an account that is not an administrator, an extension without it.</summary>
     public static string? Refused(HttpStatusCode status) => status switch
     {
-        HttpStatusCode.Forbidden => L("Seuls les comptes administrateurs de Jellyfin peuvent télécharger sur le PC serveur.", "Only Jellyfin administrator accounts can download on the server PC."),
+        HttpStatusCode.Forbidden => L("Ton compte ne peut pas télécharger sur le PC serveur : demande à un administrateur de cocher « Can download » pour toi dans Réglages → Foyer.", "Your account can’t download on the server PC: ask an administrator to turn on Can download for you in Settings → Home."),
         HttpStatusCode.NotFound => L("L’extension Mira de ton serveur ne connaît pas encore cet écran : mets à jour Mira sur le PC serveur, puis redémarre Jellyfin.",
             "Your server’s Mira plugin doesn’t know this screen yet: update Mira on the server PC, then restart Jellyfin."),
         _ => null

@@ -199,6 +199,12 @@ struct HomeSettingsView: View {
                     }
                     .disabled(account.disabled)
                     .accessibilityIdentifier("home.offer.\(account.name)")
+                    // « Can download »: TorLink without administering Jellyfin (an administrator always may: no switch).
+                    if !account.admin, account.download != nil {
+                        Toggle("Can download", isOn: Binding(get: { account.download == true }, set: { on in Task { await change { try await $0.homeSetDownload(account.id, on) } } }))
+                            .font(MiraFont.footnote)
+                            .accessibilityIdentifier("home.download.\(account.name)")
+                    }
                     if account.offered {
                         HStack(spacing: 16) {
                             Button(account.pin ? String(localized: "Change PIN") : String(localized: "Add a PIN")) {
@@ -219,7 +225,7 @@ struct HomeSettingsView: View {
         } header: {
             Text("Profiles")
         } footer: {
-            Text("The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one.")
+            Text("The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one. Can download opens Downloads (TorLink) without being an administrator.")
         }
         .listRowBackground(Palette.surface)
     }

@@ -965,6 +965,16 @@
         }
       }
     },
+    "Can download": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peut télécharger"
+          }
+        }
+      }
+    },
     "Cancel": {
       "localizations": {
         "fr": {
@@ -1509,6 +1519,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mise sur l’iPhone… %@"
+          }
+        }
+      }
+    },
+    "Your account can’t download on the server PC: ask an administrator to turn on Can download for you in Settings → Home.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton compte ne peut pas télécharger sur le PC serveur : demande à un administrateur de cocher « Can download » pour toi dans Réglages → Foyer."
           }
         }
       }
@@ -6083,16 +6103,6 @@
         }
       }
     },
-    "Only Jellyfin administrator accounts can download to the server PC.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seuls les comptes administrateurs de Jellyfin peuvent télécharger sur le PC serveur."
-          }
-        }
-      }
-    },
     "Open Mira on the server PC": {
       "localizations": {
         "fr": {
@@ -6373,12 +6383,12 @@
         }
       }
     },
-    "TorLink downloads on the PC that runs Jellyfin, without you having to touch it, then Mira adds the title to your library. Mira must be open there, even minimized. Only Jellyfin administrator accounts see this screen.": {
+    "TorLink downloads on the PC that runs Jellyfin, without you having to touch it, then Mira adds the title to your library. Mira must be open there, even minimized. Only Jellyfin administrators and the accounts they let download see this screen.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les comptes administrateurs de Jellyfin voient cet écran."
+            "value": "TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les administrateurs de Jellyfin et les comptes qu’ils laissent télécharger voient cet écran."
           }
         }
       }
@@ -8435,12 +8445,12 @@
         }
       }
     },
-    "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one.": {
+    "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one. Can download opens Downloads (TorLink) without being an administrator.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un."
+            "value": "Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un. « Peut télécharger » ouvre les téléchargements (TorLink) sans être administrateur."
           }
         }
       }
