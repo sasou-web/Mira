@@ -2,7 +2,7 @@ import Foundation
 
 /// The name of a season's pill from the name Jellyfin gives it, as Windows and the Mac (EpisodePages.Named of Core,
 /// ogsas 2026-11-19): its own name (« Bakemonogatari »), else Mira's « Saison N » when it says nothing but the season
-/// (« Season 2 », « L'attaque des Titans saison 2 »); a season and its part, or the final season, in Mira's words.
+/// (« Season 2 », « L'attaque des Titans saison 2 »); its own season and a part = Mira's « Saison N » too; another season's part, or the final season, in Mira's words.
 /// Cases of tests/fixtures/season-names.json.
 enum SeasonNames {
     private static let word = "(?:season|saison|staffel|temporada|stagione|seizoen)"
@@ -17,8 +17,11 @@ enum SeasonNames {
     static func own(_ season: Int, _ name: String?, french: Bool) -> String? {
         guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
         let number = String(season)
-        if let part = groups(before + word + "\\s*0*(\\d+)\\s*[\\-–—:·,]?\\s*(?:part|partie|teil|parte|cour)\\s*0*(\\d+)\\s*\\)?$", name), part[0] == number {
-            return french ? "Saison \(season) · partie \(part[1])" : "Season \(season) · part \(part[1])"
+        if let part = groups(before + word + "\\s*0*(\\d+)\\s*[\\-–—:·,]?\\s*(?:part|partie|teil|parte|cour)\\s*0*(\\d+)\\s*\\)?$", name), !part.isEmpty {
+            // Its own season and a part names where the name came from, not what the season holds (both parts of
+            // Attack on Titan's season 3 on the Dell): Mira's « Saison N ». Another season's part, in Mira's words.
+            if part[0] == number { return nil }
+            return french ? "Saison \(part[0]) · partie \(part[1])" : "Season \(part[0]) · part \(part[1])"
         }
         if groups(before + "(?:" + word + "\\s+finale?|(?:the\\s+)?final\\s+season|la\\s+saison\\s+finale|finale)\\s*\\)?$", name) != nil {
             return french ? "Saison finale" : "Final Season"
