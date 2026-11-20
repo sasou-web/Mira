@@ -106,8 +106,14 @@ public sealed class FriendController : ControllerBase
     public async Task<IActionResult> Wait(CancellationToken cancellationToken)
     {
         var body = await ReadAsync<WaitBody>(cancellationToken).ConfigureAwait(false);
-        if (Friends.Waiting(body?.Wait) is not { } entry)
+        if (Friends.Waiting(body?.Wait, out var refused) is not { } entry)
         {
+            // Refused: told now, its node deleted once the answer is on its way (the answer goes through that node).
+            if (refused is not null)
+            {
+                Response.OnCompleted(() => OutLaterAsync(refused));
+            }
+
             return Refuse(StatusCodes.Status410Gone, "refused", L("Ton ami n’a pas laissé entrer cet appareil. Demande-lui une nouvelle invitation.", "Your friend didn’t let this device in. Ask them for a new invite."));
         }
 
@@ -207,7 +213,7 @@ public sealed class FriendController : ControllerBase
                 used = x.Used,
                 state = x.Used is not null ? "used" : x.Cancelled ? "cancelled" : now >= x.Until ? "ended" : "open",
             }),
-            devices = Friends.Devices().Select(x => new
+            devices = Friends.Devices().Where(x => x.Refused is null).Select(x => new
             {
                 id = x.Id,
                 user = x.User,
@@ -342,6 +348,12 @@ public sealed class FriendController : ControllerBase
     [Authorize(Policy = "RequiresElevation")]
     public async Task<IActionResult> RemoveDevice(string id, CancellationToken cancellationToken)
     {
+        // One still waiting keeps its node until it hears it was refused (Wait), or for RefusalKept.
+        if (Friends.Refuse(id) is not null)
+        {
+            return NoContent();
+        }
+
         if (Friends.RemoveDevice(id) is not { } device)
         {
             return NotFound();
@@ -433,6 +445,32 @@ public sealed class FriendController : ControllerBase
     }
 
     /// <summary>Devices out: their sessions ended, their nodes deleted from the tailnet now or at the next call that reaches it.</summary>
+    /// <summary>A refused device out, after its answer: no session to end, its node deleted.</summary>
+    private async Task OutLaterAsync(FriendDevice device)
+    {
+        if (device.Tailnet is not { } address)
+        {
+            return;
+        }
+
+        await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        Plugin.HomeTailnet.Remove(address);
+        if (Plugin.HomeTailnet.Client is not { } owner)
+        {
+            return;
+        }
+
+        using var client = _clients.CreateClient();
+        try
+        {
+            await HomeController.SweepAsync(new TailscaleApi(client, owner.Id, owner.Secret), CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (TailscaleApi.TailscaleException error)
+        {
+            _logger.LogWarning("Mira: a refused friend's device could not be deleted from the tailnet yet ({Failure})", error.Failure);
+        }
+    }
+
     private async Task OutAsync(HttpClient client, IReadOnlyList<FriendDevice> devices, CancellationToken cancellationToken)
     {
         foreach (var device in devices)

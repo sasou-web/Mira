@@ -205,6 +205,13 @@ public sealed class FriendInvites
     /// </summary>
     public FriendDevice? Waiting(string? wait)
     {
+        return Waiting(wait, out _);
+    }
+
+    /// <summary>As <see cref="Waiting(string?)"/>; <paramref name="refused"/> is the device refused, now told, whose node goes next.</summary>
+    public FriendDevice? Waiting(string? wait, out FriendDevice? refused)
+    {
+        refused = null;
         if (string.IsNullOrEmpty(wait) || wait.Length > 128)
         {
             return null;
@@ -216,6 +223,14 @@ public sealed class FriendInvites
             var device = _store.Devices.FirstOrDefault(x => x.Wait is { } kept && Same(kept, hash));
             if (device is null)
             {
+                return null;
+            }
+
+            if (device.Refused is not null)
+            {
+                _store.Devices.Remove(device);
+                Save();
+                refused = device;
                 return null;
             }
 
@@ -272,10 +287,41 @@ public sealed class FriendInvites
         }
     }
 
-    /// <summary>Every device of friends, latest first.</summary>
+    /// <summary>Every device of friends, latest first (a refused one until it heard so or <see cref="RefusalKept"/> passed).</summary>
     public IReadOnlyList<FriendDevice> Devices()
     {
-        lock (_gate) return _store.Devices.OrderByDescending(x => x.Joined).Select(x => x.Copy()).ToList();
+        lock (_gate)
+        {
+            if (_store.Devices.RemoveAll(x => x.Refused is { } at && _now() - at > RefusalKept) > 0)
+            {
+                Save();
+            }
+
+            return _store.Devices.OrderByDescending(x => x.Joined).Select(x => x.Copy()).ToList();
+        }
+    }
+
+    /// <summary>How long a refused device keeps its node to hear so: it asks every few seconds while its page shows.</summary>
+    public static readonly TimeSpan RefusalKept = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// A device still waiting refused: kept until it asks once more (then told, its node deleted); null when it is not
+    /// there or was let in (then it is taken out as any other).
+    /// </summary>
+    public FriendDevice? Refuse(string id)
+    {
+        lock (_gate)
+        {
+            var device = _store.Devices.FirstOrDefault(x => x.Id == id);
+            if (device is null || device.Approved)
+            {
+                return null;
+            }
+
+            device.Refused ??= _now();
+            Save();
+            return device.Copy();
+        }
     }
 
     /// <summary>An invitation not used yet cancelled: its entry, to revoke its key; null when it is not there or was used.</summary>
@@ -507,6 +553,12 @@ public sealed class FriendDevice
     public DateTimeOffset? Approval { get; set; }
     /// <summary>The hash of the token it asks with while it waits, until its session is handed over.</summary>
     public string? Wait { get; set; }
+    /// <summary>
+    /// Refused while it waited (« Refuser »): kept, its node with it, until it hears so (its next ask) or
+    /// <see cref="FriendInvites.RefusalKept"/> has passed; deleting the node at once left it asking a server it could no
+    /// longer reach (seen on the Dell, 2026-11-20).
+    /// </summary>
+    public DateTimeOffset? Refused { get; set; }
 
     public FriendDevice Copy() => (FriendDevice)MemberwiseClone();
 }
