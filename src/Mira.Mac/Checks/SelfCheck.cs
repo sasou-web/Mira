@@ -917,7 +917,7 @@ public static class SelfCheck
                 await withHome.Family.LoadAsync();
                 var on = await Until(() => withHome.Family.Said.Contains("Alex") && withHome.Family.Said.Contains("Mira on MAISON-PC"), 10);
                 await withHome.Family.MakeLinkForCheck();
-                Check(on && withHome.Family.LinkShown && withHome.Family.Said.Contains(Lang.L("Administrateur : jamais dans le foyer.", "Administrator: never in the home.")),
+                Check(on && withHome.Family.LinkShown && withHome.Family.Said.Contains(Mira.Core.Family.HomeText.AdminKeptOut),
                     "réglages : foyer (lien et QR code, profils, appareils)", withHome.Family.Said);
                 await Task.Delay(500); Capture(window, output, "07c4-settings-family");
                 // Away from home: the default « * » of the tailnet said as a trouble, then « Make these changes » and « Ready ».

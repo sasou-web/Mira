@@ -7665,12 +7665,12 @@
         }
       }
     },
-    "Administrator: never in the home.": {
+    "Administrator: kept out, so the home password never opens your server.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Administrateur : jamais dans le foyer."
+            "value": "Administrateur : hors du foyer, pour que son mot de passe n’ouvre jamais ton serveur."
           }
         }
       }

@@ -175,16 +175,26 @@ struct HomeSettingsView: View {
         Section {
             ForEach(settings.profiles) { account in
                 VStack(alignment: .leading, spacing: 8) {
-                    Toggle(isOn: Binding(get: { account.offered }, set: { on in Task { await offer(account, on) } })) {
+                    // An administrator has no switch and no PIN: never offered, so the home password can never run the server.
+                    if account.admin {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(verbatim: account.name).font(MiraFont.body).foregroundStyle(Palette.ink)
-                            Text(verbatim: account.admin ? String(localized: "Administrator: never in the home.") : reach(account))
+                            Text("Administrator: kept out, so the home password never opens your server.")
                                 .font(MiraFont.footnote).foregroundStyle(Palette.muted)
                         }
+                        .accessibilityElement(children: .combine)
+                    } else {
+                        Toggle(isOn: Binding(get: { account.offered }, set: { on in Task { await offer(account, on) } })) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(verbatim: account.name).font(MiraFont.body).foregroundStyle(Palette.ink)
+                                Text(verbatim: reach(account))
+                                    .font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                            }
+                        }
+                        .disabled(account.disabled)
+                        .accessibilityIdentifier("home.offer.\(account.name)")
                     }
-                    .disabled(account.admin || account.disabled)
-                    .accessibilityIdentifier("home.offer.\(account.name)")
-                    if account.offered {
+                    if account.offered && !account.admin {
                         HStack(spacing: 16) {
                             Button(account.pin ? String(localized: "Change PIN") : String(localized: "Add a PIN")) {
                                 pin = ""

@@ -227,27 +227,30 @@ public sealed partial class FamilySection
         Control Row(HomeAccount account)
         {
             var row = new DockPanel { Margin = new Thickness(0, 10, 0, 0), Tag = account.Id };
-            var offered = new ToggleSwitch { IsChecked = account.Offered && !account.Admin, IsEnabled = !account.Admin, OnContent = null, OffContent = null, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-            Avalonia.Automation.AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
-            var busy = false;
-            offered.IsCheckedChanged += async (_, _) =>
-            {
-                if (busy) return;
-                try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true); Say(status, "", false); }
-                catch (Exception ex) when (Expected(ex)) { busy = true; offered.IsChecked = !offered.IsChecked; busy = false; Say(status, Words(ex), true); }
-            };
-            DockPanel.SetDock(offered, Dock.Right); row.Children.Add(offered);
+            // An administrator has no switch and no PIN: never offered, so the home password can never run the server.
             if (!account.Admin)
             {
+                var offered = new ToggleSwitch { IsChecked = account.Offered, OnContent = null, OffContent = null, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center };
+                Avalonia.Automation.AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
+                var busy = false;
+                offered.IsCheckedChanged += async (_, _) =>
+                {
+                    if (busy) return;
+                    try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true); Say(status, "", false); }
+                    catch (Exception ex) when (Expected(ex)) { busy = true; offered.IsChecked = !offered.IsChecked; busy = false; Say(status, Words(ex), true); }
+                };
+                var inHome = Ui.Row(10, Ui.Text(HomeText.InHome, 13, color: Ui.TextSecondary), offered);
+                inHome.VerticalAlignment = VerticalAlignment.Center; inHome.Margin = new Thickness(16, 0, 0, 0);
+                DockPanel.SetDock(inHome, Dock.Right); row.Children.Add(inHome);
                 var actions = Ui.Row(6);
                 if (account.Pin) actions.Children.Add(Button(L("Retirer le code", "Remove PIN"), () => _ = PinAsync(account, null), "quiet"));
-                actions.Children.Add(Button(account.Pin ? L("Changer le code", "Change PIN") : L("Ajouter un code", "Add a PIN"), () => AskPin(account, row), "quiet"));
+                actions.Children.Add(Button(account.Pin ? L("Changer le code", "Change PIN") : L("Ajouter un code", "Add a PIN"), () => AskPin(account, row)));
                 actions.VerticalAlignment = VerticalAlignment.Center;
                 DockPanel.SetDock(actions, Dock.Right); row.Children.Add(actions);
             }
             var name = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { new TextBlock { Text = account.Name, FontSize = 14, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis } } };
             if (account.Pin) name.Children.Add(new Icon("lock", 13) { Foreground = Ui.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
-            var text = Ui.Column(2, name, Note(account.Admin ? L("Administrateur : jamais dans le foyer.", "Administrator: never in the home.") : Reach(account), top: 0));
+            var text = Ui.Column(2, name, Note(account.Admin ? HomeText.AdminKeptOut : Reach(account), top: 0));
             text.VerticalAlignment = VerticalAlignment.Center;
             row.Children.Add(text);
             return row;

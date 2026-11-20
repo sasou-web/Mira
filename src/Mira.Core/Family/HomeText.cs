@@ -21,6 +21,8 @@ public static class HomeText
     public static string PinLeft(int left) => left <= 0 ? L("Ce n’est pas le bon code.", "That’s not the right PIN.")
         : L($"Ce n’est pas le bon code. Encore {Lang.Count(left, "essai", "essais", "try", "tries")}.", $"That’s not the right PIN. {Lang.Count(left, "essai", "essais", "try", "tries")} left.");
     public static string PinWait(int seconds) => L($"Trop d’essais : réessaie dans {Math.Max(1, (seconds + 59) / 60)} min.", $"Too many tries: try again in {Math.Max(1, (seconds + 59) / 60)} min.");
+    public static string InHome => L("Dans le foyer", "In the home");
+    public static string AdminKeptOut => L("Administrateur : hors du foyer, pour que son mot de passe n’ouvre jamais ton serveur.", "Administrator: kept out, so the home password never opens your server.");
     public static string NoProfiles => L("Aucun profil dans ce foyer pour l’instant : demande à son administrateur d’en cocher un dans Réglages → Famille & profils.", "No profiles in this home yet: ask its administrator to turn one on in Settings → Family & profiles.");
     public static string Unreachable(string name) => L($"Le foyer {name} ne répond pas pour l’instant. Réessaie dans un moment.", $"{name}’s home isn’t answering right now. Try again in a moment.");
     public static string NotThisServer(string name) => L($"Ce n’est pas le Jellyfin de {name} : le lien ne correspond plus. Demande-lui un nouveau lien.", $"This isn’t {name}’s Jellyfin: the link no longer matches. Ask for a new link.");
