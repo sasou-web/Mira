@@ -1,6 +1,8 @@
 # Validation — October 2, 2026
 
-The `.artifacts/...` paths cited below are local validation evidence, excluded from the repository. The public gallery only uses demo mode. The latest results of tests run by hand, dated and without personal data, are in [testing/latest-results.txt](testing/latest-results.txt); the tests, checks and packages also run in GitHub Actions ([TESTS.md](TESTS.md)).
+> Archived on 2026-11-20: this record stopped being kept on 2026-10-14, in the days of Mira web. Tests now live in [TESTS.md](../TESTS.md), tries on real devices in [RECETTE.md](../RECETTE.md), and what was never tried for real in each entry of [DECISIONS.md](../DECISIONS.md).
+
+The `.artifacts/...` paths cited below are local validation evidence, excluded from the repository. The public gallery only uses demo mode. The latest results of tests run by hand, dated and without personal data, are in [testing/latest-results.txt](../testing/latest-results.txt); the tests, checks and packages also run in GitHub Actions ([TESTS.md](../TESTS.md)).
 
 ## Download to the server PC from another device (unreleased)
 
@@ -621,7 +623,7 @@ Cleaner banner: removed the redundant shortcuts, the mention above the title and
 
 ## Reproduce
 
-The commands for the tests, the Mira web checks and the app’s harnesses are in [TESTS.md](TESTS.md).
+The commands for the tests, the Mira web checks and the app’s harnesses are in [TESTS.md](../TESTS.md).
 
 ## To check with the user
 

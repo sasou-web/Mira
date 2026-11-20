@@ -2,7 +2,7 @@
 
 These **14 screenshots** are rendered by the real WPF app from its built-in made-up catalog. They contain no personal account, no real history and no media served by Jellyfin. The vector illustrations belong to the demo; with a connected server, posters and backdrops come from your library.
 
-The screenshots show the browsing and settings views. They don’t show mpv’s native video or Windows’ system panels. How these components behave is documented in [VALIDATION.md](VALIDATION.md).
+The screenshots show the browsing and settings views. They don’t show mpv’s native video or Windows’ system panels. How these components behave is documented in [TESTS.md](TESTS.md) and, until October 2026, in the archived [VALIDATION.md](archive/VALIDATION.md).
 
 ## Home and library
 

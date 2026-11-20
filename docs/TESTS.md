@@ -81,7 +81,7 @@ They’re in `src/Mira.Desktop/Checks` and only run with an isolated profile (`-
 ffmpeg -i .artifacts/lecture-test.mp4 -i .artifacts/chapitres.txt -map_metadata 1 -map_chapters 1 -c copy .artifacts/lecture-chapitres.mkv
 ```
 
-Screenshots are taken on the window’s background (opaque). What needs a real Windows (elevation, Restart Manager, sleep, multiple screens, Narrator) is still to be tried by hand: see [VALIDATION.md](VALIDATION.md).
+Screenshots are taken on the window’s background (opaque). What needs a real Windows (elevation, Restart Manager, sleep, multiple screens, Narrator) is still to be tried by hand: see [RECETTE.md](RECETTE.md).
 
 ## Results
 

@@ -122,7 +122,7 @@ To build the distribution:
 ./tools/publish.ps1
 ```
 
-The test commands and the validation record are in [VALIDATION.md](VALIDATION.md). How the code is organized and the design choices are described in [ARCHITECTURE.md](ARCHITECTURE.md).
+The test commands are in [TESTS.md](TESTS.md), the tries on real devices in [RECETTE.md](RECETTE.md); the old validation record is archived in [archive/VALIDATION.md](archive/VALIDATION.md). How the code is organized and the design choices are described in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Limits of this first version
 

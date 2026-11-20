@@ -22,7 +22,7 @@ The test projects are assertion executables: use `dotnet run`, not `dotnet test`
 1. Open an issue for a major feature or an architecture change.
 2. Create a branch and keep the pull request to one identifiable problem.
 3. Explain the behavior before/after and the checks you ran. Attach a screenshot for a visible change.
-4. Build and run the tests above. For the player and TorLink, follow the isolated tests in [VALIDATION.md](docs/VALIDATION.md); `tools/torlink-check.ps1` never uses TorLink’s real state.
+4. Build and run the tests above. For the player and TorLink, use the checks of [TESTS.md](docs/TESTS.md); `tools/torlink-check.ps1` never uses TorLink’s real state.
 
 Use a separate `--data` profile and test media. Don’t include a `data` folder, SQLite cache, Jellyfin token, password, personal media or log containing a private URL. The repository’s screenshots use the built-in demo.
 
