@@ -61,7 +61,7 @@ Rien d’autre à installer : sur Mac, c’est le Finder qui parle à l’iPhone
 2. Ouvre la source **Mira** → **Mira** → **FREE**. AltStore télécharge l’app, la signe et l’installe.
 3. Ouvre Mira et connecte-toi à Jellyfin. La première fois sur le Wi-Fi de la maison, iOS demande l’accès au **réseau local** : touche **Autoriser**, sinon Mira ne voit pas Jellyfin chez toi.
 
-Sous Windows, la carte **Mira sur ton iPhone** du guide (et sur Mac, **Réglages → Compte & serveur**) montre un **QR code** : scanne-le avec l’appareil photo de l’iPhone et Mira s’ouvre avec ton serveur déjà trouvé ; il ne reste que ton compte à taper. Tu peux aussi te connecter avec un code : **Se connecter avec un code** affiche six chiffres, qu’un administrateur valide dans Mira pour Windows ou Mac (**Réglages → Amis & invités → Autoriser un appareil**) ou sur la page web de Jellyfin. Quick Connect doit être activé dans Jellyfin.
+Sous Windows, la carte **Mira sur ton iPhone** du guide (et sur Mac, **Réglages → Compte**) montre un **QR code** : scanne-le avec l’appareil photo de l’iPhone et Mira s’ouvre avec ton serveur déjà trouvé ; il ne reste que ton compte à taper. Tu peux aussi te connecter avec un code : **Se connecter avec un code** affiche six chiffres, qu’un administrateur valide dans Mira pour Windows ou Mac (**Réglages → Amis & invités → Autoriser un appareil**) ou sur la page web de Jellyfin. Quick Connect doit être activé dans Jellyfin.
 
 ## Au quotidien
 

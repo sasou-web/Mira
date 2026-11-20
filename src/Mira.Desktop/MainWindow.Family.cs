@@ -81,17 +81,17 @@ public partial class MainWindow
         return true;
     }
 
-    /// <summary>The rail's picture: in a home, its profiles (C « Le raccourci »); else the account page as always.</summary>
+    /// <summary>The rail's picture: the profile menu (D « Le menu du profil », MainWindow.Away.cs); signed out, the account page as always.</summary>
     private void AccountButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!OpenFamilyMenu()) Account_Click(sender, e);
+        if (!OpenProfileMenu()) Account_Click(sender, e);
     }
 
     /// <summary>Ctrl+P: the profiles of the home, from anywhere the rail can be reached.</summary>
     private bool FamilyShortcut()
     {
         if (_home is null || FamilyOverlay.Visibility == Visibility.Visible || LoginOverlay.Visibility == Visibility.Visible || ConfirmOverlay.Visibility == Visibility.Visible) return false;
-        return OpenFamilyMenu();
+        return OpenProfileMenu();
     }
 
     private void ShowFamilyPage(FrameworkElement page)
@@ -517,55 +517,12 @@ public partial class MainWindow
         finally { _familyBusy = false; }
     }
 
-    // ---- The rail's picture: the quick switch (C) ----
+    // ---- The rail's picture: its menu is built by MainWindow.Away.cs (D « Le menu du profil »), with these pieces ----
 
-    /// <summary>In a home, the rail's picture (or Ctrl+P) opens the profiles over what shows, rather than the sign-in.</summary>
-    private bool OpenFamilyMenu()
-    {
-        if (_home is not { } home || _demo) return false;
-        if (_familyMenu is { IsOpen: true }) { CloseFamilyMenu(); return true; }
-        var body = new Squircle { Style = (Style)FindResource("PopoverWindow"), Width = 300, Padding = new Thickness(8) };
-        TextElement.SetFontFamily(body, (FontFamily)FindResource("AppFont")); TextElement.SetForeground(body, Palette.Get("Text"));
-        var list = new StackPanel();
-        var head = new DockPanel { Margin = new Thickness(12, 8, 12, 8) };
-        var keys = new TextBlock { Text = "Ctrl + P", FontSize = 11, Foreground = Palette.Get("Faint") };
-        DockPanel.SetDock(keys, Dock.Right); head.Children.Add(keys);
-        head.Children.Add(new TextBlock { Text = HomeText.HomeOf(home.Name).ToUpper(Lang.Culture), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextSecondary"), TextTrimming = TextTrimming.CharacterEllipsis });
-        list.Children.Add(head);
-        foreach (var profile in home.Profiles)
-        {
-            var row = new DockPanel();
-            var face = ProfileFace(home, profile, 34, 15); face.Margin = new Thickness(0, 0, 12, 0);
-            DockPanel.SetDock(face, Dock.Left); row.Children.Add(face);
-            var current = profile.Id == home.Current && _client?.Connection.UserId == profile.Id;
-            if (current || profile.Pin)
-            {
-                var mark = new Icon { Kind = current ? "check" : "lock", Width = 15, Height = 15, VerticalAlignment = VerticalAlignment.Center, Foreground = Palette.Get("TextSecondary") };
-                DockPanel.SetDock(mark, Dock.Right); row.Children.Add(mark);
-            }
-            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(new TextBlock { Text = profile.Name, FontSize = 13.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            if (current) text.Children.Add(new TextBlock { Text = L("En ce moment sur ce PC", "Watching now on this PC"), FontSize = 11.5, Foreground = Palette.Get("Muted") });
-            row.Children.Add(text);
-            list.Children.Add(MenuRow(row, profile.Name, () => { if (!current) _ = ChooseProfileAsync(profile); else CloseFamilyMenu(); }));
-        }
-        list.Children.Add(new Border { Height = 1, Background = Palette.Get("Line"), Margin = new Thickness(8, 6, 8, 6) });
-        list.Children.Add(MenuRow(MenuLine("user", HomeText.OwnAccount), HomeText.OwnAccount, () => { CloseFamilyMenu(); Account_Click(this, new()); }));
-        list.Children.Add(MenuRow(MenuLine("exit", HomeText.Leave), HomeText.Leave, () => _ = LeaveHomeAsync()));
-        body.Child = list;
-        var popup = _familyMenu = new Popup { PlacementTarget = AccountButton, Placement = PlacementMode.Custom, StaysOpen = false, AllowsTransparency = true, Child = body, PopupAnimation = PopupAnimation.None };
-        popup.CustomPopupPlacementCallback = (size, target, _) => [new CustomPopupPlacement(new Point(target.Width + 10, target.Height - size.Height), PopupPrimaryAxis.None)];
-        body.KeyDown += (_, e) => { if (e.Key == Key.Escape) { CloseFamilyMenu(); AccountButton.Focus(); e.Handled = true; } };
-        popup.Closed += (_, _) => { if (ReferenceEquals(_familyMenu, popup)) _familyMenu = null; };
-        popup.IsOpen = true;
-        Dispatcher.BeginInvoke(() => list.Children.OfType<Button>().FirstOrDefault()?.Focus(), System.Windows.Threading.DispatcherPriority.Loaded);
-        _ = RefreshHallAsync();
-        return true;
-    }
-
-    private static DockPanel MenuLine(string icon, string label)
+    private static DockPanel MenuLine(string icon, string label, string? detail = null)
     {
         var line = new DockPanel();
+        if (detail is { Length: > 0 }) { var said = new TextBlock { Text = detail, FontSize = 12, Foreground = Palette.Get("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; DockPanel.SetDock(said, Dock.Right); line.Children.Add(said); }
         var glyph = new Icon { Kind = icon, Width = 16, Height = 16, Margin = new Thickness(9, 0, 21, 0), VerticalAlignment = VerticalAlignment.Center };
         DockPanel.SetDock(glyph, Dock.Left); line.Children.Add(glyph);
         line.Children.Add(new TextBlock { Text = label, FontSize = 13, VerticalAlignment = VerticalAlignment.Center });

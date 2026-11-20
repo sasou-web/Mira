@@ -115,6 +115,9 @@ public static class IconPaths
         // Aide's subjects and links (MainWindow.Sheet): keys, a screen on its foot, a page that opens elsewhere.
         ["keyboard"] = "M6 6H18Q21 6 21 9V15Q21 18 18 18H6Q3 18 3 15V9Q3 6 6 6Z M7 10H7.1 M10.5 10H10.6 M14 10H14.1 M17 10H17.1 M8 14.2H16",
         ["tv"] = "M5.5 4.5H18.5Q21.5 4.5 21.5 7.5V14.5Q21.5 17.5 18.5 17.5H5.5Q2.5 17.5 2.5 14.5V7.5Q2.5 4.5 5.5 4.5Z M8 21H16 M12 17.5V21",
-        ["external"] = "M10 5H7Q4 5 4 8V17Q4 20 7 20H16Q19 20 19 17V14 M14 4H20V10 M20 4L11.5 12.5"
+        ["external"] = "M10 5H7Q4 5 4 8V17Q4 20 7 20H16Q19 20 19 17V14 M14 4H20V10 M20 4L11.5 12.5",
+        // The account's photo, changed from its picture (Essentials, the profile menu); another profile, from the profile menu.
+        ["camera"] = "M5.5 7H8L9.5 5H14.5L16 7H18.5Q20.5 7 20.5 9V17Q20.5 19 18.5 19H5.5Q3.5 19 3.5 17V9Q3.5 7 5.5 7Z M15.3 12.8A3.3 3.3 0 1 1 8.7 12.8A3.3 3.3 0 1 1 15.3 12.8",
+        ["swap"] = "M4 8H19 M15.5 4.5L19 8L15.5 11.5 M20 16H5 M8.5 12.5L5 16L8.5 19.5"
     };
 }

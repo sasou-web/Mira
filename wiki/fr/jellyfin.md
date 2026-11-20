@@ -54,7 +54,7 @@ Sur le PC où tourne Jellyfin, connecté avec le compte administrateur de Jellyf
 
 ### Sans Mira pour Windows
 
-Avec un Mac (Mira 0.9.6 ou plus), connecté avec le compte administrateur de Jellyfin : **Réglages → Compte et serveur → Installer**. Mira vérifie d’abord la signature de l’extension, puis Jellyfin redémarre quelques secondes, seulement quand personne ne regarde.
+Avec un Mac (Mira 0.9.6 ou plus), connecté avec le compte administrateur de Jellyfin : **Réglages → Serveur Jellyfin → Installer**. Mira vérifie d’abord la signature de l’extension, puis Jellyfin redémarre quelques secondes, seulement quand personne ne regarde.
 
 Sinon, pour ajouter l’extension de Mira depuis la page web de Jellyfin :
 

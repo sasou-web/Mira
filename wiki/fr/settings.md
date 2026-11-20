@@ -9,7 +9,18 @@ Chaque changement s’applique et s’enregistre tout de suite : il n’y a pas 
 
 ## Windows et Mac
 
-Les réglages s’ouvrent par la roue dentée de la barre de gauche (<kbd>⌘</kbd> + <kbd>,</kbd> sur Mac), sur **L’essentiel** : la version de Mira et où en est sa mise à jour (avec **Redémarrer et mettre à jour** quand une nouvelle version est prête), ton compte et si Jellyfin répond, et les six réglages qu’on change le plus (qualité, langues de l’audio et des sous-titres, style des sous-titres, épisode suivant, passer les intros, langue de Mira). Ce sont les mêmes réglages que dans leur partie : changés ici, changés là-bas. Un point sur la roue et sur **Mises à jour** dit qu’une nouvelle version est prête. La recherche (<kbd>Ctrl</kbd> + <kbd>F</kbd>, <kbd>⌘</kbd> + <kbd>F</kbd>) trouve n’importe quel réglage, par son nom ou un mot courant (« mise à jour », « flou », « loin de chez moi »).
+Les réglages s’ouvrent par la roue dentée de la barre de gauche (<kbd>⌘</kbd> + <kbd>,</kbd> sur Mac), sur **L’essentiel** : la version de Mira et où en est sa mise à jour (avec **Redémarrer et mettre à jour** quand une nouvelle version est prête), ton compte et si Jellyfin répond (le petit appareil photo sur ta photo la change), **Tes proches** (famille, amis, loin de chez toi, chacun avec son état), et les six réglages qu’on change le plus (qualité, langues de l’audio et des sous-titres, style des sous-titres, épisode suivant, passer les intros, langue de Mira). Ce sont les mêmes réglages que dans leur partie : changés ici, changés là-bas. Un point sur la roue et sur **Mises à jour** dit qu’une nouvelle version est prête. La recherche (<kbd>Ctrl</kbd> + <kbd>F</kbd>, <kbd>⌘</kbd> + <kbd>F</kbd>) trouve n’importe quel réglage, par son nom ou un mot courant (« mise à jour », « flou », « loin de chez moi »).
+
+D’abord, **Toi et tes proches** :
+
+| Partie | Ce qu’on y trouve |
+| --- | --- |
+| **Compte** | Ton compte Jellyfin et ta photo, tes bibliothèques, se déconnecter ou changer de compte, et **Réessayer** quand Jellyfin ne répond pas |
+| **Famille & profils** | Pour l’administrateur de Jellyfin : le mot de passe et le lien du foyer, les profils de **Qui regarde ?** et leurs codes, les appareils du foyer |
+| **Amis & invités** | Pour l’administrateur de Jellyfin : ajouter un ami (un compte à lui), ton lien de party et ses invités, autoriser un appareil par son code |
+| **Loin de chez toi** | Son état d’abord (prêt, ou à régler), puis les trois façons d’entrer d’ailleurs : toi sur cet ordinateur (Tailscale intégré), ta famille et tes amis par un lien (le Tailscale du foyer), les invités d’une party depuis Internet (Tailscale Funnel) |
+
+Puis **Mira** :
 
 | Partie | Ce qu’on y trouve |
 | --- | --- |
@@ -17,17 +28,17 @@ Les réglages s’ouvrent par la roue dentée de la barre de gauche (<kbd>⌘</k
 | **Audio & sous-titres** | Langues audio et de sous-titres préférées, taille et style des sous-titres, sortie audio et ampli |
 | **Accueil & bibliothèque** | Rangées de l’accueil, carrousel automatique, taille des affiches (Windows), cacher les spoilers, montrer les épisodes manquants, les titres gardés pour regarder sans connexion |
 | **Général** | Langue de Mira, mode canapé, réduire les animations (Windows), notifications de nouveaux épisodes |
-| **Compte & serveur** | Ton compte Jellyfin et ta photo, se déconnecter ou changer de compte, Tailscale intégré, et **Réessayer** quand Jellyfin ne répond pas |
 | **Confidentialité** | Tout ce que Mira envoie, à qui et quand, avec l’interrupteur de chaque connexion qui en a un |
 | **Mises à jour** | La version de Mira, ses mises à jour, et sous Windows le moteur mpv |
 
 **Ton bilan** (ce que tu as regardé ce mois-ci et cette année, d’après Jellyfin) s’ouvre depuis la carte du compte de **L’essentiel**.
 
+Ta photo en bas de la barre ouvre un menu : qui est connecté (et son appareil photo pour la changer), les profils du foyer, **Famille & profils**, **Inviter un ami…**, **Loin de chez toi** avec son état, **Compte**. Dans un foyer, <kbd>Ctrl</kbd> + <kbd>P</kbd> (<kbd>⌘</kbd> + <kbd>P</kbd>) l’ouvre aussi.
+
 Sous **Ton serveur**, pour l’administrateur de Jellyfin :
 
 | Partie | Ce qu’on y trouve |
 | --- | --- |
-| **Amis & invités** | Ajouter un ami (un compte à lui), ton lien de party et ses invités, autoriser un appareil par son code |
 | **Soin de la bibliothèque** | Titres à corriger, sous-titres automatiques, épisodes manquants, sagas de films, aperçus de la barre de lecture, lectures impossibles signalées (Windows) |
 | **Serveur Jellyfin** | Qui regarde sur Jellyfin en ce moment, et sur le PC de Jellyfin : sauvegarde et mise à jour de Jellyfin, conversions par la carte graphique (Windows) ; l’extension de Mira à installer quand Jellyfin ne l’a pas (Mac) |
 

@@ -90,7 +90,7 @@ public sealed partial class SettingsPage : Page
         // —— Discord: the card friends see while Mira plays (SettingsPage.Discord.cs) ——
         DrawDiscord();
 
-        // —— Compte & serveur: the account and its photo, the way to Jellyfin, who plays what ——
+        // —— Compte: the account and its photo, the way to Jellyfin, its libraries ——
         var connection = shell.Session?.Connection;
         // Read when « Se déconnecter » is clicked, never kept: each sign-out asks anew.
         var erase = new ToggleSwitch { IsChecked = false, OnContent = null, OffContent = null, MinWidth = 0 };
@@ -104,9 +104,12 @@ public sealed partial class SettingsPage : Page
         // « Mira sur ton iPhone »: the QR code the iPhone's camera reads, Mira opening there with this server filled in.
         if (connection is not null && LocalNetwork.ForOtherDevices(connection.Server, LocalNetwork.ThisPc()) is { } phone && PhoneLink.Link(phone) is { } link)
             Tab("server").Children.Add(Section(null, PhoneCard(link, phone)));
-        // « Tailscale intégré »: how Mira reaches Jellyfin away from home without the Tailscale app.
+        // —— Loin de chez toi (ogsas, 2026-11-20, maquette A): its state, then the three ways in from elsewhere, said by who
+        // they are for: you on this Mac (« Tailscale intégré »), the family and friends by a link (the home's Tailscale,
+        // FamilySection), a party's guests (Funnel, GuestLinksSection) ——
+        Tab("away").Children.Add(AwaySummary());
         Tailnet = new TailnetSection(shell, Section);
-        Tab("server").Children.Add(Tailnet.Section);
+        Tab("away").Children.Add(Tailnet.Section);
 
         // —— Mises à jour: Mira's version and its updates (the report for a problem is in Aide, the kept titles in
         // « Accueil & bibliothèque ») ——
@@ -128,7 +131,9 @@ public sealed partial class SettingsPage : Page
         Friend = new FriendsSection(shell, Section);
         Tab("sharing").Children.Add(Friend.Lines); Tab("sharing").Children.Add(Friend.Section);
         // « Liens d'invités »: an administrator's links for guests without an account (shown once Jellyfin's extension answers).
-        Tab("sharing").Children.Add(new GuestLinksSection(shell, Section).Section);
+        var guests = new GuestLinksSection(shell, Section);
+        Tab("sharing").Children.Add(guests.Section);
+        Tab("away").Children.Add(guests.Funnel);
         // Quick Connect: shown once Jellyfin says it lets devices in by a code.
         var devices = Section(L("Autoriser un appareil", "Allow a device"), ApproveDevice());
         devices.IsVisible = false;

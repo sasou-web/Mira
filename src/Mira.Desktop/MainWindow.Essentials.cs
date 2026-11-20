@@ -18,21 +18,22 @@ namespace Mira.Desktop;
 /// </summary>
 public partial class MainWindow
 {
-    /// <summary>Each section: its tag, its page, its title and what it holds, in the order of the list.</summary>
+    /// <summary>Each section: its tag, its page, its title and what it holds, in the order of the list (« Toi et tes proches » first, ogsas 2026-11-20).</summary>
     private (string Tag, StackPanel Panel, string Title, string About)[] SettingsTabs =>
     [
         ("home", EssentialsSettings, L("L’essentiel", "Essentials"), L("Mira en un coup d’œil, et les réglages qu’on change le plus.", "Mira at a glance, and the settings people change most.")),
+        ("server", ServerSettings, L("Compte", "Account"), L("Ta photo, ton serveur Jellyfin, tes bibliothèques, et changer de compte.", "Your photo, your Jellyfin server, your libraries, and switching accounts.")),
+        ("family", FamilySettings, L("Famille & profils", "Family & profiles"), L("Un mot de passe pour ta famille, puis « Qui regarde ? » : ses profils, leurs codes, ses appareils.", "One password for your family, then « Who’s watching? »: its profiles, their PINs, its devices.")),
+        ("sharing", SharingSettings, L("Amis & invités", "Friends & guests"), L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
+        ("away", AwaySettings, L("Loin de chez toi", "Away from home"), L("Regarder quand tu n’es pas sur le réseau de la maison : toi, ta famille, tes amis.", "Watching when you’re not on the home network: you, your family, your friends.")),
         ("playback", PlaybackSettings, L("Lecture", "Playback"), L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")),
         ("subtitles", SubtitleSettings, L("Audio & sous-titres", "Audio & subtitles"), L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles.")),
         ("library", LibrarySettings, L("Accueil & bibliothèque", "Home & library"), L("Ce que montrent l’accueil et les pages : rangées, affiches, spoilers, épisodes manquants, titres gardés sur ce PC.", "What Home and the pages show: rows, posters, spoilers, missing episodes, titles kept on this PC.")),
         ("general", GeneralSettings, L("Général", "General"), L("La langue de Mira, le mode canapé, les animations et ce que Mira te signale.", "Mira’s language, couch mode, animations and what Mira tells you about.")),
         ("discord", DiscordPage, "Discord", L("Ce que tes amis voient sur ton profil Discord pendant que tu regardes.", "What your friends see on your Discord profile while you watch.")),
-        ("server", ServerSettings, L("Compte & serveur", "Account & server"), L("Ton compte, ton serveur Jellyfin, et le joindre loin de chez toi.", "Your account, your Jellyfin server, and reaching it away from home.")),
         ("privacy", PrivacySettings, L("Confidentialité", "Privacy"), L("Tout ce qui part sur le réseau, et comment l’arrêter.", "Everything that goes out on the network, and how to stop it.")),
         ("updates", UpdateSettings, L("Mises à jour", "Updates"), L("La version de Mira, ses mises à jour et son moteur de lecture.", "Mira’s version, its updates and its playback engine.")),
         ("report", ReportSettings, L("Ton bilan", "Your recap"), L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices.")),
-        ("family", FamilySettings, L("Foyer", "Home"), L("Un mot de passe pour ta famille, puis « Qui regarde ? » : ses profils, leurs codes, ses appareils, et le lien pour loin de chez toi.", "One password for your family, then « Who’s watching? »: its profiles, their PINs, its devices, and the link for away from home.")),
-        ("sharing", SharingSettings, L("Amis & invités", "Friends & guests"), L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
         ("care", CareSettings, L("Soin de la bibliothèque", "Library care"), L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres, épisodes manquants, collections, aperçus.", "What keeps your library in shape: titles to fix, subtitles, missing episodes, collections, previews.")),
         ("jellyfin", JellyfinSettings, L("Serveur Jellyfin", "Jellyfin server"), L("Qui regarde quoi, et la machine de Jellyfin : sa version, sa sauvegarde, sa carte graphique.", "Who is watching what, and Jellyfin’s machine: its version, its backup, its graphics card.")),
         ("torlink", TorLinkSettings, L("Téléchargements", "Downloads"), L("Où vont tes téléchargements, et comment ils rejoignent Jellyfin.", "Where your downloads go, and how they join Jellyfin.")),
@@ -96,7 +97,10 @@ public partial class MainWindow
             EssentialsServerState.Text = L("Aucun serveur Jellyfin", "No Jellyfin server");
             EssentialsServerDot.Fill = Palette.Get("Faint");
         }
-        EssentialsRecap.Visibility = _client is null || _demo || InParty ? Visibility.Collapsed : Visibility.Visible;
+        EssentialsRecap.Visibility = _client is null || _demo || InParty || _home is not null ? Visibility.Collapsed : Visibility.Visible;
+        // In a home, another profile from here; the photo changed from its picture (ogsas, 2026-11-20).
+        EssentialsSwitch.Visibility = _home is not null && !_demo ? Visibility.Visible : Visibility.Collapsed;
+        EssentialsPhotoButton.Visibility = _client is not null && !_demo && !InParty ? Visibility.Visible : Visibility.Collapsed;
         // « Synchroniser maintenant » left: the sync is automatic. « Réessayer » only while Jellyfin isn't answering.
         SyncRetryButton.Visibility = offline ? Visibility.Visible : Visibility.Collapsed;
     }

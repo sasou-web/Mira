@@ -32,7 +32,7 @@ Chaque appareil peut soit avoir l’app Tailscale, soit utiliser **Tailscale int
 4. Si le pare-feu demande d’autoriser le Tailscale de Mira, accepte : la connexion directe est plus rapide. Refuser marche aussi, par un relais de Tailscale.
 5. Connecte-toi à Jellyfin comme d’habitude.
 
-Mira rejoint ensuite ton réseau Tailscale à chaque ouverture et le quitte à la fermeture. **Réglages → Compte & serveur → Tailscale intégré** montre son état et le chemin que prend Mira : **À la maison (direct)**, **Par l’app Tailscale** ou **Par Tailscale intégré**.
+Mira rejoint ensuite ton réseau Tailscale à chaque ouverture et le quitte à la fermeture. **Réglages → Loin de chez toi → Toi, sur ce PC** montre son état et le chemin que prend Mira : **À la maison (direct)**, **Par l’app Tailscale** ou **Par Tailscale intégré**.
 
 ### Sur iPhone et iPad
 

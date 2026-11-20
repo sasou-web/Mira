@@ -9,7 +9,18 @@ Each change applies and is saved at once: there is no Save button.
 
 ## Windows and Mac
 
-Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on Mac), on **Essentials**: Mira's version and where its update stands (with **Restart and update** when a new version is ready), your account and whether Jellyfin answers, and the six settings people change most (quality, audio and subtitle languages, subtitle style, next episode, skip intros, Mira's language). They are the same settings as in their own parts: changed here, changed there. A dot on the gear and on **Updates** says a new version is ready. The search (<kbd>Ctrl</kbd> + <kbd>F</kbd>, <kbd>⌘</kbd> + <kbd>F</kbd>) finds any setting, by its name or a common word ("update", "blurry", "away from home").
+Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on Mac), on **Essentials**: Mira's version and where its update stands (with **Restart and update** when a new version is ready), your account and whether Jellyfin answers (the little camera on your picture changes your photo), **Your people** (family, friends, away from home, each with its state), and the six settings people change most (quality, audio and subtitle languages, subtitle style, next episode, skip intros, Mira's language). They are the same settings as in their own parts: changed here, changed there. A dot on the gear and on **Updates** says a new version is ready. The search (<kbd>Ctrl</kbd> + <kbd>F</kbd>, <kbd>⌘</kbd> + <kbd>F</kbd>) finds any setting, by its name or a common word ("update", "blurry", "away from home").
+
+First, **You & your people**:
+
+| Part | What is in it |
+| --- | --- |
+| **Account** | Your Jellyfin account and photo, your libraries, sign out or switch account, and **Retry** while Jellyfin doesn't answer |
+| **Family & profiles** | For Jellyfin's administrator: the home password and link, the profiles of **Who's watching?** and their PINs, the devices in the home |
+| **Friends & guests** | For Jellyfin's administrator: add a friend (an account of their own), your party link and its guests, allow a device by its code |
+| **Away from home** | Its state first (ready, or to set up), then the three ways in from elsewhere: you on this computer (Built-in Tailscale), your family and friends by a link (the home's Tailscale), a party's guests from the Internet (Tailscale Funnel) |
+
+Then **Mira**:
 
 | Part | What is in it |
 | --- | --- |
@@ -17,17 +28,17 @@ Settings open from the gear in the left rail (<kbd>⌘</kbd> + <kbd>,</kbd> on M
 | **Audio & subtitles** | Preferred audio and subtitle languages, subtitle size and style, audio output and amplifier |
 | **Home & library** | Home rows, automatic carousel, poster size (Windows), hide spoilers, show missing episodes, the titles kept to watch offline |
 | **General** | Mira's language, couch mode, reduce animations (Windows), new episode notifications |
-| **Account & server** | Your Jellyfin account and photo, sign out or switch account, Built-in Tailscale, and **Retry** while Jellyfin doesn't answer |
 | **Privacy** | Everything Mira sends, to whom and when, with the switch of each connection that has one |
 | **Updates** | Mira's version, its updates, and on Windows the mpv engine |
 
 **Your recap** (what you watched this month and this year, from Jellyfin) opens from the account's card of **Essentials**.
 
+Your picture at the bottom of the rail opens a menu: who is signed in (and its camera for the photo), the home's profiles, **Family & profiles**, **Invite a friend…**, **Away from home** with its state, **Account**. In a home, <kbd>Ctrl</kbd> + <kbd>P</kbd> (<kbd>⌘</kbd> + <kbd>P</kbd>) opens it too.
+
 Under **Your server**, for Jellyfin's administrator:
 
 | Part | What is in it |
 | --- | --- |
-| **Friends & guests** | Add a friend (an account of their own), your party link and its guests, allow a device by its code |
 | **Library care** | Titles to fix, automatic subtitles, missing episodes, movie collections, seek bar previews, playback failures reported (Windows) |
 | **Jellyfin server** | Who is watching on Jellyfin right now, and on the Jellyfin PC: backup and update of Jellyfin, conversions with the graphics card (Windows); Mira's extension to install when Jellyfin doesn't have it (Mac) |
 

@@ -29,7 +29,7 @@ public partial class MainWindow
     private async Task ShowGuestLinksAsync()
     {
         if (_guestBusy) return;
-        if (_demo || _client is not { } client) { GuestRow.Visibility = Visibility.Collapsed; return; }
+        if (_demo || _client is not { } client) { GuestRow.Visibility = Visibility.Collapsed; HideGuestAdmin(); return; }
         GuestRules.Text = L("Un seul lien pour regarder ensemble, le même à chaque fois : envoie-le à qui tu veux. Qui l’ouvre te rejoint, sans compte ni rien à régler.",
             "One link to watch together, always the same: send it to whoever you like. Whoever opens it joins you, with no account and nothing to set up.");
         PartyLink? party = null;
@@ -42,7 +42,7 @@ public partial class MainWindow
         catch (RelayRefusedException) { list = null; }
         catch (Exception ex) when (IsExpected(ex)) { if (GuestRow.Visibility == Visibility.Visible) GuestStatus.Text = ServerError(ex); return; }
         if (!ReferenceEquals(client, _client) || _guestBusy) return;
-        if (party is null && list is null) { GuestRow.Visibility = Visibility.Collapsed; return; }
+        if (party is null && list is null) { GuestRow.Visibility = Visibility.Collapsed; HideGuestAdmin(); return; }
         ShowParty(party);
         if (list is null) { HideGuestAdmin(); GuestList.Children.Clear(); }
         else await RenderGuestLinksAsync(client, list);
@@ -244,7 +244,7 @@ public partial class MainWindow
     }
     private void GuestEnable_Click(object sender, RoutedEventArgs e) { if (_funnelPage is { } page) OpenWebPage(page); }
 
-    /// <summary>« Sans compte ni Tailscale ? » of the invitation: the row in Réglages → Jellyfin.</summary>
+    /// <summary>« Sans compte ni Tailscale ? » of the invitation: the party's row in Réglages, or Funnel's on « Loin de chez toi » while it is to set.</summary>
     private async void InviteGuestLink_Click(object sender, RoutedEventArgs e)
     {
         await CloseInviteAsync();
@@ -252,9 +252,10 @@ public partial class MainWindow
         SelectSettingsTab("sharing");
         await _guestShowing;
         if (GuestRow.Visibility != Visibility.Visible || SettingsOverlay.Visibility != Visibility.Visible) return;
-        GuestRow.BringIntoView();
-        if (GuestFunnelPanel.Visibility == Visibility.Visible) GuestFunnelButton.Focus();
-        else if (GuestAddressPanel.Visibility == Visibility.Visible) GuestAddressBox.Focus();
+        // Funnel's address, still to set, is on « Loin de chez toi » (ogsas, 2026-11-20): the page that opens to the Internet.
+        if (GuestFunnelPanel.Visibility == Visibility.Visible || GuestAddressPanel.Visibility == Visibility.Visible) SelectSettingsTab("away");
+        else { GuestRow.BringIntoView(); return; }
+        _ = Dispatcher.BeginInvoke(() => { AwayFunnelRow.BringIntoView(); if (GuestFunnelPanel.Visibility == Visibility.Visible) GuestFunnelButton.Focus(); else GuestAddressBox.Focus(); }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     /// <summary>Tailscale's page to allow Funnel on the tailnet, offered once per session when it asks for it.</summary>

@@ -435,50 +435,16 @@ public sealed partial class MainWindow
         finally { _familyBusy = false; }
     }
 
-    // —— The rail's picture: the quick switch (C) ——
+    // —— The rail's picture: its menu is built by MainWindow.Away.cs (D « Le menu du profil ») ——
 
-    /// <summary>In a home, the rail's picture (or ⌘P) opens the profiles beside it, rather than the account.</summary>
-    private bool OpenFamilyMenu()
-    {
-        if (_home is not { } home || InParty || Session is null || Family is not null) return false;
-        var menu = new ContextMenu();
-        var head = new MenuItem { Header = HomeText.HomeOf(home.Name).ToUpper(Lang.Culture) + "   ·   ⌘P", IsEnabled = false };
-        menu.Items.Add(head);
-        foreach (var profile in home.Profiles)
-        {
-            var current = profile.Id == home.Current && Session?.Connection.UserId == profile.Id;
-            var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { new TextBlock { Text = profile.Name, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis } } };
-            if (current) words.Children.Add(new TextBlock { Text = L("En ce moment sur ce Mac", "Watching now on this Mac"), FontSize = 11.5, Foreground = Ui.Muted });
-            var line = new DockPanel { MinWidth = 210 };
-            if (current || profile.Pin)
-            {
-                var mark = new Icon(current ? "check" : "lock", 15) { Foreground = Ui.TextSecondary, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-                DockPanel.SetDock(mark, Dock.Right); line.Children.Add(mark);
-            }
-            line.Children.Add(words);
-            var item = new MenuItem { Header = line, Icon = ProfileFace(home, profile, 26) };
-            Avalonia.Automation.AutomationProperties.SetName(item, current ? L($"{profile.Name}, en ce moment sur ce Mac", $"{profile.Name}, watching now on this Mac") : profile.Pin ? L($"{profile.Name}, avec un code", $"{profile.Name}, with a PIN") : profile.Name);
-            if (!current) item.Click += (_, _) => _ = ChooseProfileAsync(profile);
-            menu.Items.Add(item);
-        }
-        menu.Items.Add(new Separator());
-        menu.Items.Add(Ui.Entry(HomeText.OwnAccount, "user", OpenAccount));
-        menu.Items.Add(Ui.Entry(HomeText.Leave, "exit", () => _ = LeaveHomeAsync()));
-        menu.PlacementTarget = _accountRail; menu.Placement = PlacementMode.RightEdgeAlignedBottom; menu.HorizontalOffset = 8;
-        _familyMenu = menu;
-        menu.Closed += (_, _) => { if (ReferenceEquals(_familyMenu, menu)) _familyMenu = null; };
-        menu.Open(_accountRail);
-        _ = RefreshHallAsync();
-        return true;
-    }
     private ContextMenu? _familyMenu;
     /// <summary>The rail's menu of the home, while it is open (the self-check).</summary>
     internal ContextMenu? FamilyMenu => _familyMenu;
 
-    /// <summary>The rail's avatar: in a home, its profiles; else the account, as always.</summary>
+    /// <summary>The rail's avatar: the profile menu (MainWindow.Away.cs); signed out, the account, as always.</summary>
     private void AccountClicked()
     {
-        if (!OpenFamilyMenu()) OpenAccount();
+        if (!OpenProfileMenu()) OpenAccount();
     }
 
     /// <summary>⌘P: the profiles of the home, from anywhere the rail can be reached (never while playing full window).</summary>
@@ -486,7 +452,7 @@ public sealed partial class MainWindow
     {
         if (_home is null || Watching || CurrentSheet is not null || Current is SettingsPage) return false;
         if (_familyMenu is { IsOpen: true } open) { open.Close(); return true; }
-        return OpenFamilyMenu();
+        return OpenProfileMenu();
     }
 
     // —— For the self-check ——

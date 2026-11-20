@@ -21,7 +21,7 @@ public static class HomeText
     public static string PinLeft(int left) => left <= 0 ? L("Ce n’est pas le bon code.", "That’s not the right PIN.")
         : L($"Ce n’est pas le bon code. Encore {Lang.Count(left, "essai", "essais", "try", "tries")}.", $"That’s not the right PIN. {Lang.Count(left, "essai", "essais", "try", "tries")} left.");
     public static string PinWait(int seconds) => L($"Trop d’essais : réessaie dans {Math.Max(1, (seconds + 59) / 60)} min.", $"Too many tries: try again in {Math.Max(1, (seconds + 59) / 60)} min.");
-    public static string NoProfiles => L("Aucun profil dans ce foyer pour l’instant : demande à son administrateur d’en cocher un dans Réglages → Foyer.", "No profiles in this home yet: ask its administrator to turn one on in Settings → Home.");
+    public static string NoProfiles => L("Aucun profil dans ce foyer pour l’instant : demande à son administrateur d’en cocher un dans Réglages → Famille & profils.", "No profiles in this home yet: ask its administrator to turn one on in Settings → Family & profiles.");
     public static string Unreachable(string name) => L($"Le foyer {name} ne répond pas pour l’instant. Réessaie dans un moment.", $"{name}’s home isn’t answering right now. Try again in a moment.");
     public static string NotThisServer(string name) => L($"Ce n’est pas le Jellyfin de {name} : le lien ne correspond plus. Demande-lui un nouveau lien.", $"This isn’t {name}’s Jellyfin: the link no longer matches. Ask for a new link.");
     public static string LinkExpired(string name) => L($"Ce lien a expiré (48 h). Demande un nouveau lien du foyer à {name}.", $"This link has expired (48 h). Ask {name} for a new home link.");
@@ -31,7 +31,7 @@ public static class HomeText
     public static string NoHelper => L("Mira ne peut pas joindre ce foyer depuis ce PC : son Tailscale intégré manque ou est bloqué.", "Mira can’t reach this home from this PC: its built-in Tailscale is missing or blocked.");
     public static string Removed(string name) => L($"Cet appareil n’est plus dans le foyer {name}. Pour revenir, demande un nouveau lien du foyer.", $"This device is no longer in {name}’s home. To come back, ask for a new home link.");
     public static string Left(string name) => L($"Cet appareil a quitté le foyer {name}.", $"This device left {name}’s home.");
-    public static string LeftHere(string name) => L($"Cet appareil a quitté le foyer {name} ici ; le serveur ne l’a pas su : son administrateur peut le retirer dans Réglages → Foyer.", $"This device left {name}’s home here; the server didn’t hear it: its administrator can remove it in Settings → Home.");
+    public static string LeftHere(string name) => L($"Cet appareil a quitté le foyer {name} ici ; le serveur ne l’a pas su : son administrateur peut le retirer dans Réglages → Famille & profils.", $"This device left {name}’s home here; the server didn’t hear it: its administrator can remove it in Settings → Family & profiles.");
     public static string Owner => L("Propriétaire", "Owner");
     public static string ThisDevice => L("Sur cet appareil", "On this device");
 

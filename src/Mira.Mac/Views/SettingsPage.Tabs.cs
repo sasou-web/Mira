@@ -22,22 +22,25 @@ public sealed partial class SettingsPage
     private static IReadOnlyList<(string Key, string Title, string Icon, string About)> Tabs =>
     [
         ("home", L("L’essentiel", "Essentials"), "home", L("Mira en un coup d’œil, et les réglages qu’on change le plus.", "Mira at a glance, and the settings people change most.")),
+        ("server", L("Compte", "Account"), "user", L("Ta photo, ton serveur Jellyfin, tes bibliothèques, et changer de compte.", "Your photo, your Jellyfin server, your libraries, and switching accounts.")),
+        ("family", L("Famille & profils", "Family & profiles"), "home", L("Un mot de passe pour ta famille, puis « Qui regarde ? » : ses profils, leurs codes, ses appareils.", "One password for your family, then « Who’s watching? »: its profiles, their PINs, its devices.")),
+        ("sharing", L("Amis & invités", "Friends & guests"), "users", L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
+        ("away", L("Loin de chez toi", "Away from home"), "globe", L("Regarder quand tu n’es pas sur le réseau de la maison : toi, ta famille, tes amis.", "Watching when you’re not on the home network: you, your family, your friends.")),
         ("playback", L("Lecture", "Playback"), "play", L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")),
         ("audio", L("Audio & sous-titres", "Audio & subtitles"), "subtitles", L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles.")),
         ("library", L("Accueil & bibliothèque", "Home & library"), "library", L("Ce que montrent l’accueil et les pages : rangées, spoilers, épisodes manquants, titres gardés sur ce Mac.", "What Home and the pages show: rows, spoilers, missing episodes, titles kept on this Mac.")),
         ("general", L("Général", "General"), "sliders", L("La langue de Mira, le mode canapé et ce que Mira te signale.", "Mira’s language, couch mode and what Mira tells you about.")),
         ("discord", "Discord", "status", L("Ce que tes amis voient sur ton profil Discord pendant que tu regardes.", "What your friends see on your Discord profile while you watch.")),
-        ("server", L("Compte & serveur", "Account & server"), "user", L("Ton compte, ton serveur Jellyfin, et le joindre loin de chez toi.", "Your account, your Jellyfin server, and reaching it away from home.")),
         ("privacy", L("Confidentialité", "Privacy"), "shield", L("Tout ce qui part sur le réseau, et comment l’arrêter.", "Everything that goes out on the network, and how to stop it.")),
         ("updates", L("Mises à jour", "Updates"), "refresh", L("La version de Mira et ses mises à jour.", "Mira’s version and its updates.")),
         ("report", L("Ton bilan", "Your recap"), "clock", L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices.")),
-        ("family", L("Foyer", "Home"), "tv", L("Un mot de passe pour la famille, chacun son profil, ici ou loin de chez toi.", "One password for the family, a profile each, at home or away.")),
-        ("sharing", L("Amis & invités", "Friends & guests"), "users", L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in.")),
         ("care", L("Soin de la bibliothèque", "Library care"), "pencil", L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres.", "What keeps your library in shape: titles to fix, subtitles.")),
         ("jellyfin", L("Serveur Jellyfin", "Jellyfin server"), "server", L("Qui regarde quoi, et l’extension de Mira sur Jellyfin.", "Who is watching what, and Mira’s extension on Jellyfin.")),
     ];
     /// <summary>The sections only the server's owner has something in, listed under « Ton serveur ».</summary>
-    private static readonly string[] ServerTools = ["family", "sharing", "care", "jellyfin"];
+    private static readonly string[] ServerTools = ["care", "jellyfin"];
+    /// <summary>« Toi et tes proches » (ogsas, 2026-11-20, maquette A « En tête de liste »): first, under « L’essentiel »; the family and friends for an administrator.</summary>
+    private static readonly string[] PeopleTools = ["family", "sharing"];
     /// <summary>Aide's topics: the shortcuts and « Inviter un ami », shown in the window; the others open what they name.</summary>
     private static IReadOnlyList<(string Key, string Title, string Icon, bool Outside)> HelpTopics =>
     [
@@ -86,9 +89,14 @@ public sealed partial class SettingsPage
         // —— The list: Réglages | Aide, the search, the sections ——
         var serverLabel = new TextBlock { Text = L("Ton serveur", "Your server"), FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(14, 16, 0, 4) };
         Avalonia.Automation.AutomationProperties.SetHeadingLevel(serverLabel, 2);
+        var peopleLabel = new TextBlock { Text = L("Toi et tes proches", "You & your people"), FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(14, 2, 0, 4) };
+        var miraLabel = new TextBlock { Text = "Mira", FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(14, 16, 0, 4) };
+        foreach (var label in new[] { peopleLabel, miraLabel }) Avalonia.Automation.AutomationProperties.SetHeadingLevel(label, 2);
         foreach (var (key, title, icon, _) in Tabs)
         {
             if (key == ServerTools[0]) _settingsList.Children.Add(serverLabel);
+            if (key == "server") _settingsList.Children.Add(peopleLabel);
+            if (key == "playback") _settingsList.Children.Add(miraLabel);
             var button = NavButton(title, icon, false);
             button.Click += (_, _) => { if (Again(HelpTopic is null && CurrentTab == key)) return; _search.Text = ""; _searched = ""; Show(key); };
             _tabButtons[key] = button; _settingsList.Children.Add(button);
@@ -98,6 +106,9 @@ public sealed partial class SettingsPage
         // « Ton bilan » is opened from the account's card of « L’essentiel »; the search still finds it.
         _tabButtons["report"].IsVisible = false;
         UpdateDot(_tabButtons["updates"]);
+        // Away from home's state, and the home's profiles, beside their names (SettingsPage.Away.cs).
+        MarkNav("away", () => (null, Dot(Shell.AwayNow)));
+        MarkNav("family", () => (Shell.AwayFamily is { } family ? family.Profiles.Count(x => x.Offered).ToString(Lang.Culture) : null, null));
         var moreLabel = new TextBlock { Text = L("Plus", "More"), FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Faint, Margin = new Thickness(14, 16, 0, 4) };
         foreach (var (key, title, icon, outside) in HelpTopics)
         {
@@ -111,11 +122,11 @@ public sealed partial class SettingsPage
         // administrator: who watches what is asked only while it shows.
         void Listed()
         {
-            foreach (var key in ServerTools) _tabButtons[key].IsVisible = _tabs[key].Children.Any(x => x.IsVisible) || key == "jellyfin" && _jellyfinAdmin;
+            foreach (var key in ServerTools.Concat(PeopleTools).Append("away")) _tabButtons[key].IsVisible = _tabs[key].Children.Any(x => x.IsVisible) || key == "jellyfin" && _jellyfinAdmin;
             serverLabel.IsVisible = ServerTools.Any(x => _tabButtons[x].IsVisible);
         }
         _listed = Listed;
-        foreach (var key in ServerTools)
+        foreach (var key in ServerTools.Concat(PeopleTools).Append("away"))
             foreach (var section in _tabs[key].Children) section.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) Listed(); };
         Listed();
 

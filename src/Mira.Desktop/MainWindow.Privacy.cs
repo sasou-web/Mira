@@ -72,7 +72,7 @@ public partial class MainWindow
             case PrivacyControl.Tailscale when TailnetRow.Visibility == Visibility.Visible || _settings.Tailnet:
                 return PrivacyGo(_settings.Tailnet ? L("Connecté · Gérer", "Signed in · Manage") : L("Coupé · Gérer", "Off · Manage"), connection.Title, () =>
                 {
-                    SelectSettingsTab("server");
+                    SelectSettingsTab("away");
                     Dispatcher.BeginInvoke(() => TailnetRow.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
                 });
             case PrivacyControl.Downloads when _torlinkEnabled:

@@ -54,7 +54,7 @@ On the PC that runs Jellyfin, signed in with Jellyfin's administrator account, o
 
 ### Without Mira for Windows
 
-With a Mac (Mira 0.9.6 or later), signed in with Jellyfin's administrator account: **Settings → Account & server → Install**. Mira checks the extension's signature first, then Jellyfin restarts for a few seconds, only once nobody is watching.
+With a Mac (Mira 0.9.6 or later), signed in with Jellyfin's administrator account: **Settings → Jellyfin server → Install**. Mira checks the extension's signature first, then Jellyfin restarts for a few seconds, only once nobody is watching.
 
 Otherwise, to add Mira's extension from Jellyfin's web page:
 
