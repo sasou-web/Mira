@@ -30,7 +30,7 @@ public sealed class ViewersSection
     public ViewersSection(MainWindow shell, Func<string, Control[], Control> section)
     {
         _shell = shell;
-        Section = section(L("En ce moment sur Jellyfin", "On Jellyfin right now"), [Ui.Column(0, _status, _list)]);
+        Section = section(L("En ce moment sur Jellyfin", "Now on Jellyfin"), [Ui.Column(0, _status, _list)]);
         Section.IsVisible = false;
         _timer.Tick += (_, _) => _ = LoadAsync();
         // Asked only while it can be seen: not from Réglages kept behind a title opened from it.

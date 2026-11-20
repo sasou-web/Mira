@@ -12,7 +12,7 @@ using Mira.Desktop.Views;
 namespace Mira.Desktop;
 
 /// <summary>
-/// Réglages → Foyer, for the administrator of a Jellyfin with Mira's extension (/Mira/home): the home's password, the
+/// Réglages → Famille & profils, for the administrator of a Jellyfin with Mira's extension (/Mira/home): the home's password, the
 /// home link (away from home: its QR code, when it ends), which accounts are profiles of the home and their PINs, the
 /// devices in the home, and the one-time setup of Tailscale (the tag, the OAuth client, the verdict on the policy as the
 /// extension reads it, and its fix in one click). Drawn from what the extension says each time the section opens.

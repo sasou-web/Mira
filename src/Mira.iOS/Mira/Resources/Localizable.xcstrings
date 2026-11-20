@@ -1523,12 +1523,12 @@
         }
       }
     },
-    "Your account can’t download on the server PC: ask an administrator to turn on Can download for you in Settings → Home.": {
+    "Your account can’t download on the server PC: ask an administrator to turn on Can download for you in Settings → Family & profiles.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ton compte ne peut pas télécharger sur le PC serveur : demande à un administrateur de cocher « Can download » pour toi dans Réglages → Foyer."
+            "value": "Ton compte ne peut pas télécharger sur le PC serveur : demande à un administrateur de cocher « Can download » pour toi dans Réglages → Famille & profils."
           }
         }
       }
@@ -8145,12 +8145,12 @@
         }
       }
     },
-    "No profiles in this home yet: ask its administrator to turn one on in Settings → Home.": {
+    "No profiles in this home yet: ask its administrator to turn one on in Settings → Family & profiles.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aucun profil dans ce foyer pour l’instant : demande à son administrateur d’en cocher un dans Réglages → Foyer."
+            "value": "Aucun profil dans ce foyer pour l’instant : demande à son administrateur d’en cocher un dans Réglages → Famille & profils."
           }
         }
       }
@@ -8515,12 +8515,12 @@
         }
       }
     },
-    "This iPhone left %@’s home here; the server didn’t hear it: its administrator can remove it in Settings → Home.": {
+    "This iPhone left %@’s home here; the server didn’t hear it: its administrator can remove it in Settings → Family & profiles.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cet iPhone a quitté le foyer %@ ici ; le serveur ne l’a pas su : son administrateur peut le retirer dans Réglages → Foyer."
+            "value": "Cet iPhone a quitté le foyer %@ ici ; le serveur ne l’a pas su : son administrateur peut le retirer dans Réglages → Famille & profils."
           }
         }
       }
@@ -9871,6 +9871,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "La règle %lld ne couvre plus les amis avec qui tu partages ce PC : ils allaient plus loin que Jellyfin."
+          }
+        }
+      }
+    },
+    "Family & profiles": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Famille & profils"
           }
         }
       }

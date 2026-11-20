@@ -12,7 +12,7 @@ using static Mira.Core.Lang;
 namespace Mira.Mac.Views;
 
 /// <summary>
-/// Réglages → Foyer, as on Windows (MainWindow.FamilySettings.cs there), for the administrator of a Jellyfin with Mira's
+/// Réglages → Famille & profils, as on Windows (MainWindow.FamilySettings.cs there), for the administrator of a Jellyfin with Mira's
 /// extension (/Mira/home): the home's password, the home link (away from home: its QR code, when it ends), which accounts
 /// are profiles of the home and their PINs, the devices in the home, and the one-time setup of Tailscale (the policy's
 /// two lines, the OAuth client, the verdict on the policy as the extension reads it). Drawn from what the extension says
@@ -76,7 +76,7 @@ public sealed partial class FamilySection
             // Shown already (a change that failed to read back): said there, with « Try again »; never shown for it otherwise.
             if (draw != _draw || !_body.IsVisible) return;
             _body.Children.Clear();
-            _body.Children.Add(_section(L("Foyer", "Home"), [Ui.Column(12, Note(Words(ex), problem: true, top: 0), Ui.Action(L("Réessayer", "Try again"), "refresh", "chip", () => _ = LoadAsync()))]));
+            _body.Children.Add(_section(L("Famille & profils", "Family & profiles"), [Ui.Column(12, Note(Words(ex), problem: true, top: 0), Ui.Action(L("Réessayer", "Try again"), "refresh", "chip", () => _ = LoadAsync()))]));
             return;
         }
         if (draw != _draw || !ReferenceEquals(session, _shell.Session)) return;

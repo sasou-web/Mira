@@ -285,7 +285,6 @@ internal static class GuestTests
             Assert(invites.Address is null && invites.SetAddress("https://PC.tail1.ts.net/Mira/") && invites.Address == "https://pc.tail1.ts.net", "Address");
             foreach (var bad in new[] { "http://pc.tail1.ts.net", "https://100.64.0.1", "https://pc.ts.net/autre", "https://u:p@pc.ts.net", "https://pc.ts.net/?x=1", "pc.ts.net" })
                 Assert(!invites.SetAddress(bad) && invites.Address == "https://pc.tail1.ts.net", "Address refused: " + bad);
-            Assert(GuestInvites.Link(invites.Address, "abc") == "https://pc.tail1.ts.net/Mira/#/invite/abc" && GuestInvites.Link(null, "abc") is null, "Link");
 
             var lea = invites.Add("Léa", Item, "host-id", "ogsas");
             Assert(invites.Open(lea.Code, "device-a", "1.2.3.4") is (GuestInvites.Opening.Opened, { Name: "Léa" }), "Opened");

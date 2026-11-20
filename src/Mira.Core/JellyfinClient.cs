@@ -1256,13 +1256,6 @@ public sealed partial class JellyfinClient : IDisposable
         var list = await response.Content.ReadFromJsonAsync<GuestLinkList>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
         return list with { Invites = list.Invites ?? [] };
     }
-    /// <summary>A new link for a guest (its account made by the extension); its <c>Link</c> is null while no address is set.</summary>
-    public async Task<GuestLink> MakeGuestLinkAsync(string name, CancellationToken ct = default)
-    {
-        using var response = await _http.PostAsJsonAsync("Mira/invites", new { name }, ct);
-        await CheckInvitesAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<GuestLink>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
-    }
     /// <summary>A link taken back: its guest out at once, their account deleted. False when it was gone already.</summary>
     public async Task<bool> RemoveGuestLinkAsync(string id, CancellationToken ct = default)
     {

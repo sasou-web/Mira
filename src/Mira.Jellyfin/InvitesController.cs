@@ -12,9 +12,10 @@ using Microsoft.Extensions.Logging;
 namespace Mira.Jellyfin;
 
 /// <summary>
-/// « Inviter par lien », the host's side, for Jellyfin's administrators only (making an account takes one): the links
-/// made, a new one with its account, one taken back with its account, and the address the links start with, tried as
-/// a visitor from the Internet would (<see cref="TunnelCheck"/>): no link where Jellyfin answers outside Mira. Every
+/// « Inviter par lien », the host's side, for Jellyfin's administrators only: the party's guests, one taken back with
+/// its account, and the address the links start with, tried as a visitor from the Internet would
+/// (<see cref="TunnelCheck"/>): no link where Jellyfin answers outside Mira. The one-device links Mira web opened
+/// (POST, « Older links ») went with it: no app made one since, and those left are swept after 7 days unused. Every
 /// change on Jellyfin goes through its own API, on its loopback address, with the administrator's own session.
 /// </summary>
 [ApiController]
@@ -52,49 +53,6 @@ public sealed class InvitesController : ControllerBase
         return Answer(Listing());
     }
 
-    /// <summary>A new link: its account made on Jellyfin (hidden, its policy a guest's), then kept here.</summary>
-    [HttpPost("")]
-    [RequestSizeLimit(4_096)]
-    public async Task<IActionResult> Create(CancellationToken cancellationToken)
-    {
-        var body = await ReadAsync<CreateBody>(cancellationToken).ConfigureAwait(false);
-        if (Invites.Count >= GuestInvites.MaxInvites)
-        {
-            return Refuse(StatusCodes.Status409Conflict, "Trop de liens en cours : retire ceux qui ne servent plus.");
-        }
-
-        // Never a link where the tunnel lets Jellyfin through: tried again unless only Mira answered there 10 minutes ago.
-        var tunnel = await TunnelAsync(Roots().ToList(), Invites.Address, TimeSpan.FromMinutes(10), TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
-        if (tunnel?.State == TunnelCheck.State.Open)
-        {
-            return Refuse(StatusCodes.Status409Conflict, TunnelCheck.Text(tunnel, French));
-        }
-
-        var admin = Admin();
-        using var client = _clients.CreateClient();
-        var (meStatus, meText) = await Call(client, HttpMethod.Get, "Users/Me", admin, null, cancellationToken).ConfigureAwait(false);
-        var me = meStatus == (int)HttpStatusCode.OK ? Parse(meText) : null;
-        if (me?["Id"] is null)
-        {
-            return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas répondu. Réessaie dans un instant.");
-        }
-
-        var (made, userId, name) = await GuestAccounts.CreateAsync(client, Roots(), admin, body?.Name, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
-        switch (made)
-        {
-            case GuestAccounts.Made.NoAnswer:
-                return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas répondu. Réessaie dans un instant.");
-            case GuestAccounts.Made.BadName:
-                return Refuse(StatusCodes.Status400BadRequest, "Son prénom ne peut contenir que des lettres, des chiffres, des espaces et ces signes : - _ ' . @ +");
-            case GuestAccounts.Made.Failed:
-                return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas créé le compte de l’invité.");
-        }
-
-        await GuestAccounts.KeepKeyAsync(client, Roots(), admin, cancellationToken).ConfigureAwait(false);
-        var invite = Invites.Add(name!, userId!, GuestAccounts.Text(me["Id"])!, GuestAccounts.Text(me["Name"]) ?? "");
-        return Answer(View(invite, Invites.Address));
-    }
-
     /// <summary>A link taken back: it stops at once, and its account is deleted from Jellyfin, with its sessions.</summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> Remove(string id, CancellationToken cancellationToken)
@@ -129,17 +87,16 @@ public sealed class InvitesController : ControllerBase
     private object Listing() => new
     {
         address = Invites.Address,
-        invites = Invites.All().Select(x => View(x, Invites.Address)),
+        invites = Invites.All().Select(View),
         tunnel = TunnelCheck.Last(Invites.Address) is { } tunnel
             ? new { state = tunnel.State.ToString().ToLowerInvariant(), at = tunnel.At, text = TunnelCheck.Text(tunnel, French) }
             : null,
     };
 
-    private static object View(GuestInvite invite, string? address) => new
+    private static object View(GuestInvite invite) => new
     {
         id = invite.Id, name = invite.Name, created = invite.Created, used = invite.Used, ends = invite.Used + GuestInvites.Unused,
-        opened = invite.Device is not null, device = invite.DeviceName, link = invite.Party is null ? GuestInvites.Link(address, invite.Code) : null,
-        party = invite.Party is not null,
+        opened = invite.Device is not null, device = invite.DeviceName, party = invite.Party is not null,
     };
 
     /// <summary>
@@ -215,7 +172,6 @@ public sealed class InvitesController : ControllerBase
         return StatusCode(status, new { error = RelayText.For(error, French) });
     }
 
-    private sealed record CreateBody(string? Name);
     private sealed record AddressBody(string? Address);
 }
 

@@ -400,7 +400,7 @@ struct DownloadsView: View {
 
     private func explain(_ error: Error) -> String {
         switch error as? JellyfinError {
-        case .forbidden: String(localized: "Your account can’t download on the server PC: ask an administrator to turn on Can download for you in Settings → Home.")
+        case .forbidden: String(localized: "Your account can’t download on the server PC: ask an administrator to turn on Can download for you in Settings → Family & profiles.")
         case .http(404): String(localized: "The Mira extension on your server doesn’t know this screen yet. Update Mira on the server PC, then restart Jellyfin.")
         default: Messages.text(error)
         }

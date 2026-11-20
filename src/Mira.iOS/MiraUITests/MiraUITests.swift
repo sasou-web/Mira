@@ -875,7 +875,7 @@ final class MiraUITests: XCTestCase {
     /// « Le foyer » (the stand-in's /Mira/home): an expired home link says so and lets nothing be typed; then, at home,
     /// the address typed finds a server with a home, which asks only its password (a wrong one said), then « Who's
     /// watching? »; Lina's PIN, wrong then right, opens her profile and Home; Settings switches to Sam without a PIN;
-    /// Settings → Home for an administrator; « Leave this home » tells the home and comes back to the sign-in.
+    /// Settings → Family & profiles for an administrator; « Leave this home » tells the home and comes back to the sign-in.
     @MainActor
     func testHome() throws {
         mock("/Mock/Home")
@@ -929,7 +929,7 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Lina's profile did not open Home")
         XCTAssertTrue(homeLog().contains { $0["what"] as? String == "open" && $0["profile"] as? String == "Lina" && $0["pin"] as? String == "sent" }, "The PIN never went to the home")
 
-        // Settings: the switch, to Sam (an administrator from here, for Settings → Home below: read when Settings open).
+        // Settings: the switch, to Sam (an administrator from here, for Settings → Family & profiles below: read when Settings open).
         mock("/Mock/Admin")
         openSettings(app)
         let switching = app.buttons["settings.switch"]
@@ -943,7 +943,7 @@ final class MiraUITests: XCTestCase {
         sam.tap()
         XCTAssertTrue(waitFor({ self.homeLog().contains { $0["what"] as? String == "open" && $0["profile"] as? String == "Sam" } }, timeout: 15), "Sam's profile was never opened")
 
-        // Settings → Home, as an administrator.
+        // Settings → Family & profiles, as an administrator.
         // In the Administration section, further down; pulled down first, which reads the account again.
         let homeRow = app.buttons["settings.home"]
         for _ in 0..<3 where !(homeRow.exists && homeRow.isHittable) {
@@ -955,9 +955,9 @@ final class MiraUITests: XCTestCase {
         homeRow.tap()
         // The profiles come after the password and the link: a list only has what is on screen.
         let lina = app.descendants(matching: .any)["home.offer.Lina"]
-        XCTAssertTrue(app.descendants(matching: .any)["home.password"].waitForExistence(timeout: 15) || lina.exists, "Settings → Home did not load")
+        XCTAssertTrue(app.descendants(matching: .any)["home.password"].waitForExistence(timeout: 15) || lina.exists, "Settings → Family & profiles did not load")
         for _ in 0..<8 where !lina.exists { app.swipeUp(velocity: .slow) }
-        XCTAssertTrue(lina.waitForExistence(timeout: 5), "Settings → Home lists no profiles")
+        XCTAssertTrue(lina.waitForExistence(timeout: 5), "Settings → Family & profiles lists no profiles")
         settle()
         capture("85-home-settings")
         app.navigationBars.buttons.firstMatch.tap()

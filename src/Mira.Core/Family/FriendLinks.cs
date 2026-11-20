@@ -92,8 +92,8 @@ public static class FriendText
     public static string RemoveDevice => L("Retirer cet appareil", "Remove this device");
     public static string RemoveDeviceAsk => L("Retirer cet appareil ?", "Remove this device?");
     public static string In => L("Connecté", "In");
-    public static string SetUpFirst => L("Pour qu’un ami regarde de chez lui, relie d’abord Mira à Tailscale (Réglages → Foyer, environ 3 minutes, une seule fois).",
-        "For a friend to watch from their home, first connect Mira to Tailscale (Settings → Home, about 3 minutes, once).");
+    public static string SetUpFirst => L("Pour qu’un ami regarde de chez lui, relie d’abord Mira à Tailscale (Réglages → Loin de chez toi, environ 3 minutes, une seule fois).",
+        "For a friend to watch from their home, first connect Mira to Tailscale (Settings → Away from home, about 3 minutes, once).");
     public static string OnlyAtHome => L("Seulement chez moi pour l’instant", "Only at my home for now");
     public static string SetUp => L("Configurer…", "Set up…");
     public static string Copied => L("Lien copié : envoie-le à ton ami.", "Link copied: send it to your friend.");

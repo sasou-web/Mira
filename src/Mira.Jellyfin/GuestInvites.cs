@@ -101,9 +101,6 @@ public sealed partial class GuestInvites
         return uri.GetLeftPart(UriPartial.Authority).ToLowerInvariant();
     }
 
-    /// <summary>The link a guest opens: Mira web at the address, the code after « # », never sent to a server.</summary>
-    public static string? Link(string? address, string code) => address is null ? null : $"{address}/Mira/#/invite/{code}";
-
     /// <summary>Every link, the newest first.</summary>
     public IReadOnlyList<GuestInvite> All()
     {

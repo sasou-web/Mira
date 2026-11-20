@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// The guide « Away from home », in a sheet over Settings → Home (Windows and Mac show it in place of the section): one
+/// The guide « Away from home », in a sheet over Settings → Family & profiles (Windows and Mac show it in place of the section): one
 /// step per screen, Tailscale's page one tap away with a drawing of what to tap, the secret pasted by the system's Paste
 /// button (no clipboard prompt), then Mira's check and the rules put right on a tap.
 struct HomeGuideView: View {
@@ -18,7 +18,7 @@ struct HomeGuideView: View {
     @State private var said: String?
     @State private var copied = false
     @State private var showLines = false
-    /// Called when the guide is done or closed: Settings → Home reads the home again.
+    /// Called when the guide is done or closed: Settings → Family & profiles reads the home again.
     var done: () -> Void
 
     init(step: Int, done: @escaping () -> Void) {
