@@ -215,7 +215,7 @@ public partial class MainWindow
 
         FrameworkElement Row(HomeAccount account)
         {
-            var row = new DockPanel { Margin = new Thickness(0, 8, 0, 8) };
+            var row = new DockPanel { Margin = new Thickness(0, 8, 0, 8), Tag = account.Id };
             // An administrator's profile only with a PIN, which it keeps: turned on, the PIN is asked first.
             var offered = new CheckBox { IsChecked = account.Offered, VerticalAlignment = VerticalAlignment.Center };
             AutomationProperties.SetName(offered, L($"Proposer {account.Name} dans le foyer", $"Offer {account.Name} in the home"));
@@ -271,28 +271,35 @@ public partial class MainWindow
         }
         void AskProfilePin(HomeAccount account, bool offer = false)
         {
+            // The PIN editor right under its profile: what it asks, the box, and its own error line (never under the whole list).
             var box = new TextBox { Width = 90, MaxLength = 4, FontSize = 16, Margin = new Thickness(0, 0, 10, 0), HorizontalContentAlignment = HorizontalAlignment.Center };
-            AutomationProperties.SetName(box, L($"Code de {account.Name}", $"{account.Name}’s PIN"));
+            AutomationProperties.SetName(box, HomeText.PinOf(account.Name));
             box.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
-            var line = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+            var said = FamilyNote("");
+            var editor = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Tag = "pin" };
+            if (offer) editor.Children.Add(FamilyNote(HomeText.AdminPinFirst(account.Name), margin: new Thickness(0, 0, 30, 8)));
+            var line = new WrapPanel();
             line.Children.Add(box);
-            line.Children.Add(FamilyButton(L("Enregistrer le code", "Save PIN"), () => _ = PinAsync(account, box.Text, offer), primary: true));
-            line.Children.Add(FamilyButton(L("Annuler", "Cancel"), () => list.Children.Remove(line), quiet: true));
-            var at = list.Children.IndexOf(list.Children.OfType<DockPanel>().FirstOrDefault(x => x.Children.OfType<StackPanel>().Any(t => t.Children.OfType<StackPanel>().Any(n => n.Children.OfType<TextBlock>().Any(b => b.Text == account.Name)))));
-            foreach (var other in list.Children.OfType<WrapPanel>().ToList()) list.Children.Remove(other);
-            list.Children.Insert(at < 0 ? list.Children.Count : at + 1, line);
+            line.Children.Add(FamilyButton(L("Enregistrer le code", "Save PIN"), () => _ = PinAsync(account, box.Text, said, offer), primary: true));
+            line.Children.Add(FamilyButton(L("Annuler", "Cancel"), () => list.Children.Remove(editor), quiet: true));
+            box.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { e.Handled = true; _ = PinAsync(account, box.Text, said, offer); } };
+            editor.Children.Add(line); editor.Children.Add(said);
+            foreach (var other in list.Children.OfType<StackPanel>().Where(x => "pin".Equals(x.Tag)).ToList()) list.Children.Remove(other);
+            var at = list.Children.IndexOf(list.Children.OfType<DockPanel>().FirstOrDefault(x => account.Id.Equals(x.Tag)));
+            list.Children.Insert(at < 0 ? list.Children.Count : at + 1, editor);
             box.Focus();
         }
-        async Task PinAsync(HomeAccount account, string? pin, bool offer = false)
+        async Task PinAsync(HomeAccount account, string? pin, TextBlock? said = null, bool offer = false)
         {
-            if (pin is not null && (pin.Length != 4 || !pin.All(char.IsAsciiDigit))) { FamilySay(status, L("Un code fait 4 chiffres.", "A PIN is 4 digits."), true); return; }
+            var note = said ?? status;
+            if (pin is not null && (pin.Length != 4 || !pin.All(char.IsAsciiDigit))) { FamilySay(note, HomeText.PinDigits, true); return; }
             try
             {
                 if (offer) await client.HomeOfferAsync(account.Id, true, pin, _connectionLifetime.Token);
                 else await client.HomeSetPinAsync(account.Id, pin, _connectionLifetime.Token);
                 await ShowFamilySettingsAsync();
             }
-            catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
+            catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { FamilySay(note, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
         }
     }
 

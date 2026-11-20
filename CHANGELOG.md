@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- **The PIN editor says what it wants, and its error shows under it (Windows, Mac)**: turning “In the home” on for an administrator opens the PIN box with a line that says why (an administrator joins the home only with a PIN); “A PIN is 4 digits.” and any refusal now show right under the box instead of below the whole list of profiles, out of sight; Enter saves on Windows too. Seen on the Dell in 0.9.16.
+- **The proof key is sealed as soon as Jellyfin starts (extension)**: a `Mira.proof.key` left in clear by 0.9.15 or older was only sealed once an app first asked for a proof; it now is at start, like the home's and the guests' files.
+
 ## 0.9.16 — 2026-11-20
 
 - **Jellyfin open to the whole Internet, said and closed in one click; 10 characters for the administrator at install (Windows, Mac)**: Settings → Security starts with “Your server”. If Jellyfin lets in any Internet address (its remote access on, without a list of chosen addresses), the line says so and “Close it…” closes it: your home and Tailscale still get in, party links too, without restarting Jellyfin. Before that, Mira names the devices that came from outside lately, which would be cut off, and refuses to do it from a device that itself comes through the Internet. On Jellyfin's PC (Windows), a second line says whether a firewall rule opens Jellyfin on public Wi-Fi, and takes it off those networks with Windows' permission. “Fix all…” starts there; “Keep it open” silences it for 30 days. Installing Jellyfin now asks for an administrator password of at least 10 characters, with a meter while typing; a Jellyfin already installed is never touched (its short password shows up in Security).

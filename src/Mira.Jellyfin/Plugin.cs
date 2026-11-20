@@ -35,6 +35,12 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         _homeFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.home.json");
         _homeTailnetFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.home-tailnet.json");
         _friendsFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.friends.json");
+
+        // A proof key kept in clear by 0.9.15 or older is sealed at start, not only once an app first asks for a proof.
+        if (File.Exists(_proofFile))
+        {
+            _ = ProofSecret;
+        }
     }
 
     private static string? _friendsFile;
