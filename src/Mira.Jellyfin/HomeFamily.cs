@@ -309,6 +309,56 @@ public sealed class HomeFamily
         }
     }
 
+    /// <summary>
+    /// « Can download »: an account that may use TorLink without administering Jellyfin (an administrator always
+    /// may). Kept with the home, apart from its profiles: offered or not, the home on or off.
+    /// </summary>
+    public bool CanDownload(string? user)
+    {
+        if (Plain(user) is not { } id)
+        {
+            return false;
+        }
+
+        lock (_gate) { return _store.Downloaders.Contains(id); }
+    }
+
+    /// <summary>The accounts that may download, by id.</summary>
+    public IReadOnlyList<string> Downloaders()
+    {
+        lock (_gate) { return _store.Downloaders.ToList(); }
+    }
+
+    /// <summary>An account let download, or no longer; false for an id that is not one.</summary>
+    public bool SetDownload(string user, bool allowed)
+    {
+        if (Plain(user) is not { } id)
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            var had = _store.Downloaders.Contains(id);
+            if (had == allowed)
+            {
+                return true;
+            }
+
+            if (allowed)
+            {
+                _store.Downloaders.Add(id);
+            }
+            else
+            {
+                _store.Downloaders.Remove(id);
+            }
+
+            Save();
+            return true;
+        }
+    }
+
     /// <summary>Whether an offered profile has a PIN.</summary>
     public bool HasPin(string user) => Plain(user) is { } id && Profile(id)?.Pin is not null;
 
@@ -456,6 +506,7 @@ public sealed class HomeFamily
             }
 
             _store.Devices.RemoveAll(x => string.IsNullOrEmpty(x.Id) || string.IsNullOrEmpty(x.Token));
+            _store.Downloaders = _store.Downloaders.Select(Plain).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
         }
         catch (Exception error) when (error is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -490,6 +541,7 @@ public sealed class HomeFamily
         public Secret? Password { get; set; }
         public List<HomeProfile> Profiles { get; set; } = [];
         public List<HomeDevice> Devices { get; set; } = [];
+        public List<string> Downloaders { get; set; } = [];
     }
 }
 

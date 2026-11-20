@@ -218,7 +218,7 @@ public sealed partial class FamilySection
         var list = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
         foreach (var account in settings.Profiles.Where(x => !x.Disabled).OrderBy(x => x.Admin).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)) list.Children.Add(Row(account));
         if (list.Children.Count == 0) list.Children.Add(Note(HomeText.NoProfiles));
-        return Card(L("Profils", "Profiles"), L("Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un.", "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one."), list, status);
+        return Card(L("Profils", "Profiles"), L("Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un. « Peut télécharger » ouvre les téléchargements (TorLink) sans être administrateur.", "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one. Can download opens Downloads (TorLink) without being an administrator."), list, status);
 
         Control Row(HomeAccount account)
         {
@@ -234,9 +234,23 @@ public sealed partial class FamilySection
                 try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true); Say(status, "", false); }
                 catch (Exception ex) when (Expected(ex)) { busy = true; offered.IsChecked = !offered.IsChecked; busy = false; Say(status, Words(ex), true); }
             };
-            var inHome = Ui.Row(10, Ui.Text(HomeText.InHome, 13, color: Ui.TextSecondary), offered);
-            inHome.VerticalAlignment = VerticalAlignment.Center; inHome.Margin = new Thickness(16, 0, 0, 0);
-            DockPanel.SetDock(inHome, Dock.Right); row.Children.Add(inHome);
+            var switches = Ui.Column(8, Labelled(HomeText.InHome, offered));
+            // « Can download »: TorLink without administering Jellyfin (an administrator always may: no switch).
+            if (!account.Admin)
+            {
+                var download = new ToggleSwitch { IsChecked = account.Download, OnContent = null, OffContent = null, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center };
+                Avalonia.Automation.AutomationProperties.SetName(download, L($"{account.Name} peut télécharger", $"{account.Name} can download"));
+                var changing = false;
+                download.IsCheckedChanged += async (_, _) =>
+                {
+                    if (changing) return;
+                    try { await client.HomeSetDownloadAsync(account.Id, download.IsChecked == true); Say(status, "", false); }
+                    catch (Exception ex) when (Expected(ex)) { changing = true; download.IsChecked = !download.IsChecked; changing = false; Say(status, Words(ex), true); }
+                };
+                switches.Children.Add(Labelled(HomeText.CanDownload, download));
+            }
+            switches.VerticalAlignment = VerticalAlignment.Center; switches.Margin = new Thickness(16, 0, 0, 0);
+            DockPanel.SetDock(switches, Dock.Right); row.Children.Add(switches);
             if (!account.Admin || account.Offered)
             {
                 var actions = Ui.Row(6);
@@ -251,6 +265,12 @@ public sealed partial class FamilySection
             text.VerticalAlignment = VerticalAlignment.Center;
             row.Children.Add(text);
             return row;
+        }
+        static Control Labelled(string label, ToggleSwitch toggle)
+        {
+            var line = Ui.Row(10, Ui.Text(label, 13, color: Ui.TextSecondary), toggle);
+            line.HorizontalAlignment = HorizontalAlignment.Right;
+            return line;
         }
         void AskPin(HomeAccount account, Control row, bool offer = false)
         {

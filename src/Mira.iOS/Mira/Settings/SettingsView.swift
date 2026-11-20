@@ -85,20 +85,17 @@ struct SettingsView: View {
                             row("Now on Jellyfin", "Who watches what, and whether Jellyfin converts it.", symbol: "server.rack")
                         }
                         .accessibilityIdentifier("settings.now")
-                        if downloadsOffered {
-                            NavigationLink {
-                                DownloadsView()
-                            } label: {
-                                row("Download on the server PC", "Search for a title: TorLink downloads it there, Mira files it in your library.", symbol: "arrow.down.circle")
-                            }
-                            .accessibilityIdentifier("settings.downloads")
-                        }
+                        if downloadsOffered { downloadsRow }
                     } header: {
                         Text("Administration")
                     } footer: {
                         Text("Profiles, titles to fix, automatic subtitles and your party’s guests are in Mira for Windows and Mac.")
                     }
                     .listRowBackground(Palette.surface)
+                } else if downloadsOffered {
+                    // « Can download »: an account an administrator let download, without administering Jellyfin.
+                    Section { downloadsRow }
+                        .listRowBackground(Palette.surface)
                 }
 
                 Section {
@@ -297,6 +294,15 @@ struct SettingsView: View {
         }
     }
 
+    private var downloadsRow: some View {
+        NavigationLink {
+            DownloadsView()
+        } label: {
+            row("Download on the server PC", "Search for a title: TorLink downloads it there, Mira files it in your library.", symbol: "arrow.down.circle")
+        }
+        .accessibilityIdentifier("settings.downloads")
+    }
+
     private func load() async {
         guard let client = app.client else { return }
         async let account = try? client.me()
@@ -304,8 +310,12 @@ struct SettingsView: View {
         async let quick = client.quickConnectEnabled()
         async let found = client.miraExtension()
         let mine = await account
-        // Shown with the Administration section, not a moment after it.
-        downloadsOffered = RemoteLines.offered(administrator: mine?.isAdministrator, miraExtension: await found, before: downloadsOffered)
+        // Shown with the Administration section, not a moment after it. Not an administrator: « Can download » lets the
+        // account use the relay all the same (the relay answers it).
+        var allowed = mine?.isAdministrator
+        let miraExtension = await found
+        if allowed == false, miraExtension == true, await client.torLinkAllowed() == true { allowed = true }
+        downloadsOffered = RemoteLines.offered(administrator: allowed, miraExtension: miraExtension, before: downloadsOffered)
         me = mine
         jellyfinVersion = await info?.version
         quickConnect = await quick

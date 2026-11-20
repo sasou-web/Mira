@@ -22,6 +22,7 @@ public static class HomeText
         : L($"Ce n’est pas le bon code. Encore {Lang.Count(left, "essai", "essais", "try", "tries")}.", $"That’s not the right PIN. {Lang.Count(left, "essai", "essais", "try", "tries")} left.");
     public static string PinWait(int seconds) => L($"Trop d’essais : réessaie dans {Math.Max(1, (seconds + 59) / 60)} min.", $"Too many tries: try again in {Math.Max(1, (seconds + 59) / 60)} min.");
     public static string InHome => L("Dans le foyer", "In the home");
+    public static string CanDownload => L("Peut télécharger", "Can download");
     public static string AdminNeedsPin => L("Administrateur : dans le foyer seulement avec un code, pour que son mot de passe seul n’ouvre jamais ton serveur.", "Administrator: in the home only with a PIN, so the home password alone never opens your server.");
     public static string NoProfiles => L("Aucun profil dans ce foyer pour l’instant : demande à son administrateur d’en cocher un dans Réglages → Famille & profils.", "No profiles in this home yet: ask its administrator to turn one on in Settings → Family & profiles.");
     public static string Unreachable(string name) => L($"Le foyer {name} ne répond pas pour l’instant. Réessaie dans un moment.", $"{name}’s home isn’t answering right now. Try again in a moment.");

@@ -389,6 +389,19 @@ extension JellyfinClient {
     /// « Télécharger sur le PC serveur » (administrators): what the PC of Jellyfin has under way, as the relay holds it.
     func torLink() async throws -> RemoteLines.State { try await get("Mira/torlink") }
 
+    /// Whether this account reaches the relay: an administrator, or let download (« Can download »). False when Jellyfin
+    /// refuses it or has no relay, nil when it cannot say.
+    func torLinkAllowed() async -> Bool? {
+        do {
+            _ = try await torLink()
+            return true
+        } catch let error as JellyfinError where error == .forbidden || error == .http(404) {
+            return false
+        } catch {
+            return nil
+        }
+    }
+
     /// The id of a search the PC runs with TorLink, in films, series and animes at once.
     func torLinkSearch(_ query: String) async throws -> String {
         let body = try JSONSerialization.data(withJSONObject: ["query": query, "category": "all"])

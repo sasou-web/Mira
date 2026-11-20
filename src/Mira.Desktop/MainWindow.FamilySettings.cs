@@ -198,7 +198,7 @@ public partial class MainWindow
 
     private Border FamilyProfilesRow(JellyfinClient client, HomeSettings settings)
     {
-        var body = FamilyCard(L("Profils", "Profiles"), L("Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un.", "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one."));
+        var body = FamilyCard(L("Profils", "Profiles"), L("Les comptes Jellyfin que le foyer propose. Un code à 4 chiffres garde un profil des autres ; un administrateur en a toujours un. « Peut télécharger » ouvre les téléchargements (TorLink) sans être administrateur.", "The Jellyfin accounts the home offers. A 4-digit PIN keeps a profile from the others; an administrator always has one. Can download opens Downloads (TorLink) without being an administrator."));
         var status = FamilyNote("");
         var list = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
         foreach (var account in settings.Profiles.Where(x => !x.Disabled).OrderBy(x => x.Admin).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)) list.Children.Add(Row(account));
@@ -218,10 +218,22 @@ public partial class MainWindow
                 try { await client.HomeOfferAsync(account.Id, offered.IsChecked == true, ct: _connectionLifetime.Token); }
                 catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { offered.IsChecked = !offered.IsChecked; FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
             };
-            var inHome = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) };
-            inHome.Children.Add(new TextBlock { Text = HomeText.InHome, Foreground = Palette.Get("TextSecondary"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
-            inHome.Children.Add(offered);
-            DockPanel.SetDock(inHome, Dock.Right); row.Children.Add(inHome);
+            var switches = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) };
+            switches.Children.Add(Labelled(HomeText.InHome, offered));
+            // « Can download »: TorLink without administering Jellyfin (an administrator always may: no switch).
+            if (!account.Admin)
+            {
+                var download = new CheckBox { IsChecked = account.Download, VerticalAlignment = VerticalAlignment.Center };
+                AutomationProperties.SetName(download, L($"{account.Name} peut télécharger", $"{account.Name} can download"));
+                download.Click += async (_, _) =>
+                {
+                    try { await client.HomeSetDownloadAsync(account.Id, download.IsChecked == true, _connectionLifetime.Token); }
+                    catch (Exception ex) when (IsExpected(ex) || ex is RelayRefusedException) { download.IsChecked = !download.IsChecked; FamilySay(status, ex is RelayRefusedException ? ex.Message : Friendly(ex), true); }
+                };
+                var line = Labelled(HomeText.CanDownload, download); line.Margin = new Thickness(0, 8, 0, 0);
+                switches.Children.Add(line);
+            }
+            DockPanel.SetDock(switches, Dock.Right); row.Children.Add(switches);
             if (!account.Admin || account.Offered)
             {
                 var pin = FamilyButton(account.Pin ? L("Changer le code", "Change PIN") : L("Ajouter un code", "Add a PIN"), () => AskProfilePin(account));
@@ -242,6 +254,13 @@ public partial class MainWindow
             text.Children.Add(new TextBlock { Style = (Style)FindResource("SettingDescription"), Text = account.Admin ? HomeText.AdminNeedsPin : AccountReach(account) });
             row.Children.Add(text);
             return row;
+        }
+        FrameworkElement Labelled(string label, CheckBox box)
+        {
+            var line = new DockPanel { HorizontalAlignment = HorizontalAlignment.Right };
+            DockPanel.SetDock(box, Dock.Right); line.Children.Add(box);
+            line.Children.Add(new TextBlock { Text = label, Foreground = Palette.Get("TextSecondary"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+            return line;
         }
         void AskProfilePin(HomeAccount account, bool offer = false)
         {

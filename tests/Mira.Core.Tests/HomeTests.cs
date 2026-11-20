@@ -52,6 +52,8 @@ internal static class HomeTests
             Assert(home.CheckPin(Sam, "0000", admin: true) is (HomeFamily.Pin.Wait, 0, var adminWait) && adminWait == HomeFamily.AdminPinWait && adminWait > HomeFamily.PinWait, "An administrator's profile: a far longer wait");
             now += HomeFamily.AdminPinWait;
             Assert(home.HasPin(Sam) && !home.HasPin(Lina) && home.CheckPin(Sam, "2468", admin: true).Result == HomeFamily.Pin.Open, "HasPin; after the administrator's wait, open");
+            // « Can download »: apart from the profiles, kept across an offer taken back and a new password.
+            Assert(!home.CanDownload(Lina) && home.SetDownload(Lina, true) && home.CanDownload(Lina.ToUpperInvariant()) && !home.SetDownload("pas-un-id", true), "Can download");
 
             // The profile a device has open; taken out of the home, the device loses it.
             var id = home.Devices().Single().Id;
@@ -61,6 +63,7 @@ internal static class HomeTests
             // Read back after a restart of Jellyfin.
             var read = new HomeFamily(file, () => now, iterations: 1000);
             Assert(read.On && read.ByToken(again.Token) is { Name: "Salon" } && read.CheckPin(Sam, "2468").Result == HomeFamily.Pin.Open && read.CheckPin(Sam, "1111").Result == HomeFamily.Pin.Wrong, "Read back");
+            Assert(read.CanDownload(Lina) && read.Downloaders().Count == 1 && read.SetDownload(Lina, false) && !read.CanDownload(Lina), "Can download: kept, Lina out of the home or not, then taken back");
 
             // Removed, then a new password: every device out.
             var phone = read.Join("famille-ok", "device-b2", "Téléphone", "1.2.3.5");

@@ -40,7 +40,8 @@ public static partial class RemoteDownloads
 
     /// <summary>
     /// Whether « Téléchargements » is offered: on the PC of Jellyfin, always (its own TorLink); elsewhere only where the
-    /// page can work, the relay of Mira's extension, which only an administrator may use. Without the extension (most
+    /// page can work, the relay of Mira's extension, which an administrator may use, and an account let download
+    /// (« Can download »: <paramref name="administrator"/> then means « may use the relay »). Without the extension (most
     /// servers) or for another account, never a page that cannot work. <paramref name="administrator"/> and
     /// <paramref name="extension"/> are null when Jellyfin did not say: <paramref name="before"/> stays.
     /// </summary>

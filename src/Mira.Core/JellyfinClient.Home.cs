@@ -109,6 +109,10 @@ public sealed partial class JellyfinClient
     public Task HomeOfferAsync(string userId, bool offered, string? pin = null, CancellationToken ct = default) =>
         HomeAdminAsync(HttpMethod.Put, $"Mira/home/profiles/{Uri.EscapeDataString(userId)}", pin is null ? new JsonObject { ["offered"] = offered } : new JsonObject { ["offered"] = offered, ["pin"] = pin }, ct);
 
+    /// <summary>« Can download »: an account let use TorLink without administering Jellyfin, or no longer.</summary>
+    public Task HomeSetDownloadAsync(string userId, bool download, CancellationToken ct = default) =>
+        HomeAdminAsync(HttpMethod.Put, $"Mira/home/profiles/{Uri.EscapeDataString(userId)}/download", new JsonObject { ["download"] = download }, ct);
+
     /// <summary>A profile's PIN (four digits) set, or taken off (null), by the administrator.</summary>
     public Task HomeSetPinAsync(string userId, string? pin, CancellationToken ct = default) =>
         HomeAdminAsync(HttpMethod.Put, $"Mira/home/profiles/{Uri.EscapeDataString(userId)}/pin", new JsonObject { ["pin"] = pin }, ct);
