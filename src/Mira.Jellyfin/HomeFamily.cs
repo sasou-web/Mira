@@ -435,6 +435,7 @@ public sealed class HomeFamily
 
         try
         {
+            ServerSecrets.Restrict(_file);
             _store = JsonSerializer.Deserialize<Store>(File.ReadAllText(_file), Json) ?? new Store();
             if (_store.Password is { } password && !password.Valid)
             {
@@ -468,10 +469,8 @@ public sealed class HomeFamily
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
-            var next = _file + ".next";
-            File.WriteAllText(next, JsonSerializer.Serialize(_store, Json));
-            File.Move(next, _file, true);
+            // Hashes only (passwords, codes, tokens), but a code of 4 digits is soon found from its hash: Jellyfin's account's alone.
+            ServerSecrets.Write(_file, JsonSerializer.Serialize(_store, Json));
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {

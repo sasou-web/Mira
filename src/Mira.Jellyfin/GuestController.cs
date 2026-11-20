@@ -4,9 +4,11 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.Session;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Mira.Jellyfin;
 
@@ -34,20 +36,24 @@ public sealed partial class GuestController : ControllerBase
     private readonly IHttpClientFactory _clients;
     private readonly IServerApplicationHost _host;
     private readonly PartyTitles _titles;
+    private readonly ISessionManager _sessions;
+    private readonly ILogger<GuestController> _logger;
 
-    public GuestController(IHttpClientFactory clients, IServerApplicationHost host, PartyTitles titles)
+    public GuestController(IHttpClientFactory clients, IServerApplicationHost host, PartyTitles titles, ISessionManager sessions, ILogger<GuestController> logger)
     {
         _clients = clients;
         _host = host;
         _titles = titles;
+        _sessions = sessions;
+        _logger = logger;
     }
 
     private bool French => RelayText.French(Request);
     private IEnumerable<string> Roots() => JellyfinLoopback.Roots(_host, Request.PathBase);
 
     /// <summary>
-    /// A link opened by a device: Jellyfin is asked for a session of the guest's account for it (by its password, which
-    /// never leaves the server), and the link becomes that device's. Refused for a code that is no link, a link another
+    /// A link opened by a device: Jellyfin makes a session of the guest's account for it (as for a profile of the home:
+    /// no password is kept for a guest), and the link becomes that device's. Refused for a code that is no link, a link another
     /// device took, or too many tries.
     /// </summary>
     [HttpPost("open")]
@@ -90,10 +96,10 @@ public sealed partial class GuestController : ControllerBase
                         return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas ouvert la séance. Réessaie dans un instant.");
                     }
 
-                    var (made, guestId, guestName, password) = await GuestAccounts.CreateAsync(client, Roots(), GuestAccounts.WithKey(key), body.Guest, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
+                    var (made, guestId, guestName) = await GuestAccounts.CreateAsync(client, Roots(), GuestAccounts.WithKey(key), body.Guest, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
                     if (made == GuestAccounts.Made.BadName)
                     {
-                        (made, guestId, guestName, password) = await GuestAccounts.CreateAsync(client, Roots(), GuestAccounts.WithKey(key), null, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
+                        (made, guestId, guestName) = await GuestAccounts.CreateAsync(client, Roots(), GuestAccounts.WithKey(key), null, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
                     }
 
                     if (made != GuestAccounts.Made.Done)
@@ -102,7 +108,7 @@ public sealed partial class GuestController : ControllerBase
                     }
 
                     // Checked again: the party may have been made again, or filled, while the account was made.
-                    mine = Plugin.Invites.JoinParty(guestName!, guestId!, password!, party!.Code, device);
+                    mine = Plugin.Invites.JoinParty(guestName!, guestId!, party!.Code, device);
                     if (mine is null)
                     {
                         return Refuse(StatusCodes.Status409Conflict, "Ce lien ne marche plus ou la party est pleine : demande à la personne qui t’a invité.");
@@ -129,22 +135,27 @@ public sealed partial class GuestController : ControllerBase
             invite = single;
         }
 
-        var (status, text) = await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Post, "Users/AuthenticateByName",
-            [("Authorization", Authorization(name, device, null))], JsonSerializer.Serialize(new { Username = invite!.Name, Pw = invite.Password }), cancellationToken).ConfigureAwait(false);
         string? token = null, userId = null, serverId = null;
-        if (status == (int)HttpStatusCode.OK)
+        try
         {
-            try
+            var result = await _sessions.AuthenticateDirect(new AuthenticationRequest
             {
-                var signedIn = JsonNode.Parse(text);
-                token = signedIn?["AccessToken"]?.GetValue<string>();
-                userId = signedIn?["User"]?["Id"]?.GetValue<string>();
-                serverId = signedIn?["ServerId"]?.GetValue<string>();
-            }
-            catch (Exception error) when (error is JsonException or InvalidOperationException or FormatException)
-            {
-                token = null;
-            }
+                UserId = Guid.Parse(invite!.UserId),
+                Username = invite.Name,
+                App = "Mira",
+                AppVersion = Version,
+                DeviceId = device,
+                DeviceName = name,
+                RemoteEndPoint = ClientAddress(),
+            }).ConfigureAwait(false);
+            token = result.AccessToken;
+            userId = result.User?.Id.ToString("N");
+            serverId = result.ServerId;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // Jellyfin's own refusals (the account gone, too many sessions) and any change of its API.
+            _logger.LogWarning(error, "Mira: Jellyfin did not open the session of a guest");
         }
 
         if (string.IsNullOrEmpty(token) || userId is null)
@@ -152,7 +163,7 @@ public sealed partial class GuestController : ControllerBase
             return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas ouvert la séance. Réessaie dans un instant.");
         }
 
-        if (!Plugin.Invites.Opened(invite.Id, device, name, token))
+        if (!Plugin.Invites.Opened(invite!.Id, device, name, token))
         {
             await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Post, "Sessions/Logout", [("Authorization", Authorization(name, device, token))], null, CancellationToken.None).ConfigureAwait(false);
             return Refuse(StatusCodes.Status404NotFound, "Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.");

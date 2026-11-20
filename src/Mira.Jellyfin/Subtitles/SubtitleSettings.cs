@@ -34,9 +34,12 @@ public sealed class SubtitleSettings
 public sealed class OpenSubtitlesSettings
 {
     public bool Enabled { get; set; } = true;
-    /// <summary>A key of the person's own (an « API consumer » of theirs); Mira's own key serves otherwise.</summary>
+    /// <summary>A key of the person's own (an « API consumer » of theirs); Mira's own key serves otherwise. Sealed in the file (<see cref="ServerSecrets"/>).</summary>
+    [JsonConverter(typeof(ServerSecrets.Sealed))]
     public string ApiKey { get; set; } = "";
     public string Username { get; set; } = "";
+    /// <summary>Sealed in the file (<see cref="ServerSecrets"/>).</summary>
+    [JsonConverter(typeof(ServerSecrets.Sealed))]
     public string Password { get; set; } = "";
     /// <summary>For the checks: another address than the real service.</summary>
     public string BaseUrl { get; set; } = "";
@@ -45,6 +48,8 @@ public sealed class OpenSubtitlesSettings
 public sealed class SubDlSettings
 {
     public bool Enabled { get; set; }
+    /// <summary>Sealed in the file (<see cref="ServerSecrets"/>).</summary>
+    [JsonConverter(typeof(ServerSecrets.Sealed))]
     public string ApiKey { get; set; } = "";
     public string BaseUrl { get; set; } = "";
     public string FilesUrl { get; set; } = "";
@@ -70,7 +75,21 @@ public sealed class SubtitleConfig
         _file = file;
         if (file is not null && File.Exists(file))
         {
-            try { _settings = JsonSerializer.Deserialize<SubtitleSettings>(File.ReadAllText(file), Json) ?? new SubtitleSettings(); }
+            try
+            {
+                ServerSecrets.Restrict(file);
+                ServerSecrets.Plain();
+                _settings = JsonSerializer.Deserialize<SubtitleSettings>(File.ReadAllText(file), Json) ?? new SubtitleSettings();
+                // A key or password sealed by another Windows account reads as nothing: asked again in the settings.
+                _settings.OpenSubtitles.ApiKey ??= "";
+                _settings.OpenSubtitles.Password ??= "";
+                _settings.SubDl.ApiKey ??= "";
+                if (ServerSecrets.Plain() && ServerSecrets.Sealing)
+                {
+                    // Written in clear by 0.9.15 or older: sealed now.
+                    Save();
+                }
+            }
             catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { _settings = new SubtitleSettings(); }
         }
     }
@@ -142,9 +161,7 @@ public sealed class SubtitleConfig
         // As the queue's file: a full disk or a refused folder keeps the settings for this run, never an error 500.
         try
         {
-            var temp = _file + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(_settings, Json));
-            File.Move(temp, _file, true);
+            ServerSecrets.Write(_file, JsonSerializer.Serialize(_settings, Json));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }

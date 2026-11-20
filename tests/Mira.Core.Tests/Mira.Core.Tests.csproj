@@ -25,6 +25,8 @@
     <Compile Include="../../src/Mira.Jellyfin/TorLinkRelay.Missing.cs" Link="Plugin/TorLinkRelay.Missing.cs" />
     <Compile Include="../../src/Mira.Jellyfin/GuestRoutes.cs" Link="Plugin/GuestRoutes.cs" />
     <Compile Include="../../src/Mira.Jellyfin/SessionTokens.cs" Link="Plugin/SessionTokens.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/ServerSecrets.cs" Link="Plugin/ServerSecrets.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/ProofSecrets.cs" Link="Plugin/ProofSecrets.cs" />
     <Compile Include="../../src/Mira.Jellyfin/GuestInvites.cs" Link="Plugin/GuestInvites.cs" />
     <Compile Include="../../src/Mira.Jellyfin/HomeFamily.cs" Link="Plugin/HomeFamily.cs" />
     <Compile Include="../../src/Mira.Jellyfin/HomeTailnet.cs" Link="Plugin/HomeTailnet.cs" />

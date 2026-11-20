@@ -589,8 +589,15 @@ public sealed class HomeTailnet
 
         try
         {
+            ServerSecrets.Restrict(_file);
+            ServerSecrets.Plain();
             _store = JsonSerializer.Deserialize<Store>(File.ReadAllText(_file), Json) ?? new Store();
             _store.Leaving.RemoveAll(x => TailnetAddress(x) is null);
+            if (ServerSecrets.Plain() && ServerSecrets.Sealing)
+            {
+                // The client's secret was in clear (0.9.15 and older): sealed now.
+                Save();
+            }
         }
         catch (Exception error) when (error is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -610,10 +617,7 @@ public sealed class HomeTailnet
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
-            var next = _file + ".next";
-            File.WriteAllText(next, JsonSerializer.Serialize(_store, Json), Encoding.UTF8);
-            File.Move(next, _file, true);
+            ServerSecrets.Write(_file, JsonSerializer.Serialize(_store, Json));
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -624,6 +628,8 @@ public sealed class HomeTailnet
     internal sealed class Store
     {
         public string? ClientId { get; set; }
+        /// <summary>Sealed in the file (<see cref="ServerSecrets"/>): it may write the tailnet's policy and make keys.</summary>
+        [JsonConverter(typeof(ServerSecrets.Sealed))]
         public string? ClientSecret { get; set; }
         public DateTimeOffset? Connected { get; set; }
         public List<string> Leaving { get; set; } = [];

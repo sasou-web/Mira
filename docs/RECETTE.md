@@ -22,6 +22,7 @@ Légende : 🖥 ton PC · 🗄 PC de Jellyfin · 📱 iPhone · 🍎 Mac d’un 
 - [ ] Sous-titres automatiques activés : un film sans sous-titres en reçoit, bien calés
 - [ ] Épisodes à venir (TheTVDB) activés : sur une série, une ligne fine « É3–4 · pas dans ta bibliothèque » entre les épisodes, ou le prochain en ligne vide au bout de sa saison ; une saison absente dans la liste des saisons
 - [ ] Métadonnées à côté des fichiers : quelques heures après l’ouverture de Mira, un `movie.nfo` et un `folder.jpg` dans le dossier d’un film, un `tvshow.nfo` dans celui d’une série ; un titre corrigé par « Identifier… » garde sa correction dans son NFO
+- [ ] Secrets scellés (0.9.16) : après la mise à jour de l’extension, `Mira.home-tailnet.json`, `Mira.invites.json`, `Mira.subtitles.json` et `Mira.proof.key` de `plugins\configurations` ne contiennent plus de secret en clair (`dpapi:…`), plus de `"password"` dans `Mira.invites.json` ; le foyer loin de la maison, un lien de party et un lien d’invité déjà donnés marchent encore, les sous-titres automatiques aussi
 - [ ] « Chercher une meilleure version » : l'ancien fichier part à la Corbeille, le titre garde sa progression
 - [ ] Corbeille sur le PC de Jellyfin : un épisode (clic droit) avec ses sous-titres, une saison (« … » de la ligne Épisodes), sur un fichier de test ; la fenêtre dit ce qui part ; tout revient depuis la Corbeille de Windows ; sur le WD monté dans un dossier
 
