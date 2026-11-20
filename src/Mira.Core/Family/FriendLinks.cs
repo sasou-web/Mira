@@ -90,6 +90,7 @@ public static class FriendText
     public static string Refuse => L("Refuser", "Refuse");
     public static string AddDevice => L("Ajouter un appareil", "Add a device");
     public static string RemoveDevice => L("Retirer cet appareil", "Remove this device");
+    public static string RemoveDeviceAsk => L("Retirer cet appareil ?", "Remove this device?");
     public static string In => L("Connecté", "In");
     public static string SetUpFirst => L("Pour qu’un ami regarde de chez lui, relie d’abord Mira à Tailscale (Réglages → Foyer, environ 3 minutes, une seule fois).",
         "For a friend to watch from their home, first connect Mira to Tailscale (Settings → Home, about 3 minutes, once).");

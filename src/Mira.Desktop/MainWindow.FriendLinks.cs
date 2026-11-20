@@ -182,7 +182,7 @@ public partial class MainWindow
     private async Task RemoveFriendDeviceAsync(FriendDeviceRow device, bool refusing)
     {
         if (_client is not { } client) return;
-        if (!refusing && !await ConfirmAsync(FriendText.RemoveDevice + " ?", L($"{device.Name} perd aussitôt sa ligne vers ce PC. Pour revenir, il faudra une nouvelle invitation.", $"{device.Name} loses its line to this PC at once. Coming back will take a new invite."), FriendText.RemoveDevice, L("Annuler", "Cancel"))) return;
+        if (!refusing && !await ConfirmAsync(FriendText.RemoveDeviceAsk, L($"{device.Name} perd aussitôt sa ligne vers ce PC. Pour revenir, il faudra une nouvelle invitation.", $"{device.Name} loses its line to this PC at once. Coming back will take a new invite."), FriendText.RemoveDevice, L("Annuler", "Cancel"))) return;
         try { await client.FriendRemoveDeviceAsync(device.Id, _connectionLifetime.Token); FriendLinesStatus.Text = ""; }
         catch (Exception ex) when (IsExpected(ex)) { FriendLinesStatus.Text = Friendly(ex); }
         await ShowFriendLinesAsync();
@@ -206,6 +206,9 @@ public partial class MainWindow
             var made = await client.FriendInviteAsync(user, _connectionLifetime.Token);
             try { Clipboard.SetText(made.Link); FriendLinesStatus.Text = FriendText.Copied; }
             catch (System.Runtime.InteropServices.ExternalException) { FriendLinesStatus.Text = made.Link; }
+            // The guide of this friend, if open, shows the new link, never the used one (seen on the Dell, 2026-11-20).
+            foreach (var guide in new[] { _friendGuide, _helpFriendGuide })
+                if (guide is not null && string.Equals(guide.UserId?.Replace("-", ""), user.Replace("-", ""), StringComparison.OrdinalIgnoreCase)) { guide.Link = made; RenderFriendGuide(guide); }
         }
         catch (FriendRefusedException ex) { FriendLinesStatus.Text = ex.Message; }
         catch (Exception ex) when (IsExpected(ex)) { FriendLinesStatus.Text = Friendly(ex); }

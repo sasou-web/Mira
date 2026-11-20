@@ -50,6 +50,17 @@ internal static class FriendInviteTests
             Assert(new FriendInvites(file, () => now + FriendInvites.Life + TimeSpan.FromMinutes(1)).Waiting(waitLate) is null, "Never let in before the link's end: gone");
             friends = new FriendInvites(file, () => now);
             Assert(friends.Devices().All(x => x.Id != nobody.Device!.Id), "Its entry gone too");
+            // Refused while it waits: kept (its node too) until it hears so, then gone; a let-in device is not « refused ».
+            var (tokenNo, _) = friends.Invite(Sam, "Sam", "kKey7", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;
+            var refusedOne = friends.Redeem(tokenNo, "device-sam-mac", "Mac de Sam", "100.101.4.6", out var waitNo);
+            Assert(friends.Refuse(refusedOne.Device!.Id) is { Refused: not null } && friends.Refuse(knock.Device!.Id) is null, "Refused, only while waiting");
+            Assert(new FriendInvites(file, () => now).Devices().Any(x => x.Id == refusedOne.Device!.Id && x.Tailnet == "100.101.4.6"), "Kept, its node with it, until it asks");
+            Assert(friends.Waiting(waitNo, out var told) is null && told?.Id == refusedOne.Device!.Id && friends.Devices().All(x => x.Id != refusedOne.Device!.Id), "Told once, then gone");
+            var (tokenNever, _) = friends.Invite(Sam, "Sam", "kKey6", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;
+            var never = friends.Redeem(tokenNever, "device-sam-tv", "TV de Sam", "100.101.4.7", out _);
+            friends.Refuse(never.Device!.Id);
+            Assert(new FriendInvites(file, () => now + FriendInvites.RefusalKept + TimeSpan.FromMinutes(1)).Devices().All(x => x.Id != never.Device!.Id), "Never asked again: gone after a while");
+            friends = new FriendInvites(file, () => now);
             // Ended, cancelled, wrong.
             var (late, _) = friends.Invite(Sam, "Sam", "kKey2", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;
             var (cancelled, entry) = friends.Invite(Sam, "Sam", "kKey3", HomeTailnet.FriendTag, now + FriendInvites.Life)!.Value;

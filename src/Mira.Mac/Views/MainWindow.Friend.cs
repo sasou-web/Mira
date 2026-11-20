@@ -122,6 +122,14 @@ public sealed partial class MainWindow
             catch (Exception ex) when (Errors.Expected(ex))
             {
                 // The friend's PC asleep, a network change: said after a while, still asked.
+                // The node signed out of the friend's tailnet: this Mac was taken off it (refused long ago).
+                if (FamilyNode.State == TailnetStates.NeedsLogin)
+                {
+                    await ForgetFriendWaitAsync();
+                    if (Family is not null) ShowFriend(null, FriendText.Refused, ended: true);
+                    else Notice(FriendText.Refused, tone: NoticeTone.Error);
+                    return;
+                }
                 if (++quiet >= 4 && Family is { Shown: FamilyView.Stage.Friend } view) view.FriendError(L("Le serveur de ton ami ne répond pas pour l’instant. Mira réessaie.", "Your friend’s server isn’t answering right now. Mira keeps trying."));
             }
             try { await Task.Delay(TimeSpan.FromSeconds(quiet > 0 ? 10 : 4), ct); }

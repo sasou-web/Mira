@@ -528,7 +528,7 @@ public sealed class FriendsSection
     private async Task RemoveAsync(FriendDeviceRow device, bool refusing)
     {
         if (_shell.Session is not { } session) return;
-        if (!refusing && !await _shell.ConfirmAsync(FriendText.RemoveDevice + " ?", L($"{device.Name} perd aussitôt sa ligne vers ce serveur. Pour revenir, il faudra une nouvelle invitation.", $"{device.Name} loses its line to this server at once. Coming back will take a new invite."), FriendText.RemoveDevice, L("Annuler", "Cancel"))) return;
+        if (!refusing && !await _shell.ConfirmAsync(FriendText.RemoveDeviceAsk, L($"{device.Name} perd aussitôt sa ligne vers ce serveur. Pour revenir, il faudra une nouvelle invitation.", $"{device.Name} loses its line to this server at once. Coming back will take a new invite."), FriendText.RemoveDevice, L("Annuler", "Cancel"))) return;
         try { await session.Client.FriendRemoveDeviceAsync(device.Id, session.Lifetime); _linesStatus.Text = ""; }
         catch (Exception ex) when (Errors.Expected(ex)) { _linesStatus.Text = Errors.Friendly(ex); }
         await ShowLinesAsync();
@@ -550,6 +550,8 @@ public sealed class FriendsSection
             var made = await session.Client.FriendInviteAsync(user, session.Lifetime);
             await CopyAsync(made.Link, _linesStatus);
             _linesStatus.Text = FriendText.Copied;
+            // The guide of this friend, if open, shows the new link, never the used one (seen on the Dell, 2026-11-20).
+            if (_guide is { } guide && string.Equals(guide.FriendId.Replace("-", ""), user.Replace("-", ""), StringComparison.OrdinalIgnoreCase)) { guide.Link = made; Render(guide); }
         }
         catch (FriendRefusedException ex) { _linesStatus.Text = ex.Message; }
         catch (Exception ex) when (Errors.Expected(ex)) { _linesStatus.Text = Errors.Friendly(ex); }
