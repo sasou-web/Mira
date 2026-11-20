@@ -1,5 +1,26 @@
 [
   {
+    "version": "0.9.16", "date": "2026-11-20",
+    "summary": "Inviter un ami par un lien, une page Sécurité, tes proches en tête des Réglages.",
+    "en": { "summary": "Invite a friend with a link, a Security page, your people first in Settings." },
+    "changes": [
+      { "category": "Amis", "text": "Un lien d’une fois, sans compte Tailscale : l’appareil de ton ami attend que tu le laisses entrer.", "en": { "category": "Friends", "text": "A one-time link, no Tailscale account: your friend’s device waits until you let it in." } },
+      { "category": "Sécurité", "text": "Comptes sans mot de passe, appareils connectés, Jellyfin ouvert à Internet : dits et réglés d’un clic.", "en": { "category": "Security", "text": "Accounts without a password, connected devices, Jellyfin open to the Internet: shown and fixed in one click." } },
+      { "category": "Famille", "text": "Un profil admin derrière un code, « Can download » sans être admin, ton propre compte retenu.", "en": { "category": "Family", "text": "An admin profile behind a PIN, “Can download” without being an admin, your own account remembered." } },
+      { "category": "Loin de chez toi", "text": "Le Tailscale du foyer réglé pas à pas ; « Fix my policy » limite les amis partagés à Jellyfin.", "en": { "category": "Away from home", "text": "The home’s Tailscale set up step by step; “Fix my policy” keeps shared friends to Jellyfin." } },
+      { "category": "Réglages", "text": "Compte, Famille & profils, Amis & invités et Loin de chez toi en tête de la liste.", "en": { "category": "Settings", "text": "Account, Family & profiles, Friends & guests and Away from home at the top of the list." } },
+      { "category": "Séries", "text": "« Saison 3 » au lieu de « partie 1 » ou d’un nom d’AniDB avec son année.", "en": { "category": "Shows", "text": "“Season 3” instead of “part 1” or an AniDB name with its year." } },
+      { "category": "Extension", "text": "Les secrets du serveur ne sont plus écrits en clair, ni le mot de passe d’un invité.", "en": { "category": "Extension", "text": "The server’s secrets are no longer written in plain text, nor a guest’s password." } },
+      { "category": "Mac", "text": "Un menu de Mira ne reste plus seul par-dessus les autres apps.", "en": { "category": "Mac", "text": "A Mira menu no longer stays alone over other apps." } }
+    ],
+    "items": [
+      { "icon": "users", "title": "Inviter un ami par un lien", "text": "Un lien court qui marche une fois, sans compte Tailscale ni mot de passe. Son appareil attend que tu le laisses entrer, et n’atteint que Jellyfin.", "en": { "title": "Invite a friend with a link", "text": "A short link that works once, with no Tailscale account or password. Their device waits until you let it in, and reaches only Jellyfin." } },
+      { "icon": "shield", "title": "Réglages → Sécurité", "text": "Les comptes sans mot de passe, les appareils connectés et un Jellyfin ouvert à Internet, chacun réglé d’un clic.", "en": { "title": "Settings → Security", "text": "Accounts without a password, connected devices and a Jellyfin open to the Internet, each fixed in one click." } },
+      { "icon": "settings", "title": "Tes proches d’abord", "text": "Compte, Famille & profils, Amis & invités et Loin de chez toi en tête des Réglages.", "en": { "title": "Your people first", "text": "Account, Family & profiles, Friends & guests and Away from home at the top of Settings." } },
+      { "icon": "series", "title": "Des saisons bien nommées", "text": "« Saison 3 » au lieu de « partie 1 » ou d’un nom d’AniDB avec son année.", "en": { "title": "Seasons named right", "text": "“Season 3” instead of “part 1” or an AniDB name with its year." } }
+    ]
+  },
+  {
     "version": "0.9.15", "date": "2026-11-19",
     "summary": "Le foyer et « Qui regarde ? », les vrais noms des saisons, la lecture avant les téléchargements.",
     "en": { "summary": "The home and “Who’s watching?”, seasons by their own names, watching before downloading." },

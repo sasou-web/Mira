@@ -104,7 +104,7 @@ public partial class MainWindow
     /// The screens only a release's banner shows (tools/banner/plan.mjs): the films' filters open, a series' missing
     /// episodes at their place (Invincible's, from tools/web/fake-tvdb), a saga's page (windows-shelf), the mini-player out against the right edge over
     /// Home, its controls shown, playing a film whose video gallery.yml made of its backdrop (libmpv as Mira installs it),
-    /// then the player whole (windows-player). Settings too: The essentials, Privacy and Discord.
+    /// then the player whole (windows-player). Settings too: The essentials, Security, Privacy and Discord.
     /// </summary>
     private async Task BannerShotsAsync(string output, Func<string, Task> shot)
     {
@@ -132,10 +132,14 @@ public partial class MainWindow
         await DownloadsShotAsync(shot);
         await FamilyShotAsync(shot);
 
-        // Settings: The essentials, Privacy, then Discord and its live preview of the card: before the player, which
+        // Settings: The essentials, Security, Privacy, then Discord and its live preview of the card: before the player, which
         // would cover the window.
         Settings_Click(this, new()); SelectSettingsTab("home"); await Task.Delay(1500);
         await shot("windows-settings");
+        // Settings → Security (0.9.16), read for the gallery's administrator through Mira's extension: the home's
+        // profiles offered just before, the devices the gallery signed in.
+        await ReadSecurityAsync(again: true); SelectSettingsTab("security"); await Task.Delay(2000);
+        await shot("windows-security");
         SelectSettingsTab("privacy"); await Task.Delay(1500);
         await shot("windows-privacy");
         SelectSettingsTab("discord"); await Task.Delay(1500);
