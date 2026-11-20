@@ -40,7 +40,7 @@ public static class EpisodePages
         var pages = new List<EpisodePage>();
         foreach (var season in episodes.GroupBy(Season).OrderBy(x => x.Key))
         {
-            var list = season.ToList(); var name = season.Key == 0 ? L("Épisodes spéciaux", "Specials") : Named(season.Key, list.Select(x => x.SeasonName)) ?? L($"Saison {season.Key}", $"Season {season.Key}");
+            var list = season.ToList(); var name = season.Key == 0 ? L("Épisodes spéciaux", "Specials") : Named(season.Key, list.Select(x => x.SeasonName), list[0].SeriesName) ?? L($"Saison {season.Key}", $"Season {season.Key}");
             if (list.Count <= Size) { pages.Add(new(season.Key, 0, list.Count, name)); continue; }
             for (var skip = 0; skip < list.Count; skip += Size)
             {
@@ -60,19 +60,24 @@ public static class EpisodePages
     /// (Attack on Titan on the Dell: « Saison 3 Partie 1 » over 22 episodes, 2026-11-20); another season's part, or
     /// « Saison finale », in Mira's words: « Saison 3 · partie 2 », « Final Season ». The iPhone's SeasonNames, cases of tests/fixtures/season-names.json.
     /// </summary>
-    public static string? Named(int season, IEnumerable<string?> names) => Named(season, names.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)), IsFrench);
+    public static string? Named(int season, IEnumerable<string?> names, string? series = null) => Named(season, names.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)), IsFrench, series);
 
     private const string Word = @"(?:season|saison|staffel|temporada|stagione|seizoen)";
     private static readonly System.Text.RegularExpressions.Regex Ending = new(@"(?:^|[\s\-–—:·,(])" + Word + @"\s*0*(\d+)\s*\)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     private static readonly System.Text.RegularExpressions.Regex Part = new(@"(?:^|[\s\-–—:·,(])" + Word + @"\s*0*(\d+)\s*[\-–—:·,]?\s*(?:part|partie|teil|parte|cour)\s*0*(\d+)\s*\)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     private static readonly System.Text.RegularExpressions.Regex Final = new(@"(?:^|[\s\-–—:·,(])(?:" + Word + @"\s+finale?|(?:the\s+)?final\s+season|la\s+saison\s+finale|finale)\s*\)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex Year = new(@"\s*\((?:19|20)\d\d\)$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     private static readonly System.Text.RegularExpressions.Regex Bare = new(@"^\p{L}+(?:\s\p{L}+)?\s*0*(\d+)$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     /// <summary><see cref="Named(int, IEnumerable{string?})"/> for one name, in French or English (for the shared cases).</summary>
-    public static string? Named(int season, string? name, bool french)
+    public static string? Named(int season, string? name, bool french, string? series = null)
     {
         name = name?.Trim();
         if (string.IsNullOrEmpty(name)) return null;
+        // A title and its year (« Les Carnets de l'apothicaire (2025) », « The Apothecary Diaries (2026) » on the Dell,
+        // 2026-11-20: AniDB's entry for each season, in whatever language it gave) or the series' own name says nothing
+        // of the season: Mira's « Saison N ».
+        if (Year.IsMatch(name) || series is not null && string.Equals(name, series.Trim(), StringComparison.OrdinalIgnoreCase)) return null;
         var number = season.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // « Saison 3 Partie 1 » on Jellyfin's season 3 names where it came from (a folder, the provider), not what it holds:
         // the season is all of Jellyfin's season 3, both parts on the Dell (2026-11-20), so Mira's « Saison 3 ». Another
