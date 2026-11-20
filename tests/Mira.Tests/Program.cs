@@ -228,16 +228,16 @@ await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en fra
         && MediaFolders.Refusal(Path.Combine(documents, "Jellyfin")) is null && MediaFolders.Refusal(MediaFolders.DefaultRoot) is null, "Personal folders as media roots");
     folders.Create(); folders.AllowJellyfinService();
     Assert(new[] { folders.Movies, folders.Series, folders.Anime }.All(Directory.Exists) && Path.GetFileName(folders.Series) == "Séries" && !folders.Root.EndsWith(' '), "Media folders");
-    await JellyfinSetup.ConfigureAsync(server, "Alice", "secret", folders, handler);
+    await JellyfinSetup.ConfigureAsync(server, "Alice", "secret-of-alice", folders, handler);
     (string, string, string)[] expected = [("Films", "movies", folders.Movies), ("Séries", "tvshows", folders.Series), ("Animes", "tvshows", folders.Anime)];
-    Assert(completed && name == "Alice" && password == "secret" && culture == "fr/FR" && remote == false && signed, $"Wizard: {completed} {name} {culture} {remote} {signed}");
+    Assert(completed && name == "Alice" && password == "secret-of-alice" && culture == "fr/FR" && remote == false && signed, $"Wizard: {completed} {name} {culture} {remote} {signed}");
     Assert(libraries.SequenceEqual(expected), "Libraries: " + string.Join(", ", libraries));
     Assert(sagas.SequenceEqual(["Films"]), "Films gathered into sagas: " + string.Join(", ", sagas));
     // Jellyfin's own previews decode every frame each night: Mira turns them on once signed in, the light way.
     Assert(previews.Count == 0, "Libraries made with Jellyfin's heavy previews: " + string.Join(", ", previews));
     // Cut off before its end: run again with the same account, the missing library is added once.
     completed = false; libraries.RemoveAt(2);
-    await JellyfinSetup.ConfigureAsync(server, "Alice", "secret", folders, handler);
+    await JellyfinSetup.ConfigureAsync(server, "Alice", "secret-of-alice", folders, handler);
     Assert(completed && libraries.SequenceEqual(expected), "Resumed setup: " + string.Join(", ", libraries));
     async Task Refused(Func<Task> setup, string message)
     {
@@ -245,11 +245,11 @@ await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en fra
         catch (InstallException ex) { Assert(ex.Message.Contains(message), ex.Message); }
     }
     completed = false;
-    await Refused(() => JellyfinSetup.ConfigureAsync(server, "Alice", "autre", folders, handler), "déjà un compte administrateur");
+    await Refused(() => JellyfinSetup.ConfigureAsync(server, "Alice", "another-password", folders, handler), "déjà un compte administrateur");
     libraries.Clear(); failLibrary = true;
-    await Refused(() => JellyfinSetup.ConfigureAsync(server, "Alice", "secret", folders, handler), "la bibliothèque Films (code 500)");
+    await Refused(() => JellyfinSetup.ConfigureAsync(server, "Alice", "secret-of-alice", folders, handler), "la bibliothèque Films (code 500)");
     var sent = requests;
-    foreach (var (user, secret) in new[] { (" Alice", "secret"), ("a/b", "secret"), ("Alice", "") })
+    foreach (var (user, secret) in new[] { (" Alice", "secret-of-alice"), ("a/b", "secret-of-alice"), ("Alice", "") })
     {
         try { await JellyfinSetup.ConfigureAsync(server, user, secret, folders, handler); throw new Exception("Accepted: " + user); }
         catch (ArgumentException) { }
