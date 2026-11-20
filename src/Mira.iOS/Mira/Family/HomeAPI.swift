@@ -193,7 +193,7 @@ struct HomeAPI: Sendable {
         return HomeRefused(message: message, status: status, kind: kind, left: answer?.left, wait: answer?.wait)
     }
 
-    private func send(_ method: String, _ path: String, token: String?, body: [String: Any]?, timeout: TimeInterval) async throws -> (Int, Data, Bool) {
+    func send(_ method: String, _ path: String, token: String?, body: [String: Any]?, timeout: TimeInterval) async throws -> (Int, Data, Bool) {
         var request = URLRequest(url: base.appending(path: path), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")

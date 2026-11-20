@@ -81,4 +81,34 @@ struct FamilyTests {
         #expect(home.home && home.profiles.first?.maxRating == "PG-13" && home.devices.first?.profileName == "Sam")
         #expect(home.changed != nil && home.devices.first?.seen != nil, "The extension's dates, with fractions of a second or not")
     }
+
+    // The short links (JoinLink of Core), as the extension makes them: kind, 100.88.12.34, port, the key without
+    // « tskey-auth- », path; the same bytes as JoinLink.Make.
+    private static let friendLink = "AmRYDCIfoB1rQWJDMTIzQ05UUkwtMDEyMzQ1Njc4OWFiY2RlZg"
+    private static let homeLink = "AWRYDCIi2B1rQWJDMTIzQ05UUkwtMDEyMzQ1Njc4OWFiY2RlZi9qZWxseWZpbg"
+
+    @Test("Le lien court d’un ami se relit, sur sa page comme dans Mira")
+    func joinLinks() throws {
+        for text in [JoinLink.page + Self.friendLink, JoinLink.app + Self.friendLink, "mira://join/#" + Self.friendLink] {
+            let link = try #require(JoinLink.read(text), "\(text.prefix(20))")
+            #expect(link.kind == .friend && link.key == "tskey-auth-kAbC123CNTRL-0123456789abcdef")
+            #expect(link.address.absoluteString == "http://100.88.12.34:8096/" && link.host == "100.88.12.34")
+        }
+        let home = try #require(JoinLink.read(JoinLink.page + Self.homeLink))
+        #expect(home.kind == .home && home.address.absoluteString == "http://100.88.12.34:8920/jellyfin/")
+        // A home's short link opens the home's card: no name or id in it, read from the server once reached.
+        let card = try #require(HomeLink.read(JoinLink.app + Self.homeLink))
+        #expect(card.serverId.isEmpty && card.key == home.key && !card.expired() && !card.is("0123456789abcdef0123456789abcdef"))
+        #expect(HomeLink.read(JoinLink.app + Self.friendLink) == nil, "A friend's invite is not a home link")
+    }
+
+    @Test("Rien d’autre n’est pris pour un lien court")
+    func notJoinLinks() {
+        #expect(JoinLink.read(JoinLink.page + "AsCoASofoB1rQWJDMTIzQ05UUkwtMDEyMzQ1Njc4OWFiY2RlZg") == nil, "An address outside Tailscale's")
+        #expect(JoinLink.read(JoinLink.page + String(Self.friendLink.dropLast(8))) == nil, "Cut short")
+        #expect(JoinLink.read(JoinLink.page + Self.friendLink + "<script>") == nil, "Something after it")
+        #expect(JoinLink.read(JoinLink.page) == nil, "Nothing after the #")
+        #expect(JoinLink.read("https://example.com/join#" + Self.friendLink) == nil, "Another site")
+        #expect(JoinLink.read(HomeLink.page + Self.friendLink) == nil, "A home page's link")
+    }
 }

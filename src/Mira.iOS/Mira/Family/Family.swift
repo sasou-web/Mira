@@ -258,7 +258,7 @@ final class Family {
         let expired = link.expired()
         said = expired ? HomeText.linkExpired(link.name) : nil
         stage = .join(JoinCard(title: HomeText.join(link.name), fromLink: true, heading: HomeText.fromLink(link.name), note: HomeText.fromLinkNote,
-                               ownLabel: HomeText.ownAccount, canJoin: !expired, server: link.address, name: link.name, serverId: link.serverId, link: link))
+                               ownLabel: HomeText.ownAccount, canJoin: !expired, server: link.address, name: link.name, serverId: link.serverId.isEmpty ? nil : link.serverId, link: link))
     }
 
     /// The sign-in found a server at the address typed, and it has a home: its password, no account to type (« Use my

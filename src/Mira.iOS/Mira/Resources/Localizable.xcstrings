@@ -8715,56 +8715,6 @@
         }
       }
     },
-    "The home, away from home": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le foyer, loin de la maison"
-          }
-        }
-      }
-    },
-    "Tailscale’s coordination server and its relays, your router (as Built-in Tailscale), then the home’s Jellyfin alone, on its administrator’s Tailscale network.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le serveur de coordination de Tailscale et ses relais, ton routeur (comme Tailscale intégré), puis le seul Jellyfin du foyer, sur le réseau Tailscale de son administrateur."
-          }
-        }
-      }
-    },
-    "Only after a home link opened in Mira, each time Mira opens, until you leave the home.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seulement après un lien du foyer ouvert dans Mira, à chaque ouverture de Mira, jusqu’à ce que tu quittes le foyer."
-          }
-        }
-      }
-    },
-    "As Built-in Tailscale, without your Tailscale account: the device’s name, its system, its IP addresses and its public key; the link’s single-use key, once. Videos stay end-to-end encrypted, no log is sent.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Comme Tailscale intégré, sans ton compte Tailscale : le nom de l’appareil, son système, ses adresses IP et sa clé publique ; la clé à usage unique du lien, une fois. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé."
-          }
-        }
-      }
-    },
-    "“Leave this home”, in Settings → Switch profile.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "« Quitter ce foyer », dans Réglages → Changer de profil."
-          }
-        }
-      }
-    },
     "A key that can do three things only: make the home links, remove a device, and keep your rules right. Tick exactly what the picture shows.": {
       "localizations": {
         "fr": {
@@ -9591,6 +9541,236 @@
           "stringUnit": {
             "state": "translated",
             "value": "pas celle-ci"
+          }
+        }
+      }
+    },
+    "You’re invited to watch": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu es invité à regarder"
+          }
+        }
+      }
+    },
+    "A private line to your friend’s PC, made for you. Nothing to install or sign up for.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une ligne privée vers le PC de ton ami, faite pour toi. Rien à installer ni à créer."
+          }
+        }
+      }
+    },
+    "Your friend sees this device’s name, its system, its public IP address and when it last connected, and what you watch on their server, like on any shared server.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton ami voit le nom de cet appareil, son système, son adresse IP publique et sa dernière connexion, et ce que tu regardes sur son serveur, comme sur tout serveur partagé."
+          }
+        }
+      }
+    },
+    "Start watching": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commencer à regarder"
+          }
+        }
+      }
+    },
+    "Reaching your friend’s server…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion au serveur de ton ami…"
+          }
+        }
+      }
+    },
+    "Almost there": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Presque prêt"
+          }
+        }
+      }
+    },
+    "Your friend needs to let this device in: they see it in Mira. Keep Mira open.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton ami doit laisser entrer cet appareil : il le voit dans Mira. Garde Mira ouverte."
+          }
+        }
+      }
+    },
+    "This invite was already used": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette invitation a déjà servi"
+          }
+        }
+      }
+    },
+    "An invite works once. Ask your friend for a new one: it takes them one click.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une invitation ne sert qu’une fois. Demandes-en une nouvelle à ton ami : un clic lui suffit."
+          }
+        }
+      }
+    },
+    "This invite has ended": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette invitation a expiré"
+          }
+        }
+      }
+    },
+    "An invite lasts 48 hours. Ask your friend for a new one: it takes them one click.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une invitation dure 48 heures. Demandes-en une nouvelle à ton ami : un clic lui suffit."
+          }
+        }
+      }
+    },
+    "Your friend didn’t let this device in. Ask them for a new invite.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton ami n’a pas laissé entrer cet appareil. Demande-lui une nouvelle invitation."
+          }
+        }
+      }
+    },
+    "I have an address instead": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "J’ai une adresse à la place"
+          }
+        }
+      }
+    },
+    "This server doesn’t have the up-to-date Mira extension yet: ask your friend to update Mira.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce serveur n’a pas encore l’extension Mira à jour : demande à ton ami de mettre Mira à jour."
+          }
+        }
+      }
+    },
+    "This device is already in a home joined by a link. Leave that home first, then open the invite again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet appareil est déjà dans un foyer rejoint par un lien. Quitte ce foyer d’abord, puis rouvre l’invitation."
+          }
+        }
+      }
+    },
+    "Your friend took this device off their server. Ask them for a new invite.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton ami a retiré cet appareil de son serveur. Demande-lui une nouvelle invitation."
+          }
+        }
+      }
+    },
+    "Your friend’s server didn’t answer. Try again in a moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de ton ami n’a pas répondu. Réessaie dans un instant."
+          }
+        }
+      }
+    },
+    "Your friend’s server isn’t answering right now. Mira keeps trying.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de ton ami ne répond pas pour l’instant. Mira réessaie."
+          }
+        }
+      }
+    },
+    "The home away from home, a friend’s server": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le foyer loin de la maison, le serveur d’un ami"
+          }
+        }
+      }
+    },
+    "Tailscale’s coordination server and its relays, your router (as Built-in Tailscale), then the home’s or the friend’s Jellyfin alone, on its administrator’s Tailscale network.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de coordination de Tailscale et ses relais, ton routeur (comme Tailscale intégré), puis le seul Jellyfin du foyer ou de l’ami, sur le réseau Tailscale de son administrateur."
+          }
+        }
+      }
+    },
+    "Only after a home link or a friend’s invite opened in Mira, each time Mira opens, until you leave the home or your friend removes this iPhone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seulement après un lien du foyer ou l’invitation d’un ami ouverts dans Mira, à chaque ouverture de Mira, jusqu’à ce que tu quittes le foyer ou que ton ami retire cet iPhone."
+          }
+        }
+      }
+    },
+    "As Built-in Tailscale, without your Tailscale account: the device’s name, its system, its IP addresses and its public key; the link’s single-use key, once. The host so sees this iPhone’s name, its system, its public IP address and when it last connected. Videos stay end-to-end encrypted, no log is sent.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comme Tailscale intégré, sans ton compte Tailscale : le nom de l’appareil, son système, ses adresses IP et sa clé publique ; la clé à usage unique du lien, une fois. L’hôte voit donc le nom de cet iPhone, son système, son adresse IP publique et sa dernière connexion. Les vidéos restent chiffrées de bout en bout, aucun journal n’est envoyé."
+          }
+        }
+      }
+    },
+    "“Leave this home”, in Settings → Switch profile. At a friend’s: they remove this iPhone, or another invite takes it elsewhere.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« Quitter ce foyer », dans Réglages → Changer de profil. Chez un ami : il retire cet iPhone, ou une autre invitation l’emmène ailleurs."
           }
         }
       }

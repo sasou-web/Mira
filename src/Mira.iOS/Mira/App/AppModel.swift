@@ -57,6 +57,8 @@ final class AppModel {
     let keeper = Keeper()
     /// « Le foyer »: the home this iPhone is in, « Who's watching? » and its profiles.
     let family: Family
+    /// A friend's invite (mira://join#…): its page, then the wait for the friend to let this iPhone in.
+    let friend = FriendInvite()
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
     /// What this account may do with collections (TitleCollections), read once from Users/Me for the account signed in.
@@ -93,6 +95,7 @@ final class AppModel {
             KeptStore.erase(keeping: nil)
             defaults.removeObject(forKey: "mira.tailnet.outageHidden")
             Family.reset()
+            FriendInvite.reset()
         }
         family = Family()
         // Once the UI tests' reset is done: it reads whether it is on.
@@ -111,6 +114,9 @@ final class AppModel {
         family.app = self
         // In a home: « Who's watching? » first, its node carrying the profile's Jellyfin when it came from a link.
         family.start()
+        friend.app = self
+        // A wait for a friend's « Let in » goes on; a friend's session has the node carry its Jellyfin.
+        friend.start()
         JellyfinClient.refused = { [weak self] token in self?.refused(token) }
         keeper.use(session, alsoKeeping: homeAccounts(session))
         preferences.use(account: session?.userId)
@@ -152,6 +158,7 @@ final class AppModel {
         Task {
             await tailnet.foreground(playing: player != nil || keeper.busy)
             await family.foreground()
+            await friend.foreground()
             await Way.shared.wake()
             keeper.resume()
         }
@@ -164,6 +171,7 @@ final class AppModel {
         keeper.background()
         tailnet.background(playing: player != nil || keeper.busy)
         family.background(playing: player != nil || keeper.busy)
+        friend.background(playing: player != nil || keeper.busy)
     }
 
     /// The copies all fetched (or stopped) while Mira is off screen: Built-in Tailscale stops now.
@@ -225,6 +233,15 @@ final class AppModel {
     /// A mira:// link: a QR code of « Mira on your iPhone » (mira://connect), a group (mira://ensemble), a home link
     /// (mira://home#…), or a party.
     func open(_ url: URL) async {
+        // The short link (miracinema.app/join): a friend's invite, or a home's.
+        if JoinLink.isJoinLink(url.absoluteString) || url.host()?.lowercased() == "join" {
+            if let link = JoinLink.read(url.absoluteString), link.kind == .friend {
+                friend.openLink(link)
+            } else {
+                family.openLink(url.absoluteString)
+            }
+            return
+        }
         if HomeLink.isHomeLink(url.absoluteString) || url.host()?.lowercased() == "home" {
             family.openLink(url.absoluteString)
             return
@@ -447,6 +464,7 @@ final class AppModel {
         SessionStore.delete()
         let serverId = session?.serverId
         let homeSession = family.isHomeSession(session)
+        if friend.isFriendSession(session) { friend.signedOut() }
         session = nil
         // A profile of the home signed out: « Who's watching? » again.
         if homeSession { family.sessionClosed() }
