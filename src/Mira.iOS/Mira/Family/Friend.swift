@@ -148,6 +148,12 @@ final class FriendInvite {
             } catch {
                 if Task.isCancelled { return }
                 quiet += 1
+                // The node signed out of the friend's tailnet: this iPhone was taken off it (refused long ago).
+                if quiet >= 2, await TailscaleLibrary.homeStatus().state == "needs-login" {
+                    await forget()
+                    if stage == .waiting || stage == .none { stage = .ended(FriendText.refused, FriendText.usedLine) }
+                    return
+                }
                 if quiet >= 4, stage == .waiting { said = FriendText.notAnswering }
             }
             try? await Task.sleep(for: .seconds(quiet > 0 ? 10 : 4))
