@@ -23,7 +23,7 @@ public partial class MainWindow
     private JellyfinClient? _securityRead;
     private string _securityProblem = "";
     private int _securityDraw;
-    private bool _securityAllShown;
+    private bool _securityAllShown, _securityDevicesShown;
 
     /// <summary>
     /// The accounts and devices read again for this administrator, then told everywhere: the page, the list's dot, the
@@ -101,7 +101,7 @@ public partial class MainWindow
             var text = _securityProblem.Length > 0 ? _securityProblem : SecurityText.Reading;
             var row = FamilyRow(new StackPanel());
             ((StackPanel)row.Child).Children.Add(FamilyNote(text, _securityProblem.Length > 0, new Thickness(0)));
-            if (_securityProblem.Length > 0) ((StackPanel)row.Child).Children.Add(Spaced(FamilyButton(L("Réessayer", "Try again"), () => _ = ReadSecurityAsync(again: true)), 12));
+            if (_securityProblem.Length > 0) ((StackPanel)row.Child).Children.Add(Spaced(FamilyButton(L("Réessayer", "Try again"), async () => await ReadSecurityAsync(again: true)), 12));
             page.Children.Add(row);
             return;
         }
@@ -114,9 +114,9 @@ public partial class MainWindow
         {
             page.Children.Add(SecurityLabel(SecurityText.Server, null));
             if (server.Internet is { } internet)
-                page.Children.Add(SecurityServerRow("globe", SecurityText.InternetTitle(internet.Open), SecurityText.InternetLine(internet.Open), internet.Open, () => _ = CloseInternetAsync()));
+                page.Children.Add(SecurityServerRow("globe", SecurityText.InternetTitle(internet.Open), SecurityText.InternetLine(internet.Open), internet.Open, async () => await CloseInternetAsync()));
             if (server.PublicWifi is { } wifi)
-                page.Children.Add(SecurityServerRow("wifi", SecurityText.PublicWifiTitle(wifi), SecurityText.PublicWifiLine(wifi), wifi, () => _ = ClosePublicWifiAsync()));
+                page.Children.Add(SecurityServerRow("wifi", SecurityText.PublicWifiTitle(wifi), SecurityText.PublicWifiLine(wifi), wifi, async () => await ClosePublicWifiAsync()));
             page.Children.Add(new Border { Height = 8 });
         }
 
@@ -141,11 +141,22 @@ public partial class MainWindow
         Button? all = null;
         if (others > 0)
         {
-            all = FamilyButton(SecurityText.SignOutAll, () => _ = SignOutOthersAsync(), quiet: true);
-            all.Margin = new Thickness(0); all.Padding = new Thickness(10, 4, 10, 4); all.FontSize = 12.5;
+            all = FamilyButton(SecurityText.SignOutAll, async () => await SignOutOthersAsync(), quiet: true);
+            all.Margin = new Thickness(0, 0, 14, 0); all.Padding = new Thickness(10, 4, 10, 4); all.FontSize = 12.5;
         }
         page.Children.Add(SecurityLabel(SecurityText.Devices + " · " + report.Devices.Count.ToString(Lang.Culture), all));
-        foreach (var device in report.Devices) page.Children.Add(SecurityDeviceRow(device, report.Checked));
+        // Many devices (34 on the Dell): the first ones, then « Show all ».
+        var foldDevices = report.Devices.Count > 8 && !_securityDevicesShown;
+        foreach (var device in foldDevices ? report.Devices.Take(6) : report.Devices) page.Children.Add(SecurityDeviceRow(device, report.Checked));
+        if (foldDevices)
+        {
+            var more = SecurityLine();
+            var show = FamilyButton(L("Tout afficher", "Show all"), () => { _securityDevicesShown = true; DrawSecurity(); }, quiet: true);
+            show.Margin = new Thickness(14, 0, 0, 0); show.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(show, Dock.Right); more.Children.Add(show);
+            more.Children.Add(new TextBlock { Text = L($"{report.Devices.Count - 6} autres appareils", $"{report.Devices.Count - 6} more devices"), Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0), VerticalAlignment = VerticalAlignment.Center });
+            page.Children.Add(SecurityCard(more));
+        }
         page.Children.Add(FamilyNote(SecurityText.SignOutNote, margin: new Thickness(4, 4, 30, 0)));
 
         static string Names(IReadOnlyList<string> names) => names.Count switch
@@ -161,8 +172,8 @@ public partial class MainWindow
         var bad = issues.Count > 0;
         var line = new DockPanel();
         var button = bad
-            ? FamilyButton(SecurityText.FixAll, () => _ = FixAllAsync(), primary: true)
-            : FamilyButton(SecurityText.CheckAgain, () => _ = ReadSecurityAsync(again: true));
+            ? FamilyButton(SecurityText.FixAll, async () => await FixAllAsync(), primary: true)
+            : FamilyButton(SecurityText.CheckAgain, async () => await ReadSecurityAsync(again: true));
         button.Margin = new Thickness(14, 0, 0, 0); button.VerticalAlignment = VerticalAlignment.Center;
         DockPanel.SetDock(button, Dock.Right); line.Children.Add(button);
         var icon = new Icon { Kind = bad ? "warning" : "check", Width = 20, Height = 20, Foreground = Palette.Get(bad ? "Warning" : "Success"), Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -183,8 +194,8 @@ public partial class MainWindow
         var line = SecurityLine();
         // Its button, then its state, on the right.
         Button? act = null;
-        if (account.You) act = FamilyButton(account.NoPassword ? SecurityText.ChooseOwn : SecurityText.Change, () => _ = ChangeOwnPasswordAsync(account), primary: account.Weak);
-        else if (account.Weak) act = FamilyButton(SecurityText.Protect, () => _ = ProtectAsync(account), primary: true);
+        if (account.You) act = FamilyButton(account.NoPassword ? SecurityText.ChooseOwn : SecurityText.Change, async () => await ChangeOwnPasswordAsync(account), primary: account.Weak);
+        else if (account.Weak) act = FamilyButton(SecurityText.Protect, async () => await ProtectAsync(account), primary: true);
         if (act is not null)
         {
             act.Margin = new Thickness(12, 0, 0, 0); act.VerticalAlignment = VerticalAlignment.Center; act.Padding = new Thickness(14, 6, 14, 6);
@@ -220,7 +231,7 @@ public partial class MainWindow
         var line = SecurityLine();
         if (!device.This)
         {
-            var sign = FamilyButton(SecurityText.SignOut, () => _ = SignOutAsync(device), quiet: true);
+            var sign = FamilyButton(SecurityText.SignOut, async () => await SignOutAsync(device));
             sign.Margin = new Thickness(12, 0, 0, 0); sign.VerticalAlignment = VerticalAlignment.Center; sign.Padding = new Thickness(14, 6, 14, 6);
             AutomationProperties.SetName(sign, SecurityText.SignOut + " · " + device.Name);
             DockPanel.SetDock(sign, Dock.Right); line.Children.Add(sign);
@@ -594,6 +605,7 @@ public partial class MainWindow
                 if (issue.Server == ServerOpening.Internet) go = await CloseInternetAsync(step, progress);
                 else if (issue.Server == ServerOpening.PublicWifi) go = await ClosePublicWifiAsync(step, progress);
                 else if (issue.Account is { You: true } you) go = await ChangeOwnPasswordAsync(you, step, progress);
+                else if (issue.Account is { Way: AccountWay.Password } plain) go = await ProtectAsync(plain, step, progress);
                 else if (issue.Account is { } account) go = await LockStepAsync(client, account, step, progress);
                 else go = await DeviceStepAsync(client, issue.Device!, report.Checked, step, progress);
                 if (!go) break;
@@ -607,9 +619,9 @@ public partial class MainWindow
     private async Task<bool> LockStepAsync(JellyfinClient client, SecurityAccount account, string step, double progress)
     {
         var body = new StackPanel();
+        // The name alone: the card's note already says anyone can open it.
         var who = SecurityCard(new TextBlock { Text = account.Name, FontWeight = FontWeights.SemiBold });
         who.Background = Palette.Get("Raised"); who.Margin = new Thickness(0, 0, 0, 14);
-        if (who.Child is TextBlock name) who.Child = new StackPanel { Children = { name, new TextBlock { Text = SecurityText.Line(account), Style = (Style)FindResource("SettingDescription") } } };
         body.Children.Add(who);
         body.Children.Add(new TextBlock { Text = SecurityText.LockAbout(account), TextWrapping = TextWrapping.Wrap, FontSize = 13.5, Foreground = Palette.Get("TextBody") });
         body.Children.Add(FamilyNote(SecurityText.SignedOutToo(account.Name), margin: new Thickness(0, 8, 0, 0)));

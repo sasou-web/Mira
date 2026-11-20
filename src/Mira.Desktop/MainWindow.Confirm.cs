@@ -142,7 +142,7 @@ public partial class MainWindow
 
     private static Control? FirstField(DependencyObject root)
     {
-        if (root is System.Windows.Controls.PasswordBox or TextBox or RadioButton && root is Control { IsVisible: true, IsEnabled: true } field) return field;
+        if ((root is System.Windows.Controls.PasswordBox or TextBox || root is RadioButton { IsChecked: true }) && root is Control { IsVisible: true, IsEnabled: true } field) return field;
         for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
             if (FirstField(System.Windows.Media.VisualTreeHelper.GetChild(root, i)) is { } found) return found;
         return null;
