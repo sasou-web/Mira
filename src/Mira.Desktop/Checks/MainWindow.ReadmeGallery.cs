@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -47,6 +48,8 @@ public partial class MainWindow
             // Scrolled to its episodes, which the README's caption shows.
             DetailScroll.UpdateLayout(); SmoothScroll.Jump(DetailScroll, Math.Max(0, EpisodesHead.TranslatePoint(new Point(0, 0), DetailScroll).Y + DetailScroll.VerticalOffset - 90));
             await Shot("windows-series");
+            // A season's subtitles (0.9.17, banner only): its pack's window open over the page, as a .zip of its subtitles fills it.
+            if (Environment.GetEnvironmentVariable("MIRA_GALLERY_BANNER") == "1") await SeasonSubtitlesShotAsync(output, series);
             DetailOverlay.Visibility = Visibility.Collapsed;
             ResetFilters(); _catalog.View = "Movie"; await NavigateLibraryAsync(); SmoothScroll.Jump(LibraryScroll);
             await Shot("windows-films");
@@ -70,6 +73,39 @@ public partial class MainWindow
             Environment.ExitCode = 1;
         }
         finally { Close(); }
+    }
+    /// <summary>
+    /// « Sous-titres d'une saison » (windows-season-subtitles, 0.9.17): the window of a pack of French subtitles for the season
+    /// shown, every episode but the last found from its file's name, the last file (« Finale ») in orange with its list.
+    /// Opened as SeasonSubtitles_Click opens it, without the file picker; nothing is sent.
+    /// </summary>
+    private async Task SeasonSubtitlesShotAsync(string output, MediaItem series)
+    {
+        if ((SeasonSelector.SelectedItem as ComboBoxItem)?.Tag is not EpisodePage { Absent: false } page || _client is not { } client)
+            throw new InvalidOperationException($"No season of {series.Name} to add subtitles to.");
+        var episodes = SeasonEpisodes(page.Season).ToList();
+        if (episodes.Count < 4) throw new InvalidOperationException($"{series.Name}'s season {page.Season} has {episodes.Count} episodes: too few for the pack's window.");
+        var dotted = string.Concat(series.Name.Where(c => char.IsLetterOrDigit(c) || c == ' ')).Replace(' ', '.');
+        var cue = System.Text.Encoding.UTF8.GetBytes("1\n00:00:01,000 --> 00:00:03,000\nBonsoir.\n");
+        List<PackFile> files = [.. episodes.SkipLast(1).Select(x => new PackFile($"{dotted}.S{page.Season:00}E{x.IndexNumber:00}.1080p.WEB.fr.srt", cue)), new($"{dotted} - Finale.fr.srt", cue)];
+        var matches = SeasonSubtitles.Match(files, episodes, page.Season, SeasonSubtitles.Before(_episodes, page.Season), "fre");
+        SeasonSubtitlesButton.Visibility = Visibility.Visible; UpdateLayout();
+        OpenPackPopup(client, series, page.Season, episodes, matches);
+        try
+        {
+            var popup = _packPopup ?? throw new InvalidOperationException("The pack's window did not open.");
+            var body = (FrameworkElement)popup.Child;
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); UpdateLayout();
+            FitMissingMenu(SeasonSubtitlesButton, (Squircle)body); NudgeMissingMenu(popup);
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); UpdateLayout();
+            Keyboard.ClearFocus(); await ArtworkAsync();
+            // Where Mira asks WPF to put it, from its button (as the magnet link's gallery): WPF keeps a popup on the screen.
+            var root = (FrameworkElement)Content; var dpi = VisualTreeHelper.GetDpi(root);
+            var anchor = SeasonSubtitlesButton.TransformToAncestor(root).Transform(new Point(0, 0));
+            var offset = MissingMenuPlace(SeasonSubtitlesButton, new Size(body.ActualWidth * dpi.DpiScaleX, body.ActualHeight * dpi.DpiScaleY));
+            await CaptureAsync(output, "windows-season-subtitles", 2, (body, new Point(anchor.X + offset.X / dpi.DpiScaleX, anchor.Y + offset.Y / dpi.DpiScaleY)));
+        }
+        finally { if (_packPopup is { } open) open.IsOpen = false; }
     }
     /// <summary>
     /// « Who's watching? » (windows-family, 0.9.15): the home turned on by the gallery's administrator through Mira's
