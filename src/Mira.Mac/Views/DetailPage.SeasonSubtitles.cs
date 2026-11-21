@@ -82,7 +82,9 @@ public sealed partial class DetailPage
             goLabel.Text = SeasonSubtitles.Go(ready); go.IsEnabled = ready > 0;
         }
         var list = new StackPanel();
-        foreach (var match in found) list.Children.Add(PackRow(match, episodes, chosen, Count));
+        // A file without an episode is offered only the episodes no other file's name gives.
+        var free = episodes.Where(x => !found.Any(m => m.Episode?.Id == x.Id)).ToList();
+        foreach (var match in found) list.Children.Add(PackRow(match, free, chosen, Count));
         var note = new TextBlock { Text = L("Tes autres appareils les proposent aussi.", "Your other devices offer them too."), FontSize = 12.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) };
         var buttons = Ui.Row(0, cancel, go); DockPanel.SetDock(buttons, Dock.Right);
         var foot = new DockPanel { Margin = new Thickness(14, 10, 6, 4), Children = { buttons, note } };
@@ -123,7 +125,7 @@ public sealed partial class DetailPage
             var failed = sent.Count < send.Count || sent.Any(x => !JellyfinSubtitles.IsKept(x.Item2));
             result.Foreground = failed ? Ui.Danger : Ui.TextSecondary;
             lead.Text = SeasonSubtitles.Lead(send);
-            bar.IsVisible = false; result.IsVisible = true;
+            bar.IsVisible = false; result.IsVisible = true; note.Opacity = 0;
             goLabel.Text = SeasonSubtitles.Done; go.IsEnabled = true; sending = false; go.Focus();
         };
         _packFlyout = flyout;

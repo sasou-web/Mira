@@ -59,14 +59,20 @@ public partial class MainWindow
         var anchor = SeasonSubtitlesButton;
         var body = new Squircle { Style = (Style)FindResource("PopoverWindow"), Width = MissingMenuWidth };
         TextElement.SetFontFamily(body, (FontFamily)FindResource("AppFont")); TextElement.SetForeground(body, Palette.Get("Text"));
-        var popup = new Popup { PlacementTarget = anchor, Placement = PlacementMode.Custom, StaysOpen = false, AllowsTransparency = true, Child = body, PopupAnimation = PopupAnimation.None };
+        var popup = new Popup { PlacementTarget = anchor, Placement = PlacementMode.Custom, StaysOpen = true, AllowsTransparency = true, Child = body, PopupAnimation = PopupAnimation.None };
         popup.CustomPopupPlacementCallback = (size, _, _) => [new CustomPopupPlacement(MissingMenuPlace(anchor, size), PopupPrimaryAxis.None)];
         FitMissingMenu(anchor, body);
         void Refit(object? s, EventArgs e) { if (!popup.IsOpen) return; FitMissingMenu(anchor, body); NudgeMissingMenu(popup); }
         ScrollChangedEventHandler scrolled = Refit;
         SizeChanged += Refit; AddHandler(ScrollViewer.ScrollChangedEvent, scrolled);
         var sending = false;
-        popup.Closed += (_, _) => { SizeChanged -= Refit; RemoveHandler(ScrollViewer.ScrollChangedEvent, scrolled); if (ReferenceEquals(_packPopup, popup)) _packPopup = null; };
+        // Closed by hand, not by StaysOpen = false: a file's episode list is a popup of its own, and closing it (or a click on
+        // « Keep » while it was open) closed the whole window, the sending then going on unseen (seen on the Dell, 2026-11-21).
+        // A click in the window or leaving it closes it, never while sending.
+        void Outside(object? s, EventArgs e) { if (!sending) popup.IsOpen = false; }
+        MouseButtonEventHandler pressed = Outside;
+        PreviewMouseDown += pressed; Deactivated += Outside;
+        popup.Closed += (_, _) => { SizeChanged -= Refit; RemoveHandler(ScrollViewer.ScrollChangedEvent, scrolled); PreviewMouseDown -= pressed; Deactivated -= Outside; if (ReferenceEquals(_packPopup, popup)) _packPopup = null; };
         body.KeyDown += (_, e) => { if (e.Key == Key.Escape && !sending) { popup.IsOpen = false; e.Handled = true; anchor.Focus(); } };
 
         // Each file and its episode, as chosen now: a file without one goes once one is chosen in its list.
@@ -89,14 +95,17 @@ public partial class MainWindow
         head.Children.Add(lead);
         root.Children.Add(head);
         var list = new StackPanel();
-        foreach (var match in found) list.Children.Add(PackRow(match, episodes, chosen, Count));
+        // A file without an episode is offered only the episodes no other file's name gives.
+        var free = episodes.Where(x => !found.Any(m => m.Episode?.Id == x.Id)).ToList();
+        foreach (var match in found) list.Children.Add(PackRow(match, free, chosen, Count));
         root.Children.Add(new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 360, Margin = new Thickness(0, 0, 0, 4) });
         root.Children.Add(bar); root.Children.Add(result);
         root.Children.Add(new Border { Style = (Style)FindResource("PlayerMenuRule"), Margin = new Thickness(6, 10, 6, 0) });
         var foot = new DockPanel { Margin = new Thickness(14, 10, 6, 4), LastChildFill = true };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal }; DockPanel.SetDock(buttons, Dock.Right);
         buttons.Children.Add(cancel); buttons.Children.Add(go); foot.Children.Add(buttons);
-        foot.Children.Add(new TextBlock { Text = L("Tes autres appareils les proposent aussi.", "Your other devices offer them too."), FontSize = 12.5, Foreground = Palette.Get("Muted"), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) });
+        var note = new TextBlock { Text = L("Tes autres appareils les proposent aussi.", "Your other devices offer them too."), FontSize = 12.5, Foreground = Palette.Get("Muted"), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) };
+        foot.Children.Add(note);
         root.Children.Add(foot);
         body.Child = root;
         Count();
@@ -107,7 +116,7 @@ public partial class MainWindow
             if (sending) return;
             if (result.Visibility == Visibility.Visible) { popup.IsOpen = false; return; }
             var send = found.Where(x => chosen[x] is not null).Select(x => x with { Episode = chosen[x] }).ToList();
-            sending = true; popup.StaysOpen = true; list.IsEnabled = false; cancel.Visibility = Visibility.Collapsed; go.IsEnabled = false;
+            sending = true; list.IsEnabled = false; cancel.Visibility = Visibility.Collapsed; go.IsEnabled = false;
             bar.Maximum = send.Count; bar.Value = 0; bar.Visibility = Visibility.Visible;
             var sent = new List<(PackMatch, SubtitleKept, bool)>();
             try
@@ -130,8 +139,8 @@ public partial class MainWindow
             var failed = sent.Count < send.Count || sent.Any(x => !JellyfinSubtitles.IsKept(x.Item2));
             result.Foreground = Palette.Get(failed ? "Danger" : "TextSecondary");
             lead.Text = SeasonSubtitles.Lead(send);
-            bar.Visibility = Visibility.Collapsed; result.Visibility = Visibility.Visible;
-            go.Content = SeasonSubtitles.Done; go.IsEnabled = true; sending = false; popup.StaysOpen = false; go.Focus();
+            bar.Visibility = Visibility.Collapsed; result.Visibility = Visibility.Visible; note.Visibility = Visibility.Hidden;
+            go.Content = SeasonSubtitles.Done; go.IsEnabled = true; sending = false; go.Focus();
             Accessible.Say(result);
             _metadata?.Clear();
         };
