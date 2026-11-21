@@ -264,6 +264,17 @@ enum SyncRules {
         return queue.itemId != itemId && group.state != "Idle"
     }
 
+    /// The title chosen is the rest of the group's one: an episode of the same series after it (the next one, or one
+    /// further on), as after Cancel at the end of an episode. Put on for the group without asking first: only another
+    /// title, or an earlier episode, asks. False when an episode's number is not known. As Together.Continues of Core.
+    static func continues(_ current: Item?, _ chosen: Item) -> Bool {
+        guard let current, current.isEpisode, chosen.isEpisode, let series = current.seriesId, !series.isEmpty,
+              chosen.seriesId == series, chosen.id != current.id,
+              let index = current.indexNumber, let next = chosen.indexNumber else { return false }
+        let season = current.parentIndexNumber ?? 1, nextSeason = chosen.parentIndexNumber ?? 1
+        return nextSeason > season || (nextSeason == season && next > index)
+    }
+
     /// A title as a question names it: a film by its name, an episode with its series (« Dark · S1 · E3 »).
     static func titleName(_ item: Item) -> String {
         guard item.isEpisode, let series = item.seriesName else { return item.name ?? "" }

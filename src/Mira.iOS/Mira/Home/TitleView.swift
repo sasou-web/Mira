@@ -460,8 +460,13 @@ struct TitleView: View {
         }
         if together.replaces(playable.id), let queue = together.queue {
             Task {
-                let current = (try? await app.client?.item(queue.itemId)).map(SyncRules.titleName) ?? ""
-                replacing = (playable, fromStart, current)
+                let current = try? await app.client?.item(queue.itemId)
+                // The next episode of the group's (Cancel at the end of one, then Play on the next): put on at once.
+                if SyncRules.continues(current, playable) {
+                    app.play(playable, fromStart: fromStart, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+                    return
+                }
+                replacing = (playable, fromStart, current.map(SyncRules.titleName) ?? "")
             }
             return
         }

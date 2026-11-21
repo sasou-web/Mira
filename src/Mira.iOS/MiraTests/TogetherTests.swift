@@ -117,6 +117,15 @@ struct TogetherTests {
         }
     }
 
+    @Test("La suite de la série du groupe se lance sans la question (après Annuler à la fin d'un épisode)")
+    func continues() throws {
+        let fixture = try SyncFixture.load()
+        for case let entry as [Any] in try #require(fixture["continues"] as? [Any]) {
+            let items = try [entry[0], entry[1]].map { try JSON.decoder.decode(Item.self, from: JSONSerialization.data(withJSONObject: $0)) }
+            #expect(SyncRules.continues(items[0], items[1]) == entry[2] as? Bool, "\(entry)")
+        }
+    }
+
     @Test("Le bouton du groupe au-dessus des onglets : le compte, et ce que le groupe fait quand il retient l'image")
     func indicators() throws {
         let fixture = try SyncFixture.load()

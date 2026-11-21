@@ -185,6 +185,16 @@ public static class Together
     /// </summary>
     public static bool AsksToReplace(Group? group, Entry? queue, string itemId) =>
         group is not null && queue is { ItemId.Length: > 0 } && queue.ItemId != itemId && group.State != "Idle";
+    /// <summary>
+    /// The title chosen is the rest of the group's one: an episode of the same series after it (the next one, or one
+    /// further on), as after « Annuler » at the end of an episode. Put on for the group without asking first: only
+    /// another title, or an earlier episode, asks (<see cref="AsksToReplace"/>). False when an episode's number is not
+    /// known.
+    /// </summary>
+    public static bool Continues(MediaItem? current, MediaItem chosen) =>
+        current is { Type: "Episode", SeriesId.Length: > 0, IndexNumber: { } index } && chosen is { Type: "Episode", IndexNumber: { } next }
+        && chosen.SeriesId == current.SeriesId && chosen.Id != current.Id
+        && ((chosen.ParentIndexNumber ?? 1) > (current.ParentIndexNumber ?? 1) || (chosen.ParentIndexNumber ?? 1) == (current.ParentIndexNumber ?? 1) && next > index);
     /// <summary>A title as a question names it: a film by its name, an episode with its series (« Dark · S1 · É3 »).</summary>
     public static string TitleName(MediaItem item)
     {

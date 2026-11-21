@@ -105,6 +105,19 @@
     [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, null, "matrix", false],
     [null, null, "matrix", false]
   ],
+  "continues": [
+    [{"Id": "e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 1}, {"Id": "e2", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 2}, true],
+    [{"Id": "e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 1}, {"Id": "e5", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 5}, true],
+    [{"Id": "e10", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 10}, {"Id": "s2e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 2, "IndexNumber": 1}, true],
+    [{"Id": "e1", "Type": "Episode", "SeriesId": "dark", "IndexNumber": 1}, {"Id": "e2", "Type": "Episode", "SeriesId": "dark", "IndexNumber": 2}, true],
+    [{"Id": "e3", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 3}, {"Id": "e2", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 2}, false],
+    [{"Id": "s2e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 2, "IndexNumber": 1}, {"Id": "e10", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 10}, false],
+    [{"Id": "e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 1}, {"Id": "x2", "Type": "Episode", "SeriesId": "lost", "ParentIndexNumber": 1, "IndexNumber": 2}, false],
+    [{"Id": "e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 1}, {"Id": "dune", "Type": "Movie"}, false],
+    [{"Id": "dune", "Type": "Movie"}, {"Id": "e2", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 2}, false],
+    [{"Id": "e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1}, {"Id": "e2", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 2}, false],
+    [{"Id": "e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 1}, {"Id": "e1", "Type": "Episode", "SeriesId": "dark", "ParentIndexNumber": 1, "IndexNumber": 1}, false]
+  ],
   "titles": [
     [{"Type": "Movie", "Name": "Dune"}, "Dune"],
     [{"Type": "Episode", "Name": "Secrets", "SeriesName": "Dark", "ParentIndexNumber": 1, "IndexNumber": 3}, "Dark · S1 · É3"],
