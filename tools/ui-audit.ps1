@@ -13,8 +13,9 @@
 # The interface audit of Mira for Windows (--ui-audit, src/Mira.Desktop/Checks/MainWindow.UiAudit.cs): Mira signed in
 # to the Jellyfin of $SignedIn walks its screens and menus at three sizes and writes, per language, report.md,
 # findings.json, captures/ and annotated/ in $Output\<language>. A profile of its own in $Output\profile (removed first,
-# never the user's: only the session is copied, DPAPI of this Windows account). The window is never activated and stays
-# under every other window; its menus show for an instant. Nothing leaves the PC but the requests to that Jellyfin.
+# never the user's: only the session is copied, DPAPI of this Windows account). The window is never activated, and it,
+# its menus and its dialogs are cloaked by DWM (Checks/AuditCloak.cs): nothing shows on the screen. Nothing leaves the
+# PC but the requests to that Jellyfin.
 # Windows PowerShell 5.1 and PowerShell 7.
 $ErrorActionPreference = 'Stop'
 $Language = @($Language | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
