@@ -79,13 +79,15 @@ public sealed class SkipPlanner
     /// <summary>
     /// Whether the pill is over the video at <paramref name="position"/>: always with the player's controls or during the
     /// countdown; paused, only with the controls; playing, for <see cref="ShownFor"/> seconds after its passage started.
-    /// Going back to before that moment shows it again.
+    /// Going back to before that moment shows it again. Once the viewer (or a member of the group) stays on the episode,
+    /// the next episode's pill stays over the credits as the countdown's card did: « Annuler » then only offers it.
     /// </summary>
     public bool Shows(double position, bool controls, bool paused)
     {
         if (Active is null) return false;
         if (controls || Counting) return true;
         if (paused) return false;
+        if (Stay && ToNext) return true;
         return !double.IsFinite(OfferedAt) || position < OfferedAt + ShownFor;
     }
     public string Label(bool episode) => Active is { } segment ? PlaybackMarkers.Label(segment.Kind, episode, ToNext) : "";
