@@ -1205,7 +1205,11 @@ internal static class PlayerTests
             skips.Offer(1300, 1410, offering: true, autoNext: true);
             Assert(skips.Counting && skips.Shows(1309, false, false), "The countdown stays shown");
             skips.Cancel();
-            Assert(!skips.Shows(1309, false, false) && skips.Shows(1309, controls: true, paused: false), "After « Annuler », the next episode only with the controls");
+            Assert(skips.Shows(1309, false, false) && skips.Shows(1370, false, false) && !skips.Shows(1370, false, paused: true) && skips.Shows(1370, true, true), "After « Annuler », the next episode stays shown without the controls (paused: with them)");
+            skips.Active = null; skips.Offer(1300, 1410, offering: true, autoNext: true);
+            Assert(!skips.Counting && skips.Shows(1350, false, false), "A member's « Annuler » heard before the credits: shown there without a countdown");
+            skips.Segments = [new(SkipKind.Intro, 45, 135)]; skips.Active = null; skips.Offer(45, 1410, offering: true, autoNext: true);
+            Assert(!skips.Shows(120, false, false), "Staying never keeps an opening's pill");
             skips.Reset();
             Assert(!skips.Shows(0, true, false) && double.IsNaN(skips.OfferedAt), "A new title starts clean");
             return Task.CompletedTask;
