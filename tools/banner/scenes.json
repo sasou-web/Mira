@@ -1,4 +1,5 @@
 {
+  "0.9.17": { "film": "arcane", "point": 1, "shot": "windows-season-subtitles", "at": [20, 10], "size": [1400, 880], "scale": 0.45 },
   "0.9.16": { "film": "klaus", "point": 2, "title": "Security", "shot": "windows-security", "at": [392, 56], "size": [916, 330], "scale": 0.69, "say": "Mira tells you when Jellyfin is open to the whole Internet, and closes it in one click." },
   "0.9.15": { "film": "coco", "point": 1, "shot": "windows-family", "at": [270, 230], "size": [900, 460], "scale": 0.7, "say": "One password for the family, then everyone picks their profile, with a PIN if they like." },
   "0.9.14": { "film": "arcane", "point": 1, "shot": "windows-series", "at": [750, 85], "size": [660, 395], "scale": 0.96, "say": "Where you are in each season, at a glance: a ring and how many episodes you watched." },

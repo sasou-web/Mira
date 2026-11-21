@@ -1,5 +1,24 @@
 [
   {
+    "version": "0.9.17", "date": "2026-11-21",
+    "summary": "Les sous-titres d’une saison d’un coup, gardés sur Jellyfin, un « Annuler » pour tout le groupe.",
+    "en": { "summary": "A season’s subtitles at once, kept on Jellyfin, one Cancel for the whole group." },
+    "changes": [
+      { "category": "Sous-titres", "text": "Ceux d’une saison d’un coup : un .zip ou plusieurs fichiers, chacun posé sur son épisode d’après son nom.", "en": { "category": "Subtitles", "text": "A whole season’s at once: a .zip or several files, each put on its episode from its name." } },
+      { "category": "Sous-titres", "text": "Un fichier chargé dans le lecteur est gardé sur Jellyfin tout de suite, dit sur la vidéo.", "en": { "category": "Subtitles", "text": "A file you load in the player is kept on Jellyfin right away, said on the video." } },
+      { "category": "Regarder ensemble", "text": "Un « Annuler » sur le compte à rebours garde tout le groupe sur l’épisode.", "en": { "category": "Watch together", "text": "One Cancel on the next-episode countdown holds the whole group on the episode." } },
+      { "category": "Regarder ensemble", "text": "L’épisode suivant démarre pour le groupe sans demander « Remplacer ? ».", "en": { "category": "Watch together", "text": "The next episode starts for the group without asking “Replace?”." } },
+      { "category": "Lecteur", "text": "« Épisode suivant » reste sur le générique après Annuler.", "en": { "category": "Player", "text": "“Next episode” stays over the credits after Cancel." } },
+      { "category": "Famille", "text": "Le code d’un profil admin dit pourquoi il est demandé, son erreur juste sous la case.", "en": { "category": "Family", "text": "An admin profile’s PIN says why it’s asked, its error right under the box." } },
+      { "category": "Extension", "text": "La clé de preuve est scellée dès le démarrage de Jellyfin.", "en": { "category": "Extension", "text": "The proof key is sealed as soon as Jellyfin starts." } }
+    ],
+    "items": [
+      { "icon": "subtitles", "title": "Les sous-titres d’une saison", "text": "Un .zip ou plusieurs fichiers sur la page d’une série : chacun va sur son épisode d’après son nom, puis Mira les garde sur Jellyfin.", "en": { "title": "A season’s subtitles at once", "text": "A .zip or several files on a show’s page: each goes on its episode from its name, then Mira keeps them on Jellyfin." } },
+      { "icon": "subtitles", "title": "Gardés sur Jellyfin", "text": "Un fichier chargé dans le lecteur part sur Jellyfin aussitôt, pour tes autres appareils ; la vidéo dit quand c’est fait.", "en": { "title": "Kept on Jellyfin", "text": "A file you load in the player goes to Jellyfin at once, for your other devices; the video says when it’s done." } },
+      { "icon": "users", "title": "Un Annuler pour tout le groupe", "text": "En regardant ensemble, « Annuler » sur le compte à rebours garde tout le monde sur l’épisode, puis le suivant démarre pour tous sans question.", "en": { "title": "One Cancel for the whole group", "text": "In Watch together, Cancel on the next-episode countdown holds everyone on the episode; the next one then starts for all, no question." } }
+    ]
+  },
+  {
     "version": "0.9.16", "date": "2026-11-20",
     "summary": "Inviter un ami par un lien, une page Sécurité, tes proches en tête des Réglages.",
     "en": { "summary": "Invite a friend with a link, a Security page, your people first in Settings." },
