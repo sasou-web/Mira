@@ -66,6 +66,9 @@ internal static class PlayerTests
                 var group = row[0].ValueKind == JsonValueKind.Null ? null : Together.ParseGroup(row[0]);
                 Assert(Together.AsksToReplace(group, queue, row[2].GetString()!) == row[3].GetBoolean(), $"Replace: {group?.State} {queue?.ItemId} → {row[2]}");
             }
+            // The rest of the group's series is put on without the question (after « Annuler » at an episode's end).
+            foreach (var row in root.GetProperty("continues").EnumerateArray())
+                Assert(Together.Continues(JsonSerializer.Deserialize<MediaItem>(row[0].GetRawText()), JsonSerializer.Deserialize<MediaItem>(row[1].GetRawText())!) == row[2].GetBoolean(), $"Continues: {row[0]} → {row[1]}");
             foreach (var row in root.GetProperty("titles").EnumerateArray())
                 Assert(Together.TitleName(JsonSerializer.Deserialize<MediaItem>(row[0].GetRawText())!) == row[1].GetString(), $"Title: {row[1]}");
             foreach (var row in root.GetProperty("playLabels").EnumerateArray())

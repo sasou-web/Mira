@@ -275,10 +275,13 @@ public sealed class WatchGroup
     public async Task OfferReplaceAsync(MediaItem item, bool fromStart)
     {
         if (!Active || _session is not { } session || Queue is not { } queue) return;
-        string? name = null;
-        try { name = Together.TitleName(await session.Client.ItemAsync(queue.ItemId, session.Lifetime)); }
+        MediaItem? current = null;
+        try { current = await session.Client.ItemAsync(queue.ItemId, session.Lifetime); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
         if (!Active || !ReferenceEquals(queue, Queue)) return;
+        // The next episode of the group's (« Annuler » at the end of one, then Lecture on the next): put on at once.
+        if (Together.Continues(current, item)) { _ = AskAsync(item, fromStart); return; }
+        var name = current is null ? null : Together.TitleName(current);
         _offered = (item.Id, DateTimeOffset.UtcNow.AddSeconds(30));
         _shell.Notice(Together.ReplaceQuestion(name) + L(" Le groupe le regarde en ce moment.", " The group is watching it right now."), L("Remplacer", "Replace"), () => _ = AskAsync(item, fromStart), sticky: true);
     }

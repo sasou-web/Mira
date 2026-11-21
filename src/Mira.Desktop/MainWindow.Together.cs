@@ -336,11 +336,14 @@ public partial class MainWindow
     private async Task OfferReplaceAsync(MediaItem item, bool fromStart)
     {
         if (_client is not { } client || _groupQueue is not { } queue) return;
-        string? name = null;
-        try { name = Together.TitleName(await client.ItemAsync(queue.ItemId, _connectionLifetime.Token)); }
+        MediaItem? current = null;
+        try { current = await client.ItemAsync(queue.ItemId, _connectionLifetime.Token); }
         catch (Exception ex) when (IsExpected(ex)) { }
         if (!ReferenceEquals(client, _client) || !ReferenceEquals(queue, _groupQueue) || _group is null) return;
         _replaceOffered = (item.Id, DateTimeOffset.UtcNow.AddMinutes(2));
+        // The next episode of the group's (« Annuler » at the end of one, then Lecture on the next): put on at once.
+        if (Together.Continues(current, item)) { _ = PlayAsync(item, fromStart: fromStart); return; }
+        var name = current is null ? null : Together.TitleName(current);
         SetNotice(Together.ReplaceQuestion(name) + L(" Le groupe le regarde en ce moment.", " The group is watching it right now."), L("Remplacer", "Replace"), () => _ = PlayAsync(item, fromStart: fromStart));
     }
     private async Task LeaveEmptyPlayerAsync()
