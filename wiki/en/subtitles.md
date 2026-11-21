@@ -20,6 +20,7 @@ The same page sets the size and style of subtitles (dark background, white or ye
 The **audio and subtitles** menu shows both lists side by side, the current track ticked, with its language, codec and channels.
 
 - **Load a file…** plays a subtitle file of your own (`.srt`, `.ass`, `.vtt`). With **Keep on Jellyfin** on, just under it (the default), Mira sends it to Jellyfin as soon as you load it, so your other devices have it too; the player says when Jellyfin has it. Turn it off to keep a file for this playback only.
+- **A whole season at once**: on a series' page, the subtitles button beside “x of y watched” takes a `.zip` or several files. Mira puts each file on its episode from its name (`S02E05`, `E05`, `- 05`, or a number counted from the start of the series) and shows it before sending; pick the episode of a file it couldn't place, then **Keep on Jellyfin**.
 - **Search for subtitles…** appears when Jellyfin has a subtitle plugin, like Open Subtitles or Mira's own automatic subtitles. Mira says first what will be sent to the service.
 - **Subtitle delay** (⋮ menu) shifts them if they come too early or too late, until the player closes. On iPhone, it is in the subtitles menu, in steps of 0.5 s.
 

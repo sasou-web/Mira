@@ -41,7 +41,7 @@ public partial class MainWindow
     /// <summary>The bonus videos in place of the episodes: « Bonus · 48 · 1 h 12 », then a row for each kind.</summary>
     private void RenderExtras()
     {
-        EpisodeHeading.Text = SeriesExtras.Heading(_extras); SeasonMarkButton.Visibility = SeasonMoreButton.Visibility = Visibility.Collapsed;
+        EpisodeHeading.Text = SeriesExtras.Heading(_extras); SeasonMarkButton.Visibility = SeasonMoreButton.Visibility = SeasonSubtitlesButton.Visibility = Visibility.Collapsed;
         var width = EpisodesPanel.ActualWidth > 200 ? EpisodesPanel.ActualWidth : Math.Max(600, DetailScroll.ActualWidth - 156);
         _extrasColumns = EpisodeTiles.Columns(width);
         foreach (var group in SeriesExtras.Groups(_extras, _detail?.Name))

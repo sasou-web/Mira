@@ -20,6 +20,7 @@ La même page règle la taille et le style des sous-titres (fond sombre, blanc o
 Le menu **audio et sous-titres** montre les deux listes côte à côte, la piste en cours cochée, avec sa langue, son codec et ses canaux.
 
 - **Charger un fichier…** lit un fichier de sous-titres à toi (`.srt`, `.ass`, `.vtt`). Avec **Garder sur Jellyfin** allumé, juste en dessous (c’est le réglage par défaut), Mira l’envoie à Jellyfin dès que tu le charges, pour que tes autres appareils l’aient aussi ; le lecteur dit quand Jellyfin l’a. Éteins-le pour garder un fichier pour cette lecture seulement.
+- **Toute une saison d’un coup** : sur la fiche d’une série, le bouton sous-titres à côté de « x vus sur y » prend un `.zip` ou plusieurs fichiers. Mira range chaque fichier sur son épisode d’après son nom (`S02E05`, `E05`, `- 05`, ou un numéro compté depuis le début de la série) et te le montre avant l’envoi ; choisis l’épisode d’un fichier qu’il n’a pas su placer, puis **Garder sur Jellyfin**.
 - **Chercher des sous-titres…** apparaît quand Jellyfin a une extension de sous-titres, comme Open Subtitles ou les sous-titres automatiques de Mira. Mira dit d’abord ce qui sera envoyé au service.
 - **Décalage des sous-titres** (menu ⋮) les décale s’ils arrivent trop tôt ou trop tard, jusqu’à la fermeture du lecteur. Sur iPhone, il est dans le menu des sous-titres, par pas de 0,5 s.
 
