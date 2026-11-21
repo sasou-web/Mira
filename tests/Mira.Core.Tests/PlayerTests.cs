@@ -656,6 +656,12 @@ internal static class PlayerTests
             Assert(matches[0].Episode?.Id == "s2e2" && matches[0].Guess.Language == "eng" && matches[1].Episode?.Id == "s2e3" && matches[1].Guess.Language == "fre",
                 "Absolute 27 (25 before) = E02, S02E03 = E03: " + string.Join(", ", matches.Select(x => x.File.Name + "→" + x.Episode?.Id)));
             Assert(matches.Skip(2).All(x => x.Episode is null), "Another season's, and an opening: left for a choice by hand");
+            List<MediaItem> series = [.. Enumerable.Range(1, 25).Select(i => new MediaItem { Id = "s1e" + i, ParentIndexNumber = 1, IndexNumber = i }), new MediaItem { Id = "sp", ParentIndexNumber = 0, IndexNumber = 4 }, .. season];
+            Assert(SeasonSubtitles.Before(series, 2) == 25 && SeasonSubtitles.Before(series, 1) == 0, "Before season 2: 25, specials left out");
+            Assert(SeasonSubtitles.Pill("fre") == "FR" && SeasonSubtitles.Pill("jpn") == "JA", "Pills: " + SeasonSubtitles.Pill("jpn"));
+            Assert(SeasonSubtitles.Lead(matches) == "2 fichiers sur 4 correspondent à un épisode · Anglais, Français" && SeasonSubtitles.Go(2) == "En garder 2 sur Jellyfin", "Lead: " + SeasonSubtitles.Lead(matches));
+            var result = SeasonSubtitles.Result([(matches[0], SubtitleKept.Kept, true), (matches[1], SubtitleKept.NotWritten, false)]);
+            Assert(result.StartsWith("1 sous-titre gardé sur Jellyfin, en anglais", StringComparison.Ordinal) && result.Contains("\nE03\u00A0: Jellyfin n’a pas pu enregistrer", StringComparison.Ordinal), "Result: " + result);
             var folder = Path.Combine(Path.GetTempPath(), $"mira-pack-{Guid.NewGuid():N}"); Directory.CreateDirectory(folder);
             try
             {

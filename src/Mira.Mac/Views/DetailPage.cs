@@ -937,11 +937,11 @@ public sealed partial class DetailPage : Page
         FillSeasons();
         RenderEpisodes();
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
-        DockPanel.SetDock(_seasons, Dock.Right); DockPanel.SetDock(_seasonMark, Dock.Right);
+        DockPanel.SetDock(_seasons, Dock.Right); DockPanel.SetDock(_seasonMark, Dock.Right); DockPanel.SetDock(_seasonSubtitles, Dock.Right);
         // Kept from one refresh to the next (after the player, a title marked watched): each leaves the section it was in,
         // the heading too, or adding it again throws and the page is left without its episodes, nothing to scroll.
-        foreach (var kept in new Control[] { _seasons, _seasonMark, _episodeHeading, Strip, _episodes }) (kept.Parent as Panel)?.Children.Remove(kept);
-        header.Children.Add(_seasons); header.Children.Add(_seasonMark); header.Children.Add(_episodeHeading);
+        foreach (var kept in new Control[] { _seasons, _seasonMark, _seasonSubtitles, _episodeHeading, Strip, _episodes }) (kept.Parent as Panel)?.Children.Remove(kept);
+        header.Children.Add(_seasons); header.Children.Add(_seasonMark); header.Children.Add(_seasonSubtitles); header.Children.Add(_episodeHeading);
         return Ui.Column(14, header, Strip, _episodes);
     }
     /// <summary>
@@ -987,7 +987,7 @@ public sealed partial class DetailPage : Page
         if (page is { Absent: true })
         {
             // A season the library has none of: a calm card for its aired episodes (their tiles on demand), then those coming.
-            _episodeHeading.Text = L("Épisodes", "Episodes"); _seasonMark.IsVisible = false;
+            _episodeHeading.Text = L("Épisodes", "Episodes"); _seasonMark.IsVisible = _seasonSubtitles.IsVisible = false;
             foreach (var line in EpisodeShelf.Lines([], ShelfVirtuals, page.Season, true, true, today, showMissing))
             {
                 if (line.Kind != ShelfKind.Missing) { AddTiles(session, grid, line, today); continue; }
@@ -1002,7 +1002,7 @@ public sealed partial class DetailPage : Page
         var episodes = page is null ? [] : EpisodePages.Episodes(_allEpisodes, page);
         // The whole season's count, also on a slice of a long one, and the room it takes once known.
         _episodeHeading.Text = EpisodeTiles.Heading(_allEpisodes, page, _episodeSizes);
-        ShowSeasonMark(page);
+        ShowSeasonMark(page); _ = ShowSeasonSubtitlesAsync(page);
         if (episodes.Count == 0) { _episodes.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Ui.Muted }); return; }
         // The episode Lecture plays is in another season than the one shown (a long anime opened on its first): a click brings it.
         var pages = _seasons.Items.OfType<ComboBoxItem>().Select(x => x.Tag).OfType<EpisodePage>().ToList();
@@ -1020,7 +1020,7 @@ public sealed partial class DetailPage : Page
     /// </summary>
     private void DrawEpisodesComing()
     {
-        _episodeHeading.Text = L("Épisodes", "Episodes"); _seasonMark.IsVisible = false;
+        _episodeHeading.Text = L("Épisodes", "Episodes"); _seasonMark.IsVisible = _seasonSubtitles.IsVisible = false;
         if (_episodesError is not { } error)
         {
             _episodes.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Ui.Muted, Margin = new Thickness(0, 8, 0, 8) });

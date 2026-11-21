@@ -181,13 +181,24 @@ public static class JellyfinSubtitles
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return (UnreadableText, true); }
         if (upload is null) return (TooBigText, true);
         progress(SendingText);
+        var (kept, listed) = await KeepAsync(client, itemId, sourceId, upload, () => progress(ReadingText), wait, ct);
+        var said = KeptText(kept, guess.Language);
+        if (!IsKept(kept)) return (said, true);
+        return listed ? (said, false) : (said + NotListedText, false);
+    }
+    /// <summary>
+    /// One subtitle file sent to Jellyfin, then looked for in what it lists for <paramref name="wait"/> at most: what
+    /// became of it, and whether Jellyfin lists it already. <paramref name="sent"/> hears that it was sent and kept.
+    /// </summary>
+    public static async Task<(SubtitleKept Kept, bool Listed)> KeepAsync(JellyfinClient client, string itemId, string? sourceId, SubtitleUpload upload, Action? sent, TimeSpan wait, CancellationToken ct = default)
+    {
         var before = await client.StreamsAsync(itemId, sourceId, ct);
         var kept = await client.KeepSubtitleAsync(itemId, upload, ct);
-        var said = KeptText(kept, guess.Language);
-        if (kept is not (SubtitleKept.Kept or SubtitleKept.KeptInJellyfinData)) return (said, true);
-        progress(ReadingText);
-        return await client.KeptSubtitleAsync(itemId, sourceId, before, wait, ct) is null ? (said + NotListedText, false) : (said, false);
+        if (!IsKept(kept)) return (kept, false);
+        sent?.Invoke();
+        return (kept, await client.KeptSubtitleAsync(itemId, sourceId, before, wait, ct) is not null);
     }
+    public static bool IsKept(SubtitleKept kept) => kept is SubtitleKept.Kept or SubtitleKept.KeptInJellyfinData;
     public static string TooBigText => L("Ce fichier est trop gros pour des sous-titres : Mira ne l’envoie pas à Jellyfin.", "This file is too big to be subtitles: Mira doesn’t send it to Jellyfin.");
     public static string UnreadableText => L("Mira n’a pas pu relire ce fichier de sous-titres : il a peut-être été déplacé.", "Mira couldn’t read this subtitle file again: it may have been moved.");
     /// <summary>A file loaded during playback, read to be sent (<see cref="Guess"/> for what it is); null when it is too big to be subtitles.</summary>

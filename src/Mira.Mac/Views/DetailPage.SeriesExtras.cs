@@ -44,7 +44,7 @@ public sealed partial class DetailPage
     /// <summary>The bonus videos in place of the episodes: « Bonus · 48 · 1 h 12 », then a row for each kind.</summary>
     private void DrawExtras(Session session)
     {
-        _episodeHeading.Text = SeriesExtras.Heading(_seriesExtras); _seasonMark.IsVisible = false;
+        _episodeHeading.Text = SeriesExtras.Heading(_seriesExtras); _seasonMark.IsVisible = _seasonSubtitles.IsVisible = false;
         var width = _episodes.Bounds.Width > 200 ? _episodes.Bounds.Width : Math.Max(600, Bounds.Width - 112 - MainWindow.RailWidth);
         _extrasColumns = EpisodeTiles.Columns(width);
         foreach (var group in SeriesExtras.Groups(_seriesExtras, _item.Name))

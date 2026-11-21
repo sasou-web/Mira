@@ -69,7 +69,7 @@ public partial class MainWindow
         ClosePreview(); _images?.DropWarming(); _detail = item; _detailSettled = null; DetailOverview.Text = ""; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
         _detailArtDone = _similarDone = false; _detailSize = null; _episodeSizes = null; _episodeMeta.Clear();
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
-        StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = SeasonMoreButton.Visibility = Visibility.Collapsed;
+        StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = SeasonMoreButton.Visibility = SeasonSubtitlesButton.Visibility = Visibility.Collapsed;
         _extras = []; _extrasOpen.Clear(); ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
         // Over Settings or Help (a notification, the mini player's title): the page is what was asked for.
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); _ = Motion.HideAsync(GuideOverlay); SmoothScroll.Jump(DetailScroll);
@@ -650,7 +650,7 @@ public partial class MainWindow
         var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
         // The whole season's count, also on a slice of a long one, and the room it takes once known.
         EpisodeHeading.Text = EpisodeTiles.Heading(_episodes, page, _episodeSizes);
-        ShowSeasonMark(page); ShowSeasonMore(page);
+        ShowSeasonMark(page); ShowSeasonMore(page); _ = ShowSeasonSubtitlesAsync(page);
         if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Palette.Get("Muted") }); return; }
         // The episode Lecture plays is in another season than the one shown (a long anime opened on its first): a click brings it.
         if (_detailEpisode is null && _detailNext is { } next && EpisodePages.NextElsewhere(SeasonPages(), _episodes, page, next) is { } elsewhere)

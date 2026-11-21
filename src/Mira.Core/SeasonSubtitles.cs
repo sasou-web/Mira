@@ -87,5 +87,52 @@ public static class SeasonSubtitles
         }
         return found;
     }
+    /// <summary>The episodes of the seasons before <paramref name="season"/>, counted by their last numbers (specials left out): where a number counted from the start of the series starts this season.</summary>
+    public static int Before(IEnumerable<MediaItem> episodes, int season) =>
+        episodes.Where(x => EpisodePages.Season(x) is var s && s >= 1 && s < season).GroupBy(EpisodePages.Season).Sum(g => g.Max(x => x.IndexNumber ?? 0));
+
+    /// <summary>« la saison 10 » / « Season 10 », « les épisodes spéciaux » / « Specials ».</summary>
+    public static string SeasonName(int season) => season == 0 ? L("les épisodes spéciaux", "Specials") : L($"la saison {season}", $"Season {season}");
+    public static string ButtonName(int season) => L($"Ajouter des sous-titres à {SeasonName(season)}…", $"Add subtitles to {SeasonName(season)}…");
+    public static string Heading(int season) => season == 0 ? L("Sous-titres des épisodes spéciaux", "Subtitles for the specials") : L($"Sous-titres de la saison {season}", $"Subtitles for Season {season}");
+    public static string PickerFilter => L("Sous-titres ou .zip|*.zip;*.srt;*.ass;*.ssa;*.vtt;*.sub", "Subtitles or a .zip|*.zip;*.srt;*.ass;*.ssa;*.vtt;*.sub");
+    public static string PickerTitle(int season) => L($"Sous-titres pour {SeasonName(season)} : un .zip ou plusieurs fichiers", $"Subtitles for {SeasonName(season)}: a .zip or several files");
+    public static string NoneFound => L("Aucun fichier de sous-titres là-dedans (.srt, .ass, .ssa, .vtt, .sub, ou un .zip qui en contient).", "No subtitle file in there (.srt, .ass, .ssa, .vtt, .sub, or a .zip of them).");
+    public static string Unreadable => L("Mira n’a pas pu lire ces fichiers : un .zip abîmé, ou un fichier déplacé.", "Mira couldn’t read these files: a damaged .zip, or a file that moved.");
+    /// <summary>A language's pill: « FR » for « fre ».</summary>
+    public static string Pill(string code) => (TrackLanguages.Known.FirstOrDefault(x => x.Codes.Split(',').Contains(code)).Two ?? code).ToUpperInvariant();
+    public static string Choose => L("Choisir un épisode", "Choose an episode");
+    public static string Skip => L("Ne pas envoyer", "Don’t send");
+    public static string Cancel => L("Annuler", "Cancel");
+    public static string Done => L("Terminé", "Done");
+    /// <summary>The languages of the files sent, by name (« French »), for the lead line.</summary>
+    public static string Languages(IEnumerable<PackMatch> matches) =>
+        string.Join(", ", matches.Select(x => PlayerText.Language(x.Guess.Language) ?? x.Guess.Language).Distinct());
+    /// <summary>« 6 of 7 files match an episode · French ».</summary>
+    public static string Lead(IReadOnlyList<PackMatch> matches)
+    {
+        var matched = matches.Count(x => x.Episode is not null);
+        var said = matched == matches.Count
+            ? L($"{Count(matches.Count, "fichier", "fichiers", "file", "files")}, chacun sur son épisode", $"{Count(matches.Count, "fichier", "fichiers", "file", "files")}, each on its episode")
+            : matched == 0 ? L("Aucun nom ne donne un épisode de cette saison : choisis-le pour chaque fichier", "No name gives an episode of this season: choose one for each file")
+            : L($"{matched} fichiers sur {matches.Count} correspondent à un épisode", $"{matched} of {matches.Count} files match an episode");
+        return matches.Count == 0 ? said : said + " · " + Languages(matches.Where(x => x.Episode is not null || matched == 0));
+    }
+    public static string Go(int count) => count == 0 ? L("Garder sur Jellyfin", "Keep on Jellyfin") : L($"En garder {count} sur Jellyfin", $"Keep {count} on Jellyfin");
+    public static string Sending(int done, int count) => L($"Envoi à Jellyfin… {done} sur {count}", $"Sending to Jellyfin… {done} of {count}");
+    /// <summary>What became of the files sent: those kept, then each one Jellyfin refused, by its episode.</summary>
+    public static string Result(IReadOnlyList<(PackMatch Match, SubtitleKept Kept, bool Listed)> sent)
+    {
+        var kept = sent.Where(x => JellyfinSubtitles.IsKept(x.Kept)).ToList();
+        var lines = new List<string>();
+        if (kept.Count > 0)
+            lines.Add(L($"{Count(kept.Count, "sous-titre gardé", "sous-titres gardés", "subtitle kept", "subtitles kept")} sur Jellyfin, en {Languages(kept.Select(x => x.Match)).ToLower(Culture)} : tes autres appareils les proposent aussi.",
+                $"{Count(kept.Count, "sous-titre gardé", "sous-titres gardés", "subtitle kept", "subtitles kept")} on Jellyfin, in {Languages(kept.Select(x => x.Match))}: your other devices offer them too.")
+                + (kept.Any(x => !x.Listed) ? JellyfinSubtitles.NotListedText : ""));
+        foreach (var failed in sent.Where(x => !JellyfinSubtitles.IsKept(x.Kept)))
+            lines.Add(L($"E{failed.Match.Episode?.IndexNumber:00}\u00A0: ", $"E{failed.Match.Episode?.IndexNumber:00}: ") + JellyfinSubtitles.KeptText(failed.Kept, failed.Match.Guess.Language));
+        return string.Join("\n", lines);
+    }
+
     private static bool IsSubtitle(string name) => name.Length > 0 && JellyfinSubtitles.Formats.Contains(Path.GetExtension(name).TrimStart('.').ToLowerInvariant());
 }
