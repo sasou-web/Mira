@@ -126,6 +126,10 @@ public partial class App : Application
             // --offscreen: validation runs with an isolated profile (update checks) stay off the user's screen, closable as usual.
             else if (args.Contains("--offscreen") && dataArg >= 0) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; }
             if (args.Contains("--qa-window")) window.Title = L("Mira · Validation du lecteur", "Mira · Player validation");
+#if MIRA_VALIDATION
+            // --ui-audit: cloaked before it is ever shown, with every menu and dialog it opens (Checks/AuditCloak.cs).
+            if (args.Contains("--ui-audit")) window.KeepUnderEverything();
+#endif
             window.Show(); _shown = true;
             // Started at sign-in: put away by the clock once shown (MainWindow.SignIn.cs).
             window.PutAwayAtSignIn();

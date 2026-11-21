@@ -25,7 +25,8 @@ namespace Mira.Desktop;
 /// tiles (a synthetic MouseEnter: the pointer never moves) and the transitions, frame by frame. Read-only: no
 /// playback, no search, nothing marked or changed on Jellyfin; menus are opened, never chosen from.
 /// The window is on screen (a menu is only placed for real there: WPF keeps a popup on the screen, not in the window)
-/// but never activated, under every other window, out of the taskbar.
+/// but never activated, under every other window, out of the taskbar, and cloaked with its menus and dialogs
+/// (<see cref="AuditCloak"/>): nobody sees it.
 /// </summary>
 public partial class MainWindow
 {
@@ -71,10 +72,12 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Under every other window, never activated (App.OnStartup showed it without activation, out of the taskbar).</summary>
+    /// <summary>Under every other window, never activated (App.OnStartup showed it without activation, out of the taskbar),
+    /// and cloaked with every menu and dialog it opens (<see cref="AuditCloak"/>): never seen on the screen.</summary>
     internal void KeepUnderEverything()
     {
-        var handle = new WindowInteropHelper(this).Handle;
+        var handle = new WindowInteropHelper(this).EnsureHandle();
+        AuditCloak.Start(handle);
         // HWND_BOTTOM; SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE.
         SetWindowPos(handle, new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
     }
@@ -332,6 +335,10 @@ public partial class MainWindow
         var popups = new List<(FrameworkElement Root, Rect Place, BitmapSource Picture)>();
         foreach (var (popup, place) in OpenPopups(root))
         {
+            // Seen on the Dell's screen at night before (2026-11-21): said in the report if one ever shows again.
+            if (PresentationSource.FromVisual(popup) is HwndSource { Handle: var shown } && !AuditCloak.IsCloaked(shown)
+                && run.Notes.Find(x => x.StartsWith("Visible à l'écran", StringComparison.Ordinal)) is null)
+                run.Notes.Add($"Visible à l'écran : « {Describe(popup)} » ({screen}) n'était pas masqué (AuditCloak).");
             var picture = Picture(popup);
             var ink = Ink(picture, popup);
             var drawn = new Rect(place.X + ink.X, place.Y + ink.Y, ink.Width, ink.Height);
