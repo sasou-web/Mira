@@ -24,24 +24,38 @@ public partial class MainWindow
     /// its plugins: the repository moves forward to this version's checked one, never back, and nothing is installed or
     /// restarted (<see cref="JellyfinClient.KeepWebAppCurrentAsync"/>). Jellyfin's own update task installs the new
     /// version, under its own rules: a plugin uninstalled, disabled or kept from updating by the administrator stays so.
-    /// Silent: not allowed, offline or not published, it is tried again at the next start; once done, not again for this
+    /// Silent: not allowed or not published, it is tried again at the next start; Jellyfin not answering, a little later
+    /// (<see cref="MiraWebRetry"/>); once done, not again for this
     /// version and this server. Then the new version brought the same day (<see cref="BringMiraWebNowAsync"/>).
     /// </summary>
     private async Task KeepMiraWebCurrentAsync()
     {
         if (_demo || OwnClient is not { } client || ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) is not { } version) return;
         var done = $"{version.ToString(3)} {client.Connection.Server}";
-        try
+        // Jellyfin not answering yet is tried again while this account stays signed in: on Jellyfin's PC, Mira starts
+        // at sign-in before Jellyfin's service does (the Dell, 2026-11-26: Mira at 13:24, Jellyfin at 13:25), and that
+        // PC's Mira rarely starts again, so Jellyfin kept 0.9.16 of the extension under Mira 0.9.17 for days.
+        for (var attempt = 0; ; attempt++)
         {
-            if (_settings.MiraWebUpdated != done)
+            try
             {
-                if (!await client.KeepWebAppCurrentAsync(version, VerifiedMiraWebAsync)) return;
-                _settings.MiraWebUpdated = done; _profile.SaveSettings(_settings);
+                if (_settings.MiraWebUpdated != done)
+                {
+                    if (!await client.KeepWebAppCurrentAsync(version, VerifiedMiraWebAsync)) return;
+                    _settings.MiraWebUpdated = done; _profile.SaveSettings(_settings);
+                }
+                if (_settings.MiraWebServed != done) await BringMiraWebNowAsync(client, version, done);
+                return;
             }
-            if (_settings.MiraWebServed != done) await BringMiraWebNowAsync(client, version, done);
+            // Not published or not checked: the next start.
+            catch (UpdateException) { return; }
+            catch (Exception ex) when (IsExpected(ex)) { }
+            await Task.Delay(MiraWebRetry(attempt));
+            if (_closing || !ReferenceEquals(client, _client)) return;
         }
-        catch (Exception ex) when (ex is UpdateException || IsExpected(ex)) { }
     }
+    /// <summary>1, 2 and 5 minutes, then every quarter of an hour.</summary>
+    internal static TimeSpan MiraWebRetry(int attempt) => TimeSpan.FromMinutes(attempt switch { 0 => 1, 1 => 2, 2 => 5, _ => 15 });
 
     /// <summary>
     /// The same day rather than after Jellyfin's next restart: where Jellyfin serves an older Mira web, its « Update

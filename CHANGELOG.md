@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- **The extension follows Mira on Jellyfin's PC again (Windows)**: Mira started at sign-in before Jellyfin, found it silent and gave up moving Mira's extension to its own version until its next start, which on Jellyfin's PC can be days away (the Dell kept the 0.9.16 extension under Mira 0.9.17). It now tries again a minute later, then every few minutes, until Jellyfin answers.
+
 ## 0.9.17 — 2026-11-21
 
 - **“Next episode” stays on screen after Cancel (Windows, Mac)**: once you (or someone in your Watch together group) press Cancel on the next-episode countdown, the “Next episode” pill now stays over the credits without the player's controls; it used to show only while the controls were up, so in a group neither member saw it.
