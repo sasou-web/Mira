@@ -17,7 +17,7 @@ public static class HomeText
     public static string OwnAccount => L("J’ai mon propre compte", "I have my own account");
     public static string Leave => L("Quitter ce foyer", "Leave this home");
     public static string PinOf(string name) => L($"Code de {name}", $"{name}’s PIN");
-    public static string PinNote => L("Vérifié par l’extension Mira de Jellyfin, pas par cet appareil. 5 erreurs bloquent le profil 5 minutes.", "Checked by Jellyfin’s Mira plugin, not by this device. 5 wrong tries lock the profile for 5 minutes.");
+    public static string PinNote => L("Vérifié par l’extension Mira de Jellyfin, pas par cet appareil. 5 erreurs bloquent le profil 5 minutes, une heure pour un administrateur.", "Checked by Jellyfin’s Mira plugin, not by this device. 5 wrong tries lock the profile for 5 minutes, an hour for an administrator.");
     public static string PinLeft(int left) => left <= 0 ? L("Ce n’est pas le bon code.", "That’s not the right PIN.")
         : L($"Ce n’est pas le bon code. Encore {Lang.Count(left, "essai", "essais", "try", "tries")}.", $"That’s not the right PIN. {Lang.Count(left, "essai", "essais", "try", "tries")} left.");
     public static string PinWait(int seconds) => L($"Trop d’essais : réessaie dans {Math.Max(1, (seconds + 59) / 60)} min.", $"Too many tries: try again in {Math.Max(1, (seconds + 59) / 60)} min.");

@@ -7755,12 +7755,12 @@
         }
       }
     },
-    "Checked by Jellyfin’s Mira plugin, not by this iPhone. 5 wrong tries lock the profile for 5 minutes.": {
+    "Checked by Jellyfin’s Mira plugin, not by this iPhone. 5 wrong tries lock the profile for 5 minutes, an hour for an administrator.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vérifié par l’extension Mira de Jellyfin, pas par cet iPhone. 5 erreurs bloquent le profil 5 minutes."
+            "value": "Vérifié par l’extension Mira de Jellyfin, pas par cet iPhone. 5 erreurs bloquent le profil 5 minutes, une heure pour un administrateur."
           }
         }
       }
@@ -8175,12 +8175,12 @@
         }
       }
     },
-    "One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. No administrator is ever one of them.": {
+    "One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. An administrator is one of them only with a PIN.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Aucun administrateur n’en fait partie."
+            "value": "Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Un administrateur n’en fait partie qu’avec un code."
           }
         }
       }

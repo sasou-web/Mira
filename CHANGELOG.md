@@ -5,6 +5,7 @@
 ## Unreleased
 
 - **The extension follows Mira on Jellyfin's PC again (Windows)**: Mira started at sign-in before Jellyfin, found it silent and gave up moving Mira's extension to its own version until its next start, which on Jellyfin's PC can be days away (the Dell kept the 0.9.16 extension under Mira 0.9.17). It now tries again a minute later, then every few minutes, until Jellyfin answers.
+- **The home says the truth about administrators (Windows, Mac, iPhone)**: before the home is on, Settings → Family & profiles said “No administrator is ever one of them”, while an administrator can be a profile behind a PIN since 0.9.16; the PIN screen said five wrong tries lock a profile for 5 minutes, but an administrator's is locked for an hour. Both now say so. Seen on the Dell.
 
 ## 0.9.17 — 2026-11-21
 
