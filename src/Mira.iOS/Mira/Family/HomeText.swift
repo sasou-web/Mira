@@ -14,7 +14,7 @@ enum HomeText {
     static var ownAccount: String { String(localized: "I have my own account") }
     static var leave: String { String(localized: "Leave this home") }
     static func pinOf(_ name: String) -> String { String(localized: "\(name)’s PIN") }
-    static var pinNote: String { String(localized: "Checked by Jellyfin’s Mira plugin, not by this iPhone. 5 wrong tries lock the profile for 5 minutes.") }
+    static var pinNote: String { String(localized: "Checked by Jellyfin’s Mira plugin, not by this iPhone. 5 wrong tries lock the profile for 5 minutes, an hour for an administrator.") }
     static func pinLeft(_ left: Int) -> String {
         left <= 0 ? String(localized: "That’s not the right PIN.") : String(localized: "That’s not the right PIN. \(left) tries left.")
     }

@@ -102,7 +102,7 @@ public partial class MainWindow
     {
         var body = FamilyCard(L("Mot de passe du foyer", "Home password"), settings.Home
             ? L("Ta famille l’utilise une fois par appareil, puis choisit son profil. Le changer fait sortir tous les appareils du foyer.", "Your family types it once per device, then picks their profile. Changing it signs every device out of the home.")
-            : L("Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Aucun administrateur n’en fait partie.", "One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. No administrator is ever one of them."));
+            : L("Un seul mot de passe pour toute la famille : sur un appareil, il ouvre « Qui regarde ? » avec les profils que tu choisis ci-dessous. Un administrateur n’en fait partie qu’avec un code.", "One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. An administrator is one of them only with a PIN."));
         if (settings.Home && settings.Changed is { } changed) body.Children.Add(FamilyNote(L($"Activé depuis le {Date(changed.ToLocalTime())}.", $"On since {Date(changed.ToLocalTime())}.")));
         var password = new PasswordBox { Width = 260 };
         // What to type, while the box is empty (as the Mac's watermark).

@@ -125,7 +125,7 @@ struct HomeSettingsView: View {
             Text(verbatim: HomeText.password)
         } footer: {
             settings.home ? Text("Your family types it once per device, then picks their profile. Changing it signs every device out of the home.")
-                : Text("One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. No administrator is ever one of them.")
+                : Text("One password for the whole family: on a device, it opens “Who’s watching?” with the profiles you pick below. An administrator is one of them only with a PIN.")
         }
         .listRowBackground(Palette.surface)
     }
