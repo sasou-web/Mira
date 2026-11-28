@@ -297,6 +297,12 @@ public sealed class HomeController : ControllerBase
             return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas répondu. Réessaie dans un instant.");
         }
 
+        // An account let download before « Manage subtitles » came with it: given now, once.
+        foreach (var user in users.OfType<JsonObject>().Where(x => Account.Of(x) is { Id: { } id, Admin: false } && Home.CanDownload(id) && !Home.SubtitlesGiven(id)).ToList())
+        {
+            await SubtitlesWithDownloadAsync(client, Account.Of(user).Id!, user, true, cancellationToken).ConfigureAwait(false);
+        }
+
         var offered = Home.Profiles().ToDictionary(x => x.User, StringComparer.Ordinal);
         var accounts = users.OfType<JsonObject>().Select(Account.Of).Where(x => x.Id is not null && !Plugin.Invites.IsGuestAccount(x.Id))
             .Select(x => new
@@ -427,18 +433,52 @@ public sealed class HomeController : ControllerBase
             return BadRequest();
         }
 
-        if (allowed)
+        using var client = _clients.CreateClient();
+        var (status, text) = await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Get, $"Users/{userId}", Admin(), null, cancellationToken).ConfigureAwait(false);
+        var found = status == (int)HttpStatusCode.OK ? GuestAccounts.Parse(text) as JsonObject : null;
+        var account = found is null ? null : Account.Of(found);
+        if (allowed && (account?.Id is null || Plugin.Invites.IsGuestAccount(account.Id)))
         {
-            using var client = _clients.CreateClient();
-            var (status, text) = await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Get, $"Users/{userId}", Admin(), null, cancellationToken).ConfigureAwait(false);
-            var account = status == (int)HttpStatusCode.OK && GuestAccounts.Parse(text) is JsonObject found ? Account.Of(found) : null;
-            if (account?.Id is null || Plugin.Invites.IsGuestAccount(account.Id))
+            return Refuse(StatusCodes.Status404NotFound, "Ce compte n’existe pas sur ce Jellyfin.");
+        }
+
+        if (!Home.SetDownload(userId, allowed))
+        {
+            return BadRequest();
+        }
+
+        // « Manage subtitles » goes with it: what such a profile loads in the player is kept on Jellyfin (HomeFamily.SubtitlesGiven).
+        if (found is not null && !account!.Admin)
+        {
+            await SubtitlesWithDownloadAsync(client, userId, found, allowed, cancellationToken).ConfigureAwait(false);
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Jellyfin's « Manage subtitles » of an account given with « Can download » (once), or taken back with it when the
+    /// extension gave it; its whole policy read and sent back, as Jellyfin's dashboard does.
+    /// </summary>
+    private async Task SubtitlesWithDownloadAsync(HttpClient client, string userId, JsonObject user, bool download, CancellationToken cancellationToken)
+    {
+        if (user["Policy"] is not JsonObject policy || (!download && !Home.SubtitlesGiven(userId)) || (download && Home.SubtitlesGiven(userId)))
+        {
+            return;
+        }
+
+        var on = policy["EnableSubtitleManagement"] is JsonValue v && v.TryGetValue<bool>(out var flag) && flag;
+        if (on != download)
+        {
+            policy["EnableSubtitleManagement"] = download;
+            var (status, _) = await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Post, $"Users/{userId}/Policy", Admin(), policy.ToJsonString(), cancellationToken).ConfigureAwait(false);
+            if (status is not ((int)HttpStatusCode.OK or (int)HttpStatusCode.NoContent))
             {
-                return Refuse(StatusCodes.Status404NotFound, "Ce compte n’existe pas sur ce Jellyfin.");
+                return;
             }
         }
 
-        return Home.SetDownload(userId, allowed) ? NoContent() : BadRequest();
+        Home.SetSubtitlesGiven(userId, download);
     }
 
     /// <summary>A profile's PIN set or taken off by the administrator, without the current one.</summary>

@@ -427,13 +427,17 @@ await part('relais', async () => {
     const [refusedByFriend, allowed] = friendId ? [await call('PUT', `Mira/home/profiles/${friendId}/download`, { token: friend, device: 'check-friend', body: { download: true } }),
       await call('PUT', `Mira/home/profiles/${friendId}/download`, { token: host, body: { download: true } })] : [];
     const listedDownload = friendId ? (await call('GET', 'Mira/home/settings', { token: host })).json?.profiles?.find((p) => p.id === friendId)?.download : null;
+    // « Manage subtitles » comes with it (what that profile loads in the player is kept on Jellyfin), and goes with it.
+    const subtitles = async () => (await call('GET', `Users/${friendId}`, { token: host })).json?.Policy?.EnableSubtitleManagement;
+    const subtitlesWith = friendId ? await subtitles() : null;
     const downloader = friendId ? [await call('GET', 'Mira/torlink', { token: friend, device: 'check-friend' }),
       await call('POST', 'Mira/torlink/agent', { token: friend, device: 'check-friend', body: { name: 'X', accepting: true } })] : [];
     if (friendId) await call('PUT', `Mira/home/profiles/${friendId}/download`, { token: host, body: { download: false } });
     const after = friendId ? await call('GET', 'Mira/torlink', { token: friend, device: 'check-friend' }) : null;
-    check('relais : « Can download » laisse un compte non administrateur utiliser TorLink, jamais comme agent, et se retire',
-      refusedByFriend?.status === 403 && allowed?.status === 204 && listedDownload === true && downloader[0]?.status === 200 && downloader[1]?.status === 403 && after?.status === 403,
-      `par lui-même ${refusedByFriend?.status} ; par l’administrateur ${allowed?.status} ; réglages ${listedDownload} ; TorLink ${downloader[0]?.status}, agent ${downloader[1]?.status} ; retiré ${after?.status}`);
+    const subtitlesAfter = friendId ? await subtitles() : null;
+    check('relais : « Can download » laisse un compte non administrateur utiliser TorLink, jamais comme agent, avec ses sous-titres, et se retire',
+      refusedByFriend?.status === 403 && allowed?.status === 204 && listedDownload === true && downloader[0]?.status === 200 && downloader[1]?.status === 403 && after?.status === 403 && subtitlesWith === true && subtitlesAfter === false,
+      `par lui-même ${refusedByFriend?.status} ; par l’administrateur ${allowed?.status} ; réglages ${listedDownload} ; TorLink ${downloader[0]?.status}, agent ${downloader[1]?.status} ; retiré ${after?.status} ; sous-titres ${subtitlesWith} puis ${subtitlesAfter}`);
   } finally {
     fake.stop = true; await loop;
   }
