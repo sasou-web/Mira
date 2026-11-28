@@ -329,6 +329,50 @@ public sealed class HomeFamily
         lock (_gate) { return _store.Downloaders.ToList(); }
     }
 
+    /// <summary>
+    /// Whether the extension already gave this account Jellyfin's « Manage subtitles » with « Can download » (ogsas,
+    /// 2026-11-28: a profile that may download keeps the subtitles it loads on Jellyfin too). Given once: an
+    /// administrator who turns it off in Jellyfin's dashboard afterwards is not overruled; taken back with « Can download »
+    /// only when the extension gave it.
+    /// </summary>
+    public bool SubtitlesGiven(string? user)
+    {
+        if (Plain(user) is not { } id)
+        {
+            return false;
+        }
+
+        lock (_gate) { return _store.SubtitleGrants.Contains(id); }
+    }
+
+    /// <summary>Notes that the extension gave this account « Manage subtitles », or took it back.</summary>
+    public void SetSubtitlesGiven(string user, bool given)
+    {
+        if (Plain(user) is not { } id)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_store.SubtitleGrants.Contains(id) == given)
+            {
+                return;
+            }
+
+            if (given)
+            {
+                _store.SubtitleGrants.Add(id);
+            }
+            else
+            {
+                _store.SubtitleGrants.Remove(id);
+            }
+
+            Save();
+        }
+    }
+
     /// <summary>An account let download, or no longer; false for an id that is not one.</summary>
     public bool SetDownload(string user, bool allowed)
     {
@@ -507,6 +551,7 @@ public sealed class HomeFamily
 
             _store.Devices.RemoveAll(x => string.IsNullOrEmpty(x.Id) || string.IsNullOrEmpty(x.Token));
             _store.Downloaders = _store.Downloaders.Select(Plain).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+            _store.SubtitleGrants = (_store.SubtitleGrants ?? []).Select(Plain).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
         }
         catch (Exception error) when (error is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -542,6 +587,8 @@ public sealed class HomeFamily
         public List<HomeProfile> Profiles { get; set; } = [];
         public List<HomeDevice> Devices { get; set; } = [];
         public List<string> Downloaders { get; set; } = [];
+        /// <summary>The accounts whose « Manage subtitles » the extension turned on with « Can download » (<see cref="SubtitlesGiven"/>).</summary>
+        public List<string> SubtitleGrants { get; set; } = [];
     }
 }
 
