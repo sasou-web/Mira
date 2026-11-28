@@ -17,21 +17,22 @@ namespace Mira.Jellyfin;
 /// <see cref="ManyExtras"/> extras is refreshed here instead, as Jellyfin's queue does it minus the extras: the title
 /// itself (<see cref="IProviderManager.RefreshSingleItem"/>), then a series' seasons and episodes one after the other
 /// (<see cref="IMetadataContainer.RefreshAllMetadata"/>). Its extras keep what Jellyfin read of them; a new file (episode
-/// or extra) is found by the library scan, as for any title. One title at a time. A title with few extras goes to Jellyfin's queue, as before.
+/// or extra) is found by the library scan, as for any title; an extra without a still gets one after (<see cref="ExtraStills"/>). One title at a time. A title with few extras goes to Jellyfin's queue, as before.
 /// </summary>
 public sealed class TitleRefresh : IHostedService, IDisposable
 {
     public const int ManyExtras = 4;
     private readonly ILibraryManager _library;
     private readonly IProviderManager _providers;
+    private readonly IFileSystem _fileSystem;
     private readonly ILogger<TitleRefresh> _logger;
     private readonly Channel<(Guid Id, MetadataRefreshOptions Options)> _queue = Channel.CreateUnbounded<(Guid, MetadataRefreshOptions)>(new UnboundedChannelOptions { SingleReader = true });
     private readonly CancellationTokenSource _stop = new();
     private Task? _loop;
 
-    public TitleRefresh(ILibraryManager library, IProviderManager providers, ILogger<TitleRefresh> logger)
+    public TitleRefresh(ILibraryManager library, IProviderManager providers, IFileSystem fileSystem, ILogger<TitleRefresh> logger)
     {
-        _library = library; _providers = providers; _logger = logger;
+        _library = library; _providers = providers; _fileSystem = fileSystem; _logger = logger;
     }
 
     /// <summary>Refreshes <paramref name="item"/> with <paramref name="options"/>: here when it has many extras, otherwise by Jellyfin's queue.</summary>
@@ -40,15 +41,18 @@ public sealed class TitleRefresh : IHostedService, IDisposable
         if (Extras(item) <= ManyExtras || !_queue.Writer.TryWrite((item.Id, options))) _providers.QueueRefresh(item.Id, options, priority);
     }
 
-    /// <summary>How many extras a title has. <c>GetExtras()</c> in 10.9 and 10.10, <c>GetExtras(User user = null)</c> since: called by name, its arguments left to their defaults.</summary>
-    public static int Extras(BaseItem item)
+    /// <summary>How many extras a title has.</summary>
+    public static int Extras(BaseItem item) => ExtrasOf(item).Count;
+
+    /// <summary>A title's extras. <c>GetExtras()</c> in 10.9 and 10.10, <c>GetExtras(User user = null)</c> since: called by name, its arguments left to their defaults.</summary>
+    public static IReadOnlyList<BaseItem> ExtrasOf(BaseItem item)
     {
         try
         {
             var method = typeof(BaseItem).GetMethods().FirstOrDefault(m => m.Name == "GetExtras" && m.GetParameters().All(p => p.IsOptional));
-            return method?.Invoke(item, method.GetParameters().Select(_ => Type.Missing).ToArray()) is IEnumerable extras ? extras.Cast<object>().Count() : 0;
+            return method?.Invoke(item, method.GetParameters().Select(_ => Type.Missing).ToArray()) is IEnumerable extras ? extras.OfType<BaseItem>().ToList() : [];
         }
-        catch (Exception ex) when (ex is System.Reflection.TargetInvocationException or InvalidOperationException) { return 0; }
+        catch (Exception ex) when (ex is System.Reflection.TargetInvocationException or InvalidOperationException) { return []; }
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -96,6 +100,8 @@ public sealed class TitleRefresh : IHostedService, IDisposable
         {
             if (item is Folder) _providers.OnRefreshComplete(item);
         }
+        // Its extras keep what Jellyfin read of them, but one without a still gets it now, one at a time (ExtraStills).
+        await ExtraStills.FillAsync(_providers, _fileSystem, _logger, ExtrasOf(item), ct).ConfigureAwait(false);
     }
 
     public void Dispose() => _stop.Dispose();

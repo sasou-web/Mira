@@ -492,6 +492,21 @@ await part('actualiser', async () => {
 // (MIRA_CHECK_TICK_SECONDS, web.yml).
 const until = async (test, seconds) => { for (const limit = Date.now() + seconds * 1000; Date.now() < limit; await sleep(1000)) { const value = await test(); if (value) return value; } return null; };
 
+// A bonus video without its still (renamed, moved, met while Jellyfin was busy): Jellyfin's scan never draws it again,
+// the extension does after each scan (ExtraStills), one at a time.
+await part('image des bonus', async () => {
+  const series = (await items('includeItemTypes=Series&searchTerm=Courte Web'))[0];
+  const extras = async () => (await call('GET', `Items/${series?.Id}/SpecialFeatures?userId=${me.Id}`, { token: host })).json ?? [];
+  const extra = (await extras())[0];
+  const removed = extra ? (await call('DELETE', `Items/${extra.Id}/Images/Primary`, { token: host })).status : 0;
+  const gone = !(await extras()).find((x) => x.Id === extra?.Id)?.ImageTags?.Primary;
+  await call('POST', 'Library/Refresh', { token: host });
+  const back = await until(async () => (await extras()).find((x) => x.Id === extra?.Id)?.ImageTags?.Primary, 120);
+  const picture = back ? await fetch(`${base}/Items/${extra.Id}/Images/Primary?tag=${back}`) : null;
+  check('image des bonus : un bonus sans image en retrouve une après le scan', !!extra && removed === 204 && gone && !!back && picture?.ok && /image\//.test(picture.headers.get('content-type') ?? ''),
+    `bonus ${extra?.Name ?? 'absent'}, retirée ${removed}, puis ${back ? 'revenue' : 'toujours absente'}`);
+});
+
 // « Sous-titres automatiques » for the whole library, in a language no test title has (German), from the fake
 // OpenSubtitles: each title searched, its subtitle downloaded, written by Jellyfin where the library keeps them and
 // listed with the title. Nothing reaches the real service.
